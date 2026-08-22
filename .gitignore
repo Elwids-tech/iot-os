@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.tools/
+
+node_modules/
+.turbo/
+coverage/
+dist/
+
+vendor/
+
+*.test
+*.out
+
+deploy/compose/data/
+

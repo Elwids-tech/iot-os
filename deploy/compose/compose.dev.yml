@@ -1,0 +1,137 @@
+name: ${IOT_COMPOSE_PROJECT_NAME:-iot-os-dev}
+
+services:
+  timescaledb:
+    image: ${IOT_POSTGRES_IMAGE}
+    environment:
+      POSTGRES_DB: ${IOT_POSTGRES_DATABASE}
+      POSTGRES_USER: ${IOT_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${IOT_POSTGRES_PASSWORD}
+    ports:
+      - "${IOT_POSTGRES_PORT}:5432"
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - internal
+
+  redis:
+    image: ${IOT_REDIS_IMAGE}
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${IOT_REDIS_PORT}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - internal
+
+  nats:
+    image: ${IOT_NATS_IMAGE}
+    command: ["--jetstream", "--store_dir=/data", "--http_port=8222"]
+    ports:
+      - "${IOT_NATS_CLIENT_PORT}:4222"
+      - "${IOT_NATS_MONITOR_PORT}:8222"
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8222/healthz >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - internal
+
+  emqx:
+    image: ${IOT_EMQX_IMAGE}
+    environment:
+      EMQX_NODE__COOKIE: ${IOT_EMQX_COOKIE}
+      EMQX_DASHBOARD__DEFAULT_USERNAME: ${IOT_EMQX_DASHBOARD_USER}
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: ${IOT_EMQX_DASHBOARD_PASSWORD}
+    ports:
+      - "${IOT_MQTT_PORT}:1883"
+      - "${IOT_MQTT_WEBSOCKET_PORT}:8083"
+      - "${IOT_EMQX_DASHBOARD_PORT}:18083"
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      - device
+      - internal
+
+  node-red:
+    image: ${IOT_NODE_RED_IMAGE}
+    environment:
+      NODE_RED_CREDENTIAL_SECRET: ${IOT_NODE_RED_CREDENTIAL_SECRET}
+      TZ: UTC
+    ports:
+      - "${IOT_NODE_RED_PORT}:1880"
+    volumes:
+      - node-red-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:1880').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      - adapter
+      - internal
+
+  minio:
+    image: ${IOT_MINIO_IMAGE}
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${IOT_MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${IOT_MINIO_ROOT_PASSWORD}
+    ports:
+      - "${IOT_MINIO_API_PORT}:9000"
+      - "${IOT_MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - internal
+
+networks:
+  device:
+  adapter:
+  internal:
+
+volumes:
+  timescaledb-data:
+  redis-data:
+  nats-data:
+  emqx-data:
+  emqx-log:
+  node-red-data:
+  minio-data:

@@ -1,0 +1,103 @@
+#!/usr/bin/env sh
+set -eu
+
+repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$repository_root/tooling/versions.env"
+
+tools_directory="$repository_root/.tools/bin"
+task_binary="$tools_directory/task"
+
+install_task() {
+  operating_system=$(uname -s | tr '[:upper:]' '[:lower:]')
+  machine_architecture=$(uname -m)
+
+  case "$operating_system" in
+    darwin|linux) ;;
+    *)
+      echo "Unsupported operating system for local Task bootstrap: $operating_system" >&2
+      exit 1
+      ;;
+  esac
+
+  case "$machine_architecture" in
+    x86_64|amd64) task_architecture=amd64 ;;
+    arm64|aarch64) task_architecture=arm64 ;;
+    *)
+      echo "Unsupported architecture for local Task bootstrap: $machine_architecture" >&2
+      exit 1
+      ;;
+  esac
+
+  for required_command in curl tar awk; do
+    if ! command -v "$required_command" >/dev/null 2>&1; then
+      echo "Missing required bootstrap command: $required_command" >&2
+      exit 1
+    fi
+  done
+
+  if command -v shasum >/dev/null 2>&1; then
+    checksum_tool=shasum
+  elif command -v sha256sum >/dev/null 2>&1; then
+    checksum_tool=sha256sum
+  else
+    echo "A SHA-256 utility is required: shasum or sha256sum." >&2
+    exit 1
+  fi
+
+  archive_name="task_${operating_system}_${task_architecture}.tar.gz"
+  release_base="https://github.com/go-task/task/releases/download/v${TASK_VERSION}"
+  bootstrap_directory=$(mktemp -d "${TMPDIR:-/tmp}/iot-os-bootstrap.XXXXXX")
+  archive_path="$bootstrap_directory/$archive_name"
+  checksums_path="$bootstrap_directory/task_checksums.txt"
+
+  echo "Installing Task v${TASK_VERSION} into .tools/bin..."
+  curl --fail --location --silent --show-error "$release_base/$archive_name" --output "$archive_path"
+  curl --fail --location --silent --show-error "$release_base/task_checksums.txt" --output "$checksums_path"
+
+  expected_checksum=$(awk -v archive="$archive_name" '$2 == archive { print $1 }' "$checksums_path")
+  if [ -z "$expected_checksum" ]; then
+    echo "Task release checksum was not found for $archive_name." >&2
+    exit 1
+  fi
+
+  if [ "$checksum_tool" = "shasum" ]; then
+    actual_checksum=$(shasum -a 256 "$archive_path" | awk '{ print $1 }')
+  else
+    actual_checksum=$(sha256sum "$archive_path" | awk '{ print $1 }')
+  fi
+  if [ "$expected_checksum" != "$actual_checksum" ]; then
+    echo "Task archive checksum verification failed." >&2
+    exit 1
+  fi
+
+  mkdir -p "$tools_directory"
+  tar -xzf "$archive_path" -C "$tools_directory" task
+  chmod 0755 "$task_binary"
+
+  rm -f "$archive_path" "$checksums_path"
+  rmdir "$bootstrap_directory"
+}
+
+if [ ! -x "$task_binary" ]; then
+  install_task
+fi
+
+if [ ! -f "$repository_root/.env" ]; then
+  cp "$repository_root/.env.example" "$repository_root/.env"
+  echo "Created .env from development-only defaults."
+else
+  echo "Existing .env preserved."
+fi
+
+"$task_binary" --dir "$repository_root" doctor
+
+if command -v pnpm >/dev/null 2>&1 && command -v go >/dev/null 2>&1; then
+  "$task_binary" --dir "$repository_root" workspace:install
+else
+  echo "Local pnpm or Go is unavailable; workspace dependency installation was skipped."
+  echo "Pinned container-based application tooling will be added before M0 completes."
+fi
+
+echo
+echo "Bootstrap complete."
+echo "Start local dependencies with: ./taskw deps:up"

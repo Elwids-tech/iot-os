@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+set -eu
+
+repository_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+local_task="$repository_root/.tools/bin/task"
+
+if [ -x "$local_task" ]; then
+  exec "$local_task" --dir "$repository_root" "$@"
+fi
+
+if command -v task >/dev/null 2>&1; then
+  exec task --dir "$repository_root" "$@"
+fi
+
+echo "Task is not installed for this repository." >&2
+echo "Run ./tooling/bootstrap first." >&2
+exit 1
+

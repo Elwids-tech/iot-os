@@ -1,6 +1,6 @@
 # P1-M0: Monorepo Foundation
 
-**Status:** Planned
+**Status:** In progress
 **Outcome:** A developer can move from a fresh clone to both React application shells and healthy backend dependencies through documented root commands.
 **Dependencies:** None
 
@@ -14,10 +14,10 @@
 
 **Engineering tasks:**
 
-- [ ] T1 — Create the agreed `apps`, `services`, `packages`, `contracts`, `integrations`, `deploy`, and `tooling` boundaries.
-- [ ] T2 — Pin supported Node/pnpm, PHP/Composer, Go, Docker, and task-runner versions.
-- [ ] T3 — Add root bootstrap and doctor commands with actionable failure messages.
-- [ ] T4 — Add safe `.env.example` files and document secret-generation boundaries.
+- [x] T1 — Create the agreed `apps`, `services`, `packages`, `contracts`, `integrations`, `deploy`, and `tooling` boundaries.
+- [x] T2 — Pin supported Node/pnpm, PHP/Composer, Go, Docker, and task-runner versions.
+- [x] T3 — Add root bootstrap and doctor commands with actionable failure messages.
+- [x] T4 — Add safe `.env.example` files and document secret-generation boundaries.
 - [ ] T5 — Verify the bootstrap flow on a clean macOS and Linux environment.
 
 ### P1-M0-E1-S2 — Start the local platform dependencies
@@ -28,11 +28,11 @@
 
 **Engineering tasks:**
 
-- [ ] T1 — Create the root development Compose profile and health checks.
+- [x] T1 — Create the root development Compose profile and health checks.
 - [ ] T2 — Configure deterministic development users, streams, buckets, and broker namespaces.
 - [ ] T3 — Add start, stop, status, logs, and non-destructive demo-reset commands.
-- [ ] T4 — Document data persistence and the exact scope of reset operations.
-- [ ] T5 — Add a smoke test that proves every dependency becomes ready.
+- [x] T4 — Document data persistence and the exact scope of reset operations.
+- [x] T5 — Add a smoke test that proves every dependency becomes ready.
 
 ## P1-M0-E2: Shared React Experience Foundation
 
@@ -93,4 +93,3 @@ From a clean clone, a developer runs the documented bootstrap and development co
 - Root test, lint, doctor, seed, and development commands are documented and working.
 - Contract fixtures are validated by all consuming language workspaces.
 - No M1 work depends on undocumented local setup.
-

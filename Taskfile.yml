@@ -1,0 +1,107 @@
+version: "3"
+
+dotenv:
+  - .env
+
+vars:
+  COMPOSE_FILE: deploy/compose/compose.dev.yml
+
+tasks:
+  default:
+    desc: List available developer tasks
+    cmds:
+      - ./taskw --list
+
+  bootstrap:
+    desc: Prepare repository-local tooling and development configuration
+    cmds:
+      - ./tooling/bootstrap
+
+  doctor:
+    desc: Diagnose required tools, configuration, and local service state
+    cmds:
+      - ./tooling/doctor
+
+  workspace:install:
+    desc: Install pinned monorepo dependencies for available workspaces
+    cmds:
+      - pnpm install --frozen-lockfile
+      - go work sync
+      - cd services/runtime && go mod download
+
+  deps:config:
+    desc: Validate the development Compose profile
+    preconditions:
+      - sh: test -f .env
+        msg: Run ./tooling/bootstrap to create .env first.
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} config --quiet
+
+  deps:up:
+    desc: Start local infrastructure dependencies and wait for health
+    deps:
+      - deps:config
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} up -d --wait
+
+  deps:status:
+    desc: Show local infrastructure dependency status
+    preconditions:
+      - sh: test -f .env
+        msg: Run ./tooling/bootstrap to create .env first.
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} ps
+
+  deps:smoke:
+    desc: Start and verify every local infrastructure dependency
+    deps:
+      - deps:up
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} exec -T timescaledb psql -U ${IOT_POSTGRES_USER} -d ${IOT_POSTGRES_DATABASE} -tAc "SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'" | grep -Eq '^[0-9]+\.'
+      - test "$(docker compose --env-file .env -f {{.COMPOSE_FILE}} exec -T redis redis-cli ping)" = "PONG"
+      - curl --fail --silent http://127.0.0.1:${IOT_NATS_MONITOR_PORT}/healthz >/dev/null
+      - curl --fail --silent http://127.0.0.1:${IOT_EMQX_DASHBOARD_PORT} >/dev/null
+      - curl --fail --silent http://127.0.0.1:${IOT_NODE_RED_PORT} >/dev/null
+      - curl --fail --silent http://127.0.0.1:${IOT_MINIO_API_PORT}/minio/health/live >/dev/null
+
+  deps:logs:
+    desc: Follow local infrastructure logs
+    preconditions:
+      - sh: test -f .env
+        msg: Run ./tooling/bootstrap to create .env first.
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} logs --follow --tail=200
+
+  deps:down:
+    desc: Stop local dependencies without deleting persistent volumes
+    preconditions:
+      - sh: test -f .env
+        msg: Run ./tooling/bootstrap to create .env first.
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} down
+
+  runtime:test:
+    desc: Run Go runtime tests
+    dir: services/runtime
+    cmds:
+      - go test ./...
+
+  runtime:dev:
+    desc: Run the Go runtime health surface locally
+    dir: services/runtime
+    env:
+      IOT_RUNTIME_HTTP_ADDRESS: '{{.IOT_RUNTIME_HTTP_ADDRESS | default ":8081"}}'
+    cmds:
+      - go run ./cmd/runtime
+
+  test:
+    desc: Run the currently implemented monorepo test suites
+    cmds:
+      - pnpm test
+      - cd services/runtime && go test ./...
+
+  lint:
+    desc: Run the currently implemented monorepo static checks
+    cmds:
+      - pnpm lint
+      - cd services/runtime && go vet ./...

@@ -1,0 +1,114 @@
+#!/usr/bin/env sh
+set -eu
+
+repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$repository_root/tooling/versions.env"
+
+failures=0
+warnings=0
+
+pass() {
+  printf 'PASS  %s\n' "$1"
+}
+
+warn() {
+  warnings=$((warnings + 1))
+  printf 'WARN  %s\n' "$1"
+}
+
+fail() {
+  failures=$((failures + 1))
+  printf 'FAIL  %s\n' "$1"
+}
+
+command_version() {
+  command_name=$1
+  expected_version=$2
+  shift
+  shift
+
+  if command -v "$command_name" >/dev/null 2>&1; then
+    version_output=$($command_name "$@" 2>&1 | sed -n '1p')
+    case "$version_output" in
+      *"$expected_version"*) pass "$command_name: $version_output" ;;
+      *) warn "$command_name: $version_output; pinned version is $expected_version" ;;
+    esac
+  else
+    warn "$command_name is not installed locally; application workspaces may use pinned containers instead."
+  fi
+}
+
+check_configured_port() {
+  port_name=$1
+  port_value=$2
+  service_name=$3
+
+  if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port_value" -sTCP:LISTEN >/dev/null 2>&1; then
+    if command -v docker >/dev/null 2>&1 && docker compose --env-file "$repository_root/.env" -f "$repository_root/deploy/compose/compose.dev.yml" ps --status running --services 2>/dev/null | grep -Fxq "$service_name"; then
+      pass "$port_name port $port_value is owned by the running development stack"
+    else
+      warn "$port_name port $port_value is already in use; confirm it will not block the development stack."
+    fi
+  else
+    pass "$port_name port $port_value is available"
+  fi
+}
+
+echo "IoT OS developer environment"
+echo "Repository: $repository_root"
+echo
+
+if [ -x "$repository_root/.tools/bin/task" ]; then
+  task_version=$($repository_root/.tools/bin/task --version)
+  pass "repository Task: $task_version (pinned $TASK_VERSION)"
+else
+  fail "repository Task is missing; run ./tooling/bootstrap"
+fi
+
+if command -v docker >/dev/null 2>&1; then
+    pass "docker: $(docker --version) (verified baseline $DOCKER_VERIFIED_VERSION)"
+  if docker info >/dev/null 2>&1; then
+    pass "Docker engine is reachable"
+  else
+    fail "Docker is installed but its engine is not reachable"
+  fi
+
+  if docker compose version >/dev/null 2>&1; then
+    pass "docker compose: $(docker compose version) (verified baseline $DOCKER_COMPOSE_VERIFIED_VERSION)"
+  else
+    fail "Docker Compose v2 is required"
+  fi
+else
+  fail "Docker is required"
+fi
+
+if [ -f "$repository_root/.env" ]; then
+  pass ".env exists"
+  set -a
+  . "$repository_root/.env"
+  set +a
+
+  check_configured_port "PostgreSQL" "$IOT_POSTGRES_PORT" timescaledb
+  check_configured_port "Redis" "$IOT_REDIS_PORT" redis
+  check_configured_port "NATS client" "$IOT_NATS_CLIENT_PORT" nats
+  check_configured_port "NATS monitor" "$IOT_NATS_MONITOR_PORT" nats
+  check_configured_port "MQTT" "$IOT_MQTT_PORT" emqx
+  check_configured_port "Node-RED" "$IOT_NODE_RED_PORT" node-red
+  check_configured_port "MinIO API" "$IOT_MINIO_API_PORT" minio
+else
+  fail ".env is missing; run ./tooling/bootstrap"
+fi
+
+command_version node "v$NODE_VERSION" --version
+command_version pnpm "$PNPM_VERSION" --version
+command_version php "PHP $PHP_VERSION" --version
+command_version composer "Composer version $COMPOSER_VERSION" --version
+command_version go "go$GO_VERSION" version
+
+echo
+echo "Pinned application toolchain: Node $NODE_VERSION, pnpm $PNPM_VERSION, PHP $PHP_VERSION, Composer $COMPOSER_VERSION, Go $GO_VERSION"
+echo "Result: $failures failure(s), $warnings warning(s)"
+
+if [ "$failures" -ne 0 ]; then
+  exit 1
+fi
