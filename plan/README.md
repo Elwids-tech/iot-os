@@ -13,6 +13,8 @@ The current [`docs/c4-architecture.md`](../docs/c4-architecture.md) is an earlie
 
 ## Accepted Direction
 
+- The product is developed as one cross-language monorepo; React applications share a platform-owned shadcn component package.
+
 - React powers the customer application, administration application, and future Integration Studio.
 - Laravel is a headless control plane and owns the public product API.
 - Laravel AI is the agent orchestration layer. Agents use authorized domain tools and never bypass platform policies.
@@ -49,8 +51,11 @@ The current [`docs/c4-architecture.md`](../docs/c4-architecture.md) is an earlie
 - [ADR-004: Node-RED adapter runtime](decisions/ADR-004-node-red-adapter-runtime.md)
 - [ADR-005: Sparkplug B boundary](decisions/ADR-005-sparkplug-b-boundary.md)
 - [ADR-006: Deployment profiles](decisions/ADR-006-deployment-profiles.md)
+- [ADR-007: Monorepo and shared shadcn UI](decisions/ADR-007-monorepo-and-shadcn-ui.md)
 
 ### Roadmap
+
+- [Phase 1 detailed delivery plan](roadmap/phase-1/README.md)
 
 - [Phase 1 foundation](roadmap/phase-1-foundation.md)
 - [Scaling and evolution](roadmap/scaling-and-evolution.md)
@@ -75,4 +80,3 @@ Nothing in this directory is marked Implemented until corresponding code, tests,
 5. Prefer immutable, versioned definitions and explicit activation.
 6. Keep device-facing transport, internal messaging, and public application APIs separate.
 7. Build one product with multiple deployment profiles rather than separate cloud and on-premise products.
-

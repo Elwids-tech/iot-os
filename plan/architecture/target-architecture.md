@@ -54,6 +54,8 @@ React applications provide the customer, administrator, integrator, and future m
 
 Recommended monorepo boundaries:
 
+The full cross-language layout, root developer command surface, and shared shadcn ownership rules are defined in [Monorepo and Developer Experience](../roadmap/phase-1/monorepo-and-developer-experience.md).
+
 ```text
 apps/
   portal/
@@ -148,4 +150,3 @@ A dedicated Go realtime gateway may replace or supplement Reverb if connection v
 5. AI agents call authorized Laravel domain tools rather than databases, brokers, or device transports.
 6. Node-RED flow details do not leak into the canonical domain model.
 7. Sparkplug B is an external interoperability contract, not the internal operational model.
-
