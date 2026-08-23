@@ -30,11 +30,11 @@ This is a working sequence, not a milestone commitment. The user may change it a
 
 - [x] Confirm the Laravel application boundary and package baseline.
 - [x] Add the organization tenancy domain and migrations.
-- [ ] Add users and organization membership behavior.
+- [x] Add users and organization membership behavior.
 - [ ] Add organization-scoped roles and enum-backed permissions.
 - [ ] Define versioned administration API contracts.
 - [ ] Build the first React administration flow with default shadcn patterns.
 
 ## Current Checkpoint
 
-Add the DDD Organization model, schema, factory, and focused persistence tests. User membership, roles, permissions, API endpoints, and React changes remain outside this checkpoint.
+Add the shared-domain User model, organization membership pivot, bidirectional relationships, and focused tenant membership tests. Roles, permissions, API endpoints, and React changes remain outside this checkpoint.

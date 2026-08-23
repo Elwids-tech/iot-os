@@ -1,12 +1,14 @@
 <?php
 
-namespace App\Models;
+declare(strict_types=1);
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+namespace App\Domain\Shared\Models;
+
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -18,9 +20,20 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    protected static function newFactory(): UserFactory
+    {
+        return UserFactory::new();
+    }
+
     /**
-     * Get the attributes that should be cast.
-     *
+     * @return BelongsToMany<Organization, $this>
+     */
+    public function organizations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
