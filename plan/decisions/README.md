@@ -11,3 +11,4 @@ These ADRs record accepted technology and responsibility boundaries. An ADR chan
 | [ADR-005](ADR-005-sparkplug-b-boundary.md) | Sparkplug B as an external MQTT interoperability contract | Accepted |
 | [ADR-006](ADR-006-deployment-profiles.md) | Single-node Compose first, Kubernetes later | Accepted |
 | [ADR-007](ADR-007-monorepo-and-shadcn-ui.md) | Cross-language monorepo with a shared shadcn UI foundation | Accepted |
+| [ADR-008](ADR-008-laravel-sanctum-authentication.md) | Sanctum session cookies for React and bearer tokens for future native clients | Accepted |

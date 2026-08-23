@@ -1,7 +1,7 @@
 # Current Task: Administration Foundation
 
-**Status:** Ready for incremental implementation
-**Last updated:** 2026-08-22
+**Status:** In progress
+**Last updated:** 2026-08-23
 
 ## Objective
 
@@ -28,13 +28,13 @@ Establish the Laravel API and React administration foundations for tenant, user,
 
 This is a working sequence, not a milestone commitment. The user may change it as the product is clarified.
 
-1. Confirm the Laravel application boundary and package baseline.
-2. Add the organization tenancy domain and migrations.
-3. Add users and organization membership behavior.
-4. Add organization-scoped roles and enum-backed permissions.
-5. Define authentication and versioned administration API contracts.
-6. Build the first React administration flow with default shadcn patterns.
+- [x] Confirm the Laravel application boundary and package baseline.
+- [ ] Add the organization tenancy domain and migrations.
+- [ ] Add users and organization membership behavior.
+- [ ] Add organization-scoped roles and enum-backed permissions.
+- [ ] Define versioned administration API contracts.
+- [ ] Build the first React administration flow with default shadcn patterns.
 
 ## Current Checkpoint
 
-Remove the obsolete milestone plan and agree on the first Laravel scaffolding slice. No application behavior is implemented by this checkpoint.
+Establish the Sanctum, Spatie Permission, and enum-permission package baseline. Configure stateful Sanctum middleware and document the client authentication boundary without adding tenancy models, API endpoints, or React changes.

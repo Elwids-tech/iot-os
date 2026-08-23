@@ -52,6 +52,7 @@ The current [`docs/c4-architecture.md`](../docs/c4-architecture.md) is an earlie
 - [ADR-005: Sparkplug B boundary](decisions/ADR-005-sparkplug-b-boundary.md)
 - [ADR-006: Deployment profiles](decisions/ADR-006-deployment-profiles.md)
 - [ADR-007: Monorepo and shared shadcn UI](decisions/ADR-007-monorepo-and-shadcn-ui.md)
+- [ADR-008: Laravel Sanctum authentication](decisions/ADR-008-laravel-sanctum-authentication.md)
 
 ### Current Work
 
