@@ -53,11 +53,14 @@ The current [`docs/c4-architecture.md`](../docs/c4-architecture.md) is an earlie
 - [ADR-006: Deployment profiles](decisions/ADR-006-deployment-profiles.md)
 - [ADR-007: Monorepo and shared shadcn UI](decisions/ADR-007-monorepo-and-shadcn-ui.md)
 
-### Roadmap
+### Current Work
 
-- [Phase 1 detailed delivery plan](roadmap/phase-1/README.md)
+- [Administration foundation](tasks/admin-foundation.md)
 
-- [Phase 1 foundation](roadmap/phase-1-foundation.md)
+### Supporting Plans
+
+- [Monorepo and developer experience](roadmap/phase-1/monorepo-and-developer-experience.md)
+- [Definition of Ready and Done](roadmap/phase-1/definition-of-ready-and-done.md)
 - [Scaling and evolution](roadmap/scaling-and-evolution.md)
 
 ## Status Vocabulary

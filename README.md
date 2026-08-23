@@ -2,7 +2,7 @@
 
 IoT OS is an API-first, AI-first industrial IoT platform built as a cross-language monorepo.
 
-The repository is at the beginning of [Phase 1](plan/roadmap/phase-1/README.md). Architecture decisions are accepted, while implementation status is recorded separately and must be supported by repository and runtime evidence.
+Active work is tracked as small, reviewable tasks in the [plan](plan/README.md). Architecture decisions are accepted, while implementation status is recorded separately and must be supported by repository and runtime evidence.
 
 ## Repository Boundaries
 
@@ -20,7 +20,7 @@ See [Monorepo and Developer Experience](plan/roadmap/phase-1/monorepo-and-develo
 
 ## Initial Developer Setup
 
-The current M0 slice requires Docker, Git, `curl`, `tar`, and a SHA-256 utility on macOS or Linux. The bootstrap script installs the pinned Task binary inside the repository; it does not modify a global toolchain.
+The current repository foundation requires Docker, Git, `curl`, `tar`, and a SHA-256 utility on macOS or Linux. The bootstrap script installs the pinned Task binary inside the repository; it does not modify a global toolchain.
 
 ```bash
 ./tooling/bootstrap

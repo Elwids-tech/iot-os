@@ -1,6 +1,6 @@
 # Monorepo and Developer Experience
 
-**Status:** Accepted direction; exact tool versions are selected in P1-M0
+**Status:** Accepted direction; exact tool versions are selected incrementally
 **Last updated:** 2026-08-22
 
 ## Principle
@@ -49,7 +49,7 @@ docs/
 plan/
 ```
 
-The final names may change during the M0 scaffold, but ownership and dependency direction should not.
+The final names may change as the scaffold evolves, but ownership and dependency direction should not.
 
 ## Workspace Tooling
 
@@ -67,7 +67,7 @@ Task is the developer interface, not a replacement for pnpm, Composer, Artisan, 
 
 ## Required Root Commands
 
-The M0 implementation should provide stable equivalents of:
+The repository foundation should provide stable equivalents of:
 
 ```text
 task bootstrap       Install or verify toolchains and project dependencies
@@ -140,4 +140,4 @@ CI should calculate affected work but retain full contract and release gates:
 - OpenAPI generation drift check
 - Cross-language schema and fixture compatibility tests
 - Container build and vulnerability scan
-- Compose smoke test for milestone and release branches
+- Compose smoke test for integration and release branches
