@@ -29,7 +29,7 @@ Establish the Laravel API and React administration foundations for tenant, user,
 This is a working sequence, not a milestone commitment. The user may change it as the product is clarified.
 
 - [x] Confirm the Laravel application boundary and package baseline.
-- [ ] Add the organization tenancy domain and migrations.
+- [x] Add the organization tenancy domain and migrations.
 - [ ] Add users and organization membership behavior.
 - [ ] Add organization-scoped roles and enum-backed permissions.
 - [ ] Define versioned administration API contracts.
@@ -37,4 +37,4 @@ This is a working sequence, not a milestone commitment. The user may change it a
 
 ## Current Checkpoint
 
-Establish the Sanctum, Spatie Permission, and enum-permission package baseline. Configure stateful Sanctum middleware and document the client authentication boundary without adding tenancy models, API endpoints, or React changes.
+Add the DDD Organization model, schema, factory, and focused persistence tests. User membership, roles, permissions, API endpoints, and React changes remain outside this checkpoint.
