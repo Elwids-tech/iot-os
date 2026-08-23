@@ -1,3 +1,3 @@
 <?php
 
-// Versioned API routes are added with their owning domain slices.
+require app_path('Domain/Authentication/routes/api.php');

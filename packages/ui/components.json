@@ -1,0 +1,23 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "radix-nova",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/styles/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "iconLibrary": "lucide",
+  "aliases": {
+    "components": "@iot-os/ui/components",
+    "utils": "@iot-os/ui/lib/utils",
+    "hooks": "@iot-os/ui/hooks",
+    "lib": "@iot-os/ui/lib",
+    "ui": "@iot-os/ui/components"
+  },
+  "rtl": false,
+  "menuColor": "default",
+  "menuAccent": "subtle"
+}

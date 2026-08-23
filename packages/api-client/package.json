@@ -1,0 +1,17 @@
+{
+  "name": "@iot-os/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

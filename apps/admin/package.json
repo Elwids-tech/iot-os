@@ -1,0 +1,27 @@
+{
+  "name": "@iot-os/admin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "tsc -b && vite build",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview --port 4174"
+  },
+  "dependencies": {
+    "@iot-os/api-client": "workspace:*",
+    "@iot-os/ui": "workspace:*",
+    "@vitejs/plugin-react": "^5.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.17",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.4"
+  }
+}
