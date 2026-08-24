@@ -1,0 +1,56 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Domain\Administration\Http\Controllers\OrganizationAdministrationController;
+use App\Domain\Administration\Http\Controllers\OrganizationInvitationController;
+use App\Domain\Administration\Http\Controllers\OrganizationMemberController;
+use App\Domain\Administration\Http\Controllers\OrganizationRoleController;
+use App\Domain\Administration\Http\Controllers\PlatformOrganizationController;
+use App\Domain\Administration\Http\Controllers\PlatformTeamController;
+use App\Domain\Administration\Http\Controllers\PublicOrganizationInvitationController;
+use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
+use Illuminate\Support\Facades\Route;
+
+Route::prefix('v1')->name('api.v1.')->group(function (): void {
+    Route::get('invitations/{token}', [PublicOrganizationInvitationController::class, 'show'])
+        ->name('invitations.show');
+    Route::post('invitations/{token}/accept', [PublicOrganizationInvitationController::class, 'accept'])
+        ->name('invitations.accept');
+
+    Route::middleware('auth:sanctum')->group(function (): void {
+        Route::prefix('admin')->name('admin.')->group(function (): void {
+            Route::get('organizations', [PlatformOrganizationController::class, 'index'])
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('organizations.index');
+            Route::post('organizations', [PlatformOrganizationController::class, 'store'])
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('organizations.store');
+            Route::patch('organizations/{organization}', [PlatformOrganizationController::class, 'update'])
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('organizations.update');
+            Route::get('platform-team', [PlatformTeamController::class, 'index'])->name('platform-team.index');
+            Route::put('platform-team/{user}', [PlatformTeamController::class, 'update'])->name('platform-team.update');
+        });
+
+        Route::prefix('organizations/{organization}')->name('organizations.')->group(function (): void {
+            Route::get('administration', [OrganizationAdministrationController::class, 'show'])
+                ->name('administration.show');
+
+            Route::get('roles', [OrganizationRoleController::class, 'index'])->name('roles.index');
+            Route::get('role-permissions', [OrganizationRoleController::class, 'permissions'])->name('roles.permissions');
+            Route::post('roles', [OrganizationRoleController::class, 'store'])->name('roles.store');
+            Route::patch('roles/{role}', [OrganizationRoleController::class, 'update'])->name('roles.update');
+            Route::delete('roles/{role}', [OrganizationRoleController::class, 'destroy'])->name('roles.destroy');
+
+            Route::get('members', [OrganizationMemberController::class, 'index'])->name('members.index');
+            Route::put('members/{member}', [OrganizationMemberController::class, 'update'])->name('members.update');
+            Route::delete('members/{member}', [OrganizationMemberController::class, 'destroy'])->name('members.destroy');
+
+            Route::get('invitations', [OrganizationInvitationController::class, 'index'])->name('invitations.index');
+            Route::post('invitations', [OrganizationInvitationController::class, 'store'])->name('invitations.store');
+            Route::delete('invitations/{invitation}', [OrganizationInvitationController::class, 'destroy'])
+                ->name('invitations.destroy');
+        });
+    });
+});

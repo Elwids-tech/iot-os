@@ -17,6 +17,14 @@ import {
   FieldLabel,
 } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@iot-os/ui/components/select"
 
 type ScreenState =
   | { status: "loading" }
@@ -30,7 +38,7 @@ type FormErrors = {
 }
 
 const apiClient = new ApiClient(
-  import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:8000`,
+  import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8001",
 )
 
 function LoginPage({ onAuthenticated }: { onAuthenticated: (user: AuthenticatedUser) => void }) {
@@ -116,9 +124,34 @@ function LoginPage({ onAuthenticated }: { onAuthenticated: (user: AuthenticatedU
 }
 
 function SessionHome({ user, onSignedOut }: { user: AuthenticatedUser; onSignedOut: () => void }) {
+  const [selectedUuid, setSelectedUuid] = useState(
+    apiClient.getSelectedOrganizationUuid() ?? user.organizations[0]?.uuid ?? "",
+  )
+  const [switchError, setSwitchError] = useState<string>()
+
+  async function selectOrganization(uuid: string) {
+    if (uuid === selectedUuid) {
+      return
+    }
+
+    setSwitchError(undefined)
+
+    try {
+      await apiClient.organizationContext(uuid)
+      apiClient.setSelectedOrganizationUuid(uuid)
+      setSelectedUuid(uuid)
+    } catch {
+      setSwitchError("We could not switch to that organization.")
+    }
+  }
+
   async function signOut() {
-    await apiClient.logout()
-    onSignedOut()
+    try {
+      await apiClient.logout()
+    } finally {
+      apiClient.setSelectedOrganizationUuid(null)
+      onSignedOut()
+    }
   }
 
   return (
@@ -126,19 +159,33 @@ function SessionHome({ user, onSignedOut }: { user: AuthenticatedUser; onSignedO
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle>Welcome back, {user.name}</CardTitle>
-          <CardDescription>{user.email}</CardDescription>
+          <CardDescription>
+            {user.email}
+            {user.is_super_admin ? " · Platform super admin" : ""}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div>
-            <h2 className="text-sm font-medium">Your organizations</h2>
-            <ul className="mt-2 flex flex-col gap-2">
-              {user.organizations.map((organization) => (
-                <li className="rounded-md border bg-background px-3 py-2 text-sm" key={organization.uuid}>
-                  {organization.name}
-                </li>
-              ))}
-            </ul>
-          </div>
+        <CardContent>
+          <Field data-invalid={Boolean(switchError)}>
+            <FieldLabel htmlFor="organization">Active organization</FieldLabel>
+            <Select value={selectedUuid} onValueChange={selectOrganization}>
+              <SelectTrigger id="organization" aria-invalid={Boolean(switchError)}>
+                <SelectValue placeholder="Select an organization" />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectGroup>
+                  {user.organizations.map((organization) => (
+                    <SelectItem key={organization.uuid} value={organization.uuid}>
+                      {organization.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <FieldError errors={switchError ? [{ message: switchError }] : undefined} />
+            <FieldDescription>
+              Organization context will scope the administration actions that follow.
+            </FieldDescription>
+          </Field>
         </CardContent>
         <CardFooter>
           <Button variant="outline" onClick={signOut}>
@@ -153,13 +200,22 @@ function SessionHome({ user, onSignedOut }: { user: AuthenticatedUser; onSignedO
 export function App() {
   const [screen, setScreen] = useState<ScreenState>({ status: "loading" })
 
+  function showAuthenticatedUser(user: AuthenticatedUser) {
+    const selected = user.organizations.find(
+      (organization) => organization.uuid === apiClient.getSelectedOrganizationUuid(),
+    )
+
+    apiClient.setSelectedOrganizationUuid(selected?.uuid ?? user.organizations[0]?.uuid ?? null)
+    setScreen({ status: "signed-in", user })
+  }
+
   useEffect(() => {
     let active = true
 
     apiClient
       .me()
       .then((user) => {
-        if (active) setScreen({ status: "signed-in", user })
+        if (active) showAuthenticatedUser(user)
       })
       .catch(() => {
         if (active) setScreen({ status: "signed-out" })
@@ -178,5 +234,5 @@ export function App() {
     return <SessionHome user={screen.user} onSignedOut={() => setScreen({ status: "signed-out" })} />
   }
 
-  return <LoginPage onAuthenticated={(user) => setScreen({ status: "signed-in", user })} />
+  return <LoginPage onAuthenticated={showAuthenticatedUser} />
 }

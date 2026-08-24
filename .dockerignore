@@ -1,0 +1,15 @@
+.git
+.serena
+.turbo
+node_modules
+**/node_modules
+vendor
+**/vendor
+dist
+**/dist
+coverage
+**/coverage
+**/.env
+apps/api/database/database.sqlite
+apps/api/storage/logs/*
+*.log

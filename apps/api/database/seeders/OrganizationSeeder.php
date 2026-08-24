@@ -70,14 +70,21 @@ class OrganizationSeeder extends Seeder
 
                     $permissionRegistrar->setPermissionsTeamId($organization->id);
 
-                    $role = Role::query()->updateOrCreate(
+                    $role = Role::query()->firstOrCreate(
                         [
                             'organization_id' => $organization->id,
                             'name' => $userDefinition['role']->value,
                             'guard_name' => 'web',
                         ],
                     );
-                    $role->syncPermissions($userDefinition['role']->permissions());
+                    if ($role->wasRecentlyCreated) {
+                        $role->forceFill([
+                            'display_name' => $userDefinition['role']->displayName(),
+                            'is_default' => true,
+                        ])->save();
+
+                        $role->syncPermissions($userDefinition['role']->permissions());
+                    }
                     $user->syncRoles([$role]);
                 }
             }

@@ -1,0 +1,59 @@
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/api/Dockerfile
+    environment:
+      APP_NAME: IoT OS API
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: ${IOT_API_APP_KEY:-base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+      APP_URL: "http://127.0.0.1:${IOT_API_PORT:-8001}"
+      FRONTEND_URL: ${IOT_ADMIN_URL:-http://127.0.0.1:5174}
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: pgsql
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_DATABASE: ${IOT_POSTGRES_DATABASE:-iot_os}
+      DB_USERNAME: ${IOT_POSTGRES_USER:-iot_os}
+      DB_PASSWORD: ${IOT_POSTGRES_PASSWORD:-iot_os_dev_only}
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_FROM_ADDRESS: no-reply@iot-os.test
+      MAIL_FROM_NAME: IoT OS
+      SANCTUM_STATEFUL_DOMAINS: localhost,localhost:${IOT_ADMIN_PORT:-5174},127.0.0.1,127.0.0.1:${IOT_ADMIN_PORT:-5174}
+      CORS_ALLOWED_ORIGINS: http://localhost:${IOT_ADMIN_PORT:-5174},http://127.0.0.1:${IOT_ADMIN_PORT:-5174}
+    ports:
+      - "${IOT_API_PORT:-8001}:8000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8000/up >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      - internal
+
+  admin:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/admin/Dockerfile
+      args:
+        VITE_API_URL: ${IOT_API_URL:-http://127.0.0.1:8001}
+    ports:
+      - "${IOT_ADMIN_PORT:-5174}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal

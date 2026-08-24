@@ -5,6 +5,7 @@ dotenv:
 
 vars:
   COMPOSE_FILE: deploy/compose/compose.dev.yml
+  APP_COMPOSE_FILE: deploy/compose/compose.app.yml
 
 tasks:
   default:
@@ -63,6 +64,7 @@ tasks:
       - curl --fail --silent http://127.0.0.1:${IOT_EMQX_DASHBOARD_PORT} >/dev/null
       - curl --fail --silent http://127.0.0.1:${IOT_NODE_RED_PORT} >/dev/null
       - curl --fail --silent http://127.0.0.1:${IOT_MINIO_API_PORT}/minio/health/live >/dev/null
+      - curl --fail --silent http://127.0.0.1:${IOT_MAILPIT_UI_PORT:-8025}/ >/dev/null
 
   deps:logs:
     desc: Follow local infrastructure logs
@@ -79,6 +81,45 @@ tasks:
         msg: Run ./tooling/bootstrap to create .env first.
     cmds:
       - docker compose --env-file .env -f {{.COMPOSE_FILE}} down
+
+  stack:config:
+    desc: Validate the infrastructure plus API/admin Docker profile
+    preconditions:
+      - sh: test -f .env
+        msg: Run ./tooling/bootstrap to create .env first.
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} config --quiet
+
+  stack:up:
+    desc: Build and start the complete local Docker development stack
+    deps:
+      - stack:config
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} up -d --build --wait
+
+  stack:status:
+    desc: Show the complete local Docker development stack
+    preconditions:
+      - sh: test -f .env
+        msg: Run ./tooling/bootstrap to create .env first.
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} ps
+
+  stack:logs:
+    desc: Follow API/admin and infrastructure logs
+    preconditions:
+      - sh: test -f .env
+        msg: Run ./tooling/bootstrap to create .env first.
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} logs --follow --tail=200
+
+  stack:down:
+    desc: Stop the complete local Docker development stack
+    preconditions:
+      - sh: test -f .env
+        msg: Run ./tooling/bootstrap to create .env first.
+    cmds:
+      - docker compose --env-file .env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} down
 
   runtime:test:
     desc: Run Go runtime tests

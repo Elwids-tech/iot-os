@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Permissions\RolePermission;
 use App\Domain\Shared\Permissions\OrganizationPermission;
 use App\Domain\Shared\Permissions\UserPermission;
@@ -20,6 +21,7 @@ class PermissionSeeder extends Seeder
             OrganizationPermission::getPermissionGroup() => OrganizationPermission::cases(),
             UserPermission::getPermissionGroup() => UserPermission::cases(),
             RolePermission::getPermissionGroup() => RolePermission::cases(),
+            PlatformAdministrationPermission::getPermissionGroup() => PlatformAdministrationPermission::cases(),
         ];
         $guards = array_keys(config('auth.guards'));
 

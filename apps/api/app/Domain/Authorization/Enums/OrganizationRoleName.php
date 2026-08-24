@@ -14,6 +14,15 @@ enum OrganizationRoleName: string
     case MODERATOR = 'moderator';
     case MEMBER = 'member';
 
+    public function displayName(): string
+    {
+        return match ($this) {
+            self::ORGANIZATION_ADMIN => 'Organization Admin',
+            self::MODERATOR => 'Moderator',
+            self::MEMBER => 'Member',
+        };
+    }
+
     /**
      * @return list<string>
      */

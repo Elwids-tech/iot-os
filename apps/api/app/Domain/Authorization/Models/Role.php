@@ -9,8 +9,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Spatie\Permission\Models\Role as SpatieRole;
 
 /**
- * @property int $organization_id
+ * @property int|null $organization_id
  * @property Organization|null $organization
+ * @property string $display_name
+ * @property bool $is_default
  */
 class Role extends SpatieRole
 {

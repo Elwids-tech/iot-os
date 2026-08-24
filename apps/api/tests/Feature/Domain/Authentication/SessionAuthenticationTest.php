@@ -6,8 +6,9 @@ namespace Tests\Feature\Domain\Authentication;
 
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
-use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 final class SessionAuthenticationTest extends TestCase
@@ -22,7 +23,7 @@ final class SessionAuthenticationTest extends TestCase
 
     public function test_a_user_can_login_and_load_their_organizations(): void
     {
-        $this->withoutMiddleware(VerifyCsrfToken::class);
+        $this->withoutMiddleware(ValidateCsrfToken::class);
 
         $organization = Organization::factory()->create();
         $user = User::factory()->create([
@@ -50,7 +51,7 @@ final class SessionAuthenticationTest extends TestCase
 
     public function test_invalid_credentials_are_rejected(): void
     {
-        $this->withoutMiddleware(VerifyCsrfToken::class);
+        $this->withoutMiddleware(ValidateCsrfToken::class);
 
         User::factory()->create([
             'email' => 'operator@example.test',
@@ -69,7 +70,7 @@ final class SessionAuthenticationTest extends TestCase
 
     public function test_a_user_can_logout(): void
     {
-        $this->withoutMiddleware(VerifyCsrfToken::class);
+        $this->withoutMiddleware(ValidateCsrfToken::class);
 
         $user = User::factory()->create([
             'email' => 'operator@example.test',
@@ -92,5 +93,30 @@ final class SessionAuthenticationTest extends TestCase
         $this->withHeader('Origin', 'http://localhost')
             ->getJson('/api/v1/me')
             ->assertUnauthorized();
+    }
+
+    public function test_a_member_can_resolve_an_organization_context(): void
+    {
+        $organization = Organization::factory()->create();
+        $user = User::factory()->create();
+        $user->organizations()->attach($organization);
+
+        $this->actingAs($user, 'web')
+            ->getJson("/api/v1/organizations/{$organization->uuid}/context")
+            ->assertOk()
+            ->assertJsonPath('data.uuid', $organization->uuid)
+            ->assertJsonPath('data.slug', $organization->slug);
+
+        $this->assertNull(app(PermissionRegistrar::class)->getPermissionsTeamId());
+    }
+
+    public function test_a_user_cannot_resolve_an_organization_they_do_not_belong_to(): void
+    {
+        $organization = Organization::factory()->create();
+        $user = User::factory()->create();
+
+        $this->actingAs($user, 'web')
+            ->getJson("/api/v1/organizations/{$organization->uuid}/context")
+            ->assertForbidden();
     }
 }

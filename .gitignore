@@ -6,6 +6,7 @@ node_modules/
 .turbo/
 coverage/
 dist/
+*.tsbuildinfo
 
 vendor/
 
@@ -13,4 +14,3 @@ vendor/
 *.out
 
 deploy/compose/data/
-

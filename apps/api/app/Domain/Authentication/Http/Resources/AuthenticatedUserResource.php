@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Authentication\Http\Resources;
 
+use App\Domain\Authorization\Services\PlatformAuthorization;
 use App\Domain\Shared\Http\Resources\OrganizationResource;
+use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,8 +22,14 @@ final class AuthenticatedUserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'email_verified_at' => $this->email_verified_at?->toIso8601String(),
+            'is_super_admin' => (bool) $this->is_super_admin,
+            'capabilities' => [
+                'platform_administration' => app(PlatformAuthorization::class)->canAccessAdministration($this->resource),
+            ],
             'organizations' => OrganizationResource::collection(
-                $this->whenLoaded('organizations'),
+                $this->is_super_admin
+                    ? Organization::query()->orderBy('name')->get()
+                    : $this->whenLoaded('organizations'),
             ),
         ];
     }

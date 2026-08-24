@@ -9,6 +9,7 @@ export type AuthenticatedUser = {
   name: string
   email: string
   email_verified_at: string | null
+  is_super_admin: boolean
   organizations: Organization[]
 }
 
@@ -30,6 +31,8 @@ type LoginCredentials = {
   password: string
 }
 
+const ORGANIZATION_STORAGE_KEY = "iot-os.selected-organization"
+
 function readCookie(name: string): string | null {
   const value = document.cookie
     .split("; ")
@@ -40,9 +43,30 @@ function readCookie(name: string): string | null {
 
 export class ApiClient {
   private readonly baseUrl: string
+  private selectedOrganizationUuid: string | null
 
   constructor(baseUrl = "http://localhost:8000") {
     this.baseUrl = baseUrl.replace(/\/$/, "")
+    this.selectedOrganizationUuid =
+      typeof window === "undefined" ? null : window.localStorage.getItem(ORGANIZATION_STORAGE_KEY)
+  }
+
+  getSelectedOrganizationUuid(): string | null {
+    return this.selectedOrganizationUuid
+  }
+
+  setSelectedOrganizationUuid(uuid: string | null): void {
+    this.selectedOrganizationUuid = uuid
+
+    if (typeof window === "undefined") {
+      return
+    }
+
+    if (uuid) {
+      window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, uuid)
+    } else {
+      window.localStorage.removeItem(ORGANIZATION_STORAGE_KEY)
+    }
   }
 
   async csrf(): Promise<void> {
@@ -67,6 +91,12 @@ export class ApiClient {
     )
   }
 
+  async organizationContext(uuid: string): Promise<Organization> {
+    return this.request<ApiResponse<Organization>>(
+      `/api/v1/organizations/${encodeURIComponent(uuid)}/context`,
+    ).then((response) => response.data)
+  }
+
   async logout(): Promise<void> {
     await this.request("/api/v1/auth/logout", { method: "POST" })
   }
@@ -74,6 +104,10 @@ export class ApiClient {
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers)
     headers.set("Accept", "application/json")
+
+    if (this.selectedOrganizationUuid) {
+      headers.set("X-Organization-UUID", this.selectedOrganizationUuid)
+    }
 
     if (!["GET", "HEAD", "OPTIONS"].includes((init.method ?? "GET").toUpperCase())) {
       const token = readCookie("XSRF-TOKEN")

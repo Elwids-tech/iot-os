@@ -122,6 +122,14 @@ services:
     networks:
       - internal
 
+  mailpit:
+    image: ${IOT_MAILPIT_IMAGE:-axllent/mailpit:v1.27.7}
+    ports:
+      - "${IOT_MAILPIT_UI_PORT:-8025}:8025"
+    restart: unless-stopped
+    networks:
+      - internal
+
 networks:
   device:
   adapter:
