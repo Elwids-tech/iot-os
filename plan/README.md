@@ -1,7 +1,7 @@
 # IIoT Platform Plan
 
 **Status:** Active architecture plan  
-**Last updated:** 2026-08-22
+**Last updated:** 2026-08-26
 
 This directory records the agreed target architecture for the next IIoT platform. It separates accepted decisions from draft contracts and future scaling options so that planned work is not mistaken for implemented work.
 
@@ -57,6 +57,7 @@ The current [`docs/c4-architecture.md`](../docs/c4-architecture.md) is an earlie
 ### Current Work
 
 - [Administration foundation](tasks/admin-foundation.md)
+- [Device Domain M1 implementation plan](tasks/device-domain-m1.md) — planned; begins after the administration checkpoint
 
 ### Supporting Plans
 
