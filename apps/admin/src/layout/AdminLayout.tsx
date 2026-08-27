@@ -1,0 +1,164 @@
+import { useState } from "react"
+import type { AuthenticatedUser } from "@iot-os/api-client"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@iot-os/ui/components/breadcrumb"
+import { Button } from "@iot-os/ui/components/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@iot-os/ui/components/dropdown-menu"
+import { Separator } from "@iot-os/ui/components/separator"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+  useSidebar,
+} from "@iot-os/ui/components/sidebar"
+import { TooltipProvider } from "@iot-os/ui/components/tooltip"
+import {
+  BoxesIcon,
+  Building2Icon,
+  ChevronsUpDownIcon,
+  LogOutIcon,
+  ShieldCheckIcon,
+  UsersIcon,
+} from "lucide-react"
+import { NavLink, Outlet, useLocation } from "react-router-dom"
+
+const navigation = [
+  { title: "Organizations", to: "/organizations", icon: Building2Icon },
+  { title: "Users", to: "/users", icon: UsersIcon },
+  { title: "Roles", to: "/roles", icon: ShieldCheckIcon },
+]
+
+function AdminSidebar() {
+  const location = useLocation()
+  const { setOpenMobile } = useSidebar()
+
+  function closeMobileSidebar() {
+    setOpenMobile(false)
+  }
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild size="lg" tooltip="IoT OS Administration">
+              <NavLink to="/organizations" onClick={closeMobileSidebar}>
+                <BoxesIcon />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate font-semibold">IoT OS</span>
+                  <span className="truncate text-xs text-muted-foreground">Administration</span>
+                </span>
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Platform</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navigation.map((item) => (
+                <SidebarMenuItem key={item.to}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname.startsWith(item.to)}
+                    tooltip={item.title}
+                  >
+                    <NavLink to={item.to} onClick={closeMobileSidebar}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarRail />
+    </Sidebar>
+  )
+}
+
+export function AdminLayout({
+  user,
+  onSignOut,
+}: {
+  user: AuthenticatedUser
+  onSignOut: () => Promise<void>
+}) {
+  const location = useLocation()
+  const [isSigningOut, setIsSigningOut] = useState(false)
+  const current = navigation.find((item) => location.pathname.startsWith(item.to)) ?? navigation[0]
+
+  async function signOut() {
+    setIsSigningOut(true)
+    await onSignOut()
+  }
+
+  return (
+    <TooltipProvider>
+      <SidebarProvider>
+        <AdminSidebar />
+        <SidebarInset>
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{current.title}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="ml-auto min-w-0">
+                  <span className="hidden max-w-48 truncate sm:inline">{user.name}</span>
+                  <ChevronsUpDownIcon data-icon="inline-end" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="flex min-w-0 flex-col gap-1">
+                  <span className="truncate text-foreground">{user.name}</span>
+                  <span className="truncate font-normal">{user.email}</span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem disabled={isSigningOut} onSelect={() => void signOut()}>
+                    <LogOutIcon />
+                    {isSigningOut ? "Signing out…" : "Sign out"}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </header>
+          <Outlet />
+        </SidebarInset>
+      </SidebarProvider>
+    </TooltipProvider>
+  )
+}

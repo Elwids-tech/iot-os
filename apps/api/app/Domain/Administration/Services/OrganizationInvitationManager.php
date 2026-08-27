@@ -70,9 +70,9 @@ final class OrganizationInvitationManager
         return $invitation;
     }
 
-    public function accept(string $token, ?string $name, ?string $password): User
+    public function accept(string $token, ?string $name, ?string $password, ?User $authenticatedUser): User
     {
-        return DB::transaction(function () use ($token, $name, $password): User {
+        return DB::transaction(function () use ($token, $name, $password, $authenticatedUser): User {
             $invitation = OrganizationInvitation::query()
                 ->with('organization')
                 ->where('token_hash', hash('sha256', $token))
@@ -86,6 +86,12 @@ final class OrganizationInvitationManager
             $user = User::query()->where('email', $invitation->email)->first();
 
             if ($user === null) {
+                if ($authenticatedUser !== null) {
+                    throw ValidationException::withMessages([
+                        'email' => 'Sign out before creating an account for this invitation.',
+                    ]);
+                }
+
                 if ($name === null || trim($name) === '' || $password === null) {
                     throw ValidationException::withMessages([
                         'name' => 'Name is required to create your account.',
@@ -98,6 +104,10 @@ final class OrganizationInvitationManager
                     'email' => $invitation->email,
                     'password' => $password,
                     'email_verified_at' => now(),
+                ]);
+            } elseif ($authenticatedUser === null || ! hash_equals($user->email, Str::lower($authenticatedUser->email))) {
+                throw ValidationException::withMessages([
+                    'email' => 'Sign in with the invited email address before accepting this invitation.',
                 ]);
             } elseif ($user->email_verified_at === null) {
                 $user->forceFill(['email_verified_at' => now()])->save();

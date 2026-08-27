@@ -7,6 +7,9 @@ node_modules/
 coverage/
 dist/
 *.tsbuildinfo
+playwright-report/
+test-results/
+.serena/
 
 vendor/
 

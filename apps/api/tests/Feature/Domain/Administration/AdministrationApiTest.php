@@ -156,6 +156,8 @@ final class AdministrationApiTest extends TestCase
             'expires_at' => now()->addDays(7),
         ]);
 
+        $this->app['auth']->forgetGuards();
+
         $this->postJson("/api/v1/invitations/{$token}/accept", [
             'name' => 'New Member',
             'password' => 'safe-password',

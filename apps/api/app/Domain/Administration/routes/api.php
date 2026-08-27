@@ -7,7 +7,12 @@ use App\Domain\Administration\Http\Controllers\OrganizationInvitationController;
 use App\Domain\Administration\Http\Controllers\OrganizationMemberController;
 use App\Domain\Administration\Http\Controllers\OrganizationRoleController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationController;
+use App\Domain\Administration\Http\Controllers\PlatformOrganizationRoleController;
+use App\Domain\Administration\Http\Controllers\PlatformInvitationController;
+use App\Domain\Administration\Http\Controllers\PlatformRoleController;
+use App\Domain\Administration\Http\Controllers\PlatformRolePermissionController;
 use App\Domain\Administration\Http\Controllers\PlatformTeamController;
+use App\Domain\Administration\Http\Controllers\PlatformUserController;
 use App\Domain\Administration\Http\Controllers\PublicOrganizationInvitationController;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +34,30 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::patch('organizations/{organization}', [PlatformOrganizationController::class, 'update'])
                 ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
                 ->name('organizations.update');
+        Route::get('users', [PlatformUserController::class, 'index'])
+            ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+            ->name('users.index');
+        Route::get('invitations', [PlatformInvitationController::class, 'index'])
+            ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+            ->name('invitations.index');
+        Route::post('organizations/{organization}/invitations', [PlatformInvitationController::class, 'store'])
+            ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+            ->name('organizations.invitations.store');
+        Route::get('organizations/{organization}/roles', [PlatformOrganizationRoleController::class, 'index'])
+            ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+            ->name('organizations.roles.index');
+        Route::delete('invitations/{invitation}', [PlatformInvitationController::class, 'destroy'])
+            ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+            ->name('invitations.destroy');
+            Route::get('roles', [PlatformRoleController::class, 'index'])
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('roles.index');
+            Route::get('roles/{role}', [PlatformRolePermissionController::class, 'show'])
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('roles.show');
+            Route::put('roles/{role}/permissions', [PlatformRolePermissionController::class, 'update'])
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('roles.permissions.update');
             Route::get('platform-team', [PlatformTeamController::class, 'index'])->name('platform-team.index');
             Route::put('platform-team/{user}', [PlatformTeamController::class, 'update'])->name('platform-team.update');
         });

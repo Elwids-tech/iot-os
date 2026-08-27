@@ -99,9 +99,52 @@ final class OrganizationRoleManager
         $role->forceFill([
             'display_name' => $this->displayName($organization, $displayName, $role->getKey()),
         ])->save();
+
         $role->syncPermissions($this->tenantPermissions($permissionNames));
 
         return $role->fresh(['permissions']);
+    }
+
+    /**
+     * @param  list<string>  $permissionNames
+     */
+    public function syncPermissions(Role $role, array $permissionNames): Role
+    {
+        $organization = $role->organization;
+
+        if ($organization === null) {
+            throw ValidationException::withMessages([
+                'role' => 'Platform roles cannot be changed as organization roles.',
+            ]);
+        }
+
+        if ($role->name === OrganizationRoleName::ORGANIZATION_ADMIN->value) {
+            $currentPermissionNames = $role->permissions()->pluck('name')->sort()->values()->all();
+            $updatedPermissionNames = collect($permissionNames)->sort()->values()->all();
+
+            if ($currentPermissionNames !== $updatedPermissionNames) {
+                throw ValidationException::withMessages([
+                    'permission_names' => 'The Organization Admin permission baseline cannot be changed. Create a custom role for a different permission bundle.',
+                ]);
+            }
+        }
+
+        $role->syncPermissions($this->tenantPermissions($permissionNames));
+
+        return $role->fresh(['permissions']);
+    }
+
+    /**
+     * @return Collection<int, Permission>
+     */
+    public function availableTenantPermissions(): Collection
+    {
+        return Permission::query()
+            ->where('guard_name', 'web')
+            ->whereNotIn('name', $this->platformPermissionNames())
+            ->orderBy('group')
+            ->orderBy('name')
+            ->get();
     }
 
     public function delete(Role $role): void

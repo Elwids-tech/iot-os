@@ -7,6 +7,8 @@ namespace App\Domain\Administration\Http\Controllers;
 use App\Domain\Administration\Http\Requests\AcceptOrganizationInvitationRequest;
 use App\Domain\Administration\Services\OrganizationInvitationManager;
 use App\Domain\Authentication\Http\Resources\AuthenticatedUserResource;
+use App\Domain\Shared\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
 
@@ -25,6 +27,9 @@ final class PublicOrganizationInvitationController
             ],
             'email' => $invitation->email,
             'expires_at' => $invitation->expires_at,
+            'acceptance_mode' => User::query()->where('email', $invitation->email)->exists()
+                ? 'sign_in'
+                : 'create_account',
         ]);
     }
 
@@ -32,10 +37,18 @@ final class PublicOrganizationInvitationController
     {
         /** @var array{name?: string, password?: string} $validated */
         $validated = $request->validated();
-        $user = $this->invitations->accept($token, $validated['name'] ?? null, $validated['password'] ?? null);
+        $authenticatedUser = $request->user();
+
+        $user = $this->invitations->accept(
+            $token,
+            $validated['name'] ?? null,
+            $validated['password'] ?? null,
+            $authenticatedUser instanceof User ? $authenticatedUser : null,
+        );
+
+        Auth::guard('web')->login($user);
 
         if ($request->hasSession()) {
-            Auth::guard('web')->login($user);
             $request->session()->regenerate();
         }
 
