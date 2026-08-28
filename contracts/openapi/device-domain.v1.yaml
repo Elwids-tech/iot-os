@@ -73,6 +73,8 @@ paths:
       tags: [Device Profiles]
       summary: Update Device Profile metadata
       operationId: updateDeviceProfile
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
       requestBody:
         required: true
         content:
@@ -88,6 +90,8 @@ paths:
       tags: [Device Profiles]
       summary: Delete an unreferenced Device Profile draft
       operationId: deleteDeviceProfile
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
       responses:
         '204':
           description: Unreferenced draft-only Profile deleted.
@@ -98,6 +102,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationContext'
       - $ref: '#/components/parameters/ProfileUuid'
       - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/IfMatch'
     post:
       tags: [Device Profiles]
       summary: Archive a Device Profile
@@ -238,6 +243,8 @@ paths:
       tags: [Transport Bindings]
       summary: Update Transport Binding metadata
       operationId: updateTransportBinding
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
       requestBody:
         required: true
         content:
@@ -253,6 +260,8 @@ paths:
       tags: [Transport Bindings]
       summary: Delete an unreferenced Transport Binding draft
       operationId: deleteTransportBinding
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
       responses:
         '204':
           description: Unreferenced draft-only Binding deleted.
@@ -263,6 +272,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationContext'
       - $ref: '#/components/parameters/BindingUuid'
       - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/IfMatch'
     post:
       tags: [Transport Bindings]
       summary: Archive a Transport Binding
@@ -491,6 +501,8 @@ paths:
       tags: [Devices]
       summary: Update a Device draft
       operationId: updateDeviceDraft
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
       requestBody:
         required: true
         content:
@@ -506,6 +518,8 @@ paths:
       tags: [Devices]
       summary: Delete a Device draft
       operationId: deleteDeviceDraft
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
       responses:
         '204':
           description: Unregistered Device draft deleted.
@@ -516,6 +530,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationContext'
       - $ref: '#/components/parameters/DeviceUuid'
       - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/IfMatch'
     post:
       tags: [Devices]
       summary: Register a Device
@@ -530,6 +545,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationContext'
       - $ref: '#/components/parameters/DeviceUuid'
       - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/IfMatch'
     post:
       tags: [Devices]
       summary: Archive a Device
@@ -667,6 +683,7 @@ components:
       name: If-Match
       in: header
       required: true
+      description: Current strong entity tag. Missing values return 428 and stale values return 412.
       schema:
         type: string
         minLength: 1

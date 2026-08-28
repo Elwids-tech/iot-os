@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Shared\Models;
 
 use App\Domain\Authorization\Models\Role;
+use App\Domain\DeviceManagement\Models\Device;
+use App\Domain\DeviceProfile\Models\DeviceProfile;
+use App\Domain\DeviceProfile\Models\TransportBinding;
 use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -46,6 +49,30 @@ class Organization extends Model
     public function roles(): HasMany
     {
         return $this->hasMany(Role::class);
+    }
+
+    /**
+     * @return HasMany<DeviceProfile, $this>
+     */
+    public function deviceProfiles(): HasMany
+    {
+        return $this->hasMany(DeviceProfile::class);
+    }
+
+    /**
+     * @return HasMany<TransportBinding, $this>
+     */
+    public function transportBindings(): HasMany
+    {
+        return $this->hasMany(TransportBinding::class);
+    }
+
+    /**
+     * @return HasMany<Device, $this>
+     */
+    public function devices(): HasMany
+    {
+        return $this->hasMany(Device::class);
     }
 
     public function getRouteKeyName(): string

@@ -56,6 +56,8 @@ export interface paths {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 profile: components["parameters"]["ProfileUuid"];
@@ -194,6 +196,8 @@ export interface paths {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 binding: components["parameters"]["BindingUuid"];
@@ -330,6 +334,7 @@ export interface paths {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
@@ -353,6 +358,7 @@ export interface paths {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
@@ -423,6 +429,8 @@ export interface paths {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 device: components["parameters"]["DeviceUuid"];
@@ -446,6 +454,8 @@ export interface paths {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 device: components["parameters"]["DeviceUuid"];
@@ -1372,6 +1382,7 @@ export interface components {
     parameters: {
         /** @description Organization selector; authenticated membership remains authoritative. */
         OrganizationContext: string;
+        /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
         IfMatch: string;
         IdempotencyKey: string;
         ProfileUuid: string;
@@ -1449,6 +1460,8 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 profile: components["parameters"]["ProfileUuid"];
@@ -1473,6 +1486,8 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 profile: components["parameters"]["ProfileUuid"];
@@ -1496,6 +1511,8 @@ export interface operations {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 profile: components["parameters"]["ProfileUuid"];
@@ -1573,6 +1590,7 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
@@ -1596,6 +1614,7 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
@@ -1695,6 +1714,8 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 binding: components["parameters"]["BindingUuid"];
@@ -1719,6 +1740,8 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 binding: components["parameters"]["BindingUuid"];
@@ -1742,6 +1765,8 @@ export interface operations {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 binding: components["parameters"]["BindingUuid"];
@@ -1819,6 +1844,7 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
@@ -1842,6 +1868,7 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
@@ -1925,6 +1952,7 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
@@ -1948,6 +1976,7 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
@@ -1979,6 +2008,7 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
@@ -2054,6 +2084,8 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 device: components["parameters"]["DeviceUuid"];
@@ -2078,6 +2110,8 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 device: components["parameters"]["DeviceUuid"];
@@ -2101,6 +2135,8 @@ export interface operations {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 device: components["parameters"]["DeviceUuid"];
@@ -2120,6 +2156,8 @@ export interface operations {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 device: components["parameters"]["DeviceUuid"];
@@ -2156,6 +2194,7 @@ export interface operations {
             header: {
                 /** @description Organization selector; authenticated membership remains authoritative. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
