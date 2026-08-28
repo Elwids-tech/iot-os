@@ -42,12 +42,28 @@ final readonly class DefinitionTestResultData
         $previews = $payload['previews'] ?? null;
         $artifactHashes = $payload['artifact_hashes'] ?? null;
 
-        if (! is_bool($payload['valid'] ?? null) || ! is_string($inputHash) || strlen($inputHash) !== 64) {
+        if (! is_bool($payload['valid'] ?? null) || ! is_string($inputHash) || preg_match('/\A[a-f0-9]{64}\z/D', $inputHash) !== 1) {
             throw new InvalidArgumentException('Definition preview identity is incomplete.');
         }
 
         if (! is_array($compiler) || ! is_array($diagnostics) || ! is_array($previews) || ! is_array($artifactHashes)) {
             throw new InvalidArgumentException('Definition preview details are incomplete.');
+        }
+
+        foreach (['name', 'version', 'cel_environment', 'jsonpath_version', 'unit_registry'] as $metadataKey) {
+            if (! is_string($compiler[$metadataKey] ?? null) || $compiler[$metadataKey] === '') {
+                throw new InvalidArgumentException('Definition compiler metadata is incomplete.');
+            }
+        }
+
+        if (! array_is_list($diagnostics) || ! array_is_list($previews)) {
+            throw new InvalidArgumentException('Definition diagnostics and previews must be lists.');
+        }
+
+        foreach ([...$diagnostics, ...$previews] as $item) {
+            if (! is_array($item)) {
+                throw new InvalidArgumentException('Definition diagnostics and previews must contain objects.');
+            }
         }
 
         $profileArtifact = $payload['profile_artifact'] ?? null;
@@ -59,6 +75,22 @@ final readonly class DefinitionTestResultData
 
         if ($bindingArtifact !== null && ! is_array($bindingArtifact)) {
             throw new InvalidArgumentException('The Binding artifact must be an object or null.');
+        }
+
+        $profileArtifactHash = $artifactHashes['profile'] ?? null;
+        $bindingArtifactHash = $artifactHashes['binding'] ?? null;
+        foreach ([$profileArtifactHash, $bindingArtifactHash] as $artifactHash) {
+            if ($artifactHash !== null && (! is_string($artifactHash) || preg_match('/\A[a-f0-9]{64}\z/D', $artifactHash) !== 1)) {
+                throw new InvalidArgumentException('Definition artifact hashes must be lowercase SHA-256 values or null.');
+            }
+        }
+
+        if ($payload['valid'] && ($profileArtifact === null || $bindingArtifact === null || $profileArtifactHash === null || $bindingArtifactHash === null)) {
+            throw new InvalidArgumentException('A valid definition preview must include both artifacts and hashes.');
+        }
+
+        if (! $payload['valid'] && ($profileArtifact !== null || $bindingArtifact !== null || $profileArtifactHash !== null || $bindingArtifactHash !== null)) {
+            throw new InvalidArgumentException('An invalid definition preview cannot include artifacts or hashes.');
         }
 
         /** @var array<string, mixed> $compiler */
@@ -74,8 +106,8 @@ final readonly class DefinitionTestResultData
             previews: $previews,
             profileArtifact: $profileArtifact,
             bindingArtifact: $bindingArtifact,
-            profileArtifactHash: is_string($artifactHashes['profile'] ?? null) ? $artifactHashes['profile'] : null,
-            bindingArtifactHash: is_string($artifactHashes['binding'] ?? null) ? $artifactHashes['binding'] : null,
+            profileArtifactHash: $profileArtifactHash,
+            bindingArtifactHash: $bindingArtifactHash,
         );
     }
 }

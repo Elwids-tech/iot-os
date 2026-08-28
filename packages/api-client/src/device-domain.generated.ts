@@ -1269,8 +1269,8 @@ export interface components {
             profile_artifact?: null | components["schemas"]["artifact.schema"];
             binding_artifact?: null | components["schemas"]["artifact.schema-2"];
             artifact_hashes: {
-                profile?: string;
-                binding?: string;
+                profile?: null | string;
+                binding?: null | string;
             };
             previews: components["schemas"]["FixturePreview"][];
             $defs: {

@@ -6,7 +6,7 @@
   "scripts": {
     "check": "pnpm run validate && pnpm run lint:openapi",
     "lint": "pnpm run lint:openapi",
-    "lint:openapi": "redocly lint ../../contracts/openapi/device-domain.v1.yaml --config ../../contracts/openapi/redocly.yaml",
+    "lint:openapi": "redocly lint ../../contracts/openapi/device-domain.v1.yaml ../../contracts/openapi/runtime-internal.v1.yaml --config ../../contracts/openapi/redocly.yaml",
     "test": "pnpm run validate",
     "validate": "node ./scripts/validate-contracts.mjs"
   },

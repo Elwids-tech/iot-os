@@ -128,10 +128,11 @@ tasks:
       - go test ./...
 
   runtime:dev:
-    desc: Run the Go runtime health surface locally
+    desc: Run the authenticated Go runtime API locally
     dir: services/runtime
     env:
       IOT_RUNTIME_HTTP_ADDRESS: '{{.IOT_RUNTIME_HTTP_ADDRESS | default ":8081"}}'
+      IOT_RUNTIME_INTERNAL_TOKEN: '{{.IOT_RUNTIME_INTERNAL_TOKEN | default "iot_os_local_runtime_token_dev_only_0001"}}'
     cmds:
       - go run ./cmd/runtime
 

@@ -15,9 +15,13 @@ runtime behavior are implemented.
   mappings, event dispatch, and Command correlation.
 - `definitions/definition-preview/v1` owns deterministic compiler diagnostics
   and fixture previews.
+- `definitions/definition-compile-request/v1` owns the Laravel-to-Go compiler
+  request.
 - `definitions/device-onboarding-proposal/v1` owns the draft-first AI/MCP
   confirmation payload.
 - `openapi/device-domain.v1.yaml` describes the planned public Laravel API.
+- `openapi/runtime-internal.v1.yaml` describes the implemented internal Go
+  compiler API.
 - `fixtures/device-onboarding/manifest.json` declares positive and negative
   schema cases.
 

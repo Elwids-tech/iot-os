@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'iot_runtime' => [
+        'url' => env('IOT_RUNTIME_URL', 'http://127.0.0.1:8081'),
+        'token' => env('IOT_RUNTIME_INTERNAL_TOKEN'),
+        'connect_timeout_seconds' => (int) env('IOT_RUNTIME_CONNECT_TIMEOUT_SECONDS', 2),
+        'timeout_seconds' => (int) env('IOT_RUNTIME_TIMEOUT_SECONDS', 5),
+        'attempts' => (int) env('IOT_RUNTIME_ATTEMPTS', 2),
+        'retry_delay_milliseconds' => (int) env('IOT_RUNTIME_RETRY_DELAY_MILLISECONDS', 100),
+    ],
+
 ];

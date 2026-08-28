@@ -31,8 +31,18 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "profile": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-        "binding": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        "profile": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+          ]
+        },
+        "binding": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+          ]
+        }
       }
     },
     "previews": {
