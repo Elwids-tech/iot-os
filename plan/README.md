@@ -57,6 +57,7 @@ The current [`docs/c4-architecture.md`](../docs/c4-architecture.md) is an earlie
 ### Current Work
 
 - [Administration foundation](tasks/admin-foundation.md)
+- [Device Domain M1a definition authoring and registration](tasks/device-domain-m1a-definition-authoring.md) — implementing milestone by milestone
 - [Device Domain M1 implementation plan](tasks/device-domain-m1.md) — planned; begins after the administration checkpoint
 
 ### Supporting Plans

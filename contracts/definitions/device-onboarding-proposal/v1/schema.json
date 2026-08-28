@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/device-onboarding-proposal/v1/schema.json",
+  "title": "Device onboarding proposal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "profile",
+    "binding",
+    "device",
+    "fixtures",
+    "previews",
+    "assumptions",
+    "warnings"
+  ],
+  "properties": {
+    "schema": {"const": "iot.device-onboarding-proposal.v1"},
+    "profile": {"$ref": "../../device-profile/v1/authoring.schema.json"},
+    "binding": {"$ref": "../../native-mqtt-binding/v1/authoring.schema.json"},
+    "device": {"$ref": "#/$defs/DeviceDraft"},
+    "fixtures": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/Fixture"}
+    },
+    "previews": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {"$ref": "../../definition-preview/v1/schema.json#/$defs/FixturePreview"}
+    },
+    "assumptions": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+    }
+  },
+  "$defs": {
+    "DeviceDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "external_id"],
+      "properties": {
+        "uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 160},
+        "external_id": {"type": "string", "minLength": 1, "maxLength": 255},
+        "description": {"type": ["string", "null"], "maxLength": 4000}
+      }
+    },
+    "Fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "input"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 160},
+        "kind": {
+          "type": "string",
+          "enum": [
+            "telemetry",
+            "reported_property",
+            "desired_property",
+            "event",
+            "command_request",
+            "command_response"
+          ]
+        },
+        "input": true,
+        "expected": true
+      }
+    }
+  }
+}

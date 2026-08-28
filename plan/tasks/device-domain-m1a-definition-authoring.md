@@ -1,0 +1,49 @@
+# Device Domain M1a Definition Authoring and Registration
+
+**Status:** In implementation
+**Last updated:** 2026-08-28
+**Parent:** [Device Domain M1a](./device-domain-m1a.md)
+
+## Outcome
+
+Deliver tenant-owned Device Profile and Native MQTT Binding CRUD, deterministic contract previews, immutable publication, single-Device registration, and draft-first Laravel AI/MCP onboarding. This slice deliberately stops before broker credentials, live ingestion, command dispatch, Gateways, bulk onboarding, Sparkplug, and admin templates.
+
+## Locked boundary
+
+- Profiles contain optional one-level components plus telemetry, properties, events, and Commands.
+- Bindings contain MQTT channels, manufacturer JSON mappings, restricted CEL, event dispatch, and command correlation.
+- Firmware JSON remains manufacturer-owned.
+- Go is the authoritative JSONPath/CEL compiler; Laravel owns definitions, authorization, API, AI orchestration, and publication intent.
+- Published Profile and Binding Versions are immutable and a registered Device pins their exact artifacts.
+- AI/MCP confirmation creates editable drafts only.
+
+## Milestones
+
+| Milestone | Deliverable | Status |
+| --- | --- | --- |
+| M1a-D0 | ADRs, JSON Schemas, OpenAPI, fixtures, and cross-language vocabulary checks | Complete |
+| M1a-D1 | PostgreSQL migrations, aggregates, DTOs, policies, lifecycle, and ETags | Pending |
+| M1a-D2 | Go compiler and Laravel internal client | Pending |
+| M1a-D3 | Tenant CRUD, validation, publication, Device and assignment APIs | Pending |
+| M1a-D4 | Tenant Profile/Binding authoring and single-Device registration UI | Pending |
+| M1a-D5 | Laravel AI chat and authenticated Laravel MCP server | Pending |
+| M1a-D6 | Contract, API, browser, security, observability, and handoff hardening | Pending |
+
+Each milestone is implemented, verified, and committed separately. Completion evidence must distinguish contract validation, local tests, browser behavior, live runtime behavior, and deployed verification.
+
+## M1a-D0 completion evidence
+
+- ADR-009 through ADR-012 lock the capability model, versioning, compiler, and
+  draft-first AI boundaries.
+- JSON Schema 2020-12 contracts cover Profile authoring/artifacts, Native MQTT
+  Binding authoring/artifacts, deterministic previews, and onboarding
+  proposals.
+- Golden fixtures cover temperature/humidity telemetry, two-way thermostat
+  Commands, bounded multi-event dispatch, and intentional invalid cases.
+- Redocly validates the planned OpenAPI 3.1 surface and `openapi-typescript`
+  generates the committed Device Domain types.
+- PHP, Go, and TypeScript checks lock their vocabulary to the common schema.
+
+This is local contract evidence only. M1a-D0 adds no migrations, API handlers,
+screens, compiler runtime, broker integration, or deployed behavior. M1a-D1 is
+the next implementation milestone.

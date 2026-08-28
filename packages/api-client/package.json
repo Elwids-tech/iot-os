@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit",
+    "generate:device-domain": "openapi-typescript ../../contracts/openapi/device-domain.v1.yaml --output ./src/device-domain.generated.ts",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "openapi-typescript": "7.13.0",
     "typescript": "~5.9.3"
   },
   "exports": {

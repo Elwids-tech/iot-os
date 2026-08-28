@@ -1,0 +1,145 @@
+{
+  "schema": "iot.device-profile.authoring.v1",
+  "profile": {
+    "uuid": "11111111-1111-4111-8111-111111111111",
+    "key": "environment_thermostat",
+    "name": "Environment Sensor and Thermostat",
+    "description": "Temperature and humidity telemetry with two-way thermostat control."
+  },
+  "version": {
+    "uuid": "11111111-1111-4111-8111-111111111112",
+    "version": 1,
+    "notes": "Golden onboarding fixture.",
+    "components": [
+      {
+        "uuid": "11111111-1111-4111-8111-111111111113",
+        "key": null,
+        "name": "Device",
+        "description": null,
+        "telemetry": [],
+        "properties": [],
+        "events": [],
+        "commands": []
+      },
+      {
+        "uuid": "11111111-1111-4111-8111-111111111114",
+        "key": "environment",
+        "name": "Environmental Sensor",
+        "description": "Temperature and humidity sensing module.",
+        "telemetry": [
+          {
+            "uuid": "11111111-1111-4111-8111-111111111115",
+            "key": "temperature",
+            "label": "Temperature",
+            "description": "Measured ambient temperature.",
+            "value_schema": {
+              "data_type": "float64",
+              "unit_code": "Cel",
+              "required": true,
+              "critical": true,
+              "constraints": {
+                "minimum": -40,
+                "maximum": 125
+              },
+              "display": {
+                "order": 10,
+                "precision": 1
+              }
+            }
+          },
+          {
+            "uuid": "11111111-1111-4111-8111-111111111116",
+            "key": "humidity",
+            "label": "Relative humidity",
+            "description": "Measured relative humidity.",
+            "value_schema": {
+              "data_type": "float64",
+              "unit_code": "%",
+              "required": true,
+              "critical": true,
+              "constraints": {
+                "minimum": 0,
+                "maximum": 100
+              },
+              "display": {
+                "order": 20,
+                "precision": 1
+              }
+            }
+          }
+        ],
+        "properties": [],
+        "events": [],
+        "commands": []
+      },
+      {
+        "uuid": "11111111-1111-4111-8111-111111111117",
+        "key": "thermostat",
+        "name": "Thermostat",
+        "description": "Temperature set-point controller.",
+        "telemetry": [],
+        "properties": [],
+        "events": [],
+        "commands": [
+          {
+            "uuid": "11111111-1111-4111-8111-111111111118",
+            "key": "set_temperature",
+            "label": "Set thermostat temperature",
+            "description": "Set the target thermostat temperature and wait for a correlated device response.",
+            "mode": "two_way",
+            "risk": "medium",
+            "confirmation_text": "Confirm the thermostat target temperature.",
+            "timeout_seconds": 30,
+            "offline_policy": "reject",
+            "idempotent": true,
+            "max_attempts": 3,
+            "fields": [
+              {
+                "uuid": "11111111-1111-4111-8111-111111111119",
+                "direction": "input",
+                "key": "temp_level",
+                "label": "Target temperature",
+                "description": "Requested thermostat temperature level.",
+                "value_schema": {
+                  "data_type": "float64",
+                  "unit_code": "Cel",
+                  "required": true,
+                  "critical": true,
+                  "constraints": {
+                    "minimum": 5,
+                    "maximum": 35
+                  },
+                  "display": {
+                    "order": 10,
+                    "precision": 1
+                  }
+                }
+              },
+              {
+                "uuid": "11111111-1111-4111-8111-111111111120",
+                "direction": "output",
+                "key": "applied_temp_level",
+                "label": "Applied temperature",
+                "description": "Temperature level reported as applied by the device.",
+                "value_schema": {
+                  "data_type": "float64",
+                  "unit_code": "Cel",
+                  "required": false,
+                  "critical": false,
+                  "constraints": {
+                    "minimum": 5,
+                    "maximum": 35
+                  },
+                  "display": {
+                    "order": 10,
+                    "precision": 1
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

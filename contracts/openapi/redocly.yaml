@@ -1,0 +1,8 @@
+extends:
+  - recommended
+
+rules:
+  operation-operationId: error
+  operation-4xx-response: off
+  security-defined: error
+  no-server-example.com: off

@@ -1,0 +1,47 @@
+{
+  "schema": "iot.contract-fixture-manifest.v1",
+  "cases": [
+    {
+      "name": "temperature humidity thermostat profile",
+      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/valid/temperature-humidity-thermostat/profile.json",
+      "valid": true
+    },
+    {
+      "name": "temperature humidity thermostat binding",
+      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/valid/temperature-humidity-thermostat/binding.json",
+      "valid": true
+    },
+    {
+      "name": "temperature humidity thermostat onboarding proposal",
+      "schema_id": "https://schemas.iot-os.dev/definitions/device-onboarding-proposal/v1/schema.json",
+      "instance": "fixtures/device-onboarding/valid/temperature-humidity-thermostat/proposal.json",
+      "valid": true
+    },
+    {
+      "name": "multi-event profile",
+      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/valid/multi-event/profile.json",
+      "valid": true
+    },
+    {
+      "name": "multi-event binding",
+      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/valid/multi-event/binding.json",
+      "valid": true
+    },
+    {
+      "name": "invalid profile key and empty components",
+      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/invalid/profile-invalid-key.json",
+      "valid": false
+    },
+    {
+      "name": "unsupported non-terminal record wildcard",
+      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/invalid/binding-unsupported-wildcard.json",
+      "valid": false
+    }
+  ]
+}

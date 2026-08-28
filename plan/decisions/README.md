@@ -12,3 +12,7 @@ These ADRs record accepted technology and responsibility boundaries. An ADR chan
 | [ADR-006](ADR-006-deployment-profiles.md) | Single-node Compose first, Kubernetes later | Accepted |
 | [ADR-007](ADR-007-monorepo-and-shadcn-ui.md) | Cross-language monorepo with a shared shadcn UI foundation | Accepted |
 | [ADR-008](ADR-008-laravel-sanctum-authentication.md) | Sanctum session cookies for React and bearer tokens for future native clients | Accepted |
+| [ADR-009](ADR-009-device-capability-and-component-model.md) | Standards-aligned Device Profile capabilities and components | Accepted |
+| [ADR-010](ADR-010-device-definition-versioning.md) | Separate immutable Device Profiles and Transport Bindings | Accepted |
+| [ADR-011](ADR-011-deterministic-definition-compiler.md) | Go-owned JSONPath and CEL definition compiler | Accepted |
+| [ADR-012](ADR-012-draft-first-ai-device-onboarding.md) | Draft-first AI and MCP Device onboarding | Accepted |

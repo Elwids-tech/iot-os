@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/common/v1/schema.json",
+  "title": "IoT OS device definition vocabulary",
+  "$defs": {
+    "Uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "Key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,99}$"
+    },
+    "QualifiedKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,99}(?:\\.[a-z][a-z0-9_]{0,99})*$",
+      "maxLength": 302
+    },
+    "DataType": {
+      "type": "string",
+      "enum": [
+        "float64",
+        "int64",
+        "uint64",
+        "boolean",
+        "string",
+        "bytes",
+        "state"
+      ]
+    },
+    "PropertyScope": {
+      "type": "string",
+      "enum": ["platform", "desired", "reported"]
+    },
+    "EventMode": {
+      "type": "string",
+      "enum": ["stateless", "stateful"]
+    },
+    "EventSeverity": {
+      "type": "string",
+      "enum": ["info", "notice", "warning", "critical"]
+    },
+    "EventState": {
+      "type": "string",
+      "enum": ["opened", "updated", "closed"]
+    },
+    "CommandMode": {
+      "type": "string",
+      "enum": ["one_way", "two_way"]
+    },
+    "CommandRisk": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "CommandFieldDirection": {
+      "type": "string",
+      "enum": ["input", "output"]
+    },
+    "CommandOfflinePolicy": {
+      "type": "string",
+      "enum": ["reject", "queue_until_expiry"]
+    },
+    "CommandStatus": {
+      "type": "string",
+      "enum": ["accepted", "running", "succeeded", "failed"]
+    },
+    "BindingPurpose": {
+      "type": "string",
+      "enum": [
+        "telemetry",
+        "reported_properties",
+        "desired_properties",
+        "event",
+        "command_request",
+        "command_response"
+      ]
+    },
+    "BindingDirection": {
+      "type": "string",
+      "enum": ["device_to_platform", "platform_to_device"]
+    },
+    "PathScope": {
+      "type": "string",
+      "enum": ["payload", "record"]
+    },
+    "MissingPolicy": {
+      "type": "string",
+      "enum": ["reject_message", "omit_value", "use_default"]
+    },
+    "TimestampFormat": {
+      "type": "string",
+      "enum": ["rfc3339", "unix_seconds", "unix_milliseconds"]
+    },
+    "DefinitionState": {
+      "type": "string",
+      "enum": ["draft", "published", "retired"]
+    },
+    "DeviceLifecycleState": {
+      "type": "string",
+      "enum": ["draft", "registered", "archived"]
+    },
+    "CelExpression": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "JsonPath": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^\\$(?:(?:\\.[A-Za-z_][A-Za-z0-9_-]*)|(?:\\['[^']+'\\])|(?:\\[[0-9]+\\]))*$"
+    },
+    "RecordPath": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^\\$(?:(?:\\.[A-Za-z_][A-Za-z0-9_-]*)|(?:\\['[^']+'\\])|(?:\\[[0-9]+\\]))*(?:\\[\\*\\])?$"
+    },
+    "TopicTemplate": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?=.*\\{device_id\\})(?!.*[+#]).+$"
+    },
+    "ValueConstraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minimum": {"type": "number"},
+        "maximum": {"type": "number"},
+        "exclusive_minimum": {"type": "boolean", "default": false},
+        "exclusive_maximum": {"type": "boolean", "default": false},
+        "multiple_of": {"type": "number", "exclusiveMinimum": 0},
+        "min_length": {"type": "integer", "minimum": 0},
+        "max_length": {"type": "integer", "minimum": 0},
+        "pattern": {"type": "string", "maxLength": 1024},
+        "allowed_values": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {
+            "type": ["string", "number", "integer", "boolean"]
+          }
+        }
+      }
+    },
+    "DisplayMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["order"],
+      "properties": {
+        "order": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "precision": {"type": "integer", "minimum": 0, "maximum": 12}
+      }
+    },
+    "ValueSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data_type", "required", "critical", "constraints", "display"],
+      "properties": {
+        "data_type": {"$ref": "#/$defs/DataType"},
+        "unit_code": {"type": ["string", "null"], "minLength": 1, "maxLength": 64},
+        "required": {"type": "boolean"},
+        "critical": {"type": "boolean"},
+        "constraints": {"$ref": "#/$defs/ValueConstraints"},
+        "default_value": true,
+        "display": {"$ref": "#/$defs/DisplayMetadata"}
+      }
+    },
+    "PathRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "json_path"],
+      "properties": {
+        "scope": {"$ref": "#/$defs/PathScope"},
+        "json_path": {"$ref": "#/$defs/JsonPath"}
+      }
+    },
+    "Transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "preset": {"type": "string", "minLength": 1, "maxLength": 100},
+        "cel": {"$ref": "#/$defs/CelExpression"}
+      }
+    },
+    "CompilerMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "cel_environment", "jsonpath_version", "unit_registry"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 100},
+        "version": {"type": "string", "minLength": 1, "maxLength": 100},
+        "cel_environment": {"type": "string", "minLength": 1, "maxLength": 100},
+        "jsonpath_version": {"type": "string", "minLength": 1, "maxLength": 100},
+        "unit_registry": {"type": "string", "minLength": 1, "maxLength": 100}
+      }
+    },
+    "Diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "code", "path", "message"],
+      "properties": {
+        "severity": {"type": "string", "enum": ["error", "warning", "info"]},
+        "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,99}$"},
+        "path": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "message": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "suggestion": {"type": ["string", "null"], "maxLength": 2048}
+      }
+    }
+  }
+}

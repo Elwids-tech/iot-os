@@ -1,0 +1,32 @@
+{
+  "schema": "iot.native-mqtt-binding.authoring.v1",
+  "binding": {
+    "profile_uuid": "33333333-3333-4333-8333-333333333331",
+    "key": "invalid_wildcard",
+    "name": "Invalid wildcard",
+    "transport": "native_mqtt_json"
+  },
+  "version": {
+    "profile_version_uuid": "33333333-3333-4333-8333-333333333332",
+    "version": 1,
+    "channels": [
+      {
+        "key": "events",
+        "label": "Events",
+        "purpose": "event",
+        "direction": "device_to_platform",
+        "topic_template": "devices/{device_id}/events",
+        "qos": 1,
+        "retain": false,
+        "content_type": "application/json",
+        "record_path": "$.events[*].nested",
+        "max_records": 100,
+        "envelope": {}
+      }
+    ],
+    "telemetry_mappings": [],
+    "property_mappings": [],
+    "event_mappings": [],
+    "command_mappings": []
+  }
+}

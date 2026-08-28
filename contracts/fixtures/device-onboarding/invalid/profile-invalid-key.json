@@ -1,0 +1,11 @@
+{
+  "schema": "iot.device-profile.authoring.v1",
+  "profile": {
+    "key": "Invalid Profile Key",
+    "name": "Invalid profile"
+  },
+  "version": {
+    "version": 1,
+    "components": []
+  }
+}

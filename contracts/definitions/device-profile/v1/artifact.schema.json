@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/device-profile/v1/artifact.schema.json",
+  "title": "Published Device Profile artifact v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "profile_uuid",
+    "profile_key",
+    "profile_version_uuid",
+    "version",
+    "source_hash",
+    "compiler",
+    "components"
+  ],
+  "properties": {
+    "schema": {"const": "iot.device-profile.v1"},
+    "profile_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
+    "profile_key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
+    "profile_version_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
+    "version": {"type": "integer", "minimum": 1},
+    "source_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "compiler": {"$ref": "../../common/v1/schema.json#/$defs/CompilerMetadata"},
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {"$ref": "authoring.schema.json#/$defs/Component"}
+    }
+  }
+}

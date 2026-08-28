@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/definition-preview/v1/schema.json",
+  "title": "Device definition compile and preview result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "valid", "input_hash", "compiler", "diagnostics", "artifact_hashes", "previews"],
+  "properties": {
+    "schema": {"const": "iot.definition-preview.v1"},
+    "valid": {"type": "boolean"},
+    "input_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "compiler": {"$ref": "../../common/v1/schema.json#/$defs/CompilerMetadata"},
+    "diagnostics": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {"$ref": "../../common/v1/schema.json#/$defs/Diagnostic"}
+    },
+    "profile_artifact": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "../../device-profile/v1/artifact.schema.json"}
+      ]
+    },
+    "binding_artifact": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "../../native-mqtt-binding/v1/artifact.schema.json"}
+      ]
+    },
+    "artifact_hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "binding": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "previews": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/FixturePreview"}
+    }
+  },
+  "$defs": {
+    "FixturePreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "valid", "source", "stages"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 160},
+        "kind": {
+          "type": "string",
+          "enum": [
+            "telemetry",
+            "reported_property",
+            "desired_property",
+            "event",
+            "command_request",
+            "command_response"
+          ]
+        },
+        "valid": {"type": "boolean"},
+        "source": true,
+        "canonical": true,
+        "generated": true,
+        "stages": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["stage", "status"],
+            "properties": {
+              "stage": {
+                "type": "string",
+                "enum": [
+                  "record_selection",
+                  "envelope",
+                  "extraction",
+                  "coercion",
+                  "transformation",
+                  "validation",
+                  "derivation",
+                  "placement",
+                  "correlation",
+                  "status"
+                ]
+              },
+              "status": {"type": "string", "enum": ["passed", "failed", "skipped"]},
+              "target": {
+                "oneOf": [
+                  {"type": "null"},
+                  {"$ref": "../../common/v1/schema.json#/$defs/QualifiedKey"}
+                ]
+              },
+              "raw": true,
+              "result": true,
+              "diagnostic_code": {"type": ["string", "null"]}
+            }
+          }
+        }
+      }
+    }
+  }
+}

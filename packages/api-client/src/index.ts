@@ -1,3 +1,10 @@
+export type {
+  components as DeviceDomainComponents,
+  operations as DeviceDomainOperations,
+  paths as DeviceDomainPaths,
+} from "./device-domain.generated"
+export { deviceDomainVocabulary } from "./device-domain-vocabulary"
+
 export type Organization = {
   uuid: string
   name: string

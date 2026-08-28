@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/artifact.schema.json",
+  "title": "Published Native MQTT JSON Binding artifact v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "binding_uuid",
+    "binding_key",
+    "binding_version_uuid",
+    "version",
+    "profile_uuid",
+    "profile_version_uuid",
+    "profile_artifact_hash",
+    "source_hash",
+    "compiler",
+    "channels",
+    "telemetry_mappings",
+    "property_mappings",
+    "event_mappings",
+    "command_mappings"
+  ],
+  "properties": {
+    "schema": {"const": "iot.native-mqtt-binding.v1"},
+    "binding_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
+    "binding_key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
+    "binding_version_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
+    "version": {"type": "integer", "minimum": 1},
+    "profile_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
+    "profile_version_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
+    "profile_artifact_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "source_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "compiler": {"$ref": "../../common/v1/schema.json#/$defs/CompilerMetadata"},
+    "channels": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {"$ref": "authoring.schema.json#/$defs/Channel"}
+    },
+    "telemetry_mappings": {
+      "type": "array",
+      "maxItems": 1024,
+      "items": {"$ref": "authoring.schema.json#/$defs/TelemetryMapping"}
+    },
+    "property_mappings": {
+      "type": "array",
+      "maxItems": 1024,
+      "items": {"$ref": "authoring.schema.json#/$defs/PropertyMapping"}
+    },
+    "event_mappings": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "authoring.schema.json#/$defs/EventMapping"}
+    },
+    "command_mappings": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "authoring.schema.json#/$defs/CommandMapping"}
+    }
+  }
+}

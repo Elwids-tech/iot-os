@@ -1,0 +1,18 @@
+{
+  "name": "@iot-os/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "pnpm run validate && pnpm run lint:openapi",
+    "lint": "pnpm run lint:openapi",
+    "lint:openapi": "redocly lint ../../contracts/openapi/device-domain.v1.yaml --config ../../contracts/openapi/redocly.yaml",
+    "test": "pnpm run validate",
+    "validate": "node ./scripts/validate-contracts.mjs"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.49.0",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
+  }
+}

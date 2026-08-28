@@ -8,6 +8,8 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "contracts:check": "pnpm --filter @iot-os/contracts check",
+    "contracts:generate": "pnpm --filter @iot-os/api-client generate:device-domain",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
@@ -17,4 +19,3 @@
     "turbo": "2.10.11"
   }
 }
-
