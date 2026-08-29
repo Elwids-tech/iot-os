@@ -1,6 +1,11 @@
-# Portal Application
+# Tenant Portal
 
-Planned customer-facing React application. It will consume the Laravel public API and the shared `packages/ui` shadcn foundation.
+React tenant experience for Device definitions and single-Device registration.
 
-**Implementation status:** Not yet scaffolded.
+```bash
+pnpm --filter @iot-os/portal dev
+pnpm --filter @iot-os/portal test
+```
 
+The portal uses Laravel Sanctum, an explicit Organization URL context, the
+shared API client, and the shared shadcn UI package.

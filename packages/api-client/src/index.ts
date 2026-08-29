@@ -1,3 +1,5 @@
+import type { components as DeviceDomainSchemaComponents } from "./device-domain.generated"
+
 export type {
   components as DeviceDomainComponents,
   operations as DeviceDomainOperations,
@@ -88,6 +90,134 @@ export type PaginatedResponse<T> = {
   meta: PaginationMeta
 }
 
+type WithoutJsonSchemaDefinitions<T> = T extends object ? Omit<T, "$defs"> : T
+
+export type DeviceProfileAuthoring = WithoutJsonSchemaDefinitions<
+  DeviceDomainSchemaComponents["schemas"]["DeviceProfileDraftV1"]
+>
+export type NativeMqttBindingAuthoring = WithoutJsonSchemaDefinitions<
+  DeviceDomainSchemaComponents["schemas"]["NativeMqttBindingDraftV1"]
+>
+export type DefinitionPreview = WithoutJsonSchemaDefinitions<
+  DeviceDomainSchemaComponents["schemas"]["DefinitionPreviewV1"]
+>
+export type DefinitionFixture = DeviceDomainSchemaComponents["schemas"]["Fixture"]
+export type DeviceDraft = DeviceDomainSchemaComponents["schemas"]["DeviceDraftV1"]
+
+export type DefinitionState = DeviceDomainSchemaComponents["schemas"]["DefinitionState"]
+export type DeviceLifecycleState =
+  DeviceDomainSchemaComponents["schemas"]["DeviceLifecycleState"]
+
+export type DeviceProfileVersion = {
+  uuid: string
+  profile_uuid: string
+  version: number
+  state: DefinitionState
+  definition: DeviceProfileAuthoring["version"]
+  revision: number
+  etag: string
+  artifact: Record<string, unknown> | null
+  artifact_hash: string | null
+  source_hash: string | null
+  compiler: Record<string, unknown> | null
+  published_at: string | null
+  retired_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type DeviceProfile = {
+  uuid: string
+  key: string
+  name: string
+  description: string | null
+  revision: number
+  etag: string
+  archived_at: string | null
+  created_at: string | null
+  updated_at: string | null
+  versions_count?: number
+  versions?: DeviceProfileVersion[]
+}
+
+export type TransportBindingVersion = {
+  uuid: string
+  binding_uuid: string
+  profile_version_uuid: string
+  version: number
+  state: DefinitionState
+  definition: NativeMqttBindingAuthoring["version"]
+  revision: number
+  etag: string
+  artifact: Record<string, unknown> | null
+  artifact_hash: string | null
+  source_hash: string | null
+  compiler: Record<string, unknown> | null
+  published_at: string | null
+  retired_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type TransportBinding = {
+  uuid: string
+  profile_uuid: string
+  key: string
+  name: string
+  description: string | null
+  transport: "native_mqtt_json"
+  revision: number
+  etag: string
+  archived_at: string | null
+  created_at: string | null
+  updated_at: string | null
+  versions_count?: number
+  versions?: TransportBindingVersion[]
+}
+
+export type CoordinatedDefinition = {
+  data: {
+    profile: DeviceProfileAuthoring
+    binding: NativeMqttBindingAuthoring
+  }
+  etag: string
+}
+
+export type DeviceDefinitionAssignment = {
+  uuid: string
+  device_uuid: string
+  profile_version_uuid: string
+  binding_version_uuid: string
+  revision: number
+  etag: string
+  locked_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type Device = {
+  uuid: string
+  external_id: string
+  name: string
+  description: string | null
+  lifecycle_state: DeviceLifecycleState
+  revision: number
+  etag: string
+  registered_at: string | null
+  archived_at: string | null
+  created_at: string | null
+  updated_at: string | null
+  definition_assignment?: DeviceDefinitionAssignment | null
+}
+
+export type DeviceDomainQuery = {
+  search?: string
+  state?: string
+  includeArchived?: boolean
+  page?: number
+  perPage?: number
+}
+
 export type DirectoryQuery = {
   search?: string
   organization?: string
@@ -111,6 +241,7 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     public readonly payload: unknown,
+    public readonly headers: Headers = new Headers(),
   ) {
     super("The API request failed.")
   }
@@ -163,6 +294,24 @@ function directoryQuery(query: DirectoryQuery = {}): string {
   const value = parameters.toString()
 
   return value ? `?${value}` : ""
+}
+
+function deviceDomainQuery(query: DeviceDomainQuery = {}): string {
+  const parameters = new URLSearchParams()
+
+  if (query.search?.trim()) parameters.set("search", query.search.trim())
+  if (query.state) parameters.set("state", query.state)
+  if (query.includeArchived) parameters.set("include_archived", "1")
+  if (query.page && query.page > 1) parameters.set("page", query.page.toString())
+  if (query.perPage) parameters.set("per_page", query.perPage.toString())
+
+  const value = parameters.toString()
+
+  return value ? `?${value}` : ""
+}
+
+function idempotencyHeaders(key = crypto.randomUUID()): HeadersInit {
+  return { "Idempotency-Key": key }
 }
 
 export class ApiClient {
@@ -311,6 +460,148 @@ export class ApiClient {
     ).then((response) => response.data)
   }
 
+  async deviceProfiles(query: DeviceDomainQuery = {}): Promise<PaginatedResponse<DeviceProfile>> {
+    return this.request<PaginatedResponse<DeviceProfile>>(
+      `/api/v1/device-profiles${deviceDomainQuery(query)}`,
+    )
+  }
+
+  async deviceProfile(uuid: string): Promise<DeviceProfile> {
+    return this.request<ApiResponse<DeviceProfile>>(
+      `/api/v1/device-profiles/${encodeURIComponent(uuid)}`,
+    ).then((response) => response.data)
+  }
+
+  async createDeviceProfile(definition: DeviceProfileAuthoring): Promise<DeviceProfile> {
+    return this.request<ApiResponse<DeviceProfile>>(`/api/v1/device-profiles`, {
+      method: "POST",
+      headers: idempotencyHeaders(),
+      body: JSON.stringify(definition),
+    }).then((response) => response.data)
+  }
+
+  async transportBindings(
+    query: DeviceDomainQuery = {},
+  ): Promise<PaginatedResponse<TransportBinding>> {
+    return this.request<PaginatedResponse<TransportBinding>>(
+      `/api/v1/transport-bindings${deviceDomainQuery(query)}`,
+    )
+  }
+
+  async transportBinding(uuid: string): Promise<TransportBinding> {
+    return this.request<ApiResponse<TransportBinding>>(
+      `/api/v1/transport-bindings/${encodeURIComponent(uuid)}`,
+    ).then((response) => response.data)
+  }
+
+  async createCoordinatedDefinition(
+    profile: DeviceProfileAuthoring,
+    binding: NativeMqttBindingAuthoring,
+  ): Promise<CoordinatedDefinition> {
+    return this.request<CoordinatedDefinition>(`/api/v1/definition-drafts`, {
+      method: "POST",
+      headers: idempotencyHeaders(),
+      body: JSON.stringify({ profile, binding }),
+    })
+  }
+
+  async coordinatedDefinition(bindingVersionUuid: string): Promise<CoordinatedDefinition> {
+    return this.request<CoordinatedDefinition>(
+      `/api/v1/definition-drafts/${encodeURIComponent(bindingVersionUuid)}`,
+    )
+  }
+
+  async replaceCoordinatedDefinition(
+    bindingVersionUuid: string,
+    profile: DeviceProfileAuthoring,
+    binding: NativeMqttBindingAuthoring,
+    entityTag: string,
+  ): Promise<CoordinatedDefinition> {
+    return this.request<CoordinatedDefinition>(
+      `/api/v1/definition-drafts/${encodeURIComponent(bindingVersionUuid)}`,
+      {
+        method: "PUT",
+        headers: { "If-Match": entityTag },
+        body: JSON.stringify({ profile, binding }),
+      },
+    )
+  }
+
+  async validateCoordinatedDefinition(
+    bindingVersionUuid: string,
+    fixtures: DefinitionFixture[],
+    entityTag: string,
+  ): Promise<DefinitionPreview> {
+    return this.request<DefinitionPreview>(
+      `/api/v1/definition-drafts/${encodeURIComponent(bindingVersionUuid)}/validate`,
+      {
+        method: "POST",
+        headers: { "If-Match": entityTag },
+        body: JSON.stringify({ fixtures }),
+      },
+    )
+  }
+
+  async publishCoordinatedDefinition(
+    bindingVersionUuid: string,
+    entityTag: string,
+  ): Promise<CoordinatedDefinition> {
+    return this.request<CoordinatedDefinition>(
+      `/api/v1/definition-drafts/${encodeURIComponent(bindingVersionUuid)}/publish`,
+      {
+        method: "POST",
+        headers: { ...idempotencyHeaders(), "If-Match": entityTag },
+      },
+    )
+  }
+
+  async devices(query: DeviceDomainQuery = {}): Promise<PaginatedResponse<Device>> {
+    return this.request<PaginatedResponse<Device>>(`/api/v1/devices${deviceDomainQuery(query)}`)
+  }
+
+  async device(uuid: string): Promise<Device> {
+    return this.request<ApiResponse<Device>>(`/api/v1/devices/${encodeURIComponent(uuid)}`).then(
+      (response) => response.data,
+    )
+  }
+
+  async createDeviceDraft(device: DeviceDraft): Promise<Device> {
+    return this.request<ApiResponse<Device>>(`/api/v1/devices`, {
+      method: "POST",
+      headers: idempotencyHeaders(),
+      body: JSON.stringify(device),
+    }).then((response) => response.data)
+  }
+
+  async assignDeviceDefinition(
+    deviceUuid: string,
+    profileVersionUuid: string,
+    bindingVersionUuid: string,
+    entityTag: string,
+  ): Promise<DeviceDefinitionAssignment> {
+    return this.request<ApiResponse<DeviceDefinitionAssignment>>(
+      `/api/v1/devices/${encodeURIComponent(deviceUuid)}/definition-assignment`,
+      {
+        method: "PUT",
+        headers: { "If-Match": entityTag },
+        body: JSON.stringify({
+          profile_version_uuid: profileVersionUuid,
+          binding_version_uuid: bindingVersionUuid,
+        }),
+      },
+    ).then((response) => response.data)
+  }
+
+  async registerDevice(deviceUuid: string, entityTag: string): Promise<Device> {
+    return this.request<ApiResponse<Device>>(
+      `/api/v1/devices/${encodeURIComponent(deviceUuid)}/register`,
+      {
+        method: "POST",
+        headers: { ...idempotencyHeaders(), "If-Match": entityTag },
+      },
+    ).then((response) => response.data)
+  }
+
   async logout(): Promise<void> {
     await this.request("/api/v1/auth/logout", { method: "POST" })
   }
@@ -343,7 +634,7 @@ export class ApiClient {
     const payload = await response.json().catch(() => null)
 
     if (!response.ok) {
-      throw new ApiError(response.status, payload)
+      throw new ApiError(response.status, payload, response.headers)
     }
 
     return payload as T

@@ -25,7 +25,7 @@ Deliver tenant-owned Device Profile and Native MQTT Binding CRUD, deterministic 
 | M1a-D1 | PostgreSQL migrations, aggregates, DTOs, policies, lifecycle, and ETags | Complete |
 | M1a-D2 | Go compiler and Laravel internal client | Complete |
 | M1a-D3 | Tenant CRUD, validation, publication, Device and assignment APIs | Complete |
-| M1a-D4 | Tenant Profile/Binding authoring and single-Device registration UI | Pending |
+| M1a-D4 | Tenant Profile/Binding authoring and single-Device registration UI | Complete |
 | M1a-D5 | Laravel AI chat and authenticated Laravel MCP server | Pending |
 | M1a-D6 | Contract, API, browser, security, observability, and handoff hardening | Pending |
 
@@ -209,4 +209,55 @@ authoring screens, browser evidence, AI/MCP onboarding, durable idempotency
 replay store, broker integration, live ingestion, command delivery, deployed
 behavior, or physical-device verification.
 
-M1a-D4 is the next implementation milestone.
+## M1a-D4 implementation evidence
+
+M1a-D4 adds the first tenant Device Domain experience on top of the D3 API:
+
+- A dedicated React/Vite tenant portal uses explicit
+  `/organizations/{organizationUuid}/...` URLs, validates memberships from the
+  authenticated session, switches tenant API context before child requests,
+  and reuses the existing shadcn admin design language at desktop and mobile
+  widths.
+- The definition catalog loads Profile and Binding summaries in parallel, then
+  loads all detailed Version resources concurrently. Draft Versions can be
+  reopened; published coordinated definitions lead directly into Device
+  onboarding.
+- Guided authoring starts from the validated temperature, humidity, timestamp,
+  Device ID, and optional two-way `temp_level` thermostat contract. Tenant
+  engineers edit semantic constraints, MQTT topics, supported JSONPath fields,
+  and a real telemetry fixture while reviewing the exact generated DTO as
+  read-only JSON.
+- Coordinated draft creation/replacement, compiler validation, and publication
+  preserve one composite ETag. HTTP `412` conflicts stop mutation and offer an
+  explicit server-draft reload/review path. Versioned Organization-scoped local
+  storage preserves only the editable form and current draft identities.
+- Single-Device onboarding visibly executes Device draft creation, immutable
+  Profile/Binding Version assignment with the Device ETag, a fresh Device read,
+  and explicit registration with the advanced Device ETag. Partial progress is
+  retained and can be resumed after a refresh so a failed later step can be
+  retried without silently creating another Device.
+- Shared UI additions remain shadcn primitives: Textarea, Tabs, and Spinner.
+  Browser verification caught and corrected both stale Organization headers on
+  tenant switching and incorrect Tabs orientation selectors.
+
+Verification completed locally:
+
+- Tenant portal Playwright coverage passes 4 scenarios: authentication and
+  Organization switching; create/validate/publish; Device
+  draft/assignment/fresh-read/registration with exact ETags; and 390x844 mobile
+  sidebar navigation. The suite rejects unexpected console warnings and errors.
+- The in-app browser loaded the local sign-in surface at its default viewport
+  and at 390x844 with meaningful DOM, no framework overlay, and no console
+  warnings or errors. Authenticated Device Domain workflows were verified with
+  mocked API responses, not a live Laravel browser session.
+- Workspace lint, TypeScript typecheck, and production builds pass for the
+  admin portal, tenant portal, API client, contracts, and shared UI packages.
+- Contract validation still passes 8 JSON Schemas and 7 fixture cases; both
+  OpenAPI documents pass Redocly.
+- Complete Laravel coverage passes: 67 tests and 398 assertions. Go compiler and
+  runtime coverage passes 28 tests across 4 packages; `go vet ./...` passes.
+
+This is local UI, mocked-browser-workflow, API/domain, and compiler evidence.
+M1a-D4 adds no AI/MCP onboarding, durable idempotency replay store, broker
+integration, live telemetry ingestion, Command delivery, deployed behavior, or
+physical-Device verification. M1a-D5 is the next implementation milestone.
