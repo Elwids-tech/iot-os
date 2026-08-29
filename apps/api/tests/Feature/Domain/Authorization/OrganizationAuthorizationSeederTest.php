@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Authorization;
 
+use App\Domain\Authorization\Models\Role;
+use App\Domain\DeviceManagement\Permissions\GatewayPermission;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\OrganizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -84,5 +87,28 @@ class OrganizationAuthorizationSeederTest extends TestCase
         $this->assertDatabaseCount('organization_user', 6);
         $this->assertDatabaseCount('roles', 6);
         $this->assertSame(110, Permission::query()->count());
+    }
+
+    public function test_reseeding_refreshes_permissions_on_existing_default_roles(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $organization = Organization::query()->where('slug', 'northstar-utilities')->firstOrFail();
+        $role = Role::query()
+            ->where('organization_id', $organization->id)
+            ->where('name', 'organization-admin')
+            ->firstOrFail();
+        $permission = Permission::findByName(GatewayPermission::VIEW_ANY->value, 'web');
+
+        $role->permissions()->detach($permission);
+        $this->assertFalse(
+            $role->fresh()->permissions->contains('name', GatewayPermission::VIEW_ANY->value),
+        );
+
+        $this->seed(OrganizationSeeder::class);
+
+        $this->assertTrue(
+            $role->fresh()->permissions->contains('name', GatewayPermission::VIEW_ANY->value),
+        );
     }
 }

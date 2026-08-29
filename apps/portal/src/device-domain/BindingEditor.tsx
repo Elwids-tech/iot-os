@@ -105,7 +105,7 @@ function ReferenceSelect({
   return (
     <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select value={value || undefined} onValueChange={onChange} disabled={editorReadOnly}>
+    <Select value={value || ""} onValueChange={onChange} disabled={editorReadOnly}>
         <SelectTrigger id={id} className="w-full">
           <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
         </SelectTrigger>
@@ -280,7 +280,7 @@ export function BindingEditor({
         <CardContent className="flex flex-col gap-4 md:flex-row md:items-end">
           <Field className="flex-1">
             <FieldLabel htmlFor="binding-catalog">Saved Binding</FieldLabel>
-            <Select value={selectedUuid ?? undefined} onValueChange={onSelect}>
+            <Select value={selectedUuid ?? ""} onValueChange={onSelect}>
               <SelectTrigger id="binding-catalog" className="w-full">
                 <SelectValue placeholder="Select a saved Binding" />
               </SelectTrigger>

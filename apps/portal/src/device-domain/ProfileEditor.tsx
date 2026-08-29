@@ -197,7 +197,7 @@ export function ProfileEditor({
         <CardContent className="flex flex-col gap-4 md:flex-row md:items-end">
           <Field className="flex-1">
             <FieldLabel htmlFor="profile-catalog">Saved profile</FieldLabel>
-            <Select value={selectedUuid ?? undefined} onValueChange={onSelect}>
+            <Select value={selectedUuid ?? ""} onValueChange={onSelect}>
               <SelectTrigger id="profile-catalog" className="w-full">
                 <SelectValue placeholder="Select a saved profile" />
               </SelectTrigger>

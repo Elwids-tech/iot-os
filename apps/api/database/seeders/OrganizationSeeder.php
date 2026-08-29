@@ -82,9 +82,9 @@ class OrganizationSeeder extends Seeder
                             'display_name' => $userDefinition['role']->displayName(),
                             'is_default' => true,
                         ])->save();
-
-                        $role->syncPermissions($userDefinition['role']->permissions());
                     }
+
+                    $role->syncPermissions($userDefinition['role']->permissions());
                     $user->syncRoles([$role]);
                 }
             }

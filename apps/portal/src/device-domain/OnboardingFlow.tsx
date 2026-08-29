@@ -619,7 +619,7 @@ export function OnboardingFlow({
             <FieldGroup className="grid gap-4 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="onboarding-profile">Device Profile</FieldLabel>
-                <Select value={profileUuid || undefined} onValueChange={chooseProfile} disabled={flowLocked}>
+                <Select value={profileUuid || ""} onValueChange={chooseProfile} disabled={flowLocked}>
                   <SelectTrigger id="onboarding-profile" className="w-full"><SelectValue placeholder="Select a saved Profile" /></SelectTrigger>
                   <SelectContent><SelectGroup>{profiles.filter((item) => item.version).map((item) => (
                     <SelectItem key={item.profile.uuid} value={item.profile.uuid}>{item.profile.name} · {item.meta.state}</SelectItem>
@@ -629,7 +629,7 @@ export function OnboardingFlow({
               </Field>
               <Field>
                 <FieldLabel htmlFor="onboarding-binding">Native MQTT Binding</FieldLabel>
-                <Select value={bindingUuid || undefined} onValueChange={chooseBinding} disabled={!profile || flowLocked}>
+                <Select value={bindingUuid || ""} onValueChange={chooseBinding} disabled={!profile || flowLocked}>
                   <SelectTrigger id="onboarding-binding" className="w-full"><SelectValue placeholder="Select a compatible Binding" /></SelectTrigger>
                   <SelectContent><SelectGroup>{compatibleBindings.filter((item) => item.version).map((item) => (
                     <SelectItem key={item.binding.uuid} value={item.binding.uuid}>{item.binding.name} · {item.meta.state}</SelectItem>
