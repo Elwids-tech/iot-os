@@ -5,7 +5,12 @@ export type {
   operations as DeviceDomainOperations,
   paths as DeviceDomainPaths,
 } from "./device-domain.generated"
-export { deviceDomainVocabulary } from "./device-domain-vocabulary"
+export type {
+  components as DeviceDomainV2Components,
+  operations as DeviceDomainV2Operations,
+  paths as DeviceDomainV2Paths,
+} from "./device-domain-v2.generated"
+export { deviceDomainV2Vocabulary, deviceDomainVocabulary } from "./device-domain-vocabulary"
 
 export type Organization = {
   uuid: string

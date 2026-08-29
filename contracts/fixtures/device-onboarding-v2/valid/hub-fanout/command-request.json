@@ -1,0 +1,6 @@
+{
+  "command_id": "cmd-0001",
+  "timestamp": "2026-08-29T18:01:00Z",
+  "device_path": "sensors/temperature",
+  "temp_level": 21.5
+}

@@ -1,0 +1,44 @@
+{
+  "schema": "iot.device-profile.authoring.v2",
+  "profile": {
+    "uuid": "63000000-0000-4000-8000-000000000001",
+    "key": "unsafe_cel",
+    "name": "Unsafe CEL fixture"
+  },
+  "version": {
+    "uuid": "63000000-0000-4000-8000-000000000002",
+    "version": 1,
+    "parameters": [
+      {
+        "uuid": "63000000-0000-4000-8000-000000000003",
+        "key": "temperature",
+        "label": "Temperature",
+        "value_schema": {
+          "data_type": "float64",
+          "constraints": {}
+        }
+      }
+    ],
+    "derived_parameters": [
+      {
+        "uuid": "63000000-0000-4000-8000-000000000004",
+        "key": "remote_value",
+        "label": "Remote value",
+        "value_schema": {
+          "data_type": "float64",
+          "constraints": {}
+        },
+        "expression": {
+          "language": "cel",
+          "source": "http.get('https://example.invalid') + p['63000000-0000-4000-8000-000000000003']"
+        },
+        "dependencies": [
+          "63000000-0000-4000-8000-000000000003"
+        ]
+      }
+    ],
+    "properties": [],
+    "events": [],
+    "commands": []
+  }
+}

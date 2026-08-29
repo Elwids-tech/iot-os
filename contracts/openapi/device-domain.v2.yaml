@@ -1,0 +1,474 @@
+openapi: 3.1.0
+info:
+  title: IoT OS Device Domain API v2
+  version: 2.0.0-contract
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+  description: >-
+    Planned tenant API for dynamic Device Profile v2 authoring, Native MQTT
+    Binding v2 authoring, Gateway identities, Gateway Routes, and deterministic
+    route-aware previews. This contract does not claim that the v2 endpoints are
+    implemented until M1a-D4R2 is complete.
+servers:
+  - url: http://localhost:8000
+    description: Local Laravel API
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+tags:
+  - name: Device Profiles v2
+    description: Dynamic logical-Device semantic blueprints.
+  - name: Native MQTT Bindings v2
+    description: Parameter-UUID mappings, calibration, and Command encoding.
+  - name: Gateways
+    description: Authenticated MQTT communication identities.
+  - name: Gateway Routes
+    description: Gateway-to-logical-Device addressing and payload scopes.
+  - name: Definition Preview v2
+    description: Deterministic Profile, Binding, route, and fixture compilation.
+paths:
+  /api/v2/device-profiles:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+    get:
+      tags: [Device Profiles v2]
+      summary: List Device Profile v2 drafts and published Versions
+      operationId: listDeviceProfilesV2
+      responses:
+        '200':
+          $ref: '#/components/responses/CollectionResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    post:
+      tags: [Device Profiles v2]
+      summary: Create a Device Profile v2 draft
+      operationId: createDeviceProfileV2
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceProfileAuthoringV2'
+      responses:
+        '201':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v2/device-profiles/{profile}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+      - $ref: '#/components/parameters/ProfileUuid'
+    get:
+      tags: [Device Profiles v2]
+      summary: Get a Device Profile v2 aggregate
+      operationId: getDeviceProfileV2
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    put:
+      tags: [Device Profiles v2]
+      summary: Replace a Device Profile v2 draft at the expected revision
+      operationId: replaceDeviceProfileV2
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceProfileAuthoringV2'
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    delete:
+      tags: [Device Profiles v2]
+      summary: Delete an unreferenced Device Profile v2 draft
+      operationId: deleteDeviceProfileV2
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Draft deleted.
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v2/native-mqtt-bindings:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+    get:
+      tags: [Native MQTT Bindings v2]
+      summary: List Native MQTT Binding v2 aggregates
+      operationId: listNativeMqttBindingsV2
+      responses:
+        '200':
+          $ref: '#/components/responses/CollectionResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    post:
+      tags: [Native MQTT Bindings v2]
+      summary: Create a Native MQTT Binding v2 draft
+      operationId: createNativeMqttBindingV2
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NativeMqttBindingAuthoringV2'
+      responses:
+        '201':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v2/native-mqtt-bindings/{binding}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+      - $ref: '#/components/parameters/BindingUuid'
+    get:
+      tags: [Native MQTT Bindings v2]
+      summary: Get a Native MQTT Binding v2 aggregate
+      operationId: getNativeMqttBindingV2
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    put:
+      tags: [Native MQTT Bindings v2]
+      summary: Replace a Native MQTT Binding v2 draft at the expected revision
+      operationId: replaceNativeMqttBindingV2
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NativeMqttBindingAuthoringV2'
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    delete:
+      tags: [Native MQTT Bindings v2]
+      summary: Delete an unreferenced Native MQTT Binding v2 draft
+      operationId: deleteNativeMqttBindingV2
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Draft deleted.
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v2/gateways:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+    get:
+      tags: [Gateways]
+      summary: List Gateway identities
+      operationId: listGatewaysV2
+      responses:
+        '200':
+          $ref: '#/components/responses/CollectionResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    post:
+      tags: [Gateways]
+      summary: Create a Gateway identity without broker credentials
+      operationId: createGatewayV2
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GatewayAuthoringV2'
+      responses:
+        '201':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v2/gateways/{gateway}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+      - $ref: '#/components/parameters/GatewayUuid'
+    get:
+      tags: [Gateways]
+      summary: Get a Gateway identity
+      operationId: getGatewayV2
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    put:
+      tags: [Gateways]
+      summary: Replace Gateway metadata at the expected revision
+      operationId: replaceGatewayV2
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GatewayAuthoringV2'
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    delete:
+      tags: [Gateways]
+      summary: Delete an unreferenced Gateway identity
+      operationId: deleteGatewayV2
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Gateway deleted.
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v2/gateway-routes:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+    get:
+      tags: [Gateway Routes]
+      summary: List Gateway Routes
+      operationId: listGatewayRoutesV2
+      responses:
+        '200':
+          $ref: '#/components/responses/CollectionResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    post:
+      tags: [Gateway Routes]
+      summary: Create a Gateway-to-logical-Device route
+      operationId: createGatewayRouteV2
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GatewayRouteAuthoringV2'
+      responses:
+        '201':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v2/gateway-routes/{route}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+      - $ref: '#/components/parameters/GatewayRouteUuid'
+    get:
+      tags: [Gateway Routes]
+      summary: Get a Gateway Route
+      operationId: getGatewayRouteV2
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    put:
+      tags: [Gateway Routes]
+      summary: Replace a Gateway Route at the expected revision
+      operationId: replaceGatewayRouteV2
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GatewayRouteAuthoringV2'
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    delete:
+      tags: [Gateway Routes]
+      summary: Delete or disable an unreferenced Gateway Route
+      operationId: deleteGatewayRouteV2
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Route deleted.
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v2/definitions/preview:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+    post:
+      tags: [Definition Preview v2]
+      summary: Compile and replay a Profile, Binding, Gateway Route, and fixtures
+      operationId: previewDeviceDefinitionV2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefinitionCompileRequestV2'
+      responses:
+        '200':
+          description: Deterministic compile result, including domain diagnostics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefinitionPreviewV2'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: iot_os_session
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
+  parameters:
+    OrganizationContext:
+      name: X-Organization-UUID
+      in: header
+      required: true
+      description: Active tenant UUID. Authorization derives tenant identity from the authenticated context.
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 255
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    ProfileUuid:
+      name: profile
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BindingUuid:
+      name: binding
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    GatewayUuid:
+      name: gateway
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    GatewayRouteUuid:
+      name: route
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    DeviceProfileAuthoringV2:
+      $ref: ../definitions/device-profile/v2/authoring.schema.json
+    DeviceProfileArtifactV2:
+      $ref: ../definitions/device-profile/v2/artifact.schema.json
+    NativeMqttBindingAuthoringV2:
+      $ref: ../definitions/native-mqtt-binding/v2/authoring.schema.json
+    NativeMqttBindingArtifactV2:
+      $ref: ../definitions/native-mqtt-binding/v2/artifact.schema.json
+    GatewayAuthoringV2:
+      $ref: ../definitions/gateway/v2/authoring.schema.json
+    GatewayRouteAuthoringV2:
+      $ref: ../definitions/gateway-route/v2/authoring.schema.json
+    DefinitionCompileRequestV2:
+      $ref: ../definitions/definition-compile-request/v2/schema.json
+    DefinitionPreviewV2:
+      $ref: ../definitions/definition-preview/v2/schema.json
+    RuntimeBundleV2:
+      $ref: ../definitions/runtime-bundle/v2/schema.json
+    CanonicalTelemetryV2:
+      $ref: ../definitions/canonical-telemetry/v2/schema.json
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+  responses:
+    ResourceResponse:
+      description: Tenant-owned resource with an ETag revision header.
+      headers:
+        ETag:
+          description: Strong resource revision for later mutation.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [data]
+            properties:
+              data: true
+    CollectionResponse:
+      description: Tenant-scoped resource collection.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [data]
+            properties:
+              data:
+                type: array
+                items: true
+    ProblemResponse:
+      description: RFC 9457 problem response.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

@@ -1,0 +1,24 @@
+{
+  "schema": "iot.gateway-route.authoring.v2",
+  "route": {
+    "uuid": "43000000-0000-4000-8000-000000000001",
+    "revision": 1,
+    "gateway_uuid": "30000000-0000-4000-8000-000000000001",
+    "device_uuid": "40000000-0000-4000-8000-000000000001",
+    "profile_version_uuid": "41000000-0000-4000-8000-000000000002",
+    "binding_version_uuid": "42000000-0000-4000-8000-000000000002",
+    "route_path": "sensors/temperature",
+    "topic_variables": {},
+    "inbound_scopes": [
+      {
+        "channel": "telemetry",
+        "payload_path": "$.sensors.temperature"
+      },
+      {
+        "channel": "set_temperature_response",
+        "payload_path": "$"
+      }
+    ],
+    "enabled": true
+  }
+}

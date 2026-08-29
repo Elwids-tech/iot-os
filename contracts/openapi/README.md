@@ -1,5 +1,9 @@
 # Public Device Domain OpenAPI Contract
 
+`device-domain.v2.yaml` and `runtime-internal.v2.yaml` are the executable rectification contracts for dynamic Profile v2 authoring, Gateways, Gateway Routes, route-aware preview, and Runtime Bundles. They are planned surfaces until D4R2 and D4R3 respectively; linting and generated TypeScript do not claim endpoint implementation.
+
+Both v1 and v2 API descriptions use repository-relative `$ref` values and are linted before TypeScript generation. The generated v2 surface is committed as `packages/api-client/src/device-domain-v2.generated.ts`.
+
 `device-domain.v1.yaml` is the canonical planned Laravel API contract for M1a
 definition authoring and single-Device registration. Routes become implemented
 only when their corresponding milestone is completed.

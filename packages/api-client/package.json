@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit",
-    "generate:device-domain": "openapi-typescript ../../contracts/openapi/device-domain.v1.yaml --output ./src/device-domain.generated.ts",
+    "generate:device-domain": "pnpm run generate:device-domain:v1 && pnpm run generate:device-domain:v2",
+    "generate:device-domain:v1": "openapi-typescript ../../contracts/openapi/device-domain.v1.yaml --output ./src/device-domain.generated.ts",
+    "generate:device-domain:v2": "openapi-typescript ../../contracts/openapi/device-domain.v2.yaml --output ./src/device-domain-v2.generated.ts",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },

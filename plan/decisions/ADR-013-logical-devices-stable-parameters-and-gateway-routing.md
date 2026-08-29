@@ -64,7 +64,7 @@ A Device Profile Version is a dynamically authored semantic blueprint containing
 
 Every measured and derived parameter has a required stable UUID. Human-readable keys and labels may change without changing time-series identity. Cloning a compatible Profile Version preserves parameter UUIDs; adding a new semantic parameter creates a new UUID; replacing the meaning of an existing parameter also requires a new UUID. A published Version remains immutable.
 
-A parameter may include optional label, description, value type, UCUM unit, constraints, missing/invalid-value policy, and presentation hints. Presentation hints can select generated input widgets such as a slider, number input, switch, select, segmented buttons, or text input, and display widgets such as a gauge, value card, chart, or status badge. These fields are authoring and UI metadata, not telemetry wire fields.
+A parameter may include optional label, description, value type, UCUM unit, constraints, and presentation hints. Presentation hints can select generated input widgets such as a slider, number input, switch, select, segmented buttons, or text input, and display widgets such as a gauge, value card, chart, or status badge. These fields are authoring and UI metadata, not telemetry wire fields. Missing and invalid wire-value behavior is explicit on each Binding mapping.
 
 The `critical` flag is removed. It has no deterministic runtime meaning. Telemetry presence is expressed with explicit `on_missing` behavior and invalid values with `on_invalid` behavior. For Commands, `required` means the platform must collect an input field before publishing, or expects a declared output field in a successful correlated response.
 
@@ -102,4 +102,3 @@ TimescaleDB series identity uses `device_uuid` plus `parameter_uuid`; labels and
 - Existing v1 definitions and assignments need an explicit migration or re-authoring path; they must not be silently reinterpreted as v2.
 - AI/MCP onboarding remains paused until v2 schemas, persistence, compiler behavior, and guided forms share the same contract.
 - This ADR does not claim broker ingestion, command delivery, deployed runtime behavior, or physical-device verification.
-

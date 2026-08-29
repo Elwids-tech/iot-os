@@ -1,0 +1,8 @@
+{
+  "message_id": "hub-message-0001",
+  "timestamp": "2026-08-29T18:00:00Z",
+  "sensors": {
+    "temperature": 247,
+    "humidity": 481
+  }
+}

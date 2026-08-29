@@ -1,0 +1,164 @@
+{
+  "schema": "iot.native-mqtt-binding.authoring.v2",
+  "binding": {
+    "uuid": "42000000-0000-4000-8000-000000000001",
+    "profile_uuid": "41000000-0000-4000-8000-000000000001",
+    "key": "north_hub_temperature_v1",
+    "name": "North hub temperature mapping",
+    "description": "Maps one hub payload branch to the temperature logical Device.",
+    "transport": "native_mqtt_json"
+  },
+  "version": {
+    "uuid": "42000000-0000-4000-8000-000000000002",
+    "profile_version_uuid": "41000000-0000-4000-8000-000000000002",
+    "version": 1,
+    "notes": "Hub fan-out golden fixture.",
+    "channels": [
+      {
+        "uuid": "42000000-0000-4000-8000-000000000003",
+        "key": "telemetry",
+        "label": "Hub telemetry",
+        "purpose": "telemetry",
+        "direction": "device_to_platform",
+        "topic_template": "gateways/{gateway_id}/telemetry",
+        "qos": 1,
+        "retain": false,
+        "content_type": "application/json",
+        "record_path": "$",
+        "max_records": 1,
+        "envelope": {
+          "observed_at": {
+            "path": {
+              "scope": "message",
+              "json_path": "$.timestamp"
+            },
+            "format": "rfc3339"
+          },
+          "message_id": {
+            "scope": "message",
+            "json_path": "$.message_id"
+          }
+        }
+      },
+      {
+        "uuid": "42000000-0000-4000-8000-000000000004",
+        "key": "set_temperature_request",
+        "label": "Set temperature request",
+        "purpose": "command_request",
+        "direction": "platform_to_device",
+        "topic_template": "gateways/{gateway_id}/devices/{route_path}/commands/set-temperature/request",
+        "qos": 1,
+        "retain": false,
+        "content_type": "application/json",
+        "record_path": "$",
+        "max_records": 1,
+        "envelope": {}
+      },
+      {
+        "uuid": "42000000-0000-4000-8000-000000000005",
+        "key": "set_temperature_response",
+        "label": "Set temperature response",
+        "purpose": "command_response",
+        "direction": "device_to_platform",
+        "topic_template": "gateways/{gateway_id}/devices/{route_path}/commands/set-temperature/response",
+        "qos": 1,
+        "retain": false,
+        "content_type": "application/json",
+        "record_path": "$",
+        "max_records": 1,
+        "envelope": {
+          "observed_at": {
+            "path": {
+              "scope": "message",
+              "json_path": "$.timestamp"
+            },
+            "format": "rfc3339"
+          }
+        }
+      }
+    ],
+    "parameter_mappings": [
+      {
+        "uuid": "42000000-0000-4000-8000-000000000006",
+        "channel": "telemetry",
+        "target_parameter_uuid": "41000000-0000-4000-8000-000000000003",
+        "source": {
+          "scope": "route",
+          "json_path": "$"
+        },
+        "wire_data_type": "int64",
+        "calibration": [
+          {
+            "op": "divide",
+            "value": 10
+          }
+        ],
+        "on_missing": "reject_message",
+        "on_invalid": "reject_message"
+      }
+    ],
+    "property_mappings": [],
+    "event_mappings": [],
+    "command_mappings": [
+      {
+        "uuid": "42000000-0000-4000-8000-000000000007",
+        "target_command_uuid": "41000000-0000-4000-8000-000000000004",
+        "request_channel": "set_temperature_request",
+        "response_channel": "set_temperature_response",
+        "request_template": {},
+        "request_envelope": {
+          "command_id_path": "$.command_id",
+          "requested_at_path": "$.timestamp",
+          "route_path_path": "$.device_path"
+        },
+        "response": {
+          "correlation": {
+            "scope": "message",
+            "json_path": "$.command_id"
+          },
+          "status": {
+            "path": {
+              "scope": "message",
+              "json_path": "$.status"
+            },
+            "values": {
+              "accepted": [
+                "accepted"
+              ],
+              "running": [
+                "running"
+              ],
+              "succeeded": [
+                "succeeded"
+              ],
+              "failed": [
+                "failed",
+                "rejected"
+              ]
+            }
+          }
+        },
+        "field_mappings": [
+          {
+            "direction": "input",
+            "target_command_field_uuid": "41000000-0000-4000-8000-000000000005",
+            "json_path": "$.temp_level",
+            "wire_data_type": "float64",
+            "operations": [],
+            "on_missing": "reject_message",
+            "on_invalid": "reject_message"
+          },
+          {
+            "direction": "output",
+            "target_command_field_uuid": "41000000-0000-4000-8000-000000000006",
+            "json_path": "$.applied_temp_level",
+            "wire_data_type": "float64",
+            "operations": [],
+            "on_missing": "reject_message",
+            "on_invalid": "reject_message"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "schema": "iot.native-mqtt-binding.authoring.v2",
+  "binding": {
+    "uuid": "52000000-0000-4000-8000-000000000001",
+    "profile_uuid": "51000000-0000-4000-8000-000000000001",
+    "key": "north_hub_meter_v1",
+    "name": "North hub three-phase meter mapping",
+    "description": "Extracts and divides manufacturer integer readings by ten.",
+    "transport": "native_mqtt_json"
+  },
+  "version": {
+    "uuid": "52000000-0000-4000-8000-000000000002",
+    "profile_version_uuid": "51000000-0000-4000-8000-000000000002",
+    "version": 1,
+    "notes": "Three-phase meter golden fixture.",
+    "channels": [
+      {
+        "uuid": "52000000-0000-4000-8000-000000000003",
+        "key": "telemetry",
+        "label": "Hub telemetry",
+        "purpose": "telemetry",
+        "direction": "device_to_platform",
+        "topic_template": "gateways/{gateway_id}/telemetry",
+        "qos": 1,
+        "retain": false,
+        "content_type": "application/json",
+        "record_path": "$",
+        "max_records": 1,
+        "envelope": {
+          "observed_at": {
+            "path": {
+              "scope": "message",
+              "json_path": "$.timestamp"
+            },
+            "format": "rfc3339"
+          },
+          "message_id": {
+            "scope": "message",
+            "json_path": "$.message_id"
+          }
+        }
+      }
+    ],
+    "parameter_mappings": [
+      {
+        "uuid": "52000000-0000-4000-8000-000000000004",
+        "channel": "telemetry",
+        "target_parameter_uuid": "51000000-0000-4000-8000-000000000003",
+        "source": {
+          "scope": "route",
+          "json_path": "$.voltages.l1"
+        },
+        "wire_data_type": "int64",
+        "calibration": [
+          {
+            "op": "divide",
+            "value": 10
+          }
+        ],
+        "on_missing": "reject_message",
+        "on_invalid": "reject_message"
+      },
+      {
+        "uuid": "52000000-0000-4000-8000-000000000005",
+        "channel": "telemetry",
+        "target_parameter_uuid": "51000000-0000-4000-8000-000000000004",
+        "source": {
+          "scope": "route",
+          "json_path": "$.voltages.l2"
+        },
+        "wire_data_type": "int64",
+        "calibration": [
+          {
+            "op": "divide",
+            "value": 10
+          }
+        ],
+        "on_missing": "reject_message",
+        "on_invalid": "reject_message"
+      },
+      {
+        "uuid": "52000000-0000-4000-8000-000000000006",
+        "channel": "telemetry",
+        "target_parameter_uuid": "51000000-0000-4000-8000-000000000005",
+        "source": {
+          "scope": "route",
+          "json_path": "$.voltages.l3"
+        },
+        "wire_data_type": "int64",
+        "calibration": [
+          {
+            "op": "divide",
+            "value": 10
+          }
+        ],
+        "on_missing": "reject_message",
+        "on_invalid": "reject_message"
+      },
+      {
+        "uuid": "52000000-0000-4000-8000-000000000007",
+        "channel": "telemetry",
+        "target_parameter_uuid": "51000000-0000-4000-8000-000000000006",
+        "source": {
+          "scope": "route",
+          "json_path": "$.currents.l1"
+        },
+        "wire_data_type": "int64",
+        "calibration": [
+          {
+            "op": "divide",
+            "value": 10
+          }
+        ],
+        "on_missing": "reject_message",
+        "on_invalid": "reject_message"
+      },
+      {
+        "uuid": "52000000-0000-4000-8000-000000000008",
+        "channel": "telemetry",
+        "target_parameter_uuid": "51000000-0000-4000-8000-000000000007",
+        "source": {
+          "scope": "route",
+          "json_path": "$.currents.l2"
+        },
+        "wire_data_type": "int64",
+        "calibration": [
+          {
+            "op": "divide",
+            "value": 10
+          }
+        ],
+        "on_missing": "reject_message",
+        "on_invalid": "reject_message"
+      },
+      {
+        "uuid": "52000000-0000-4000-8000-000000000009",
+        "channel": "telemetry",
+        "target_parameter_uuid": "51000000-0000-4000-8000-000000000008",
+        "source": {
+          "scope": "route",
+          "json_path": "$.currents.l3"
+        },
+        "wire_data_type": "int64",
+        "calibration": [
+          {
+            "op": "divide",
+            "value": 10
+          }
+        ],
+        "on_missing": "reject_message",
+        "on_invalid": "reject_message"
+      },
+      {
+        "uuid": "52000000-0000-4000-8000-000000000010",
+        "channel": "telemetry",
+        "target_parameter_uuid": "51000000-0000-4000-8000-000000000009",
+        "source": {
+          "scope": "route",
+          "json_path": "$.total_power"
+        },
+        "wire_data_type": "int64",
+        "calibration": [
+          {
+            "op": "divide",
+            "value": 10
+          }
+        ],
+        "on_missing": "omit_value",
+        "on_invalid": "accept_with_bad_quality"
+      }
+    ],
+    "property_mappings": [],
+    "event_mappings": [],
+    "command_mappings": []
+  }
+}

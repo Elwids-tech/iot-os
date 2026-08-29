@@ -21,3 +21,30 @@ var SharedVocabulary = map[string][]string{
 	"DefinitionState":       {"draft", "published", "retired"},
 	"DeviceLifecycleState":  {"draft", "registered", "archived"},
 }
+
+// SharedVocabularyV2 mirrors the additive enum vocabulary introduced by the
+// route-aware Device Domain v2 contracts. Runtime use begins in D4R3; this map
+// exists now so language bindings cannot drift while that compiler is built.
+var SharedVocabularyV2 = map[string][]string{
+	"DataType":              {"float64", "int64", "uint64", "boolean", "string", "bytes", "state"},
+	"PropertyScope":         {"platform", "desired", "reported"},
+	"EventMode":             {"stateless", "stateful"},
+	"EventSeverity":         {"info", "notice", "warning", "critical"},
+	"EventState":            {"opened", "updated", "closed"},
+	"CommandMode":           {"one_way", "two_way"},
+	"CommandRisk":           {"low", "medium", "high"},
+	"CommandFieldDirection": {"input", "output"},
+	"CommandOfflinePolicy":  {"reject", "queue_until_expiry"},
+	"CommandStatus":         {"accepted", "running", "succeeded", "failed"},
+	"BindingPurpose":        {"telemetry", "reported_properties", "desired_properties", "event", "command_request", "command_response"},
+	"BindingDirection":      {"device_to_platform", "platform_to_device"},
+	"TimestampFormat":       {"rfc3339", "unix_seconds", "unix_milliseconds"},
+	"DefinitionState":       {"draft", "published", "retired"},
+	"DeviceLifecycleState":  {"draft", "registered", "archived"},
+	"OnMissingPolicy":       {"reject_message", "omit_value", "use_default"},
+	"OnInvalidPolicy":       {"reject_message", "omit_value", "use_default", "clamp", "accept_with_bad_quality"},
+	"InputWidget":           {"slider", "number_input", "switch", "select", "segmented_control", "text_input"},
+	"DisplayWidget":         {"gauge", "value_card", "chart", "status_badge"},
+	"PathScope":             {"message", "record", "route"},
+	"QualityStatus":         {"good", "uncertain", "bad"},
+}

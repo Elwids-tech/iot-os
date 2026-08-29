@@ -34,7 +34,7 @@ The D0-D4 completion evidence below records the locally verified v1 implementati
 | M1a-D3 | Tenant CRUD, validation, publication, Device and assignment APIs | Complete v1 baseline |
 | M1a-D4 | Tenant Profile/Binding authoring and single-Device registration UI | Complete v1; superseded |
 | M1a-D4R0 | ADR-013, corrected boundaries, and executable rectification plan | Complete |
-| M1a-D4R1 | Profile v2, Gateway routing, canonical telemetry schemas, and fixtures | Pending |
+| M1a-D4R1 | Profile v2, Gateway routing, canonical telemetry schemas, and fixtures | Complete |
 | M1a-D4R2 | Laravel Gateway routing persistence, domain model, DTOs, and API | Pending |
 | M1a-D4R3 | Go v2 compiler and route-aware Runtime Bundle | Pending |
 | M1a-D4R4 | Dynamic React Profile, Binding, Command, and onboarding forms | Pending |
@@ -65,6 +65,16 @@ Exit evidence: Markdown and Mermaid validation pass; the decision and plan are c
 - Add invalid fixtures for duplicate UUIDs/keys, missing policies, dependency cycles, incompatible types, unsafe expressions, and unresolved mapping targets.
 
 Exit evidence: schema, OpenAPI, generated-type, fixture, and cross-language vocabulary checks pass. No persistence, compiler runtime, or UI behavior is claimed.
+
+D4R1 completion evidence on 2026-08-29:
+
+- Eleven additive JSON Schema 2020-12 v2 contracts cover common vocabulary, dynamic Profile authoring/artifacts, Binding authoring/artifacts, Gateway identity, Gateway Route assignment, compile request/preview, Runtime Bundle, and canonical telemetry without changing v1 identities.
+- The fixture manifest validates 19 total schemas and 25 total cases. Eighteen v2 cases cover hub fan-out, divide-by-ten calibration, minimal thermostat Command encoding, the multi-parameter three-phase meter, same-Device derivation, Runtime Bundle/canonical output, and six intentional invalid cases.
+- Contract validation adds semantic checks for stable UUID/key uniqueness, dependency resolution and cycles, forbidden CEL symbols, mapping coverage/targets/types, channel direction/purpose, Command field/response coverage, route identity/channel uniqueness, and topic-variable resolution.
+- Redocly validates additive public and internal OpenAPI v2 descriptions. `openapi-typescript` generates the committed v2 client surface, and workspace TypeScript typecheck/lint pass.
+- PHP v2 vocabulary parity passes 2 tests with 4 assertions. Go definition tests pass 25 tests and `go vet ./...` reports no issues.
+
+This is local contract evidence only. D4R1 adds no migrations, API handlers, Go v2 compiler behavior, React forms, broker ingestion, time-series writes, deployed behavior, or physical-device verification.
 
 ### M1a-D4R2 — Laravel persistence, domain, and API
 

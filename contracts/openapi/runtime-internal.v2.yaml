@@ -1,0 +1,60 @@
+openapi: 3.1.0
+info:
+  title: IoT OS Runtime Internal API v2
+  version: 2.0.0-contract
+  description: >-
+    Planned authenticated service-to-service compiler API for route-aware v2
+    definitions. It is not a tenant or browser API and is not implemented until
+    M1a-D4R3 is complete.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://127.0.0.1:8081
+    description: Local Go runtime
+security:
+  - internalBearerAuth: []
+tags:
+  - name: Definition Compiler v2
+    description: Deterministic Profile v2, Binding v2, and Gateway Route compilation.
+paths:
+  /internal/v2/definitions/compile:
+    post:
+      tags: [Definition Compiler v2]
+      summary: Compile and replay a route-aware Device definition
+      operationId: compileDeviceDefinitionV2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../definitions/definition-compile-request/v2/schema.json
+      responses:
+        '200':
+          description: Deterministic compile result, including domain diagnostics.
+          headers:
+            Cache-Control:
+              description: Compile responses are never cached.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: ../definitions/definition-preview/v2/schema.json
+        '400':
+          $ref: './runtime-internal.v1.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './runtime-internal.v1.yaml#/components/responses/Unauthorized'
+        '413':
+          $ref: './runtime-internal.v1.yaml#/components/responses/RequestTooLarge'
+        '415':
+          $ref: './runtime-internal.v1.yaml#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: './runtime-internal.v1.yaml#/components/responses/CompilerUnavailable'
+components:
+  securitySchemes:
+    internalBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-static-token
+      description: Opaque service-to-service token at least 32 bytes long.

@@ -1,0 +1,191 @@
+{
+  "schema": "iot.device-profile.authoring.v2",
+  "profile": {
+    "uuid": "51000000-0000-4000-8000-000000000001",
+    "key": "three_phase_energy_meter",
+    "name": "Three-phase energy meter",
+    "description": "One logical Device with seven measured parameters and one derived parameter."
+  },
+  "version": {
+    "uuid": "51000000-0000-4000-8000-000000000002",
+    "version": 1,
+    "notes": "Three-phase meter golden fixture.",
+    "parameters": [
+      {
+        "uuid": "51000000-0000-4000-8000-000000000003",
+        "key": "voltage_l1",
+        "label": "L1 voltage",
+        "value_schema": {
+          "data_type": "float64",
+          "unit_code": "V",
+          "constraints": {
+            "minimum": 0,
+            "maximum": 500
+          }
+        },
+        "presentation": {
+          "order": 10,
+          "precision": 1,
+          "display": {
+            "widget": "value_card"
+          }
+        }
+      },
+      {
+        "uuid": "51000000-0000-4000-8000-000000000004",
+        "key": "voltage_l2",
+        "label": "L2 voltage",
+        "value_schema": {
+          "data_type": "float64",
+          "unit_code": "V",
+          "constraints": {
+            "minimum": 0,
+            "maximum": 500
+          }
+        },
+        "presentation": {
+          "order": 20,
+          "precision": 1,
+          "display": {
+            "widget": "value_card"
+          }
+        }
+      },
+      {
+        "uuid": "51000000-0000-4000-8000-000000000005",
+        "key": "voltage_l3",
+        "label": "L3 voltage",
+        "value_schema": {
+          "data_type": "float64",
+          "unit_code": "V",
+          "constraints": {
+            "minimum": 0,
+            "maximum": 500
+          }
+        },
+        "presentation": {
+          "order": 30,
+          "precision": 1,
+          "display": {
+            "widget": "value_card"
+          }
+        }
+      },
+      {
+        "uuid": "51000000-0000-4000-8000-000000000006",
+        "key": "current_l1",
+        "label": "L1 current",
+        "value_schema": {
+          "data_type": "float64",
+          "unit_code": "A",
+          "constraints": {
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "presentation": {
+          "order": 40,
+          "precision": 1,
+          "display": {
+            "widget": "chart"
+          }
+        }
+      },
+      {
+        "uuid": "51000000-0000-4000-8000-000000000007",
+        "key": "current_l2",
+        "label": "L2 current",
+        "value_schema": {
+          "data_type": "float64",
+          "unit_code": "A",
+          "constraints": {
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "presentation": {
+          "order": 50,
+          "precision": 1,
+          "display": {
+            "widget": "chart"
+          }
+        }
+      },
+      {
+        "uuid": "51000000-0000-4000-8000-000000000008",
+        "key": "current_l3",
+        "label": "L3 current",
+        "value_schema": {
+          "data_type": "float64",
+          "unit_code": "A",
+          "constraints": {
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "presentation": {
+          "order": 60,
+          "precision": 1,
+          "display": {
+            "widget": "chart"
+          }
+        }
+      },
+      {
+        "uuid": "51000000-0000-4000-8000-000000000009",
+        "key": "total_power",
+        "label": "Total active power",
+        "value_schema": {
+          "data_type": "float64",
+          "unit_code": "W",
+          "constraints": {
+            "minimum": -1000000,
+            "maximum": 1000000
+          }
+        },
+        "presentation": {
+          "order": 70,
+          "precision": 1,
+          "display": {
+            "widget": "gauge"
+          }
+        }
+      }
+    ],
+    "derived_parameters": [
+      {
+        "uuid": "51000000-0000-4000-8000-000000000010",
+        "key": "average_voltage",
+        "label": "Average phase voltage",
+        "description": "Calculated only from normalized values on this logical Device.",
+        "value_schema": {
+          "data_type": "float64",
+          "unit_code": "V",
+          "constraints": {
+            "minimum": 0,
+            "maximum": 500
+          }
+        },
+        "expression": {
+          "language": "cel",
+          "source": "(p['51000000-0000-4000-8000-000000000003'] + p['51000000-0000-4000-8000-000000000004'] + p['51000000-0000-4000-8000-000000000005']) / 3.0"
+        },
+        "dependencies": [
+          "51000000-0000-4000-8000-000000000003",
+          "51000000-0000-4000-8000-000000000004",
+          "51000000-0000-4000-8000-000000000005"
+        ],
+        "presentation": {
+          "order": 80,
+          "precision": 1,
+          "display": {
+            "widget": "value_card"
+          }
+        }
+      }
+    ],
+    "properties": [],
+    "events": [],
+    "commands": []
+  }
+}

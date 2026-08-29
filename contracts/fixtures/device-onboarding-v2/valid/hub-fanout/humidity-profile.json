@@ -1,0 +1,41 @@
+{
+  "schema": "iot.device-profile.authoring.v2",
+  "profile": {
+    "uuid": "44000000-0000-4000-8000-000000000001",
+    "key": "humidity_sensor",
+    "name": "Humidity sensor",
+    "description": "A separate logical Device routed from the same hub payload."
+  },
+  "version": {
+    "uuid": "44000000-0000-4000-8000-000000000002",
+    "version": 1,
+    "notes": "Hub fan-out golden fixture.",
+    "parameters": [
+      {
+        "uuid": "44000000-0000-4000-8000-000000000003",
+        "key": "humidity",
+        "label": "Relative humidity",
+        "description": "Calibrated relative humidity.",
+        "value_schema": {
+          "data_type": "float64",
+          "unit_code": "%",
+          "constraints": {
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "presentation": {
+          "order": 10,
+          "precision": 1,
+          "display": {
+            "widget": "gauge"
+          }
+        }
+      }
+    ],
+    "derived_parameters": [],
+    "properties": [],
+    "events": [],
+    "commands": []
+  }
+}

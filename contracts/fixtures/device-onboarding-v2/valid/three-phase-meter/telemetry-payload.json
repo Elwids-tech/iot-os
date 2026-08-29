@@ -1,0 +1,19 @@
+{
+  "message_id": "hub-message-0002",
+  "timestamp": "2026-08-29T18:05:00Z",
+  "meters": {
+    "main": {
+      "voltages": {
+        "l1": 2301,
+        "l2": 2297,
+        "l3": 2310
+      },
+      "currents": {
+        "l1": 123,
+        "l2": 118,
+        "l3": 121
+      },
+      "total_power": 15342
+    }
+  }
+}

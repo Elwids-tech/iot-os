@@ -1,12 +1,20 @@
 # Canonical Ingestion Contract
 
-**Status:** Draft  
-**Version:** 0.1  
-**Last updated:** 2026-08-22
+**Status:** v2 rectification in implementation
+**Version:** v1 draft plus executable v2 JSON Schema
+**Last updated:** 2026-08-29
 
 ## Purpose
 
 The canonical ingestion contract separates adapters and device protocols from deterministic Go ingestion. Native JSON, Sparkplug B, Node-RED, and future plugin runtimes all converge on this contract.
+
+## Version 2 value contract
+
+The executable v2 schema is [`contracts/definitions/canonical-telemetry/v2/schema.json`](../../contracts/definitions/canonical-telemetry/v2/schema.json). It emits one typed value per logical Device parameter rather than a key-only signal array. Every value includes Organization, authenticated Gateway, Gateway Route, logical Device, stable parameter, Profile Version, Binding Version, source/received time, quality, message identity, and Runtime Bundle hash.
+
+TimescaleDB series identity is `(device_uuid, parameter_uuid)`. Labels, keys, units, constraints, presentation hints, and formulas are definition metadata and are joined for display; they are not copied into every telemetry value. Tenant and Gateway identity come from authenticated runtime context, never from untrusted payload claims.
+
+The v1 envelope below remains historical planning context for adapters that have not migrated. It must not be silently interpreted as v2 because its key-only `signals` cannot prove stable parameter identity or the transformation bundle that produced a value.
 
 ## Envelope
 
@@ -95,4 +103,3 @@ Invalid events produce structured diagnostics containing stage, code, safe expla
 - Producers declare `contract_version`.
 - Consumers support an explicit version range.
 - Adapter and profile versions remain separately traceable from contract version.
-

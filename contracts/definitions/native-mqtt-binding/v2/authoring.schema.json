@@ -1,0 +1,659 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v2/authoring.schema.json",
+  "title": "Native MQTT JSON Binding authoring contract v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "binding",
+    "version"
+  ],
+  "properties": {
+    "schema": {
+      "const": "iot.native-mqtt-binding.authoring.v2"
+    },
+    "binding": {
+      "$ref": "#/$defs/Binding"
+    },
+    "version": {
+      "$ref": "#/$defs/BindingVersion"
+    }
+  },
+  "$defs": {
+    "Binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "profile_uuid",
+        "key",
+        "name",
+        "transport"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "profile_uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "key": {
+          "$ref": "../../common/v2/schema.json#/$defs/Key"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "transport": {
+          "const": "native_mqtt_json"
+        }
+      }
+    },
+    "BindingVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "profile_version_uuid",
+        "version",
+        "channels",
+        "parameter_mappings",
+        "property_mappings",
+        "event_mappings",
+        "command_mappings"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "profile_version_uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "channels": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/Channel"
+          }
+        },
+        "parameter_mappings": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "$ref": "#/$defs/ParameterMapping"
+          }
+        },
+        "property_mappings": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "$ref": "#/$defs/PropertyMapping"
+          }
+        },
+        "event_mappings": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/EventMapping"
+          }
+        },
+        "command_mappings": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/CommandMapping"
+          }
+        }
+      }
+    },
+    "Channel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "key",
+        "label",
+        "purpose",
+        "direction",
+        "topic_template",
+        "qos",
+        "retain",
+        "content_type",
+        "record_path",
+        "max_records",
+        "envelope"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "key": {
+          "$ref": "../../common/v2/schema.json#/$defs/Key"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "purpose": {
+          "$ref": "../../common/v2/schema.json#/$defs/BindingPurpose"
+        },
+        "direction": {
+          "$ref": "../../common/v2/schema.json#/$defs/BindingDirection"
+        },
+        "topic_template": {
+          "$ref": "../../common/v2/schema.json#/$defs/TopicTemplate"
+        },
+        "qos": {
+          "type": "integer",
+          "enum": [
+            0,
+            1
+          ]
+        },
+        "retain": {
+          "type": "boolean"
+        },
+        "content_type": {
+          "const": "application/json"
+        },
+        "record_path": {
+          "$ref": "../../common/v2/schema.json#/$defs/RecordPath"
+        },
+        "max_records": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "envelope": {
+          "$ref": "#/$defs/Envelope"
+        }
+      }
+    },
+    "Envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "observed_at": {
+          "$ref": "#/$defs/TimestampPath"
+        },
+        "message_id": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        },
+        "sequence": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        }
+      }
+    },
+    "TimestampPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "format"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        },
+        "format": {
+          "$ref": "../../common/v2/schema.json#/$defs/TimestampFormat"
+        }
+      }
+    },
+    "ParameterMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "channel",
+        "target_parameter_uuid",
+        "source",
+        "wire_data_type",
+        "calibration",
+        "on_missing",
+        "on_invalid"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "channel": {
+          "$ref": "../../common/v2/schema.json#/$defs/Key"
+        },
+        "target_parameter_uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "source": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        },
+        "wire_data_type": {
+          "$ref": "../../common/v2/schema.json#/$defs/DataType"
+        },
+        "calibration": {
+          "$ref": "../../common/v2/schema.json#/$defs/CalibrationPipeline"
+        },
+        "on_missing": {
+          "$ref": "../../common/v2/schema.json#/$defs/OnMissingPolicy"
+        },
+        "on_invalid": {
+          "$ref": "../../common/v2/schema.json#/$defs/OnInvalidPolicy"
+        },
+        "default_value": true
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/DefaultValuePolicy"
+        }
+      ]
+    },
+    "PropertyMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "channel",
+        "target_property_uuid",
+        "direction",
+        "source",
+        "wire_data_type",
+        "operations",
+        "on_missing",
+        "on_invalid"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "channel": {
+          "$ref": "../../common/v2/schema.json#/$defs/Key"
+        },
+        "target_property_uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "direction": {
+          "$ref": "../../common/v2/schema.json#/$defs/BindingDirection"
+        },
+        "source": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        },
+        "wire_data_type": {
+          "$ref": "../../common/v2/schema.json#/$defs/DataType"
+        },
+        "operations": {
+          "$ref": "../../common/v2/schema.json#/$defs/CalibrationPipeline"
+        },
+        "on_missing": {
+          "$ref": "../../common/v2/schema.json#/$defs/OnMissingPolicy"
+        },
+        "on_invalid": {
+          "$ref": "../../common/v2/schema.json#/$defs/OnInvalidPolicy"
+        },
+        "default_value": true
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/DefaultValuePolicy"
+        }
+      ]
+    },
+    "EventMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "channel",
+        "target_event_uuid",
+        "field_mappings"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "channel": {
+          "$ref": "../../common/v2/schema.json#/$defs/Key"
+        },
+        "target_event_uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "discriminator": {
+          "$ref": "#/$defs/Discriminator"
+        },
+        "event_id": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        },
+        "state": {
+          "$ref": "#/$defs/EventStateMapping"
+        },
+        "field_mappings": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/EventFieldMapping"
+          }
+        }
+      }
+    },
+    "Discriminator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "equals"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        },
+        "equals": {
+          "$ref": "../../common/v2/schema.json#/$defs/JsonScalar"
+        }
+      }
+    },
+    "EventStateMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "active_values",
+        "cleared_values"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        },
+        "active_values": {
+          "$ref": "#/$defs/StatusValues"
+        },
+        "cleared_values": {
+          "$ref": "#/$defs/StatusValues"
+        }
+      }
+    },
+    "EventFieldMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_event_field_uuid",
+        "source",
+        "wire_data_type",
+        "operations",
+        "on_missing",
+        "on_invalid"
+      ],
+      "properties": {
+        "target_event_field_uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "source": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        },
+        "wire_data_type": {
+          "$ref": "../../common/v2/schema.json#/$defs/DataType"
+        },
+        "operations": {
+          "$ref": "../../common/v2/schema.json#/$defs/CalibrationPipeline"
+        },
+        "on_missing": {
+          "$ref": "../../common/v2/schema.json#/$defs/OnMissingPolicy"
+        },
+        "on_invalid": {
+          "$ref": "../../common/v2/schema.json#/$defs/OnInvalidPolicy"
+        },
+        "default_value": true
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/DefaultValuePolicy"
+        }
+      ]
+    },
+    "CommandMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "target_command_uuid",
+        "request_channel",
+        "request_template",
+        "request_envelope",
+        "field_mappings"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "target_command_uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "request_channel": {
+          "$ref": "../../common/v2/schema.json#/$defs/Key"
+        },
+        "response_channel": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "../../common/v2/schema.json#/$defs/Key"
+            }
+          ]
+        },
+        "request_template": {
+          "type": "object"
+        },
+        "request_envelope": {
+          "$ref": "#/$defs/CommandRequestEnvelope"
+        },
+        "response": {
+          "$ref": "#/$defs/CommandResponse"
+        },
+        "field_mappings": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/CommandFieldMapping"
+          }
+        }
+      }
+    },
+    "CommandRequestEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command_id_path"
+      ],
+      "properties": {
+        "command_id_path": {
+          "$ref": "../../common/v2/schema.json#/$defs/JsonPath"
+        },
+        "requested_at_path": {
+          "$ref": "../../common/v2/schema.json#/$defs/JsonPath"
+        },
+        "expires_at_path": {
+          "$ref": "../../common/v2/schema.json#/$defs/JsonPath"
+        },
+        "route_path_path": {
+          "$ref": "../../common/v2/schema.json#/$defs/JsonPath"
+        },
+        "route_variable_paths": {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": {
+            "$ref": "../../common/v2/schema.json#/$defs/Key"
+          },
+          "additionalProperties": {
+            "$ref": "../../common/v2/schema.json#/$defs/JsonPath"
+          }
+        }
+      }
+    },
+    "CommandFieldMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "target_command_field_uuid",
+        "json_path",
+        "wire_data_type",
+        "operations",
+        "on_missing",
+        "on_invalid"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "../../common/v2/schema.json#/$defs/CommandFieldDirection"
+        },
+        "target_command_field_uuid": {
+          "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+        },
+        "json_path": {
+          "$ref": "../../common/v2/schema.json#/$defs/JsonPath"
+        },
+        "wire_data_type": {
+          "$ref": "../../common/v2/schema.json#/$defs/DataType"
+        },
+        "operations": {
+          "$ref": "../../common/v2/schema.json#/$defs/CalibrationPipeline"
+        },
+        "on_missing": {
+          "$ref": "../../common/v2/schema.json#/$defs/OnMissingPolicy"
+        },
+        "on_invalid": {
+          "$ref": "../../common/v2/schema.json#/$defs/OnInvalidPolicy"
+        },
+        "default_value": true
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/DefaultValuePolicy"
+        }
+      ]
+    },
+    "CommandResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "correlation",
+        "status"
+      ],
+      "properties": {
+        "correlation": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        },
+        "status": {
+          "$ref": "#/$defs/CommandStatusMapping"
+        }
+      }
+    },
+    "CommandStatusMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "values"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "../../common/v2/schema.json#/$defs/PathRef"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "succeeded",
+            "failed"
+          ],
+          "properties": {
+            "accepted": {
+              "$ref": "#/$defs/StatusValues"
+            },
+            "running": {
+              "$ref": "#/$defs/StatusValues"
+            },
+            "succeeded": {
+              "$ref": "#/$defs/StatusValues"
+            },
+            "failed": {
+              "$ref": "#/$defs/StatusValues"
+            }
+          }
+        }
+      }
+    },
+    "StatusValues": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "../../common/v2/schema.json#/$defs/JsonScalar"
+      }
+    },
+    "DefaultValuePolicy": {
+      "if": {
+        "type": "object",
+        "anyOf": [
+          {
+            "type": "object",
+            "required": [
+              "on_missing"
+            ],
+            "properties": {
+              "on_missing": {
+                "const": "use_default"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "on_invalid"
+            ],
+            "properties": {
+              "on_invalid": {
+                "const": "use_default"
+              }
+            }
+          }
+        ]
+      },
+      "then": {
+        "type": "object",
+        "required": [
+          "default_value"
+        ],
+        "properties": {
+          "default_value": true
+        }
+      },
+      "else": {
+        "type": "object",
+        "properties": {
+          "default_value": false
+        }
+      }
+    }
+  }
+}

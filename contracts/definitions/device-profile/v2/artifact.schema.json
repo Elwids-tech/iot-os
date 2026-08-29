@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/device-profile/v2/artifact.schema.json",
+  "title": "Published Device Profile artifact v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "profile_uuid",
+    "profile_key",
+    "profile_version_uuid",
+    "version",
+    "source_hash",
+    "compiler",
+    "parameters",
+    "derived_parameters",
+    "properties",
+    "events",
+    "commands"
+  ],
+  "properties": {
+    "schema": {
+      "const": "iot.device-profile.v2"
+    },
+    "profile_uuid": {
+      "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+    },
+    "profile_key": {
+      "$ref": "../../common/v2/schema.json#/$defs/Key"
+    },
+    "profile_version_uuid": {
+      "$ref": "../../common/v2/schema.json#/$defs/Uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "source_hash": {
+      "$ref": "../../common/v2/schema.json#/$defs/Sha256"
+    },
+    "compiler": {
+      "$ref": "../../common/v2/schema.json#/$defs/CompilerMetadata"
+    },
+    "parameters": {
+      "type": "array",
+      "maxItems": 1024,
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/Parameter"
+      }
+    },
+    "derived_parameters": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/DerivedParameter"
+      }
+    },
+    "properties": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/Property"
+      }
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/Event"
+      }
+    },
+    "commands": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/Command"
+      }
+    }
+  }
+}
