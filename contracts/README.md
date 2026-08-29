@@ -25,7 +25,7 @@ The contract set defines:
 - `definitions/runtime-bundle/v1` owns immutable route-aware runtime configuration.
 - `definitions/canonical-telemetry/v1` owns normalized telemetry values.
 - `openapi/device-domain.v1.yaml` describes the public Laravel control-plane surface.
-- `openapi/runtime-internal.v1.yaml` describes the planned authenticated Go compiler surface.
+- `openapi/runtime-internal.v1.yaml` describes the authenticated Go compiler surface.
 - `fixtures/device-onboarding/manifest.json` declares positive and negative schema/semantic cases.
 
 Schema `$id` values are stable wire identities. Repository-relative `$ref` values keep validation and client generation offline and reproducible.

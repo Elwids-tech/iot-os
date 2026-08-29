@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"reflect"
 	"strings"
@@ -23,8 +24,13 @@ func decodeStrict(payload []byte, target any) error {
 		return err
 	}
 
-	if decoder.More() {
-		return errors.New("multiple JSON values are not allowed")
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("multiple JSON values are not allowed")
+		}
+
+		return fmt.Errorf("read trailing JSON: %w", err)
 	}
 
 	return nil
@@ -76,6 +82,24 @@ func deepCopyMap(source map[string]any) (map[string]any, error) {
 	}
 
 	return clone, nil
+}
+
+func validateJSONStructure(value any) error {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("marshal JSON limits input: %w", err)
+	}
+
+	var decoded any
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil {
+		return fmt.Errorf("decode JSON limits input: %w", err)
+	}
+
+	nodes := 0
+
+	return validateValueDepth(decoded, 0, &nodes)
 }
 
 func normalizeForCEL(value any) any {

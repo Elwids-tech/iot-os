@@ -1,11 +1,10 @@
 openapi: 3.1.0
 info:
   title: IoT OS Runtime Internal API v1
-  version: 2.0.0-contract
+  version: 1.0.0
   description: >-
-    Planned authenticated service-to-service compiler API for route-aware v1
-    definitions. It is not a tenant or browser API and is not implemented until
-    M1a-D4R3 is complete.
+    Authenticated service-to-service compiler API for route-aware v1
+    definitions. It is not a tenant or browser API.
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary

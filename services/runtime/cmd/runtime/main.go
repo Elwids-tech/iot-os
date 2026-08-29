@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/definition"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/health"
 )
 
@@ -21,7 +22,16 @@ func main() {
 	if httpAddress == "" {
 		httpAddress = defaultHTTPAddress
 	}
-	handler := runtimeRoutes()
+	compiler, err := definition.NewCompiler()
+	if err != nil {
+		logger.Error("definition compiler initialization failed", "error", err)
+		os.Exit(1)
+	}
+	handler, err := runtimeRoutes(compiler, os.Getenv("IOT_RUNTIME_INTERNAL_TOKEN"))
+	if err != nil {
+		logger.Error("runtime route initialization failed", "error", err)
+		os.Exit(1)
+	}
 
 	server := &http.Server{
 		Addr:              httpAddress,
@@ -53,9 +63,15 @@ func main() {
 	}
 }
 
-func runtimeRoutes() http.Handler {
+func runtimeRoutes(compiler definition.CompilerService, internalToken string) (http.Handler, error) {
+	compileHandler, err := definition.NewHTTPHandler(compiler, internalToken)
+	if err != nil {
+		return nil, err
+	}
+
 	mux := http.NewServeMux()
+	mux.Handle(definition.CompileEndpointPath, compileHandler)
 	mux.Handle("/", health.Routes())
 
-	return mux
+	return mux, nil
 }

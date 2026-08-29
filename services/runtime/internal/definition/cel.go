@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/google/cel-go/cel"
 )
@@ -12,20 +13,19 @@ import (
 type expressionCompiler struct {
 	environment *cel.Env
 	programs    map[string]cel.Program
+	mutex       sync.RWMutex
 }
 
 func newExpressionCompiler() (*expressionCompiler, error) {
 	environment, err := cel.NewEnv(
-		cel.Variable("payload", cel.DynType),
-		cel.Variable("record", cel.DynType),
 		cel.Variable("value", cel.DynType),
-		cel.Variable("values", cel.MapType(cel.StringType, cel.DynType)),
-		cel.Variable("topic", cel.StringType),
-		cel.Variable("observed_at", cel.DynType),
-		cel.Variable("received_at", cel.DynType),
-		cel.Variable("device", cel.DynType),
+		cel.Variable("p", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("message", cel.DynType),
-		cel.Variable("bundle", cel.DynType),
+		cel.Variable("record", cel.DynType),
+		cel.Variable("route", cel.DynType),
+		cel.Variable("topic", cel.StringType),
+		cel.Variable("command", cel.DynType),
+		cel.Variable("route_variables", cel.MapType(cel.StringType, cel.StringType)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create CEL environment: %w", err)
@@ -46,6 +46,14 @@ func (compiler *expressionCompiler) Compile(source string) error {
 		return errors.New("CEL expression exceeds 4096 bytes")
 	}
 
+	compiler.mutex.RLock()
+	_, exists := compiler.programs[source]
+	compiler.mutex.RUnlock()
+	if exists {
+		return nil
+	}
+	compiler.mutex.Lock()
+	defer compiler.mutex.Unlock()
 	if _, exists := compiler.programs[source]; exists {
 		return nil
 	}
@@ -77,8 +85,15 @@ func (compiler *expressionCompiler) Evaluate(
 		return nil, err
 	}
 
+	activation := make(map[string]any, len(variables))
+	for key, value := range variables {
+		activation[key] = normalizeForCEL(value)
+	}
+
+	compiler.mutex.RLock()
 	program := compiler.programs[source]
-	result, _, err := program.ContextEval(ctx, variables)
+	compiler.mutex.RUnlock()
+	result, _, err := program.ContextEval(ctx, activation)
 	if err != nil {
 		return nil, err
 	}
@@ -94,80 +109,4 @@ func (compiler *expressionCompiler) Evaluate(
 	}
 
 	return native, nil
-}
-
-func (compiler *expressionCompiler) ApplyTransform(
-	ctx context.Context,
-	transform *Transform,
-	value any,
-	variables map[string]any,
-) (any, error) {
-	if transform == nil {
-		return value, nil
-	}
-
-	transformed := value
-	if transform.Preset != "" {
-		presetValue, err := applyPreset(transform.Preset, transformed)
-		if err != nil {
-			return nil, err
-		}
-		transformed = presetValue
-	}
-
-	if transform.CEL != "" {
-		activation := make(map[string]any, len(variables)+1)
-		for key, item := range variables {
-			activation[key] = normalizeForCEL(item)
-		}
-		activation["value"] = normalizeForCEL(transformed)
-
-		return compiler.Evaluate(ctx, transform.CEL, activation)
-	}
-
-	return transformed, nil
-}
-
-func applyPreset(name string, value any) (any, error) {
-	switch name {
-	case "identity":
-		return value, nil
-	case "trim":
-		text, ok := value.(string)
-		if !ok {
-			return nil, errors.New("trim preset requires a string")
-		}
-
-		return strings.TrimSpace(text), nil
-	case "lowercase":
-		text, ok := value.(string)
-		if !ok {
-			return nil, errors.New("lowercase preset requires a string")
-		}
-
-		return strings.ToLower(text), nil
-	case "uppercase":
-		text, ok := value.(string)
-		if !ok {
-			return nil, errors.New("uppercase preset requires a string")
-		}
-
-		return strings.ToUpper(text), nil
-	case "celsius_to_fahrenheit":
-		number, ok := numericValue(value)
-		if !ok {
-			return nil, errors.New("celsius_to_fahrenheit preset requires a number")
-		}
-
-		return (number * 9 / 5) + 32, nil
-	case "fahrenheit_to_celsius":
-		number, ok := numericValue(value)
-		if !ok {
-			return nil, errors.New("fahrenheit_to_celsius preset requires a number")
-		}
-
-		return (number - 32) * 5 / 9, nil
-	default:
-		return nil, fmt.Errorf("transform preset %q is not supported by %s", name, celEnvironment)
-	}
 }

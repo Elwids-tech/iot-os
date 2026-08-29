@@ -1,6 +1,6 @@
 {
   "schema": "iot.runtime-bundle.v1",
-  "runtime_bundle_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "runtime_bundle_hash": "525e84460534981c93a704a47102662ed2a01e769e5ca0068fb9ba0fa6193869",
   "organization_uuid": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   "gateway_uuid": "30000000-0000-4000-8000-000000000001",
   "gateway_route_uuid": "43000000-0000-4000-8000-000000000002",
@@ -11,14 +11,14 @@
   "profile_version_uuid": "44000000-0000-4000-8000-000000000002",
   "binding_uuid": "45000000-0000-4000-8000-000000000001",
   "binding_version_uuid": "45000000-0000-4000-8000-000000000002",
-  "profile_artifact_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-  "binding_artifact_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-  "route_source_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "profile_artifact_hash": "92b66701e80d35099e3716334d813152d5e37aae162a725b633008e71a3dfeaa",
+  "binding_artifact_hash": "aea38d7cf09d8ae53b32e936ec1c2f0b73bd487d9b612b7527cc27f010fcee5a",
+  "route_source_hash": "4c4a5b0b6403aa0b92b00f92abe2e104af55a9668f43237b3a84f8ed33e60114",
   "compiler": {
     "name": "iot-os-definition-compiler",
-    "version": "2.0.0-contract",
-    "cel_environment": "iot.device-profile.v1",
-    "jsonpath_version": "iot-jsonpath-v1",
+    "version": "1.0.0",
+    "cel_environment": "cel-go-v0.26-restricted-v1",
+    "jsonpath_version": "ojg-v1-restricted-v1",
     "unit_registry": "ucum-essence-2026"
   },
   "channels": [

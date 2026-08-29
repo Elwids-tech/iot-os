@@ -1,6 +1,6 @@
 # Device Domain M1a Definition Authoring and Registration
 
-**Status:** Canonical cutover in verification  
+**Status:** M1a-D4R3 complete; dynamic tenant authoring UI pending
 **Last updated:** 2026-08-29  
 **Parent:** [Device Domain M1a](./device-domain-m1a.md)  
 **Decisions:** [ADR-013](../decisions/ADR-013-logical-devices-stable-parameters-and-gateway-routing.md), [ADR-014](../decisions/ADR-014-pre-production-device-domain-canonical-cutover.md)
@@ -40,7 +40,7 @@ The guided CRUD and onboarding experience must be correct before AI/MCP onboardi
 | M1a-D4R0 | Corrected identity, routing, stable-parameter, and cutover decisions | Complete |
 | M1a-D4R1 | Canonical JSON Schemas, OpenAPI, fixtures, generated types, and vocabulary checks | Complete |
 | M1a-D4R2 | Canonical Laravel persistence, DDD services, DTOs, policies, ETags, and CRUD APIs | Complete |
-| M1a-D4R3 | Route-aware Go compiler and immutable Runtime Bundle | Pending |
+| M1a-D4R3 | Route-aware Go compiler and immutable Runtime Bundle | Complete |
 | M1a-D4R4 | Dynamic tenant authoring and Gateway-routed Device onboarding UI | Pending |
 | M1a-D4R5 | End-to-end local acceptance, browser verification, and handoff | Pending |
 | M1a-D5 | Laravel AI chat and authenticated Laravel MCP server | Blocked by D4R3-D4R5 |
@@ -124,6 +124,27 @@ Acceptance criteria:
 - Laravel internal-client tests distinguish diagnostics, transport failure, and authentication failure.
 - No live EMQX, TimescaleDB, deployment, or physical-device behavior is claimed.
 
+Delivered:
+
+- Canonical unversioned Go models compile Profile, Binding, Gateway, Route, fixtures, artifacts, preview, and Runtime Bundle contracts under their first public `v1` identities.
+- Measured mappings target stable parameter UUIDs and execute restricted JSONPath, wire coercion, structured calibration, restricted CEL, semantic constraints, and explicit missing/invalid policies.
+- Same-Device derivations are topologically ordered and reject cycles, missing dependencies, and CEL UUID references omitted from dependency declarations.
+- Gateway identity and Route context resolve exact MQTT topics, payload scopes, and optional selectors into an immutable logical-Device Runtime Bundle.
+- Command pipelines encode only correlation, routing, and mapped values; decode correlated terminal Device responses; and never treat MQTT PUBACK as Device success.
+- Profile source, Binding source, Profile artifact, Binding artifact, authenticated route source, compile input, and Runtime Bundle identities use RFC 8785 canonical JSON and SHA-256.
+- The Go runtime exposes authenticated `POST /internal/v1/definitions/compile`; Laravel calls it through an unversioned typed client boundary.
+
+Verification evidence (2026-08-29):
+
+- Go race-enabled suite passed 28 tests across 4 packages; `go vet ./...` passed.
+- Golden hub fan-out Runtime Bundle matched checked-in canonical JSON and real hashes; three-phase calibration/derivation, route selector, restricted CEL, command encoding/correlation, invalid contract fixtures, repeated byte-stable compilation, and exact identity tests passed.
+- Laravel suite passed 61 tests and 367 assertions on SQLite, including 6 internal compiler-client tests and 16 focused assertions for domain, authentication, network, HTTP, and malformed-response boundaries.
+- A live local cross-language smoke call through the real Laravel client and authenticated Go endpoint returned the exact humidity logical-Device UUID and the checked-in Runtime Bundle hash.
+- Contract validation passed 13 schemas and 18 fixture cases; both OpenAPI documents passed Redocly.
+- Device Domain TypeScript generation was byte-stable across consecutive runs; workspace typecheck, lint, build, and test passed.
+- Clean migration and the full 61-test Laravel suite passed on a disposable PostgreSQL 17 container at isolated port 55433; the container was removed and the persistent development TimescaleDB on port 5432 was not reset.
+- EMQX ingestion, TimescaleDB writes, deployed runtime behavior, command delivery, and physical-device verification remain outside this milestone.
+
 ## M1a-D4R4 — dynamic tenant authoring and onboarding UI
 
 Tasks:
@@ -167,4 +188,4 @@ This milestone starts only after D4R3-D4R5 pass.
 
 ## Current evidence boundary
 
-Canonical contracts and focused Laravel tests are local evidence. Until later milestones complete, this plan does not claim a route-aware Go compiler, dynamic authoring UI, live EMQX connectivity, telemetry ingestion, TimescaleDB writes, command delivery, deployment, or physical-device verification.
+Canonical contracts, Laravel CRUD, and the route-aware Go compiler/internal client are verified local evidence. Until later milestones complete, this plan does not claim a dynamic authoring UI, live EMQX connectivity, telemetry ingestion, TimescaleDB writes, command delivery, deployment, or physical-device verification.

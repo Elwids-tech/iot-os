@@ -190,19 +190,23 @@ func setPathValue(current any, steps []pathStep, value any) (any, error) {
 	return nil, errors.New("unsupported JSONPath placement fragment")
 }
 
-func scopedValue(reference PathRef, payload, record any) (any, bool, error) {
+func scopedValue(reference PathRef, message, record, route any) (any, bool, error) {
 	path, err := parseRestrictedPath(reference.JSONPath, false)
 	if err != nil {
 		return nil, false, err
 	}
 
 	switch reference.Scope {
-	case "payload":
-		value, found := path.Get(payload)
+	case "message":
+		value, found := path.Get(message)
 
 		return value, found, nil
 	case "record":
 		value, found := path.Get(record)
+
+		return value, found, nil
+	case "route":
+		value, found := path.Get(route)
 
 		return value, found, nil
 	default:
