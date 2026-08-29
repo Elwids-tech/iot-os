@@ -1,7 +1,9 @@
 # ADR-009: Device Capability and Component Model
 
-**Status:** Accepted
+**Status:** Partially superseded by [ADR-013](./ADR-013-logical-devices-stable-parameters-and-gateway-routing.md)
 **Date:** 2026-08-28
+
+ADR-013 supersedes the implicit-root/optional-component Device boundary and the deferral of Gateway mediation. The transport-independent Profile capability model remains accepted.
 
 ## Context
 

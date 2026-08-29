@@ -1,7 +1,9 @@
 # ADR-010: Device Definition Versioning
 
-**Status:** Accepted
+**Status:** Partially superseded by [ADR-013](./ADR-013-logical-devices-stable-parameters-and-gateway-routing.md)
 **Date:** 2026-08-28
+
+ADR-013 adds Gateway Routes and route-aware Runtime Bundles to assignment identity. Separate immutable Profile and Binding Versions remain accepted.
 
 ## Context
 

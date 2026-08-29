@@ -1,35 +1,111 @@
 # Device Domain M1a Definition Authoring and Registration
 
-**Status:** In implementation
-**Last updated:** 2026-08-28
+**Status:** Rectification in implementation
+**Last updated:** 2026-08-29
 **Parent:** [Device Domain M1a](./device-domain-m1a.md)
 
 ## Outcome
 
-Deliver tenant-owned Device Profile and Native MQTT Binding CRUD, deterministic contract previews, immutable publication, single-Device registration, and draft-first Laravel AI/MCP onboarding. This slice deliberately stops before broker credentials, live ingestion, command dispatch, Gateways, bulk onboarding, Sparkplug, and admin templates.
+Rectify M1a around dynamically authored Device Profile v2 parameters, stable parameter UUIDs, Gateway-to-logical-Device routing, deterministic calibration and derivation, separate Command mappings, and generated presentation metadata. The guided CRUD and onboarding experience must be correct before AI/MCP onboarding resumes. This slice still stops before broker credentials, live ingestion, live command dispatch, bulk onboarding, Sparkplug, and admin templates.
 
-## Locked boundary
+The D0-D4 completion evidence below records the locally verified v1 implementation. Product review rejected its fixed authoring and direct Device-to-Binding assumptions, so that evidence is historical rather than acceptance of the current model.
 
-- Profiles contain optional one-level components plus telemetry, properties, events, and Commands.
-- Bindings contain MQTT channels, manufacturer JSON mappings, restricted CEL, event dispatch, and command correlation.
-- Firmware JSON remains manufacturer-owned.
-- Go is the authoritative JSONPath/CEL compiler; Laravel owns definitions, authorization, API, AI orchestration, and publication intent.
-- Published Profile and Binding Versions are immutable and a registered Device pins their exact artifacts.
-- AI/MCP confirmation creates editable drafts only.
+## Locked rectification boundary
+
+- A Gateway is the authenticated MQTT communicator; a Device is a logical platform identity independent of physical composition.
+- One Gateway message may route values to one or many logical Devices through explicit Gateway Routes.
+- Profile v2 dynamically defines measured parameters, derived parameters, properties, events, and Commands.
+- Every measured and derived parameter has a stable UUID used in canonical telemetry and time-series identity.
+- Binding mappings target parameter UUIDs and own JSONPath extraction, structured calibration or restricted CEL, and explicit `on_missing`/`on_invalid` policies.
+- Derived parameters use normalized same-Device values; cross-Device derivation is deferred to a virtual/calculated Device aggregate.
+- Command semantics live in the Profile; request/response topics, payload placement, correlation, and extraction live in the Binding.
+- Labels, units, constraints, presentation hints, formulas, and required markers are metadata and are not copied into MQTT wire payloads.
+- Go remains the authoritative compiler; Laravel owns definitions, authorization, API, orchestration, and publication intent.
+- Published Versions remain immutable. Compatible clones preserve parameter UUIDs; semantic replacements receive new UUIDs.
+- AI/MCP confirmation remains draft-only and M1a-D5 is blocked until rectification is complete.
 
 ## Milestones
 
 | Milestone | Deliverable | Status |
 | --- | --- | --- |
-| M1a-D0 | ADRs, JSON Schemas, OpenAPI, fixtures, and cross-language vocabulary checks | Complete |
-| M1a-D1 | PostgreSQL migrations, aggregates, DTOs, policies, lifecycle, and ETags | Complete |
-| M1a-D2 | Go compiler and Laravel internal client | Complete |
-| M1a-D3 | Tenant CRUD, validation, publication, Device and assignment APIs | Complete |
-| M1a-D4 | Tenant Profile/Binding authoring and single-Device registration UI | Complete |
-| M1a-D5 | Laravel AI chat and authenticated Laravel MCP server | Pending |
+| M1a-D0 | ADRs, JSON Schemas, OpenAPI, fixtures, and cross-language vocabulary checks | Complete v1 baseline |
+| M1a-D1 | PostgreSQL migrations, aggregates, DTOs, policies, lifecycle, and ETags | Complete v1 baseline |
+| M1a-D2 | Go compiler and Laravel internal client | Complete v1 baseline |
+| M1a-D3 | Tenant CRUD, validation, publication, Device and assignment APIs | Complete v1 baseline |
+| M1a-D4 | Tenant Profile/Binding authoring and single-Device registration UI | Complete v1; superseded |
+| M1a-D4R0 | ADR-013, corrected boundaries, and executable rectification plan | Complete |
+| M1a-D4R1 | Profile v2, Gateway routing, canonical telemetry schemas, and fixtures | Pending |
+| M1a-D4R2 | Laravel Gateway routing persistence, domain model, DTOs, and API | Pending |
+| M1a-D4R3 | Go v2 compiler and route-aware Runtime Bundle | Pending |
+| M1a-D4R4 | Dynamic React Profile, Binding, Command, and onboarding forms | Pending |
+| M1a-D4R5 | v1 migration policy, end-to-end local verification, and handoff | Pending |
+| M1a-D5 | Laravel AI chat and authenticated Laravel MCP server | Blocked by D4R0-D4R5 |
 | M1a-D6 | Contract, API, browser, security, observability, and handoff hardening | Pending |
 
 Each milestone is implemented, verified, and committed separately. Completion evidence must distinguish contract validation, local tests, browser behavior, live runtime behavior, and deployed verification.
+
+## Rectification execution plan
+
+### M1a-D4R0 — decision and boundary correction
+
+- Add ADR-013 for Gateway communication identity, logical Device identity, stable parameter UUIDs, route fan-out, calibration, derivation, Command encoding, and canonical telemetry.
+- Mark only the conflicting scopes of ADR-009 and ADR-010 as superseded; preserve their Profile/Binding separation and immutable-version decisions.
+- Record D4R1-D4R5 as the blocking path before AI/MCP work resumes.
+- Validate all new Mermaid source and documentation links.
+
+Exit evidence: Markdown and Mermaid validation pass; the decision and plan are committed without claiming runtime behavior.
+
+### M1a-D4R1 — executable v2 contracts
+
+- Introduce versioned JSON Schema contracts for Profile v2 measured parameters, derived parameters, properties, events, Commands, constraints, policies, and presentation hints.
+- Introduce Binding v2 schemas for parameter-UUID mappings, structured calibration operations, restricted CEL, telemetry channels, and Command request/response mappings.
+- Define Gateway, Gateway Route, route assignment, Runtime Bundle, and canonical telemetry schemas without silently changing v1 documents.
+- Update OpenAPI/DTO vocabulary and generated TypeScript types only from validated schemas.
+- Add golden fixtures for a hub routing temperature and humidity to separate Devices, one three-phase meter with multiple parameters, divide-by-ten calibration, same-Device derivation, and a `temp_level` thermostat Command.
+- Add invalid fixtures for duplicate UUIDs/keys, missing policies, dependency cycles, incompatible types, unsafe expressions, and unresolved mapping targets.
+
+Exit evidence: schema, OpenAPI, generated-type, fixture, and cross-language vocabulary checks pass. No persistence, compiler runtime, or UI behavior is claimed.
+
+### M1a-D4R2 — Laravel persistence, domain, and API
+
+- Add tenant-owned Gateway and Gateway Route persistence with composite Organization foreign keys and indexes for gateway/topic route resolution.
+- Evolve definition assignment so a registered logical Device pins exact Profile v2, Binding v2, route, and compiled artifact identities.
+- Add immutable DTOs and aggregate services for Profile cloning, including preservation of compatible parameter UUIDs and explicit replacement with new UUIDs.
+- Add policies, ETags, validation requests, resources, and tenant APIs for Gateway CRUD, route CRUD, and route-aware Device onboarding.
+- Preserve v1 records and make compatibility state explicit; do not reinterpret or destructively rewrite them.
+
+Exit evidence: migrations run from clean and existing databases; feature, policy, tenant-isolation, lifecycle, optimistic-concurrency, and rollback tests pass. Broker connectivity is not claimed.
+
+### M1a-D4R3 — Go compiler and Runtime Bundle v2
+
+- Compile mappings by parameter UUID rather than display key.
+- Compile structured calibration pipelines and restricted CEL with type checks, dependency checks, operation limits, and deterministic error paths.
+- Build and topologically sort same-Device derived-parameter graphs; reject cycles and cross-Device references.
+- Compile inbound route matchers and outbound Command encoders/response correlators into an immutable Runtime Bundle.
+- Emit canonical telemetry values with Gateway, Device, parameter, Profile Version, timestamp, quality, message, and Runtime Bundle identities.
+- Keep PUBACK distinct from a correlated Device Command result.
+
+Exit evidence: Go unit, golden, determinism, invalid-fixture, and Laravel-client contract tests pass. Live EMQX, TimescaleDB writes, and physical Devices are not claimed.
+
+### M1a-D4R4 — dynamic tenant authoring and onboarding UI
+
+- Replace static template fields with repeaters for measured and derived parameters, preserving generated UUIDs while drafts are edited and reordered.
+- Add type-aware constraints, missing/invalid policies, unit metadata, presentation presets, structured calibration steps, restricted formula editing, dependency selection, and inline validation.
+- Add a separate Commands section for semantic request/response fields, generated control hints, publish/response topics, payload mappings, and correlation settings.
+- Keep generated Profile, Binding, and Runtime Bundle JSON read-only and synchronized with the guided form.
+- Add Gateway selection/creation and route-path configuration to Device onboarding, including previews showing which payload paths populate which logical Device parameters.
+- Cover keyboard operation, destructive-action confirmation, responsive layout, loading/error states, and tenant-safe navigation in the existing React/shadcn language.
+
+Exit evidence: frontend unit tests, production build, API integration tests, and browser smoke tests pass for the hub, three-phase meter, calibration, derivation, and Command fixtures. No mockups or live broker behavior are claimed.
+
+### M1a-D4R5 — migration, acceptance, and handoff
+
+- Provide an explicit v1 compatibility report and supported clone/re-authoring workflow; do not fabricate parameter UUID continuity where semantics cannot be proven.
+- Run the full PHP, Go, TypeScript, schema, OpenAPI, and generated-artifact checks from a clean database.
+- Browser-test tenant CRUD, publication, Gateway routing, onboarding, cloning, and read-only JSON previews with retained evidence.
+- Record deferred live EMQX ingestion, TimescaleDB persistence, Command delivery, bulk onboarding, admin templates, and AI/MCP work as separate evidence levels and later milestones.
+
+Exit evidence: all local suites and browser acceptance scenarios pass, migration behavior is documented, and the rectification is committed before M1a-D5 is unblocked.
 
 ## M1a-D0 completion evidence
 
