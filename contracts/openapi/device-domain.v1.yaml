@@ -20,6 +20,8 @@ tags:
     description: Dynamic logical-Device semantic blueprints.
   - name: Native MQTT Bindings v1
     description: Parameter-UUID mappings, calibration, and Command encoding.
+  - name: Definition compilation
+    description: Fixture replay, coordinated publication, and Runtime Bundle pinning.
   - name: Devices
     description: Logical Device drafts, exact definition assignment, registration, and archival.
   - name: Gateways
@@ -27,6 +29,47 @@ tags:
   - name: Gateway Routes
     description: Gateway-to-logical-Device addressing and payload scopes.
 paths:
+  /api/v1/definition-compilations/preview:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+    post:
+      tags: [Definition compilation]
+      summary: Preview saved Profile and Binding drafts in a proposed Gateway Route context
+      operationId: previewDefinitionCompilationV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefinitionCompileRequestV1'
+      responses:
+        '200':
+          $ref: '#/components/responses/DefinitionPreviewResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v1/definition-compilations/publish:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/IfMatchProfile'
+      - $ref: '#/components/parameters/IfMatchBinding'
+    post:
+      tags: [Definition compilation]
+      summary: Compile and atomically publish a saved Profile and Binding draft pair
+      operationId: publishDefinitionCompilationV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefinitionCompileRequestV1'
+      responses:
+        '200':
+          $ref: '#/components/responses/DefinitionPublicationResponse'
+        '422':
+          $ref: '#/components/responses/DefinitionCompileFailureResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
   /api/v1/device-profiles:
     parameters:
       - $ref: '#/components/parameters/OrganizationContext'
@@ -299,6 +342,48 @@ paths:
           $ref: '#/components/responses/DeviceDefinitionAssignmentResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
+  /api/v1/devices/{device}/definition-assignment/compile:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+      - $ref: '#/components/parameters/DeviceUuid'
+    post:
+      tags: [Definition compilation]
+      summary: Replay fixtures against the exact saved routed Device assignment
+      operationId: compileDeviceDefinitionAssignmentV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefinitionFixtureRequestV1'
+      responses:
+        '200':
+          $ref: '#/components/responses/DefinitionPreviewResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v1/devices/{device}/definition-assignment/pin:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+      - $ref: '#/components/parameters/DeviceUuid'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/IfMatch'
+    post:
+      tags: [Definition compilation]
+      summary: Recompile and pin an identity-matched Runtime Bundle
+      operationId: pinDeviceRuntimeBundleV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefinitionFixtureRequestV1'
+      responses:
+        '200':
+          $ref: '#/components/responses/RuntimeBundlePinResponse'
+        '422':
+          $ref: '#/components/responses/DefinitionCompileFailureResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
   /api/v1/gateways:
     parameters:
       - $ref: '#/components/parameters/OrganizationContext'
@@ -473,6 +558,22 @@ components:
       schema:
         type: string
         minLength: 1
+    IfMatchProfile:
+      name: If-Match-Profile
+      in: header
+      required: true
+      description: Strong Device Profile aggregate revision used by coordinated publication.
+      schema:
+        type: string
+        minLength: 1
+    IfMatchBinding:
+      name: If-Match-Binding
+      in: header
+      required: true
+      description: Strong Native MQTT Binding aggregate revision used by coordinated publication.
+      schema:
+        type: string
+        minLength: 1
     ProfileUuid:
       name: profile
       in: path
@@ -531,6 +632,12 @@ components:
       $ref: ../definitions/device/v1/authoring.schema.json
     DeviceDefinitionAssignmentAuthoringV1:
       $ref: ../definitions/device-definition-assignment/v1/authoring.schema.json
+    DefinitionCompileRequestV1:
+      $ref: ../definitions/definition-compile-request/v1/schema.json
+    DefinitionFixtureRequestV1:
+      $ref: ../definitions/definition-fixtures/v1/schema.json
+    DefinitionPreviewV1:
+      $ref: ../definitions/definition-preview/v1/schema.json
     RuntimeBundleV1:
       $ref: ../definitions/runtime-bundle/v1/schema.json
     CanonicalTelemetryV1:
@@ -687,6 +794,50 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/DeviceDefinitionAssignmentResourceV1'
+    DefinitionPreviewEnvelopeV1:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/DefinitionPreviewV1'
+    DefinitionPublicationEnvelopeV1:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [profile, binding, compile]
+          properties:
+            profile: true
+            binding: true
+            compile:
+              $ref: '#/components/schemas/DefinitionPreviewV1'
+    RuntimeBundlePinEnvelopeV1:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [assignment, compile]
+          properties:
+            assignment:
+              $ref: '#/components/schemas/DeviceDefinitionAssignmentResourceV1'
+            compile:
+              $ref: '#/components/schemas/DefinitionPreviewV1'
+    DefinitionCompileFailureEnvelopeV1:
+      type: object
+      additionalProperties: false
+      required: [message, data]
+      properties:
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/DefinitionPreviewV1'
     Problem:
       type: object
       additionalProperties: false
@@ -713,6 +864,44 @@ components:
             items:
               type: string
   responses:
+    DefinitionPreviewResponse:
+      description: Deterministic compiler diagnostics, artifacts, Runtime Bundle, and fixture previews.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefinitionPreviewEnvelopeV1'
+    DefinitionPublicationResponse:
+      description: Published immutable Profile and Binding artifacts with the confirmed compile result.
+      headers:
+        ETag-Profile:
+          description: Strong published Device Profile aggregate revision.
+          schema:
+            type: string
+        ETag-Binding:
+          description: Strong published Native MQTT Binding aggregate revision.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefinitionPublicationEnvelopeV1'
+    RuntimeBundlePinResponse:
+      description: Pinned Device definition assignment and the exact compile result.
+      headers:
+        ETag:
+          description: Strong definition-assignment revision.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RuntimeBundlePinEnvelopeV1'
+    DefinitionCompileFailureResponse:
+      description: The compiler completed but domain diagnostics blocked publication or pinning.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefinitionCompileFailureEnvelopeV1'
     ResourceResponse:
       description: Tenant-owned resource with an ETag revision header.
       headers:

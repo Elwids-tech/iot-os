@@ -4,6 +4,95 @@ export type {
   paths as DeviceDomainPaths,
 } from "./device-domain.generated"
 export { deviceDomainVocabulary } from "./device-domain-vocabulary"
+import type { components as DeviceDomainComponents } from "./device-domain.generated"
+
+type DeviceDomainSchemas = DeviceDomainComponents["schemas"]
+type WithoutDefinitions<T> = T extends { $defs: unknown } ? Omit<T, "$defs"> : T
+
+export type DeviceProfileDocument = WithoutDefinitions<
+  DeviceDomainSchemas["DeviceProfileAuthoringV1"]
+>
+export type NativeMqttBindingDocument = WithoutDefinitions<
+  DeviceDomainSchemas["NativeMqttBindingAuthoringV1"]
+>
+export type GatewayDocument = WithoutDefinitions<DeviceDomainSchemas["GatewayAuthoringV1"]>
+export type GatewayRouteDocument = WithoutDefinitions<
+  DeviceDomainSchemas["GatewayRouteAuthoringV1"]
+>
+export type DeviceDraftDocument = WithoutDefinitions<DeviceDomainSchemas["DeviceAuthoringV1"]>
+export type DeviceDefinitionAssignmentDocument = WithoutDefinitions<
+  DeviceDomainSchemas["DeviceDefinitionAssignmentAuthoringV1"]
+>
+type GeneratedDefinitionCompileRequest = WithoutDefinitions<
+  DeviceDomainSchemas["DefinitionCompileRequestV1"]
+>
+export type DefinitionCompileRequest = Omit<
+  GeneratedDefinitionCompileRequest,
+  "profile" | "binding" | "gateway" | "route"
+> & {
+  profile: DeviceProfileDocument
+  binding: NativeMqttBindingDocument
+  gateway: GatewayDocument
+  route: GatewayRouteDocument
+}
+export type DefinitionFixtureRequest = WithoutDefinitions<
+  DeviceDomainSchemas["DefinitionFixtureRequestV1"]
+>
+export type DefinitionPreview = WithoutDefinitions<DeviceDomainSchemas["DefinitionPreviewV1"]>
+export type RuntimeBundle = DeviceDomainSchemas["RuntimeBundleV1"]
+export type DeviceResource = DeviceDomainSchemas["DeviceResourceV1"]
+export type DeviceDefinitionAssignmentResource =
+  DeviceDomainSchemas["DeviceDefinitionAssignmentResourceV1"]
+
+export type DefinitionResourceMeta = {
+  profile_revision?: number
+  binding_revision?: number
+  version_revision: number | null
+  state: "draft" | "published" | "retired" | null
+  artifact_hash: string | null
+  etag: string
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type DeviceProfileResource = Omit<DeviceProfileDocument, "version"> & {
+  version: DeviceProfileDocument["version"] | null
+  meta: DefinitionResourceMeta & { profile_revision: number }
+}
+
+export type NativeMqttBindingResource = Omit<NativeMqttBindingDocument, "version"> & {
+  version: NativeMqttBindingDocument["version"] | null
+  meta: DefinitionResourceMeta & { binding_revision: number }
+}
+
+export type GatewayResource = GatewayDocument & {
+  meta: {
+    revision: number
+    etag: string
+    routes_count?: number
+    created_at: string | null
+    updated_at: string | null
+  }
+}
+
+export type GatewayRouteResource = GatewayRouteDocument & {
+  meta: {
+    etag: string
+    created_at: string | null
+    updated_at: string | null
+  }
+}
+
+export type DefinitionPublicationResult = {
+  profile: DeviceProfileResource
+  binding: NativeMqttBindingResource
+  compile: DefinitionPreview
+}
+
+export type RuntimeBundlePinResult = {
+  assignment: DeviceDefinitionAssignmentResource
+  compile: DefinitionPreview
+}
 
 export type Organization = {
   uuid: string
@@ -312,8 +401,292 @@ export class ApiClient {
     ).then((response) => response.data)
   }
 
+  async deviceProfiles(): Promise<PaginatedResponse<DeviceProfileResource>> {
+    return this.request<PaginatedResponse<DeviceProfileResource>>("/api/v1/device-profiles")
+  }
+
+  async createDeviceProfile(
+    document: DeviceProfileDocument,
+    idempotencyKey = this.idempotencyKey("profile"),
+  ): Promise<DeviceProfileResource> {
+    return this.request<ApiResponse<DeviceProfileResource>>("/api/v1/device-profiles", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(document),
+    }).then((response) => response.data)
+  }
+
+  async replaceDeviceProfile(
+    uuid: string,
+    document: DeviceProfileDocument,
+    entityTag: string,
+  ): Promise<DeviceProfileResource> {
+    return this.request<ApiResponse<DeviceProfileResource>>(
+      `/api/v1/device-profiles/${encodeURIComponent(uuid)}`,
+      {
+        method: "PUT",
+        headers: { "If-Match": entityTag },
+        body: JSON.stringify(document),
+      },
+    ).then((response) => response.data)
+  }
+
+  async deleteDeviceProfile(uuid: string, entityTag: string): Promise<void> {
+    await this.request(`/api/v1/device-profiles/${encodeURIComponent(uuid)}`, {
+      method: "DELETE",
+      headers: { "If-Match": entityTag },
+    })
+  }
+
+  async nativeMqttBindings(): Promise<PaginatedResponse<NativeMqttBindingResource>> {
+    return this.request<PaginatedResponse<NativeMqttBindingResource>>(
+      "/api/v1/native-mqtt-bindings",
+    )
+  }
+
+  async createNativeMqttBinding(
+    document: NativeMqttBindingDocument,
+    idempotencyKey = this.idempotencyKey("binding"),
+  ): Promise<NativeMqttBindingResource> {
+    return this.request<ApiResponse<NativeMqttBindingResource>>(
+      "/api/v1/native-mqtt-bindings",
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(document),
+      },
+    ).then((response) => response.data)
+  }
+
+  async replaceNativeMqttBinding(
+    uuid: string,
+    document: NativeMqttBindingDocument,
+    entityTag: string,
+  ): Promise<NativeMqttBindingResource> {
+    return this.request<ApiResponse<NativeMqttBindingResource>>(
+      `/api/v1/native-mqtt-bindings/${encodeURIComponent(uuid)}`,
+      {
+        method: "PUT",
+        headers: { "If-Match": entityTag },
+        body: JSON.stringify(document),
+      },
+    ).then((response) => response.data)
+  }
+
+  async deleteNativeMqttBinding(uuid: string, entityTag: string): Promise<void> {
+    await this.request(`/api/v1/native-mqtt-bindings/${encodeURIComponent(uuid)}`, {
+      method: "DELETE",
+      headers: { "If-Match": entityTag },
+    })
+  }
+
+  async previewDefinitionCompilation(
+    request: DefinitionCompileRequest,
+  ): Promise<DefinitionPreview> {
+    return this.request<ApiResponse<DefinitionPreview>>(
+      "/api/v1/definition-compilations/preview",
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      },
+    ).then((response) => response.data)
+  }
+
+  async publishDefinitionCompilation(
+    request: DefinitionCompileRequest,
+    profileEntityTag: string,
+    bindingEntityTag: string,
+    idempotencyKey = this.idempotencyKey("publication"),
+  ): Promise<DefinitionPublicationResult> {
+    return this.request<ApiResponse<DefinitionPublicationResult>>(
+      "/api/v1/definition-compilations/publish",
+      {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": idempotencyKey,
+          "If-Match-Profile": profileEntityTag,
+          "If-Match-Binding": bindingEntityTag,
+        },
+        body: JSON.stringify(request),
+      },
+    ).then((response) => response.data)
+  }
+
+  async devices(): Promise<PaginatedResponse<DeviceResource>> {
+    return this.request<PaginatedResponse<DeviceResource>>("/api/v1/devices")
+  }
+
+  async createDevice(
+    document: DeviceDraftDocument,
+    idempotencyKey = this.idempotencyKey("device"),
+  ): Promise<DeviceResource> {
+    return this.request<ApiResponse<DeviceResource>>("/api/v1/devices", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(document),
+    }).then((response) => response.data)
+  }
+
+  async replaceDevice(
+    uuid: string,
+    document: DeviceDraftDocument,
+    entityTag: string,
+  ): Promise<DeviceResource> {
+    return this.request<ApiResponse<DeviceResource>>(`/api/v1/devices/${encodeURIComponent(uuid)}`, {
+      method: "PUT",
+      headers: { "If-Match": entityTag },
+      body: JSON.stringify(document),
+    }).then((response) => response.data)
+  }
+
+  async deleteDevice(uuid: string, entityTag: string): Promise<void> {
+    await this.request(`/api/v1/devices/${encodeURIComponent(uuid)}`, {
+      method: "DELETE",
+      headers: { "If-Match": entityTag },
+    })
+  }
+
+  async deviceDefinitionAssignment(uuid: string): Promise<DeviceDefinitionAssignmentResource> {
+    return this.request<ApiResponse<DeviceDefinitionAssignmentResource>>(
+      `/api/v1/devices/${encodeURIComponent(uuid)}/definition-assignment`,
+    ).then((response) => response.data)
+  }
+
+  async replaceDeviceDefinitionAssignment(
+    deviceUuid: string,
+    document: DeviceDefinitionAssignmentDocument,
+    entityTag: string,
+  ): Promise<DeviceDefinitionAssignmentResource> {
+    return this.request<ApiResponse<DeviceDefinitionAssignmentResource>>(
+      `/api/v1/devices/${encodeURIComponent(deviceUuid)}/definition-assignment`,
+      {
+        method: "PUT",
+        headers: { "If-Match": entityTag },
+        body: JSON.stringify(document),
+      },
+    ).then((response) => response.data)
+  }
+
+  async compileDeviceDefinition(
+    deviceUuid: string,
+    request: DefinitionFixtureRequest,
+  ): Promise<DefinitionPreview> {
+    return this.request<ApiResponse<DefinitionPreview>>(
+      `/api/v1/devices/${encodeURIComponent(deviceUuid)}/definition-assignment/compile`,
+      { method: "POST", body: JSON.stringify(request) },
+    ).then((response) => response.data)
+  }
+
+  async pinDeviceRuntimeBundle(
+    deviceUuid: string,
+    request: DefinitionFixtureRequest,
+    entityTag: string,
+    idempotencyKey = this.idempotencyKey("runtime-bundle"),
+  ): Promise<RuntimeBundlePinResult> {
+    return this.request<ApiResponse<RuntimeBundlePinResult>>(
+      `/api/v1/devices/${encodeURIComponent(deviceUuid)}/definition-assignment/pin`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey, "If-Match": entityTag },
+        body: JSON.stringify(request),
+      },
+    ).then((response) => response.data)
+  }
+
+  async registerDevice(
+    uuid: string,
+    entityTag: string,
+    idempotencyKey = this.idempotencyKey("register"),
+  ): Promise<DeviceResource> {
+    return this.request<ApiResponse<DeviceResource>>(
+      `/api/v1/devices/${encodeURIComponent(uuid)}/register`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey, "If-Match": entityTag },
+      },
+    ).then((response) => response.data)
+  }
+
+  async gateways(): Promise<PaginatedResponse<GatewayResource>> {
+    return this.request<PaginatedResponse<GatewayResource>>("/api/v1/gateways")
+  }
+
+  async createGateway(
+    document: GatewayDocument,
+    idempotencyKey = this.idempotencyKey("gateway"),
+  ): Promise<GatewayResource> {
+    return this.request<ApiResponse<GatewayResource>>("/api/v1/gateways", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(document),
+    }).then((response) => response.data)
+  }
+
+  async replaceGateway(
+    uuid: string,
+    document: GatewayDocument,
+    entityTag: string,
+  ): Promise<GatewayResource> {
+    return this.request<ApiResponse<GatewayResource>>(
+      `/api/v1/gateways/${encodeURIComponent(uuid)}`,
+      {
+        method: "PUT",
+        headers: { "If-Match": entityTag },
+        body: JSON.stringify(document),
+      },
+    ).then((response) => response.data)
+  }
+
+  async deleteGateway(uuid: string, entityTag: string): Promise<void> {
+    await this.request(`/api/v1/gateways/${encodeURIComponent(uuid)}`, {
+      method: "DELETE",
+      headers: { "If-Match": entityTag },
+    })
+  }
+
+  async gatewayRoutes(): Promise<PaginatedResponse<GatewayRouteResource>> {
+    return this.request<PaginatedResponse<GatewayRouteResource>>("/api/v1/gateway-routes")
+  }
+
+  async createGatewayRoute(
+    document: GatewayRouteDocument,
+    idempotencyKey = this.idempotencyKey("gateway-route"),
+  ): Promise<GatewayRouteResource> {
+    return this.request<ApiResponse<GatewayRouteResource>>("/api/v1/gateway-routes", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(document),
+    }).then((response) => response.data)
+  }
+
+  async replaceGatewayRoute(
+    uuid: string,
+    document: GatewayRouteDocument,
+    entityTag: string,
+  ): Promise<GatewayRouteResource> {
+    return this.request<ApiResponse<GatewayRouteResource>>(
+      `/api/v1/gateway-routes/${encodeURIComponent(uuid)}`,
+      {
+        method: "PUT",
+        headers: { "If-Match": entityTag },
+        body: JSON.stringify(document),
+      },
+    ).then((response) => response.data)
+  }
+
+  async deleteGatewayRoute(uuid: string, entityTag: string): Promise<void> {
+    await this.request(`/api/v1/gateway-routes/${encodeURIComponent(uuid)}`, {
+      method: "DELETE",
+      headers: { "If-Match": entityTag },
+    })
+  }
+
   async logout(): Promise<void> {
     await this.request("/api/v1/auth/logout", { method: "POST" })
+  }
+
+  private idempotencyKey(scope: string): string {
+    return `${scope}-${crypto.randomUUID()}`
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

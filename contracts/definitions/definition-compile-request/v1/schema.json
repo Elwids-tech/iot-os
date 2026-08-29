@@ -77,9 +77,10 @@
           "maxLength": 512
         },
         "payload": true,
-        "command_input": {
-          "type": "object"
-        },
+      "command_input": {
+        "type": "object",
+        "additionalProperties": true
+      },
         "expected_parameter_values": {
           "type": "array",
           "maxItems": 1024,

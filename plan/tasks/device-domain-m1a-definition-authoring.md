@@ -1,6 +1,6 @@
 # Device Domain M1a Definition Authoring and Registration
 
-**Status:** M1a-D4R3 complete; dynamic tenant authoring UI pending
+**Status:** M1a-D4R4 complete; end-to-end local acceptance pending
 **Last updated:** 2026-08-29  
 **Parent:** [Device Domain M1a](./device-domain-m1a.md)  
 **Decisions:** [ADR-013](../decisions/ADR-013-logical-devices-stable-parameters-and-gateway-routing.md), [ADR-014](../decisions/ADR-014-pre-production-device-domain-canonical-cutover.md)
@@ -41,7 +41,7 @@ The guided CRUD and onboarding experience must be correct before AI/MCP onboardi
 | M1a-D4R1 | Canonical JSON Schemas, OpenAPI, fixtures, generated types, and vocabulary checks | Complete |
 | M1a-D4R2 | Canonical Laravel persistence, DDD services, DTOs, policies, ETags, and CRUD APIs | Complete |
 | M1a-D4R3 | Route-aware Go compiler and immutable Runtime Bundle | Complete |
-| M1a-D4R4 | Dynamic tenant authoring and Gateway-routed Device onboarding UI | Pending |
+| M1a-D4R4 | Dynamic tenant authoring and Gateway-routed Device onboarding UI | Complete |
 | M1a-D4R5 | End-to-end local acceptance, browser verification, and handoff | Pending |
 | M1a-D5 | Laravel AI chat and authenticated Laravel MCP server | Blocked by D4R3-D4R5 |
 | M1a-D6 | Security, observability, idempotency, and operational hardening | Pending |
@@ -164,6 +164,19 @@ Acceptance criteria:
 - Browser tests cover Gateway fan-out, the three-phase meter, calibration, derivation, and Command authoring.
 - Browser evidence uses the canonical Laravel API; mocked and live-local evidence are reported separately.
 - No live broker or physical-device behavior is claimed.
+
+Verification evidence (2026-08-29):
+
+- Tenant Device Domain UI loads Profile, Binding, Device, Gateway, and Route catalogs in parallel and clears tenant-scoped editor state during organization changes.
+- Dynamic Profile and Binding editors preserve stable UUIDs, author measured and derived parameters, Commands, JSONPath mappings, calibration, constraints, presentation hints, and synchronized canonical JSON.
+- Guided onboarding selects or creates the communication Gateway, defines one logical Device and Gateway Route, previews resolved topics and hub selectors, compiles fixtures, atomically publishes definitions, persists records, pins the exact Runtime Bundle, and explicitly registers the Device.
+- Persisted onboarding authoring is locked after Device creation so the visible form cannot drift from the stored Gateway, Device, Route, and assignment while compile, pin, registration, accordion navigation, and read-only previews remain available.
+- Five Chromium Playwright scenarios passed together, covering stable UUID reorder/save/reload, Command authoring, three-phase derivation, divide-by-ten calibration, Gateway hub fan-out, persisted assignment lifecycle, ETag conflicts, and a 390 × 844 viewport. These rendered tests mock the canonical tenant API and do not mutate the persistent development database.
+- Portal and API-client typechecks, contract schema validation, OpenAPI lint, and the production portal build passed. Lazy-loaded tab editors reduced the largest initial JavaScript asset to 441.4 KB.
+- Device Domain generated TypeScript remained byte-stable across regeneration at SHA-256 `065cdd7636abb80d0b7824bf2a7b33098f31cec7d97466b9e08ab12fe96e3e5b`.
+- Focused Device Profile and Device Management Laravel suites passed 23 tests and 225 assertions; the full Laravel suite passed 63 tests and 411 assertions. Pint passed every PHP file changed by D4R4; its repository-wide check still reports four unrelated pre-existing style failures.
+- Authenticated in-app browser acceptance remains in D4R5 because the available local browser session is signed out. No credentials were entered, and no live tenant records were created.
+- EMQX ingestion, TimescaleDB writes, deployed runtime behavior, command delivery, and physical-device verification remain outside this milestone.
 
 ## M1a-D4R5 — integration, acceptance, and handoff
 

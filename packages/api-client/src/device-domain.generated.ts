@@ -4,6 +4,51 @@
  */
 
 export interface paths {
+    "/api/v1/definition-compilations/preview": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview saved Profile and Binding drafts in a proposed Gateway Route context */
+        post: operations["previewDefinitionCompilationV1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/definition-compilations/publish": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Strong Device Profile aggregate revision used by coordinated publication. */
+                "If-Match-Profile": components["parameters"]["IfMatchProfile"];
+                /** @description Strong Native MQTT Binding aggregate revision used by coordinated publication. */
+                "If-Match-Binding": components["parameters"]["IfMatchBinding"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compile and atomically publish a saved Profile and Binding draft pair */
+        post: operations["publishDefinitionCompilationV1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/device-profiles": {
         parameters: {
             query?: never;
@@ -210,6 +255,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/devices/{device}/definition-assignment/compile": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+            };
+            path: {
+                device: components["parameters"]["DeviceUuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replay fixtures against the exact saved routed Device assignment */
+        post: operations["compileDeviceDefinitionAssignmentV1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devices/{device}/definition-assignment/pin": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                device: components["parameters"]["DeviceUuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recompile and pin an identity-matched Runtime Bundle */
+        post: operations["pinDeviceRuntimeBundleV1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gateways": {
         parameters: {
             query?: never;
@@ -308,12 +399,15 @@ export interface components {
         DeviceProfileArtifactV1: components["schemas"]["artifact.schema"];
         NativeMqttBindingAuthoringV1: components["schemas"]["authoring.schema-2"];
         NativeMqttBindingArtifactV1: components["schemas"]["artifact.schema-2"];
-        GatewayAuthoringV1: components["schemas"]["authoring.schema-5"];
-        GatewayRouteAuthoringV1: components["schemas"]["authoring.schema-6"];
-        DeviceAuthoringV1: components["schemas"]["authoring.schema-3"];
-        DeviceDefinitionAssignmentAuthoringV1: components["schemas"]["authoring.schema-4"];
-        RuntimeBundleV1: components["schemas"]["schema"];
-        CanonicalTelemetryV1: components["schemas"]["schema-2"];
+        GatewayAuthoringV1: components["schemas"]["authoring.schema-3"];
+        GatewayRouteAuthoringV1: components["schemas"]["authoring.schema-4"];
+        DeviceAuthoringV1: components["schemas"]["authoring.schema-5"];
+        DeviceDefinitionAssignmentAuthoringV1: components["schemas"]["authoring.schema-6"];
+        DefinitionCompileRequestV1: components["schemas"]["schema"];
+        DefinitionFixtureRequestV1: components["schemas"]["schema-4"];
+        DefinitionPreviewV1: components["schemas"]["schema-3"];
+        RuntimeBundleV1: components["schemas"]["schema-2"];
+        CanonicalTelemetryV1: components["schemas"]["schema-5"];
         /** @enum {string} */
         DeviceLifecycleStateV1: "draft" | "registered" | "archived";
         ArtifactHashOrNullV1: string | null;
@@ -331,7 +425,7 @@ export interface components {
             binding_artifact_hash: components["schemas"]["ArtifactHashOrNullV1"];
             route_source_hash: components["schemas"]["ArtifactHashOrNullV1"];
             runtime_bundle_hash: components["schemas"]["ArtifactHashOrNullV1"];
-            runtime_bundle: components["schemas"]["schema"] | null;
+            runtime_bundle: components["schemas"]["schema-2"] | null;
             /** Format: date-time */
             runtime_compiled_at: string | null;
             revision: number;
@@ -373,6 +467,26 @@ export interface components {
         DeviceDefinitionAssignmentEnvelopeV1: {
             data: components["schemas"]["DeviceDefinitionAssignmentResourceV1"];
         };
+        DefinitionPreviewEnvelopeV1: {
+            data: components["schemas"]["schema-3"];
+        };
+        DefinitionPublicationEnvelopeV1: {
+            data: {
+                profile: unknown;
+                binding: unknown;
+                compile: components["schemas"]["schema-3"];
+            };
+        };
+        RuntimeBundlePinEnvelopeV1: {
+            data: {
+                assignment: components["schemas"]["DeviceDefinitionAssignmentResourceV1"];
+                compile: components["schemas"]["schema-3"];
+            };
+        };
+        DefinitionCompileFailureEnvelopeV1: {
+            message: string;
+            data: components["schemas"]["schema-3"];
+        };
         Problem: {
             /** Format: uri-reference */
             type: string;
@@ -385,9 +499,13 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        Key: string;
         /** Format: uuid */
         Uuid: string;
-        Key: string;
+        ExpectedParameterValue: {
+            parameter_uuid: components["schemas"]["Uuid"];
+            value: unknown;
+        };
         /** @enum {string} */
         DataType: "float64" | "int64" | "uint64" | "boolean" | "string" | "bytes" | "state";
         ValueConstraints: {
@@ -817,7 +935,9 @@ export interface components {
             target_command_uuid: components["schemas"]["Uuid"];
             request_channel: components["schemas"]["Key"];
             response_channel?: null | components["schemas"]["Key"];
-            request_template: Record<string, never>;
+            request_template: {
+                [key: string]: unknown;
+            };
             request_envelope: components["schemas"]["CommandRequestEnvelope"];
             response?: components["schemas"]["CommandResponse"];
             field_mappings: components["schemas"]["CommandFieldMapping"][];
@@ -949,7 +1069,9 @@ export interface components {
                     target_command_uuid: components["schemas"]["Uuid"];
                     request_channel: components["schemas"]["Key"];
                     response_channel?: null | components["schemas"]["Key"];
-                    request_template: Record<string, never>;
+                    request_template: {
+                        [key: string]: unknown;
+                    };
                     request_envelope: components["schemas"]["CommandRequestEnvelope"];
                     response?: components["schemas"]["CommandResponse"];
                     field_mappings: components["schemas"]["CommandFieldMapping"][];
@@ -990,13 +1112,144 @@ export interface components {
                 DefaultValuePolicy: unknown;
             };
         };
-        ResolvedTopic: string;
+        Gateway: {
+            uuid: components["schemas"]["Uuid"];
+            key: components["schemas"]["Key"];
+            name: string;
+            description?: string | null;
+            mqtt_client_id: string;
+        };
+        /** Gateway authoring contract v1 */
+        "authoring.schema-3": {
+            /** @constant */
+            schema: "iot.gateway.authoring.v1";
+            gateway: components["schemas"]["Gateway"];
+            $defs: {
+                Gateway: {
+                    uuid: components["schemas"]["Uuid"];
+                    key: components["schemas"]["Key"];
+                    name: string;
+                    description?: string | null;
+                    mqtt_client_id: string;
+                };
+            };
+        };
+        RoutePath: string;
+        RouteVariables: {
+            [key: string]: string;
+        };
         RouteSelector: {
             source: components["schemas"]["PathRef"];
             equals: components["schemas"]["JsonScalar"];
         };
+        InboundScope: {
+            channel: components["schemas"]["Key"];
+            payload_path: components["schemas"]["JsonPath"];
+            selector?: components["schemas"]["RouteSelector"];
+        };
+        GatewayRoute: {
+            uuid: components["schemas"]["Uuid"];
+            revision: number;
+            gateway_uuid: components["schemas"]["Uuid"];
+            device_uuid: components["schemas"]["Uuid"];
+            profile_version_uuid: components["schemas"]["Uuid"];
+            binding_version_uuid: components["schemas"]["Uuid"];
+            route_path: components["schemas"]["RoutePath"];
+            topic_variables: components["schemas"]["RouteVariables"];
+            inbound_scopes: components["schemas"]["InboundScope"][];
+            enabled: boolean;
+        };
+        /** Gateway Route authoring contract v1 */
+        "authoring.schema-4": {
+            /** @constant */
+            schema: "iot.gateway-route.authoring.v1";
+            route: components["schemas"]["GatewayRoute"];
+            $defs: {
+                GatewayRoute: {
+                    uuid: components["schemas"]["Uuid"];
+                    revision: number;
+                    gateway_uuid: components["schemas"]["Uuid"];
+                    device_uuid: components["schemas"]["Uuid"];
+                    profile_version_uuid: components["schemas"]["Uuid"];
+                    binding_version_uuid: components["schemas"]["Uuid"];
+                    route_path: components["schemas"]["RoutePath"];
+                    topic_variables: components["schemas"]["RouteVariables"];
+                    inbound_scopes: components["schemas"]["InboundScope"][];
+                    enabled: boolean;
+                };
+                InboundScope: {
+                    channel: components["schemas"]["Key"];
+                    payload_path: components["schemas"]["JsonPath"];
+                    selector?: components["schemas"]["RouteSelector"];
+                };
+                RouteSelector: {
+                    source: components["schemas"]["PathRef"];
+                    equals: components["schemas"]["JsonScalar"];
+                };
+            };
+        };
+        Fixture: {
+            name: string;
+            /** @enum {string} */
+            kind: "telemetry" | "event" | "property" | "command_request" | "command_response";
+            channel: components["schemas"]["Key"];
+            topic: string;
+            payload: unknown;
+            command_input?: {
+                [key: string]: unknown;
+            };
+            expected_parameter_values?: components["schemas"]["ExpectedParameterValue"][];
+        };
+        /** Route-aware Device definition compile request v1 */
+        schema: {
+            /** @constant */
+            schema: "iot.definition-compile-request.v1";
+            organization_uuid: components["schemas"]["Uuid"];
+            profile: components["schemas"]["authoring.schema"];
+            binding: components["schemas"]["authoring.schema-2"];
+            gateway: components["schemas"]["authoring.schema-3"];
+            route: components["schemas"]["authoring.schema-4"];
+            fixtures: components["schemas"]["Fixture"][];
+            $defs: {
+                Fixture: {
+                    name: string;
+                    /** @enum {string} */
+                    kind: "telemetry" | "event" | "property" | "command_request" | "command_response";
+                    channel: components["schemas"]["Key"];
+                    topic: string;
+                    payload: unknown;
+                    command_input?: {
+                        [key: string]: unknown;
+                    };
+                    expected_parameter_values?: components["schemas"]["ExpectedParameterValue"][];
+                };
+                ExpectedParameterValue: {
+                    parameter_uuid: components["schemas"]["Uuid"];
+                    value: unknown;
+                };
+            };
+        };
         Sha256: string;
-        RoutePath: string;
+        /** @enum {string} */
+        QualityStatus: "good" | "uncertain" | "bad";
+        Quality: {
+            status: components["schemas"]["QualityStatus"];
+            codes: components["schemas"]["Key"][];
+        };
+        PreviewValue: {
+            parameter_uuid: components["schemas"]["Uuid"];
+            value_type: components["schemas"]["DataType"];
+            value: unknown;
+            quality: components["schemas"]["Quality"];
+        };
+        Diagnostic: {
+            /** @enum {string} */
+            severity: "error" | "warning" | "info";
+            code: string;
+            path: string;
+            message: string;
+            suggestion?: string | null;
+        };
         CompilerMetadata: {
             name: string;
             version: string;
@@ -1004,6 +1257,47 @@ export interface components {
             jsonpath_version: string;
             unit_registry: string;
         };
+        ArtifactHashes: {
+            profile: null | components["schemas"]["Sha256"];
+            binding: null | components["schemas"]["Sha256"];
+            runtime_bundle: null | components["schemas"]["Sha256"];
+        };
+        /** Published Device Profile artifact v1 */
+        "artifact.schema": {
+            /** @constant */
+            schema: "iot.device-profile.v1";
+            profile_uuid: components["schemas"]["Uuid"];
+            profile_key: components["schemas"]["Key"];
+            profile_version_uuid: components["schemas"]["Uuid"];
+            version: number;
+            source_hash: components["schemas"]["Sha256"];
+            compiler: components["schemas"]["CompilerMetadata"];
+            parameters: components["schemas"]["Parameter"][];
+            derived_parameters: components["schemas"]["DerivedParameter"][];
+            properties: components["schemas"]["Property"][];
+            events: components["schemas"]["Event"][];
+            commands: components["schemas"]["Command"][];
+        };
+        /** Published Native MQTT JSON Binding artifact v1 */
+        "artifact.schema-2": {
+            /** @constant */
+            schema: "iot.native-mqtt-binding.v1";
+            binding_uuid: components["schemas"]["Uuid"];
+            binding_key: components["schemas"]["Key"];
+            binding_version_uuid: components["schemas"]["Uuid"];
+            version: number;
+            profile_uuid: components["schemas"]["Uuid"];
+            profile_version_uuid: components["schemas"]["Uuid"];
+            profile_artifact_hash: components["schemas"]["Sha256"];
+            source_hash: components["schemas"]["Sha256"];
+            compiler: components["schemas"]["CompilerMetadata"];
+            channels: components["schemas"]["Channel"][];
+            parameter_mappings: components["schemas"]["ParameterMapping"][];
+            property_mappings: components["schemas"]["PropertyMapping"][];
+            event_mappings: components["schemas"]["EventMapping"][];
+            command_mappings: components["schemas"]["CommandMapping"][];
+        };
+        ResolvedTopic: string;
         ResolvedChannel: {
             channel_uuid: components["schemas"]["Uuid"];
             key: components["schemas"]["Key"];
@@ -1038,7 +1332,7 @@ export interface components {
             mapping: components["schemas"]["CommandMapping"];
         };
         /** Route-aware Device Runtime Bundle v1 */
-        schema: {
+        "schema-2": {
             /** @constant */
             schema: "iot.runtime-bundle.v1";
             runtime_bundle_hash: components["schemas"]["Sha256"];
@@ -1097,8 +1391,49 @@ export interface components {
                 };
             };
         };
+        FixturePreview: {
+            name: string;
+            accepted: boolean;
+            values: components["schemas"]["PreviewValue"][];
+            encoded_payload?: unknown;
+            diagnostics: components["schemas"]["Diagnostic"][];
+        };
+        /** Route-aware Device definition compile preview v1 */
+        "schema-3": {
+            /** @constant */
+            schema: "iot.definition-preview.v1";
+            valid: boolean;
+            input_hash: components["schemas"]["Sha256"];
+            compiler: components["schemas"]["CompilerMetadata"];
+            diagnostics: components["schemas"]["Diagnostic"][];
+            artifact_hashes: components["schemas"]["ArtifactHashes"];
+            profile_artifact?: components["schemas"]["artifact.schema"];
+            binding_artifact?: components["schemas"]["artifact.schema-2"];
+            runtime_bundle?: components["schemas"]["schema-2"];
+            previews: components["schemas"]["FixturePreview"][];
+            $defs: {
+                ArtifactHashes: {
+                    profile: null | components["schemas"]["Sha256"];
+                    binding: null | components["schemas"]["Sha256"];
+                    runtime_bundle: null | components["schemas"]["Sha256"];
+                };
+                FixturePreview: {
+                    name: string;
+                    accepted: boolean;
+                    values: components["schemas"]["PreviewValue"][];
+                    encoded_payload?: unknown;
+                    diagnostics: components["schemas"]["Diagnostic"][];
+                };
+                PreviewValue: {
+                    parameter_uuid: components["schemas"]["Uuid"];
+                    value_type: components["schemas"]["DataType"];
+                    value: unknown;
+                    quality: components["schemas"]["Quality"];
+                };
+            };
+        };
         /** Device draft authoring contract v1 */
-        "authoring.schema-3": {
+        "authoring.schema-5": {
             uuid?: components["schemas"]["Uuid"];
             name: string;
             external_id: string;
@@ -1107,124 +1442,19 @@ export interface components {
             binding_version_uuid?: components["schemas"]["Uuid"] | null;
         };
         /** Device definition assignment authoring contract v1 */
-        "authoring.schema-4": {
-            profile_version_uuid: components["schemas"]["Uuid"];
-            binding_version_uuid: components["schemas"]["Uuid"];
-        };
-        Gateway: {
-            uuid: components["schemas"]["Uuid"];
-            key: components["schemas"]["Key"];
-            name: string;
-            description?: string | null;
-            mqtt_client_id: string;
-        };
-        /** Gateway authoring contract v1 */
-        "authoring.schema-5": {
-            /** @constant */
-            schema: "iot.gateway.authoring.v1";
-            gateway: components["schemas"]["Gateway"];
-            $defs: {
-                Gateway: {
-                    uuid: components["schemas"]["Uuid"];
-                    key: components["schemas"]["Key"];
-                    name: string;
-                    description?: string | null;
-                    mqtt_client_id: string;
-                };
-            };
-        };
-        RouteVariables: {
-            [key: string]: string;
-        };
-        InboundScope: {
-            channel: components["schemas"]["Key"];
-            payload_path: components["schemas"]["JsonPath"];
-            selector?: components["schemas"]["RouteSelector"];
-        };
-        GatewayRoute: {
-            uuid: components["schemas"]["Uuid"];
-            revision: number;
-            gateway_uuid: components["schemas"]["Uuid"];
-            device_uuid: components["schemas"]["Uuid"];
-            profile_version_uuid: components["schemas"]["Uuid"];
-            binding_version_uuid: components["schemas"]["Uuid"];
-            route_path: components["schemas"]["RoutePath"];
-            topic_variables: components["schemas"]["RouteVariables"];
-            inbound_scopes: components["schemas"]["InboundScope"][];
-            enabled: boolean;
-        };
-        /** Gateway Route authoring contract v1 */
         "authoring.schema-6": {
-            /** @constant */
-            schema: "iot.gateway-route.authoring.v1";
-            route: components["schemas"]["GatewayRoute"];
-            $defs: {
-                GatewayRoute: {
-                    uuid: components["schemas"]["Uuid"];
-                    revision: number;
-                    gateway_uuid: components["schemas"]["Uuid"];
-                    device_uuid: components["schemas"]["Uuid"];
-                    profile_version_uuid: components["schemas"]["Uuid"];
-                    binding_version_uuid: components["schemas"]["Uuid"];
-                    route_path: components["schemas"]["RoutePath"];
-                    topic_variables: components["schemas"]["RouteVariables"];
-                    inbound_scopes: components["schemas"]["InboundScope"][];
-                    enabled: boolean;
-                };
-                InboundScope: {
-                    channel: components["schemas"]["Key"];
-                    payload_path: components["schemas"]["JsonPath"];
-                    selector?: components["schemas"]["RouteSelector"];
-                };
-                RouteSelector: {
-                    source: components["schemas"]["PathRef"];
-                    equals: components["schemas"]["JsonScalar"];
-                };
-            };
-        };
-        /** Published Device Profile artifact v1 */
-        "artifact.schema": {
-            /** @constant */
-            schema: "iot.device-profile.v1";
-            profile_uuid: components["schemas"]["Uuid"];
-            profile_key: components["schemas"]["Key"];
             profile_version_uuid: components["schemas"]["Uuid"];
-            version: number;
-            source_hash: components["schemas"]["Sha256"];
-            compiler: components["schemas"]["CompilerMetadata"];
-            parameters: components["schemas"]["Parameter"][];
-            derived_parameters: components["schemas"]["DerivedParameter"][];
-            properties: components["schemas"]["Property"][];
-            events: components["schemas"]["Event"][];
-            commands: components["schemas"]["Command"][];
-        };
-        /** Published Native MQTT JSON Binding artifact v1 */
-        "artifact.schema-2": {
-            /** @constant */
-            schema: "iot.native-mqtt-binding.v1";
-            binding_uuid: components["schemas"]["Uuid"];
-            binding_key: components["schemas"]["Key"];
             binding_version_uuid: components["schemas"]["Uuid"];
-            version: number;
-            profile_uuid: components["schemas"]["Uuid"];
-            profile_version_uuid: components["schemas"]["Uuid"];
-            profile_artifact_hash: components["schemas"]["Sha256"];
-            source_hash: components["schemas"]["Sha256"];
-            compiler: components["schemas"]["CompilerMetadata"];
-            channels: components["schemas"]["Channel"][];
-            parameter_mappings: components["schemas"]["ParameterMapping"][];
-            property_mappings: components["schemas"]["PropertyMapping"][];
-            event_mappings: components["schemas"]["EventMapping"][];
-            command_mappings: components["schemas"]["CommandMapping"][];
         };
-        /** @enum {string} */
-        QualityStatus: "good" | "uncertain" | "bad";
-        Quality: {
-            status: components["schemas"]["QualityStatus"];
-            codes: components["schemas"]["Key"][];
+        /** Saved definition fixture replay request v1 */
+        "schema-4": {
+            /** @constant */
+            schema: "iot.definition-fixtures.v1";
+            expected_input_hash?: null | components["schemas"]["Sha256"];
+            fixtures: components["schemas"]["Fixture"][];
         };
         /** Canonical telemetry value v1 */
-        "schema-2": {
+        "schema-5": {
             /** @constant */
             schema: "iot.canonical-telemetry.v1";
             organization_uuid: components["schemas"]["Uuid"];
@@ -1255,6 +1485,48 @@ export interface components {
         } & (unknown & unknown & unknown & unknown & unknown);
     };
     responses: {
+        /** @description Deterministic compiler diagnostics, artifacts, Runtime Bundle, and fixture previews. */
+        DefinitionPreviewResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DefinitionPreviewEnvelopeV1"];
+            };
+        };
+        /** @description Published immutable Profile and Binding artifacts with the confirmed compile result. */
+        DefinitionPublicationResponse: {
+            headers: {
+                /** @description Strong published Device Profile aggregate revision. */
+                "ETag-Profile"?: string;
+                /** @description Strong published Native MQTT Binding aggregate revision. */
+                "ETag-Binding"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DefinitionPublicationEnvelopeV1"];
+            };
+        };
+        /** @description Pinned Device definition assignment and the exact compile result. */
+        RuntimeBundlePinResponse: {
+            headers: {
+                /** @description Strong definition-assignment revision. */
+                ETag?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["RuntimeBundlePinEnvelopeV1"];
+            };
+        };
+        /** @description The compiler completed but domain diagnostics blocked publication or pinning. */
+        DefinitionCompileFailureResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DefinitionCompileFailureEnvelopeV1"];
+            };
+        };
         /** @description Tenant-owned resource with an ETag revision header. */
         ResourceResponse: {
             headers: {
@@ -1325,6 +1597,10 @@ export interface components {
         OrganizationContext: string;
         IdempotencyKey: string;
         IfMatch: string;
+        /** @description Strong Device Profile aggregate revision used by coordinated publication. */
+        IfMatchProfile: string;
+        /** @description Strong Native MQTT Binding aggregate revision used by coordinated publication. */
+        IfMatchBinding: string;
         ProfileUuid: string;
         BindingUuid: string;
         DeviceUuid: string;
@@ -1338,6 +1614,52 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    previewDefinitionCompilationV1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["schema"];
+            };
+        };
+        responses: {
+            200: components["responses"]["DefinitionPreviewResponse"];
+            default: components["responses"]["ProblemResponse"];
+        };
+    };
+    publishDefinitionCompilationV1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Strong Device Profile aggregate revision used by coordinated publication. */
+                "If-Match-Profile": components["parameters"]["IfMatchProfile"];
+                /** @description Strong Native MQTT Binding aggregate revision used by coordinated publication. */
+                "If-Match-Binding": components["parameters"]["IfMatchBinding"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["schema"];
+            };
+        };
+        responses: {
+            200: components["responses"]["DefinitionPublicationResponse"];
+            422: components["responses"]["DefinitionCompileFailureResponse"];
+            default: components["responses"]["ProblemResponse"];
+        };
+    };
     listDeviceProfilesV1: {
         parameters: {
             query?: never;
@@ -1575,7 +1897,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["authoring.schema-3"];
+                "application/json": components["schemas"]["authoring.schema-5"];
             };
         };
         responses: {
@@ -1616,7 +1938,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["authoring.schema-3"];
+                "application/json": components["schemas"]["authoring.schema-5"];
             };
         };
         responses: {
@@ -1722,11 +2044,58 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["authoring.schema-4"];
+                "application/json": components["schemas"]["authoring.schema-6"];
             };
         };
         responses: {
             200: components["responses"]["DeviceDefinitionAssignmentResponse"];
+            default: components["responses"]["ProblemResponse"];
+        };
+    };
+    compileDeviceDefinitionAssignmentV1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+            };
+            path: {
+                device: components["parameters"]["DeviceUuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["schema-4"];
+            };
+        };
+        responses: {
+            200: components["responses"]["DefinitionPreviewResponse"];
+            default: components["responses"]["ProblemResponse"];
+        };
+    };
+    pinDeviceRuntimeBundleV1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                device: components["parameters"]["DeviceUuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["schema-4"];
+            };
+        };
+        responses: {
+            200: components["responses"]["RuntimeBundlePinResponse"];
+            422: components["responses"]["DefinitionCompileFailureResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };
@@ -1759,7 +2128,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["authoring.schema-5"];
+                "application/json": components["schemas"]["authoring.schema-3"];
             };
         };
         responses: {
@@ -1800,7 +2169,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["authoring.schema-5"];
+                "application/json": components["schemas"]["authoring.schema-3"];
             };
         };
         responses: {
@@ -1862,7 +2231,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["authoring.schema-6"];
+                "application/json": components["schemas"]["authoring.schema-4"];
             };
         };
         responses: {
@@ -1903,7 +2272,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["authoring.schema-6"];
+                "application/json": components["schemas"]["authoring.schema-4"];
             };
         };
         responses: {

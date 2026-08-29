@@ -35,6 +35,12 @@ final readonly class DeviceProfilePolicy
             && $this->authorization->allows($user, $profile->organization, DeviceProfilePermission::UPDATE);
     }
 
+    public function publish(User $user, DeviceProfile $profile): bool
+    {
+        return ! $profile->isArchived()
+            && $this->authorization->allows($user, $profile->organization, DeviceProfilePermission::PUBLISH);
+    }
+
     public function delete(User $user, DeviceProfile $profile): bool
     {
         return ! $profile->isArchived()

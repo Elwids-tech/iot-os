@@ -35,6 +35,12 @@ final readonly class TransportBindingPolicy
             && $this->authorization->allows($user, $binding->organization, TransportBindingPermission::UPDATE);
     }
 
+    public function publish(User $user, TransportBinding $binding): bool
+    {
+        return ! $binding->isArchived()
+            && $this->authorization->allows($user, $binding->organization, TransportBindingPermission::PUBLISH);
+    }
+
     public function delete(User $user, TransportBinding $binding): bool
     {
         return ! $binding->isArchived()

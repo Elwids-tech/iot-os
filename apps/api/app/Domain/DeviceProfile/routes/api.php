@@ -6,8 +6,10 @@ use App\Domain\Authorization\Http\Middleware\RequireIdempotencyKey;
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationHeaderContext;
 use App\Domain\DeviceManagement\Http\Controllers\DeviceController;
 use App\Domain\DeviceManagement\Http\Controllers\DeviceDefinitionAssignmentController;
+use App\Domain\DeviceManagement\Http\Controllers\DeviceDefinitionCompilationController;
 use App\Domain\DeviceManagement\Http\Controllers\GatewayController;
 use App\Domain\DeviceManagement\Http\Controllers\GatewayRouteController;
+use App\Domain\DeviceProfile\Http\Controllers\DefinitionCompilationController;
 use App\Domain\DeviceProfile\Http\Controllers\DeviceProfileController;
 use App\Domain\DeviceProfile\Http\Controllers\NativeMqttBindingController;
 use Illuminate\Support\Facades\Route;
@@ -16,6 +18,12 @@ Route::prefix('v1')
     ->name('api.v1.')
     ->middleware(['auth:sanctum', ResolveOrganizationHeaderContext::class])
     ->group(function (): void {
+        Route::post('definition-compilations/preview', [DefinitionCompilationController::class, 'preview'])
+            ->name('definition-compilations.preview');
+        Route::post('definition-compilations/publish', [DefinitionCompilationController::class, 'publish'])
+            ->middleware(RequireIdempotencyKey::class)
+            ->name('definition-compilations.publish');
+
         Route::get('device-profiles', [DeviceProfileController::class, 'index'])
             ->name('device-profiles.index');
         Route::post('device-profiles', [DeviceProfileController::class, 'store'])
@@ -62,6 +70,11 @@ Route::prefix('v1')
             ->name('device-definition-assignments.show');
         Route::put('devices/{device}/definition-assignment', [DeviceDefinitionAssignmentController::class, 'update'])
             ->name('device-definition-assignments.update');
+        Route::post('devices/{device}/definition-assignment/compile', [DeviceDefinitionCompilationController::class, 'compile'])
+            ->name('device-definition-assignments.compile');
+        Route::post('devices/{device}/definition-assignment/pin', [DeviceDefinitionCompilationController::class, 'pin'])
+            ->middleware(RequireIdempotencyKey::class)
+            ->name('device-definition-assignments.pin');
 
         Route::get('gateways', [GatewayController::class, 'index'])
             ->name('gateways.index');
