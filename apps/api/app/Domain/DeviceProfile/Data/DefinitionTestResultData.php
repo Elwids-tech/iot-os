@@ -110,4 +110,23 @@ final readonly class DefinitionTestResultData
             bindingArtifactHash: $bindingArtifactHash,
         );
     }
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        return [
+            'schema' => 'iot.definition-preview.v1',
+            'valid' => $this->valid,
+            'input_hash' => $this->inputHash,
+            'compiler' => $this->compiler,
+            'diagnostics' => $this->diagnostics,
+            'profile_artifact' => $this->profileArtifact,
+            'binding_artifact' => $this->bindingArtifact,
+            'artifact_hashes' => [
+                'profile' => $this->profileArtifactHash,
+                'binding' => $this->bindingArtifactHash,
+            ],
+            'previews' => $this->previews,
+        ];
+    }
 }

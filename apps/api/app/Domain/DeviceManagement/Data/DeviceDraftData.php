@@ -16,6 +16,7 @@ final readonly class DeviceDraftData implements Arrayable
         public string $name,
         public string $externalId,
         public ?string $description,
+        public ?string $uuid,
     ) {}
 
     /**
@@ -26,6 +27,7 @@ final readonly class DeviceDraftData implements Arrayable
         $name = $payload['name'] ?? null;
         $externalId = $payload['external_id'] ?? null;
         $description = $payload['description'] ?? null;
+        $uuid = $payload['uuid'] ?? null;
 
         if (! is_string($name) || trim($name) === '') {
             throw new InvalidArgumentException('A Device name is required.');
@@ -38,16 +40,20 @@ final readonly class DeviceDraftData implements Arrayable
         if ($description !== null && ! is_string($description)) {
             throw new InvalidArgumentException('A Device description must be a string or null.');
         }
+        if ($uuid !== null && ! is_string($uuid)) {
+            throw new InvalidArgumentException('A Device UUID must be a string or null.');
+        }
 
-        return new self(trim($name), trim($externalId), $description);
+        return new self(trim($name), trim($externalId), $description, $uuid);
     }
 
     /**
-     * @return array{name: string, external_id: string, description: string|null}
+     * @return array{name: string, external_id: string, description: string|null, uuid?: string}
      */
     public function toArray(): array
     {
         return [
+            ...($this->uuid !== null ? ['uuid' => $this->uuid] : []),
             'name' => $this->name,
             'external_id' => $this->externalId,
             'description' => $this->description,

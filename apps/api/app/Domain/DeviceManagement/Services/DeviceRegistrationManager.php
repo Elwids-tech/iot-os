@@ -39,12 +39,14 @@ final class DeviceRegistrationManager
             throw new DomainInvariantViolation('Only a Device draft can be edited.');
         }
 
+        $attributes = $data->toArray();
+        unset($attributes['uuid']);
         $revision = $device->revision;
         $updated = Device::query()
             ->whereKey($device->getKey())
             ->where('revision', $revision)
             ->update([
-                ...$data->toArray(),
+                ...$attributes,
                 'revision' => $revision + 1,
                 'updated_at' => now(),
             ]);
@@ -54,6 +56,24 @@ final class DeviceRegistrationManager
         }
 
         return $device->refresh();
+    }
+
+    public function deleteDraft(Device $device, ?string $expectedEntityTag): void
+    {
+        $device->assertExpectedEntityTag($expectedEntityTag);
+
+        DB::transaction(function () use ($device, $expectedEntityTag): void {
+            $locked = Device::query()->lockForUpdate()->findOrFail($device->getKey());
+            $locked->assertExpectedEntityTag($expectedEntityTag);
+            if (! $locked->isDraft()) {
+                throw new DomainInvariantViolation('Only an unregistered Device draft can be deleted.');
+            }
+            if ($locked->definitionAssignment()->exists()) {
+                throw new DomainInvariantViolation('A Device draft with a definition assignment cannot be deleted.');
+            }
+
+            $locked->delete();
+        });
     }
 
     public function replaceDefinitionAssignment(

@@ -24,7 +24,7 @@ Deliver tenant-owned Device Profile and Native MQTT Binding CRUD, deterministic 
 | M1a-D0 | ADRs, JSON Schemas, OpenAPI, fixtures, and cross-language vocabulary checks | Complete |
 | M1a-D1 | PostgreSQL migrations, aggregates, DTOs, policies, lifecycle, and ETags | Complete |
 | M1a-D2 | Go compiler and Laravel internal client | Complete |
-| M1a-D3 | Tenant CRUD, validation, publication, Device and assignment APIs | Pending |
+| M1a-D3 | Tenant CRUD, validation, publication, Device and assignment APIs | Complete |
 | M1a-D4 | Tenant Profile/Binding authoring and single-Device registration UI | Pending |
 | M1a-D5 | Laravel AI chat and authenticated Laravel MCP server | Pending |
 | M1a-D6 | Contract, API, browser, security, observability, and handoff hardening | Pending |
@@ -152,4 +152,61 @@ evidence only. M1a-D2 adds no public Device Domain API handlers, tenant/admin
 screens, browser evidence, broker integration, live device ingestion, Command
 delivery, deployed behavior, or physical-device verification.
 
-M1a-D3 is the next implementation milestone.
+## M1a-D3 implementation evidence
+
+M1a-D3 exposes the D1 aggregates and D2 compiler through the tenant API
+boundary:
+
+- The 38 Profile, Binding, coordinated-definition, Device, and
+  definition-assignment operations already specified in the public OpenAPI
+  document are registered under `/api/v1` with Sanctum authentication.
+- `X-Organization-UUID` selects an authenticated Organization membership and
+  team-permission context. UUID lookup remains Organization-scoped so
+  cross-tenant resource identifiers resolve as `404`, while a known
+  Organization without membership resolves as `403`.
+- Device Profile and Native MQTT Binding catalogs support tenant list, create,
+  read, metadata replacement, archive, and safe deletion. Draft Versions
+  support list, create, read, full replacement, clone, and reference-safe
+  deletion.
+- Coordinated Profile/Binding draft creation and replacement use one strong
+  composite ETag. Validation calls the internal Go compiler, persists every
+  valid or invalid `DefinitionTestRun`, and returns domain-invalid compiler
+  results as HTTP `200`. Publication requires valid evidence for both current
+  draft revisions before atomically publishing both Versions.
+- Device drafts support create, read, full replacement, safe deletion,
+  definition assignment, registration, and archive. The first assignment uses
+  the Device ETag, later draft replacements use the assignment ETag, and
+  registration locks the exact published Profile/Binding Versions against
+  later mutation.
+- Missing `If-Match` returns RFC 9457-style `428`; stale values return `412`
+  plus the current ETag; lifecycle/reference conflicts return `409`; compiler
+  transport failures return `503`.
+- Contracted create, clone, publish, register, and archive routes enforce an
+  `Idempotency-Key` of 8-255 characters. Durable response replay,
+  payload-conflict detection, and key retention remain an explicit M1a-D6
+  hardening item.
+
+Verification completed locally:
+
+- D3 public API feature coverage passes: 6 tests with 111 assertions covering
+  authentication, Organization context, permissions, cross-tenant isolation,
+  catalog/version CRUD, cloning/deletion, ETags, compiler
+  validation/publication, compiler outage mapping, and Device
+  assignment/registration/archive.
+- Focused Device Domain coverage passes: 24 tests with 205 assertions.
+- Complete Laravel coverage passes: 67 tests with 398 assertions.
+- All 38 D3 public operations are present in Laravel route inspection.
+  Contract validation passes for 8 JSON Schemas and 7 fixture cases; both
+  OpenAPI documents pass Redocly.
+- Workspace TypeScript typecheck and lint pass. Go compiler/runtime tests pass:
+  28 tests across 4 packages; `go vet ./...` passes.
+- D3-scoped Pint validation passes. Repository-wide Pint continues to report
+  only the same two pre-existing Administration formatting failures outside
+  this milestone; those files remain unchanged.
+
+This is local API/domain/compiler evidence only. M1a-D3 adds no tenant/admin
+authoring screens, browser evidence, AI/MCP onboarding, durable idempotency
+replay store, broker integration, live ingestion, command delivery, deployed
+behavior, or physical-device verification.
+
+M1a-D4 is the next implementation milestone.
