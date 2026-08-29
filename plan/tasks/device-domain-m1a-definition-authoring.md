@@ -35,7 +35,7 @@ The D0-D4 completion evidence below records the locally verified v1 implementati
 | M1a-D4 | Tenant Profile/Binding authoring and single-Device registration UI | Complete v1; superseded |
 | M1a-D4R0 | ADR-013, corrected boundaries, and executable rectification plan | Complete |
 | M1a-D4R1 | Profile v2, Gateway routing, canonical telemetry schemas, and fixtures | Complete |
-| M1a-D4R2 | Laravel Gateway routing persistence, domain model, DTOs, and API | Pending |
+| M1a-D4R2 | Laravel Gateway routing persistence, domain model, DTOs, and API | Complete |
 | M1a-D4R3 | Go v2 compiler and route-aware Runtime Bundle | Pending |
 | M1a-D4R4 | Dynamic React Profile, Binding, Command, and onboarding forms | Pending |
 | M1a-D4R5 | v1 migration policy, end-to-end local verification, and handoff | Pending |
@@ -347,3 +347,32 @@ This is local UI, mocked-browser-workflow, API/domain, and compiler evidence.
 M1a-D4 adds no AI/MCP onboarding, durable idempotency replay store, broker
 integration, live telemetry ingestion, Command delivery, deployed behavior, or
 physical-Device verification. M1a-D5 is the next implementation milestone.
+
+## M1a-D4R2 implementation evidence
+
+M1a-D4R2 establishes the Laravel control-plane persistence and API boundary for the corrected route-aware Device Domain v2 model:
+
+- Tenant-owned Gateway and Gateway Route aggregates use public UUIDs, optimistic-concurrency revisions and ETags, Organization-scoped lookup, policies, permissions, validation requests, immutable authoring DTOs, resources, and CRUD APIs.
+- Device Profile v2 and Native MQTT Binding v2 catalogs accept dynamically authored parameters, derived parameters, Properties, Events, Commands, channels, calibration mappings, and route-aware request/response mappings while retaining stable authored parameter UUIDs.
+- Profile-compatible cloning creates new Profile Version identity while preserving compatible parameter UUIDs. Published or referenced definition identity remains immutable.
+- Gateway Routes coordinate one authenticated Gateway with one logical Device and exact published Profile v2 and Binding v2 Versions. Route creation attaches the Device assignment; safe route deletion returns a draft Device to `v2_route_pending`.
+- Device definition assignments explicitly distinguish `v1_unmigrated`, `v2_route_pending`, and `v2_route_aware`; logical v2 Device registration requires an enabled matching route and a complete, identity-matched Runtime Bundle pin.
+- Platform-owned Properties are intentionally not transport-mapped. Desired Properties require platform-to-Device mappings and reported Properties require Device-to-platform mappings.
+- Ambiguous Event active/cleared status values and ambiguous Command accepted/running/succeeded/failed status values are rejected during authoring.
+- JSON object shape is preserved for valid empty `constraints`, channel `envelope`, Command `request_template`, route-variable-path, and Gateway Route `topic_variables` objects across DTO, PostgreSQL persistence, and API serialization boundaries.
+- PostgreSQL adds composite Organization foreign keys, route-resolution indexes, immutable-version contract markers, Device identity markers, assignment/runtime pin fields, JSON-shape checks, hash checks, compatibility-state coherence, and atomic Runtime Bundle pin constraints. Existing v1 rows are not reinterpreted or destructively rewritten.
+
+Verification completed locally on 2026-08-29:
+
+- D4R2-focused SQLite API, schema, and authorization coverage passes: 19 tests, 203 assertions.
+- Complete Laravel coverage passes: 84 tests, 583 assertions.
+- Real PostgreSQL/TimescaleDB Profile v2, Binding v2, Gateway, and Gateway Route API coverage passes: 13 tests, 159 assertions.
+- Disposable SQLite and PostgreSQL databases both pass fresh migration, existing-v1 upgrade, populated rollback, and re-apply lifecycles. Preserved rows return as `v1_direct`, `v1`, `v1`, and `v1_unmigrated` with no fabricated route or Runtime Bundle pins.
+- PostgreSQL catalog inspection confirms all D4R2 check constraints are validated, all new-table composite foreign keys have full-prefix index coverage, assignment foreign keys retain deliberate ID-leading indexes, and the D4R2 tables report zero uncovered foreign keys.
+- Twelve deliberately invalid PostgreSQL writes are rejected across compatibility state, assignment shape, atomic Runtime Bundle pins, hash format, JSON object/array shape, route path, Gateway key/client/revision, and cross-tenant composite foreign-key constraints.
+- Laravel route inspection exposes 25 authenticated `/api/v2` Profile, Binding, Gateway, and Gateway Route operations.
+- Contract validation passes 19 JSON Schemas and 25 fixture cases. All four public/internal v1/v2 OpenAPI documents pass Redocly, and `openapi-typescript` regeneration produces no generated-client diff.
+- Workspace tests, lint, TypeScript typecheck, and production builds pass. Go runtime coverage passes 29 tests across 4 packages and `go vet ./...` passes.
+- D4R2-scoped Pint validation passes all 51 changed PHP files and the working diff passes whitespace validation. Repository-wide Pint still reports only two pre-existing Administration formatting failures outside this milestone; those files remain unchanged.
+
+This is local persistence, domain, API, contract, migration, and static/runtime-test evidence only. M1a-D4R2 does not add or verify the dynamic React authoring/onboarding UI, route-aware Go v2 compiler behavior, live EMQX connectivity, ingestion, TimescaleDB telemetry writes, Command delivery, AI/MCP onboarding, deployment, or physical Devices. Those remain later milestones.

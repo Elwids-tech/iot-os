@@ -6,8 +6,12 @@ use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Services\PlatformAuthorization;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceManagement\Models\DeviceDefinitionAssignment;
+use App\Domain\DeviceManagement\Models\Gateway;
+use App\Domain\DeviceManagement\Models\GatewayRoute;
 use App\Domain\DeviceManagement\Policies\DeviceDefinitionAssignmentPolicy;
 use App\Domain\DeviceManagement\Policies\DevicePolicy;
+use App\Domain\DeviceManagement\Policies\GatewayPolicy;
+use App\Domain\DeviceManagement\Policies\GatewayRoutePolicy;
 use App\Domain\DeviceProfile\Models\DeviceProfile;
 use App\Domain\DeviceProfile\Models\DeviceProfileVersion;
 use App\Domain\DeviceProfile\Models\TransportBinding;
@@ -42,6 +46,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(TransportBindingVersion::class, TransportBindingVersionPolicy::class);
         Gate::policy(Device::class, DevicePolicy::class);
         Gate::policy(DeviceDefinitionAssignment::class, DeviceDefinitionAssignmentPolicy::class);
+        Gate::policy(Gateway::class, GatewayPolicy::class);
+        Gate::policy(GatewayRoute::class, GatewayRoutePolicy::class);
 
         foreach (PlatformAdministrationPermission::cases() as $permission) {
             Gate::define($permission->value, static function (User $user) use ($permission): bool {

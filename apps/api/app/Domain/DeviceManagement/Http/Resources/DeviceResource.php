@@ -18,6 +18,7 @@ final class DeviceResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'lifecycle_state' => $this->lifecycle_state->value,
+            'identity_model' => $this->identity_model->value,
             'revision' => $this->revision,
             'etag' => $this->etag(),
             'registered_at' => $this->registered_at?->toAtomString(),

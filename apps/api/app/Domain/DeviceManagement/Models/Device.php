@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceManagement\Models;
 
+use App\Domain\DeviceManagement\Enums\DeviceIdentityModel;
 use App\Domain\DeviceManagement\Enums\DeviceLifecycleState;
 use App\Domain\Shared\Models\Concerns\HasPublicUuid;
 use App\Domain\Shared\Models\Concerns\HasRevisionEntityTag;
@@ -12,6 +13,7 @@ use App\Domain\Shared\Models\User;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
@@ -21,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'name',
     'description',
     'lifecycle_state',
+    'identity_model',
     'revision',
     'registered_at',
     'archived_at',
@@ -33,6 +36,7 @@ final class Device extends Model
 
     protected $attributes = [
         'lifecycle_state' => 'draft',
+        'identity_model' => 'v1_direct',
         'revision' => 1,
     ];
 
@@ -40,6 +44,7 @@ final class Device extends Model
     {
         return [
             'lifecycle_state' => DeviceLifecycleState::class,
+            'identity_model' => DeviceIdentityModel::class,
             'revision' => 'integer',
             'registered_at' => 'immutable_datetime',
             'archived_at' => 'immutable_datetime',
@@ -62,6 +67,12 @@ final class Device extends Model
     public function definitionAssignment(): HasOne
     {
         return $this->hasOne(DeviceDefinitionAssignment::class);
+    }
+
+    /** @return HasMany<GatewayRoute, $this> */
+    public function gatewayRoutes(): HasMany
+    {
+        return $this->hasMany(GatewayRoute::class);
     }
 
     public function isDraft(): bool

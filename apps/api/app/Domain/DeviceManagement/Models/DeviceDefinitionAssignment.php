@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceManagement\Models;
 
+use App\Domain\DeviceManagement\Enums\AssignmentCompatibilityState;
 use App\Domain\DeviceProfile\Models\DeviceProfileVersion;
 use App\Domain\DeviceProfile\Models\TransportBindingVersion;
 use App\Domain\Shared\Models\Concerns\HasPublicUuid;
@@ -20,6 +21,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'device_id',
     'device_profile_version_id',
     'transport_binding_version_id',
+    'gateway_route_id',
+    'compatibility_state',
+    'profile_artifact_hash',
+    'binding_artifact_hash',
+    'route_source_hash',
+    'runtime_bundle_hash',
+    'runtime_bundle',
+    'runtime_compiled_at',
     'revision',
     'locked_at',
     'created_by_id',
@@ -32,12 +41,16 @@ final class DeviceDefinitionAssignment extends Model
 
     protected $attributes = [
         'revision' => 1,
+        'compatibility_state' => 'v1_unmigrated',
     ];
 
     protected function casts(): array
     {
         return [
             'revision' => 'integer',
+            'compatibility_state' => AssignmentCompatibilityState::class,
+            'runtime_bundle' => 'array',
+            'runtime_compiled_at' => 'immutable_datetime',
             'locked_at' => 'immutable_datetime',
         ];
     }
@@ -66,6 +79,12 @@ final class DeviceDefinitionAssignment extends Model
         return $this->belongsTo(TransportBindingVersion::class, 'transport_binding_version_id');
     }
 
+    /** @return BelongsTo<GatewayRoute, $this> */
+    public function gatewayRoute(): BelongsTo
+    {
+        return $this->belongsTo(GatewayRoute::class);
+    }
+
     /** @return BelongsTo<User, $this> */
     public function createdBy(): BelongsTo
     {
@@ -81,6 +100,11 @@ final class DeviceDefinitionAssignment extends Model
     public function isLocked(): bool
     {
         return $this->locked_at !== null;
+    }
+
+    public function isRouteAwareV2(): bool
+    {
+        return $this->compatibility_state === AssignmentCompatibilityState::V2_ROUTE_AWARE;
     }
 
     protected function entityTagResource(): string

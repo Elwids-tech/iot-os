@@ -6,6 +6,8 @@ namespace App\Domain\Authorization\Enums;
 
 use App\Domain\Authorization\Permissions\RolePermission;
 use App\Domain\DeviceManagement\Permissions\DevicePermission;
+use App\Domain\DeviceManagement\Permissions\GatewayPermission;
+use App\Domain\DeviceManagement\Permissions\GatewayRoutePermission;
 use App\Domain\DeviceProfile\Permissions\DeviceProfilePermission;
 use App\Domain\DeviceProfile\Permissions\TransportBindingPermission;
 use App\Domain\Shared\Permissions\OrganizationPermission;
@@ -39,6 +41,8 @@ enum OrganizationRoleName: string
                 ...array_map(static fn ($permission): string => $permission->value, DeviceProfilePermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, TransportBindingPermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, DevicePermission::cases()),
+                ...array_map(static fn ($permission): string => $permission->value, GatewayPermission::cases()),
+                ...array_map(static fn ($permission): string => $permission->value, GatewayRoutePermission::cases()),
             ],
             self::MODERATOR => [
                 OrganizationPermission::VIEW->value,
@@ -50,6 +54,10 @@ enum OrganizationRoleName: string
                 TransportBindingPermission::VIEW->value,
                 DevicePermission::VIEW_ANY->value,
                 DevicePermission::VIEW->value,
+                GatewayPermission::VIEW_ANY->value,
+                GatewayPermission::VIEW->value,
+                GatewayRoutePermission::VIEW_ANY->value,
+                GatewayRoutePermission::VIEW->value,
             ],
             self::MEMBER => [
                 OrganizationPermission::VIEW->value,
@@ -59,6 +67,10 @@ enum OrganizationRoleName: string
                 TransportBindingPermission::VIEW->value,
                 DevicePermission::VIEW_ANY->value,
                 DevicePermission::VIEW->value,
+                GatewayPermission::VIEW_ANY->value,
+                GatewayPermission::VIEW->value,
+                GatewayRoutePermission::VIEW_ANY->value,
+                GatewayRoutePermission::VIEW->value,
             ],
         };
     }

@@ -43,11 +43,16 @@ class OrganizationAuthorizationSeederTest extends TestCase
     {
         $this->seed(DatabaseSeeder::class);
 
-        $this->assertDatabaseCount('permissions', 90);
+        $this->assertDatabaseCount('permissions', 110);
         $this->assertDatabaseHas('permissions', [
             'name' => 'Organization.delete',
             'guard_name' => 'web',
             'group' => 'Organization',
+        ]);
+        $this->assertDatabaseHas('permissions', [
+            'name' => 'GatewayRoute.create',
+            'guard_name' => 'web',
+            'group' => 'GatewayRoute',
         ]);
 
         $acme = Organization::query()->where('slug', 'acme-manufacturing')->firstOrFail();
@@ -78,6 +83,6 @@ class OrganizationAuthorizationSeederTest extends TestCase
         $this->assertDatabaseCount('users', 7);
         $this->assertDatabaseCount('organization_user', 6);
         $this->assertDatabaseCount('roles', 6);
-        $this->assertSame(90, Permission::query()->count());
+        $this->assertSame(110, Permission::query()->count());
     }
 }

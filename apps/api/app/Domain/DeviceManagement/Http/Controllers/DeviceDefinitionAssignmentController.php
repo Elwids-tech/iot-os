@@ -27,7 +27,7 @@ final class DeviceDefinitionAssignmentController
         $model = $this->locator->device(CurrentOrganization::from($request), $device);
         Gate::authorize('view', $model);
         $assignment = $model->definitionAssignment()
-            ->with(['device', 'profileVersion', 'bindingVersion'])
+            ->with(['device', 'profileVersion', 'bindingVersion', 'gatewayRoute'])
             ->firstOrFail();
         Gate::authorize('view', $assignment);
 
@@ -62,7 +62,7 @@ final class DeviceDefinitionAssignmentController
 
     private function assignmentResponse(DeviceDefinitionAssignment $assignment): JsonResponse
     {
-        $assignment->loadMissing(['device', 'profileVersion', 'bindingVersion']);
+        $assignment->loadMissing(['device', 'profileVersion', 'bindingVersion', 'gatewayRoute']);
 
         return DeviceDefinitionAssignmentResource::make($assignment)
             ->additional(['etag' => $assignment->etag()])

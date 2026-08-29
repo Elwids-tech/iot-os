@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\DeviceProfile\Services;
 
 use App\Domain\DeviceManagement\Models\DeviceDefinitionAssignment;
+use App\Domain\DeviceManagement\Models\GatewayRoute;
 use App\Domain\DeviceProfile\Data\DeviceProfileAuthoringData;
 use App\Domain\DeviceProfile\Data\NativeMqttBindingAuthoringData;
 use App\Domain\DeviceProfile\Enums\DefinitionState;
@@ -18,6 +19,7 @@ use App\Domain\Shared\Exceptions\DomainInvariantViolation;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 final class DefinitionAuthoringManager
 {
@@ -248,12 +250,18 @@ final class DefinitionAuthoringManager
             }
 
             $nextVersion = ((int) $profile->versions()->max('version')) + 1;
+            $versionUuid = (string) Str::uuid();
+            $definition = $lockedSource->definition;
+            $definition['uuid'] = $versionUuid;
+            $definition['version'] = $nextVersion;
 
             return $profile->versions()->create([
+                'uuid' => $versionUuid,
                 'organization_id' => $profile->organization_id,
                 'version' => $nextVersion,
                 'state' => DefinitionState::DRAFT,
-                'definition' => $lockedSource->definition,
+                'contract_version' => $lockedSource->contract_version,
+                'definition' => $definition,
                 'created_by_id' => $actor?->getKey(),
             ])->setRelation('profile', $profile);
         });
@@ -270,13 +278,19 @@ final class DefinitionAuthoringManager
             }
 
             $nextVersion = ((int) $binding->versions()->max('version')) + 1;
+            $versionUuid = (string) Str::uuid();
+            $definition = $lockedSource->definition;
+            $definition['uuid'] = $versionUuid;
+            $definition['version'] = $nextVersion;
 
             return $binding->versions()->create([
+                'uuid' => $versionUuid,
                 'organization_id' => $binding->organization_id,
                 'device_profile_version_id' => $lockedSource->device_profile_version_id,
                 'version' => $nextVersion,
                 'state' => DefinitionState::DRAFT,
-                'definition' => $lockedSource->definition,
+                'contract_version' => $lockedSource->contract_version,
+                'definition' => $definition,
                 'created_by_id' => $actor?->getKey(),
             ])->setRelation('binding', $binding)->setRelation('profileVersion', $lockedSource->profileVersion);
         });
@@ -555,7 +569,8 @@ final class DefinitionAuthoringManager
 
         return TransportBindingVersion::query()->whereIn('device_profile_version_id', $versionIds)->exists()
             || DefinitionTestRun::query()->whereIn('device_profile_version_id', $versionIds)->exists()
-            || DeviceDefinitionAssignment::query()->whereIn('device_profile_version_id', $versionIds)->exists();
+            || DeviceDefinitionAssignment::query()->whereIn('device_profile_version_id', $versionIds)->exists()
+            || GatewayRoute::query()->whereIn('device_profile_version_id', $versionIds)->exists();
     }
 
     /** @param list<int> $versionIds */
@@ -566,6 +581,7 @@ final class DefinitionAuthoringManager
         }
 
         return DefinitionTestRun::query()->whereIn('transport_binding_version_id', $versionIds)->exists()
-            || DeviceDefinitionAssignment::query()->whereIn('transport_binding_version_id', $versionIds)->exists();
+            || DeviceDefinitionAssignment::query()->whereIn('transport_binding_version_id', $versionIds)->exists()
+            || GatewayRoute::query()->whereIn('transport_binding_version_id', $versionIds)->exists();
     }
 }

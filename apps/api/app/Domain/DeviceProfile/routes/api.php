@@ -6,9 +6,13 @@ use App\Domain\Authorization\Http\Middleware\RequireIdempotencyKey;
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationHeaderContext;
 use App\Domain\DeviceManagement\Http\Controllers\DeviceController;
 use App\Domain\DeviceManagement\Http\Controllers\DeviceDefinitionAssignmentController;
+use App\Domain\DeviceManagement\Http\Controllers\GatewayController;
+use App\Domain\DeviceManagement\Http\Controllers\GatewayRouteController;
 use App\Domain\DeviceProfile\Http\Controllers\DefinitionDraftController;
 use App\Domain\DeviceProfile\Http\Controllers\DeviceProfileController;
+use App\Domain\DeviceProfile\Http\Controllers\DeviceProfileV2Controller;
 use App\Domain\DeviceProfile\Http\Controllers\DeviceProfileVersionController;
+use App\Domain\DeviceProfile\Http\Controllers\NativeMqttBindingV2Controller;
 use App\Domain\DeviceProfile\Http\Controllers\TransportBindingController;
 use App\Domain\DeviceProfile\Http\Controllers\TransportBindingVersionController;
 use Illuminate\Support\Facades\Route;
@@ -108,4 +112,52 @@ Route::prefix('v1')
             ->name('device-definition-assignments.show');
         Route::put('devices/{device}/definition-assignment', [DeviceDefinitionAssignmentController::class, 'update'])
             ->name('device-definition-assignments.update');
+    });
+
+Route::prefix('v2')
+    ->name('api.v2.')
+    ->middleware(['auth:sanctum', ResolveOrganizationHeaderContext::class])
+    ->group(function (): void {
+        Route::get('device-profiles', [DeviceProfileV2Controller::class, 'index'])
+            ->name('device-profiles.index');
+        Route::post('device-profiles', [DeviceProfileV2Controller::class, 'store'])
+            ->middleware(RequireIdempotencyKey::class)
+            ->name('device-profiles.store');
+        Route::get('device-profiles/{profile}', [DeviceProfileV2Controller::class, 'show'])
+            ->name('device-profiles.show');
+        Route::put('device-profiles/{profile}', [DeviceProfileV2Controller::class, 'update'])
+            ->name('device-profiles.update');
+        Route::delete('device-profiles/{profile}', [DeviceProfileV2Controller::class, 'destroy'])
+            ->name('device-profiles.destroy');
+
+        Route::get('native-mqtt-bindings', [NativeMqttBindingV2Controller::class, 'index'])
+            ->name('native-mqtt-bindings.index');
+        Route::post('native-mqtt-bindings', [NativeMqttBindingV2Controller::class, 'store'])
+            ->middleware(RequireIdempotencyKey::class)
+            ->name('native-mqtt-bindings.store');
+        Route::get('native-mqtt-bindings/{binding}', [NativeMqttBindingV2Controller::class, 'show'])
+            ->name('native-mqtt-bindings.show');
+        Route::put('native-mqtt-bindings/{binding}', [NativeMqttBindingV2Controller::class, 'update'])
+            ->name('native-mqtt-bindings.update');
+        Route::delete('native-mqtt-bindings/{binding}', [NativeMqttBindingV2Controller::class, 'destroy'])
+            ->name('native-mqtt-bindings.destroy');
+
+        Route::get('gateways', [GatewayController::class, 'index'])->name('gateways.index');
+        Route::post('gateways', [GatewayController::class, 'store'])
+            ->middleware(RequireIdempotencyKey::class)
+            ->name('gateways.store');
+        Route::get('gateways/{gateway}', [GatewayController::class, 'show'])->name('gateways.show');
+        Route::put('gateways/{gateway}', [GatewayController::class, 'update'])->name('gateways.update');
+        Route::delete('gateways/{gateway}', [GatewayController::class, 'destroy'])->name('gateways.destroy');
+
+        Route::get('gateway-routes', [GatewayRouteController::class, 'index'])->name('gateway-routes.index');
+        Route::post('gateway-routes', [GatewayRouteController::class, 'store'])
+            ->middleware(RequireIdempotencyKey::class)
+            ->name('gateway-routes.store');
+        Route::get('gateway-routes/{route}', [GatewayRouteController::class, 'show'])
+            ->name('gateway-routes.show');
+        Route::put('gateway-routes/{route}', [GatewayRouteController::class, 'update'])
+            ->name('gateway-routes.update');
+        Route::delete('gateway-routes/{route}', [GatewayRouteController::class, 'destroy'])
+            ->name('gateway-routes.destroy');
     });

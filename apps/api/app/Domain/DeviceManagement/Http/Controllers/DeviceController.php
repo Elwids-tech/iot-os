@@ -33,7 +33,12 @@ final class DeviceController
         Gate::authorize('viewAny', [Device::class, $organization]);
         $query = Device::query()
             ->whereBelongsTo($organization)
-            ->with(['definitionAssignment.device', 'definitionAssignment.profileVersion', 'definitionAssignment.bindingVersion'])
+            ->with([
+                'definitionAssignment.device',
+                'definitionAssignment.profileVersion',
+                'definitionAssignment.bindingVersion',
+                'definitionAssignment.gatewayRoute',
+            ])
             ->orderBy('name');
         if (is_string($request->query('state')) && $request->query('state') !== '') {
             $query->where('lifecycle_state', $request->query('state'));
@@ -69,7 +74,7 @@ final class DeviceController
                 );
             }
 
-            return $device;
+            return $device->refresh();
         });
 
         return $this->deviceResponse($device, 201);
@@ -133,6 +138,7 @@ final class DeviceController
             'definitionAssignment.device',
             'definitionAssignment.profileVersion',
             'definitionAssignment.bindingVersion',
+            'definitionAssignment.gatewayRoute',
         ]);
 
         return DeviceResource::make($device)

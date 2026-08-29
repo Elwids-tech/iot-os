@@ -7,6 +7,8 @@ namespace Database\Seeders;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Permissions\RolePermission;
 use App\Domain\DeviceManagement\Permissions\DevicePermission;
+use App\Domain\DeviceManagement\Permissions\GatewayPermission;
+use App\Domain\DeviceManagement\Permissions\GatewayRoutePermission;
 use App\Domain\DeviceProfile\Permissions\DeviceProfilePermission;
 use App\Domain\DeviceProfile\Permissions\TransportBindingPermission;
 use App\Domain\Shared\Permissions\OrganizationPermission;
@@ -27,6 +29,8 @@ class PermissionSeeder extends Seeder
             DeviceProfilePermission::getPermissionGroup() => DeviceProfilePermission::cases(),
             TransportBindingPermission::getPermissionGroup() => TransportBindingPermission::cases(),
             DevicePermission::getPermissionGroup() => DevicePermission::cases(),
+            GatewayPermission::getPermissionGroup() => GatewayPermission::cases(),
+            GatewayRoutePermission::getPermissionGroup() => GatewayRoutePermission::cases(),
             PlatformAdministrationPermission::getPermissionGroup() => PlatformAdministrationPermission::cases(),
         ];
         $guards = array_keys(config('auth.guards'));
