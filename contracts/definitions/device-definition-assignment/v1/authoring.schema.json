@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/device-definition-assignment/v1/authoring.schema.json",
+  "title": "Device definition assignment authoring contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profile_version_uuid",
+    "binding_version_uuid"
+  ],
+  "properties": {
+    "profile_version_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "binding_version_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    }
+  }
+}

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceManagement\Data;
 
-use App\Domain\DeviceProfile\Support\DeviceDomainV2Payload;
+use App\Domain\DeviceProfile\Support\DeviceDomainPayload;
 use App\Domain\Shared\Data\AuthoringPayload;
 use Illuminate\Contracts\Support\Arrayable;
 use InvalidArgumentException;
@@ -26,7 +26,7 @@ final readonly class GatewayAuthoringData implements Arrayable, JsonSerializable
     {
         AuthoringPayload::assertAllowedKeys($payload, ['schema', 'gateway'], 'Gateway document');
 
-        if (($payload['schema'] ?? null) !== 'iot.gateway.authoring.v2') {
+        if (($payload['schema'] ?? null) !== 'iot.gateway.authoring.v1') {
             throw new InvalidArgumentException('Unsupported Gateway authoring schema.');
         }
 
@@ -37,7 +37,7 @@ final readonly class GatewayAuthoringData implements Arrayable, JsonSerializable
             'gateway',
         );
 
-        $mqttClientId = DeviceDomainV2Payload::boundedString(
+        $mqttClientId = DeviceDomainPayload::boundedString(
             $gateway['mqtt_client_id'] ?? null,
             'gateway.mqtt_client_id',
             256,
@@ -50,8 +50,8 @@ final readonly class GatewayAuthoringData implements Arrayable, JsonSerializable
         return new self(
             AuthoringPayload::uuid($gateway['uuid'] ?? null, 'gateway.uuid'),
             AuthoringPayload::key($gateway['key'] ?? null, 'gateway.key'),
-            DeviceDomainV2Payload::boundedString($gateway['name'] ?? null, 'gateway.name', 160),
-            DeviceDomainV2Payload::nullableBoundedString(
+            DeviceDomainPayload::boundedString($gateway['name'] ?? null, 'gateway.name', 160),
+            DeviceDomainPayload::nullableBoundedString(
                 $gateway['description'] ?? null,
                 'gateway.description',
                 4000,
@@ -76,7 +76,7 @@ final readonly class GatewayAuthoringData implements Arrayable, JsonSerializable
     public function toArray(): array
     {
         return [
-            'schema' => 'iot.gateway.authoring.v2',
+            'schema' => 'iot.gateway.authoring.v1',
             'gateway' => $this->attributes(),
         ];
     }

@@ -1,113 +1,154 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.iot-os.dev/definitions/definition-preview/v1/schema.json",
-  "title": "Device definition compile and preview result v1",
+  "title": "Route-aware Device definition compile preview v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "valid", "input_hash", "compiler", "diagnostics", "artifact_hashes", "previews"],
+  "required": [
+    "schema",
+    "valid",
+    "input_hash",
+    "compiler",
+    "diagnostics",
+    "artifact_hashes",
+    "previews"
+  ],
   "properties": {
-    "schema": {"const": "iot.definition-preview.v1"},
-    "valid": {"type": "boolean"},
-    "input_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "compiler": {"$ref": "../../common/v1/schema.json#/$defs/CompilerMetadata"},
+    "schema": {
+      "const": "iot.definition-preview.v1"
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "input_hash": {
+      "$ref": "../../common/v1/schema.json#/$defs/Sha256"
+    },
+    "compiler": {
+      "$ref": "../../common/v1/schema.json#/$defs/CompilerMetadata"
+    },
     "diagnostics": {
       "type": "array",
-      "maxItems": 1000,
-      "items": {"$ref": "../../common/v1/schema.json#/$defs/Diagnostic"}
-    },
-    "profile_artifact": {
-      "oneOf": [
-        {"type": "null"},
-        {"$ref": "../../device-profile/v1/artifact.schema.json"}
-      ]
-    },
-    "binding_artifact": {
-      "oneOf": [
-        {"type": "null"},
-        {"$ref": "../../native-mqtt-binding/v1/artifact.schema.json"}
-      ]
+      "maxItems": 4096,
+      "items": {
+        "$ref": "../../common/v1/schema.json#/$defs/Diagnostic"
+      }
     },
     "artifact_hashes": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "profile": {
-          "oneOf": [
-            {"type": "null"},
-            {"type": "string", "pattern": "^[a-f0-9]{64}$"}
-          ]
-        },
-        "binding": {
-          "oneOf": [
-            {"type": "null"},
-            {"type": "string", "pattern": "^[a-f0-9]{64}$"}
-          ]
-        }
-      }
+      "$ref": "#/$defs/ArtifactHashes"
+    },
+    "profile_artifact": {
+      "$ref": "../../device-profile/v1/artifact.schema.json"
+    },
+    "binding_artifact": {
+      "$ref": "../../native-mqtt-binding/v1/artifact.schema.json"
+    },
+    "runtime_bundle": {
+      "$ref": "../../runtime-bundle/v1/schema.json"
     },
     "previews": {
       "type": "array",
       "maxItems": 256,
-      "items": {"$ref": "#/$defs/FixturePreview"}
+      "items": {
+        "$ref": "#/$defs/FixturePreview"
+      }
     }
   },
   "$defs": {
+    "ArtifactHashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "binding",
+        "runtime_bundle"
+      ],
+      "properties": {
+        "profile": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "../../common/v1/schema.json#/$defs/Sha256"
+            }
+          ]
+        },
+        "binding": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "../../common/v1/schema.json#/$defs/Sha256"
+            }
+          ]
+        },
+        "runtime_bundle": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "../../common/v1/schema.json#/$defs/Sha256"
+            }
+          ]
+        }
+      }
+    },
     "FixturePreview": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "kind", "valid", "source", "stages"],
+      "required": [
+        "name",
+        "accepted",
+        "values",
+        "diagnostics"
+      ],
       "properties": {
-        "name": {"type": "string", "minLength": 1, "maxLength": 160},
-        "kind": {
+        "name": {
           "type": "string",
-          "enum": [
-            "telemetry",
-            "reported_property",
-            "desired_property",
-            "event",
-            "command_request",
-            "command_response"
-          ]
+          "minLength": 1,
+          "maxLength": 160
         },
-        "valid": {"type": "boolean"},
-        "source": true,
-        "canonical": true,
-        "generated": true,
-        "stages": {
+        "accepted": {
+          "type": "boolean"
+        },
+        "values": {
           "type": "array",
           "maxItems": 1024,
           "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["stage", "status"],
-            "properties": {
-              "stage": {
-                "type": "string",
-                "enum": [
-                  "record_selection",
-                  "envelope",
-                  "extraction",
-                  "coercion",
-                  "transformation",
-                  "validation",
-                  "derivation",
-                  "placement",
-                  "correlation",
-                  "status"
-                ]
-              },
-              "status": {"type": "string", "enum": ["passed", "failed", "skipped"]},
-              "target": {
-                "oneOf": [
-                  {"type": "null"},
-                  {"$ref": "../../common/v1/schema.json#/$defs/QualifiedKey"}
-                ]
-              },
-              "raw": true,
-              "result": true,
-              "diagnostic_code": {"type": ["string", "null"]}
-            }
+            "$ref": "#/$defs/PreviewValue"
           }
+        },
+        "encoded_payload": true,
+        "diagnostics": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": {
+            "$ref": "../../common/v1/schema.json#/$defs/Diagnostic"
+          }
+        }
+      }
+    },
+    "PreviewValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parameter_uuid",
+        "value_type",
+        "value",
+        "quality"
+      ],
+      "properties": {
+        "parameter_uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "value_type": {
+          "$ref": "../../common/v1/schema.json#/$defs/DataType"
+        },
+        "value": true,
+        "quality": {
+          "$ref": "../../canonical-telemetry/v1/schema.json#/$defs/Quality"
         }
       }
     }

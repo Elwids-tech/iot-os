@@ -4,173 +4,401 @@
   "title": "Device Profile authoring contract v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "profile", "version"],
+  "required": [
+    "schema",
+    "profile",
+    "version"
+  ],
   "properties": {
-    "schema": {"const": "iot.device-profile.authoring.v1"},
-    "profile": {"$ref": "#/$defs/Profile"},
-    "version": {"$ref": "#/$defs/ProfileVersion"}
+    "schema": {
+      "const": "iot.device-profile.authoring.v1"
+    },
+    "profile": {
+      "$ref": "#/$defs/Profile"
+    },
+    "version": {
+      "$ref": "#/$defs/ProfileVersion"
+    }
   },
   "$defs": {
     "Profile": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["key", "name"],
+      "required": [
+        "uuid",
+        "key",
+        "name"
+      ],
       "properties": {
-        "uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-        "key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
-        "name": {"type": "string", "minLength": 1, "maxLength": 160},
-        "description": {"type": ["string", "null"], "maxLength": 4000}
+        "uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "key": {
+          "$ref": "../../common/v1/schema.json#/$defs/Key"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        }
       }
     },
     "ProfileVersion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "components"],
+      "required": [
+        "uuid",
+        "version",
+        "parameters",
+        "derived_parameters",
+        "properties",
+        "events",
+        "commands"
+      ],
       "properties": {
-        "uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-        "version": {"type": "integer", "minimum": 1},
-        "notes": {"type": ["string", "null"], "maxLength": 4000},
-        "components": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 32,
-          "items": {"$ref": "#/$defs/Component"}
-        }
-      }
-    },
-    "Component": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["key", "name", "telemetry", "properties", "events", "commands"],
-      "properties": {
-        "uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-        "key": {
-          "oneOf": [
-            {"type": "null"},
-            {"$ref": "../../common/v1/schema.json#/$defs/Key"}
-          ]
+        "uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
         },
-        "name": {"type": "string", "minLength": 1, "maxLength": 160},
-        "description": {"type": ["string", "null"], "maxLength": 4000},
-        "telemetry": {
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "parameters": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          }
+        },
+        "derived_parameters": {
           "type": "array",
           "maxItems": 256,
-          "items": {"$ref": "#/$defs/Telemetry"}
+          "items": {
+            "$ref": "#/$defs/DerivedParameter"
+          }
         },
         "properties": {
           "type": "array",
           "maxItems": 256,
-          "items": {"$ref": "#/$defs/Property"}
+          "items": {
+            "$ref": "#/$defs/Property"
+          }
         },
         "events": {
           "type": "array",
           "maxItems": 256,
-          "items": {"$ref": "#/$defs/Event"}
+          "items": {
+            "$ref": "#/$defs/Event"
+          }
         },
         "commands": {
           "type": "array",
           "maxItems": 256,
-          "items": {"$ref": "#/$defs/Command"}
+          "items": {
+            "$ref": "#/$defs/Command"
+          }
         }
       }
     },
-    "Telemetry": {
+    "Parameter": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["key", "label", "value_schema"],
+      "required": [
+        "uuid",
+        "key",
+        "label",
+        "value_schema"
+      ],
       "properties": {
-        "uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-        "key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
-        "label": {"type": "string", "minLength": 1, "maxLength": 160},
-        "description": {"type": ["string", "null"], "maxLength": 4000},
-        "value_schema": {"$ref": "../../common/v1/schema.json#/$defs/ValueSchema"},
-        "derivation": {"$ref": "#/$defs/Derivation"}
+        "uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "key": {
+          "$ref": "../../common/v1/schema.json#/$defs/Key"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "value_schema": {
+          "$ref": "../../common/v1/schema.json#/$defs/ValueSchema"
+        },
+        "presentation": {
+          "$ref": "../../common/v1/schema.json#/$defs/Presentation"
+        }
       }
     },
-    "Derivation": {
+    "DerivedParameter": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["cel", "dependencies"],
+      "required": [
+        "uuid",
+        "key",
+        "label",
+        "value_schema",
+        "expression",
+        "dependencies"
+      ],
       "properties": {
-        "cel": {"$ref": "../../common/v1/schema.json#/$defs/CelExpression"},
+        "uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "key": {
+          "$ref": "../../common/v1/schema.json#/$defs/Key"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "value_schema": {
+          "$ref": "../../common/v1/schema.json#/$defs/ValueSchema"
+        },
+        "expression": {
+          "$ref": "#/$defs/DerivedExpression"
+        },
         "dependencies": {
           "type": "array",
           "minItems": 1,
           "maxItems": 64,
           "uniqueItems": true,
-          "items": {"$ref": "../../common/v1/schema.json#/$defs/QualifiedKey"}
+          "items": {
+            "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+          }
+        },
+        "presentation": {
+          "$ref": "../../common/v1/schema.json#/$defs/Presentation"
+        }
+      }
+    },
+    "DerivedExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "source"
+      ],
+      "properties": {
+        "language": {
+          "const": "cel"
+        },
+        "source": {
+          "$ref": "../../common/v1/schema.json#/$defs/CelExpression"
         }
       }
     },
     "Property": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["key", "label", "scope", "value_schema"],
+      "required": [
+        "uuid",
+        "key",
+        "label",
+        "scope",
+        "value_schema"
+      ],
       "properties": {
-        "uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-        "key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
-        "label": {"type": "string", "minLength": 1, "maxLength": 160},
-        "description": {"type": ["string", "null"], "maxLength": 4000},
-        "scope": {"$ref": "../../common/v1/schema.json#/$defs/PropertyScope"},
-        "value_schema": {"$ref": "../../common/v1/schema.json#/$defs/ValueSchema"},
+        "uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "key": {
+          "$ref": "../../common/v1/schema.json#/$defs/Key"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "scope": {
+          "$ref": "../../common/v1/schema.json#/$defs/PropertyScope"
+        },
+        "value_schema": {
+          "$ref": "../../common/v1/schema.json#/$defs/ValueSchema"
+        },
+        "presentation": {
+          "$ref": "../../common/v1/schema.json#/$defs/Presentation"
+        },
         "acknowledgement": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["required"],
-          "properties": {
-            "required": {"type": "boolean"},
-            "reported_property_key": {
-              "oneOf": [
-                {"type": "null"},
-                {"$ref": "../../common/v1/schema.json#/$defs/QualifiedKey"}
-              ]
-            }
-          }
+          "$ref": "#/$defs/PropertyAcknowledgement"
         }
       },
       "allOf": [
         {
-          "if": {"type": "object", "required": ["scope"], "properties": {"scope": {"const": "desired"}}},
-          "then": {},
-          "else": {"type": "object", "properties": {"acknowledgement": false}}
+          "if": {
+            "type": "object",
+            "required": [
+              "scope"
+            ],
+            "properties": {
+              "scope": {
+                "const": "desired"
+              }
+            }
+          },
+          "then": {
+            "type": "object"
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "acknowledgement": false
+            }
+          }
         }
       ]
+    },
+    "PropertyAcknowledgement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "reported_property_uuid": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+            }
+          ]
+        }
+      }
     },
     "Event": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["key", "label", "mode", "default_severity", "fields"],
+      "required": [
+        "uuid",
+        "key",
+        "label",
+        "mode",
+        "default_severity",
+        "fields"
+      ],
       "properties": {
-        "uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-        "key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
-        "label": {"type": "string", "minLength": 1, "maxLength": 160},
-        "description": {"type": ["string", "null"], "maxLength": 4000},
-        "mode": {"$ref": "../../common/v1/schema.json#/$defs/EventMode"},
-        "default_severity": {"$ref": "../../common/v1/schema.json#/$defs/EventSeverity"},
-        "dedupe_window_seconds": {"type": ["integer", "null"], "minimum": 0, "maximum": 86400},
+        "uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "key": {
+          "$ref": "../../common/v1/schema.json#/$defs/Key"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "mode": {
+          "$ref": "../../common/v1/schema.json#/$defs/EventMode"
+        },
+        "default_severity": {
+          "$ref": "../../common/v1/schema.json#/$defs/EventSeverity"
+        },
+        "dedupe_window_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 86400
+        },
         "fields": {
           "type": "array",
           "maxItems": 64,
-          "items": {"$ref": "#/$defs/EventField"}
+          "items": {
+            "$ref": "#/$defs/EventField"
+          }
         }
       }
     },
     "EventField": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["key", "label", "value_schema"],
+      "required": [
+        "uuid",
+        "key",
+        "label",
+        "value_schema"
+      ],
       "properties": {
-        "uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-        "key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
-        "label": {"type": "string", "minLength": 1, "maxLength": 160},
-        "description": {"type": ["string", "null"], "maxLength": 4000},
-        "value_schema": {"$ref": "../../common/v1/schema.json#/$defs/ValueSchema"}
+        "uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "key": {
+          "$ref": "../../common/v1/schema.json#/$defs/Key"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "value_schema": {
+          "$ref": "../../common/v1/schema.json#/$defs/ValueSchema"
+        },
+        "presentation": {
+          "$ref": "../../common/v1/schema.json#/$defs/Presentation"
+        }
       }
     },
     "Command": {
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "uuid",
         "key",
         "label",
         "mode",
@@ -182,26 +410,74 @@
         "fields"
       ],
       "properties": {
-        "uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-        "key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
-        "label": {"type": "string", "minLength": 1, "maxLength": 160},
-        "description": {"type": ["string", "null"], "maxLength": 4000},
-        "mode": {"$ref": "../../common/v1/schema.json#/$defs/CommandMode"},
-        "risk": {"$ref": "../../common/v1/schema.json#/$defs/CommandRisk"},
-        "confirmation_text": {"type": ["string", "null"], "maxLength": 1000},
-        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
-        "offline_policy": {"$ref": "../../common/v1/schema.json#/$defs/CommandOfflinePolicy"},
-        "idempotent": {"type": "boolean"},
-        "max_attempts": {"type": "integer", "minimum": 1, "maximum": 10},
+        "uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "key": {
+          "$ref": "../../common/v1/schema.json#/$defs/Key"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "mode": {
+          "$ref": "../../common/v1/schema.json#/$defs/CommandMode"
+        },
+        "risk": {
+          "$ref": "../../common/v1/schema.json#/$defs/CommandRisk"
+        },
+        "confirmation_text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "offline_policy": {
+          "$ref": "../../common/v1/schema.json#/$defs/CommandOfflinePolicy"
+        },
+        "idempotent": {
+          "type": "boolean"
+        },
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
         "fields": {
           "type": "array",
           "maxItems": 64,
-          "items": {"$ref": "#/$defs/CommandField"}
+          "items": {
+            "$ref": "#/$defs/CommandField"
+          }
         }
       },
       "allOf": [
         {
-          "if": {"type": "object", "required": ["mode"], "properties": {"mode": {"const": "two_way"}}},
+          "if": {
+            "type": "object",
+            "required": [
+              "mode"
+            ],
+            "properties": {
+              "mode": {
+                "const": "two_way"
+              }
+            }
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -209,8 +485,14 @@
                 "type": "array",
                 "contains": {
                   "type": "object",
-                  "required": ["direction"],
-                  "properties": {"direction": {"const": "output"}}
+                  "required": [
+                    "direction"
+                  ],
+                  "properties": {
+                    "direction": {
+                      "const": "output"
+                    }
+                  }
                 }
               }
             }
@@ -222,37 +504,111 @@
                 "type": "array",
                 "items": {
                   "type": "object",
-                  "properties": {"direction": {"not": {"const": "output"}}}
+                  "properties": {
+                    "direction": {
+                      "not": {
+                        "const": "output"
+                      }
+                    }
+                  }
                 }
               }
             }
           }
         },
         {
-          "if": {"type": "object", "required": ["risk"], "properties": {"risk": {"enum": ["medium", "high"]}}},
+          "if": {
+            "type": "object",
+            "required": [
+              "risk"
+            ],
+            "properties": {
+              "risk": {
+                "enum": [
+                  "medium",
+                  "high"
+                ]
+              }
+            }
+          },
           "then": {
             "type": "object",
-            "required": ["confirmation_text"],
-            "properties": {"confirmation_text": {"type": "string", "minLength": 1}}
+            "required": [
+              "confirmation_text"
+            ],
+            "properties": {
+              "confirmation_text": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           }
         },
         {
-          "if": {"type": "object", "required": ["idempotent"], "properties": {"idempotent": {"const": false}}},
-          "then": {"type": "object", "properties": {"max_attempts": {"const": 1}}}
+          "if": {
+            "type": "object",
+            "required": [
+              "idempotent"
+            ],
+            "properties": {
+              "idempotent": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "max_attempts": {
+                "const": 1
+              }
+            }
+          }
         }
       ]
     },
     "CommandField": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["direction", "key", "label", "value_schema"],
+      "required": [
+        "uuid",
+        "direction",
+        "key",
+        "label",
+        "required",
+        "value_schema"
+      ],
       "properties": {
-        "uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-        "direction": {"$ref": "../../common/v1/schema.json#/$defs/CommandFieldDirection"},
-        "key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
-        "label": {"type": "string", "minLength": 1, "maxLength": 160},
-        "description": {"type": ["string", "null"], "maxLength": 4000},
-        "value_schema": {"$ref": "../../common/v1/schema.json#/$defs/ValueSchema"}
+        "uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "direction": {
+          "$ref": "../../common/v1/schema.json#/$defs/CommandFieldDirection"
+        },
+        "key": {
+          "$ref": "../../common/v1/schema.json#/$defs/Key"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "value_schema": {
+          "$ref": "../../common/v1/schema.json#/$defs/ValueSchema"
+        },
+        "presentation": {
+          "$ref": "../../common/v1/schema.json#/$defs/Presentation"
+        }
       }
     }
   }

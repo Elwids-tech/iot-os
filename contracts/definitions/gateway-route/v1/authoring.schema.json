@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/gateway-route/v1/authoring.schema.json",
+  "title": "Gateway Route authoring contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "route"
+  ],
+  "properties": {
+    "schema": {
+      "const": "iot.gateway-route.authoring.v1"
+    },
+    "route": {
+      "$ref": "#/$defs/GatewayRoute"
+    }
+  },
+  "$defs": {
+    "GatewayRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "revision",
+        "gateway_uuid",
+        "device_uuid",
+        "profile_version_uuid",
+        "binding_version_uuid",
+        "route_path",
+        "topic_variables",
+        "inbound_scopes",
+        "enabled"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "gateway_uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "device_uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "profile_version_uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "binding_version_uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "route_path": {
+          "$ref": "../../common/v1/schema.json#/$defs/RoutePath"
+        },
+        "topic_variables": {
+          "$ref": "../../common/v1/schema.json#/$defs/RouteVariables"
+        },
+        "inbound_scopes": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/InboundScope"
+          }
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "InboundScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "channel",
+        "payload_path"
+      ],
+      "properties": {
+        "channel": {
+          "$ref": "../../common/v1/schema.json#/$defs/Key"
+        },
+        "payload_path": {
+          "$ref": "../../common/v1/schema.json#/$defs/JsonPath"
+        },
+        "selector": {
+          "$ref": "#/$defs/RouteSelector"
+        }
+      }
+    },
+    "RouteSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "equals"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "../../common/v1/schema.json#/$defs/PathRef"
+        },
+        "equals": {
+          "$ref": "../../common/v1/schema.json#/$defs/JsonScalar"
+        }
+      }
+    }
+  }
+}

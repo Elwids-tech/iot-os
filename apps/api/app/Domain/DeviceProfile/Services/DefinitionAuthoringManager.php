@@ -9,12 +9,10 @@ use App\Domain\DeviceManagement\Models\GatewayRoute;
 use App\Domain\DeviceProfile\Data\DeviceProfileAuthoringData;
 use App\Domain\DeviceProfile\Data\NativeMqttBindingAuthoringData;
 use App\Domain\DeviceProfile\Enums\DefinitionState;
-use App\Domain\DeviceProfile\Models\DefinitionTestRun;
 use App\Domain\DeviceProfile\Models\DeviceProfile;
 use App\Domain\DeviceProfile\Models\DeviceProfileVersion;
 use App\Domain\DeviceProfile\Models\TransportBinding;
 use App\Domain\DeviceProfile\Models\TransportBindingVersion;
-use App\Domain\Shared\Concurrency\StaleEntityTag;
 use App\Domain\Shared\Exceptions\DomainInvariantViolation;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -23,92 +21,14 @@ use Illuminate\Support\Str;
 
 final class DefinitionAuthoringManager
 {
-    /**
-     * @return array{DeviceProfileVersion, TransportBindingVersion}
-     */
-    public function createCoordinatedDraft(
-        Organization $organization,
-        DeviceProfileAuthoringData $profileData,
-        NativeMqttBindingAuthoringData $bindingData,
-        ?User $actor = null,
-    ): array {
-        return DB::transaction(function () use ($organization, $profileData, $bindingData, $actor): array {
-            $profileVersion = $this->createProfileDraft($organization, $profileData, $actor);
-            $bindingVersion = $this->createBindingDraft(
-                $profileVersion->profile,
-                $profileVersion,
-                $bindingData,
-                $actor,
-            );
-
-            return [$profileVersion, $bindingVersion];
-        });
-    }
-
-    public function updateProfileMetadata(
-        DeviceProfile $profile,
-        string $name,
-        ?string $description,
-        ?string $expectedEntityTag,
-    ): DeviceProfile {
-        $profile->assertExpectedEntityTag($expectedEntityTag);
-
-        if ($profile->isArchived()) {
-            throw new DomainInvariantViolation('An archived Device Profile is immutable.');
-        }
-
-        return $this->optimisticProfileUpdate($profile, [
-            'name' => $name,
-            'description' => $description,
-        ]);
-    }
-
-    public function archiveProfile(DeviceProfile $profile, ?string $expectedEntityTag): DeviceProfile
-    {
-        $profile->assertExpectedEntityTag($expectedEntityTag);
-
-        if ($profile->isArchived()) {
-            throw new DomainInvariantViolation('The Device Profile is already archived.');
-        }
-
-        return $this->optimisticProfileUpdate($profile, ['archived_at' => now()]);
-    }
-
-    public function updateBindingMetadata(
-        TransportBinding $binding,
-        string $name,
-        ?string $description,
-        ?string $expectedEntityTag,
-    ): TransportBinding {
-        $binding->assertExpectedEntityTag($expectedEntityTag);
-
-        if ($binding->isArchived()) {
-            throw new DomainInvariantViolation('An archived Transport Binding is immutable.');
-        }
-
-        return $this->optimisticBindingUpdate($binding, [
-            'name' => $name,
-            'description' => $description,
-        ]);
-    }
-
-    public function archiveBinding(TransportBinding $binding, ?string $expectedEntityTag): TransportBinding
-    {
-        $binding->assertExpectedEntityTag($expectedEntityTag);
-
-        if ($binding->isArchived()) {
-            throw new DomainInvariantViolation('The Transport Binding is already archived.');
-        }
-
-        return $this->optimisticBindingUpdate($binding, ['archived_at' => now()]);
-    }
-
     public function createProfileDraft(
         Organization $organization,
         DeviceProfileAuthoringData $data,
         ?User $actor = null,
-    ): DeviceProfileVersion {
-        return DB::transaction(function () use ($organization, $data, $actor): DeviceProfileVersion {
+    ): DeviceProfile {
+        return DB::transaction(function () use ($organization, $data, $actor): DeviceProfile {
+            $this->assertProfileIdentityAvailable($organization, $data);
+
             $profile = DeviceProfile::query()->create([
                 'uuid' => $data->profileUuid(),
                 'organization_id' => $organization->getKey(),
@@ -126,31 +46,100 @@ final class DefinitionAuthoringManager
                 'created_by_id' => $actor?->getKey(),
             ]);
 
-            return $version->setRelation('profile', $profile);
+            return $profile->setRelation('versions', $profile->newCollection([$version]));
+        });
+    }
+
+    public function replaceProfileDraft(
+        DeviceProfile $profile,
+        DeviceProfileAuthoringData $data,
+        ?string $expectedEntityTag,
+    ): DeviceProfile {
+        $profile->assertExpectedEntityTag($expectedEntityTag);
+
+        return DB::transaction(function () use ($profile, $data, $expectedEntityTag): DeviceProfile {
+            $lockedProfile = DeviceProfile::query()->lockForUpdate()->findOrFail($profile->getKey());
+            $lockedProfile->assertExpectedEntityTag($expectedEntityTag);
+            $version = $this->editableProfileVersion($lockedProfile);
+
+            if (
+                $data->profileUuid() !== $lockedProfile->uuid
+                || $data->profileKey() !== $lockedProfile->key
+                || $data->versionUuid() !== $version->uuid
+                || $data->versionNumber() !== $version->version
+            ) {
+                throw new DomainInvariantViolation('A Profile draft replacement cannot change catalog or Version identity.');
+            }
+
+            $lockedProfile->forceFill([
+                'name' => $data->profileName(),
+                'description' => $data->profileDescription(),
+                'revision' => $lockedProfile->revision + 1,
+            ])->save();
+
+            $version->forceFill([
+                'definition' => $data->versionDefinition(),
+                'revision' => $version->revision + 1,
+                'artifact' => null,
+                'artifact_hash' => null,
+                'source_hash' => null,
+                'compiler' => null,
+            ])->save();
+
+            return $lockedProfile->refresh()->setRelation(
+                'versions',
+                $lockedProfile->newCollection([$version->refresh()]),
+            );
+        });
+    }
+
+    public function deleteProfileDraft(DeviceProfile $profile, ?string $expectedEntityTag): void
+    {
+        $profile->assertExpectedEntityTag($expectedEntityTag);
+
+        DB::transaction(function () use ($profile, $expectedEntityTag): void {
+            $locked = DeviceProfile::query()->lockForUpdate()->findOrFail($profile->getKey());
+            $locked->assertExpectedEntityTag($expectedEntityTag);
+            $versions = $locked->versions()->lockForUpdate()->get();
+
+            if (
+                $locked->isArchived()
+                || $versions->contains(fn (DeviceProfileVersion $version): bool => ! $version->isDraft())
+            ) {
+                throw new DomainInvariantViolation('Only an active Device Profile containing drafts can be deleted here.');
+            }
+
+            $versionIds = $versions->modelKeys();
+
+            if (
+                $locked->transportBindings()->exists()
+                || DeviceDefinitionAssignment::query()->whereIn('device_profile_version_id', $versionIds)->exists()
+                || GatewayRoute::query()->whereIn('device_profile_version_id', $versionIds)->exists()
+            ) {
+                throw new DomainInvariantViolation('A referenced Device Profile draft cannot be deleted.');
+            }
+
+            DeviceProfileVersion::query()->whereIn('id', $versionIds)->delete();
+            $locked->delete();
         });
     }
 
     public function createBindingDraft(
+        Organization $organization,
         DeviceProfile $profile,
         DeviceProfileVersion $profileVersion,
         NativeMqttBindingAuthoringData $data,
         ?User $actor = null,
-    ): TransportBindingVersion {
-        return DB::transaction(function () use ($profile, $profileVersion, $data, $actor): TransportBindingVersion {
-            $lockedProfileVersion = DeviceProfileVersion::query()
-                ->lockForUpdate()
-                ->findOrFail($profileVersion->getKey());
+    ): TransportBinding {
+        return DB::transaction(function () use ($organization, $profile, $profileVersion, $data, $actor): TransportBinding {
             $lockedProfile = DeviceProfile::query()->lockForUpdate()->findOrFail($profile->getKey());
-
-            if ($lockedProfile->isArchived()) {
-                throw new DomainInvariantViolation('An archived Device Profile cannot receive a new Transport Binding.');
-            }
-
-            $this->assertProfileReferences($lockedProfile, $lockedProfileVersion, $data);
+            $lockedProfileVersion = DeviceProfileVersion::query()->lockForUpdate()->findOrFail($profileVersion->getKey());
+            $this->assertBindingProfile($organization, $lockedProfile, $lockedProfileVersion, $data);
+            $this->assertBindingIdentityAvailable($organization, $data);
 
             $binding = TransportBinding::query()->create([
                 'uuid' => $data->bindingUuid(),
-                'organization_id' => $lockedProfile->organization_id,
+                'organization_id' => $organization->getKey(),
                 'device_profile_id' => $lockedProfile->getKey(),
                 'key' => $data->bindingKey(),
                 'name' => $data->bindingName(),
@@ -160,7 +149,7 @@ final class DefinitionAuthoringManager
 
             $version = $binding->versions()->create([
                 'uuid' => $data->versionUuid(),
-                'organization_id' => $lockedProfile->organization_id,
+                'organization_id' => $organization->getKey(),
                 'device_profile_version_id' => $lockedProfileVersion->getKey(),
                 'version' => $data->versionNumber(),
                 'state' => DefinitionState::DRAFT,
@@ -168,85 +157,96 @@ final class DefinitionAuthoringManager
                 'created_by_id' => $actor?->getKey(),
             ]);
 
-            return $version->setRelation('binding', $binding)->setRelation('profileVersion', $lockedProfileVersion);
+            return $binding->setRelation('versions', $binding->newCollection([$version]));
         });
     }
 
-    public function createProfileVersionDraft(
-        DeviceProfile $profile,
-        DeviceProfileAuthoringData $data,
+    public function replaceBindingDraft(
+        TransportBinding $binding,
+        NativeMqttBindingAuthoringData $data,
+        ?string $expectedEntityTag,
+    ): TransportBinding {
+        $binding->assertExpectedEntityTag($expectedEntityTag);
+
+        return DB::transaction(function () use ($binding, $data, $expectedEntityTag): TransportBinding {
+            $lockedBinding = TransportBinding::query()->lockForUpdate()->findOrFail($binding->getKey());
+            $lockedBinding->assertExpectedEntityTag($expectedEntityTag);
+            $version = $this->editableBindingVersion($lockedBinding);
+            $profile = $lockedBinding->profile()->lockForUpdate()->firstOrFail();
+            $profileVersion = $version->profileVersion()->lockForUpdate()->firstOrFail();
+            $this->assertBindingProfile($lockedBinding->organization, $profile, $profileVersion, $data);
+
+            if (
+                $data->bindingUuid() !== $lockedBinding->uuid
+                || $data->bindingKey() !== $lockedBinding->key
+                || $data->versionUuid() !== $version->uuid
+                || $data->versionNumber() !== $version->version
+            ) {
+                throw new DomainInvariantViolation('A Binding draft replacement cannot change catalog or Version identity.');
+            }
+
+            $lockedBinding->forceFill([
+                'name' => $data->bindingName(),
+                'description' => $data->bindingDescription(),
+                'revision' => $lockedBinding->revision + 1,
+            ])->save();
+
+            $version->forceFill([
+                'definition' => $data->versionDefinition(),
+                'revision' => $version->revision + 1,
+                'artifact' => null,
+                'artifact_hash' => null,
+                'source_hash' => null,
+                'compiler' => null,
+            ])->save();
+
+            return $lockedBinding->refresh()->setRelation(
+                'versions',
+                $lockedBinding->newCollection([$version->refresh()]),
+            );
+        });
+    }
+
+    public function deleteBindingDraft(TransportBinding $binding, ?string $expectedEntityTag): void
+    {
+        $binding->assertExpectedEntityTag($expectedEntityTag);
+
+        DB::transaction(function () use ($binding, $expectedEntityTag): void {
+            $locked = TransportBinding::query()->lockForUpdate()->findOrFail($binding->getKey());
+            $locked->assertExpectedEntityTag($expectedEntityTag);
+            $versions = $locked->versions()->lockForUpdate()->get();
+
+            if (
+                $locked->isArchived()
+                || $versions->contains(fn (TransportBindingVersion $version): bool => ! $version->isDraft())
+            ) {
+                throw new DomainInvariantViolation('Only an active Native MQTT Binding containing drafts can be deleted here.');
+            }
+
+            $versionIds = $versions->modelKeys();
+
+            if (
+                DeviceDefinitionAssignment::query()->whereIn('transport_binding_version_id', $versionIds)->exists()
+                || GatewayRoute::query()->whereIn('transport_binding_version_id', $versionIds)->exists()
+            ) {
+                throw new DomainInvariantViolation('A referenced Native MQTT Binding draft cannot be deleted.');
+            }
+
+            TransportBindingVersion::query()->whereIn('id', $versionIds)->delete();
+            $locked->delete();
+        });
+    }
+
+    public function cloneCompatibleProfileVersion(
+        DeviceProfileVersion $source,
         ?User $actor = null,
     ): DeviceProfileVersion {
-        return DB::transaction(function () use ($profile, $data, $actor): DeviceProfileVersion {
-            $lockedProfile = DeviceProfile::query()->lockForUpdate()->findOrFail($profile->getKey());
-            if ($lockedProfile->isArchived()) {
-                throw new DomainInvariantViolation('An archived Device Profile cannot receive a new Version.');
-            }
-            if (
-                $data->profileUuid() !== $lockedProfile->uuid
-                || $data->profileKey() !== $lockedProfile->key
-                || $data->profileName() !== $lockedProfile->name
-                || $data->profileDescription() !== $lockedProfile->description
-            ) {
-                throw new DomainInvariantViolation('A new Profile Version must preserve its catalog metadata.');
-            }
-
-            return $lockedProfile->versions()->create([
-                'uuid' => $data->versionUuid(),
-                'organization_id' => $lockedProfile->organization_id,
-                'version' => $data->versionNumber(),
-                'state' => DefinitionState::DRAFT,
-                'definition' => $data->versionDefinition(),
-                'created_by_id' => $actor?->getKey(),
-            ])->setRelation('profile', $lockedProfile);
-        });
-    }
-
-    public function createBindingVersionDraft(
-        TransportBinding $binding,
-        DeviceProfileVersion $profileVersion,
-        NativeMqttBindingAuthoringData $data,
-        ?User $actor = null,
-    ): TransportBindingVersion {
-        return DB::transaction(function () use ($binding, $profileVersion, $data, $actor): TransportBindingVersion {
-            $lockedProfileVersion = DeviceProfileVersion::query()->lockForUpdate()->findOrFail($profileVersion->getKey());
-            $lockedBinding = TransportBinding::query()->lockForUpdate()->findOrFail($binding->getKey());
-            $profile = $lockedProfileVersion->profile()->lockForUpdate()->firstOrFail();
-
-            if ($lockedBinding->isArchived() || $profile->isArchived()) {
-                throw new DomainInvariantViolation('Archived definition catalogs cannot receive a new Binding Version.');
-            }
-            if (
-                $lockedBinding->device_profile_id !== $profile->getKey()
-                || $data->bindingUuid() !== $lockedBinding->uuid
-                || $data->bindingKey() !== $lockedBinding->key
-                || $data->bindingName() !== $lockedBinding->name
-                || $data->bindingDescription() !== $lockedBinding->description
-            ) {
-                throw new DomainInvariantViolation('A new Binding Version must preserve its catalog metadata.');
-            }
-
-            $this->assertProfileReferences($profile, $lockedProfileVersion, $data);
-
-            return $lockedBinding->versions()->create([
-                'uuid' => $data->versionUuid(),
-                'organization_id' => $lockedBinding->organization_id,
-                'device_profile_version_id' => $lockedProfileVersion->getKey(),
-                'version' => $data->versionNumber(),
-                'state' => DefinitionState::DRAFT,
-                'definition' => $data->versionDefinition(),
-                'created_by_id' => $actor?->getKey(),
-            ])->setRelation('binding', $lockedBinding)->setRelation('profileVersion', $lockedProfileVersion);
-        });
-    }
-
-    public function cloneProfileVersion(DeviceProfileVersion $source, ?User $actor = null): DeviceProfileVersion
-    {
         return DB::transaction(function () use ($source, $actor): DeviceProfileVersion {
             $profile = $source->profile()->lockForUpdate()->firstOrFail();
             $lockedSource = DeviceProfileVersion::query()->lockForUpdate()->findOrFail($source->getKey());
+
             if ($profile->isArchived()) {
-                throw new DomainInvariantViolation('An archived Device Profile cannot receive a cloned Version.');
+                throw new DomainInvariantViolation('Only an active Device Profile Version can be cloned compatibly.');
             }
 
             $nextVersion = ((int) $profile->versions()->max('version')) + 1;
@@ -255,333 +255,376 @@ final class DefinitionAuthoringManager
             $definition['uuid'] = $versionUuid;
             $definition['version'] = $nextVersion;
 
+            $sourceData = $this->profileData($profile, $lockedSource);
+            $cloneData = DeviceProfileAuthoringData::fromArray([
+                'schema' => 'iot.device-profile.authoring.v1',
+                'profile' => $sourceData->profile,
+                'version' => $definition,
+            ]);
+            $cloneData->assertCompatibleCloneOf($sourceData);
+
             return $profile->versions()->create([
                 'uuid' => $versionUuid,
                 'organization_id' => $profile->organization_id,
                 'version' => $nextVersion,
                 'state' => DefinitionState::DRAFT,
-                'contract_version' => $lockedSource->contract_version,
                 'definition' => $definition,
                 'created_by_id' => $actor?->getKey(),
             ])->setRelation('profile', $profile);
         });
     }
 
-    public function cloneBindingVersion(TransportBindingVersion $source, ?User $actor = null): TransportBindingVersion
+    private function editableProfileVersion(DeviceProfile $profile): DeviceProfileVersion
     {
-        return DB::transaction(function () use ($source, $actor): TransportBindingVersion {
-            $binding = $source->binding()->lockForUpdate()->firstOrFail();
-            $lockedSource = TransportBindingVersion::query()->lockForUpdate()->findOrFail($source->getKey());
-            $profile = $binding->profile()->lockForUpdate()->firstOrFail();
-            if ($binding->isArchived() || $profile->isArchived()) {
-                throw new DomainInvariantViolation('Archived definition catalogs cannot receive a cloned Binding Version.');
-            }
-
-            $nextVersion = ((int) $binding->versions()->max('version')) + 1;
-            $versionUuid = (string) Str::uuid();
-            $definition = $lockedSource->definition;
-            $definition['uuid'] = $versionUuid;
-            $definition['version'] = $nextVersion;
-
-            return $binding->versions()->create([
-                'uuid' => $versionUuid,
-                'organization_id' => $binding->organization_id,
-                'device_profile_version_id' => $lockedSource->device_profile_version_id,
-                'version' => $nextVersion,
-                'state' => DefinitionState::DRAFT,
-                'contract_version' => $lockedSource->contract_version,
-                'definition' => $definition,
-                'created_by_id' => $actor?->getKey(),
-            ])->setRelation('binding', $binding)->setRelation('profileVersion', $lockedSource->profileVersion);
-        });
-    }
-
-    public function deleteProfile(DeviceProfile $profile, ?string $expectedEntityTag): void
-    {
-        $profile->assertExpectedEntityTag($expectedEntityTag);
-
-        DB::transaction(function () use ($profile, $expectedEntityTag): void {
-            $locked = DeviceProfile::query()->lockForUpdate()->findOrFail($profile->getKey());
-            $locked->assertExpectedEntityTag($expectedEntityTag);
-            $versionIds = $locked->versions()->lockForUpdate()->pluck('id');
-
-            if ($locked->isArchived() || $locked->versions()->where('state', '!=', DefinitionState::DRAFT->value)->exists()) {
-                throw new DomainInvariantViolation('Only an active Profile containing draft Versions can be deleted.');
-            }
-            if ($locked->transportBindings()->exists() || $this->profileVersionsAreReferenced($versionIds->all())) {
-                throw new DomainInvariantViolation('A referenced Device Profile cannot be deleted.');
-            }
-
-            DeviceProfileVersion::query()->whereIn('id', $versionIds)->delete();
-            $locked->delete();
-        });
-    }
-
-    public function deleteProfileVersion(DeviceProfileVersion $version, ?string $expectedEntityTag): void
-    {
-        $version->assertExpectedEntityTag($expectedEntityTag);
-
-        DB::transaction(function () use ($version, $expectedEntityTag): void {
-            $locked = DeviceProfileVersion::query()->lockForUpdate()->findOrFail($version->getKey());
-            $locked->assertExpectedEntityTag($expectedEntityTag);
-            if (! $locked->isDraft()) {
-                throw new DomainInvariantViolation('Only a draft Profile Version can be deleted.');
-            }
-            if ($this->profileVersionsAreReferenced([$locked->getKey()])) {
-                throw new DomainInvariantViolation('A referenced Profile Version cannot be deleted.');
-            }
-
-            $locked->delete();
-        });
-    }
-
-    public function deleteBinding(TransportBinding $binding, ?string $expectedEntityTag): void
-    {
-        $binding->assertExpectedEntityTag($expectedEntityTag);
-
-        DB::transaction(function () use ($binding, $expectedEntityTag): void {
-            $locked = TransportBinding::query()->lockForUpdate()->findOrFail($binding->getKey());
-            $locked->assertExpectedEntityTag($expectedEntityTag);
-            $versionIds = $locked->versions()->lockForUpdate()->pluck('id');
-
-            if ($locked->isArchived() || $locked->versions()->where('state', '!=', DefinitionState::DRAFT->value)->exists()) {
-                throw new DomainInvariantViolation('Only an active Binding containing draft Versions can be deleted.');
-            }
-            if ($this->bindingVersionsAreReferenced($versionIds->all())) {
-                throw new DomainInvariantViolation('A referenced Transport Binding cannot be deleted.');
-            }
-
-            TransportBindingVersion::query()->whereIn('id', $versionIds)->delete();
-            $locked->delete();
-        });
-    }
-
-    public function deleteBindingVersion(TransportBindingVersion $version, ?string $expectedEntityTag): void
-    {
-        $version->assertExpectedEntityTag($expectedEntityTag);
-
-        DB::transaction(function () use ($version, $expectedEntityTag): void {
-            $locked = TransportBindingVersion::query()->lockForUpdate()->findOrFail($version->getKey());
-            $locked->assertExpectedEntityTag($expectedEntityTag);
-            if (! $locked->isDraft()) {
-                throw new DomainInvariantViolation('Only a draft Binding Version can be deleted.');
-            }
-            if ($this->bindingVersionsAreReferenced([$locked->getKey()])) {
-                throw new DomainInvariantViolation('A referenced Binding Version cannot be deleted.');
-            }
-
-            $locked->delete();
-        });
-    }
-
-    public function replaceProfileVersionDraft(
-        DeviceProfileVersion $version,
-        DeviceProfileAuthoringData $data,
-        ?string $expectedEntityTag,
-    ): DeviceProfileVersion {
-        $version->assertExpectedEntityTag($expectedEntityTag);
-
-        DB::transaction(function () use ($version, $data, $expectedEntityTag): void {
-            $lockedVersion = DeviceProfileVersion::query()->lockForUpdate()->findOrFail($version->getKey());
-            $profile = $lockedVersion->profile()->lockForUpdate()->firstOrFail();
-
-            $lockedVersion->assertExpectedEntityTag($expectedEntityTag);
-
-            if (! $lockedVersion->isDraft()) {
-                throw new DomainInvariantViolation('Published or retired Profile Versions are immutable.');
-            }
-
-            if ($profile->isArchived()) {
-                throw new DomainInvariantViolation('A draft Version under an archived Device Profile is immutable.');
-            }
-
-            if (
-                $data->profileUuid() !== $profile->uuid
-                || $data->profileKey() !== $profile->key
-                || $data->versionUuid() !== $lockedVersion->uuid
-                || $data->versionNumber() !== $lockedVersion->version
-            ) {
-                throw new DomainInvariantViolation('A Profile Version replacement cannot change aggregate identity.');
-            }
-
-            $this->optimisticVersionUpdate($lockedVersion, [
-                'definition' => $data->versionDefinition(),
-            ]);
-        });
-
-        return $version->refresh();
-    }
-
-    public function replaceBindingVersionDraft(
-        TransportBindingVersion $version,
-        NativeMqttBindingAuthoringData $data,
-        ?string $expectedEntityTag,
-    ): TransportBindingVersion {
-        $version->assertExpectedEntityTag($expectedEntityTag);
-
-        DB::transaction(function () use ($version, $data, $expectedEntityTag): void {
-            $profileVersion = DeviceProfileVersion::query()
-                ->lockForUpdate()
-                ->findOrFail($version->device_profile_version_id);
-            $lockedVersion = TransportBindingVersion::query()->lockForUpdate()->findOrFail($version->getKey());
-            $profile = $profileVersion->profile()->lockForUpdate()->firstOrFail();
-            $binding = $lockedVersion->binding()->lockForUpdate()->firstOrFail();
-
-            $lockedVersion->assertExpectedEntityTag($expectedEntityTag);
-
-            if (! $lockedVersion->isDraft()) {
-                throw new DomainInvariantViolation('Published or retired Binding Versions are immutable.');
-            }
-
-            if ($binding->isArchived() || $profile->isArchived()) {
-                throw new DomainInvariantViolation('A draft Version under an archived definition catalog is immutable.');
-            }
-
-            $this->assertProfileReferences($profile, $profileVersion, $data);
-
-            if (
-                $lockedVersion->device_profile_version_id !== $profileVersion->getKey()
-                || $data->bindingUuid() !== $binding->uuid
-                || $data->bindingKey() !== $binding->key
-                || $data->versionUuid() !== $lockedVersion->uuid
-                || $data->versionNumber() !== $lockedVersion->version
-            ) {
-                throw new DomainInvariantViolation('A Binding Version replacement cannot change aggregate identity.');
-            }
-
-            $this->optimisticBindingVersionUpdate($lockedVersion, [
-                'definition' => $data->versionDefinition(),
-            ]);
-        });
-
-        return $version->refresh();
-    }
-
-    /**
-     * @param  array<string, mixed>  $attributes
-     */
-    private function optimisticVersionUpdate(DeviceProfileVersion $version, array $attributes): DeviceProfileVersion
-    {
-        $revision = $version->revision;
-        $updated = DeviceProfileVersion::query()
-            ->whereKey($version->getKey())
-            ->where('revision', $revision)
-            ->update([
-                ...$attributes,
-                'revision' => $revision + 1,
-                'updated_at' => now(),
-            ]);
-
-        if ($updated !== 1) {
-            throw new StaleEntityTag(DeviceProfileVersion::query()->findOrFail($version->getKey())->etag());
+        if ($profile->isArchived()) {
+            throw new DomainInvariantViolation('An archived Device Profile is immutable.');
         }
 
-        return $version->refresh();
-    }
+        $versions = $profile->versions()
+            ->where('state', DefinitionState::DRAFT->value)
+            ->lockForUpdate()
+            ->get();
 
-    /**
-     * @param  array<string, mixed>  $attributes
-     */
-    private function optimisticProfileUpdate(DeviceProfile $profile, array $attributes): DeviceProfile
-    {
-        $revision = $profile->revision;
-        $updated = DeviceProfile::query()
-            ->whereKey($profile->getKey())
-            ->where('revision', $revision)
-            ->update([
-                ...$attributes,
-                'revision' => $revision + 1,
-                'updated_at' => now(),
-            ]);
-
-        if ($updated !== 1) {
-            throw new StaleEntityTag(DeviceProfile::query()->findOrFail($profile->getKey())->etag());
+        if ($versions->count() !== 1) {
+            throw new DomainInvariantViolation('An aggregate replacement requires exactly one editable draft Version.');
         }
 
-        return $profile->refresh();
+        return $versions->firstOrFail();
     }
 
-    /**
-     * @param  array<string, mixed>  $attributes
-     */
-    private function optimisticBindingUpdate(TransportBinding $binding, array $attributes): TransportBinding
+    private function editableBindingVersion(TransportBinding $binding): TransportBindingVersion
     {
-        $revision = $binding->revision;
-        $updated = TransportBinding::query()
-            ->whereKey($binding->getKey())
-            ->where('revision', $revision)
-            ->update([
-                ...$attributes,
-                'revision' => $revision + 1,
-                'updated_at' => now(),
-            ]);
-
-        if ($updated !== 1) {
-            throw new StaleEntityTag(TransportBinding::query()->findOrFail($binding->getKey())->etag());
+        if ($binding->isArchived()) {
+            throw new DomainInvariantViolation('An archived Native MQTT Binding is immutable.');
         }
 
-        return $binding->refresh();
-    }
+        $versions = $binding->versions()
+            ->where('state', DefinitionState::DRAFT->value)
+            ->lockForUpdate()
+            ->get();
 
-    /**
-     * @param  array<string, mixed>  $attributes
-     */
-    private function optimisticBindingVersionUpdate(TransportBindingVersion $version, array $attributes): TransportBindingVersion
-    {
-        $revision = $version->revision;
-        $updated = TransportBindingVersion::query()
-            ->whereKey($version->getKey())
-            ->where('revision', $revision)
-            ->update([
-                ...$attributes,
-                'revision' => $revision + 1,
-                'updated_at' => now(),
-            ]);
-
-        if ($updated !== 1) {
-            throw new StaleEntityTag(TransportBindingVersion::query()->findOrFail($version->getKey())->etag());
+        if ($versions->count() !== 1) {
+            throw new DomainInvariantViolation('An aggregate replacement requires exactly one editable draft Version.');
         }
 
-        return $version->refresh();
+        return $versions->firstOrFail();
     }
 
-    private function assertProfileReferences(
+    private function assertProfileIdentityAvailable(Organization $organization, DeviceProfileAuthoringData $data): void
+    {
+        if (
+            DeviceProfile::query()->where('uuid', $data->profileUuid())->exists()
+            || DeviceProfile::query()
+                ->whereBelongsTo($organization)
+                ->where('key', $data->profileKey())
+                ->exists()
+            || DeviceProfileVersion::query()->where('uuid', $data->versionUuid())->exists()
+        ) {
+            throw new DomainInvariantViolation('The Profile UUID, Version UUID, and tenant key must be unique.');
+        }
+    }
+
+    private function assertBindingIdentityAvailable(Organization $organization, NativeMqttBindingAuthoringData $data): void
+    {
+        if (
+            TransportBinding::query()->where('uuid', $data->bindingUuid())->exists()
+            || TransportBinding::query()
+                ->whereBelongsTo($organization)
+                ->where('key', $data->bindingKey())
+                ->exists()
+            || TransportBindingVersion::query()->where('uuid', $data->versionUuid())->exists()
+        ) {
+            throw new DomainInvariantViolation('The Binding UUID, Version UUID, and tenant key must be unique.');
+        }
+    }
+
+    private function assertBindingProfile(
+        Organization $organization,
         DeviceProfile $profile,
         DeviceProfileVersion $profileVersion,
         NativeMqttBindingAuthoringData $data,
     ): void {
         if (
-            $profile->organization_id !== $profileVersion->organization_id
-            || $profile->getKey() !== $profileVersion->device_profile_id
+            $profile->organization_id !== $organization->getKey()
+            || $profileVersion->organization_id !== $organization->getKey()
+            || $profileVersion->device_profile_id !== $profile->getKey()
+            || $profile->isArchived()
+            || $profileVersion->state === DefinitionState::RETIRED
             || $profile->uuid !== $data->profileUuid()
             || $profileVersion->uuid !== $data->profileVersionUuid()
         ) {
-            throw new DomainInvariantViolation('A Binding must target an exact Profile Version in the same Organization.');
+            throw new DomainInvariantViolation('A Native MQTT Binding must target the exact Profile Version in the same Organization.');
+        }
+
+        $profileData = $this->profileData($profile, $profileVersion);
+        $this->assertExactTargets('parameter', $profileData->measuredParameterUuids(), $data->targetParameterUuids());
+        $this->assertExactTargets('property', $profileData->transportPropertyUuids(), $data->targetPropertyUuids());
+        $this->assertExactTargets('event', $profileData->eventUuids(), $data->targetEventUuids());
+        $this->assertTargetsExist('event field', $profileData->eventFieldUuids(), $data->targetEventFieldUuids());
+        $this->assertExactTargets('command', $profileData->commandUuids(), $data->targetCommandUuids());
+        $this->assertTargetsExist('command field', $profileData->commandFieldUuids(), $data->targetCommandFieldUuids());
+        $this->assertBindingSemantics($profileData, $data);
+    }
+
+    private function profileData(
+        DeviceProfile $profile,
+        DeviceProfileVersion $version,
+    ): DeviceProfileAuthoringData {
+        return DeviceProfileAuthoringData::fromArray([
+            'schema' => 'iot.device-profile.authoring.v1',
+            'profile' => [
+                'uuid' => $profile->uuid,
+                'key' => $profile->key,
+                'name' => $profile->name,
+                'description' => $profile->description,
+            ],
+            'version' => $version->definition,
+        ]);
+    }
+
+    /** @param list<string> $expected @param list<string> $actual */
+    private function assertExactTargets(string $kind, array $expected, array $actual): void
+    {
+        sort($expected);
+        sort($actual);
+
+        if ($expected !== $actual) {
+            throw new DomainInvariantViolation("Binding {$kind} mappings must cover exactly the Profile {$kind} identities.");
         }
     }
 
-    /** @param list<int> $versionIds */
-    private function profileVersionsAreReferenced(array $versionIds): bool
+    /** @param list<string> $allowed @param list<string> $actual */
+    private function assertTargetsExist(string $kind, array $allowed, array $actual): void
     {
-        if ($versionIds === []) {
-            return false;
-        }
+        $unknown = array_diff($actual, $allowed);
 
-        return TransportBindingVersion::query()->whereIn('device_profile_version_id', $versionIds)->exists()
-            || DefinitionTestRun::query()->whereIn('device_profile_version_id', $versionIds)->exists()
-            || DeviceDefinitionAssignment::query()->whereIn('device_profile_version_id', $versionIds)->exists()
-            || GatewayRoute::query()->whereIn('device_profile_version_id', $versionIds)->exists();
+        if ($unknown !== []) {
+            throw new DomainInvariantViolation("Binding {$kind} mappings contain unknown Profile UUIDs.");
+        }
     }
 
-    /** @param list<int> $versionIds */
-    private function bindingVersionsAreReferenced(array $versionIds): bool
-    {
-        if ($versionIds === []) {
-            return false;
+    private function assertBindingSemantics(
+        DeviceProfileAuthoringData $profile,
+        NativeMqttBindingAuthoringData $binding,
+    ): void {
+        $channels = $binding->channelsByKey();
+        $parameters = $profile->measuredParametersByUuid();
+        $properties = $profile->propertiesByUuid();
+        $events = $profile->eventsByUuid();
+        $commands = $profile->commandsByUuid();
+
+        foreach ($binding->version['parameter_mappings'] as $mapping) {
+            $this->assertChannel(
+                $channels,
+                (string) $mapping['channel'],
+                'device_to_platform',
+                'telemetry',
+            );
+            $this->assertMappingTypes(
+                $mapping,
+                $parameters[strtolower((string) $mapping['target_parameter_uuid'])],
+                $mapping['calibration'],
+            );
         }
 
-        return DefinitionTestRun::query()->whereIn('transport_binding_version_id', $versionIds)->exists()
-            || DeviceDefinitionAssignment::query()->whereIn('transport_binding_version_id', $versionIds)->exists()
-            || GatewayRoute::query()->whereIn('transport_binding_version_id', $versionIds)->exists();
+        foreach ($binding->version['property_mappings'] as $mapping) {
+            $property = $properties[strtolower((string) $mapping['target_property_uuid'])];
+            $expectedDirection = $property['scope'] === 'desired'
+                ? 'platform_to_device'
+                : 'device_to_platform';
+            $expectedPurpose = $property['scope'] === 'desired'
+                ? 'desired_properties'
+                : 'reported_properties';
+
+            if ($property['scope'] === 'platform') {
+                throw new DomainInvariantViolation('Binding cannot map a platform-owned Property.');
+            }
+
+            if ($mapping['direction'] !== $expectedDirection) {
+                throw new DomainInvariantViolation(
+                    "Binding Property {$property['uuid']} direction does not match its Profile scope.",
+                );
+            }
+
+            $this->assertChannel(
+                $channels,
+                (string) $mapping['channel'],
+                $expectedDirection,
+                $expectedPurpose,
+            );
+            $this->assertMappingTypes(
+                $mapping,
+                $property,
+                $mapping['operations'],
+            );
+        }
+
+        foreach ($binding->version['event_mappings'] as $mapping) {
+            $this->assertChannel(
+                $channels,
+                (string) $mapping['channel'],
+                'device_to_platform',
+                'event',
+            );
+            $event = $events[strtolower((string) $mapping['target_event_uuid'])];
+            $fields = $this->itemsByUuid($event['fields']);
+            $mappedFields = [];
+
+            foreach ($mapping['field_mappings'] as $fieldMapping) {
+                $targetUuid = strtolower((string) $fieldMapping['target_event_field_uuid']);
+
+                if (! isset($fields[$targetUuid])) {
+                    throw new DomainInvariantViolation(
+                        "Binding Event mapping targets a field outside Event {$event['uuid']}.",
+                    );
+                }
+
+                if (isset($mappedFields[$targetUuid])) {
+                    throw new DomainInvariantViolation(
+                        "Binding Event mapping duplicates target field {$targetUuid}.",
+                    );
+                }
+
+                $mappedFields[$targetUuid] = true;
+                $this->assertMappingTypes($fieldMapping, $fields[$targetUuid], $fieldMapping['operations']);
+            }
+        }
+
+        foreach ($binding->version['command_mappings'] as $mapping) {
+            $this->assertChannel(
+                $channels,
+                (string) $mapping['request_channel'],
+                'platform_to_device',
+                'command_request',
+            );
+            $command = $commands[strtolower((string) $mapping['target_command_uuid'])];
+            $hasResponseChannel = isset($mapping['response_channel']);
+            $hasResponse = array_key_exists('response', $mapping);
+
+            if ($hasResponseChannel) {
+                $this->assertChannel(
+                    $channels,
+                    (string) $mapping['response_channel'],
+                    'device_to_platform',
+                    'command_response',
+                );
+            }
+
+            if ($command['mode'] === 'two_way' && (! $hasResponseChannel || ! $hasResponse)) {
+                throw new DomainInvariantViolation(
+                    "Binding two-way Command {$command['uuid']} requires response Channel and mapping.",
+                );
+            }
+
+            if ($command['mode'] === 'one_way' && ($hasResponseChannel || $hasResponse)) {
+                throw new DomainInvariantViolation(
+                    "Binding one-way Command {$command['uuid']} cannot define a response mapping.",
+                );
+            }
+
+            $fields = $this->itemsByUuid($command['fields']);
+            $mappedFields = [];
+
+            foreach ($mapping['field_mappings'] as $fieldMapping) {
+                $targetUuid = strtolower((string) $fieldMapping['target_command_field_uuid']);
+                $target = $fields[$targetUuid] ?? null;
+
+                if ($target === null) {
+                    throw new DomainInvariantViolation(
+                        "Binding Command mapping targets a field outside Command {$command['uuid']}.",
+                    );
+                }
+
+                if (isset($mappedFields[$targetUuid])) {
+                    throw new DomainInvariantViolation(
+                        "Binding Command mapping duplicates target field {$targetUuid}.",
+                    );
+                }
+
+                if ($target['direction'] !== $fieldMapping['direction']) {
+                    throw new DomainInvariantViolation(
+                        "Binding Command field {$targetUuid} direction does not match its Profile definition.",
+                    );
+                }
+
+                $mappedFields[$targetUuid] = true;
+                $this->assertMappingTypes($fieldMapping, $target, $fieldMapping['operations']);
+            }
+
+            foreach ($fields as $fieldUuid => $field) {
+                if ($field['required'] && ! isset($mappedFields[$fieldUuid])) {
+                    throw new DomainInvariantViolation(
+                        "Binding Command mapping must cover required field {$fieldUuid}.",
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $channels
+     */
+    private function assertChannel(
+        array $channels,
+        string $key,
+        string $expectedDirection,
+        ?string $expectedPurpose = null,
+    ): void {
+        $channel = $channels[$key] ?? null;
+
+        if ($channel === null) {
+            throw new DomainInvariantViolation("Binding mapping references unknown Channel {$key}.");
+        }
+
+        if ($channel['direction'] !== $expectedDirection) {
+            throw new DomainInvariantViolation("Binding Channel {$key} has an incompatible direction.");
+        }
+
+        if ($expectedPurpose !== null && $channel['purpose'] !== $expectedPurpose) {
+            throw new DomainInvariantViolation("Binding Channel {$key} has an incompatible purpose.");
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $mapping
+     * @param  array<string, mixed>  $target
+     * @param  list<mixed>  $operations
+     */
+    private function assertMappingTypes(array $mapping, array $target, array $operations): void
+    {
+        $wireType = (string) $mapping['wire_data_type'];
+        $targetType = (string) $target['value_schema']['data_type'];
+        $numericTypes = ['float64', 'int64', 'uint64'];
+        $wireIsNumeric = in_array($wireType, $numericTypes, true);
+        $targetIsNumeric = in_array($targetType, $numericTypes, true);
+
+        if ($operations !== [] && (! $wireIsNumeric || ! $targetIsNumeric)) {
+            throw new DomainInvariantViolation(
+                "Binding numeric operations cannot map {$wireType} to {$targetType}.",
+            );
+        }
+
+        if (
+            $operations === []
+            && $wireType !== $targetType
+            && ! ($targetType === 'float64' && $wireIsNumeric)
+        ) {
+            throw new DomainInvariantViolation("Binding cannot map {$wireType} to {$targetType}.");
+        }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return array<string, array<string, mixed>>
+     */
+    private function itemsByUuid(array $items): array
+    {
+        $byUuid = [];
+
+        foreach ($items as $item) {
+            $byUuid[strtolower((string) $item['uuid'])] = $item;
+        }
+
+        return $byUuid;
     }
 }

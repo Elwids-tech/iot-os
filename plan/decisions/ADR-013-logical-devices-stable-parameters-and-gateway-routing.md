@@ -3,6 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-08-29
 **Partially supersedes:** [ADR-009](./ADR-009-device-capability-and-component-model.md) and [ADR-010](./ADR-010-device-definition-versioning.md)
+**Canonicalization:** [ADR-014](./ADR-014-pre-production-device-domain-canonical-cutover.md)
 
 ## Context
 
@@ -52,7 +53,7 @@ flowchart LR
     C -->|"minimal MQTT payload"| G
 ```
 
-### Device Profile v2
+### Device Profile
 
 A Device Profile Version is a dynamically authored semantic blueprint containing arrays of:
 
@@ -99,6 +100,6 @@ TimescaleDB series identity uses `device_uuid` plus `parameter_uuid`; labels and
 - Device Profile and Command forms must use dynamic repeaters rather than fixed temperature/humidity fields.
 - Gateway, Gateway Route, stable parameter identity, and route-aware assignment persistence must be added before live ingestion.
 - The compiler must target parameter UUIDs, compile calibration and derivation graphs, and emit route-aware Runtime Bundles.
-- Existing v1 definitions and assignments need an explicit migration or re-authoring path; they must not be silently reinterpreted as v2.
-- AI/MCP onboarding remains paused until v2 schemas, persistence, compiler behavior, and guided forms share the same contract.
+- ADR-014 adopts this model as the first canonical pre-production contract; the rejected fixed model has no migration or compatibility path.
+- AI/MCP onboarding remains paused until canonical schemas, persistence, compiler behavior, and guided forms share the same contract.
 - This ADR does not claim broker ingestion, command delivery, deployed runtime behavior, or physical-device verification.

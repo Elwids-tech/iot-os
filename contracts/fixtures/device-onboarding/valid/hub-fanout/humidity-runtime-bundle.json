@@ -1,0 +1,76 @@
+{
+  "schema": "iot.runtime-bundle.v1",
+  "runtime_bundle_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "organization_uuid": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "gateway_uuid": "30000000-0000-4000-8000-000000000001",
+  "gateway_route_uuid": "43000000-0000-4000-8000-000000000002",
+  "route_revision": 1,
+  "route_path": "sensors/humidity",
+  "device_uuid": "40000000-0000-4000-8000-000000000002",
+  "profile_uuid": "44000000-0000-4000-8000-000000000001",
+  "profile_version_uuid": "44000000-0000-4000-8000-000000000002",
+  "binding_uuid": "45000000-0000-4000-8000-000000000001",
+  "binding_version_uuid": "45000000-0000-4000-8000-000000000002",
+  "profile_artifact_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "binding_artifact_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "route_source_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "compiler": {
+    "name": "iot-os-definition-compiler",
+    "version": "2.0.0-contract",
+    "cel_environment": "iot.device-profile.v1",
+    "jsonpath_version": "iot-jsonpath-v1",
+    "unit_registry": "ucum-essence-2026"
+  },
+  "channels": [
+    {
+      "channel_uuid": "45000000-0000-4000-8000-000000000003",
+      "key": "telemetry",
+      "purpose": "telemetry",
+      "direction": "device_to_platform",
+      "topic": "gateways/north-hub-001/telemetry",
+      "qos": 1,
+      "retain": false,
+      "record_path": "$",
+      "max_records": 1,
+      "envelope": {
+        "observed_at": {
+          "path": {
+            "scope": "message",
+            "json_path": "$.timestamp"
+          },
+          "format": "rfc3339"
+        },
+        "message_id": {
+          "scope": "message",
+          "json_path": "$.message_id"
+        }
+      },
+      "route_payload_path": "$.sensors.humidity"
+    }
+  ],
+  "parameter_pipelines": [
+    {
+      "mapping": {
+        "uuid": "45000000-0000-4000-8000-000000000004",
+        "channel": "telemetry",
+        "target_parameter_uuid": "44000000-0000-4000-8000-000000000003",
+        "source": {
+          "scope": "route",
+          "json_path": "$"
+        },
+        "wire_data_type": "int64",
+        "calibration": [
+          {
+            "op": "divide",
+            "value": 10
+          }
+        ],
+        "on_missing": "omit_value",
+        "on_invalid": "accept_with_bad_quality"
+      },
+      "target_data_type": "float64"
+    }
+  ],
+  "derived_pipelines": [],
+  "command_pipelines": []
+}

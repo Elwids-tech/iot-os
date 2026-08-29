@@ -13,7 +13,7 @@ final class GatewayResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'schema' => 'iot.gateway.authoring.v2',
+            'schema' => 'iot.gateway.authoring.v1',
             'gateway' => [
                 'uuid' => $this->uuid,
                 'key' => $this->key,

@@ -1,0 +1,20 @@
+{
+  "schema": "iot.gateway-route.authoring.v1",
+  "route": {
+    "uuid": "43000000-0000-4000-8000-000000000002",
+    "revision": 1,
+    "gateway_uuid": "30000000-0000-4000-8000-000000000001",
+    "device_uuid": "40000000-0000-4000-8000-000000000002",
+    "profile_version_uuid": "44000000-0000-4000-8000-000000000002",
+    "binding_version_uuid": "45000000-0000-4000-8000-000000000002",
+    "route_path": "sensors/humidity",
+    "topic_variables": {},
+    "inbound_scopes": [
+      {
+        "channel": "telemetry",
+        "payload_path": "$.sensors.humidity"
+      }
+    ],
+    "enabled": true
+  }
+}

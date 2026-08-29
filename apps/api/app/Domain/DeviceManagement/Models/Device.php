@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceManagement\Models;
 
-use App\Domain\DeviceManagement\Enums\DeviceIdentityModel;
 use App\Domain\DeviceManagement\Enums\DeviceLifecycleState;
 use App\Domain\Shared\Models\Concerns\HasPublicUuid;
 use App\Domain\Shared\Models\Concerns\HasRevisionEntityTag;
@@ -23,7 +22,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'name',
     'description',
     'lifecycle_state',
-    'identity_model',
     'revision',
     'registered_at',
     'archived_at',
@@ -36,7 +34,6 @@ final class Device extends Model
 
     protected $attributes = [
         'lifecycle_state' => 'draft',
-        'identity_model' => 'v1_direct',
         'revision' => 1,
     ];
 
@@ -44,7 +41,6 @@ final class Device extends Model
     {
         return [
             'lifecycle_state' => DeviceLifecycleState::class,
-            'identity_model' => DeviceIdentityModel::class,
             'revision' => 'integer',
             'registered_at' => 'immutable_datetime',
             'archived_at' => 'immutable_datetime',

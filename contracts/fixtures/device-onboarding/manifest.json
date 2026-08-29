@@ -2,179 +2,137 @@
   "schema": "iot.contract-fixture-manifest.v1",
   "cases": [
     {
-      "name": "temperature humidity thermostat profile",
+      "name": "hub Gateway",
+      "schema_id": "https://schemas.iot-os.dev/definitions/gateway/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/valid/hub-fanout/gateway.json",
+      "valid": true
+    },
+    {
+      "name": "hub temperature Profile",
       "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v1/authoring.schema.json",
-      "instance": "fixtures/device-onboarding/valid/temperature-humidity-thermostat/profile.json",
+      "instance": "fixtures/device-onboarding/valid/hub-fanout/temperature-profile.json",
       "valid": true
     },
     {
-      "name": "temperature humidity thermostat binding",
+      "name": "hub temperature Binding",
       "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/authoring.schema.json",
-      "instance": "fixtures/device-onboarding/valid/temperature-humidity-thermostat/binding.json",
+      "instance": "fixtures/device-onboarding/valid/hub-fanout/temperature-binding.json",
+      "context": {
+        "profile": "fixtures/device-onboarding/valid/hub-fanout/temperature-profile.json"
+      },
       "valid": true
     },
     {
-      "name": "temperature humidity thermostat onboarding proposal",
-      "schema_id": "https://schemas.iot-os.dev/definitions/device-onboarding-proposal/v1/schema.json",
-      "instance": "fixtures/device-onboarding/valid/temperature-humidity-thermostat/proposal.json",
+      "name": "hub temperature route",
+      "schema_id": "https://schemas.iot-os.dev/definitions/gateway-route/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/valid/hub-fanout/temperature-route.json",
+      "context": {
+        "binding": "fixtures/device-onboarding/valid/hub-fanout/temperature-binding.json",
+        "gateway": "fixtures/device-onboarding/valid/hub-fanout/gateway.json"
+      },
       "valid": true
     },
     {
-      "name": "multi-event profile",
+      "name": "hub humidity Profile",
       "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v1/authoring.schema.json",
-      "instance": "fixtures/device-onboarding/valid/multi-event/profile.json",
+      "instance": "fixtures/device-onboarding/valid/hub-fanout/humidity-profile.json",
       "valid": true
     },
     {
-      "name": "multi-event binding",
+      "name": "hub humidity Binding",
       "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/authoring.schema.json",
-      "instance": "fixtures/device-onboarding/valid/multi-event/binding.json",
+      "instance": "fixtures/device-onboarding/valid/hub-fanout/humidity-binding.json",
+      "context": {
+        "profile": "fixtures/device-onboarding/valid/hub-fanout/humidity-profile.json"
+      },
       "valid": true
     },
     {
-      "name": "invalid profile key and empty components",
+      "name": "hub humidity route",
+      "schema_id": "https://schemas.iot-os.dev/definitions/gateway-route/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/valid/hub-fanout/humidity-route.json",
+      "context": {
+        "binding": "fixtures/device-onboarding/valid/hub-fanout/humidity-binding.json",
+        "gateway": "fixtures/device-onboarding/valid/hub-fanout/gateway.json"
+      },
+      "valid": true
+    },
+    {
+      "name": "three-phase meter Profile",
       "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v1/authoring.schema.json",
-      "instance": "fixtures/device-onboarding/invalid/profile-invalid-key.json",
-      "valid": false
+      "instance": "fixtures/device-onboarding/valid/three-phase-meter/profile.json",
+      "valid": true
     },
     {
-      "name": "unsupported non-terminal record wildcard",
+      "name": "three-phase meter Binding",
       "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/authoring.schema.json",
-      "instance": "fixtures/device-onboarding/invalid/binding-unsupported-wildcard.json",
-      "valid": false
-    },
-    {
-      "name": "v2 hub Gateway",
-      "schema_id": "https://schemas.iot-os.dev/definitions/gateway/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/hub-fanout/gateway.json",
-      "valid": true
-    },
-    {
-      "name": "v2 hub temperature Profile",
-      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/hub-fanout/temperature-profile.json",
-      "valid": true
-    },
-    {
-      "name": "v2 hub temperature Binding",
-      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/hub-fanout/temperature-binding.json",
+      "instance": "fixtures/device-onboarding/valid/three-phase-meter/binding.json",
       "context": {
-        "profile": "fixtures/device-onboarding-v2/valid/hub-fanout/temperature-profile.json"
+        "profile": "fixtures/device-onboarding/valid/three-phase-meter/profile.json"
       },
       "valid": true
     },
     {
-      "name": "v2 hub temperature route",
-      "schema_id": "https://schemas.iot-os.dev/definitions/gateway-route/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/hub-fanout/temperature-route.json",
+      "name": "three-phase meter route",
+      "schema_id": "https://schemas.iot-os.dev/definitions/gateway-route/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/valid/three-phase-meter/route.json",
       "context": {
-        "binding": "fixtures/device-onboarding-v2/valid/hub-fanout/temperature-binding.json",
-        "gateway": "fixtures/device-onboarding-v2/valid/hub-fanout/gateway.json"
+        "binding": "fixtures/device-onboarding/valid/three-phase-meter/binding.json",
+        "gateway": "fixtures/device-onboarding/valid/hub-fanout/gateway.json"
       },
       "valid": true
     },
     {
-      "name": "v2 hub humidity Profile",
-      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/hub-fanout/humidity-profile.json",
+      "name": "canonical total power value",
+      "schema_id": "https://schemas.iot-os.dev/definitions/canonical-telemetry/v1/schema.json",
+      "instance": "fixtures/device-onboarding/valid/three-phase-meter/canonical-total-power.json",
       "valid": true
     },
     {
-      "name": "v2 hub humidity Binding",
-      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/hub-fanout/humidity-binding.json",
-      "context": {
-        "profile": "fixtures/device-onboarding-v2/valid/hub-fanout/humidity-profile.json"
-      },
+      "name": "route-aware humidity Runtime Bundle",
+      "schema_id": "https://schemas.iot-os.dev/definitions/runtime-bundle/v1/schema.json",
+      "instance": "fixtures/device-onboarding/valid/hub-fanout/humidity-runtime-bundle.json",
       "valid": true
     },
     {
-      "name": "v2 hub humidity route",
-      "schema_id": "https://schemas.iot-os.dev/definitions/gateway-route/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/hub-fanout/humidity-route.json",
-      "context": {
-        "binding": "fixtures/device-onboarding-v2/valid/hub-fanout/humidity-binding.json",
-        "gateway": "fixtures/device-onboarding-v2/valid/hub-fanout/gateway.json"
-      },
-      "valid": true
-    },
-    {
-      "name": "v2 three-phase meter Profile",
-      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/three-phase-meter/profile.json",
-      "valid": true
-    },
-    {
-      "name": "v2 three-phase meter Binding",
-      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/three-phase-meter/binding.json",
-      "context": {
-        "profile": "fixtures/device-onboarding-v2/valid/three-phase-meter/profile.json"
-      },
-      "valid": true
-    },
-    {
-      "name": "v2 three-phase meter route",
-      "schema_id": "https://schemas.iot-os.dev/definitions/gateway-route/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/three-phase-meter/route.json",
-      "context": {
-        "binding": "fixtures/device-onboarding-v2/valid/three-phase-meter/binding.json",
-        "gateway": "fixtures/device-onboarding-v2/valid/hub-fanout/gateway.json"
-      },
-      "valid": true
-    },
-    {
-      "name": "v2 canonical total power value",
-      "schema_id": "https://schemas.iot-os.dev/definitions/canonical-telemetry/v2/schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/three-phase-meter/canonical-total-power.json",
-      "valid": true
-    },
-    {
-      "name": "v2 route-aware humidity Runtime Bundle",
-      "schema_id": "https://schemas.iot-os.dev/definitions/runtime-bundle/v2/schema.json",
-      "instance": "fixtures/device-onboarding-v2/valid/hub-fanout/humidity-runtime-bundle.json",
-      "valid": true
-    },
-    {
-      "name": "v2 duplicate parameter UUID",
-      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/invalid/profile-duplicate-parameter-uuid.json",
+      "name": "duplicate parameter UUID",
+      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/invalid/profile-duplicate-parameter-uuid.json",
       "expected_semantic_codes": [
         "DUPLICATE_DEFINITION_UUID"
       ],
       "valid": false
     },
     {
-      "name": "v2 derived dependency cycle",
-      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/invalid/profile-derived-cycle.json",
+      "name": "derived dependency cycle",
+      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/invalid/profile-derived-cycle.json",
       "expected_semantic_codes": [
         "DERIVATION_CYCLE"
       ],
       "valid": false
     },
     {
-      "name": "v2 unsafe CEL symbol",
-      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/invalid/profile-unsafe-cel.json",
+      "name": "unsafe CEL symbol",
+      "schema_id": "https://schemas.iot-os.dev/definitions/device-profile/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/invalid/profile-unsafe-cel.json",
       "expected_semantic_codes": [
         "CEL_UNSUPPORTED_SYMBOL"
       ],
       "valid": false
     },
     {
-      "name": "v2 mapping without explicit invalid policy",
-      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/invalid/binding-missing-policies.json",
+      "name": "mapping without explicit invalid policy",
+      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/invalid/binding-missing-policies.json",
       "valid": false
     },
     {
-      "name": "v2 mapping with unresolved parameter UUID",
-      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/invalid/binding-unresolved-target.json",
+      "name": "mapping with unresolved parameter UUID",
+      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/invalid/binding-unresolved-target.json",
       "context": {
-        "profile": "fixtures/device-onboarding-v2/valid/hub-fanout/temperature-profile.json"
+        "profile": "fixtures/device-onboarding/valid/hub-fanout/temperature-profile.json"
       },
       "expected_semantic_codes": [
         "MAPPING_TARGET_NOT_FOUND"
@@ -182,11 +140,11 @@
       "valid": false
     },
     {
-      "name": "v2 mapping with incompatible wire type",
-      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v2/authoring.schema.json",
-      "instance": "fixtures/device-onboarding-v2/invalid/binding-incompatible-type.json",
+      "name": "mapping with incompatible wire type",
+      "schema_id": "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/authoring.schema.json",
+      "instance": "fixtures/device-onboarding/invalid/binding-incompatible-type.json",
       "context": {
-        "profile": "fixtures/device-onboarding-v2/valid/hub-fanout/temperature-profile.json"
+        "profile": "fixtures/device-onboarding/valid/hub-fanout/temperature-profile.json"
       },
       "expected_semantic_codes": [
         "TYPE_MISMATCH"

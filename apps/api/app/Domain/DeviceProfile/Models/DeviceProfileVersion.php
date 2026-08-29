@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\DeviceProfile\Models;
 
 use App\Domain\DeviceManagement\Models\GatewayRoute;
-use App\Domain\DeviceProfile\Enums\DefinitionContractVersion;
 use App\Domain\DeviceProfile\Enums\DefinitionState;
 use App\Domain\Shared\Models\Concerns\HasPublicUuid;
 use App\Domain\Shared\Models\Concerns\HasRevisionEntityTag;
@@ -22,7 +21,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'device_profile_id',
     'version',
     'state',
-    'contract_version',
     'definition',
     'revision',
     'artifact',
@@ -40,7 +38,6 @@ final class DeviceProfileVersion extends Model
 
     protected $attributes = [
         'state' => 'draft',
-        'contract_version' => 'v1',
         'revision' => 1,
     ];
 
@@ -49,7 +46,6 @@ final class DeviceProfileVersion extends Model
         return [
             'version' => 'integer',
             'state' => DefinitionState::class,
-            'contract_version' => DefinitionContractVersion::class,
             'definition' => 'array',
             'revision' => 'integer',
             'artifact' => 'array',
@@ -77,12 +73,6 @@ final class DeviceProfileVersion extends Model
         return $this->belongsTo(User::class, 'created_by_id');
     }
 
-    /** @return HasMany<DefinitionTestRun, $this> */
-    public function testRuns(): HasMany
-    {
-        return $this->hasMany(DefinitionTestRun::class);
-    }
-
     /** @return HasMany<GatewayRoute, $this> */
     public function gatewayRoutes(): HasMany
     {
@@ -97,11 +87,6 @@ final class DeviceProfileVersion extends Model
     public function isPublished(): bool
     {
         return $this->state === DefinitionState::PUBLISHED;
-    }
-
-    public function usesV2Contract(): bool
-    {
-        return $this->contract_version === DefinitionContractVersion::V2;
     }
 
     protected function entityTagResource(): string

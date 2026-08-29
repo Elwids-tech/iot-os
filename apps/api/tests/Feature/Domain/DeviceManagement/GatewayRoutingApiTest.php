@@ -4,20 +4,17 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\DeviceManagement;
 
-use App\Domain\DeviceManagement\Enums\AssignmentCompatibilityState;
-use App\Domain\DeviceManagement\Enums\DeviceIdentityModel;
 use App\Domain\DeviceManagement\Http\Resources\GatewayRouteResource;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceManagement\Models\Gateway;
 use App\Domain\DeviceManagement\Models\GatewayRoute;
 use App\Domain\DeviceManagement\Services\DeviceRegistrationManager;
-use App\Domain\DeviceProfile\Data\DeviceProfileV2AuthoringData;
-use App\Domain\DeviceProfile\Data\NativeMqttBindingV2AuthoringData;
-use App\Domain\DeviceProfile\Enums\DefinitionContractVersion;
+use App\Domain\DeviceProfile\Data\DeviceProfileAuthoringData;
+use App\Domain\DeviceProfile\Data\NativeMqttBindingAuthoringData;
 use App\Domain\DeviceProfile\Enums\DefinitionState;
 use App\Domain\DeviceProfile\Models\DeviceProfileVersion;
 use App\Domain\DeviceProfile\Models\TransportBindingVersion;
-use App\Domain\DeviceProfile\Services\DefinitionV2AuthoringManager;
+use App\Domain\DeviceProfile\Services\DefinitionAuthoringManager;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -34,7 +31,7 @@ final class GatewayRoutingApiTest extends TestCase
     public function test_gateway_and_route_crud_are_tenant_safe_concurrent_and_route_aware(): void
     {
         [$organization, $administrator] = $this->tenantAdministrator();
-        [$profileVersion, $bindingVersion] = $this->publishedV2Definition($organization);
+        [$profileVersion, $bindingVersion] = $this->publishedDefinition($organization);
         [$device, $deviceEtag] = $this->createLogicalDevice(
             $organization,
             $administrator,
@@ -43,13 +40,10 @@ final class GatewayRoutingApiTest extends TestCase
         );
         $assignment = $device->definitionAssignment()->firstOrFail();
 
-        $this->assertSame(DeviceIdentityModel::LOGICAL_V2, $device->identity_model);
-        $this->assertSame(AssignmentCompatibilityState::V2_ROUTE_PENDING, $assignment->compatibility_state);
-
         $gatewayPayload = $this->fixture('hub-fanout/gateway.json');
         $gatewayResponse = $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                '/api/v2/gateways',
+                '/api/v1/gateways',
                 $gatewayPayload,
                 $this->headers($organization, ['Idempotency-Key' => 'gateway-create']),
             )
@@ -63,7 +57,6 @@ final class GatewayRoutingApiTest extends TestCase
             'organization_id' => $organization->id,
             'version' => 2,
             'state' => DefinitionState::PUBLISHED,
-            'contract_version' => DefinitionContractVersion::V2,
             'definition' => [
                 ...$profileVersion->definition,
                 'uuid' => (string) Str::uuid(),
@@ -77,7 +70,7 @@ final class GatewayRoutingApiTest extends TestCase
 
         $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                '/api/v2/gateway-routes',
+                '/api/v1/gateway-routes',
                 $incompatibleRoute,
                 $this->headers($organization, ['Idempotency-Key' => 'route-incompatible']),
             )
@@ -89,7 +82,7 @@ final class GatewayRoutingApiTest extends TestCase
 
         $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                '/api/v2/gateway-routes',
+                '/api/v1/gateway-routes',
                 $outboundScopeRoute,
                 $this->headers($organization, ['Idempotency-Key' => 'route-outbound-scope']),
             )
@@ -97,30 +90,28 @@ final class GatewayRoutingApiTest extends TestCase
 
         $routeResponse = $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                '/api/v2/gateway-routes',
+                '/api/v1/gateway-routes',
                 $routePayload,
                 $this->headers($organization, ['Idempotency-Key' => 'route-create']),
             )
             ->assertCreated()
-            ->assertJsonPath('data.route.device_uuid', $device->uuid)
-            ->assertJsonPath('data.meta.assignment_compatibility_state', 'v2_route_aware');
+            ->assertJsonPath('data.route.device_uuid', $device->uuid);
         $route = GatewayRoute::query()->where('uuid', $routeResponse->json('data.route.uuid'))->firstOrFail();
         $assignment->refresh();
-        $this->assertSame(AssignmentCompatibilityState::V2_ROUTE_AWARE, $assignment->compatibility_state);
         $this->assertSame($profileVersion->artifact_hash, $assignment->profile_artifact_hash);
         $this->assertSame($bindingVersion->artifact_hash, $assignment->binding_artifact_hash);
 
         $gatewayPayload['gateway']['name'] = 'North plant hub updated';
         $this->actingAs($administrator, 'sanctum')
             ->putJson(
-                "/api/v2/gateways/{$gateway->uuid}",
+                "/api/v1/gateways/{$gateway->uuid}",
                 $gatewayPayload,
                 $this->headers($organization, ['If-Match' => '"gateway-stale-r0"']),
             )
             ->assertStatus(412);
         $gatewayUpdated = $this->actingAs($administrator, 'sanctum')
             ->putJson(
-                "/api/v2/gateways/{$gateway->uuid}",
+                "/api/v1/gateways/{$gateway->uuid}",
                 $gatewayPayload,
                 $this->headers($organization, ['If-Match' => $gatewayResponse->headers->get('ETag')]),
             )
@@ -131,14 +122,14 @@ final class GatewayRoutingApiTest extends TestCase
         $routePayload['route']['route_path'] = 'sensors/temperature/primary';
         $this->actingAs($administrator, 'sanctum')
             ->putJson(
-                "/api/v2/gateway-routes/{$route->uuid}",
+                "/api/v1/gateway-routes/{$route->uuid}",
                 $routePayload,
                 $this->headers($organization, ['If-Match' => '"gateway-route-stale-r0"']),
             )
             ->assertStatus(412);
         $routeUpdated = $this->actingAs($administrator, 'sanctum')
             ->putJson(
-                "/api/v2/gateway-routes/{$route->uuid}",
+                "/api/v1/gateway-routes/{$route->uuid}",
                 $routePayload,
                 $this->headers($organization, ['If-Match' => $routeResponse->headers->get('ETag')]),
             )
@@ -149,7 +140,7 @@ final class GatewayRoutingApiTest extends TestCase
         $otherOrganization = Organization::query()->where('slug', 'northstar-utilities')->firstOrFail();
         $otherAdministrator = User::query()->where('email', 'northstar.admin@example.test')->firstOrFail();
         $this->actingAs($otherAdministrator, 'sanctum')
-            ->getJson("/api/v2/gateway-routes/{$route->uuid}", $this->headers($otherOrganization))
+            ->getJson("/api/v1/gateway-routes/{$route->uuid}", $this->headers($otherOrganization))
             ->assertNotFound();
 
         $this->actingAs($administrator, 'sanctum')
@@ -197,21 +188,21 @@ final class GatewayRoutingApiTest extends TestCase
         $routePayload['route']['revision'] = 2;
         $this->actingAs($administrator, 'sanctum')
             ->putJson(
-                "/api/v2/gateway-routes/{$route->uuid}",
+                "/api/v1/gateway-routes/{$route->uuid}",
                 $routePayload,
                 $this->headers($organization, ['If-Match' => $routeUpdated->headers->get('ETag')]),
             )
             ->assertForbidden();
         $this->actingAs($administrator, 'sanctum')
             ->deleteJson(
-                "/api/v2/gateway-routes/{$route->uuid}",
+                "/api/v1/gateway-routes/{$route->uuid}",
                 [],
                 $this->headers($organization, ['If-Match' => $routeUpdated->headers->get('ETag')]),
             )
             ->assertForbidden();
         $this->actingAs($administrator, 'sanctum')
             ->deleteJson(
-                "/api/v2/gateways/{$gateway->uuid}",
+                "/api/v1/gateways/{$gateway->uuid}",
                 [],
                 $this->headers($organization, ['If-Match' => $gatewayUpdated->headers->get('ETag')]),
             )
@@ -222,12 +213,12 @@ final class GatewayRoutingApiTest extends TestCase
     public function test_deleting_a_draft_route_returns_assignment_to_route_pending_and_allows_gateway_deletion(): void
     {
         [$organization, $administrator] = $this->tenantAdministrator();
-        [$profileVersion, $bindingVersion] = $this->publishedV2Definition($organization);
+        [$profileVersion, $bindingVersion] = $this->publishedDefinition($organization);
         [$device] = $this->createLogicalDevice($organization, $administrator, $profileVersion, $bindingVersion);
         $gatewayPayload = $this->fixture('hub-fanout/gateway.json');
         $gatewayResponse = $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                '/api/v2/gateways',
+                '/api/v1/gateways',
                 $gatewayPayload,
                 $this->headers($organization, ['Idempotency-Key' => 'delete-route-gateway']),
             )
@@ -235,7 +226,7 @@ final class GatewayRoutingApiTest extends TestCase
         $routePayload = $this->fixture('hub-fanout/temperature-route.json');
         $routeResponse = $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                '/api/v2/gateway-routes',
+                '/api/v1/gateway-routes',
                 $routePayload,
                 $this->headers($organization, ['Idempotency-Key' => 'delete-draft-route']),
             )
@@ -243,7 +234,7 @@ final class GatewayRoutingApiTest extends TestCase
 
         $this->actingAs($administrator, 'sanctum')
             ->deleteJson(
-                '/api/v2/gateway-routes/'.$routeResponse->json('data.route.uuid'),
+                '/api/v1/gateway-routes/'.$routeResponse->json('data.route.uuid'),
                 [],
                 $this->headers($organization, ['If-Match' => $routeResponse->headers->get('ETag')]),
             )
@@ -251,13 +242,12 @@ final class GatewayRoutingApiTest extends TestCase
 
         $assignment = $device->definitionAssignment()->firstOrFail();
         $this->assertNull($assignment->gateway_route_id);
-        $this->assertSame(AssignmentCompatibilityState::V2_ROUTE_PENDING, $assignment->compatibility_state);
         $this->assertNull($assignment->profile_artifact_hash);
         $this->assertDatabaseCount('gateway_routes', 0);
 
         $this->actingAs($administrator, 'sanctum')
             ->deleteJson(
-                '/api/v2/gateways/'.$gatewayResponse->json('data.gateway.uuid'),
+                '/api/v1/gateways/'.$gatewayResponse->json('data.gateway.uuid'),
                 [],
                 $this->headers($organization, ['If-Match' => $gatewayResponse->headers->get('ETag')]),
             )
@@ -271,11 +261,11 @@ final class GatewayRoutingApiTest extends TestCase
         $member = User::query()->where('email', 'acme.member@example.test')->firstOrFail();
 
         $this->actingAs($member, 'sanctum')
-            ->getJson('/api/v2/gateways', $this->headers($organization))
+            ->getJson('/api/v1/gateways', $this->headers($organization))
             ->assertOk();
         $this->actingAs($member, 'sanctum')
             ->postJson(
-                '/api/v2/gateways',
+                '/api/v1/gateways',
                 $this->fixture('hub-fanout/gateway.json'),
                 $this->headers($organization, ['Idempotency-Key' => 'member-gateway-create']),
             )
@@ -320,15 +310,15 @@ final class GatewayRoutingApiTest extends TestCase
      *
      * @throws JsonException
      */
-    private function publishedV2Definition(Organization $organization): array
+    private function publishedDefinition(Organization $organization): array
     {
-        $manager = app(DefinitionV2AuthoringManager::class);
+        $manager = app(DefinitionAuthoringManager::class);
         $profile = $manager->createProfileDraft(
             $organization,
-            DeviceProfileV2AuthoringData::fromArray($this->fixture('hub-fanout/temperature-profile.json')),
+            DeviceProfileAuthoringData::fromArray($this->fixture('hub-fanout/temperature-profile.json')),
         );
         $profileVersion = $profile->versions()->firstOrFail();
-        $bindingPayload = NativeMqttBindingV2AuthoringData::fromArray(
+        $bindingPayload = NativeMqttBindingAuthoringData::fromArray(
             $this->fixture('hub-fanout/temperature-binding.json'),
         );
         $binding = $manager->createBindingDraft(
@@ -372,9 +362,7 @@ final class GatewayRoutingApiTest extends TestCase
                 ],
                 $this->headers($organization, ['Idempotency-Key' => 'logical-device-create']),
             )
-            ->assertCreated()
-            ->assertJsonPath('data.identity_model', 'logical_v2')
-            ->assertJsonPath('data.definition_assignment.compatibility_state', 'v2_route_pending');
+            ->assertCreated();
 
         return [
             Device::query()->where('uuid', $response->json('data.uuid'))->firstOrFail(),
@@ -392,7 +380,7 @@ final class GatewayRoutingApiTest extends TestCase
         TransportBindingVersion $bindingVersion,
     ): array {
         return [
-            'schema' => 'iot.runtime-bundle.v2',
+            'schema' => 'iot.runtime-bundle.v1',
             'runtime_bundle_hash' => str_repeat('d', 64),
             'organization_uuid' => $organization->uuid,
             'gateway_uuid' => $gateway->uuid,
@@ -424,7 +412,7 @@ final class GatewayRoutingApiTest extends TestCase
     /** @return array<string, mixed> @throws JsonException */
     private function fixture(string $name): array
     {
-        $contents = file_get_contents(base_path("../../contracts/fixtures/device-onboarding-v2/valid/{$name}"));
+        $contents = file_get_contents(base_path("../../contracts/fixtures/device-onboarding/valid/{$name}"));
         $this->assertNotFalse($contents);
 
         return json_decode($contents, true, flags: JSON_THROW_ON_ERROR);

@@ -20,7 +20,7 @@ final class GatewayAuthoringRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'schema' => ['required', 'in:iot.gateway.authoring.v2'],
+            'schema' => ['required', 'in:iot.gateway.authoring.v1'],
             'gateway' => ['required', 'array:uuid,key,name,description,mqtt_client_id'],
             'gateway.uuid' => ['required', 'uuid'],
             'gateway.key' => ['required', 'string', 'max:100', 'regex:/^[a-z][a-z0-9_]{0,99}$/'],

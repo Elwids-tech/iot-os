@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/device/v1/authoring.schema.json",
+  "title": "Device draft authoring contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "external_id"
+  ],
+  "dependentRequired": {
+    "profile_version_uuid": [
+      "binding_version_uuid"
+    ],
+    "binding_version_uuid": [
+      "profile_version_uuid"
+    ]
+  },
+  "properties": {
+    "uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "external_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 4000
+    },
+    "profile_version_uuid": {
+      "oneOf": [
+        {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "binding_version_uuid": {
+      "oneOf": [
+        {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

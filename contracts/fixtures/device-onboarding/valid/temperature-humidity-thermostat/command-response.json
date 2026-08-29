@@ -1,7 +1,0 @@
-{
-  "command_id": "cmd-01",
-  "device_id": "sensor-001",
-  "timestamp": "2026-08-28T18:01:02Z",
-  "status": "succeeded",
-  "applied_temp_level": 21.0
-}

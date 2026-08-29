@@ -21,10 +21,7 @@ import {
 import { LoginPage } from "./auth/LoginPage"
 import { PortalLayout } from "./layout/PortalLayout"
 import { apiClient } from "./lib/api-client"
-import { DefinitionAuthoringPage } from "./pages/DefinitionAuthoringPage"
-import { DefinitionsPage } from "./pages/DefinitionsPage"
-import { DeviceOnboardingPage } from "./pages/DeviceOnboardingPage"
-import { DevicesPage } from "./pages/DevicesPage"
+import { DeviceDomainPage } from "./pages/DeviceDomainPage"
 
 type ScreenState =
   | { status: "loading" }
@@ -67,7 +64,7 @@ function OrganizationBoundary({ user }: { user: AuthenticatedUser }) {
             </Alert>
             {fallback ? (
               <Button asChild>
-                <a href={`/organizations/${fallback.uuid}/definitions`}>Open {fallback.name}</a>
+                <a href={`/organizations/${fallback.uuid}/device-domain`}>Open {fallback.name}</a>
               </Button>
             ) : null}
           </CardContent>
@@ -170,20 +167,13 @@ function TenantPortalApp() {
         element={<OrganizationBoundary user={screen.user} />}
       >
         <Route element={<PortalLayout user={screen.user} onSignOut={signOut} />}>
-          <Route index element={<Navigate to="definitions" replace />} />
-          <Route path="definitions" element={<DefinitionsPage />} />
-          <Route path="definitions/new" element={<DefinitionAuthoringPage />} />
-          <Route
-            path="definitions/:bindingVersionUuid/edit"
-            element={<DefinitionAuthoringPage />}
-          />
-          <Route path="devices" element={<DevicesPage />} />
-          <Route path="devices/onboard" element={<DeviceOnboardingPage />} />
+          <Route index element={<Navigate to="device-domain" replace />} />
+          <Route path="device-domain" element={<DeviceDomainPage />} />
         </Route>
       </Route>
       <Route
         path="*"
-        element={<Navigate to={`/organizations/${fallbackUuid}/definitions`} replace />}
+        element={<Navigate to={`/organizations/${fallbackUuid}/device-domain`} replace />}
       />
     </Routes>
   )

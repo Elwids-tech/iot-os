@@ -8,17 +8,17 @@ export interface paths {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path?: never;
             cookie?: never;
         };
-        /** List Device Profiles */
-        get: operations["listDeviceProfiles"];
+        /** List Device Profile v1 drafts and published Versions */
+        get: operations["listDeviceProfilesV1"];
         put?: never;
-        /** Create a Device Profile draft */
-        post: operations["createDeviceProfile"];
+        /** Create a Device Profile v1 draft */
+        post: operations["createDeviceProfileV1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -29,7 +29,7 @@ export interface paths {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path: {
@@ -37,139 +37,44 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Get a Device Profile */
-        get: operations["getDeviceProfile"];
-        put?: never;
+        /** Get a Device Profile v1 aggregate */
+        get: operations["getDeviceProfileV1"];
+        /** Replace a Device Profile v1 draft at the expected revision */
+        put: operations["replaceDeviceProfileV1"];
         post?: never;
-        /** Delete an unreferenced Device Profile draft */
-        delete: operations["deleteDeviceProfile"];
-        options?: never;
-        head?: never;
-        /** Update Device Profile metadata */
-        patch: operations["updateDeviceProfile"];
-        trace?: never;
-    };
-    "/api/v1/device-profiles/{profile}/archive": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                profile: components["parameters"]["ProfileUuid"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Archive a Device Profile */
-        post: operations["archiveDeviceProfile"];
-        delete?: never;
+        /** Delete an unreferenced Device Profile v1 draft */
+        delete: operations["deleteDeviceProfileV1"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/device-profiles/{profile}/versions": {
+    "/api/v1/native-mqtt-bindings": {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-            };
-            path: {
-                profile: components["parameters"]["ProfileUuid"];
-            };
-            cookie?: never;
-        };
-        /** List Device Profile Versions */
-        get: operations["listDeviceProfileVersions"];
-        put?: never;
-        /** Create a Device Profile Version draft */
-        post: operations["createDeviceProfileVersion"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/device-profile-versions/{version}": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-            };
-            path: {
-                version: components["parameters"]["VersionUuid"];
-            };
-            cookie?: never;
-        };
-        /** Get a Device Profile Version */
-        get: operations["getDeviceProfileVersion"];
-        /** Replace a Device Profile Version draft */
-        put: operations["replaceDeviceProfileVersionDraft"];
-        post?: never;
-        /** Delete a Device Profile Version draft */
-        delete: operations["deleteDeviceProfileVersionDraft"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/device-profile-versions/{version}/clone": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                version: components["parameters"]["VersionUuid"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Clone a Device Profile Version into a draft */
-        post: operations["cloneDeviceProfileVersion"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/transport-bindings": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path?: never;
             cookie?: never;
         };
-        /** List Transport Bindings */
-        get: operations["listTransportBindings"];
+        /** List Native MQTT Binding v1 aggregates */
+        get: operations["listNativeMqttBindingsV1"];
         put?: never;
-        /** Create a Transport Binding draft */
-        post: operations["createTransportBinding"];
+        /** Create a Native MQTT Binding v1 draft */
+        post: operations["createNativeMqttBindingV1"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/transport-bindings/{binding}": {
+    "/api/v1/native-mqtt-bindings/{binding}": {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path: {
@@ -177,201 +82,13 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Get a Transport Binding */
-        get: operations["getTransportBinding"];
-        put?: never;
+        /** Get a Native MQTT Binding v1 aggregate */
+        get: operations["getNativeMqttBindingV1"];
+        /** Replace a Native MQTT Binding v1 draft at the expected revision */
+        put: operations["replaceNativeMqttBindingV1"];
         post?: never;
-        /** Delete an unreferenced Transport Binding draft */
-        delete: operations["deleteTransportBinding"];
-        options?: never;
-        head?: never;
-        /** Update Transport Binding metadata */
-        patch: operations["updateTransportBinding"];
-        trace?: never;
-    };
-    "/api/v1/transport-bindings/{binding}/archive": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                binding: components["parameters"]["BindingUuid"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Archive a Transport Binding */
-        post: operations["archiveTransportBinding"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/transport-bindings/{binding}/versions": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-            };
-            path: {
-                binding: components["parameters"]["BindingUuid"];
-            };
-            cookie?: never;
-        };
-        /** List Transport Binding Versions */
-        get: operations["listTransportBindingVersions"];
-        put?: never;
-        /** Create a Transport Binding Version draft */
-        post: operations["createTransportBindingVersion"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/transport-binding-versions/{version}": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-            };
-            path: {
-                version: components["parameters"]["VersionUuid"];
-            };
-            cookie?: never;
-        };
-        /** Get a Transport Binding Version */
-        get: operations["getTransportBindingVersion"];
-        /** Replace a Transport Binding Version draft */
-        put: operations["replaceTransportBindingVersionDraft"];
-        post?: never;
-        /** Delete a Transport Binding Version draft */
-        delete: operations["deleteTransportBindingVersionDraft"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/transport-binding-versions/{version}/clone": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                version: components["parameters"]["VersionUuid"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Clone a Transport Binding Version into a draft */
-        post: operations["cloneTransportBindingVersion"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/definition-drafts": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create a coordinated definition draft */
-        post: operations["createCoordinatedDefinitionDraft"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/definition-drafts/{bindingVersion}": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-            };
-            path: {
-                bindingVersion: components["parameters"]["BindingVersionUuid"];
-            };
-            cookie?: never;
-        };
-        /** Get a coordinated definition draft */
-        get: operations["getCoordinatedDefinitionDraft"];
-        /** Replace a coordinated definition draft */
-        put: operations["replaceCoordinatedDefinitionDraft"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/definition-drafts/{bindingVersion}/validate": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                bindingVersion: components["parameters"]["BindingVersionUuid"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Validate and preview a coordinated definition draft */
-        post: operations["validateCoordinatedDefinitionDraft"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/definition-drafts/{bindingVersion}/publish": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                bindingVersion: components["parameters"]["BindingVersionUuid"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Publish a coordinated definition draft */
-        post: operations["publishCoordinatedDefinitionDraft"];
-        delete?: never;
+        /** Delete an unreferenced Native MQTT Binding v1 draft */
+        delete: operations["deleteNativeMqttBindingV1"];
         options?: never;
         head?: never;
         patch?: never;
@@ -381,17 +98,17 @@ export interface paths {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path?: never;
             cookie?: never;
         };
-        /** List Devices */
-        get: operations["listDevices"];
+        /** List logical Devices */
+        get: operations["listDevicesV1"];
         put?: never;
-        /** Create a Device draft */
-        post: operations["createDeviceDraft"];
+        /** Create a logical Device draft */
+        post: operations["createDeviceV1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -402,7 +119,7 @@ export interface paths {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path: {
@@ -410,26 +127,25 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Get a Device */
-        get: operations["getDevice"];
-        put?: never;
+        /** Get a logical Device */
+        get: operations["getDeviceV1"];
+        /** Replace a logical Device draft at the expected revision */
+        put: operations["replaceDeviceV1"];
         post?: never;
-        /** Delete a Device draft */
-        delete: operations["deleteDeviceDraft"];
+        /** Delete a logical Device draft */
+        delete: operations["deleteDeviceV1"];
         options?: never;
         head?: never;
-        /** Update a Device draft */
-        patch: operations["updateDeviceDraft"];
+        patch?: never;
         trace?: never;
     };
     "/api/v1/devices/{device}/register": {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
@@ -439,8 +155,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register a Device */
-        post: operations["registerDevice"];
+        /** Register a Device against its identity-matched Runtime Bundle */
+        post: operations["registerDeviceV1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -451,10 +167,9 @@ export interface paths {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
@@ -464,8 +179,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Archive a Device */
-        post: operations["archiveDevice"];
+        /** Archive a registered Device */
+        post: operations["archiveDeviceV1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -476,7 +191,7 @@ export interface paths {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path: {
@@ -485,9 +200,9 @@ export interface paths {
             cookie?: never;
         };
         /** Get a Device definition assignment */
-        get: operations["getDeviceDefinitionAssignment"];
-        /** Replace a Device definition assignment draft */
-        put: operations["replaceDeviceDefinitionAssignmentDraft"];
+        get: operations["getDeviceDefinitionAssignmentV1"];
+        /** Replace a Device definition assignment at the expected revision */
+        put: operations["replaceDeviceDefinitionAssignmentV1"];
         post?: never;
         delete?: never;
         options?: never;
@@ -495,88 +210,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/device-onboarding/sessions": {
+    "/api/v1/gateways": {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Gateway identities */
+        get: operations["listGatewaysV1"];
         put?: never;
-        /** Start a conversational Device onboarding session */
-        post: operations["startDeviceOnboardingSession"];
+        /** Create a Gateway identity without broker credentials */
+        post: operations["createGatewayV1"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/device-onboarding/sessions/{session}/messages": {
+    "/api/v1/gateways/{gateway}": {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path: {
-                session: components["parameters"]["SessionUuid"];
+                gateway: components["parameters"]["GatewayUuid"];
             };
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        /** Continue a conversational Device onboarding session */
-        post: operations["continueDeviceOnboardingSession"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/device-onboarding/proposals/{proposal}": {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-            };
-            path: {
-                proposal: components["parameters"]["ProposalUuid"];
-            };
-            cookie?: never;
-        };
-        /** Get a Device onboarding proposal */
-        get: operations["getDeviceOnboardingProposal"];
-        put?: never;
+        /** Get a Gateway identity */
+        get: operations["getGatewayV1"];
+        /** Replace Gateway metadata at the expected revision */
+        put: operations["replaceGatewayV1"];
         post?: never;
+        /** Delete an unreferenced Gateway identity */
+        delete: operations["deleteGatewayV1"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gateway-routes": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** List Gateway Routes */
+        get: operations["listGatewayRoutesV1"];
+        put?: never;
+        /** Create a Gateway-to-logical-Device route */
+        post: operations["createGatewayRouteV1"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/device-onboarding/proposals/{proposal}/confirm": {
+    "/api/v1/gateway-routes/{route}": {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
-                proposal: components["parameters"]["ProposalUuid"];
+                route: components["parameters"]["GatewayRouteUuid"];
             };
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        /** Confirm a proposal as editable drafts */
-        post: operations["confirmDeviceOnboardingProposal"];
-        delete?: never;
+        /** Get a Gateway Route */
+        get: operations["getGatewayRouteV1"];
+        /** Replace a Gateway Route at the expected revision */
+        put: operations["replaceGatewayRouteV1"];
+        post?: never;
+        /** Delete or disable an unreferenced Gateway Route */
+        delete: operations["deleteGatewayRouteV1"];
         options?: never;
         head?: never;
         patch?: never;
@@ -586,91 +304,86 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        DeviceProfileAuthoringV1: components["schemas"]["authoring.schema"];
+        DeviceProfileArtifactV1: components["schemas"]["artifact.schema"];
+        NativeMqttBindingAuthoringV1: components["schemas"]["authoring.schema-2"];
+        NativeMqttBindingArtifactV1: components["schemas"]["artifact.schema-2"];
+        GatewayAuthoringV1: components["schemas"]["authoring.schema-5"];
+        GatewayRouteAuthoringV1: components["schemas"]["authoring.schema-6"];
+        DeviceAuthoringV1: components["schemas"]["authoring.schema-3"];
+        DeviceDefinitionAssignmentAuthoringV1: components["schemas"]["authoring.schema-4"];
+        RuntimeBundleV1: components["schemas"]["schema"];
+        CanonicalTelemetryV1: components["schemas"]["schema-2"];
         /** @enum {string} */
-        EventState: "opened" | "updated" | "closed";
-        /** @enum {string} */
-        CommandStatus: "accepted" | "running" | "succeeded" | "failed";
-        /** @enum {string} */
-        DefinitionState: "draft" | "published" | "retired";
-        /** @enum {string} */
-        DeviceLifecycleState: "draft" | "registered" | "archived";
-        DeviceProfileDraftV1: components["schemas"]["authoring.schema"];
-        NativeMqttBindingDraftV1: components["schemas"]["authoring.schema-2"];
-        DefinitionPreviewV1: components["schemas"]["schema"];
-        DeviceOnboardingProposalV1: components["schemas"]["schema-2"];
-        CoordinatedDefinitionDraftV1: {
-            profile: components["schemas"]["authoring.schema"];
-            binding: components["schemas"]["authoring.schema-2"];
-        };
-        CatalogMetadataPatch: {
-            name?: string;
-            description?: string | null;
-        };
-        FixtureSetV1: {
-            fixtures: components["schemas"]["Fixture"][];
-        };
-        DeviceDraftV1: {
+        DeviceLifecycleStateV1: "draft" | "registered" | "archived";
+        ArtifactHashOrNullV1: string | null;
+        DeviceDefinitionAssignmentResourceV1: {
             /** Format: uuid */
-            uuid?: string;
-            name: string;
-            external_id: string;
-            description?: string | null;
+            uuid: string;
             /** Format: uuid */
-            profile_version_uuid?: string;
-            /** Format: uuid */
-            binding_version_uuid?: string;
-        };
-        DefinitionAssignmentDraftV1: {
+            device_uuid: string;
             /** Format: uuid */
             profile_version_uuid: string;
             /** Format: uuid */
             binding_version_uuid: string;
-        };
-        OnboardingSessionStartV1: {
-            prompt: string;
-        };
-        OnboardingMessageV1: {
-            message: string;
-        };
-        ProposalConfirmationV1: {
-            proposal_hash: string;
-        };
-        ResourceEnvelope: {
-            data: {
-                [key: string]: unknown;
-            };
-        };
-        CollectionEnvelope: {
-            data: {
-                [key: string]: unknown;
-            }[];
-            meta: {
-                [key: string]: unknown;
-            };
-        };
-        VersionEnvelope: components["schemas"]["ResourceEnvelope"] & {
-            etag?: string;
-        };
-        DefinitionDraftEnvelope: {
-            data: components["schemas"]["CoordinatedDefinitionDraftV1"];
+            gateway_route_uuid: string | null;
+            profile_artifact_hash: components["schemas"]["ArtifactHashOrNullV1"];
+            binding_artifact_hash: components["schemas"]["ArtifactHashOrNullV1"];
+            route_source_hash: components["schemas"]["ArtifactHashOrNullV1"];
+            runtime_bundle_hash: components["schemas"]["ArtifactHashOrNullV1"];
+            runtime_bundle: components["schemas"]["schema"] | null;
+            /** Format: date-time */
+            runtime_compiled_at: string | null;
+            revision: number;
             etag: string;
+            /** Format: date-time */
+            locked_at: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
         };
-        ProblemDetails: {
+        DeviceResourceV1: {
+            /** Format: uuid */
+            uuid: string;
+            external_id: string;
+            name: string;
+            description: string | null;
+            lifecycle_state: components["schemas"]["DeviceLifecycleStateV1"];
+            revision: number;
+            etag: string;
+            /** Format: date-time */
+            registered_at: string | null;
+            /** Format: date-time */
+            archived_at: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            definition_assignment: components["schemas"]["DeviceDefinitionAssignmentResourceV1"] | null;
+        };
+        DeviceResourceEnvelopeV1: {
+            data: components["schemas"]["DeviceResourceV1"];
+        };
+        DeviceCollectionEnvelopeV1: {
+            data: components["schemas"]["DeviceResourceV1"][];
+        } & {
+            [key: string]: unknown;
+        };
+        DeviceDefinitionAssignmentEnvelopeV1: {
+            data: components["schemas"]["DeviceDefinitionAssignmentResourceV1"];
+        };
+        Problem: {
             /** Format: uri-reference */
             type: string;
             title: string;
             status: number;
-            detail: string;
+            detail?: string;
             /** Format: uri-reference */
-            instance: string;
-            trace_id: string;
+            instance?: string;
             errors?: {
-                path: string;
-                code: string;
-                message: string;
-            }[];
-        } & {
-            [key: string]: unknown;
+                [key: string]: string[];
+            };
         };
         /** Format: uuid */
         Uuid: string;
@@ -690,60 +403,83 @@ export interface components {
             pattern?: string;
             allowed_values?: (string | number | boolean)[];
         };
-        DisplayMetadata: {
-            order: number;
-            precision?: number;
-        };
         ValueSchema: {
             data_type: components["schemas"]["DataType"];
             unit_code?: string | null;
-            required: boolean;
-            critical: boolean;
             constraints: components["schemas"]["ValueConstraints"];
             default_value?: unknown;
-            display: components["schemas"]["DisplayMetadata"];
         };
-        CelExpression: string;
-        QualifiedKey: string;
-        Derivation: {
-            cel: components["schemas"]["CelExpression"];
-            dependencies: components["schemas"]["QualifiedKey"][];
+        /** @enum {string} */
+        InputWidget: "slider" | "number_input" | "switch" | "select" | "segmented_control" | "text_input";
+        InputPresentation: {
+            widget: components["schemas"]["InputWidget"];
+            placeholder?: string | null;
         };
-        Telemetry: {
-            uuid?: components["schemas"]["Uuid"];
+        /** @enum {string} */
+        DisplayWidget: "gauge" | "value_card" | "chart" | "status_badge";
+        DisplayPresentation: {
+            widget: components["schemas"]["DisplayWidget"];
+        };
+        Presentation: {
+            order: number;
+            precision?: number;
+            input?: components["schemas"]["InputPresentation"];
+            display?: components["schemas"]["DisplayPresentation"];
+        };
+        Parameter: {
+            uuid: components["schemas"]["Uuid"];
             key: components["schemas"]["Key"];
             label: string;
             description?: string | null;
             value_schema: components["schemas"]["ValueSchema"];
-            derivation?: components["schemas"]["Derivation"];
+            presentation?: components["schemas"]["Presentation"];
+        };
+        CelExpression: string;
+        DerivedExpression: {
+            /** @constant */
+            language: "cel";
+            source: components["schemas"]["CelExpression"];
+        };
+        DerivedParameter: {
+            uuid: components["schemas"]["Uuid"];
+            key: components["schemas"]["Key"];
+            label: string;
+            description?: string | null;
+            value_schema: components["schemas"]["ValueSchema"];
+            expression: components["schemas"]["DerivedExpression"];
+            dependencies: components["schemas"]["Uuid"][];
+            presentation?: components["schemas"]["Presentation"];
         };
         /** @enum {string} */
         PropertyScope: "platform" | "desired" | "reported";
+        PropertyAcknowledgement: {
+            required: boolean;
+            reported_property_uuid?: null | components["schemas"]["Uuid"];
+        };
         Property: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             key: components["schemas"]["Key"];
             label: string;
             description?: string | null;
             scope: components["schemas"]["PropertyScope"];
             value_schema: components["schemas"]["ValueSchema"];
-            acknowledgement?: {
-                required: boolean;
-                reported_property_key?: null | components["schemas"]["QualifiedKey"];
-            };
+            presentation?: components["schemas"]["Presentation"];
+            acknowledgement?: components["schemas"]["PropertyAcknowledgement"];
         } & unknown;
         /** @enum {string} */
         EventMode: "stateless" | "stateful";
         /** @enum {string} */
         EventSeverity: "info" | "notice" | "warning" | "critical";
         EventField: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             key: components["schemas"]["Key"];
             label: string;
             description?: string | null;
             value_schema: components["schemas"]["ValueSchema"];
+            presentation?: components["schemas"]["Presentation"];
         };
         Event: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             key: components["schemas"]["Key"];
             label: string;
             description?: string | null;
@@ -761,15 +497,17 @@ export interface components {
         /** @enum {string} */
         CommandFieldDirection: "input" | "output";
         CommandField: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             direction: components["schemas"]["CommandFieldDirection"];
             key: components["schemas"]["Key"];
             label: string;
             description?: string | null;
+            required: boolean;
             value_schema: components["schemas"]["ValueSchema"];
+            presentation?: components["schemas"]["Presentation"];
         };
         Command: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             key: components["schemas"]["Key"];
             label: string;
             description?: string | null;
@@ -782,27 +520,21 @@ export interface components {
             max_attempts: number;
             fields: components["schemas"]["CommandField"][];
         } & (unknown & unknown & unknown);
-        Component: {
-            uuid?: components["schemas"]["Uuid"];
-            key: null | components["schemas"]["Key"];
-            name: string;
-            description?: string | null;
-            telemetry: components["schemas"]["Telemetry"][];
-            properties: components["schemas"]["Property"][];
-            events: components["schemas"]["Event"][];
-            commands: components["schemas"]["Command"][];
-        };
         Profile: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             key: components["schemas"]["Key"];
             name: string;
             description?: string | null;
         };
         ProfileVersion: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             version: number;
             notes?: string | null;
-            components: components["schemas"]["Component"][];
+            parameters: components["schemas"]["Parameter"][];
+            derived_parameters: components["schemas"]["DerivedParameter"][];
+            properties: components["schemas"]["Property"][];
+            events: components["schemas"]["Event"][];
+            commands: components["schemas"]["Command"][];
         };
         /** Device Profile authoring contract v1 */
         "authoring.schema": {
@@ -812,53 +544,60 @@ export interface components {
             version: components["schemas"]["ProfileVersion"];
             $defs: {
                 Profile: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     key: components["schemas"]["Key"];
                     name: string;
                     description?: string | null;
                 };
                 ProfileVersion: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     version: number;
                     notes?: string | null;
-                    components: components["schemas"]["Component"][];
-                };
-                Component: {
-                    uuid?: components["schemas"]["Uuid"];
-                    key: null | components["schemas"]["Key"];
-                    name: string;
-                    description?: string | null;
-                    telemetry: components["schemas"]["Telemetry"][];
+                    parameters: components["schemas"]["Parameter"][];
+                    derived_parameters: components["schemas"]["DerivedParameter"][];
                     properties: components["schemas"]["Property"][];
                     events: components["schemas"]["Event"][];
                     commands: components["schemas"]["Command"][];
                 };
-                Telemetry: {
-                    uuid?: components["schemas"]["Uuid"];
+                Parameter: {
+                    uuid: components["schemas"]["Uuid"];
                     key: components["schemas"]["Key"];
                     label: string;
                     description?: string | null;
                     value_schema: components["schemas"]["ValueSchema"];
-                    derivation?: components["schemas"]["Derivation"];
+                    presentation?: components["schemas"]["Presentation"];
                 };
-                Derivation: {
-                    cel: components["schemas"]["CelExpression"];
-                    dependencies: components["schemas"]["QualifiedKey"][];
+                DerivedParameter: {
+                    uuid: components["schemas"]["Uuid"];
+                    key: components["schemas"]["Key"];
+                    label: string;
+                    description?: string | null;
+                    value_schema: components["schemas"]["ValueSchema"];
+                    expression: components["schemas"]["DerivedExpression"];
+                    dependencies: components["schemas"]["Uuid"][];
+                    presentation?: components["schemas"]["Presentation"];
+                };
+                DerivedExpression: {
+                    /** @constant */
+                    language: "cel";
+                    source: components["schemas"]["CelExpression"];
                 };
                 Property: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     key: components["schemas"]["Key"];
                     label: string;
                     description?: string | null;
                     scope: components["schemas"]["PropertyScope"];
                     value_schema: components["schemas"]["ValueSchema"];
-                    acknowledgement?: {
-                        required: boolean;
-                        reported_property_key?: null | components["schemas"]["QualifiedKey"];
-                    };
+                    presentation?: components["schemas"]["Presentation"];
+                    acknowledgement?: components["schemas"]["PropertyAcknowledgement"];
                 } & unknown;
+                PropertyAcknowledgement: {
+                    required: boolean;
+                    reported_property_uuid?: null | components["schemas"]["Uuid"];
+                };
                 Event: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     key: components["schemas"]["Key"];
                     label: string;
                     description?: string | null;
@@ -868,14 +607,15 @@ export interface components {
                     fields: components["schemas"]["EventField"][];
                 };
                 EventField: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     key: components["schemas"]["Key"];
                     label: string;
                     description?: string | null;
                     value_schema: components["schemas"]["ValueSchema"];
+                    presentation?: components["schemas"]["Presentation"];
                 };
                 Command: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     key: components["schemas"]["Key"];
                     label: string;
                     description?: string | null;
@@ -889,12 +629,14 @@ export interface components {
                     fields: components["schemas"]["CommandField"][];
                 } & (unknown & unknown & unknown);
                 CommandField: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     direction: components["schemas"]["CommandFieldDirection"];
                     key: components["schemas"]["Key"];
                     label: string;
                     description?: string | null;
+                    required: boolean;
                     value_schema: components["schemas"]["ValueSchema"];
+                    presentation?: components["schemas"]["Presentation"];
                 };
             };
         };
@@ -905,7 +647,7 @@ export interface components {
         TopicTemplate: string;
         RecordPath: string;
         /** @enum {string} */
-        PathScope: "payload" | "record";
+        PathScope: "message" | "record" | "route";
         JsonPath: string;
         PathRef: {
             scope: components["schemas"]["PathScope"];
@@ -913,16 +655,17 @@ export interface components {
         };
         /** @enum {string} */
         TimestampFormat: "rfc3339" | "unix_seconds" | "unix_milliseconds";
+        TimestampPath: {
+            path: components["schemas"]["PathRef"];
+            format: components["schemas"]["TimestampFormat"];
+        };
         Envelope: {
-            device_id?: components["schemas"]["PathRef"];
-            observed_at?: {
-                path: components["schemas"]["PathRef"];
-                format: components["schemas"]["TimestampFormat"];
-            };
+            observed_at?: components["schemas"]["TimestampPath"];
             message_id?: components["schemas"]["PathRef"];
+            sequence?: components["schemas"]["PathRef"];
         };
         Channel: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             key: components["schemas"]["Key"];
             label: string;
             purpose: components["schemas"]["BindingPurpose"];
@@ -937,90 +680,141 @@ export interface components {
             max_records: number;
             envelope: components["schemas"]["Envelope"];
         };
-        Transform: {
-            preset?: string;
-            cel?: components["schemas"]["CelExpression"];
+        DefaultValuePolicy: unknown;
+        MultiplyOperation: {
+            /** @constant */
+            op: "multiply";
+            value: number;
         };
+        DivideOperation: {
+            /** @constant */
+            op: "divide";
+            value: number;
+        };
+        AddOperation: {
+            /** @constant */
+            op: "add";
+            value: number;
+        };
+        SubtractOperation: {
+            /** @constant */
+            op: "subtract";
+            value: number;
+        };
+        PowerOperation: {
+            /** @constant */
+            op: "power";
+            exponent: number;
+        };
+        ClampOperation: {
+            /** @constant */
+            op: "clamp";
+            minimum?: number;
+            maximum?: number;
+        };
+        RoundOperation: {
+            /** @constant */
+            op: "round";
+            precision: number;
+        };
+        CelOperation: {
+            /** @constant */
+            op: "cel";
+            expression: components["schemas"]["CelExpression"];
+        };
+        CalibrationOperation: components["schemas"]["MultiplyOperation"] | components["schemas"]["DivideOperation"] | components["schemas"]["AddOperation"] | components["schemas"]["SubtractOperation"] | components["schemas"]["PowerOperation"] | components["schemas"]["ClampOperation"] | components["schemas"]["RoundOperation"] | components["schemas"]["CelOperation"];
+        CalibrationPipeline: components["schemas"]["CalibrationOperation"][];
         /** @enum {string} */
-        MissingPolicy: "reject_message" | "omit_value" | "use_default";
-        TelemetryMapping: {
-            uuid?: components["schemas"]["Uuid"];
+        OnMissingPolicy: "reject_message" | "omit_value" | "use_default";
+        /** @enum {string} */
+        OnInvalidPolicy: "reject_message" | "omit_value" | "use_default" | "clamp" | "accept_with_bad_quality";
+        ParameterMapping: {
+            uuid: components["schemas"]["Uuid"];
             channel: components["schemas"]["Key"];
-            target: components["schemas"]["QualifiedKey"];
+            target_parameter_uuid: components["schemas"]["Uuid"];
             source: components["schemas"]["PathRef"];
             wire_data_type: components["schemas"]["DataType"];
-            transform?: components["schemas"]["Transform"];
-            missing_policy: components["schemas"]["MissingPolicy"];
+            calibration: components["schemas"]["CalibrationPipeline"];
+            on_missing: components["schemas"]["OnMissingPolicy"];
+            on_invalid: components["schemas"]["OnInvalidPolicy"];
             default_value?: unknown;
-        } & unknown;
+        } & components["schemas"]["DefaultValuePolicy"];
         PropertyMapping: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             channel: components["schemas"]["Key"];
-            target: components["schemas"]["QualifiedKey"];
-            /** @enum {string} */
-            direction: "extract" | "place";
-            json_path: components["schemas"]["JsonPath"];
-            source_scope?: components["schemas"]["PathScope"];
-            wire_data_type: components["schemas"]["DataType"];
-            transform?: components["schemas"]["Transform"];
-            missing_policy: components["schemas"]["MissingPolicy"];
-            default_value?: unknown;
-        } & unknown;
-        EventFieldMapping: {
-            target: components["schemas"]["Key"];
+            target_property_uuid: components["schemas"]["Uuid"];
+            direction: components["schemas"]["BindingDirection"];
             source: components["schemas"]["PathRef"];
             wire_data_type: components["schemas"]["DataType"];
-            transform?: components["schemas"]["Transform"];
-            missing_policy: components["schemas"]["MissingPolicy"];
+            operations: components["schemas"]["CalibrationPipeline"];
+            on_missing: components["schemas"]["OnMissingPolicy"];
+            on_invalid: components["schemas"]["OnInvalidPolicy"];
             default_value?: unknown;
-        } & unknown;
+        } & components["schemas"]["DefaultValuePolicy"];
+        JsonScalar: string | number | boolean | null;
+        Discriminator: {
+            source: components["schemas"]["PathRef"];
+            equals: components["schemas"]["JsonScalar"];
+        };
+        StatusValues: components["schemas"]["JsonScalar"][];
+        EventStateMapping: {
+            source: components["schemas"]["PathRef"];
+            active_values: components["schemas"]["StatusValues"];
+            cleared_values: components["schemas"]["StatusValues"];
+        };
+        EventFieldMapping: {
+            target_event_field_uuid: components["schemas"]["Uuid"];
+            source: components["schemas"]["PathRef"];
+            wire_data_type: components["schemas"]["DataType"];
+            operations: components["schemas"]["CalibrationPipeline"];
+            on_missing: components["schemas"]["OnMissingPolicy"];
+            on_invalid: components["schemas"]["OnInvalidPolicy"];
+            default_value?: unknown;
+        } & components["schemas"]["DefaultValuePolicy"];
         EventMapping: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             channel: components["schemas"]["Key"];
-            target: components["schemas"]["QualifiedKey"];
-            discriminator?: {
-                path: components["schemas"]["PathRef"];
-                equals: string | number | boolean;
-            };
+            target_event_uuid: components["schemas"]["Uuid"];
+            discriminator?: components["schemas"]["Discriminator"];
             event_id?: components["schemas"]["PathRef"];
-            state?: {
-                path: components["schemas"]["PathRef"];
-                transform?: components["schemas"]["Transform"];
-            };
+            state?: components["schemas"]["EventStateMapping"];
             field_mappings: components["schemas"]["EventFieldMapping"][];
         };
         CommandRequestEnvelope: {
             command_id_path: components["schemas"]["JsonPath"];
-            device_id_path?: components["schemas"]["JsonPath"];
             requested_at_path?: components["schemas"]["JsonPath"];
             expires_at_path?: components["schemas"]["JsonPath"];
+            route_path_path?: components["schemas"]["JsonPath"];
+            route_variable_paths?: {
+                [key: string]: components["schemas"]["JsonPath"];
+            };
         };
-        StatusValues: (string | number | boolean)[];
+        CommandStatusMapping: {
+            path: components["schemas"]["PathRef"];
+            values: {
+                accepted?: components["schemas"]["StatusValues"];
+                running?: components["schemas"]["StatusValues"];
+                succeeded: components["schemas"]["StatusValues"];
+                failed: components["schemas"]["StatusValues"];
+            };
+        };
         CommandResponse: {
             correlation: components["schemas"]["PathRef"];
-            status: {
-                path: components["schemas"]["PathRef"];
-                transform?: components["schemas"]["Transform"];
-                values: {
-                    accepted?: components["schemas"]["StatusValues"];
-                    running?: components["schemas"]["StatusValues"];
-                    succeeded: components["schemas"]["StatusValues"];
-                    failed: components["schemas"]["StatusValues"];
-                };
-            };
+            status: components["schemas"]["CommandStatusMapping"];
         };
         CommandFieldMapping: {
             direction: components["schemas"]["CommandFieldDirection"];
-            target: components["schemas"]["Key"];
+            target_command_field_uuid: components["schemas"]["Uuid"];
             json_path: components["schemas"]["JsonPath"];
             wire_data_type: components["schemas"]["DataType"];
-            transform?: components["schemas"]["Transform"];
-            missing_policy: components["schemas"]["MissingPolicy"];
+            operations: components["schemas"]["CalibrationPipeline"];
+            on_missing: components["schemas"]["OnMissingPolicy"];
+            on_invalid: components["schemas"]["OnInvalidPolicy"];
             default_value?: unknown;
-        } & unknown;
+        } & components["schemas"]["DefaultValuePolicy"];
         CommandMapping: {
-            uuid?: components["schemas"]["Uuid"];
-            target: components["schemas"]["QualifiedKey"];
+            uuid: components["schemas"]["Uuid"];
+            target_command_uuid: components["schemas"]["Uuid"];
             request_channel: components["schemas"]["Key"];
             response_channel?: null | components["schemas"]["Key"];
             request_template: Record<string, never>;
@@ -1029,7 +823,7 @@ export interface components {
             field_mappings: components["schemas"]["CommandFieldMapping"][];
         };
         Binding: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             profile_uuid: components["schemas"]["Uuid"];
             key: components["schemas"]["Key"];
             name: string;
@@ -1038,12 +832,12 @@ export interface components {
             transport: "native_mqtt_json";
         };
         BindingVersion: {
-            uuid?: components["schemas"]["Uuid"];
+            uuid: components["schemas"]["Uuid"];
             profile_version_uuid: components["schemas"]["Uuid"];
             version: number;
             notes?: string | null;
             channels: components["schemas"]["Channel"][];
-            telemetry_mappings: components["schemas"]["TelemetryMapping"][];
+            parameter_mappings: components["schemas"]["ParameterMapping"][];
             property_mappings: components["schemas"]["PropertyMapping"][];
             event_mappings: components["schemas"]["EventMapping"][];
             command_mappings: components["schemas"]["CommandMapping"][];
@@ -1056,7 +850,7 @@ export interface components {
             version: components["schemas"]["BindingVersion"];
             $defs: {
                 Binding: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     profile_uuid: components["schemas"]["Uuid"];
                     key: components["schemas"]["Key"];
                     name: string;
@@ -1065,18 +859,18 @@ export interface components {
                     transport: "native_mqtt_json";
                 };
                 BindingVersion: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     profile_version_uuid: components["schemas"]["Uuid"];
                     version: number;
                     notes?: string | null;
                     channels: components["schemas"]["Channel"][];
-                    telemetry_mappings: components["schemas"]["TelemetryMapping"][];
+                    parameter_mappings: components["schemas"]["ParameterMapping"][];
                     property_mappings: components["schemas"]["PropertyMapping"][];
                     event_mappings: components["schemas"]["EventMapping"][];
                     command_mappings: components["schemas"]["CommandMapping"][];
                 };
                 Channel: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     key: components["schemas"]["Key"];
                     label: string;
                     purpose: components["schemas"]["BindingPurpose"];
@@ -1092,62 +886,67 @@ export interface components {
                     envelope: components["schemas"]["Envelope"];
                 };
                 Envelope: {
-                    device_id?: components["schemas"]["PathRef"];
-                    observed_at?: {
-                        path: components["schemas"]["PathRef"];
-                        format: components["schemas"]["TimestampFormat"];
-                    };
+                    observed_at?: components["schemas"]["TimestampPath"];
                     message_id?: components["schemas"]["PathRef"];
+                    sequence?: components["schemas"]["PathRef"];
                 };
-                TelemetryMapping: {
-                    uuid?: components["schemas"]["Uuid"];
+                TimestampPath: {
+                    path: components["schemas"]["PathRef"];
+                    format: components["schemas"]["TimestampFormat"];
+                };
+                ParameterMapping: {
+                    uuid: components["schemas"]["Uuid"];
                     channel: components["schemas"]["Key"];
-                    target: components["schemas"]["QualifiedKey"];
+                    target_parameter_uuid: components["schemas"]["Uuid"];
                     source: components["schemas"]["PathRef"];
                     wire_data_type: components["schemas"]["DataType"];
-                    transform?: components["schemas"]["Transform"];
-                    missing_policy: components["schemas"]["MissingPolicy"];
+                    calibration: components["schemas"]["CalibrationPipeline"];
+                    on_missing: components["schemas"]["OnMissingPolicy"];
+                    on_invalid: components["schemas"]["OnInvalidPolicy"];
                     default_value?: unknown;
-                } & unknown;
+                } & components["schemas"]["DefaultValuePolicy"];
                 PropertyMapping: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     channel: components["schemas"]["Key"];
-                    target: components["schemas"]["QualifiedKey"];
-                    /** @enum {string} */
-                    direction: "extract" | "place";
-                    json_path: components["schemas"]["JsonPath"];
-                    source_scope?: components["schemas"]["PathScope"];
+                    target_property_uuid: components["schemas"]["Uuid"];
+                    direction: components["schemas"]["BindingDirection"];
+                    source: components["schemas"]["PathRef"];
                     wire_data_type: components["schemas"]["DataType"];
-                    transform?: components["schemas"]["Transform"];
-                    missing_policy: components["schemas"]["MissingPolicy"];
+                    operations: components["schemas"]["CalibrationPipeline"];
+                    on_missing: components["schemas"]["OnMissingPolicy"];
+                    on_invalid: components["schemas"]["OnInvalidPolicy"];
                     default_value?: unknown;
-                } & unknown;
+                } & components["schemas"]["DefaultValuePolicy"];
                 EventMapping: {
-                    uuid?: components["schemas"]["Uuid"];
+                    uuid: components["schemas"]["Uuid"];
                     channel: components["schemas"]["Key"];
-                    target: components["schemas"]["QualifiedKey"];
-                    discriminator?: {
-                        path: components["schemas"]["PathRef"];
-                        equals: string | number | boolean;
-                    };
+                    target_event_uuid: components["schemas"]["Uuid"];
+                    discriminator?: components["schemas"]["Discriminator"];
                     event_id?: components["schemas"]["PathRef"];
-                    state?: {
-                        path: components["schemas"]["PathRef"];
-                        transform?: components["schemas"]["Transform"];
-                    };
+                    state?: components["schemas"]["EventStateMapping"];
                     field_mappings: components["schemas"]["EventFieldMapping"][];
                 };
+                Discriminator: {
+                    source: components["schemas"]["PathRef"];
+                    equals: components["schemas"]["JsonScalar"];
+                };
+                EventStateMapping: {
+                    source: components["schemas"]["PathRef"];
+                    active_values: components["schemas"]["StatusValues"];
+                    cleared_values: components["schemas"]["StatusValues"];
+                };
                 EventFieldMapping: {
-                    target: components["schemas"]["Key"];
+                    target_event_field_uuid: components["schemas"]["Uuid"];
                     source: components["schemas"]["PathRef"];
                     wire_data_type: components["schemas"]["DataType"];
-                    transform?: components["schemas"]["Transform"];
-                    missing_policy: components["schemas"]["MissingPolicy"];
+                    operations: components["schemas"]["CalibrationPipeline"];
+                    on_missing: components["schemas"]["OnMissingPolicy"];
+                    on_invalid: components["schemas"]["OnInvalidPolicy"];
                     default_value?: unknown;
-                } & unknown;
+                } & components["schemas"]["DefaultValuePolicy"];
                 CommandMapping: {
-                    uuid?: components["schemas"]["Uuid"];
-                    target: components["schemas"]["QualifiedKey"];
+                    uuid: components["schemas"]["Uuid"];
+                    target_command_uuid: components["schemas"]["Uuid"];
                     request_channel: components["schemas"]["Key"];
                     response_channel?: null | components["schemas"]["Key"];
                     request_template: Record<string, never>;
@@ -1157,42 +956,47 @@ export interface components {
                 };
                 CommandRequestEnvelope: {
                     command_id_path: components["schemas"]["JsonPath"];
-                    device_id_path?: components["schemas"]["JsonPath"];
                     requested_at_path?: components["schemas"]["JsonPath"];
                     expires_at_path?: components["schemas"]["JsonPath"];
-                };
-                CommandResponse: {
-                    correlation: components["schemas"]["PathRef"];
-                    status: {
-                        path: components["schemas"]["PathRef"];
-                        transform?: components["schemas"]["Transform"];
-                        values: {
-                            accepted?: components["schemas"]["StatusValues"];
-                            running?: components["schemas"]["StatusValues"];
-                            succeeded: components["schemas"]["StatusValues"];
-                            failed: components["schemas"]["StatusValues"];
-                        };
+                    route_path_path?: components["schemas"]["JsonPath"];
+                    route_variable_paths?: {
+                        [key: string]: components["schemas"]["JsonPath"];
                     };
                 };
-                StatusValues: (string | number | boolean)[];
                 CommandFieldMapping: {
                     direction: components["schemas"]["CommandFieldDirection"];
-                    target: components["schemas"]["Key"];
+                    target_command_field_uuid: components["schemas"]["Uuid"];
                     json_path: components["schemas"]["JsonPath"];
                     wire_data_type: components["schemas"]["DataType"];
-                    transform?: components["schemas"]["Transform"];
-                    missing_policy: components["schemas"]["MissingPolicy"];
+                    operations: components["schemas"]["CalibrationPipeline"];
+                    on_missing: components["schemas"]["OnMissingPolicy"];
+                    on_invalid: components["schemas"]["OnInvalidPolicy"];
                     default_value?: unknown;
-                } & unknown;
+                } & components["schemas"]["DefaultValuePolicy"];
+                CommandResponse: {
+                    correlation: components["schemas"]["PathRef"];
+                    status: components["schemas"]["CommandStatusMapping"];
+                };
+                CommandStatusMapping: {
+                    path: components["schemas"]["PathRef"];
+                    values: {
+                        accepted?: components["schemas"]["StatusValues"];
+                        running?: components["schemas"]["StatusValues"];
+                        succeeded: components["schemas"]["StatusValues"];
+                        failed: components["schemas"]["StatusValues"];
+                    };
+                };
+                StatusValues: components["schemas"]["JsonScalar"][];
+                DefaultValuePolicy: unknown;
             };
         };
-        Fixture: {
-            name: string;
-            /** @enum {string} */
-            kind: "telemetry" | "reported_property" | "desired_property" | "event" | "command_request" | "command_response";
-            input: unknown;
-            expected?: unknown;
+        ResolvedTopic: string;
+        RouteSelector: {
+            source: components["schemas"]["PathRef"];
+            equals: components["schemas"]["JsonScalar"];
         };
+        Sha256: string;
+        RoutePath: string;
         CompilerMetadata: {
             name: string;
             version: string;
@@ -1200,13 +1004,183 @@ export interface components {
             jsonpath_version: string;
             unit_registry: string;
         };
-        Diagnostic: {
-            /** @enum {string} */
-            severity: "error" | "warning" | "info";
-            code: string;
-            path: string;
-            message: string;
-            suggestion?: string | null;
+        ResolvedChannel: {
+            channel_uuid: components["schemas"]["Uuid"];
+            key: components["schemas"]["Key"];
+            purpose: components["schemas"]["BindingPurpose"];
+            direction: components["schemas"]["BindingDirection"];
+            topic: components["schemas"]["ResolvedTopic"];
+            /** @enum {integer} */
+            qos: 0 | 1;
+            retain: boolean;
+            record_path: components["schemas"]["RecordPath"];
+            max_records: number;
+            envelope: components["schemas"]["Envelope"];
+            route_payload_path?: components["schemas"]["JsonPath"];
+            route_selector?: components["schemas"]["RouteSelector"];
+        };
+        ParameterPipeline: {
+            mapping: components["schemas"]["ParameterMapping"];
+            target_data_type: components["schemas"]["DataType"];
+        };
+        DerivedPipeline: {
+            parameter_uuid: components["schemas"]["Uuid"];
+            target_data_type: components["schemas"]["DataType"];
+            expression: components["schemas"]["DerivedExpression"];
+            dependency_parameter_uuids: components["schemas"]["Uuid"][];
+            evaluation_order: number;
+        };
+        CommandPipeline: {
+            command_uuid: components["schemas"]["Uuid"];
+            mapping_uuid: components["schemas"]["Uuid"];
+            request_topic: components["schemas"]["ResolvedTopic"];
+            response_topic?: null | components["schemas"]["ResolvedTopic"];
+            mapping: components["schemas"]["CommandMapping"];
+        };
+        /** Route-aware Device Runtime Bundle v1 */
+        schema: {
+            /** @constant */
+            schema: "iot.runtime-bundle.v1";
+            runtime_bundle_hash: components["schemas"]["Sha256"];
+            organization_uuid: components["schemas"]["Uuid"];
+            gateway_uuid: components["schemas"]["Uuid"];
+            gateway_route_uuid: components["schemas"]["Uuid"];
+            route_revision: number;
+            route_path: components["schemas"]["RoutePath"];
+            device_uuid: components["schemas"]["Uuid"];
+            profile_uuid: components["schemas"]["Uuid"];
+            profile_version_uuid: components["schemas"]["Uuid"];
+            binding_uuid: components["schemas"]["Uuid"];
+            binding_version_uuid: components["schemas"]["Uuid"];
+            profile_artifact_hash: components["schemas"]["Sha256"];
+            binding_artifact_hash: components["schemas"]["Sha256"];
+            route_source_hash: components["schemas"]["Sha256"];
+            compiler: components["schemas"]["CompilerMetadata"];
+            channels: components["schemas"]["ResolvedChannel"][];
+            parameter_pipelines: components["schemas"]["ParameterPipeline"][];
+            derived_pipelines: components["schemas"]["DerivedPipeline"][];
+            command_pipelines: components["schemas"]["CommandPipeline"][];
+            $defs: {
+                ResolvedTopic: string;
+                ResolvedChannel: {
+                    channel_uuid: components["schemas"]["Uuid"];
+                    key: components["schemas"]["Key"];
+                    purpose: components["schemas"]["BindingPurpose"];
+                    direction: components["schemas"]["BindingDirection"];
+                    topic: components["schemas"]["ResolvedTopic"];
+                    /** @enum {integer} */
+                    qos: 0 | 1;
+                    retain: boolean;
+                    record_path: components["schemas"]["RecordPath"];
+                    max_records: number;
+                    envelope: components["schemas"]["Envelope"];
+                    route_payload_path?: components["schemas"]["JsonPath"];
+                    route_selector?: components["schemas"]["RouteSelector"];
+                };
+                ParameterPipeline: {
+                    mapping: components["schemas"]["ParameterMapping"];
+                    target_data_type: components["schemas"]["DataType"];
+                };
+                DerivedPipeline: {
+                    parameter_uuid: components["schemas"]["Uuid"];
+                    target_data_type: components["schemas"]["DataType"];
+                    expression: components["schemas"]["DerivedExpression"];
+                    dependency_parameter_uuids: components["schemas"]["Uuid"][];
+                    evaluation_order: number;
+                };
+                CommandPipeline: {
+                    command_uuid: components["schemas"]["Uuid"];
+                    mapping_uuid: components["schemas"]["Uuid"];
+                    request_topic: components["schemas"]["ResolvedTopic"];
+                    response_topic?: null | components["schemas"]["ResolvedTopic"];
+                    mapping: components["schemas"]["CommandMapping"];
+                };
+            };
+        };
+        /** Device draft authoring contract v1 */
+        "authoring.schema-3": {
+            uuid?: components["schemas"]["Uuid"];
+            name: string;
+            external_id: string;
+            description?: string | null;
+            profile_version_uuid?: components["schemas"]["Uuid"] | null;
+            binding_version_uuid?: components["schemas"]["Uuid"] | null;
+        };
+        /** Device definition assignment authoring contract v1 */
+        "authoring.schema-4": {
+            profile_version_uuid: components["schemas"]["Uuid"];
+            binding_version_uuid: components["schemas"]["Uuid"];
+        };
+        Gateway: {
+            uuid: components["schemas"]["Uuid"];
+            key: components["schemas"]["Key"];
+            name: string;
+            description?: string | null;
+            mqtt_client_id: string;
+        };
+        /** Gateway authoring contract v1 */
+        "authoring.schema-5": {
+            /** @constant */
+            schema: "iot.gateway.authoring.v1";
+            gateway: components["schemas"]["Gateway"];
+            $defs: {
+                Gateway: {
+                    uuid: components["schemas"]["Uuid"];
+                    key: components["schemas"]["Key"];
+                    name: string;
+                    description?: string | null;
+                    mqtt_client_id: string;
+                };
+            };
+        };
+        RouteVariables: {
+            [key: string]: string;
+        };
+        InboundScope: {
+            channel: components["schemas"]["Key"];
+            payload_path: components["schemas"]["JsonPath"];
+            selector?: components["schemas"]["RouteSelector"];
+        };
+        GatewayRoute: {
+            uuid: components["schemas"]["Uuid"];
+            revision: number;
+            gateway_uuid: components["schemas"]["Uuid"];
+            device_uuid: components["schemas"]["Uuid"];
+            profile_version_uuid: components["schemas"]["Uuid"];
+            binding_version_uuid: components["schemas"]["Uuid"];
+            route_path: components["schemas"]["RoutePath"];
+            topic_variables: components["schemas"]["RouteVariables"];
+            inbound_scopes: components["schemas"]["InboundScope"][];
+            enabled: boolean;
+        };
+        /** Gateway Route authoring contract v1 */
+        "authoring.schema-6": {
+            /** @constant */
+            schema: "iot.gateway-route.authoring.v1";
+            route: components["schemas"]["GatewayRoute"];
+            $defs: {
+                GatewayRoute: {
+                    uuid: components["schemas"]["Uuid"];
+                    revision: number;
+                    gateway_uuid: components["schemas"]["Uuid"];
+                    device_uuid: components["schemas"]["Uuid"];
+                    profile_version_uuid: components["schemas"]["Uuid"];
+                    binding_version_uuid: components["schemas"]["Uuid"];
+                    route_path: components["schemas"]["RoutePath"];
+                    topic_variables: components["schemas"]["RouteVariables"];
+                    inbound_scopes: components["schemas"]["InboundScope"][];
+                    enabled: boolean;
+                };
+                InboundScope: {
+                    channel: components["schemas"]["Key"];
+                    payload_path: components["schemas"]["JsonPath"];
+                    selector?: components["schemas"]["RouteSelector"];
+                };
+                RouteSelector: {
+                    source: components["schemas"]["PathRef"];
+                    equals: components["schemas"]["JsonScalar"];
+                };
+            };
         };
         /** Published Device Profile artifact v1 */
         "artifact.schema": {
@@ -1216,9 +1190,13 @@ export interface components {
             profile_key: components["schemas"]["Key"];
             profile_version_uuid: components["schemas"]["Uuid"];
             version: number;
-            source_hash: string;
+            source_hash: components["schemas"]["Sha256"];
             compiler: components["schemas"]["CompilerMetadata"];
-            components: components["schemas"]["Component"][];
+            parameters: components["schemas"]["Parameter"][];
+            derived_parameters: components["schemas"]["DerivedParameter"][];
+            properties: components["schemas"]["Property"][];
+            events: components["schemas"]["Event"][];
+            commands: components["schemas"]["Command"][];
         };
         /** Published Native MQTT JSON Binding artifact v1 */
         "artifact.schema-2": {
@@ -1230,168 +1208,129 @@ export interface components {
             version: number;
             profile_uuid: components["schemas"]["Uuid"];
             profile_version_uuid: components["schemas"]["Uuid"];
-            profile_artifact_hash: string;
-            source_hash: string;
+            profile_artifact_hash: components["schemas"]["Sha256"];
+            source_hash: components["schemas"]["Sha256"];
             compiler: components["schemas"]["CompilerMetadata"];
             channels: components["schemas"]["Channel"][];
-            telemetry_mappings: components["schemas"]["TelemetryMapping"][];
+            parameter_mappings: components["schemas"]["ParameterMapping"][];
             property_mappings: components["schemas"]["PropertyMapping"][];
             event_mappings: components["schemas"]["EventMapping"][];
             command_mappings: components["schemas"]["CommandMapping"][];
         };
-        FixturePreview: {
-            name: string;
-            /** @enum {string} */
-            kind: "telemetry" | "reported_property" | "desired_property" | "event" | "command_request" | "command_response";
-            valid: boolean;
-            source: unknown;
-            canonical?: unknown;
-            generated?: unknown;
-            stages: {
-                /** @enum {string} */
-                stage: "record_selection" | "envelope" | "extraction" | "coercion" | "transformation" | "validation" | "derivation" | "placement" | "correlation" | "status";
-                /** @enum {string} */
-                status: "passed" | "failed" | "skipped";
-                target?: null | components["schemas"]["QualifiedKey"];
-                raw?: unknown;
-                result?: unknown;
-                diagnostic_code?: string | null;
-            }[];
+        /** @enum {string} */
+        QualityStatus: "good" | "uncertain" | "bad";
+        Quality: {
+            status: components["schemas"]["QualityStatus"];
+            codes: components["schemas"]["Key"][];
         };
-        /** Device definition compile and preview result v1 */
-        schema: {
-            /** @constant */
-            schema: "iot.definition-preview.v1";
-            valid: boolean;
-            input_hash: string;
-            compiler: components["schemas"]["CompilerMetadata"];
-            diagnostics: components["schemas"]["Diagnostic"][];
-            profile_artifact?: null | components["schemas"]["artifact.schema"];
-            binding_artifact?: null | components["schemas"]["artifact.schema-2"];
-            artifact_hashes: {
-                profile?: null | string;
-                binding?: null | string;
-            };
-            previews: components["schemas"]["FixturePreview"][];
-            $defs: {
-                FixturePreview: {
-                    name: string;
-                    /** @enum {string} */
-                    kind: "telemetry" | "reported_property" | "desired_property" | "event" | "command_request" | "command_response";
-                    valid: boolean;
-                    source: unknown;
-                    canonical?: unknown;
-                    generated?: unknown;
-                    stages: {
-                        /** @enum {string} */
-                        stage: "record_selection" | "envelope" | "extraction" | "coercion" | "transformation" | "validation" | "derivation" | "placement" | "correlation" | "status";
-                        /** @enum {string} */
-                        status: "passed" | "failed" | "skipped";
-                        target?: null | components["schemas"]["QualifiedKey"];
-                        raw?: unknown;
-                        result?: unknown;
-                        diagnostic_code?: string | null;
-                    }[];
-                };
-            };
-        };
-        DeviceDraft: {
-            uuid?: components["schemas"]["Uuid"];
-            name: string;
-            external_id: string;
-            description?: string | null;
-        };
-        /** Device onboarding proposal v1 */
+        /** Canonical telemetry value v1 */
         "schema-2": {
             /** @constant */
-            schema: "iot.device-onboarding-proposal.v1";
-            profile: components["schemas"]["authoring.schema"];
-            binding: components["schemas"]["authoring.schema-2"];
-            device: components["schemas"]["DeviceDraft"];
-            fixtures: components["schemas"]["Fixture"][];
-            previews: components["schemas"]["FixturePreview"][];
-            assumptions: string[];
-            warnings: string[];
+            schema: "iot.canonical-telemetry.v1";
+            organization_uuid: components["schemas"]["Uuid"];
+            gateway_uuid: components["schemas"]["Uuid"];
+            gateway_route_uuid: components["schemas"]["Uuid"];
+            device_uuid: components["schemas"]["Uuid"];
+            parameter_uuid: components["schemas"]["Uuid"];
+            profile_version_uuid: components["schemas"]["Uuid"];
+            binding_version_uuid: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            source: "measured" | "derived";
+            /** Format: date-time */
+            observed_at: string;
+            /** Format: date-time */
+            received_at: string;
+            value_type: components["schemas"]["DataType"];
+            value: unknown;
+            quality: components["schemas"]["Quality"];
+            message_id: string;
+            sequence?: number;
+            runtime_bundle_hash: components["schemas"]["Sha256"];
             $defs: {
-                DeviceDraft: {
-                    uuid?: components["schemas"]["Uuid"];
-                    name: string;
-                    external_id: string;
-                    description?: string | null;
-                };
-                Fixture: {
-                    name: string;
-                    /** @enum {string} */
-                    kind: "telemetry" | "reported_property" | "desired_property" | "event" | "command_request" | "command_response";
-                    input: unknown;
-                    expected?: unknown;
+                Quality: {
+                    status: components["schemas"]["QualityStatus"];
+                    codes: components["schemas"]["Key"][];
                 };
             };
-        };
+        } & (unknown & unknown & unknown & unknown & unknown);
     };
     responses: {
-        /** @description Resource response. */
+        /** @description Tenant-owned resource with an ETag revision header. */
         ResourceResponse: {
             headers: {
+                /** @description Strong resource revision for later mutation. */
                 ETag?: string;
                 [name: string]: unknown;
             };
             content: {
-                "application/json": components["schemas"]["ResourceEnvelope"];
+                "application/json": {
+                    data: unknown;
+                };
             };
         };
-        /** @description Version resource with optimistic concurrency token. */
-        VersionResponse: {
-            headers: {
-                ETag: string;
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["VersionEnvelope"];
-            };
-        };
-        /** @description Coordinated Profile and Binding draft. */
-        DefinitionDraftResponse: {
-            headers: {
-                ETag: string;
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["DefinitionDraftEnvelope"];
-            };
-        };
-        /** @description Paginated collection. */
+        /** @description Tenant-scoped resource collection. */
         CollectionResponse: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
-                "application/json": components["schemas"]["CollectionEnvelope"];
+                "application/json": {
+                    data: unknown[];
+                };
             };
         };
-        /** @description RFC 9457 problem details. */
+        /** @description Logical Device resource with its current ETag revision. */
+        DeviceResourceResponse: {
+            headers: {
+                /** @description Strong Device revision for a later mutation. */
+                ETag?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DeviceResourceEnvelopeV1"];
+            };
+        };
+        /** @description Tenant-scoped paginated logical Device collection. */
+        DeviceCollectionResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DeviceCollectionEnvelopeV1"];
+            };
+        };
+        /** @description Exact Device definition assignment with its current ETag revision. */
+        DeviceDefinitionAssignmentResponse: {
+            headers: {
+                /** @description Strong assignment revision for a later mutation. */
+                ETag?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DeviceDefinitionAssignmentEnvelopeV1"];
+            };
+        };
+        /** @description RFC 9457 problem response. */
         ProblemResponse: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
-                "application/problem+json": components["schemas"]["ProblemDetails"];
+                "application/problem+json": components["schemas"]["Problem"];
             };
         };
     };
     parameters: {
-        /** @description Organization selector; authenticated membership remains authoritative. */
+        /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
         OrganizationContext: string;
-        /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-        IfMatch: string;
         IdempotencyKey: string;
+        IfMatch: string;
         ProfileUuid: string;
         BindingUuid: string;
-        VersionUuid: string;
-        BindingVersionUuid: string;
         DeviceUuid: string;
-        SessionUuid: string;
-        ProposalUuid: string;
+        DeviceStateFilter: components["schemas"]["DeviceLifecycleStateV1"];
+        GatewayUuid: string;
+        GatewayRouteUuid: string;
     };
     requestBodies: never;
     headers: never;
@@ -1399,11 +1338,11 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    listDeviceProfiles: {
+    listDeviceProfilesV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path?: never;
@@ -1415,11 +1354,11 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    createDeviceProfile: {
+    createDeviceProfileV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
@@ -1436,11 +1375,11 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    getDeviceProfile: {
+    getDeviceProfileV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path: {
@@ -1454,102 +1393,13 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    deleteDeviceProfile: {
+    replaceDeviceProfileV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                profile: components["parameters"]["ProfileUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Unreferenced draft-only Profile deleted. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    updateDeviceProfile: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                profile: components["parameters"]["ProfileUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CatalogMetadataPatch"];
-            };
-        };
-        responses: {
-            200: components["responses"]["ResourceResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    archiveDeviceProfile: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                profile: components["parameters"]["ProfileUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["ResourceResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    listDeviceProfileVersions: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-            };
-            path: {
-                profile: components["parameters"]["ProfileUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["CollectionResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    createDeviceProfileVersion: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 profile: components["parameters"]["ProfileUuid"];
@@ -1562,69 +1412,26 @@ export interface operations {
             };
         };
         responses: {
-            201: components["responses"]["VersionResponse"];
+            200: components["responses"]["ResourceResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };
-    getDeviceProfileVersion: {
+    deleteDeviceProfileV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
-                version: components["parameters"]["VersionUuid"];
+                profile: components["parameters"]["ProfileUuid"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["VersionResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    replaceDeviceProfileVersionDraft: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                version: components["parameters"]["VersionUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["authoring.schema"];
-            };
-        };
-        responses: {
-            200: components["responses"]["VersionResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    deleteDeviceProfileVersionDraft: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                version: components["parameters"]["VersionUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Unreferenced draft Version deleted. */
+            /** @description Draft deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -1634,30 +1441,11 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    cloneDeviceProfileVersion: {
+    listNativeMqttBindingsV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                version: components["parameters"]["VersionUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: components["responses"]["VersionResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    listTransportBindings: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path?: never;
@@ -1669,11 +1457,11 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    createTransportBinding: {
+    createNativeMqttBindingV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
@@ -1690,11 +1478,11 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    getTransportBinding: {
+    getNativeMqttBindingV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path: {
@@ -1708,102 +1496,13 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    deleteTransportBinding: {
+    replaceNativeMqttBindingV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                binding: components["parameters"]["BindingUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Unreferenced draft-only Binding deleted. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    updateTransportBinding: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                binding: components["parameters"]["BindingUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CatalogMetadataPatch"];
-            };
-        };
-        responses: {
-            200: components["responses"]["ResourceResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    archiveTransportBinding: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                binding: components["parameters"]["BindingUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["ResourceResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    listTransportBindingVersions: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-            };
-            path: {
-                binding: components["parameters"]["BindingUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["CollectionResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    createTransportBindingVersion: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 binding: components["parameters"]["BindingUuid"];
@@ -1816,69 +1515,26 @@ export interface operations {
             };
         };
         responses: {
-            201: components["responses"]["VersionResponse"];
+            200: components["responses"]["ResourceResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };
-    getTransportBindingVersion: {
+    deleteNativeMqttBindingV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
-                version: components["parameters"]["VersionUuid"];
+                binding: components["parameters"]["BindingUuid"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["VersionResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    replaceTransportBindingVersionDraft: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                version: components["parameters"]["VersionUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["authoring.schema-2"];
-            };
-        };
-        responses: {
-            200: components["responses"]["VersionResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    deleteTransportBindingVersionDraft: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                version: components["parameters"]["VersionUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Unreferenced draft Version deleted. */
+            /** @description Draft deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -1888,30 +1544,29 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    cloneTransportBindingVersion: {
+    listDevicesV1: {
         parameters: {
-            query?: never;
+            query?: {
+                state?: components["parameters"]["DeviceStateFilter"];
+            };
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
-            path: {
-                version: components["parameters"]["VersionUuid"];
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            201: components["responses"]["VersionResponse"];
+            200: components["responses"]["DeviceCollectionResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };
-    createCoordinatedDefinitionDraft: {
+    createDeviceV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
@@ -1920,114 +1575,166 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CoordinatedDefinitionDraftV1"];
+                "application/json": components["schemas"]["authoring.schema-3"];
             };
         };
         responses: {
-            201: components["responses"]["DefinitionDraftResponse"];
+            201: components["responses"]["DeviceResourceResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };
-    getCoordinatedDefinitionDraft: {
+    getDeviceV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path: {
-                bindingVersion: components["parameters"]["BindingVersionUuid"];
+                device: components["parameters"]["DeviceUuid"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["DefinitionDraftResponse"];
+            200: components["responses"]["DeviceResourceResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };
-    replaceCoordinatedDefinitionDraft: {
+    replaceDeviceV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
-                bindingVersion: components["parameters"]["BindingVersionUuid"];
+                device: components["parameters"]["DeviceUuid"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CoordinatedDefinitionDraftV1"];
+                "application/json": components["schemas"]["authoring.schema-3"];
             };
         };
         responses: {
-            200: components["responses"]["DefinitionDraftResponse"];
+            200: components["responses"]["DeviceResourceResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };
-    validateCoordinatedDefinitionDraft: {
+    deleteDeviceV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
-                bindingVersion: components["parameters"]["BindingVersionUuid"];
+                device: components["parameters"]["DeviceUuid"];
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FixtureSetV1"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Deterministic validation and previews. */
-            200: {
+            /** @description Device draft deleted. */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["schema"];
-                };
+                content?: never;
             };
             default: components["responses"]["ProblemResponse"];
         };
     };
-    publishCoordinatedDefinitionDraft: {
+    registerDeviceV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
-                bindingVersion: components["parameters"]["BindingVersionUuid"];
+                device: components["parameters"]["DeviceUuid"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["DefinitionDraftResponse"];
+            200: components["responses"]["DeviceResourceResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };
-    listDevices: {
+    archiveDeviceV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                device: components["parameters"]["DeviceUuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DeviceResourceResponse"];
+            default: components["responses"]["ProblemResponse"];
+        };
+    };
+    getDeviceDefinitionAssignmentV1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+            };
+            path: {
+                device: components["parameters"]["DeviceUuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DeviceDefinitionAssignmentResponse"];
+            default: components["responses"]["ProblemResponse"];
+        };
+    };
+    replaceDeviceDefinitionAssignmentV1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                device: components["parameters"]["DeviceUuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["authoring.schema-4"];
+            };
+        };
+        responses: {
+            200: components["responses"]["DeviceDefinitionAssignmentResponse"];
+            default: components["responses"]["ProblemResponse"];
+        };
+    };
+    listGatewaysV1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path?: never;
@@ -2039,11 +1746,11 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    createDeviceDraft: {
+    createGatewayV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
@@ -2052,7 +1759,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DeviceDraftV1"];
+                "application/json": components["schemas"]["authoring.schema-5"];
             };
         };
         responses: {
@@ -2060,15 +1767,15 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    getDevice: {
+    getGatewayV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path: {
-                device: components["parameters"]["DeviceUuid"];
+                gateway: components["parameters"]["GatewayUuid"];
             };
             cookie?: never;
         };
@@ -2078,23 +1785,45 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    deleteDeviceDraft: {
+    replaceGatewayV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
-                device: components["parameters"]["DeviceUuid"];
+                gateway: components["parameters"]["GatewayUuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["authoring.schema-5"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ResourceResponse"];
+            default: components["responses"]["ProblemResponse"];
+        };
+    };
+    deleteGatewayV1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                gateway: components["parameters"]["GatewayUuid"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Unregistered Device draft deleted. */
+            /** @description Gateway deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -2104,119 +1833,27 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    updateDeviceDraft: {
+    listGatewayRoutesV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
             };
-            path: {
-                device: components["parameters"]["DeviceUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DeviceDraftV1"];
-            };
-        };
-        responses: {
-            200: components["responses"]["ResourceResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    registerDevice: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                device: components["parameters"]["DeviceUuid"];
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["ResourceResponse"];
+            200: components["responses"]["CollectionResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };
-    archiveDevice: {
+    createGatewayRouteV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                device: components["parameters"]["DeviceUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["ResourceResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    getDeviceDefinitionAssignment: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-            };
-            path: {
-                device: components["parameters"]["DeviceUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["ResourceResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    replaceDeviceDefinitionAssignmentDraft: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                /** @description Current strong entity tag. Missing values return 428 and stale values return 412. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                device: components["parameters"]["DeviceUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DefinitionAssignmentDraftV1"];
-            };
-        };
-        responses: {
-            200: components["responses"]["ResourceResponse"];
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    startDeviceOnboardingSession: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
@@ -2225,7 +1862,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OnboardingSessionStartV1"];
+                "application/json": components["schemas"]["authoring.schema-6"];
             };
         };
         responses: {
@@ -2233,21 +1870,40 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    continueDeviceOnboardingSession: {
+    getGatewayRouteV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
             };
             path: {
-                session: components["parameters"]["SessionUuid"];
+                route: components["parameters"]["GatewayRouteUuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ResourceResponse"];
+            default: components["responses"]["ProblemResponse"];
+        };
+    };
+    replaceGatewayRouteV1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                route: components["parameters"]["GatewayRouteUuid"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OnboardingMessageV1"];
+                "application/json": components["schemas"]["authoring.schema-6"];
             };
         };
         responses: {
@@ -2255,52 +1911,28 @@ export interface operations {
             default: components["responses"]["ProblemResponse"];
         };
     };
-    getDeviceOnboardingProposal: {
+    deleteGatewayRouteV1: {
         parameters: {
             query?: never;
             header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
                 "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
-                proposal: components["parameters"]["ProposalUuid"];
+                route: components["parameters"]["GatewayRouteUuid"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Exact proposal, hash, previews, assumptions, and warnings. */
-            200: {
+            /** @description Route deleted. */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["schema-2"];
-                };
+                content?: never;
             };
-            default: components["responses"]["ProblemResponse"];
-        };
-    };
-    confirmDeviceOnboardingProposal: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Organization selector; authenticated membership remains authoritative. */
-                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                proposal: components["parameters"]["ProposalUuid"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProposalConfirmationV1"];
-            };
-        };
-        responses: {
-            201: components["responses"]["DefinitionDraftResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };

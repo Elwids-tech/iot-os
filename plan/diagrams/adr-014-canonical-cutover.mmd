@@ -1,0 +1,33 @@
+flowchart LR
+    Contract["📜 Canonical wire contracts<br/>public version v1"]
+    Laravel["⚙️ Laravel control plane<br/>unversioned domain names"]
+    Database[("💾 Clean Device Domain schema")]
+    Client["🌐 Generated TypeScript client<br/>canonical surface only"]
+    Portal["🖥️ Dynamic tenant UI<br/>D4R4"]
+    Runtime["⚙️ Go route-aware compiler<br/>D4R3"]
+    Bundle["📦 Immutable Runtime Bundle v1"]
+    Rejected["❌ Rejected fixed model"]
+    History["🗃️ Git history only"]
+
+    Contract --> Laravel
+    Contract --> Client
+    Contract --> Runtime
+    Client --> Portal
+    Portal --> Laravel
+    Laravel --> Database
+    Laravel -->|compile request| Runtime
+    Runtime --> Bundle
+    Bundle --> Laravel
+    Rejected -. removed, not adapted .-> History
+
+    classDef contract fill:#FFE66D,stroke:#F08C00,stroke-width:2px,color:#000
+    classDef active fill:#95E1D3,stroke:#087F5B,stroke-width:2px,color:#000
+    classDef storage fill:#A8DADC,stroke:#1864AB,stroke-width:2px,color:#000
+    classDef pending fill:#E6E6FA,stroke:#5F3DC4,stroke-width:2px,color:#000
+    classDef removed fill:#FFB6C1,stroke:#C92A2A,stroke-width:2px,color:#000
+
+    class Contract contract
+    class Laravel,Client active
+    class Database,Bundle storage
+    class Portal,Runtime pending
+    class Rejected,History removed

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceManagement\Data;
 
-use App\Domain\DeviceProfile\Support\DeviceDomainV2Payload;
+use App\Domain\DeviceProfile\Support\DeviceDomainPayload;
 use App\Domain\Shared\Data\AuthoringPayload;
 use Illuminate\Contracts\Support\Arrayable;
 use InvalidArgumentException;
@@ -35,7 +35,7 @@ final readonly class GatewayRouteAuthoringData implements Arrayable, JsonSeriali
     {
         AuthoringPayload::assertAllowedKeys($payload, ['schema', 'route'], 'Gateway Route document');
 
-        if (($payload['schema'] ?? null) !== 'iot.gateway-route.authoring.v2') {
+        if (($payload['schema'] ?? null) !== 'iot.gateway-route.authoring.v1') {
             throw new InvalidArgumentException('Unsupported Gateway Route authoring schema.');
         }
 
@@ -53,7 +53,7 @@ final readonly class GatewayRouteAuthoringData implements Arrayable, JsonSeriali
             'enabled',
         ], 'route');
 
-        $routePath = DeviceDomainV2Payload::boundedString(
+        $routePath = DeviceDomainPayload::boundedString(
             $route['route_path'] ?? null,
             'route.route_path',
             512,
@@ -71,7 +71,7 @@ final readonly class GatewayRouteAuthoringData implements Arrayable, JsonSeriali
 
         foreach ($topicVariables as $key => $value) {
             AuthoringPayload::key($key, "route.topic_variables.{$key}");
-            $topicVariables[$key] = DeviceDomainV2Payload::boundedString(
+            $topicVariables[$key] = DeviceDomainPayload::boundedString(
                 $value,
                 "route.topic_variables.{$key}",
                 512,
@@ -109,7 +109,7 @@ final readonly class GatewayRouteAuthoringData implements Arrayable, JsonSeriali
     public function toArray(): array
     {
         return [
-            'schema' => 'iot.gateway-route.authoring.v2',
+            'schema' => 'iot.gateway-route.authoring.v1',
             'route' => [
                 'uuid' => $this->uuid,
                 'revision' => $this->revision,
@@ -135,7 +135,7 @@ final readonly class GatewayRouteAuthoringData implements Arrayable, JsonSeriali
     private static function inboundScopes(mixed $value): array
     {
         $scopes = AuthoringPayload::list($value, 'route.inbound_scopes');
-        DeviceDomainV2Payload::assertMaximumItems($scopes, 32, 'route.inbound_scopes');
+        DeviceDomainPayload::assertMaximumItems($scopes, 32, 'route.inbound_scopes');
         $channels = [];
 
         foreach ($scopes as $index => $scopeValue) {
@@ -151,7 +151,7 @@ final readonly class GatewayRouteAuthoringData implements Arrayable, JsonSeriali
             $channels[$channel] = true;
             $normalized = [
                 'channel' => $channel,
-                'payload_path' => DeviceDomainV2Payload::jsonPath(
+                'payload_path' => DeviceDomainPayload::jsonPath(
                     $scope['payload_path'] ?? null,
                     "{$path}.payload_path",
                 ),
@@ -166,13 +166,13 @@ final readonly class GatewayRouteAuthoringData implements Arrayable, JsonSeriali
                 }
 
                 $normalized['selector'] = [
-                    'source' => DeviceDomainV2Payload::pathReference(
+                    'source' => DeviceDomainPayload::pathReference(
                         $selector['source'] ?? null,
                         "{$path}.selector.source",
                     ),
                     'equals' => $selector['equals'] ?? null,
                 ];
-                DeviceDomainV2Payload::jsonScalar(
+                DeviceDomainPayload::jsonScalar(
                     $selector['equals'] ?? null,
                     "{$path}.selector.equals",
                 );

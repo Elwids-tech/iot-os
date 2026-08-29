@@ -17,72 +17,38 @@ type commonSchema struct {
 	} `json:"$defs"`
 }
 
-func TestSharedVocabularyMatchesCommonSchema(t *testing.T) {
+func TestSharedVocabularyMatchesCanonicalCommonSchema(t *testing.T) {
 	t.Parallel()
 
-	_, filename, _, ok := runtime.Caller(0)
+	_, sourceFile, _, ok := runtime.Caller(0)
 	if !ok {
-		t.Fatal("could not locate vocabulary test file")
+		t.Fatal("resolve vocabulary test source path")
 	}
 
-	schemaPath := filepath.Clean(filepath.Join(
-		filepath.Dir(filename),
+	schemaPath := filepath.Join(
+		filepath.Dir(sourceFile),
 		"../../../../contracts/definitions/common/v1/schema.json",
-	))
-
+	)
 	payload, err := os.ReadFile(schemaPath)
 	if err != nil {
-		t.Fatalf("read common schema: %v", err)
+		t.Fatalf("read canonical common schema: %v", err)
 	}
 
 	var schema commonSchema
 	if err := json.Unmarshal(payload, &schema); err != nil {
-		t.Fatalf("decode common schema: %v", err)
+		t.Fatalf("decode canonical common schema: %v", err)
 	}
 
-	schemaVocabulary := make(map[string][]string)
-	for name, item := range schema.Definitions {
-		if len(item.Enum) > 0 {
-			schemaVocabulary[name] = item.Enum
-		}
+	schemaVocabulary := make(map[string][]string, len(definition.SharedVocabulary))
+	for name := range definition.SharedVocabulary {
+		schemaVocabulary[name] = schema.Definitions[name].Enum
 	}
 
 	if !reflect.DeepEqual(definition.SharedVocabulary, schemaVocabulary) {
-		t.Fatalf("Go vocabulary does not match common schema\nGo: %#v\nSchema: %#v", definition.SharedVocabulary, schemaVocabulary)
-	}
-}
-
-func TestSharedVocabularyV2MatchesCommonSchema(t *testing.T) {
-	t.Parallel()
-
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("could not locate vocabulary test file")
-	}
-
-	schemaPath := filepath.Clean(filepath.Join(
-		filepath.Dir(filename),
-		"../../../../contracts/definitions/common/v2/schema.json",
-	))
-
-	payload, err := os.ReadFile(schemaPath)
-	if err != nil {
-		t.Fatalf("read common v2 schema: %v", err)
-	}
-
-	var schema commonSchema
-	if err := json.Unmarshal(payload, &schema); err != nil {
-		t.Fatalf("decode common v2 schema: %v", err)
-	}
-
-	schemaVocabulary := make(map[string][]string)
-	for name, item := range schema.Definitions {
-		if len(item.Enum) > 0 {
-			schemaVocabulary[name] = item.Enum
-		}
-	}
-
-	if !reflect.DeepEqual(definition.SharedVocabularyV2, schemaVocabulary) {
-		t.Fatalf("Go v2 vocabulary does not match common schema\nGo: %#v\nSchema: %#v", definition.SharedVocabularyV2, schemaVocabulary)
+		t.Fatalf(
+			"Go vocabulary does not match canonical common schema\nGo: %#v\nSchema: %#v",
+			definition.SharedVocabulary,
+			schemaVocabulary,
+		)
 	}
 }

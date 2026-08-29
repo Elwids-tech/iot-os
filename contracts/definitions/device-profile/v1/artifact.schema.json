@@ -12,21 +12,69 @@
     "version",
     "source_hash",
     "compiler",
-    "components"
+    "parameters",
+    "derived_parameters",
+    "properties",
+    "events",
+    "commands"
   ],
   "properties": {
-    "schema": {"const": "iot.device-profile.v1"},
-    "profile_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-    "profile_key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
-    "profile_version_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-    "version": {"type": "integer", "minimum": 1},
-    "source_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "compiler": {"$ref": "../../common/v1/schema.json#/$defs/CompilerMetadata"},
-    "components": {
+    "schema": {
+      "const": "iot.device-profile.v1"
+    },
+    "profile_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "profile_key": {
+      "$ref": "../../common/v1/schema.json#/$defs/Key"
+    },
+    "profile_version_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "source_hash": {
+      "$ref": "../../common/v1/schema.json#/$defs/Sha256"
+    },
+    "compiler": {
+      "$ref": "../../common/v1/schema.json#/$defs/CompilerMetadata"
+    },
+    "parameters": {
       "type": "array",
-      "minItems": 1,
-      "maxItems": 32,
-      "items": {"$ref": "authoring.schema.json#/$defs/Component"}
+      "maxItems": 1024,
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/Parameter"
+      }
+    },
+    "derived_parameters": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/DerivedParameter"
+      }
+    },
+    "properties": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/Property"
+      }
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/Event"
+      }
+    },
+    "commands": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/Command"
+      }
     }
   }
 }

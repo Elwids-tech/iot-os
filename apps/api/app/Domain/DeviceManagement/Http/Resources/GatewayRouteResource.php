@@ -26,7 +26,7 @@ final class GatewayRouteResource extends JsonResource
             : null;
 
         return [
-            'schema' => 'iot.gateway-route.authoring.v2',
+            'schema' => 'iot.gateway-route.authoring.v1',
             'route' => [
                 'uuid' => $this->uuid,
                 'revision' => $this->revision,
@@ -41,10 +41,6 @@ final class GatewayRouteResource extends JsonResource
             ],
             'meta' => [
                 'etag' => $this->etag(),
-                'assignment_compatibility_state' => $this->whenLoaded(
-                    'definitionAssignment',
-                    fn (): ?string => $this->definitionAssignment?->compatibility_state?->value,
-                ),
                 'created_at' => $this->created_at?->toAtomString(),
                 'updated_at' => $this->updated_at?->toAtomString(),
             ],

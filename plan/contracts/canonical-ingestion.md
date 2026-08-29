@@ -1,76 +1,48 @@
 # Canonical Ingestion Contract
 
-**Status:** v2 rectification in implementation
-**Version:** v1 draft plus executable v2 JSON Schema
+**Status:** Canonical contract complete; runtime implementation pending  
+**Version:** `iot.telemetry.v1`  
 **Last updated:** 2026-08-29
 
 ## Purpose
 
-The canonical ingestion contract separates adapters and device protocols from deterministic Go ingestion. Native JSON, Sparkplug B, Node-RED, and future plugin runtimes all converge on this contract.
+The canonical ingestion contract separates MQTT and future protocol adapters from deterministic Go ingestion. Native JSON, Sparkplug B, Node-RED, and future adapter runtimes must converge on one normalized value contract.
 
-## Version 2 value contract
+The executable schema is [`contracts/definitions/canonical-telemetry/v1/schema.json`](../../contracts/definitions/canonical-telemetry/v1/schema.json).
 
-The executable v2 schema is [`contracts/definitions/canonical-telemetry/v2/schema.json`](../../contracts/definitions/canonical-telemetry/v2/schema.json). It emits one typed value per logical Device parameter rather than a key-only signal array. Every value includes Organization, authenticated Gateway, Gateway Route, logical Device, stable parameter, Profile Version, Binding Version, source/received time, quality, message identity, and Runtime Bundle hash.
+## Value model
 
-TimescaleDB series identity is `(device_uuid, parameter_uuid)`. Labels, keys, units, constraints, presentation hints, and formulas are definition metadata and are joined for display; they are not copied into every telemetry value. Tenant and Gateway identity come from authenticated runtime context, never from untrusted payload claims.
+Each canonical record contains one typed value for one stable logical-Device parameter. It includes:
 
-The v1 envelope below remains historical planning context for adapters that have not migrated. It must not be silently interpreted as v2 because its key-only `signals` cannot prove stable parameter identity or the transformation bundle that produced a value.
+- Organization UUID derived from trusted tenant context;
+- authenticated Gateway UUID;
+- matched Gateway Route UUID;
+- logical Device UUID;
+- stable parameter UUID;
+- exact Profile and Binding Version UUIDs;
+- source and received timestamps;
+- typed value and quality;
+- message identity; and
+- Runtime Bundle hash.
 
-## Envelope
+TimescaleDB series identity is `(device_uuid, parameter_uuid)`. Labels, keys, units, constraints, presentation hints, and formulas remain definition metadata joined for display; they are not copied into every telemetry value.
 
-```json
-{
-  "contract_version": "iot.telemetry.v1",
-  "adapter_id": "adapter_01",
-  "adapter_version": "4",
-  "source_device_id": "vendor-device-42",
-  "device_id": "device_01",
-  "profile_version_id": "profile-version-12",
-  "observed_at": "2026-08-22T15:20:00Z",
-  "received_at": "2026-08-22T15:20:01Z",
-  "sequence": 1842,
-  "trace_id": "trace_01",
-  "quality": "good",
-  "signals": [
-    {
-      "key": "temperature",
-      "type": "float64",
-      "value": 72.4,
-      "unit": "celsius",
-      "quality": "good"
-    },
-    {
-      "key": "running",
-      "type": "boolean",
-      "value": true,
-      "quality": "good"
-    }
-  ],
-  "raw_payload_reference": null,
-  "protocol_metadata": {
-    "transport": "mqtt",
-    "topic": "devices/42/telemetry"
-  }
-}
-```
+## Identity and trust
 
-The wire format may become Protobuf for cross-language typing and efficiency. A JSON representation remains available for diagnostics, APIs, fixtures, and human review.
+Organization and Gateway identity come from authenticated connection or adapter configuration, never from untrusted payload claims.
 
-## Identity and Trust
+Before emitting canonical telemetry, the runtime must verify that:
 
-Organization and tenant identity are derived from authenticated connection or adapter configuration. They are not trusted when supplied by a device payload.
+- the authenticated Gateway is active for the Organization;
+- an enabled Gateway Route matches the topic and payload scope;
+- the route points to the exact Device, Profile Version, and Binding Version in the Runtime Bundle;
+- the mapping targets a known stable parameter UUID;
+- extraction, conversion, calibration, constraints, and missing/invalid policies pass; and
+- message size, rate, timestamp, and idempotency limits pass.
 
-The ingestion boundary must validate that:
+## Types
 
-- The authenticated connection may represent the adapter and device.
-- The adapter version is active for that connection.
-- The device is assigned to the referenced profile version.
-- Signal keys exist in the activated profile.
-- Event size, rate, timestamp, and sequence policies are satisfied.
-
-## Signal Types
-
-Initial types:
+Initial value types are:
 
 - `float64`
 - `int64`
@@ -80,26 +52,39 @@ Initial types:
 - `bytes`
 - `state`
 
-Complex structures should be decomposed into governed signals or stored as referenced artifacts rather than becoming arbitrary nested telemetry.
+Complex structures should be decomposed into governed parameters or stored as referenced artifacts instead of arbitrary nested telemetry.
 
-## Time
+## Processing order
 
-- `observed_at` is source event time when available.
+1. Authenticate Gateway and resolve Organization.
+2. Match one or more enabled Gateway Routes.
+3. Select the route-pinned Runtime Bundle.
+4. Extract records and mapped values with restricted JSONPath.
+5. Convert types and apply ordered calibration operations.
+6. Apply constraints plus explicit missing/invalid policies.
+7. Evaluate same-Device derived parameters in topological order.
+8. Emit one canonical value per successful measured or derived parameter.
+9. Publish structured diagnostics for rejected messages or values.
+
+One Gateway payload may therefore produce canonical values for several logical Devices when several routes match.
+
+## Time and quality
+
+- `observed_at` is source event time when a validated Binding timestamp mapping is available.
 - `received_at` is assigned at the trusted ingress boundary.
-- The platform records clock-quality and skew diagnostics when source time cannot be trusted.
+- Quality records whether the value is good, uncertain, or bad and may include bounded diagnostic detail defined by the schema.
+- Clock skew and missing source time produce explicit diagnostics or quality changes rather than silent substitution.
 
 ## Idempotency
 
-The final contract must define an idempotency key derived from adapter, source device, sequence, and event identity. Consumers must tolerate redelivery from JetStream.
+The runtime must derive deterministic message/value identity from trusted Gateway context, route, source message identity, record position, and parameter UUID. Consumers must tolerate JetStream redelivery.
 
-## Invalid Events
+## Invalid input
 
-Invalid events produce structured diagnostics containing stage, code, safe explanation, adapter version, profile version, trace ID, and raw-payload reference when permitted. They do not silently disappear or enter validated telemetry storage.
+Invalid messages or values produce structured diagnostics containing stage, code, safe explanation, exact definition identities, message identity, and a permitted raw-payload reference. They do not silently disappear or enter validated telemetry storage.
 
-## Evolution Rules
+## Evolution
 
-- Additive fields remain backward compatible within a major contract version.
-- Removing or changing field meaning requires a new major version.
-- Producers declare `contract_version`.
-- Consumers support an explicit version range.
-- Adapter and profile versions remain separately traceable from contract version.
+This is the first supported contract. Additive changes may extend `v1` only when old consumers remain valid. Incompatible changes after production require a new major wire identity and an explicit migration/support policy.
+
+Static schema and fixture validation do not prove live broker ingestion, Runtime Bundle execution, TimescaleDB persistence, or deployed behavior.

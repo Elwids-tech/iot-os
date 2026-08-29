@@ -16,47 +16,78 @@
     "source_hash",
     "compiler",
     "channels",
-    "telemetry_mappings",
+    "parameter_mappings",
     "property_mappings",
     "event_mappings",
     "command_mappings"
   ],
   "properties": {
-    "schema": {"const": "iot.native-mqtt-binding.v1"},
-    "binding_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-    "binding_key": {"$ref": "../../common/v1/schema.json#/$defs/Key"},
-    "binding_version_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-    "version": {"type": "integer", "minimum": 1},
-    "profile_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-    "profile_version_uuid": {"$ref": "../../common/v1/schema.json#/$defs/Uuid"},
-    "profile_artifact_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "source_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "compiler": {"$ref": "../../common/v1/schema.json#/$defs/CompilerMetadata"},
+    "schema": {
+      "const": "iot.native-mqtt-binding.v1"
+    },
+    "binding_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "binding_key": {
+      "$ref": "../../common/v1/schema.json#/$defs/Key"
+    },
+    "binding_version_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "profile_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "profile_version_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "profile_artifact_hash": {
+      "$ref": "../../common/v1/schema.json#/$defs/Sha256"
+    },
+    "source_hash": {
+      "$ref": "../../common/v1/schema.json#/$defs/Sha256"
+    },
+    "compiler": {
+      "$ref": "../../common/v1/schema.json#/$defs/CompilerMetadata"
+    },
     "channels": {
       "type": "array",
       "minItems": 1,
       "maxItems": 32,
-      "items": {"$ref": "authoring.schema.json#/$defs/Channel"}
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/Channel"
+      }
     },
-    "telemetry_mappings": {
+    "parameter_mappings": {
       "type": "array",
       "maxItems": 1024,
-      "items": {"$ref": "authoring.schema.json#/$defs/TelemetryMapping"}
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/ParameterMapping"
+      }
     },
     "property_mappings": {
       "type": "array",
       "maxItems": 1024,
-      "items": {"$ref": "authoring.schema.json#/$defs/PropertyMapping"}
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/PropertyMapping"
+      }
     },
     "event_mappings": {
       "type": "array",
       "maxItems": 256,
-      "items": {"$ref": "authoring.schema.json#/$defs/EventMapping"}
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/EventMapping"
+      }
     },
     "command_mappings": {
       "type": "array",
       "maxItems": 256,
-      "items": {"$ref": "authoring.schema.json#/$defs/CommandMapping"}
+      "items": {
+        "$ref": "authoring.schema.json#/$defs/CommandMapping"
+      }
     }
   }
 }

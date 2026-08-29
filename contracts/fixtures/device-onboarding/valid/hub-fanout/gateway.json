@@ -1,0 +1,10 @@
+{
+  "schema": "iot.gateway.authoring.v1",
+  "gateway": {
+    "uuid": "30000000-0000-4000-8000-000000000001",
+    "key": "north_hub",
+    "name": "North plant hub",
+    "description": "One authenticated MQTT communicator for downstream logical Devices.",
+    "mqtt_client_id": "north-hub-001"
+  }
+}

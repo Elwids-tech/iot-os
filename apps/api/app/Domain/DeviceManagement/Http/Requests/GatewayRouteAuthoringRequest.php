@@ -20,7 +20,7 @@ final class GatewayRouteAuthoringRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'schema' => ['required', 'in:iot.gateway-route.authoring.v2'],
+            'schema' => ['required', 'in:iot.gateway-route.authoring.v1'],
             'route' => [
                 'required',
                 'array:uuid,revision,gateway_uuid,device_uuid,profile_version_uuid,binding_version_uuid,route_path,topic_variables,inbound_scopes,enabled',

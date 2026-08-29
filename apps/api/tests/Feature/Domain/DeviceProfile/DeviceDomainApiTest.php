@@ -4,471 +4,474 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\DeviceProfile;
 
-use App\Domain\DeviceManagement\Models\Device;
-use App\Domain\DeviceManagement\Models\DeviceDefinitionAssignment;
-use App\Domain\DeviceProfile\Models\DefinitionTestRun;
+use App\Domain\DeviceProfile\Data\DeviceProfileAuthoringData;
+use App\Domain\DeviceProfile\Data\NativeMqttBindingAuthoringData;
+use App\Domain\DeviceProfile\Enums\DefinitionState;
+use App\Domain\DeviceProfile\Http\Resources\DeviceProfileResource;
+use App\Domain\DeviceProfile\Http\Resources\NativeMqttBindingResource;
 use App\Domain\DeviceProfile\Models\DeviceProfile;
-use App\Domain\DeviceProfile\Models\DeviceProfileVersion;
-use App\Domain\DeviceProfile\Models\TransportBindingVersion;
+use App\Domain\DeviceProfile\Models\TransportBinding;
+use App\Domain\DeviceProfile\Services\DefinitionAuthoringManager;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
-use Illuminate\Testing\TestResponse;
 use JsonException;
+use stdClass;
 use Tests\TestCase;
 
 final class DeviceDomainApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const INTERNAL_TOKEN = 'test-runtime-internal-token-00000001';
-
-    protected function setUp(): void
+    /** @throws JsonException */
+    public function test_all_golden_canonical_authoring_documents_are_accepted_by_the_laravel_dtos(): void
     {
-        parent::setUp();
+        foreach ([
+            'hub-fanout/temperature-profile.json',
+            'hub-fanout/humidity-profile.json',
+            'three-phase-meter/profile.json',
+        ] as $fixture) {
+            $this->assertInstanceOf(
+                DeviceProfileAuthoringData::class,
+                DeviceProfileAuthoringData::fromArray($this->fixture($fixture)),
+            );
+        }
 
-        config()->set('services.iot_runtime', [
-            'url' => 'http://runtime.test:8081',
-            'token' => self::INTERNAL_TOKEN,
-            'connect_timeout_seconds' => 1,
-            'timeout_seconds' => 3,
-            'attempts' => 1,
-            'retry_delay_milliseconds' => 0,
-        ]);
-        Http::preventStrayRequests();
-    }
-
-    public function test_device_domain_routes_require_authentication_and_a_valid_member_organization_context(): void
-    {
-        [$organization, $administrator] = $this->tenantAdministrator();
-
-        $this->getJson('/api/v1/device-profiles', $this->organizationHeaders($organization))
-            ->assertUnauthorized();
-
-        $this->actingAs($administrator, 'sanctum')
-            ->getJson('/api/v1/device-profiles')
-            ->assertBadRequest();
-
-        $this->actingAs($administrator, 'sanctum')
-            ->getJson('/api/v1/device-profiles', ['X-Organization-UUID' => 'not-a-uuid'])
-            ->assertBadRequest();
-
-        $member = User::query()->where('email', 'acme.member@example.test')->firstOrFail();
-        $otherOrganization = Organization::query()->where('slug', 'northstar-utilities')->firstOrFail();
-
-        $this->actingAs($member, 'sanctum')
-            ->getJson('/api/v1/device-profiles', $this->organizationHeaders($otherOrganization))
-            ->assertForbidden();
-
-        $this->actingAs($administrator, 'sanctum')
-            ->getJson('/api/v1/device-profiles', ['X-Organization-UUID' => (string) Str::uuid()])
-            ->assertNotFound();
+        foreach ([
+            'hub-fanout/temperature-binding.json',
+            'hub-fanout/humidity-binding.json',
+            'three-phase-meter/binding.json',
+        ] as $fixture) {
+            $this->assertInstanceOf(
+                NativeMqttBindingAuthoringData::class,
+                NativeMqttBindingAuthoringData::fromArray($this->fixture($fixture)),
+            );
+        }
     }
 
     /** @throws JsonException */
-    public function test_profile_crud_enforces_permissions_idempotency_etags_and_tenant_isolation(): void
+    public function test_profile_and_binding_canonical_aggregates_support_tenant_crud_and_etags(): void
     {
         [$organization, $administrator] = $this->tenantAdministrator();
-        $profilePayload = $this->fixture('profile.json');
-
-        $this->actingAs($administrator, 'sanctum')
-            ->postJson('/api/v1/device-profiles', $profilePayload, $this->organizationHeaders($organization))
-            ->assertBadRequest();
+        $profilePayload = $this->fixture('hub-fanout/temperature-profile.json');
+        $profilePayload['version']['parameters'][0]['value_schema']['constraints'] = (object) [];
 
         $created = $this->actingAs($administrator, 'sanctum')
             ->postJson(
                 '/api/v1/device-profiles',
                 $profilePayload,
-                $this->organizationHeaders($organization, ['Idempotency-Key' => 'create-profile-001']),
+                $this->headers($organization, ['Idempotency-Key' => 'profile-canonical-create']),
             )
             ->assertCreated()
-            ->assertJsonPath('data.key', 'environment_thermostat')
-            ->assertJsonPath('data.revision', 1);
+            ->assertJsonPath('data.schema', 'iot.device-profile.authoring.v1')
+            ->assertJsonPath('data.version.parameters.0.key', 'temperature');
+        $createdDocument = json_decode((string) $created->getContent(), false, flags: JSON_THROW_ON_ERROR);
+        $this->assertInstanceOf(
+            stdClass::class,
+            $createdDocument->data->version->parameters[0]->value_schema->constraints,
+        );
 
-        $profileUuid = (string) $created->json('data.uuid');
-        $entityTag = (string) $created->headers->get('ETag');
-        $this->assertNotSame('', $entityTag);
-        $this->assertSame($entityTag, $created->json('etag'));
+        $profileUuid = (string) $created->json('data.profile.uuid');
+        $etag = (string) $created->headers->get('ETag');
+        $storedProfile = DeviceProfile::query()->where('uuid', $profileUuid)->firstOrFail();
+        $storedProfileDefinition = json_decode(
+            (string) $storedProfile->versions()->firstOrFail()->getRawOriginal('definition'),
+            false,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $this->assertInstanceOf(
+            stdClass::class,
+            $storedProfileDefinition->parameters[0]->value_schema->constraints,
+        );
 
-        $member = User::query()->where('email', 'acme.member@example.test')->firstOrFail();
-        $this->actingAs($member, 'sanctum')
-            ->getJson('/api/v1/device-profiles', $this->organizationHeaders($organization))
-            ->assertOk()
-            ->assertJsonCount(1, 'data');
-        $this->actingAs($member, 'sanctum')
-            ->postJson(
-                '/api/v1/device-profiles',
-                $profilePayload,
-                $this->organizationHeaders($organization, ['Idempotency-Key' => 'member-create-001']),
-            )
-            ->assertForbidden();
+        $profilePayload['profile']['name'] = 'Updated temperature thermostat';
 
         $this->actingAs($administrator, 'sanctum')
-            ->patchJson(
-                "/api/v1/device-profiles/{$profileUuid}",
-                ['name' => 'Updated Environment Profile'],
-                $this->organizationHeaders($organization),
-            )
-            ->assertStatus(428)
-            ->assertHeader('Content-Type', 'application/problem+json');
+            ->putJson("/api/v1/device-profiles/{$profileUuid}", $profilePayload, $this->headers($organization))
+            ->assertStatus(428);
 
-        $stale = $this->actingAs($administrator, 'sanctum')
-            ->patchJson(
+        $this->actingAs($administrator, 'sanctum')
+            ->putJson(
                 "/api/v1/device-profiles/{$profileUuid}",
-                ['name' => 'Updated Environment Profile'],
-                $this->organizationHeaders($organization, ['If-Match' => '"profile-stale-r0"']),
+                $profilePayload,
+                $this->headers($organization, ['If-Match' => '"device-profile-stale-r0"']),
             )
             ->assertStatus(412)
-            ->assertHeader('ETag', $entityTag)
-            ->assertJsonPath('status', 412);
-        $this->assertStringStartsWith('application/problem+json', (string) $stale->headers->get('Content-Type'));
+            ->assertHeader('ETag', $etag);
 
         $updated = $this->actingAs($administrator, 'sanctum')
-            ->patchJson(
+            ->putJson(
                 "/api/v1/device-profiles/{$profileUuid}",
-                ['name' => 'Updated Environment Profile'],
-                $this->organizationHeaders($organization, ['If-Match' => $entityTag]),
+                $profilePayload,
+                $this->headers($organization, ['If-Match' => $etag]),
             )
             ->assertOk()
-            ->assertJsonPath('data.name', 'Updated Environment Profile')
-            ->assertJsonPath('data.revision', 2);
-        $this->assertNotSame($entityTag, $updated->headers->get('ETag'));
+            ->assertJsonPath('data.profile.name', 'Updated temperature thermostat')
+            ->assertJsonPath('data.meta.profile_revision', 2)
+            ->assertJsonPath('data.meta.version_revision', 2);
 
-        $otherOrganization = Organization::query()->where('slug', 'northstar-utilities')->firstOrFail();
-        $otherProfile = DeviceProfile::query()->create([
-            'organization_id' => $otherOrganization->id,
-            'key' => 'other-profile',
-            'name' => 'Other Profile',
-        ]);
+        $this->assertNotSame($etag, $updated->headers->get('ETag'));
 
-        $this->actingAs($administrator, 'sanctum')
-            ->getJson(
-                "/api/v1/device-profiles/{$otherProfile->uuid}",
-                $this->organizationHeaders($organization),
-            )
-            ->assertNotFound();
-    }
-
-    /** @throws JsonException */
-    public function test_profile_and_binding_versions_can_be_listed_cloned_and_safely_deleted(): void
-    {
-        [$organization, $administrator] = $this->tenantAdministrator();
-
-        $profileResponse = $this->actingAs($administrator, 'sanctum')
+        $bindingPayload = $this->fixture('hub-fanout/temperature-binding.json');
+        $binding = $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                '/api/v1/device-profiles',
-                $this->fixture('profile.json'),
-                $this->organizationHeaders($organization, ['Idempotency-Key' => 'create-profile-versions']),
+                '/api/v1/native-mqtt-bindings',
+                $bindingPayload,
+                $this->headers($organization, ['Idempotency-Key' => 'binding-canonical-create']),
             )
-            ->assertCreated();
-        $profile = DeviceProfile::query()->where('uuid', $profileResponse->json('data.uuid'))->firstOrFail();
-        $profileVersion = $profile->versions()->firstOrFail();
+            ->assertCreated()
+            ->assertJsonPath('data.schema', 'iot.native-mqtt-binding.authoring.v1')
+            ->assertJsonPath('data.version.parameter_mappings.0.target_parameter_uuid', '41000000-0000-4000-8000-000000000003');
+        $bindingDocument = json_decode((string) $binding->getContent(), false, flags: JSON_THROW_ON_ERROR);
+        $this->assertInstanceOf(stdClass::class, $bindingDocument->data->version->channels[1]->envelope);
+        $this->assertInstanceOf(
+            stdClass::class,
+            $bindingDocument->data->version->command_mappings[0]->request_template,
+        );
+
+        $bindingUuid = (string) $binding->json('data.binding.uuid');
+        $storedBinding = TransportBinding::query()->where('uuid', $bindingUuid)->firstOrFail();
+        $storedDefinition = json_decode(
+            (string) $storedBinding->versions()->firstOrFail()->getRawOriginal('definition'),
+            false,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $this->assertInstanceOf(stdClass::class, $storedDefinition->channels[1]->envelope);
+        $this->assertInstanceOf(
+            stdClass::class,
+            $storedDefinition->command_mappings[0]->request_template,
+        );
 
         $this->actingAs($administrator, 'sanctum')
-            ->getJson(
-                "/api/v1/device-profiles/{$profile->uuid}/versions",
-                $this->organizationHeaders($organization),
-            )
+            ->getJson('/api/v1/device-profiles', $this->headers($organization))
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+        $this->actingAs($administrator, 'sanctum')
+            ->getJson('/api/v1/native-mqtt-bindings', $this->headers($organization))
             ->assertOk()
             ->assertJsonCount(1, 'data');
 
-        $profileVersionPayload = $this->fixture('profile.json');
-        $profileVersionPayload['profile']['uuid'] = $profile->uuid;
-        $profileVersionPayload['version']['uuid'] = (string) Str::uuid();
-        $profileVersionPayload['version']['version'] = 2;
-        $createdProfileVersion = $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/device-profiles/{$profile->uuid}/versions",
-                $profileVersionPayload,
-                $this->organizationHeaders($organization, ['Idempotency-Key' => 'create-profile-version-2']),
-            )
-            ->assertCreated()
-            ->assertJsonPath('data.version', 2);
-
-        $clonedProfile = $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/device-profile-versions/{$profileVersion->uuid}/clone",
-                [],
-                $this->organizationHeaders($organization, ['Idempotency-Key' => 'clone-profile-version']),
-            )
-            ->assertCreated()
-            ->assertJsonPath('data.version', 3);
-
         $this->actingAs($administrator, 'sanctum')
             ->deleteJson(
-                '/api/v1/device-profile-versions/'.$clonedProfile->json('data.uuid'),
+                "/api/v1/native-mqtt-bindings/{$bindingUuid}",
                 [],
-                $this->organizationHeaders($organization, ['If-Match' => $clonedProfile->headers->get('ETag')]),
+                $this->headers($organization, ['If-Match' => $binding->headers->get('ETag')]),
             )
             ->assertNoContent();
+        $this->actingAs($administrator, 'sanctum')
+            ->deleteJson(
+                "/api/v1/device-profiles/{$profileUuid}",
+                [],
+                $this->headers($organization, ['If-Match' => $updated->headers->get('ETag')]),
+            )
+            ->assertNoContent();
+    }
 
-        $bindingResponse = $this->actingAs($administrator, 'sanctum')
+    /** @throws JsonException */
+    public function test_profile_canonical_rejects_duplicate_parameter_identity_and_invalid_cel_dependencies(): void
+    {
+        [$organization, $administrator] = $this->tenantAdministrator();
+        $duplicate = $this->fixture('hub-fanout/temperature-profile.json');
+        $duplicateParameter = $duplicate['version']['parameters'][0];
+        $duplicateParameter['key'] = 'temperature_duplicate';
+        $duplicateParameter['label'] = 'Duplicate temperature';
+        $duplicate['version']['parameters'][] = $duplicateParameter;
+
+        $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                '/api/v1/transport-bindings',
-                $this->fixture('binding.json'),
-                $this->organizationHeaders($organization, ['Idempotency-Key' => 'create-binding-versions']),
+                '/api/v1/device-profiles',
+                $duplicate,
+                $this->headers($organization, ['Idempotency-Key' => 'duplicate-parameter']),
+            )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('version');
+
+        $invalidDependency = $this->fixture('three-phase-meter/profile.json');
+        $invalidDependency['version']['derived_parameters'][0]['dependencies'][0] = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+
+        $this->actingAs($administrator, 'sanctum')
+            ->postJson(
+                '/api/v1/device-profiles',
+                $invalidDependency,
+                $this->headers($organization, ['Idempotency-Key' => 'invalid-cel-dependency']),
+            )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('version');
+    }
+
+    /** @throws JsonException */
+    public function test_canonical_api_enforces_schema_values_and_profile_binding_type_compatibility(): void
+    {
+        [$organization, $administrator] = $this->tenantAdministrator();
+        $invalidProfile = $this->fixture('hub-fanout/temperature-profile.json');
+        $invalidProfile['profile']['uuid'] = '67000000-0000-4000-8000-000000000001';
+        $invalidProfile['version']['uuid'] = '67000000-0000-4000-8000-000000000002';
+        $invalidProfile['version']['parameters'][0]['uuid'] = '67000000-0000-4000-8000-000000000003';
+        $invalidProfile['version']['parameters'][0]['value_schema']['data_type'] = 'decimal';
+
+        $this->actingAs($administrator, 'sanctum')
+            ->postJson(
+                '/api/v1/device-profiles',
+                $invalidProfile,
+                $this->headers($organization, ['Idempotency-Key' => 'invalid-profile-data-type']),
+            )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('version');
+
+        $this->actingAs($administrator, 'sanctum')
+            ->postJson(
+                '/api/v1/device-profiles',
+                $this->fixture('hub-fanout/temperature-profile.json'),
+                $this->headers($organization, ['Idempotency-Key' => 'binding-validation-profile']),
             )
             ->assertCreated();
-        $bindingVersion = TransportBindingVersion::query()
-            ->where('uuid', $bindingResponse->json('data.versions.0.uuid'))
-            ->firstOrFail();
 
-        $bindingVersionPayload = $this->fixture('binding.json');
-        $bindingVersionPayload['binding']['uuid'] = $bindingVersion->binding->uuid;
-        $bindingVersionPayload['version']['uuid'] = (string) Str::uuid();
-        $bindingVersionPayload['version']['profile_version_uuid'] = $createdProfileVersion->json('data.uuid');
-        $bindingVersionPayload['version']['version'] = 2;
         $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                "/api/v1/transport-bindings/{$bindingVersion->binding->uuid}/versions",
-                $bindingVersionPayload,
-                $this->organizationHeaders($organization, ['Idempotency-Key' => 'create-binding-version-2']),
+                '/api/v1/native-mqtt-bindings',
+                $this->invalidFixture('binding-missing-policies.json'),
+                $this->headers($organization, ['Idempotency-Key' => 'binding-missing-policies']),
             )
-            ->assertCreated()
-            ->assertJsonPath('data.version', 2);
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('version');
 
-        $clonedBinding = $this->actingAs($administrator, 'sanctum')
+        $ambiguousStatus = $this->fixture('hub-fanout/temperature-binding.json');
+        $ambiguousStatus['version']['command_mappings'][0]['response']['status']['values']['failed'][0] = 'succeeded';
+
+        $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                "/api/v1/transport-binding-versions/{$bindingVersion->uuid}/clone",
-                [],
-                $this->organizationHeaders($organization, ['Idempotency-Key' => 'clone-binding-version']),
+                '/api/v1/native-mqtt-bindings',
+                $ambiguousStatus,
+                $this->headers($organization, ['Idempotency-Key' => 'binding-ambiguous-command-status']),
             )
-            ->assertCreated()
-            ->assertJsonPath('data.version', 3);
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('version');
+
+        $invalidCalibration = $this->fixture('hub-fanout/temperature-binding.json');
+        $invalidCalibration['binding']['uuid'] = '68000000-0000-4000-8000-000000000001';
+        $invalidCalibration['version']['uuid'] = '68000000-0000-4000-8000-000000000002';
+        $invalidCalibration['version']['parameter_mappings'][0]['uuid'] = '68000000-0000-4000-8000-000000000003';
+        $invalidCalibration['version']['parameter_mappings'][0]['calibration'][0]['value'] = 0;
 
         $this->actingAs($administrator, 'sanctum')
-            ->deleteJson(
-                '/api/v1/transport-binding-versions/'.$clonedBinding->json('data.uuid'),
-                [],
-                $this->organizationHeaders($organization, ['If-Match' => $clonedBinding->headers->get('ETag')]),
+            ->postJson(
+                '/api/v1/native-mqtt-bindings',
+                $invalidCalibration,
+                $this->headers($organization, ['Idempotency-Key' => 'binding-invalid-calibration']),
             )
-            ->assertNoContent();
-
-        $binding = $bindingVersion->binding;
-        $this->actingAs($administrator, 'sanctum')
-            ->getJson(
-                "/api/v1/transport-bindings/{$binding->uuid}",
-                $this->organizationHeaders($organization),
-            )
-            ->assertOk()
-            ->assertJsonPath('data.name', $binding->name);
-
-        $updatedBinding = $this->actingAs($administrator, 'sanctum')
-            ->patchJson(
-                "/api/v1/transport-bindings/{$binding->uuid}",
-                ['name' => 'Updated Native MQTT Binding'],
-                $this->organizationHeaders($organization, ['If-Match' => $bindingResponse->headers->get('ETag')]),
-            )
-            ->assertOk()
-            ->assertJsonPath('data.name', 'Updated Native MQTT Binding');
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('version');
 
         $this->actingAs($administrator, 'sanctum')
-            ->deleteJson(
-                "/api/v1/transport-bindings/{$binding->uuid}",
-                [],
-                $this->organizationHeaders($organization, ['If-Match' => $updatedBinding->headers->get('ETag')]),
+            ->postJson(
+                '/api/v1/native-mqtt-bindings',
+                $this->invalidFixture('binding-incompatible-type.json'),
+                $this->headers($organization, ['Idempotency-Key' => 'binding-incompatible-type']),
             )
-            ->assertNoContent();
-
-        $this->actingAs($administrator, 'sanctum')
-            ->deleteJson(
-                "/api/v1/device-profiles/{$profile->uuid}",
-                [],
-                $this->organizationHeaders($organization, ['If-Match' => $profile->refresh()->etag()]),
-            )
-            ->assertNoContent();
+            ->assertConflict();
     }
 
     /** @throws JsonException */
-    public function test_coordinated_validation_retains_invalid_results_rejects_stale_evidence_and_publishes_current_valid_evidence(): void
+    public function test_compatible_profile_clone_changes_version_identity_but_preserves_parameter_uuids(): void
     {
-        [$organization, $administrator] = $this->tenantAdministrator();
-        $draft = $this->createCoordinatedDraft($organization, $administrator);
-        $bindingVersionUuid = (string) $draft->json('data.binding.version.uuid');
-        $entityTag = (string) $draft->headers->get('ETag');
+        $organization = Organization::factory()->create();
+        $manager = app(DefinitionAuthoringManager::class);
+        $profile = $manager->createProfileDraft(
+            $organization,
+            DeviceProfileAuthoringData::fromArray($this->fixture('three-phase-meter/profile.json')),
+        );
+        $source = $profile->versions()->firstOrFail();
+        $clone = $manager->cloneCompatibleProfileVersion($source);
 
-        Http::fakeSequence()
-            ->push($this->preview(valid: false), 200)
-            ->push($this->preview(valid: true), 200)
-            ->push($this->preview(valid: true), 200);
-        $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/definition-drafts/{$bindingVersionUuid}/validate",
-                ['fixtures' => [$this->telemetryFixture()]],
-                $this->organizationHeaders($organization, ['If-Match' => $entityTag]),
-            )
-            ->assertOk()
-            ->assertJsonPath('valid', false)
-            ->assertJsonPath('diagnostics.0.code', 'INVALID_CEL');
-        $this->assertDatabaseCount('definition_test_runs', 1);
+        $sourceData = DeviceProfileAuthoringData::fromArray([
+            'schema' => 'iot.device-profile.authoring.v1',
+            'profile' => [
+                'uuid' => $profile->uuid,
+                'key' => $profile->key,
+                'name' => $profile->name,
+                'description' => $profile->description,
+            ],
+            'version' => $source->definition,
+        ]);
+        $cloneData = DeviceProfileAuthoringData::fromArray([
+            'schema' => 'iot.device-profile.authoring.v1',
+            'profile' => [
+                'uuid' => $profile->uuid,
+                'key' => $profile->key,
+                'name' => $profile->name,
+                'description' => $profile->description,
+            ],
+            'version' => $clone->definition,
+        ]);
 
-        $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/definition-drafts/{$bindingVersionUuid}/validate",
-                ['fixtures' => [$this->telemetryFixture()]],
-                $this->organizationHeaders($organization, ['If-Match' => $entityTag]),
-            )
-            ->assertOk()
-            ->assertJsonPath('valid', true);
-
-        $replaced = $this->actingAs($administrator, 'sanctum')
-            ->putJson(
-                "/api/v1/definition-drafts/{$bindingVersionUuid}",
-                ['profile' => $this->fixture('profile.json'), 'binding' => $this->fixture('binding.json')],
-                $this->organizationHeaders($organization, ['If-Match' => $entityTag]),
-            )
-            ->assertOk();
-        $currentEntityTag = (string) $replaced->headers->get('ETag');
-
-        $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/definition-drafts/{$bindingVersionUuid}/publish",
-                [],
-                $this->organizationHeaders($organization, [
-                    'If-Match' => $currentEntityTag,
-                    'Idempotency-Key' => 'publish-with-stale-evidence',
-                ]),
-            )
-            ->assertConflict()
-            ->assertJsonPath('status', 409);
-
-        $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/definition-drafts/{$bindingVersionUuid}/validate",
-                ['fixtures' => [$this->telemetryFixture()]],
-                $this->organizationHeaders($organization, ['If-Match' => $currentEntityTag]),
-            )
-            ->assertOk()
-            ->assertJsonPath('valid', true);
-
-        $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/definition-drafts/{$bindingVersionUuid}/publish",
-                [],
-                $this->organizationHeaders($organization, [
-                    'If-Match' => $currentEntityTag,
-                    'Idempotency-Key' => 'publish-current-evidence',
-                ]),
-            )
-            ->assertOk()
-            ->assertJsonPath('data.binding.version.uuid', $bindingVersionUuid);
-
-        $publishedBinding = TransportBindingVersion::query()->where('uuid', $bindingVersionUuid)->firstOrFail();
-        $this->assertSame('published', $publishedBinding->state->value);
-        $this->assertSame('published', $publishedBinding->profileVersion->state->value);
-
-        $this->assertDatabaseCount('definition_test_runs', 3);
-        $this->assertSame(2, DefinitionTestRun::query()->where('valid', true)->count());
+        $this->assertNotSame($source->uuid, $clone->uuid);
+        $this->assertSame($clone->uuid, $clone->definition['uuid']);
+        $this->assertSame(2, $clone->definition['version']);
+        $this->assertSame($sourceData->parameterIdentityMap(), $cloneData->parameterIdentityMap());
     }
 
     /** @throws JsonException */
-    public function test_compiler_transport_failure_is_exposed_as_a_service_unavailable_problem(): void
+    public function test_property_mappings_follow_profile_ownership_and_channel_semantics(): void
     {
         [$organization, $administrator] = $this->tenantAdministrator();
-        $draft = $this->createCoordinatedDraft($organization, $administrator);
-        $bindingVersionUuid = (string) $draft->json('data.binding.version.uuid');
-
-        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
-
-        $response = $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/definition-drafts/{$bindingVersionUuid}/validate",
-                ['fixtures' => [$this->telemetryFixture()]],
-                $this->organizationHeaders($organization, ['If-Match' => $draft->headers->get('ETag')]),
-            )
-            ->assertServiceUnavailable()
-            ->assertJsonPath('status', 503)
-            ->assertJsonPath('title', 'Service Unavailable');
-
-        $this->assertStringStartsWith('application/problem+json', (string) $response->headers->get('Content-Type'));
-        $this->assertDatabaseCount('definition_test_runs', 0);
-    }
-
-    /** @throws JsonException */
-    public function test_device_draft_assignment_registration_and_archive_lifecycle_is_enforced(): void
-    {
-        [$organization, $administrator] = $this->tenantAdministrator();
-        [$profileVersion, $bindingVersion] = $this->publishedDefinition($organization, $administrator);
-
-        $created = $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                '/api/v1/devices',
-                [
-                    'name' => 'Boiler Room Sensor',
-                    'external_id' => 'boiler-room-sensor-001',
-                    'description' => 'Temperature and humidity sensor with thermostat control.',
+        $profilePayload = $this->fixture('hub-fanout/temperature-profile.json');
+        $profilePayload['version']['properties'] = [
+            [
+                'uuid' => '69000000-0000-4000-8000-000000000001',
+                'key' => 'installation_note',
+                'label' => 'Installation note',
+                'description' => null,
+                'scope' => 'platform',
+                'value_schema' => [
+                    'data_type' => 'string',
+                    'unit_code' => null,
+                    'constraints' => (object) [],
                 ],
-                $this->organizationHeaders($organization, ['Idempotency-Key' => 'create-device-001']),
-            )
-            ->assertCreated()
-            ->assertJsonPath('data.lifecycle_state', 'draft');
-        $deviceUuid = (string) $created->json('data.uuid');
-        $deviceEntityTag = (string) $created->headers->get('ETag');
-
-        $assignment = $this->actingAs($administrator, 'sanctum')
-            ->putJson(
-                "/api/v1/devices/{$deviceUuid}/definition-assignment",
-                [
-                    'profile_version_uuid' => $profileVersion->uuid,
-                    'binding_version_uuid' => $bindingVersion->uuid,
+            ],
+            [
+                'uuid' => '69000000-0000-4000-8000-000000000002',
+                'key' => 'battery_level',
+                'label' => 'Battery level',
+                'description' => null,
+                'scope' => 'reported',
+                'value_schema' => [
+                    'data_type' => 'float64',
+                    'unit_code' => '%',
+                    'constraints' => [
+                        'minimum' => 0,
+                        'maximum' => 100,
+                    ],
                 ],
-                $this->organizationHeaders($organization, ['If-Match' => $deviceEntityTag]),
-            )
-            ->assertOk()
-            ->assertJsonPath('data.profile_version_uuid', $profileVersion->uuid)
-            ->assertJsonPath('data.binding_version_uuid', $bindingVersion->uuid);
-        $this->assertNotSame($deviceEntityTag, $assignment->headers->get('ETag'));
+            ],
+        ];
 
         $this->actingAs($administrator, 'sanctum')
-            ->deleteJson(
-                "/api/v1/devices/{$deviceUuid}",
-                [],
-                $this->organizationHeaders($organization, ['If-Match' => $deviceEntityTag]),
+            ->postJson(
+                '/api/v1/device-profiles',
+                $profilePayload,
+                $this->headers($organization, ['Idempotency-Key' => 'property-profile-create']),
+            )
+            ->assertCreated();
+
+        $bindingPayload = $this->fixture('hub-fanout/temperature-binding.json');
+        $bindingPayload['version']['channels'][] = [
+            'uuid' => '69000000-0000-4000-8000-000000000003',
+            'key' => 'reported_properties',
+            'label' => 'Reported properties',
+            'purpose' => 'reported_properties',
+            'direction' => 'device_to_platform',
+            'topic_template' => 'gateways/{gateway_id}/devices/{route_path}/properties/reported',
+            'qos' => 1,
+            'retain' => false,
+            'content_type' => 'application/json',
+            'record_path' => '$',
+            'max_records' => 1,
+            'envelope' => (object) [],
+        ];
+        $bindingPayload['version']['property_mappings'] = [[
+            'uuid' => '69000000-0000-4000-8000-000000000004',
+            'channel' => 'reported_properties',
+            'target_property_uuid' => '69000000-0000-4000-8000-000000000002',
+            'direction' => 'platform_to_device',
+            'source' => [
+                'scope' => 'record',
+                'json_path' => '$.battery_level',
+            ],
+            'wire_data_type' => 'float64',
+            'operations' => [],
+            'on_missing' => 'omit_value',
+            'on_invalid' => 'omit_value',
+        ]];
+
+        $this->actingAs($administrator, 'sanctum')
+            ->postJson(
+                '/api/v1/native-mqtt-bindings',
+                $bindingPayload,
+                $this->headers($organization, ['Idempotency-Key' => 'property-binding-wrong-direction']),
             )
             ->assertConflict();
 
-        $registered = $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/devices/{$deviceUuid}/register",
-                [],
-                $this->organizationHeaders($organization, [
-                    'If-Match' => $deviceEntityTag,
-                    'Idempotency-Key' => 'register-device-001',
-                ]),
-            )
-            ->assertOk()
-            ->assertJsonPath('data.lifecycle_state', 'registered');
-        $registeredEntityTag = (string) $registered->headers->get('ETag');
+        $bindingPayload['version']['property_mappings'][0]['direction'] = 'device_to_platform';
+        $bindingPayload['version']['channels'][3]['purpose'] = 'telemetry';
 
         $this->actingAs($administrator, 'sanctum')
-            ->putJson(
-                "/api/v1/devices/{$deviceUuid}/definition-assignment",
-                [
-                    'profile_version_uuid' => $profileVersion->uuid,
-                    'binding_version_uuid' => $bindingVersion->uuid,
-                ],
-                $this->organizationHeaders($organization, ['If-Match' => $assignment->headers->get('ETag')]),
-            )
-            ->assertForbidden();
-
-        $archived = $this->actingAs($administrator, 'sanctum')
             ->postJson(
-                "/api/v1/devices/{$deviceUuid}/archive",
-                [],
-                $this->organizationHeaders($organization, [
-                    'If-Match' => $registeredEntityTag,
-                    'Idempotency-Key' => 'archive-device-001',
-                ]),
+                '/api/v1/native-mqtt-bindings',
+                $bindingPayload,
+                $this->headers($organization, ['Idempotency-Key' => 'property-binding-wrong-purpose']),
             )
-            ->assertOk()
-            ->assertJsonPath('data.lifecycle_state', 'archived');
+            ->assertConflict();
 
-        $this->assertNotSame($registeredEntityTag, $archived->headers->get('ETag'));
-        $this->assertNotNull(Device::query()->where('uuid', $deviceUuid)->firstOrFail()->archived_at);
-        $this->assertNotNull(DeviceDefinitionAssignment::query()->firstOrFail()->locked_at);
+        $bindingPayload['version']['channels'][3]['purpose'] = 'reported_properties';
+
+        $this->actingAs($administrator, 'sanctum')
+            ->postJson(
+                '/api/v1/native-mqtt-bindings',
+                $bindingPayload,
+                $this->headers($organization, ['Idempotency-Key' => 'property-binding-create']),
+            )
+            ->assertCreated()
+            ->assertJsonCount(1, 'data.version.property_mappings');
+    }
+
+    /** @throws JsonException */
+    public function test_published_canonical_aggregate_is_immutable_and_other_tenants_cannot_resolve_it(): void
+    {
+        [$organization, $administrator] = $this->tenantAdministrator();
+        $payload = $this->fixture('hub-fanout/temperature-profile.json');
+        $created = $this->actingAs($administrator, 'sanctum')
+            ->postJson(
+                '/api/v1/device-profiles',
+                $payload,
+                $this->headers($organization, ['Idempotency-Key' => 'published-canonical-profile']),
+            )
+            ->assertCreated();
+        $profile = DeviceProfile::query()->where('uuid', $created->json('data.profile.uuid'))->firstOrFail();
+        $version = $profile->versions()->firstOrFail();
+        $version->forceFill([
+            'state' => DefinitionState::PUBLISHED,
+            'published_at' => now(),
+        ])->save();
+
+        $payload['profile']['name'] = 'Cannot change';
+        $this->actingAs($administrator, 'sanctum')
+            ->putJson(
+                "/api/v1/device-profiles/{$profile->uuid}",
+                $payload,
+                $this->headers($organization, ['If-Match' => $created->headers->get('ETag')]),
+            )
+            ->assertConflict();
+
+        $otherOrganization = Organization::query()->where('slug', 'northstar-utilities')->firstOrFail();
+        $otherAdministrator = User::query()->where('email', 'northstar.admin@example.test')->firstOrFail();
+        $this->actingAs($otherAdministrator, 'sanctum')
+            ->getJson("/api/v1/device-profiles/{$profile->uuid}", $this->headers($otherOrganization))
+            ->assertNotFound();
+    }
+
+    public function test_canonical_resources_do_not_lazy_load_missing_relations(): void
+    {
+        $organization = Organization::factory()->create();
+        $profile = DeviceProfile::query()->create([
+            'organization_id' => $organization->id,
+            'key' => 'unloaded_profile',
+            'name' => 'Unloaded Profile',
+        ]);
+        $binding = TransportBinding::query()->create([
+            'organization_id' => $organization->id,
+            'device_profile_id' => $profile->id,
+            'key' => 'unloaded_binding',
+            'name' => 'Unloaded Binding',
+        ]);
+
+        $profilePayload = DeviceProfileResource::make($profile)->resolve(request());
+        $bindingPayload = NativeMqttBindingResource::make($binding)->resolve(request());
+
+        $this->assertNull($profilePayload['version']);
+        $this->assertNull($bindingPayload['binding']['profile_uuid']);
+        $this->assertNull($bindingPayload['version']);
+        $this->assertFalse($binding->relationLoaded('profile'));
     }
 
     /** @return array{Organization, User} */
@@ -482,113 +485,25 @@ final class DeviceDomainApiTest extends TestCase
         ];
     }
 
-    /**
-     * @param  array<string, string>  $extra
-     * @return array<string, string>
-     */
-    private function organizationHeaders(Organization $organization, array $extra = []): array
+    /** @param array<string, string|null> $extra @return array<string, string|null> */
+    private function headers(Organization $organization, array $extra = []): array
     {
-        return [
-            'X-Organization-UUID' => $organization->uuid,
-            ...$extra,
-        ];
+        return ['X-Organization-UUID' => $organization->uuid, ...$extra];
     }
 
-    /** @throws JsonException */
-    private function createCoordinatedDraft(Organization $organization, User $administrator): TestResponse
-    {
-        return $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                '/api/v1/definition-drafts',
-                [
-                    'profile' => $this->fixture('profile.json'),
-                    'binding' => $this->fixture('binding.json'),
-                ],
-                $this->organizationHeaders($organization, ['Idempotency-Key' => 'create-definition-draft']),
-            )
-            ->assertCreated();
-    }
-
-    /** @return array{DeviceProfileVersion, TransportBindingVersion} */
-    private function publishedDefinition(Organization $organization, User $administrator): array
-    {
-        $draft = $this->createCoordinatedDraft($organization, $administrator);
-        $bindingVersionUuid = (string) $draft->json('data.binding.version.uuid');
-        $entityTag = (string) $draft->headers->get('ETag');
-        Http::fake(['*' => Http::response($this->preview(valid: true), 200)]);
-
-        $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/definition-drafts/{$bindingVersionUuid}/validate",
-                ['fixtures' => [$this->telemetryFixture()]],
-                $this->organizationHeaders($organization, ['If-Match' => $entityTag]),
-            )
-            ->assertOk();
-        $this->actingAs($administrator, 'sanctum')
-            ->postJson(
-                "/api/v1/definition-drafts/{$bindingVersionUuid}/publish",
-                [],
-                $this->organizationHeaders($organization, [
-                    'If-Match' => $entityTag,
-                    'Idempotency-Key' => 'publish-definition-draft',
-                ]),
-            )
-            ->assertOk();
-
-        $bindingVersion = TransportBindingVersion::query()->where('uuid', $bindingVersionUuid)->firstOrFail();
-
-        return [$bindingVersion->profileVersion, $bindingVersion];
-    }
-
-    /** @return array<string, mixed> */
-    private function preview(bool $valid): array
-    {
-        return [
-            'schema' => 'iot.definition-preview.v1',
-            'valid' => $valid,
-            'input_hash' => str_repeat('c', 64),
-            'compiler' => [
-                'name' => 'iot-definition-compiler',
-                'version' => '1.0.0',
-                'cel_environment' => 'cel-go-v0.26-restricted-v1',
-                'jsonpath_version' => 'ojg-v1-restricted-v1',
-                'unit_registry' => 'ucum-v1',
-            ],
-            'diagnostics' => $valid ? [] : [[
-                'severity' => 'error',
-                'code' => 'INVALID_CEL',
-                'path' => '/profile/version/components',
-                'message' => 'Invalid expression.',
-            ]],
-            'profile_artifact' => $valid ? ['schema' => 'iot.device-profile.v1'] : null,
-            'binding_artifact' => $valid ? ['schema' => 'iot.native-mqtt-binding.v1'] : null,
-            'artifact_hashes' => [
-                'profile' => $valid ? str_repeat('a', 64) : null,
-                'binding' => $valid ? str_repeat('b', 64) : null,
-            ],
-            'previews' => [],
-        ];
-    }
-
-    /** @return array<string, mixed> */
-    private function telemetryFixture(): array
-    {
-        return [
-            'name' => 'temperature and humidity telemetry',
-            'kind' => 'telemetry',
-            'input' => $this->fixture('telemetry-payload.json'),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     *
-     * @throws JsonException
-     */
+    /** @return array<string, mixed> @throws JsonException */
     private function fixture(string $name): array
     {
-        $path = base_path("../../contracts/fixtures/device-onboarding/valid/temperature-humidity-thermostat/{$name}");
-        $contents = file_get_contents($path);
+        $contents = file_get_contents(base_path("../../contracts/fixtures/device-onboarding/valid/{$name}"));
+        $this->assertNotFalse($contents);
+
+        return json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+    }
+
+    /** @return array<string, mixed> @throws JsonException */
+    private function invalidFixture(string $name): array
+    {
+        $contents = file_get_contents(base_path("../../contracts/fixtures/device-onboarding/invalid/{$name}"));
         $this->assertNotFalse($contents);
 
         return json_decode($contents, true, flags: JSON_THROW_ON_ERROR);

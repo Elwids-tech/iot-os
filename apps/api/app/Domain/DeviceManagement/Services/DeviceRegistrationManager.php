@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\DeviceManagement\Services;
 
 use App\Domain\DeviceManagement\Data\DeviceDraftData;
-use App\Domain\DeviceManagement\Enums\AssignmentCompatibilityState;
-use App\Domain\DeviceManagement\Enums\DeviceIdentityModel;
 use App\Domain\DeviceManagement\Enums\DeviceLifecycleState;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceManagement\Models\DeviceDefinitionAssignment;
@@ -44,6 +42,7 @@ final class DeviceRegistrationManager
 
         $attributes = $data->toArray();
         unset($attributes['uuid']);
+
         $revision = $device->revision;
         $updated = Device::query()
             ->whereKey($device->getKey())
@@ -68,9 +67,11 @@ final class DeviceRegistrationManager
         DB::transaction(function () use ($device, $expectedEntityTag): void {
             $locked = Device::query()->lockForUpdate()->findOrFail($device->getKey());
             $locked->assertExpectedEntityTag($expectedEntityTag);
+
             if (! $locked->isDraft()) {
                 throw new DomainInvariantViolation('Only an unregistered Device draft can be deleted.');
             }
+
             if ($locked->definitionAssignment()->exists()) {
                 throw new DomainInvariantViolation('A Device draft with a definition assignment cannot be deleted.');
             }
@@ -95,7 +96,6 @@ final class DeviceRegistrationManager
         ): DeviceDefinitionAssignment {
             $lockedDevice = Device::query()->lockForUpdate()->findOrFail($device->getKey());
             $assignment = $lockedDevice->definitionAssignment()->lockForUpdate()->first();
-
             ($assignment ?? $lockedDevice)->assertExpectedEntityTag($expectedEntityTag);
 
             if (! $lockedDevice->isDraft()) {
@@ -114,10 +114,6 @@ final class DeviceRegistrationManager
                 ->findOrFail($bindingVersion->getKey());
 
             $this->assertAssignable($lockedDevice, $lockedProfileVersion, $lockedBindingVersion);
-            $usesV2Contract = $lockedProfileVersion->usesV2Contract();
-            $compatibilityState = $usesV2Contract
-                ? AssignmentCompatibilityState::V2_ROUTE_PENDING
-                : AssignmentCompatibilityState::V1_UNMIGRATED;
 
             if (
                 $assignment?->gateway_route_id !== null
@@ -130,51 +126,47 @@ final class DeviceRegistrationManager
             }
 
             if ($assignment === null) {
-                $assignment = DeviceDefinitionAssignment::query()->create([
+                return DeviceDefinitionAssignment::query()->create([
                     'organization_id' => $lockedDevice->organization_id,
                     'device_id' => $lockedDevice->getKey(),
                     'device_profile_version_id' => $lockedProfileVersion->getKey(),
                     'transport_binding_version_id' => $lockedBindingVersion->getKey(),
-                    'compatibility_state' => $compatibilityState->value,
                     'created_by_id' => $actor?->getKey(),
                     'updated_by_id' => $actor?->getKey(),
                 ]);
-
-                $this->synchronizeDeviceIdentity($lockedDevice, $usesV2Contract);
-
-                return $assignment;
-            }
-
-            if ($assignment->gateway_route_id !== null) {
-                $compatibilityState = AssignmentCompatibilityState::V2_ROUTE_AWARE;
             }
 
             $revision = $assignment->revision;
+            $attributes = [
+                'device_profile_version_id' => $lockedProfileVersion->getKey(),
+                'transport_binding_version_id' => $lockedBindingVersion->getKey(),
+                'updated_by_id' => $actor?->getKey(),
+                'revision' => $revision + 1,
+                'updated_at' => now(),
+            ];
+
+            if ($assignment->gateway_route_id === null) {
+                $attributes = [
+                    ...$attributes,
+                    'profile_artifact_hash' => null,
+                    'binding_artifact_hash' => null,
+                    'route_source_hash' => null,
+                    'runtime_bundle_hash' => null,
+                    'runtime_bundle' => null,
+                    'runtime_compiled_at' => null,
+                ];
+            }
+
             $updated = DeviceDefinitionAssignment::query()
                 ->whereKey($assignment->getKey())
                 ->where('revision', $revision)
-                ->update([
-                    'device_profile_version_id' => $lockedProfileVersion->getKey(),
-                    'transport_binding_version_id' => $lockedBindingVersion->getKey(),
-                    'compatibility_state' => $compatibilityState->value,
-                    ...($compatibilityState === AssignmentCompatibilityState::V2_ROUTE_PENDING ? [
-                        'profile_artifact_hash' => null,
-                        'binding_artifact_hash' => null,
-                        'route_source_hash' => null,
-                        'runtime_bundle_hash' => null,
-                        'runtime_bundle' => null,
-                        'runtime_compiled_at' => null,
-                    ] : []),
-                    'updated_by_id' => $actor?->getKey(),
-                    'revision' => $revision + 1,
-                    'updated_at' => now(),
-                ]);
+                ->update($attributes);
 
             if ($updated !== 1) {
-                throw new StaleEntityTag(DeviceDefinitionAssignment::query()->findOrFail($assignment->getKey())->etag());
+                throw new StaleEntityTag(
+                    DeviceDefinitionAssignment::query()->findOrFail($assignment->getKey())->etag(),
+                );
             }
-
-            $this->synchronizeDeviceIdentity($lockedDevice, $usesV2Contract);
 
             return $assignment->refresh();
         });
@@ -204,6 +196,7 @@ final class DeviceRegistrationManager
 
             $profileVersion = $assignment->profileVersion()->lockForUpdate()->firstOrFail();
             $bindingVersion = $assignment->bindingVersion()->lockForUpdate()->firstOrFail();
+
             $this->assertAssignable($lockedDevice, $profileVersion, $bindingVersion);
             $this->assertRouteAwareRegistrationReady($assignment, $profileVersion, $bindingVersion);
 
@@ -211,6 +204,7 @@ final class DeviceRegistrationManager
                 'locked_at' => now(),
                 'revision' => $assignment->revision + 1,
             ])->save();
+
             $lockedDevice->forceFill([
                 'lifecycle_state' => DeviceLifecycleState::REGISTERED,
                 'registered_at' => now(),
@@ -247,29 +241,6 @@ final class DeviceRegistrationManager
         return $device->refresh();
     }
 
-    private function assertAssignable(
-        Device $device,
-        DeviceProfileVersion $profileVersion,
-        TransportBindingVersion $bindingVersion,
-    ): void {
-        $profile = $profileVersion->profile()->lockForUpdate()->firstOrFail();
-        $binding = $bindingVersion->binding()->lockForUpdate()->firstOrFail();
-
-        if (
-            $device->organization_id !== $profileVersion->organization_id
-            || $device->organization_id !== $bindingVersion->organization_id
-            || ! $profileVersion->isPublished()
-            || ! $bindingVersion->isPublished()
-            || $profile->isArchived()
-            || $binding->isArchived()
-            || $bindingVersion->device_profile_version_id !== $profileVersion->getKey()
-            || $binding->device_profile_id !== $profileVersion->device_profile_id
-            || $profileVersion->contract_version !== $bindingVersion->contract_version
-        ) {
-            throw new DomainInvariantViolation('A Device assignment requires a coordinated published definition from the same Organization.');
-        }
-    }
-
     /** @param array<string, mixed> $runtimeBundle */
     public function pinRuntimeBundle(
         DeviceDefinitionAssignment $assignment,
@@ -281,19 +252,24 @@ final class DeviceRegistrationManager
 
         return DB::transaction(function () use ($assignment, $runtimeBundle, $expectedEntityTag, $actor): DeviceDefinitionAssignment {
             $device = $assignment->device()->lockForUpdate()->firstOrFail();
-            $lockedAssignment = DeviceDefinitionAssignment::query()->lockForUpdate()->findOrFail($assignment->getKey());
+            $lockedAssignment = DeviceDefinitionAssignment::query()
+                ->lockForUpdate()
+                ->findOrFail($assignment->getKey());
             $lockedAssignment->assertExpectedEntityTag($expectedEntityTag);
+
             $profileVersion = $lockedAssignment->profileVersion()->lockForUpdate()->firstOrFail();
             $bindingVersion = $lockedAssignment->bindingVersion()->lockForUpdate()->firstOrFail();
             $route = $lockedAssignment->gatewayRoute()->lockForUpdate()->first();
 
             if (
                 ! $device->isDraft()
-                || ! $lockedAssignment->isRouteAwareV2()
+                || ! $lockedAssignment->isRouteAware()
                 || $route === null
                 || ! $route->enabled
             ) {
-                throw new DomainInvariantViolation('A mutable enabled route-aware v2 assignment is required before pinning a Runtime Bundle.');
+                throw new DomainInvariantViolation(
+                    'A mutable enabled route-aware assignment is required before pinning a Runtime Bundle.',
+                );
             }
 
             $this->assertRuntimeBundleIdentity(
@@ -319,18 +295,28 @@ final class DeviceRegistrationManager
         });
     }
 
-    private function synchronizeDeviceIdentity(Device $device, bool $usesV2Contract): void
-    {
-        $identity = $usesV2Contract ? DeviceIdentityModel::LOGICAL_V2 : DeviceIdentityModel::V1_DIRECT;
+    private function assertAssignable(
+        Device $device,
+        DeviceProfileVersion $profileVersion,
+        TransportBindingVersion $bindingVersion,
+    ): void {
+        $profile = $profileVersion->profile()->lockForUpdate()->firstOrFail();
+        $binding = $bindingVersion->binding()->lockForUpdate()->firstOrFail();
 
-        if ($device->identity_model === $identity) {
-            return;
+        if (
+            $device->organization_id !== $profileVersion->organization_id
+            || $device->organization_id !== $bindingVersion->organization_id
+            || ! $profileVersion->isPublished()
+            || ! $bindingVersion->isPublished()
+            || $profile->isArchived()
+            || $binding->isArchived()
+            || $bindingVersion->device_profile_version_id !== $profileVersion->getKey()
+            || $binding->device_profile_id !== $profileVersion->device_profile_id
+        ) {
+            throw new DomainInvariantViolation(
+                'A Device assignment requires coordinated published definitions from the same Organization.',
+            );
         }
-
-        $device->forceFill([
-            'identity_model' => $identity,
-            'revision' => $device->revision + 1,
-        ])->save();
     }
 
     private function assertRouteAwareRegistrationReady(
@@ -338,18 +324,10 @@ final class DeviceRegistrationManager
         DeviceProfileVersion $profileVersion,
         TransportBindingVersion $bindingVersion,
     ): void {
-        if (! $profileVersion->usesV2Contract()) {
-            if ($assignment->compatibility_state !== AssignmentCompatibilityState::V1_UNMIGRATED) {
-                throw new DomainInvariantViolation('A v1 Device assignment must retain the explicit v1 compatibility state.');
-            }
-
-            return;
-        }
-
         $route = $assignment->gatewayRoute()->lockForUpdate()->first();
 
         if (
-            ! $assignment->isRouteAwareV2()
+            ! $assignment->isRouteAware()
             || $route === null
             || ! $route->enabled
             || $route->device_id !== $assignment->device_id
@@ -362,7 +340,9 @@ final class DeviceRegistrationManager
             || $assignment->runtime_bundle === null
             || $assignment->runtime_compiled_at === null
         ) {
-            throw new DomainInvariantViolation('A logical Device requires an enabled matching Gateway Route and current compiled Runtime Bundle before registration.');
+            throw new DomainInvariantViolation(
+                'A Device requires an enabled matching Gateway Route and current compiled Runtime Bundle before registration.',
+            );
         }
 
         $this->assertRuntimeBundleIdentity(
@@ -387,16 +367,27 @@ final class DeviceRegistrationManager
         $organization = $assignment->organization()->firstOrFail();
         $profile = $profileVersion->profile()->firstOrFail();
         $binding = $bindingVersion->binding()->firstOrFail();
-        $hashFields = ['runtime_bundle_hash', 'profile_artifact_hash', 'binding_artifact_hash', 'route_source_hash'];
+
+        $hashFields = [
+            'runtime_bundle_hash',
+            'profile_artifact_hash',
+            'binding_artifact_hash',
+            'route_source_hash',
+        ];
 
         foreach ($hashFields as $field) {
-            if (! is_string($runtimeBundle[$field] ?? null) || preg_match('/^[a-f0-9]{64}$/', $runtimeBundle[$field]) !== 1) {
-                throw new DomainInvariantViolation("Runtime Bundle {$field} must be a lowercase SHA-256 hash.");
+            if (
+                ! is_string($runtimeBundle[$field] ?? null)
+                || preg_match('/^[a-f0-9]{64}$/', $runtimeBundle[$field]) !== 1
+            ) {
+                throw new DomainInvariantViolation(
+                    "Runtime Bundle {$field} must be a lowercase SHA-256 hash.",
+                );
             }
         }
 
         if (
-            ($runtimeBundle['schema'] ?? null) !== 'iot.runtime-bundle.v2'
+            ($runtimeBundle['schema'] ?? null) !== 'iot.runtime-bundle.v1'
             || ($runtimeBundle['organization_uuid'] ?? null) !== $organization->uuid
             || ($runtimeBundle['gateway_uuid'] ?? null) !== $gateway->uuid
             || ($runtimeBundle['gateway_route_uuid'] ?? null) !== $route->uuid
@@ -409,12 +400,18 @@ final class DeviceRegistrationManager
             || ($runtimeBundle['binding_version_uuid'] ?? null) !== $bindingVersion->uuid
             || ($runtimeBundle['profile_artifact_hash'] ?? null) !== $profileVersion->artifact_hash
             || ($runtimeBundle['binding_artifact_hash'] ?? null) !== $bindingVersion->artifact_hash
-            || ($assignment->runtime_bundle_hash !== null
-                && ($runtimeBundle['runtime_bundle_hash'] ?? null) !== $assignment->runtime_bundle_hash)
-            || ($assignment->route_source_hash !== null
-                && ($runtimeBundle['route_source_hash'] ?? null) !== $assignment->route_source_hash)
+            || (
+                $assignment->runtime_bundle_hash !== null
+                && ($runtimeBundle['runtime_bundle_hash'] ?? null) !== $assignment->runtime_bundle_hash
+            )
+            || (
+                $assignment->route_source_hash !== null
+                && ($runtimeBundle['route_source_hash'] ?? null) !== $assignment->route_source_hash
+            )
         ) {
-            throw new DomainInvariantViolation('Runtime Bundle identities do not match the exact routed Device definition assignment.');
+            throw new DomainInvariantViolation(
+                'Runtime Bundle identities do not match the exact routed Device definition assignment.',
+            );
         }
     }
 }

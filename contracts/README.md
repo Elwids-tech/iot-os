@@ -1,38 +1,34 @@
 # Cross-Language Contracts
 
-## Device Domain v2 correction
+This directory is the language-neutral Device Domain boundary shared by Laravel, Go, React, future broker adapters, and external automation.
 
-The v2 directories are additive and preserve all v1 contract identities. `common/v2` removes the unused `critical` field, narrows `required` to Command fields, and adds presentation, calibration, invalid-value, route, quality, and hashing vocabulary. Profile v2, Binding v2, Gateway, Gateway Route, Runtime Bundle, canonical telemetry, compile request, and preview schemas form one route-aware contract set.
+## Canonical contract
 
-`openapi/device-domain.v2.yaml` is the planned Laravel surface and `openapi/runtime-internal.v2.yaml` is the planned Go compiler surface. Generated TypeScript and semantic fixture checks are local contract evidence only.
+The Gateway-routed dynamic model is the first supported contract and therefore uses public `v1` identities. There is no parallel legacy contract.
 
-This directory is the language-neutral boundary between Laravel, Go, React,
-future broker adapters, and external automation. M1a-D0 establishes executable
-Device Domain contracts; it does not claim that their planned API routes or
-runtime behavior are implemented.
+The contract set defines:
+
+- dynamically authored Device Profile parameters, derivations, properties, events, and Commands;
+- Native MQTT channels, parameter-UUID mappings, calibration, missing/invalid policies, and Command correlation;
+- authenticated Gateway identity and Gateway-to-logical-Device routes;
+- deterministic compile requests, previews, artifacts, and Runtime Bundles; and
+- one-value-per-parameter canonical telemetry with stable Device and parameter UUID identity.
 
 ## Sources of truth
 
-- `definitions/common/v1/schema.json` owns the shared enum and primitive
-  vocabulary.
-- `definitions/device-profile/v1` owns transport-independent semantic
-  capabilities.
-- `definitions/native-mqtt-binding/v1` owns firmware MQTT topics, JSON paths,
-  mappings, event dispatch, and Command correlation.
-- `definitions/definition-preview/v1` owns deterministic compiler diagnostics
-  and fixture previews.
-- `definitions/definition-compile-request/v1` owns the Laravel-to-Go compiler
-  request.
-- `definitions/device-onboarding-proposal/v1` owns the draft-first AI/MCP
-  confirmation payload.
-- `openapi/device-domain.v1.yaml` describes the planned public Laravel API.
-- `openapi/runtime-internal.v1.yaml` describes the implemented internal Go
-  compiler API.
-- `fixtures/device-onboarding/manifest.json` declares positive and negative
-  schema cases.
+- `definitions/common/v1/schema.json` owns shared primitives and vocabulary.
+- `definitions/device-profile/v1` owns transport-independent semantics.
+- `definitions/native-mqtt-binding/v1` owns MQTT wire-format behavior.
+- `definitions/device/v1` and `definitions/device-definition-assignment/v1` own logical Device onboarding inputs.
+- `definitions/gateway/v1` and `definitions/gateway-route/v1` own communication and routing identity.
+- `definitions/definition-compile-request/v1` and `definitions/definition-preview/v1` own the Laravel-to-Go compiler boundary.
+- `definitions/runtime-bundle/v1` owns immutable route-aware runtime configuration.
+- `definitions/canonical-telemetry/v1` owns normalized telemetry values.
+- `openapi/device-domain.v1.yaml` describes the public Laravel control-plane surface.
+- `openapi/runtime-internal.v1.yaml` describes the planned authenticated Go compiler surface.
+- `fixtures/device-onboarding/manifest.json` declares positive and negative schema/semantic cases.
 
-Schema `$id` values are stable public identities. Relative `$ref` values keep
-local validation and client generation offline and reproducible.
+Schema `$id` values are stable wire identities. Repository-relative `$ref` values keep validation and client generation offline and reproducible.
 
 ## Verification
 
@@ -44,6 +40,6 @@ pnpm contracts:generate
 pnpm --filter @iot-os/api-client typecheck
 ```
 
-The PHP and Go vocabulary parity tests independently read the common schema.
-Generated TypeScript unions are checked exactly by
-`packages/api-client/src/device-domain-vocabulary.ts`.
+The committed TypeScript client is generated only from `device-domain.v1.yaml`. PHP and Go vocabulary checks independently read the canonical common schema.
+
+Passing these checks proves static contract consistency only. It does not prove compiler runtime, broker ingestion, time-series writes, command delivery, deployment, or physical-device behavior.

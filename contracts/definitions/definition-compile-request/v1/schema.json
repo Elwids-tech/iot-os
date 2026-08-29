@@ -1,13 +1,24 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.iot-os.dev/definitions/definition-compile-request/v1/schema.json",
-  "title": "Device definition compile request v1",
+  "title": "Route-aware Device definition compile request v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "profile", "binding", "fixtures"],
+  "required": [
+    "schema",
+    "organization_uuid",
+    "profile",
+    "binding",
+    "gateway",
+    "route",
+    "fixtures"
+  ],
   "properties": {
     "schema": {
       "const": "iot.definition-compile-request.v1"
+    },
+    "organization_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
     },
     "profile": {
       "$ref": "../../device-profile/v1/authoring.schema.json"
@@ -15,12 +26,81 @@
     "binding": {
       "$ref": "../../native-mqtt-binding/v1/authoring.schema.json"
     },
+    "gateway": {
+      "$ref": "../../gateway/v1/authoring.schema.json"
+    },
+    "route": {
+      "$ref": "../../gateway-route/v1/authoring.schema.json"
+    },
     "fixtures": {
       "type": "array",
       "minItems": 1,
       "maxItems": 256,
       "items": {
-        "$ref": "../../device-onboarding-proposal/v1/schema.json#/$defs/Fixture"
+        "$ref": "#/$defs/Fixture"
+      }
+    }
+  },
+  "$defs": {
+    "Fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "channel",
+        "topic",
+        "payload"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "telemetry",
+            "event",
+            "property",
+            "command_request",
+            "command_response"
+          ]
+        },
+        "channel": {
+          "$ref": "../../common/v1/schema.json#/$defs/Key"
+        },
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "payload": true,
+        "command_input": {
+          "type": "object"
+        },
+        "expected_parameter_values": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "$ref": "#/$defs/ExpectedParameterValue"
+          }
+        }
+      }
+    },
+    "ExpectedParameterValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parameter_uuid",
+        "value"
+      ],
+      "properties": {
+        "parameter_uuid": {
+          "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+        },
+        "value": true
       }
     }
   }

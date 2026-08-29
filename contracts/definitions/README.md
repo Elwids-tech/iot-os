@@ -1,35 +1,21 @@
 # Device Definition Contracts
 
-## Version 2 rectification
+These JSON Schema 2020-12 documents define the sole canonical Device Domain contract.
 
-The v2 contracts coexist with v1 and do not reinterpret existing documents. They establish:
+They establish:
 
-- dynamically authored measured and derived parameters with required stable UUIDs;
-- optional type-aware presentation metadata without adding metadata to MQTT payloads;
+- measured and derived parameters with required stable UUIDs;
+- type-aware constraints and presentation metadata without inflating MQTT payloads;
 - parameter-UUID mappings with explicit `on_missing` and `on_invalid` behavior;
 - ordered structured calibration operations plus restricted CEL;
 - separate semantic Commands and MQTT request/response mappings;
-- Gateway communication identity, Gateway-to-logical-Device routes, and payload scopes;
-- route-aware Runtime Bundles and canonical telemetry identified by Device and parameter UUID; and
-- semantic fixture checks for UUID uniqueness, derivation cycles, target resolution, type compatibility, route/channel compatibility, and bounded topic variables.
+- logical Device drafts and exact Profile/Binding assignment inputs;
+- Gateway communication identity and Gateway-to-logical-Device routes;
+- route-aware Runtime Bundles and canonical telemetry; and
+- semantic fixture checks for identity uniqueness, derivation cycles, target/type compatibility, route/channel compatibility, and bounded topic variables.
 
-The JavaScript semantic checks lock contract invariants before the authoritative Go v2 compiler exists. D4R3 must implement the same diagnostics and stronger CEL/type analysis; passing the contract checks is not runtime-ingestion evidence.
+Authoring documents are editable inputs used by Laravel APIs, React forms, future AI proposals, and compiler requests. Artifacts and Runtime Bundles are immutable deterministic outputs carrying exact identities and hashes.
 
-These JSON Schema 2020-12 contracts separate authoring input from immutable
-published artifacts.
+JSON Schema cannot prove every cross-document invariant. The canonical Go compiler in M1a-D4R3 remains responsible for CEL type checking, mapping coverage, dependency ordering, route resolution, deterministic artifact generation, and Command correlation.
 
-- An authoring document is editable, may include optional child UUIDs, and is
-  used by Laravel forms, APIs, AI proposals, and compiler requests.
-- An artifact is normalized compiler output. It carries exact resource IDs,
-  source hashes, compiler metadata, and immutable capability or mapping data.
-- A Device Profile is semantic and transport-independent.
-- A Native MQTT Binding targets one exact Profile Version and owns all
-  manufacturer wire-format concerns.
-
-The authoritative compiler planned in ADR-011 must apply cross-document rules
-that JSON Schema cannot prove, including key uniqueness, mapping target
-existence, channel-purpose compatibility, CEL type checking, event dispatch,
-and Command request/response correlation.
-
-The broader activation boundary remains documented in
-[`plan/contracts/definition-activation.md`](../../plan/contracts/definition-activation.md).
+Until D4R3 is implemented, JavaScript semantic checks provide contract-fixture evidence only; they are not runtime-ingestion evidence.

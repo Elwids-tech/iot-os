@@ -1,10 +1,11 @@
 openapi: 3.1.0
 info:
-  title: IoT OS Runtime Internal API
-  version: 1.0.0
+  title: IoT OS Runtime Internal API v1
+  version: 2.0.0-contract
   description: >-
-    Authenticated service-to-service API owned by the Go runtime. This surface
-    is not a tenant or browser API.
+    Planned authenticated service-to-service compiler API for route-aware v1
+    definitions. It is not a tenant or browser API and is not implemented until
+    M1a-D4R3 is complete.
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary
@@ -14,19 +15,14 @@ servers:
 security:
   - internalBearerAuth: []
 tags:
-  - name: Definition Compiler
-    description: Deterministic Device Profile and Native MQTT Binding compilation.
+  - name: Definition Compiler v1
+    description: Deterministic Profile v1, Binding v1, and Gateway Route compilation.
 paths:
   /internal/v1/definitions/compile:
     post:
-      tags: [Definition Compiler]
-      summary: Compile and replay a coordinated device definition
-      description: >-
-        Returns HTTP 200 for both valid and domain-invalid definitions. Inspect
-        the response valid flag and diagnostics. Authentication, malformed
-        requests, request limits, and runtime failures use infrastructure HTTP
-        errors.
-      operationId: compileDeviceDefinition
+      tags: [Definition Compiler v1]
+      summary: Compile and replay a route-aware Device definition
+      operationId: compileDeviceDefinitionV1
       requestBody:
         required: true
         content:
@@ -107,7 +103,7 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     CompilerUnavailable:
-      description: Runtime could not complete compilation due to an internal failure.
+      description: Runtime could not complete compilation because of an internal failure.
       content:
         application/json:
           schema:

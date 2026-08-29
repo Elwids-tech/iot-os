@@ -1,0 +1,104 @@
+{
+  "schema": "iot.device-profile.authoring.v1",
+  "profile": {
+    "uuid": "41000000-0000-4000-8000-000000000001",
+    "key": "temperature_thermostat",
+    "name": "Temperature sensor and thermostat",
+    "description": "One logical Device with calibrated temperature and a thermostat Command."
+  },
+  "version": {
+    "uuid": "41000000-0000-4000-8000-000000000002",
+    "version": 1,
+    "notes": "Hub fan-out golden fixture.",
+    "parameters": [
+      {
+        "uuid": "41000000-0000-4000-8000-000000000003",
+        "key": "temperature",
+        "label": "Temperature",
+        "description": "Calibrated ambient temperature.",
+        "value_schema": {
+          "data_type": "float64",
+          "unit_code": "Cel",
+          "constraints": {
+            "minimum": -40,
+            "maximum": 125
+          }
+        },
+        "presentation": {
+          "order": 10,
+          "precision": 1,
+          "display": {
+            "widget": "gauge"
+          }
+        }
+      }
+    ],
+    "derived_parameters": [],
+    "properties": [],
+    "events": [],
+    "commands": [
+      {
+        "uuid": "41000000-0000-4000-8000-000000000004",
+        "key": "set_temperature",
+        "label": "Set thermostat temperature",
+        "description": "Set a target and wait for the correlated Device response.",
+        "mode": "two_way",
+        "risk": "medium",
+        "confirmation_text": "Confirm the thermostat target temperature.",
+        "timeout_seconds": 30,
+        "offline_policy": "reject",
+        "idempotent": true,
+        "max_attempts": 3,
+        "fields": [
+          {
+            "uuid": "41000000-0000-4000-8000-000000000005",
+            "direction": "input",
+            "key": "temp_level",
+            "label": "Target temperature",
+            "description": "Required before publishing the Command.",
+            "required": true,
+            "value_schema": {
+              "data_type": "float64",
+              "unit_code": "Cel",
+              "constraints": {
+                "minimum": 5,
+                "maximum": 35,
+                "multiple_of": 0.5
+              }
+            },
+            "presentation": {
+              "order": 10,
+              "precision": 1,
+              "input": {
+                "widget": "slider"
+              }
+            }
+          },
+          {
+            "uuid": "41000000-0000-4000-8000-000000000006",
+            "direction": "output",
+            "key": "applied_temp_level",
+            "label": "Applied temperature",
+            "description": "Expected in a successful correlated response.",
+            "required": true,
+            "value_schema": {
+              "data_type": "float64",
+              "unit_code": "Cel",
+              "constraints": {
+                "minimum": 5,
+                "maximum": 35
+              }
+            },
+            "presentation": {
+              "order": 10,
+              "precision": 1,
+              "display": {
+                "widget": "value_card"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

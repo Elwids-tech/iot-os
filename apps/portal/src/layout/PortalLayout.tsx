@@ -47,7 +47,6 @@ import {
   BoxesIcon,
   ChevronsUpDownIcon,
   CpuIcon,
-  FileCode2Icon,
   LogOutIcon,
 } from "lucide-react"
 import {
@@ -59,8 +58,7 @@ import {
 } from "react-router-dom"
 
 const navigation = [
-  { title: "Definitions", segment: "definitions", icon: FileCode2Icon },
-  { title: "Devices", segment: "devices", icon: CpuIcon },
+  { title: "Device Domain", segment: "device-domain", icon: CpuIcon },
 ]
 
 function PortalSidebar({
@@ -86,7 +84,7 @@ function PortalSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton asChild size="lg" tooltip="IoT OS Tenant Portal">
               <NavLink
-                to={`/organizations/${organization.uuid}/definitions`}
+                to={`/organizations/${organization.uuid}/device-domain`}
                 onClick={closeMobileSidebar}
               >
                 <BoxesIcon />
@@ -161,7 +159,7 @@ export function PortalLayout({
     navigation.find((item) => location.pathname.includes(`/${item.segment}`)) ?? navigation[0]
 
   function changeOrganization(uuid: string) {
-    const tail = location.pathname.split("/").slice(3).join("/") || "definitions"
+    const tail = location.pathname.split("/").slice(3).join("/") || "device-domain"
     navigate(`/organizations/${uuid}/${tail}`)
   }
 

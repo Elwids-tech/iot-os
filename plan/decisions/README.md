@@ -17,3 +17,4 @@ These ADRs record accepted technology and responsibility boundaries. An ADR chan
 | [ADR-011](ADR-011-deterministic-definition-compiler.md) | Go-owned JSONPath and CEL definition compiler | Accepted |
 | [ADR-012](ADR-012-draft-first-ai-device-onboarding.md) | Draft-first AI and MCP Device onboarding | Accepted |
 | [ADR-013](ADR-013-logical-devices-stable-parameters-and-gateway-routing.md) | Logical Devices, stable parameter identity, and Gateway routing | Accepted |
+| [ADR-014](ADR-014-pre-production-device-domain-canonical-cutover.md) | Pre-production hard cutover to the canonical Gateway-routed Device Domain | Accepted |

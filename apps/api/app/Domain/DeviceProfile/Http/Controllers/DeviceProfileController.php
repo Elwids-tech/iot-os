@@ -6,8 +6,7 @@ namespace App\Domain\DeviceProfile\Http\Controllers;
 
 use App\Domain\Authorization\Support\CurrentOrganization;
 use App\Domain\DeviceProfile\Data\DeviceProfileAuthoringData;
-use App\Domain\DeviceProfile\Http\Requests\CatalogMetadataRequest;
-use App\Domain\DeviceProfile\Http\Requests\DeviceProfileDefinitionRequest;
+use App\Domain\DeviceProfile\Http\Requests\DeviceProfileAuthoringRequest;
 use App\Domain\DeviceProfile\Http\Resources\DeviceProfileResource;
 use App\Domain\DeviceProfile\Models\DeviceProfile;
 use App\Domain\DeviceProfile\Services\DefinitionAuthoringManager;
@@ -33,92 +32,75 @@ final class DeviceProfileController
 
         $query = DeviceProfile::query()
             ->whereBelongsTo($organization)
-            ->withCount('versions')
+            ->whereHas('versions')
+            ->with(['versions' => fn ($query) => $query->orderByDesc('version')])
             ->orderBy('name');
-        if ($request->boolean('include_archived') === false) {
-            $query->whereNull('archived_at');
-        }
+
         if (is_string($request->query('search')) && $request->query('search') !== '') {
             $search = '%'.str_replace(['%', '_'], ['\%', '\_'], (string) $request->query('search')).'%';
-            $query->where(static fn ($builder) => $builder->where('name', 'like', $search)->orWhere('key', 'like', $search));
+            $query->where(static fn ($builder) => $builder
+                ->where('name', 'like', $search)
+                ->orWhere('key', 'like', $search));
         }
 
-        return DeviceProfileResource::collection($query->paginate($this->perPage($request)));
+        return DeviceProfileResource::collection(
+            $query->paginate(max(1, min(100, $request->integer('per_page', 25)))),
+        );
     }
 
-    public function store(DeviceProfileDefinitionRequest $request): JsonResponse
+    public function store(DeviceProfileAuthoringRequest $request): JsonResponse
     {
         $organization = CurrentOrganization::from($request);
         Gate::authorize('create', [DeviceProfile::class, $organization]);
         /** @var User $actor */
         $actor = $request->user();
-        $version = $this->authoring->createProfileDraft(
+        $profile = $this->authoring->createProfileDraft(
             $organization,
             DeviceProfileAuthoringData::fromArray($request->validated()),
             $actor,
         );
-        $profile = $version->profile->load(['versions.profile']);
 
-        return DeviceProfileResource::make($profile)
-            ->additional(['etag' => $profile->etag()])
-            ->response()
-            ->setStatusCode(201)
-            ->withHeaders(['ETag' => $profile->etag()]);
+        return $this->response($profile, 201);
     }
 
     public function show(Request $request, string $profile): JsonResponse
     {
         $model = $this->locator->profile(CurrentOrganization::from($request), $profile);
         Gate::authorize('view', $model);
-        $model->load(['versions' => static fn ($query) => $query->with('profile')->orderByDesc('version')]);
 
-        return DeviceProfileResource::make($model)
-            ->additional(['etag' => $model->etag()])
-            ->response()
-            ->withHeaders(['ETag' => $model->etag()]);
+        return $this->response($model);
     }
 
-    public function update(CatalogMetadataRequest $request, string $profile): JsonResponse
+    public function update(DeviceProfileAuthoringRequest $request, string $profile): JsonResponse
     {
         $model = $this->locator->profile(CurrentOrganization::from($request), $profile);
         Gate::authorize('update', $model);
-        $validated = $request->validated();
-        $updated = $this->authoring->updateProfileMetadata(
+        $updated = $this->authoring->replaceProfileDraft(
             $model,
-            (string) ($validated['name'] ?? $model->name),
-            array_key_exists('description', $validated) ? $validated['description'] : $model->description,
+            DeviceProfileAuthoringData::fromArray($request->validated()),
             $request->header('If-Match'),
         );
 
-        return DeviceProfileResource::make($updated)
-            ->additional(['etag' => $updated->etag()])
-            ->response()
-            ->withHeaders(['ETag' => $updated->etag()]);
+        return $this->response($updated);
     }
 
     public function destroy(Request $request, string $profile): Response
     {
         $model = $this->locator->profile(CurrentOrganization::from($request), $profile);
         Gate::authorize('delete', $model);
-        $this->authoring->deleteProfile($model, $request->header('If-Match'));
+        $this->authoring->deleteProfileDraft($model, $request->header('If-Match'));
 
         return response()->noContent();
     }
 
-    public function archive(Request $request, string $profile): JsonResponse
+    private function response(DeviceProfile $profile, int $status = 200): JsonResponse
     {
-        $model = $this->locator->profile(CurrentOrganization::from($request), $profile);
-        Gate::authorize('update', $model);
-        $archived = $this->authoring->archiveProfile($model, $request->header('If-Match'));
+        $profile->load(['versions' => fn ($query) => $query->orderByDesc('version')]);
 
-        return DeviceProfileResource::make($archived)
-            ->additional(['etag' => $archived->etag()])
+        return DeviceProfileResource::make($profile)
+            ->additional(['etag' => $profile->etag()])
             ->response()
-            ->withHeaders(['ETag' => $archived->etag()]);
-    }
-
-    private function perPage(Request $request): int
-    {
-        return max(1, min(100, $request->integer('per_page', 25)));
+            ->setStatusCode($status)
+            ->withHeaders(['ETag' => $profile->etag()]);
     }
 }

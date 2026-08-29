@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\DeviceManagement\Services;
 
 use App\Domain\DeviceManagement\Data\GatewayRouteAuthoringData;
-use App\Domain\DeviceManagement\Enums\AssignmentCompatibilityState;
-use App\Domain\DeviceManagement\Enums\DeviceIdentityModel;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceManagement\Models\DeviceDefinitionAssignment;
 use App\Domain\DeviceManagement\Models\Gateway;
@@ -75,7 +73,6 @@ final class GatewayRouteManager
             ]);
 
             $this->attachAssignment(
-                $lockedDevice,
                 $assignment,
                 $route,
                 $lockedProfileVersion,
@@ -142,7 +139,6 @@ final class GatewayRouteManager
             ])->save();
 
             $this->attachAssignment(
-                $lockedDevice,
                 $assignment,
                 $lockedRoute,
                 $profileVersion,
@@ -168,14 +164,9 @@ final class GatewayRouteManager
                 throw new DomainInvariantViolation('A registered or archived Device Gateway Route is immutable.');
             }
 
-            if ($assignment?->runtime_bundle_hash !== null) {
-                throw new DomainInvariantViolation('A Gateway Route with a compiled Runtime Bundle cannot be deleted.');
-            }
-
             if ($assignment?->gateway_route_id === $lockedRoute->getKey()) {
                 $assignment->forceFill([
                     'gateway_route_id' => null,
-                    'compatibility_state' => AssignmentCompatibilityState::V2_ROUTE_PENDING,
                     'profile_artifact_hash' => null,
                     'binding_artifact_hash' => null,
                     'route_source_hash' => null,
@@ -222,15 +213,13 @@ final class GatewayRouteManager
             || $data->bindingVersionUuid !== $bindingVersion->uuid
             || ! $profileVersion->isPublished()
             || ! $bindingVersion->isPublished()
-            || ! $profileVersion->usesV2Contract()
-            || ! $bindingVersion->usesV2Contract()
             || $bindingVersion->device_profile_version_id !== $profileVersion->getKey()
             || $binding->device_profile_id !== $profileVersion->device_profile_id
             || $assignment->device_profile_version_id !== $profileVersion->getKey()
             || $assignment->transport_binding_version_id !== $bindingVersion->getKey()
             || ($assignment->gateway_route_id !== null && $assignment->gateway_route_id !== $existingRoute?->getKey())
         ) {
-            throw new DomainInvariantViolation('A Gateway Route requires coordinated published v2 definitions and the exact same-tenant Device assignment.');
+            throw new DomainInvariantViolation('A Gateway Route requires coordinated published definitions and the exact same-tenant Device assignment.');
         }
 
         if ($profileVersion->artifact_hash === null || $bindingVersion->artifact_hash === null) {
@@ -287,7 +276,6 @@ final class GatewayRouteManager
     }
 
     private function attachAssignment(
-        Device $device,
         DeviceDefinitionAssignment $assignment,
         GatewayRoute $route,
         DeviceProfileVersion $profileVersion,
@@ -296,7 +284,6 @@ final class GatewayRouteManager
     ): void {
         $assignment->forceFill([
             'gateway_route_id' => $route->getKey(),
-            'compatibility_state' => AssignmentCompatibilityState::V2_ROUTE_AWARE,
             'profile_artifact_hash' => $profileVersion->artifact_hash,
             'binding_artifact_hash' => $bindingVersion->artifact_hash,
             'route_source_hash' => null,
@@ -307,12 +294,6 @@ final class GatewayRouteManager
             'revision' => $assignment->revision + 1,
         ])->save();
 
-        if ($device->identity_model !== DeviceIdentityModel::LOGICAL_V2) {
-            $device->forceFill([
-                'identity_model' => DeviceIdentityModel::LOGICAL_V2,
-                'revision' => $device->revision + 1,
-            ])->save();
-        }
     }
 
     private function assertRouteIdentityAvailable(

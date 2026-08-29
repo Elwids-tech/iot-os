@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iot-os.dev/definitions/canonical-telemetry/v1/schema.json",
+  "title": "Canonical telemetry value v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "organization_uuid",
+    "gateway_uuid",
+    "gateway_route_uuid",
+    "device_uuid",
+    "parameter_uuid",
+    "profile_version_uuid",
+    "binding_version_uuid",
+    "source",
+    "observed_at",
+    "received_at",
+    "value_type",
+    "value",
+    "quality",
+    "message_id",
+    "runtime_bundle_hash"
+  ],
+  "properties": {
+    "schema": {
+      "const": "iot.canonical-telemetry.v1"
+    },
+    "organization_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "gateway_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "gateway_route_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "device_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "parameter_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "profile_version_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "binding_version_uuid": {
+      "$ref": "../../common/v1/schema.json#/$defs/Uuid"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "measured",
+        "derived"
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "received_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "value_type": {
+      "$ref": "../../common/v1/schema.json#/$defs/DataType"
+    },
+    "value": true,
+    "quality": {
+      "$ref": "#/$defs/Quality"
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "runtime_bundle_hash": {
+      "$ref": "../../common/v1/schema.json#/$defs/Sha256"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "required": [
+          "value_type"
+        ],
+        "properties": {
+          "value_type": {
+            "const": "float64"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": [
+          "value_type"
+        ],
+        "properties": {
+          "value_type": {
+            "const": "int64"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": [
+          "value_type"
+        ],
+        "properties": {
+          "value_type": {
+            "const": "uint64"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": [
+          "value_type"
+        ],
+        "properties": {
+          "value_type": {
+            "const": "boolean"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": [
+          "value_type"
+        ],
+        "properties": {
+          "value_type": {
+            "enum": [
+              "string",
+              "bytes",
+              "state"
+            ]
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "Quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "codes"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "../../common/v1/schema.json#/$defs/QualityStatus"
+        },
+        "codes": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "../../common/v1/schema.json#/$defs/Key"
+          }
+        }
+      }
+    }
+  }
+}

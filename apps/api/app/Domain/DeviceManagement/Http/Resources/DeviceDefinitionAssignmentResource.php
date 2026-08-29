@@ -18,7 +18,6 @@ final class DeviceDefinitionAssignmentResource extends JsonResource
             'profile_version_uuid' => $this->profileVersion->uuid,
             'binding_version_uuid' => $this->bindingVersion->uuid,
             'gateway_route_uuid' => $this->gatewayRoute?->uuid,
-            'compatibility_state' => $this->compatibility_state->value,
             'profile_artifact_hash' => $this->profile_artifact_hash,
             'binding_artifact_hash' => $this->binding_artifact_hash,
             'route_source_hash' => $this->route_source_hash,

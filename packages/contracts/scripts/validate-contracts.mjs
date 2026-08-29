@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises"
 import { dirname, extname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import Ajv2020 from "ajv/dist/2020.js"
+import Ajv1020 from "ajv/dist/2020.js"
 import addFormats from "ajv-formats"
 
 const packageDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -38,12 +38,12 @@ function formatErrors(errors) {
     .join("; ")
 }
 
-const profileV2SchemaId =
-  "https://schemas.iot-os.dev/definitions/device-profile/v2/authoring.schema.json"
-const bindingV2SchemaId =
-  "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v2/authoring.schema.json"
-const gatewayRouteV2SchemaId =
-  "https://schemas.iot-os.dev/definitions/gateway-route/v2/authoring.schema.json"
+const profileSchemaId =
+  "https://schemas.iot-os.dev/definitions/device-profile/v1/authoring.schema.json"
+const bindingSchemaId =
+  "https://schemas.iot-os.dev/definitions/native-mqtt-binding/v1/authoring.schema.json"
+const gatewayRouteSchemaId =
+  "https://schemas.iot-os.dev/definitions/gateway-route/v1/authoring.schema.json"
 
 function duplicateErrors(items, field, code, label) {
   const seen = new Set()
@@ -62,7 +62,7 @@ function duplicateErrors(items, field, code, label) {
   return errors
 }
 
-function profileV2Errors(instance) {
+function profileErrors(instance) {
   const version = instance.version
   const parameters = version.parameters
   const derived = version.derived_parameters
@@ -147,7 +147,7 @@ function profileV2Errors(instance) {
   return errors
 }
 
-function bindingV2Errors(instance, profile) {
+function bindingErrors(instance, profile) {
   const version = instance.version
   const profileVersion = profile?.version
   const errors = [
@@ -363,7 +363,7 @@ function bindingV2Errors(instance, profile) {
   return errors
 }
 
-function gatewayRouteV2Errors(instance, binding, gateway) {
+function gatewayRouteErrors(instance, binding, gateway) {
   const route = instance.route
   const errors = []
 
@@ -432,22 +432,22 @@ async function semanticErrorsFor(fixtureCase, instance) {
     ? await readJson(join(contractsDirectory, context.gateway))
     : null
 
-  if (fixtureCase.schema_id === profileV2SchemaId) {
-    return profileV2Errors(instance)
+  if (fixtureCase.schema_id === profileSchemaId) {
+    return profileErrors(instance)
   }
 
-  if (fixtureCase.schema_id === bindingV2SchemaId) {
-    return bindingV2Errors(instance, profile)
+  if (fixtureCase.schema_id === bindingSchemaId) {
+    return bindingErrors(instance, profile)
   }
 
-  if (fixtureCase.schema_id === gatewayRouteV2SchemaId) {
-    return gatewayRouteV2Errors(instance, binding, gateway)
+  if (fixtureCase.schema_id === gatewayRouteSchemaId) {
+    return gatewayRouteErrors(instance, binding, gateway)
   }
 
   return []
 }
 
-const ajv = new Ajv2020({
+const ajv = new Ajv1020({
   allErrors: true,
   allowUnionTypes: true,
   strict: true,
@@ -498,33 +498,33 @@ function requireFields(definition, fields, label) {
   }
 }
 
-const commonV2 = schemaById("https://schemas.iot-os.dev/definitions/common/v2/schema.json")
-const profileV2 = schemaById(profileV2SchemaId)
-const bindingV2 = schemaById(bindingV2SchemaId)
-const canonicalTelemetryV2 = schemaById(
-  "https://schemas.iot-os.dev/definitions/canonical-telemetry/v2/schema.json",
+const common = schemaById("https://schemas.iot-os.dev/definitions/common/v1/schema.json")
+const profile = schemaById(profileSchemaId)
+const binding = schemaById(bindingSchemaId)
+const canonicalTelemetry = schemaById(
+  "https://schemas.iot-os.dev/definitions/canonical-telemetry/v1/schema.json",
 )
 
-requireFields(commonV2.$defs.ValueSchema, ["data_type", "constraints"], "v2 ValueSchema")
+requireFields(common.$defs.ValueSchema, ["data_type", "constraints"], "v1 ValueSchema")
 
-if ("required" in commonV2.$defs.ValueSchema.properties) {
-  throw new Error("v2 ValueSchema must not expose contextual Command required metadata")
+if ("required" in common.$defs.ValueSchema.properties) {
+  throw new Error("v1 ValueSchema must not expose contextual Command required metadata")
 }
 
-if ("critical" in commonV2.$defs.ValueSchema.properties) {
-  throw new Error("v2 ValueSchema must not expose the unused critical flag")
+if ("critical" in common.$defs.ValueSchema.properties) {
+  throw new Error("v1 ValueSchema must not expose the unused critical flag")
 }
 
-requireFields(profileV2.$defs.Parameter, ["uuid"], "v2 measured Parameter")
-requireFields(profileV2.$defs.DerivedParameter, ["uuid", "dependencies"], "v2 derived Parameter")
-requireFields(profileV2.$defs.CommandField, ["required"], "v2 Command field")
+requireFields(profile.$defs.Parameter, ["uuid"], "v1 measured Parameter")
+requireFields(profile.$defs.DerivedParameter, ["uuid", "dependencies"], "v1 derived Parameter")
+requireFields(profile.$defs.CommandField, ["required"], "v1 Command field")
 requireFields(
-  bindingV2.$defs.ParameterMapping,
+  binding.$defs.ParameterMapping,
   ["target_parameter_uuid", "calibration", "on_missing", "on_invalid"],
-  "v2 parameter mapping",
+  "v1 parameter mapping",
 )
 requireFields(
-  canonicalTelemetryV2,
+  canonicalTelemetry,
   [
     "gateway_uuid",
     "device_uuid",
@@ -533,7 +533,7 @@ requireFields(
     "message_id",
     "runtime_bundle_hash",
   ],
-  "v2 canonical telemetry",
+  "v1 canonical telemetry",
 )
 
 const manifest = await readJson(manifestPath)

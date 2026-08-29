@@ -1,14 +1,14 @@
 openapi: 3.1.0
 info:
-  title: IoT OS Device Domain API
-  version: 1.0.0-draft
+  title: IoT OS Device Domain API v1
+  version: 1.0.0
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary
   description: >-
-    Tenant-owned Device Profile, Native MQTT Binding, definition preview,
-    single-Device registration, and onboarding proposal API. All operations are
-    planned until the corresponding M1a milestone is marked implemented.
+    Tenant-scoped control-plane API for canonical Device Profile and Native MQTT
+    Binding authoring, logical Device lifecycle, exact definition assignments,
+    Gateway identities, and Gateway Routes.
 servers:
   - url: http://localhost:8000
     description: Local Laravel API
@@ -16,33 +16,33 @@ security:
   - cookieAuth: []
   - bearerAuth: []
 tags:
-  - name: Device Profiles
-    description: Semantic capability blueprints owned by a tenant.
-  - name: Transport Bindings
-    description: Versioned Native MQTT JSON mappings for an exact Profile Version.
-  - name: Definition Authoring
-    description: Coordinated validation and publication of Profile and Binding drafts.
+  - name: Device Profiles v1
+    description: Dynamic logical-Device semantic blueprints.
+  - name: Native MQTT Bindings v1
+    description: Parameter-UUID mappings, calibration, and Command encoding.
   - name: Devices
-    description: Single-Device drafts, registration, assignment, and archival.
-  - name: Device Onboarding
-    description: Draft-first conversational onboarding proposals and confirmation.
+    description: Logical Device drafts, exact definition assignment, registration, and archival.
+  - name: Gateways
+    description: Authenticated MQTT communication identities.
+  - name: Gateway Routes
+    description: Gateway-to-logical-Device addressing and payload scopes.
 paths:
   /api/v1/device-profiles:
     parameters:
       - $ref: '#/components/parameters/OrganizationContext'
     get:
-      tags: [Device Profiles]
-      summary: List Device Profiles
-      operationId: listDeviceProfiles
+      tags: [Device Profiles v1]
+      summary: List Device Profile v1 drafts and published Versions
+      operationId: listDeviceProfilesV1
       responses:
         '200':
           $ref: '#/components/responses/CollectionResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
     post:
-      tags: [Device Profiles]
-      summary: Create a Device Profile draft
-      operationId: createDeviceProfile
+      tags: [Device Profiles v1]
+      summary: Create a Device Profile v1 draft
+      operationId: createDeviceProfileV1
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -50,7 +50,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeviceProfileDraftV1'
+              $ref: '#/components/schemas/DeviceProfileAuthoringV1'
       responses:
         '201':
           $ref: '#/components/responses/ResourceResponse'
@@ -61,18 +61,18 @@ paths:
       - $ref: '#/components/parameters/OrganizationContext'
       - $ref: '#/components/parameters/ProfileUuid'
     get:
-      tags: [Device Profiles]
-      summary: Get a Device Profile
-      operationId: getDeviceProfile
+      tags: [Device Profiles v1]
+      summary: Get a Device Profile v1 aggregate
+      operationId: getDeviceProfileV1
       responses:
         '200':
           $ref: '#/components/responses/ResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
-    patch:
-      tags: [Device Profiles]
-      summary: Update Device Profile metadata
-      operationId: updateDeviceProfile
+    put:
+      tags: [Device Profiles v1]
+      summary: Replace a Device Profile v1 draft at the expected revision
+      operationId: replaceDeviceProfileV1
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -80,55 +80,39 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CatalogMetadataPatch'
+              $ref: '#/components/schemas/DeviceProfileAuthoringV1'
       responses:
         '200':
           $ref: '#/components/responses/ResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
     delete:
-      tags: [Device Profiles]
-      summary: Delete an unreferenced Device Profile draft
-      operationId: deleteDeviceProfile
+      tags: [Device Profiles v1]
+      summary: Delete an unreferenced Device Profile v1 draft
+      operationId: deleteDeviceProfileV1
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       responses:
         '204':
-          description: Unreferenced draft-only Profile deleted.
+          description: Draft deleted.
         default:
           $ref: '#/components/responses/ProblemResponse'
-  /api/v1/device-profiles/{profile}/archive:
+  /api/v1/native-mqtt-bindings:
     parameters:
       - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/ProfileUuid'
-      - $ref: '#/components/parameters/IdempotencyKey'
-      - $ref: '#/components/parameters/IfMatch'
-    post:
-      tags: [Device Profiles]
-      summary: Archive a Device Profile
-      operationId: archiveDeviceProfile
-      responses:
-        '200':
-          $ref: '#/components/responses/ResourceResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/device-profiles/{profile}/versions:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/ProfileUuid'
     get:
-      tags: [Device Profiles]
-      summary: List Device Profile Versions
-      operationId: listDeviceProfileVersions
+      tags: [Native MQTT Bindings v1]
+      summary: List Native MQTT Binding v1 aggregates
+      operationId: listNativeMqttBindingsV1
       responses:
         '200':
           $ref: '#/components/responses/CollectionResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
     post:
-      tags: [Device Profiles]
-      summary: Create a Device Profile Version draft
-      operationId: createDeviceProfileVersion
+      tags: [Native MQTT Bindings v1]
+      summary: Create a Native MQTT Binding v1 draft
+      operationId: createNativeMqttBindingV1
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -136,113 +120,29 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeviceProfileDraftV1'
-      responses:
-        '201':
-          $ref: '#/components/responses/VersionResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/device-profile-versions/{version}:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/VersionUuid'
-    get:
-      tags: [Device Profiles]
-      summary: Get a Device Profile Version
-      operationId: getDeviceProfileVersion
-      responses:
-        '200':
-          $ref: '#/components/responses/VersionResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-    put:
-      tags: [Device Profiles]
-      summary: Replace a Device Profile Version draft
-      operationId: replaceDeviceProfileVersionDraft
-      parameters:
-        - $ref: '#/components/parameters/IfMatch'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DeviceProfileDraftV1'
-      responses:
-        '200':
-          $ref: '#/components/responses/VersionResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-    delete:
-      tags: [Device Profiles]
-      summary: Delete a Device Profile Version draft
-      operationId: deleteDeviceProfileVersionDraft
-      parameters:
-        - $ref: '#/components/parameters/IfMatch'
-      responses:
-        '204':
-          description: Unreferenced draft Version deleted.
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/device-profile-versions/{version}/clone:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/VersionUuid'
-      - $ref: '#/components/parameters/IdempotencyKey'
-    post:
-      tags: [Device Profiles]
-      summary: Clone a Device Profile Version into a draft
-      operationId: cloneDeviceProfileVersion
-      responses:
-        '201':
-          $ref: '#/components/responses/VersionResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/transport-bindings:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-    get:
-      tags: [Transport Bindings]
-      summary: List Transport Bindings
-      operationId: listTransportBindings
-      responses:
-        '200':
-          $ref: '#/components/responses/CollectionResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-    post:
-      tags: [Transport Bindings]
-      summary: Create a Transport Binding draft
-      operationId: createTransportBinding
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NativeMqttBindingDraftV1'
+              $ref: '#/components/schemas/NativeMqttBindingAuthoringV1'
       responses:
         '201':
           $ref: '#/components/responses/ResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
-  /api/v1/transport-bindings/{binding}:
+  /api/v1/native-mqtt-bindings/{binding}:
     parameters:
       - $ref: '#/components/parameters/OrganizationContext'
       - $ref: '#/components/parameters/BindingUuid'
     get:
-      tags: [Transport Bindings]
-      summary: Get a Transport Binding
-      operationId: getTransportBinding
+      tags: [Native MQTT Bindings v1]
+      summary: Get a Native MQTT Binding v1 aggregate
+      operationId: getNativeMqttBindingV1
       responses:
         '200':
           $ref: '#/components/responses/ResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
-    patch:
-      tags: [Transport Bindings]
-      summary: Update Transport Binding metadata
-      operationId: updateTransportBinding
+    put:
+      tags: [Native MQTT Bindings v1]
+      summary: Replace a Native MQTT Binding v1 draft at the expected revision
+      operationId: replaceNativeMqttBindingV1
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -250,209 +150,21 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CatalogMetadataPatch'
+              $ref: '#/components/schemas/NativeMqttBindingAuthoringV1'
       responses:
         '200':
           $ref: '#/components/responses/ResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
     delete:
-      tags: [Transport Bindings]
-      summary: Delete an unreferenced Transport Binding draft
-      operationId: deleteTransportBinding
+      tags: [Native MQTT Bindings v1]
+      summary: Delete an unreferenced Native MQTT Binding v1 draft
+      operationId: deleteNativeMqttBindingV1
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       responses:
         '204':
-          description: Unreferenced draft-only Binding deleted.
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/transport-bindings/{binding}/archive:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/BindingUuid'
-      - $ref: '#/components/parameters/IdempotencyKey'
-      - $ref: '#/components/parameters/IfMatch'
-    post:
-      tags: [Transport Bindings]
-      summary: Archive a Transport Binding
-      operationId: archiveTransportBinding
-      responses:
-        '200':
-          $ref: '#/components/responses/ResourceResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/transport-bindings/{binding}/versions:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/BindingUuid'
-    get:
-      tags: [Transport Bindings]
-      summary: List Transport Binding Versions
-      operationId: listTransportBindingVersions
-      responses:
-        '200':
-          $ref: '#/components/responses/CollectionResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-    post:
-      tags: [Transport Bindings]
-      summary: Create a Transport Binding Version draft
-      operationId: createTransportBindingVersion
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NativeMqttBindingDraftV1'
-      responses:
-        '201':
-          $ref: '#/components/responses/VersionResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/transport-binding-versions/{version}:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/VersionUuid'
-    get:
-      tags: [Transport Bindings]
-      summary: Get a Transport Binding Version
-      operationId: getTransportBindingVersion
-      responses:
-        '200':
-          $ref: '#/components/responses/VersionResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-    put:
-      tags: [Transport Bindings]
-      summary: Replace a Transport Binding Version draft
-      operationId: replaceTransportBindingVersionDraft
-      parameters:
-        - $ref: '#/components/parameters/IfMatch'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NativeMqttBindingDraftV1'
-      responses:
-        '200':
-          $ref: '#/components/responses/VersionResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-    delete:
-      tags: [Transport Bindings]
-      summary: Delete a Transport Binding Version draft
-      operationId: deleteTransportBindingVersionDraft
-      parameters:
-        - $ref: '#/components/parameters/IfMatch'
-      responses:
-        '204':
-          description: Unreferenced draft Version deleted.
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/transport-binding-versions/{version}/clone:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/VersionUuid'
-      - $ref: '#/components/parameters/IdempotencyKey'
-    post:
-      tags: [Transport Bindings]
-      summary: Clone a Transport Binding Version into a draft
-      operationId: cloneTransportBindingVersion
-      responses:
-        '201':
-          $ref: '#/components/responses/VersionResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/definition-drafts:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/IdempotencyKey'
-    post:
-      tags: [Definition Authoring]
-      summary: Create a coordinated definition draft
-      operationId: createCoordinatedDefinitionDraft
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CoordinatedDefinitionDraftV1'
-      responses:
-        '201':
-          $ref: '#/components/responses/DefinitionDraftResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/definition-drafts/{bindingVersion}:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/BindingVersionUuid'
-    get:
-      tags: [Definition Authoring]
-      summary: Get a coordinated definition draft
-      operationId: getCoordinatedDefinitionDraft
-      responses:
-        '200':
-          $ref: '#/components/responses/DefinitionDraftResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-    put:
-      tags: [Definition Authoring]
-      summary: Replace a coordinated definition draft
-      operationId: replaceCoordinatedDefinitionDraft
-      parameters:
-        - $ref: '#/components/parameters/IfMatch'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CoordinatedDefinitionDraftV1'
-      responses:
-        '200':
-          $ref: '#/components/responses/DefinitionDraftResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/definition-drafts/{bindingVersion}/validate:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/BindingVersionUuid'
-      - $ref: '#/components/parameters/IfMatch'
-    post:
-      tags: [Definition Authoring]
-      summary: Validate and preview a coordinated definition draft
-      operationId: validateCoordinatedDefinitionDraft
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/FixtureSetV1'
-      responses:
-        '200':
-          description: Deterministic validation and previews.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DefinitionPreviewV1'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/definition-drafts/{bindingVersion}/publish:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/BindingVersionUuid'
-      - $ref: '#/components/parameters/IfMatch'
-      - $ref: '#/components/parameters/IdempotencyKey'
-    post:
-      tags: [Definition Authoring]
-      summary: Publish a coordinated definition draft
-      operationId: publishCoordinatedDefinitionDraft
-      responses:
-        '200':
-          $ref: '#/components/responses/DefinitionDraftResponse'
+          description: Draft deleted.
         default:
           $ref: '#/components/responses/ProblemResponse'
   /api/v1/devices:
@@ -460,17 +172,19 @@ paths:
       - $ref: '#/components/parameters/OrganizationContext'
     get:
       tags: [Devices]
-      summary: List Devices
-      operationId: listDevices
+      summary: List logical Devices
+      operationId: listDevicesV1
+      parameters:
+        - $ref: '#/components/parameters/DeviceStateFilter'
       responses:
         '200':
-          $ref: '#/components/responses/CollectionResponse'
+          $ref: '#/components/responses/DeviceCollectionResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
     post:
       tags: [Devices]
-      summary: Create a Device draft
-      operationId: createDeviceDraft
+      summary: Create a logical Device draft
+      operationId: createDeviceV1
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -478,10 +192,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeviceDraftV1'
+              $ref: '#/components/schemas/DeviceAuthoringV1'
       responses:
         '201':
-          $ref: '#/components/responses/ResourceResponse'
+          $ref: '#/components/responses/DeviceResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
   /api/v1/devices/{device}:
@@ -490,17 +204,17 @@ paths:
       - $ref: '#/components/parameters/DeviceUuid'
     get:
       tags: [Devices]
-      summary: Get a Device
-      operationId: getDevice
+      summary: Get a logical Device
+      operationId: getDeviceV1
       responses:
         '200':
-          $ref: '#/components/responses/ResourceResponse'
+          $ref: '#/components/responses/DeviceResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
-    patch:
+    put:
       tags: [Devices]
-      summary: Update a Device draft
-      operationId: updateDeviceDraft
+      summary: Replace a logical Device draft at the expected revision
+      operationId: replaceDeviceV1
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -508,21 +222,21 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeviceDraftV1'
+              $ref: '#/components/schemas/DeviceAuthoringV1'
       responses:
         '200':
-          $ref: '#/components/responses/ResourceResponse'
+          $ref: '#/components/responses/DeviceResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
     delete:
       tags: [Devices]
-      summary: Delete a Device draft
-      operationId: deleteDeviceDraft
+      summary: Delete a logical Device draft
+      operationId: deleteDeviceV1
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       responses:
         '204':
-          description: Unregistered Device draft deleted.
+          description: Device draft deleted.
         default:
           $ref: '#/components/responses/ProblemResponse'
   /api/v1/devices/{device}/register:
@@ -533,11 +247,11 @@ paths:
       - $ref: '#/components/parameters/IfMatch'
     post:
       tags: [Devices]
-      summary: Register a Device
-      operationId: registerDevice
+      summary: Register a Device against its identity-matched Runtime Bundle
+      operationId: registerDeviceV1
       responses:
         '200':
-          $ref: '#/components/responses/ResourceResponse'
+          $ref: '#/components/responses/DeviceResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
   /api/v1/devices/{device}/archive:
@@ -548,11 +262,11 @@ paths:
       - $ref: '#/components/parameters/IfMatch'
     post:
       tags: [Devices]
-      summary: Archive a Device
-      operationId: archiveDevice
+      summary: Archive a registered Device
+      operationId: archiveDeviceV1
       responses:
         '200':
-          $ref: '#/components/responses/ResourceResponse'
+          $ref: '#/components/responses/DeviceResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
   /api/v1/devices/{device}/definition-assignment:
@@ -562,16 +276,16 @@ paths:
     get:
       tags: [Devices]
       summary: Get a Device definition assignment
-      operationId: getDeviceDefinitionAssignment
+      operationId: getDeviceDefinitionAssignmentV1
       responses:
         '200':
-          $ref: '#/components/responses/ResourceResponse'
+          $ref: '#/components/responses/DeviceDefinitionAssignmentResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
     put:
       tags: [Devices]
-      summary: Replace a Device definition assignment draft
-      operationId: replaceDeviceDefinitionAssignmentDraft
+      summary: Replace a Device definition assignment at the expected revision
+      operationId: replaceDeviceDefinitionAssignmentV1
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -579,19 +293,28 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DefinitionAssignmentDraftV1'
+              $ref: '#/components/schemas/DeviceDefinitionAssignmentAuthoringV1'
       responses:
         '200':
-          $ref: '#/components/responses/ResourceResponse'
+          $ref: '#/components/responses/DeviceDefinitionAssignmentResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
-  /api/v1/device-onboarding/sessions:
+  /api/v1/gateways:
     parameters:
       - $ref: '#/components/parameters/OrganizationContext'
+    get:
+      tags: [Gateways]
+      summary: List Gateway identities
+      operationId: listGatewaysV1
+      responses:
+        '200':
+          $ref: '#/components/responses/CollectionResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
     post:
-      tags: [Device Onboarding]
-      summary: Start a conversational Device onboarding session
-      operationId: startDeviceOnboardingSession
+      tags: [Gateways]
+      summary: Create a Gateway identity without broker credentials
+      operationId: createGatewayV1
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -599,66 +322,121 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OnboardingSessionStartV1'
+              $ref: '#/components/schemas/GatewayAuthoringV1'
       responses:
         '201':
           $ref: '#/components/responses/ResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
-  /api/v1/device-onboarding/sessions/{session}/messages:
+  /api/v1/gateways/{gateway}:
     parameters:
       - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/SessionUuid'
-    post:
-      tags: [Device Onboarding]
-      summary: Continue a conversational Device onboarding session
-      operationId: continueDeviceOnboardingSession
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OnboardingMessageV1'
-      responses:
-        '200':
-          $ref: '#/components/responses/ResourceResponse'
-        default:
-          $ref: '#/components/responses/ProblemResponse'
-  /api/v1/device-onboarding/proposals/{proposal}:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/ProposalUuid'
+      - $ref: '#/components/parameters/GatewayUuid'
     get:
-      tags: [Device Onboarding]
-      summary: Get a Device onboarding proposal
-      operationId: getDeviceOnboardingProposal
+      tags: [Gateways]
+      summary: Get a Gateway identity
+      operationId: getGatewayV1
       responses:
         '200':
-          description: Exact proposal, hash, previews, assumptions, and warnings.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DeviceOnboardingProposalV1'
+          $ref: '#/components/responses/ResourceResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
-  /api/v1/device-onboarding/proposals/{proposal}/confirm:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationContext'
-      - $ref: '#/components/parameters/ProposalUuid'
-      - $ref: '#/components/parameters/IdempotencyKey'
-    post:
-      tags: [Device Onboarding]
-      summary: Confirm a proposal as editable drafts
-      operationId: confirmDeviceOnboardingProposal
+    put:
+      tags: [Gateways]
+      summary: Replace Gateway metadata at the expected revision
+      operationId: replaceGatewayV1
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProposalConfirmationV1'
+              $ref: '#/components/schemas/GatewayAuthoringV1'
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    delete:
+      tags: [Gateways]
+      summary: Delete an unreferenced Gateway identity
+      operationId: deleteGatewayV1
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Gateway deleted.
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v1/gateway-routes:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+    get:
+      tags: [Gateway Routes]
+      summary: List Gateway Routes
+      operationId: listGatewayRoutesV1
+      responses:
+        '200':
+          $ref: '#/components/responses/CollectionResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    post:
+      tags: [Gateway Routes]
+      summary: Create a Gateway-to-logical-Device route
+      operationId: createGatewayRouteV1
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GatewayRouteAuthoringV1'
       responses:
         '201':
-          $ref: '#/components/responses/DefinitionDraftResponse'
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v1/gateway-routes/{route}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+      - $ref: '#/components/parameters/GatewayRouteUuid'
+    get:
+      tags: [Gateway Routes]
+      summary: Get a Gateway Route
+      operationId: getGatewayRouteV1
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    put:
+      tags: [Gateway Routes]
+      summary: Replace a Gateway Route at the expected revision
+      operationId: replaceGatewayRouteV1
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GatewayRouteAuthoringV1'
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    delete:
+      tags: [Gateway Routes]
+      summary: Delete or disable an unreferenced Gateway Route
+      operationId: deleteGatewayRouteV1
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Route deleted.
         default:
           $ref: '#/components/responses/ProblemResponse'
 components:
@@ -666,27 +444,20 @@ components:
     cookieAuth:
       type: apiKey
       in: cookie
-      name: laravel_session
+      name: iot_os_session
     bearerAuth:
       type: http
       scheme: bearer
+      bearerFormat: Sanctum
   parameters:
     OrganizationContext:
       name: X-Organization-UUID
       in: header
       required: true
-      description: Organization selector; authenticated membership remains authoritative.
+      description: Active tenant UUID. Authorization derives tenant identity from the authenticated context.
       schema:
         type: string
         format: uuid
-    IfMatch:
-      name: If-Match
-      in: header
-      required: true
-      description: Current strong entity tag. Missing values return 428 and stale values return 412.
-      schema:
-        type: string
-        minLength: 1
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -695,6 +466,13 @@ components:
         type: string
         minLength: 8
         maxLength: 255
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
     ProfileUuid:
       name: profile
       in: path
@@ -709,20 +487,6 @@ components:
       schema:
         type: string
         format: uuid
-    VersionUuid:
-      name: version
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-    BindingVersionUuid:
-      name: bindingVersion
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
     DeviceUuid:
       name: device
       in: path
@@ -730,169 +494,203 @@ components:
       schema:
         type: string
         format: uuid
-    SessionUuid:
-      name: session
+    DeviceStateFilter:
+      name: state
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/DeviceLifecycleStateV1'
+    GatewayUuid:
+      name: gateway
       in: path
       required: true
       schema:
         type: string
         format: uuid
-    ProposalUuid:
-      name: proposal
+    GatewayRouteUuid:
+      name: route
       in: path
       required: true
       schema:
         type: string
         format: uuid
   schemas:
-    EventState:
-      $ref: ../definitions/common/v1/schema.json#/$defs/EventState
-    CommandStatus:
-      $ref: ../definitions/common/v1/schema.json#/$defs/CommandStatus
-    DefinitionState:
-      $ref: ../definitions/common/v1/schema.json#/$defs/DefinitionState
-    DeviceLifecycleState:
-      $ref: ../definitions/common/v1/schema.json#/$defs/DeviceLifecycleState
-    DeviceProfileDraftV1:
+    DeviceProfileAuthoringV1:
       $ref: ../definitions/device-profile/v1/authoring.schema.json
-    NativeMqttBindingDraftV1:
+    DeviceProfileArtifactV1:
+      $ref: ../definitions/device-profile/v1/artifact.schema.json
+    NativeMqttBindingAuthoringV1:
       $ref: ../definitions/native-mqtt-binding/v1/authoring.schema.json
-    DefinitionPreviewV1:
-      $ref: ../definitions/definition-preview/v1/schema.json
-    DeviceOnboardingProposalV1:
-      $ref: ../definitions/device-onboarding-proposal/v1/schema.json
-    CoordinatedDefinitionDraftV1:
+    NativeMqttBindingArtifactV1:
+      $ref: ../definitions/native-mqtt-binding/v1/artifact.schema.json
+    GatewayAuthoringV1:
+      $ref: ../definitions/gateway/v1/authoring.schema.json
+    GatewayRouteAuthoringV1:
+      $ref: ../definitions/gateway-route/v1/authoring.schema.json
+    DeviceAuthoringV1:
+      $ref: ../definitions/device/v1/authoring.schema.json
+    DeviceDefinitionAssignmentAuthoringV1:
+      $ref: ../definitions/device-definition-assignment/v1/authoring.schema.json
+    RuntimeBundleV1:
+      $ref: ../definitions/runtime-bundle/v1/schema.json
+    CanonicalTelemetryV1:
+      $ref: ../definitions/canonical-telemetry/v1/schema.json
+    DeviceLifecycleStateV1:
+      type: string
+      enum: [draft, registered, archived]
+    ArtifactHashOrNullV1:
+      type: [string, 'null']
+      pattern: '^[a-f0-9]{64}$'
+    DeviceDefinitionAssignmentResourceV1:
       type: object
       additionalProperties: false
-      required: [profile, binding]
-      properties:
-        profile:
-          $ref: ../definitions/device-profile/v1/authoring.schema.json
-        binding:
-          $ref: ../definitions/native-mqtt-binding/v1/authoring.schema.json
-    CatalogMetadataPatch:
-      type: object
-      additionalProperties: false
-      minProperties: 1
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 160
-        description:
-          type: [string, 'null']
-          maxLength: 4000
-    FixtureSetV1:
-      type: object
-      additionalProperties: false
-      required: [fixtures]
-      properties:
-        fixtures:
-          type: array
-          minItems: 1
-          maxItems: 256
-          items:
-            $ref: ../definitions/device-onboarding-proposal/v1/schema.json#/$defs/Fixture
-    DeviceDraftV1:
-      type: object
-      additionalProperties: false
-      required: [name, external_id]
+      required:
+        - uuid
+        - device_uuid
+        - profile_version_uuid
+        - binding_version_uuid
+        - gateway_route_uuid
+        - profile_artifact_hash
+        - binding_artifact_hash
+        - route_source_hash
+        - runtime_bundle_hash
+        - runtime_bundle
+        - runtime_compiled_at
+        - revision
+        - etag
+        - locked_at
+        - created_at
+        - updated_at
       properties:
         uuid:
           type: string
           format: uuid
-        name:
+        device_uuid:
+          type: string
+          format: uuid
+        profile_version_uuid:
+          type: string
+          format: uuid
+        binding_version_uuid:
+          type: string
+          format: uuid
+        gateway_route_uuid:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        profile_artifact_hash:
+          $ref: '#/components/schemas/ArtifactHashOrNullV1'
+        binding_artifact_hash:
+          $ref: '#/components/schemas/ArtifactHashOrNullV1'
+        route_source_hash:
+          $ref: '#/components/schemas/ArtifactHashOrNullV1'
+        runtime_bundle_hash:
+          $ref: '#/components/schemas/ArtifactHashOrNullV1'
+        runtime_bundle:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeBundleV1'
+            - type: 'null'
+        runtime_compiled_at:
+          type: [string, 'null']
+          format: date-time
+        revision:
+          type: integer
+          minimum: 1
+        etag:
           type: string
           minLength: 1
-          maxLength: 160
+        locked_at:
+          type: [string, 'null']
+          format: date-time
+        created_at:
+          type: [string, 'null']
+          format: date-time
+        updated_at:
+          type: [string, 'null']
+          format: date-time
+    DeviceResourceV1:
+      type: object
+      additionalProperties: false
+      required:
+        - uuid
+        - external_id
+        - name
+        - description
+        - lifecycle_state
+        - revision
+        - etag
+        - registered_at
+        - archived_at
+        - created_at
+        - updated_at
+        - definition_assignment
+      properties:
+        uuid:
+          type: string
+          format: uuid
         external_id:
           type: string
           minLength: 1
           maxLength: 255
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
         description:
           type: [string, 'null']
           maxLength: 4000
-        profile_version_uuid:
-          type: string
-          format: uuid
-        binding_version_uuid:
-          type: string
-          format: uuid
-    DefinitionAssignmentDraftV1:
-      type: object
-      additionalProperties: false
-      required: [profile_version_uuid, binding_version_uuid]
-      properties:
-        profile_version_uuid:
-          type: string
-          format: uuid
-        binding_version_uuid:
-          type: string
-          format: uuid
-    OnboardingSessionStartV1:
-      type: object
-      additionalProperties: false
-      required: [prompt]
-      properties:
-        prompt:
+        lifecycle_state:
+          $ref: '#/components/schemas/DeviceLifecycleStateV1'
+        revision:
+          type: integer
+          minimum: 1
+        etag:
           type: string
           minLength: 1
-          maxLength: 20000
-    OnboardingMessageV1:
+        registered_at:
+          type: [string, 'null']
+          format: date-time
+        archived_at:
+          type: [string, 'null']
+          format: date-time
+        created_at:
+          type: [string, 'null']
+          format: date-time
+        updated_at:
+          type: [string, 'null']
+          format: date-time
+        definition_assignment:
+          oneOf:
+            - $ref: '#/components/schemas/DeviceDefinitionAssignmentResourceV1'
+            - type: 'null'
+    DeviceResourceEnvelopeV1:
       type: object
       additionalProperties: false
-      required: [message]
-      properties:
-        message:
-          type: string
-          minLength: 1
-          maxLength: 20000
-    ProposalConfirmationV1:
-      type: object
-      additionalProperties: false
-      required: [proposal_hash]
-      properties:
-        proposal_hash:
-          type: string
-          pattern: '^[a-f0-9]{64}$'
-    ResourceEnvelope:
-      type: object
       required: [data]
       properties:
         data:
-          type: object
-          additionalProperties: true
-    CollectionEnvelope:
+          $ref: '#/components/schemas/DeviceResourceV1'
+    DeviceCollectionEnvelopeV1:
       type: object
-      required: [data, meta]
+      additionalProperties: true
+      required: [data]
       properties:
         data:
           type: array
           items:
-            type: object
-            additionalProperties: true
-        meta:
-          type: object
-          additionalProperties: true
-    VersionEnvelope:
-      allOf:
-        - $ref: '#/components/schemas/ResourceEnvelope'
-        - type: object
-          properties:
-            etag:
-              type: string
-    DefinitionDraftEnvelope:
+            $ref: '#/components/schemas/DeviceResourceV1'
+    DeviceDefinitionAssignmentEnvelopeV1:
       type: object
-      required: [data, etag]
+      additionalProperties: false
+      required: [data]
       properties:
         data:
-          $ref: '#/components/schemas/CoordinatedDefinitionDraftV1'
-        etag:
-          type: string
-    ProblemDetails:
+          $ref: '#/components/schemas/DeviceDefinitionAssignmentResourceV1'
+    Problem:
       type: object
-      additionalProperties: true
-      required: [type, title, status, detail, instance, trace_id]
+      additionalProperties: false
+      required: [type, title, status]
       properties:
         type:
           type: string
@@ -908,64 +706,71 @@ components:
         instance:
           type: string
           format: uri-reference
-        trace_id:
-          type: string
-          minLength: 1
         errors:
-          type: array
-          items:
-            type: object
-            additionalProperties: false
-            required: [path, code, message]
-            properties:
-              path:
-                type: string
-              code:
-                type: string
-              message:
-                type: string
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
   responses:
     ResourceResponse:
-      description: Resource response.
+      description: Tenant-owned resource with an ETag revision header.
       headers:
         ETag:
+          description: Strong resource revision for later mutation.
           schema:
             type: string
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ResourceEnvelope'
-    VersionResponse:
-      description: Version resource with optimistic concurrency token.
-      headers:
-        ETag:
-          required: true
-          schema:
-            type: string
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/VersionEnvelope'
-    DefinitionDraftResponse:
-      description: Coordinated Profile and Binding draft.
-      headers:
-        ETag:
-          required: true
-          schema:
-            type: string
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/DefinitionDraftEnvelope'
+            type: object
+            additionalProperties: false
+            required: [data]
+            properties:
+              data: true
     CollectionResponse:
-      description: Paginated collection.
+      description: Tenant-scoped resource collection.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/CollectionEnvelope'
+            type: object
+            additionalProperties: false
+            required: [data]
+            properties:
+              data:
+                type: array
+                items: true
+    DeviceResourceResponse:
+      description: Logical Device resource with its current ETag revision.
+      headers:
+        ETag:
+          description: Strong Device revision for a later mutation.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DeviceResourceEnvelopeV1'
+    DeviceCollectionResponse:
+      description: Tenant-scoped paginated logical Device collection.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DeviceCollectionEnvelopeV1'
+    DeviceDefinitionAssignmentResponse:
+      description: Exact Device definition assignment with its current ETag revision.
+      headers:
+        ETag:
+          description: Strong assignment revision for a later mutation.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DeviceDefinitionAssignmentEnvelopeV1'
     ProblemResponse:
-      description: RFC 9457 problem details.
+      description: RFC 9457 problem response.
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/ProblemDetails'
+            $ref: '#/components/schemas/Problem'

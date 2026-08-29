@@ -1,0 +1,20 @@
+{
+  "schema": "iot.gateway-route.authoring.v1",
+  "route": {
+    "uuid": "53000000-0000-4000-8000-000000000001",
+    "revision": 1,
+    "gateway_uuid": "30000000-0000-4000-8000-000000000001",
+    "device_uuid": "50000000-0000-4000-8000-000000000001",
+    "profile_version_uuid": "51000000-0000-4000-8000-000000000002",
+    "binding_version_uuid": "52000000-0000-4000-8000-000000000002",
+    "route_path": "meters/main",
+    "topic_variables": {},
+    "inbound_scopes": [
+      {
+        "channel": "telemetry",
+        "payload_path": "$.meters.main"
+      }
+    ],
+    "enabled": true
+  }
+}
