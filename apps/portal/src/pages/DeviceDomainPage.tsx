@@ -237,6 +237,19 @@ export function DeviceDomainPage() {
     setSavingProfile(true)
     setProfileError(null)
     try {
+      if (profileDraft.version.version > 1) {
+        const resource = await apiClient.deleteCompatibleDeviceProfileDraft(selectedProfileUuid, profileEtag)
+        setCatalogs((current) => ({
+          ...current,
+          profiles: upsert(current.profiles, resource, (item) => item.profile.uuid === resource.profile.uuid),
+        }))
+        const document = profileDocument(resource)
+        if (document) setProfileDraft(document)
+        setProfileEtag(resource.meta.etag)
+        setMessage("The compatible Profile draft was discarded; the published Version remains active.")
+        return
+      }
+
       await apiClient.deleteDeviceProfile(selectedProfileUuid, profileEtag)
       setCatalogs((current) => ({
         ...current,
@@ -246,6 +259,28 @@ export function DeviceDomainPage() {
       setMessage("The unreferenced Profile draft was deleted.")
     } catch (reason) {
       setProfileError(deviceDomainError(reason, "Delete Device Profile"))
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  async function cloneProfile() {
+    if (!selectedProfileUuid) return
+    setSavingProfile(true)
+    setProfileError(null)
+    setMessage(null)
+    try {
+      const resource = await apiClient.cloneCompatibleDeviceProfile(selectedProfileUuid)
+      setCatalogs((current) => ({
+        ...current,
+        profiles: upsert(current.profiles, resource, (item) => item.profile.uuid === resource.profile.uuid),
+      }))
+      const document = profileDocument(resource)
+      if (document) setProfileDraft(document)
+      setProfileEtag(resource.meta.etag)
+      setMessage(`${resource.profile.name} v${resource.version?.version ?? "next"} cloned as a compatible draft.`)
+    } catch (reason) {
+      setProfileError(deviceDomainError(reason, "Clone compatible Device Profile Version"))
     } finally {
       setSavingProfile(false)
     }
@@ -380,6 +415,7 @@ export function DeviceDomainPage() {
                   onSelect={selectProfile}
                   onNew={newProfile}
                   onSave={saveProfile}
+                  onClone={cloneProfile}
                   onDelete={deleteProfile}
                 />
               </Suspense>

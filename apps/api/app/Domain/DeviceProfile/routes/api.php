@@ -33,6 +33,11 @@ Route::prefix('v1')
             ->name('device-profiles.show');
         Route::put('device-profiles/{profile}', [DeviceProfileController::class, 'update'])
             ->name('device-profiles.update');
+        Route::post('device-profiles/{profile}/compatible-clone', [DeviceProfileController::class, 'cloneCompatible'])
+            ->middleware(RequireIdempotencyKey::class)
+            ->name('device-profiles.clone-compatible');
+        Route::delete('device-profiles/{profile}/draft-version', [DeviceProfileController::class, 'destroyDraftVersion'])
+            ->name('device-profiles.destroy-draft-version');
         Route::delete('device-profiles/{profile}', [DeviceProfileController::class, 'destroy'])
             ->name('device-profiles.destroy');
 

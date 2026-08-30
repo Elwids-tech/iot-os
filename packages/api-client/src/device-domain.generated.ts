@@ -94,6 +94,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/device-profiles/{profile}/compatible-clone": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                profile: components["parameters"]["ProfileUuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clone the latest published Device Profile Version as a compatible draft
+         * @description Preserves measured and derived parameter UUIDs while assigning a new Version UUID and incremented version number.
+         */
+        post: operations["cloneCompatibleDeviceProfileVersionV1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/native-mqtt-bindings": {
         parameters: {
             query?: never;
@@ -1760,6 +1786,25 @@ export interface operations {
                 };
                 content?: never;
             };
+            default: components["responses"]["ProblemResponse"];
+        };
+    };
+    cloneCompatibleDeviceProfileVersionV1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active tenant UUID. Authorization derives tenant identity from the authenticated context. */
+                "X-Organization-UUID": components["parameters"]["OrganizationContext"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                profile: components["parameters"]["ProfileUuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["ResourceResponse"];
             default: components["responses"]["ProblemResponse"];
         };
     };

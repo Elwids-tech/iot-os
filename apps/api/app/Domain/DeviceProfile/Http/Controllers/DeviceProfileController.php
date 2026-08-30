@@ -6,11 +6,13 @@ namespace App\Domain\DeviceProfile\Http\Controllers;
 
 use App\Domain\Authorization\Support\CurrentOrganization;
 use App\Domain\DeviceProfile\Data\DeviceProfileAuthoringData;
+use App\Domain\DeviceProfile\Enums\DefinitionState;
 use App\Domain\DeviceProfile\Http\Requests\DeviceProfileAuthoringRequest;
 use App\Domain\DeviceProfile\Http\Resources\DeviceProfileResource;
 use App\Domain\DeviceProfile\Models\DeviceProfile;
 use App\Domain\DeviceProfile\Services\DefinitionAuthoringManager;
 use App\Domain\DeviceProfile\Services\TenantDeviceDomainLocator;
+use App\Domain\Shared\Exceptions\DomainInvariantViolation;
 use App\Domain\Shared\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -82,6 +84,40 @@ final class DeviceProfileController
         );
 
         return $this->response($updated);
+    }
+
+    public function cloneCompatible(Request $request, string $profile): JsonResponse
+    {
+        $model = $this->locator->profile(CurrentOrganization::from($request), $profile);
+        Gate::authorize('update', $model);
+
+        $source = $model->versions()
+            ->where('state', DefinitionState::PUBLISHED->value)
+            ->orderByDesc('version')
+            ->first();
+
+        if ($source === null) {
+            throw new DomainInvariantViolation('Only a published Device Profile Version can be cloned compatibly.');
+        }
+
+        /** @var User $actor */
+        $actor = $request->user();
+        $this->authoring->cloneCompatibleProfileVersion($source, $actor);
+
+        return $this->response($model, 201);
+    }
+
+    public function destroyDraftVersion(Request $request, string $profile): JsonResponse
+    {
+        $model = $this->locator->profile(CurrentOrganization::from($request), $profile);
+        Gate::authorize('delete', $model);
+
+        $profile = $this->authoring->deleteLatestCompatibleProfileDraft(
+            $model,
+            $request->header('If-Match'),
+        );
+
+        return $this->response($profile);
     }
 
     public function destroy(Request $request, string $profile): Response

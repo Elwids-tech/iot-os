@@ -110,7 +110,7 @@ async function mockApi(page: Page, state: CatalogState = {}) {
     if (state.profileCollection) return state.profileCollection(route)
     await fulfillJson(route, collection(state.profiles ?? []))
   })
-  await page.route("**/api/v1/device-profiles/*", async (route) => {
+  await page.route("**/api/v1/device-profiles/**", async (route) => {
     if (state.profileMember) return state.profileMember(route)
     await fulfillJson(route, { message: "Unexpected Profile member request." }, 500)
   })
@@ -390,6 +390,37 @@ test("persists, compiles, pins, and registers a Gateway-routed Device", async ({
   await expect(page.getByText("North hub humidity is registered")).toBeVisible()
 
   expect(calls).toEqual(["device", "route", "assignment", "compile", "pin", "register"])
+})
+
+test("clones a published Profile as a compatible editable draft", async ({ page }) => {
+  const source = profileResource(threePhaseProfile, "published", '"profile-r1"')
+  const clonedDocument = structuredClone(threePhaseProfile)
+  clonedDocument.version.uuid = "74000000-0000-4000-8000-000000000001"
+  clonedDocument.version.version = 2
+  const clone = profileResource(clonedDocument, "draft", '"profile-r2"')
+
+  expect(clonedDocument.version.parameters.map((parameter: { uuid: string }) => parameter.uuid)).toEqual(
+    threePhaseProfile.version.parameters.map((parameter: { uuid: string }) => parameter.uuid),
+  )
+
+  await mockApi(page, {
+    profiles: [source],
+    profileMember: async (route) => {
+      expect(route.request().method()).toBe("POST")
+      expect(route.request().url()).toContain("/compatible-clone")
+      expect(route.request().headers()["idempotency-key"]).toMatch(/^profile-clone-/)
+      await fulfillJson(route, { data: clone }, 201)
+    },
+  })
+  await openDeviceDomain(page)
+
+  await page.getByLabel("Saved profile").click()
+  await page.getByRole("option", { name: /Three-phase energy meter/ }).click()
+  await page.getByRole("button", { name: "Clone compatible version" }).click()
+
+  await expect(page.getByText(/v2 cloned as a compatible draft/)).toBeVisible()
+  await expect(page.getByRole("button", { name: "Save Profile draft" })).toBeVisible()
+  await expect(page.getByRole("spinbutton", { name: "Version" })).toHaveValue("2")
 })
 
 test("surfaces ETag conflicts and remains usable at a mobile viewport", async ({ page }) => {

@@ -140,6 +140,35 @@ paths:
           description: Draft deleted.
         default:
           $ref: '#/components/responses/ProblemResponse'
+  /api/v1/device-profiles/{profile}/compatible-clone:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+      - $ref: '#/components/parameters/ProfileUuid'
+      - $ref: '#/components/parameters/IdempotencyKey'
+    post:
+      tags: [Device Profiles v1]
+      summary: Clone the latest published Device Profile Version as a compatible draft
+      description: Preserves measured and derived parameter UUIDs while assigning a new Version UUID and incremented version number.
+      operationId: cloneCompatibleDeviceProfileVersionV1
+      responses:
+        '201':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/v1/device-profiles/{profile}/draft-version:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationContext'
+      - $ref: '#/components/parameters/ProfileUuid'
+      - $ref: '#/components/parameters/IfMatch'
+    delete:
+      tags: [Device Profiles v1]
+      summary: Discard the latest unreferenced compatible Device Profile draft
+      operationId: deleteCompatibleDeviceProfileDraftV1
+      responses:
+        '200':
+          $ref: '#/components/responses/ResourceResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
   /api/v1/native-mqtt-bindings:
     parameters:
       - $ref: '#/components/parameters/OrganizationContext'

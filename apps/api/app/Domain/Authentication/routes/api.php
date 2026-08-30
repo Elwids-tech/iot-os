@@ -5,9 +5,10 @@ declare(strict_types=1);
 use App\Domain\Authentication\Http\Controllers\SessionController;
 use App\Domain\Authorization\Http\Controllers\OrganizationContextController;
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1')->name('api.v1.')->group(function (): void {
+Route::prefix('v1')->name('api.v1.')->middleware('web')->withoutMiddleware(ValidateCsrfToken::class)->group(function (): void {
     Route::post('auth/login', [SessionController::class, 'store'])
         ->name('auth.login');
 

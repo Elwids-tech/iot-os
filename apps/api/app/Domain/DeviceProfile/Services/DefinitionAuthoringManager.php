@@ -274,6 +274,37 @@ final class DefinitionAuthoringManager
         });
     }
 
+    public function deleteLatestCompatibleProfileDraft(
+        DeviceProfile $profile,
+        ?string $expectedEntityTag,
+    ): DeviceProfile {
+        $profile->assertExpectedEntityTag($expectedEntityTag);
+
+        return DB::transaction(function () use ($profile, $expectedEntityTag): DeviceProfile {
+            $lockedProfile = DeviceProfile::query()->lockForUpdate()->findOrFail($profile->getKey());
+            $lockedProfile->assertExpectedEntityTag($expectedEntityTag);
+            $versions = $lockedProfile->versions()->lockForUpdate()->orderByDesc('version')->get();
+            /** @var DeviceProfileVersion|null $draft */
+            $draft = $versions->first();
+
+            if ($lockedProfile->isArchived() || $versions->count() < 2 || $draft === null || ! $draft->isDraft()) {
+                throw new DomainInvariantViolation('Only the latest compatible Device Profile draft can be discarded here.');
+            }
+
+            if (
+                TransportBindingVersion::query()->where('device_profile_version_id', $draft->getKey())->exists()
+                || DeviceDefinitionAssignment::query()->where('device_profile_version_id', $draft->getKey())->exists()
+                || GatewayRoute::query()->where('device_profile_version_id', $draft->getKey())->exists()
+            ) {
+                throw new DomainInvariantViolation('A referenced Device Profile draft Version cannot be discarded.');
+            }
+
+            $draft->delete();
+
+            return $lockedProfile->refresh();
+        });
+    }
+
     private function editableProfileVersion(DeviceProfile $profile): DeviceProfileVersion
     {
         if ($profile->isArchived()) {

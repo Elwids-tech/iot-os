@@ -438,6 +438,32 @@ export class ApiClient {
     })
   }
 
+  async cloneCompatibleDeviceProfile(
+    uuid: string,
+    idempotencyKey = this.idempotencyKey("profile-clone"),
+  ): Promise<DeviceProfileResource> {
+    return this.request<ApiResponse<DeviceProfileResource>>(
+      `/api/v1/device-profiles/${encodeURIComponent(uuid)}/compatible-clone`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+      },
+    ).then((response) => response.data)
+  }
+
+  async deleteCompatibleDeviceProfileDraft(
+    uuid: string,
+    entityTag: string,
+  ): Promise<DeviceProfileResource> {
+    return this.request<ApiResponse<DeviceProfileResource>>(
+      `/api/v1/device-profiles/${encodeURIComponent(uuid)}/draft-version`,
+      {
+        method: "DELETE",
+        headers: { "If-Match": entityTag },
+      },
+    ).then((response) => response.data)
+  }
+
   async nativeMqttBindings(): Promise<PaginatedResponse<NativeMqttBindingResource>> {
     return this.request<PaginatedResponse<NativeMqttBindingResource>>(
       "/api/v1/native-mqtt-bindings",

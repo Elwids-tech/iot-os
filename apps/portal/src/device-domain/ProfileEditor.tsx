@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Spinner } from "@iot-os/ui/components/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@iot-os/ui/components/tabs"
 import { Textarea } from "@iot-os/ui/components/textarea"
-import { ActivityIcon, AlertTriangleIcon, BracesIcon, BoxesIcon, CalculatorIcon, GaugeIcon, PlusIcon, SaveIcon, SlidersHorizontalIcon, Trash2Icon } from "lucide-react"
+import { ActivityIcon, AlertTriangleIcon, BracesIcon, BoxesIcon, CalculatorIcon, CopyIcon, GaugeIcon, PlusIcon, SaveIcon, SlidersHorizontalIcon, Trash2Icon } from "lucide-react"
 import {
   AddButton,
   BooleanField,
@@ -58,6 +58,7 @@ type ProfileEditorProps = {
   onSelect: (uuid: string) => void
   onNew: () => void
   onSave: (draft: DeviceProfileDocument) => Promise<void>
+  onClone: () => Promise<void>
   onDelete: () => Promise<void>
 }
 
@@ -168,6 +169,7 @@ export function ProfileEditor({
   onSelect,
   onNew,
   onSave,
+  onClone,
   onDelete,
 }: ProfileEditorProps) {
   const readOnly = selectedResource?.meta.state === "published"
@@ -216,25 +218,35 @@ export function ProfileEditor({
             <PlusIcon data-icon="inline-start" />
             New profile
           </Button>
+          {selectedResource?.meta.state === "published" ? (
+            <Button type="button" variant="outline" disabled={saving} onClick={() => void onClone()}>
+              <CopyIcon data-icon="inline-start" />
+              Clone compatible version
+            </Button>
+          ) : null}
           {selectedResource?.meta.state === "draft" ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button type="button" variant="outline">
                   <Trash2Icon data-icon="inline-start" />
-                  Delete draft
+                  {draft.version.version > 1 ? "Discard cloned draft" : "Delete draft"}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this Profile draft?</AlertDialogTitle>
+                  <AlertDialogTitle>
+                    {draft.version.version > 1 ? "Discard this cloned Profile draft?" : "Delete this Profile draft?"}
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
-                    The API will refuse deletion when a Binding or Device already references the draft.
+                    {draft.version.version > 1
+                      ? "The published Profile Version remains available. The API will refuse when this draft Version is referenced."
+                      : "The API will refuse deletion when a Binding or Device already references the draft."}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Keep draft</AlertDialogCancel>
                   <AlertDialogAction variant="destructive" onClick={() => void onDelete()}>
-                    Delete draft
+                    {draft.version.version > 1 ? "Discard cloned draft" : "Delete draft"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -248,7 +260,7 @@ export function ProfileEditor({
           <BoxesIcon />
           <AlertTitle>Published Profile is immutable</AlertTitle>
           <AlertDescription>
-            Review its canonical JSON here. A later milestone will expose compatible version cloning in this portal.
+            Review its canonical JSON here, or clone a compatible draft that preserves stable parameter UUIDs.
           </AlertDescription>
         </Alert>
       ) : null}
