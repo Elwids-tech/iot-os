@@ -1,0 +1,35 @@
+CREATE SCHEMA IF NOT EXISTS device_runtime;
+CREATE TABLE IF NOT EXISTS device_runtime.devices (
+ device_uuid uuid PRIMARY KEY, organization_uuid uuid NOT NULL, generation bigint NOT NULL,
+ definition jsonb, updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE device_runtime.devices ADD COLUMN IF NOT EXISTS review_required boolean NOT NULL DEFAULT false;
+CREATE TABLE IF NOT EXISTS device_runtime.observations (
+ event_uuid uuid NOT NULL, organization_uuid uuid NOT NULL, device_uuid uuid NOT NULL,
+ configuration_uuid uuid NOT NULL, parameter_uuid uuid NOT NULL,
+ received_at timestamptz NOT NULL, observed_at timestamptz NOT NULL, reading jsonb NOT NULL,
+ PRIMARY KEY (event_uuid, parameter_uuid, received_at)
+);
+SELECT create_hypertable('device_runtime.observations', 'received_at', if_not_exists => TRUE, chunk_time_interval => INTERVAL '1 day');
+CREATE INDEX IF NOT EXISTS observations_lookup ON device_runtime.observations (organization_uuid,device_uuid,parameter_uuid,received_at DESC);
+CREATE TABLE IF NOT EXISTS device_runtime.latest (
+ organization_uuid uuid NOT NULL, device_uuid uuid NOT NULL, configuration_uuid uuid NOT NULL, parameter_uuid uuid NOT NULL,
+ received_at timestamptz NOT NULL, reading jsonb NOT NULL,
+ PRIMARY KEY(device_uuid,configuration_uuid,parameter_uuid)
+);
+CREATE TABLE IF NOT EXISTS device_runtime.diagnostics (
+ event_uuid uuid NOT NULL, organization_uuid uuid NOT NULL, device_uuid uuid NOT NULL,
+ parameter_uuid uuid NOT NULL, received_at timestamptz NOT NULL, reading jsonb NOT NULL,
+ PRIMARY KEY(event_uuid,parameter_uuid)
+);
+CREATE TABLE IF NOT EXISTS device_runtime.commands (
+ command_uuid uuid PRIMARY KEY, organization_uuid uuid NOT NULL, device_uuid uuid NOT NULL,
+ parameter_uuid uuid NOT NULL, configuration_uuid uuid NOT NULL, request jsonb NOT NULL,
+ status text NOT NULL, sent_at timestamptz, expires_at timestamptz NOT NULL,
+ diagnostic text, updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS commands_outstanding ON device_runtime.commands(device_uuid,parameter_uuid) WHERE status IN ('dispatching','sent');
+CREATE TABLE IF NOT EXISTS device_runtime.outbox (
+ uuid uuid PRIMARY KEY, event jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), published_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS runtime_outbox_pending ON device_runtime.outbox(created_at) WHERE published_at IS NULL;

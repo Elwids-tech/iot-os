@@ -1,0 +1,207 @@
+import type {
+  CompiledDeviceProfileDefinition,
+  DeviceProfileArtifact,
+} from "./index"
+
+export type DeviceCapabilities = {
+  view: boolean
+  manage: boolean
+  connections: boolean
+  activate: boolean
+  command: boolean
+}
+export type DevicePresence = "unseen" | "online" | "offline" | "unknown"
+export type SparkplugMetric = {
+  name: string
+  datatype: string
+  value: unknown
+  alias?: number
+  timestamp?: string
+  historical?: boolean
+  is_null?: boolean
+  diagnostic?: string
+}
+export type SparkplugConnection = {
+  uuid: string
+  name: string
+  group_id: string
+  host_id: string
+  status: "provisioning" | "ready" | "failed"
+  diagnostic: string | null
+}
+export type Gateway = {
+  uuid: string
+  name: string
+  edge_node_id: string
+  connection_uuid: string
+  group_id: string
+  presence: DevicePresence
+  last_seen_at: string | null
+  sources_count: number
+}
+export type DiscoveryCandidate = {
+  assigned_device_uuid: string | null
+  uuid: string
+  source_device_id: string
+  status: "pending" | "approved" | "rejected"
+  presence: DevicePresence
+  session_id: string | null
+  birth_revision: number
+  metrics: SparkplugMetric[]
+  last_seen_at: string | null
+  gateway: Gateway
+}
+export type DeviceMapping = {
+  parameter_uuid: string
+  metric: string
+  command_metric: string | null
+  datatype?: string
+  command_datatype?: string | null
+}
+export type DeviceDraft = {
+  artifact_uuid: string
+  candidate_uuid: string | null
+  birth_revision: number | null
+  mappings: DeviceMapping[]
+}
+export type DeviceDefinition = {
+  schema_version: "device-configuration.v1"
+  configuration_uuid: string
+  device_uuid: string
+  organization_uuid: string
+  profile_artifact_uuid: string
+  profile_hash: string
+  profile_canonical_json: string
+  birth_revision: number
+  source: {
+    connection_uuid: string
+    candidate_uuid: string
+    group_id: string
+    edge_node_id: string
+    device_id: string
+  }
+  mappings: DeviceMapping[]
+}
+export type DeviceConfiguration = {
+  uuid: string
+  revision: number
+  definition_hash: string
+  definition: DeviceDefinition
+  created_at: string
+}
+export type Device = {
+  uuid: string
+  code: string
+  name: string
+  serial_number: string | null
+  description: string | null
+  lifecycle: "registered" | "active" | "deactivated" | "archived"
+  presence: DevicePresence
+  deployment_status: "idle" | "pending" | "applied" | "failed"
+  draft_revision: number
+  deployment_generation: number
+  desired_configuration_uuid: string | null
+  applied_configuration_uuid: string | null
+  diagnostic: string | null
+  last_seen_at: string | null
+  candidate: DiscoveryCandidate | null
+}
+export type DeviceDetail = Device & {
+  retention: RetentionSetting
+  draft: DeviceDraft | null
+  draft_artifact: DeviceProfileArtifact | null
+  configurations: DeviceConfiguration[]
+}
+export type DeviceInput = {
+  name: string
+  code: string
+  serial_number?: string | null
+  description?: string | null
+}
+export type Measurement = {
+  parameter_uuid: string
+  key: string
+  label: string
+  data_type: string
+  unit: string | null
+  value: unknown
+  quality: "good" | "stale" | "invalid"
+  diagnostic?: string
+  observed_at: string
+  received_at: string
+  historical: boolean
+}
+export type HistorySeries = {
+  configuration_uuid: string
+  unit: string | null
+  data_type: string
+  points: Array<{
+    at: string
+    value: unknown
+    min?: number
+    max?: number
+    count: number
+  }>
+}
+export type DeviceCommand = {
+  actor_name: string
+  uuid: string
+  configuration_uuid: string
+  parameter_uuid: string
+  value: unknown
+  status:
+    | "prepared"
+    | "pending"
+    | "sent"
+    | "observed"
+    | "failed"
+    | "timed_out"
+    | "uncertain"
+    | "already_at_target"
+    | "cancelled"
+  confirmed_at: string | null
+  expires_at: string
+  sent_at: string | null
+  completed_at: string | null
+  diagnostic: string | null
+  created_at: string
+}
+export type RetentionSetting = {
+  cleanup?: {
+    at: string
+    status: string
+    deleted_rows: number
+    diagnostic: string
+  } | null
+  cleanup_failures?: number
+  days: number
+  source: "default" | "platform" | "organization"
+  override_days: number | null
+  revision: number
+  platform_days: number
+  cutoff: string
+}
+export type DeviceValidation = {
+  draft_revision: number
+  definition: DeviceDefinition
+  preview: { valid: boolean; readings: Measurement[] }
+}
+export function configurationProfile(
+  configuration: DeviceConfiguration,
+): CompiledDeviceProfileDefinition {
+  return JSON.parse(
+    configuration.definition.profile_canonical_json,
+  ) as CompiledDeviceProfileDefinition
+}
+
+export type DeviceDirectoryMeta = {
+  current_page: number
+  last_page: number
+  total: number
+}
+export type DeviceDirectoryQuery = {
+  search?: string
+  page?: number
+  per_page?: number
+  gateway_uuid?: string
+}

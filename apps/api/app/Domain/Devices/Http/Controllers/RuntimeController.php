@@ -1,0 +1,178 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Domain\Devices\Http\Controllers;
+
+use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\DeviceConfiguration;
+use App\Domain\Devices\Models\DeviceOutbox;
+use App\Domain\Devices\Models\DiscoveryCandidate;
+use App\Domain\Devices\Models\SparkplugConnection;
+use App\Domain\Devices\Models\SparkplugGateway;
+use App\Domain\Devices\Services\DeviceAudit;
+use App\Domain\Devices\Services\RetentionService;
+use App\Domain\Shared\Models\Organization;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+
+final class RuntimeController
+{
+    public function state(RetentionService $retention): array
+    {
+        $configurations = DeviceConfiguration::all()->keyBy('uuid');
+
+        return [
+            'connections' => SparkplugConnection::where('status', 'ready')->get()->map(fn ($c) => [
+                'uuid' => $c->uuid, 'organization_uuid' => Organization::findOrFail($c->organization_id)->uuid,
+                'group_id' => $c->group_id, 'host_id' => $c->host_id, 'username' => $c->username,
+                'password' => $c->password, 'broker_url' => config('devices.broker_url'),
+            ]),
+            'devices' => Device::where('lifecycle', '!=', 'archived')->with('organization')->get()->map(fn ($d) => [
+                'uuid' => $d->uuid, 'organization_uuid' => $d->organization->uuid, 'generation' => $d->deployment_generation,
+                'lifecycle' => $d->lifecycle, 'deployment_status' => $d->deployment_status,
+                'desired' => $configurations->get($d->desired_configuration_uuid)?->definition,
+                'applied' => $configurations->get($d->applied_configuration_uuid)?->definition,
+            ]),
+            'retention' => Organization::all()->map(fn ($o) => ['organization_uuid' => $o->uuid, ...$retention->effective($o)]),
+        ];
+    }
+
+    public function claim(): array
+    {
+        return DB::transaction(function (): array {
+            $rows = DeviceOutbox::whereNull('published_at')->where(fn ($q) => $q->whereNull('leased_until')->orWhere('leased_until', '<', now()))
+                ->orderBy('id')->limit(100)->lockForUpdate()->get();
+            foreach ($rows as $row) {
+                $row->update(['lease_token' => (string) Str::uuid(), 'leased_until' => now()->addSeconds(30)]);
+            }
+
+            return ['data' => $rows->map(fn ($r) => $r->only(['uuid', 'type', 'payload', 'lease_token']))];
+        });
+    }
+
+    public function ack(Request $request, DeviceOutbox $event): array
+    {
+        $values = $request->validate(['lease_token' => ['required', 'uuid']]);
+        if ($event->published_at) {
+            return ['ok' => true];
+        }
+        $changed = DeviceOutbox::whereKey($event->id)->where('lease_token', $values['lease_token'])->whereNull('published_at')
+            ->update(['published_at' => now(), 'leased_until' => null]);
+        abort_unless($changed, 409, 'This outbox lease is no longer current.');
+
+        return ['ok' => true];
+    }
+
+    public function event(Request $request): array
+    {
+        $event = $request->validate(['uuid' => ['required', 'uuid'], 'type' => ['required', Rule::in([
+            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1',
+        ])], 'payload' => ['required', 'array']]);
+
+        return DB::transaction(function () use ($event): array {
+            if (! DB::table('device_inbox')->insertOrIgnore(['uuid' => $event['uuid'], 'type' => $event['type'], 'received_at' => now()])) {
+                return ['ok' => true, 'duplicate' => true];
+            }
+            $p = $event['payload'];
+            if ($event['type'] === 'runtime.heartbeat.v1') {
+                Device::whereNotNull('applied_configuration_uuid')->update(['runtime_seen_at' => now()]);
+                SparkplugGateway::query()->update(['runtime_seen_at' => now()]);
+
+                return ['ok' => true];
+            }
+            if ($event['type'] === 'connection.presence.v1') {
+                $connection = SparkplugConnection::where('uuid', $p['connection_uuid'])->firstOrFail();
+                $connection->gateways()->update(['presence' => $p['presence'], 'runtime_seen_at' => now()]);
+                DiscoveryCandidate::whereHas('gateway', fn ($query) => $query->where('sparkplug_connection_id', $connection->id))->update(['presence' => $p['presence']]);
+
+                return ['ok' => true];
+            }
+            if ($event['type'] === 'discovery.presence.v1') {
+                $connection = SparkplugConnection::where('uuid', $p['connection_uuid'])->firstOrFail();
+                $gateway = $connection->gateways()->where('edge_node_id', $p['edge_node_id'])->first();
+                if ($gateway && $gateway->session_id === $p['session_id']) {
+                    $gateway->update(['presence' => 'online', 'last_seen_at' => $p['received_at'], 'runtime_seen_at' => now()]);
+                    $gateway->candidates()->where('source_device_id', $p['device_id'])->where('session_id', $p['session_id'])->update(['presence' => $p['presence'], 'last_seen_at' => $p['received_at']]);
+                }
+
+                return ['ok' => true];
+            }
+            if ($event['type'] === 'retention.cleanup.v1') {
+                $org = Organization::where('uuid', $p['organization_uuid'] ?? '')->firstOrFail();
+                DeviceAudit::record('retention.cleanup', $org->id, null, null, ['status' => $p['status'] ?? 'failed', 'deleted_rows' => (int) ($p['deleted_rows'] ?? 0), 'diagnostic' => mb_substr($p['diagnostic'] ?? '', 0, 2000)]);
+
+                return ['ok' => true];
+            }
+            if (in_array($event['type'], ['discovery.birth.v1', 'gateway.presence.v1'], true)) {
+                $connection = SparkplugConnection::where('uuid', $p['connection_uuid'] ?? '')->firstOrFail();
+                $gateway = SparkplugGateway::firstOrCreate(['sparkplug_connection_id' => $connection->id, 'edge_node_id' => $p['edge_node_id']],
+                    ['organization_id' => $connection->organization_id, 'name' => $p['edge_node_id']]);
+                if ($event['type'] === 'gateway.presence.v1') {
+                    if ($gateway->session_id && $gateway->session_id !== ($p['session_id'] ?? null) && ($p['presence'] ?? '') !== 'online') {
+                        return ['ok' => true, 'stale' => true];
+                    }
+                    $gateway->update(['runtime_seen_at' => now(), 'presence' => $p['presence'], 'session_id' => $p['session_id'] ?? null, 'last_seen_at' => $p['last_seen_at'] ?? now()]);
+                    if ($p['presence'] !== 'online') {
+                        $gateway->candidates()->update(['presence' => $p['presence']]);
+                    }
+                } else {
+                    $gateway->update(['runtime_seen_at' => now(), 'presence' => 'online', 'session_id' => $p['session_id'], 'last_seen_at' => $p['received_at']]);
+                    $candidate = DiscoveryCandidate::firstOrCreate(['sparkplug_gateway_id' => $gateway->id, 'source_device_id' => $p['device_id'] ?? ''], ['organization_id' => $connection->organization_id, 'metrics' => []]);
+                    $shape = static function (array $metrics): array {
+                        $result = [];
+                        foreach ($metrics as $metric) {
+                            $result[$metric['name']] = $metric['datatype'];
+                        }
+                        ksort($result);
+
+                        return $result;
+                    };
+                    $changed = $candidate->birth_revision === 0 || $shape($candidate->metrics) !== $shape($p['metrics']);
+                    $candidate->update(['presence' => 'online', 'session_id' => $p['session_id'], 'birth_revision' => $candidate->birth_revision + ($changed ? 1 : 0), 'metrics' => $p['metrics'], 'last_seen_at' => $p['received_at']]);
+                }
+
+                return ['ok' => true];
+            }
+            $device = Device::where('uuid', $p['device_uuid'] ?? '')->whereHas('organization', fn ($q) => $q->where('uuid', $p['organization_uuid'] ?? ''))->lockForUpdate()->firstOrFail();
+            if ($event['type'] === 'command.status.v1') {
+                $command = $device->commands()->where('uuid', $p['command_uuid'] ?? '')->firstOrFail();
+                if (in_array($command->status, ['observed', 'failed', 'timed_out', 'uncertain', 'already_at_target', 'cancelled'], true)) {
+                    return ['ok' => true];
+                }
+                abort_unless(in_array($p['status'], ['sent', 'observed', 'failed', 'timed_out', 'uncertain'], true), 422);
+                $terminal = $p['status'] !== 'sent';
+                $command->update(['status' => $p['status'], 'sent_at' => $p['sent_at'] ?? $command->sent_at, 'diagnostic' => $p['diagnostic'] ?? null,
+                    'completed_at' => $terminal ? now() : null, 'outstanding_key' => $terminal ? null : $command->outstanding_key]);
+                DeviceAudit::record('command.'.$p['status'], $device->organization_id, $command->created_by, $command->uuid, ['diagnostic' => $p['diagnostic'] ?? null]);
+            } elseif ($event['type'] === 'device.presence.v1') {
+                if ($device->applied_configuration_uuid !== ($p['configuration_uuid'] ?? null)) {
+                    return ['ok' => true, 'stale' => true];
+                }
+                $device->update(['presence' => $p['presence'], 'last_seen_at' => $p['last_seen_at'] ?? $device->last_seen_at, 'runtime_seen_at' => now(), 'diagnostic' => $p['diagnostic'] ?? null]);
+                if ($device->candidate) {
+                    $device->candidate->update(['presence' => $p['presence'], 'last_seen_at' => $p['last_seen_at'] ?? $device->candidate->last_seen_at]);
+                }
+            } else {
+                if ($device->deployment_generation !== ($p['generation'] ?? null)) {
+                    return ['ok' => true, 'stale' => true];
+                }
+                if ($event['type'] === 'device.applied.v1') {
+                    abort_unless($device->desired_configuration_uuid === ($p['configuration_uuid'] ?? null), 409);
+                    $device->update(['applied_configuration_uuid' => $p['configuration_uuid'], 'deployment_status' => 'applied', 'lifecycle' => 'active', 'presence' => $p['presence'] ?? 'unknown', 'diagnostic' => null, 'runtime_seen_at' => now()]);
+                } elseif ($event['type'] === 'device.deactivated.v1') {
+                    abort_unless($device->desired_configuration_uuid === null, 409);
+                    $device->update(['applied_configuration_uuid' => null, 'deployment_status' => 'applied', 'lifecycle' => 'deactivated', 'presence' => 'offline', 'diagnostic' => null]);
+                    $device->commands()->whereNotNull('outstanding_key')->update(['status' => 'uncertain', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => 'Device deactivated while the command was outstanding.']);
+                } elseif ($event['type'] === 'device.failed.v1') {
+                    $device->update(['deployment_status' => 'failed', 'diagnostic' => $p['diagnostic'] ?? 'The runtime rejected the configuration.']);
+                }
+                DeviceAudit::record($event['type'], $device->organization_id, null, $device->uuid, ['generation' => $device->deployment_generation]);
+            }
+
+            return ['ok' => true];
+        });
+    }
+}

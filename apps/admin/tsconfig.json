@@ -12,7 +12,12 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-    "strict": true
+    "strict": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@contracts/*": ["../../contracts/*"]
+    }
   },
   "include": ["src", "vite.config.ts"]
 }

@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/eclipse-tahu/tahu",
+  "commit": "5736e404889d4b95910613040a99ba79589ffb13",
+  "path": "sparkplug_b/sparkplug_b.proto",
+  "sha256": "4432c5c483b7fb9732d0594c98a2e97dca5e517e39c5374a8b918d837f0b4a19",
+  "license": "EPL-2.0",
+  "protoc": "33.0",
+  "protoc_gen_go": "v1.36.12"
+}

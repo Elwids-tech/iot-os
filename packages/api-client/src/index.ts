@@ -1,3 +1,6 @@
+import type { Device, DeviceDetail, DeviceDraft, DeviceInput, DeviceValidation, DeviceCommand, DeviceCapabilities, DiscoveryCandidate, Gateway, SparkplugConnection, Measurement, HistorySeries, RetentionSetting } from "./devices"
+export * from "./devices"
+
 export type Organization = {
   uuid: string
   name: string
@@ -5,6 +8,8 @@ export type Organization = {
   users_count?: number
   capabilities?: {
     manage_administration: boolean
+    device_profiles?: DeviceProfileCapabilities
+    devices?: DeviceCapabilities
   }
 }
 
@@ -37,7 +42,10 @@ export type RolePermission = {
   assigned: boolean
 }
 
-export type OrganizationRoleDetail = Omit<OrganizationRole, "permissions_count"> & {
+export type OrganizationRoleDetail = Omit<
+  OrganizationRole,
+  "permissions_count"
+> & {
   permissions_editable: boolean
   permission_update_message: string | null
   permissions: RolePermission[]
@@ -96,8 +104,193 @@ export type AuthenticatedUser = {
   is_super_admin: boolean
   capabilities: {
     platform_administration: boolean
+    manage_retention?: boolean
   }
   organizations: Organization[]
+}
+
+export type JsonObject = { [key: string]: JsonValue }
+export type JsonValue =
+  boolean | number | string | null | JsonObject | JsonValue[]
+
+export type DeviceProfileParameter = {
+  uuid: string
+  key: string
+  label: string
+  kind: "state" | "measurement" | "counter" | "event" | "derived"
+  data_type: "boolean" | "integer" | "number" | "string" | "timestamp" | "bytes"
+  format: string | null
+  unit: string | null
+  reports_state: boolean
+  accepts_command: boolean
+  validation: JsonObject | null
+  display: JsonObject | null
+  reporting: JsonObject | null
+  counter: JsonObject | null
+}
+
+export type DeviceProfileCalculation = {
+  engine: "json_logic"
+  expression: JsonObject
+  failure_policy: "mark_invalid"
+  inputs: Array<{ alias: string; parameter_uuid: string }>
+  target_parameter_uuid: string
+  trigger: "on_input_change"
+}
+
+export type DeviceProfileAlarmTemplate = {
+  uuid: string
+  code: string
+  name: string
+  type: string
+  severity: string
+  enabled_by_default: boolean
+  condition: JsonObject
+  parameters: Array<{ parameter_uuid: string; role: string }>
+}
+
+export type CompiledDeviceProfileDefinition = {
+  schema_version: "device-profile.v1"
+  profile: {
+    uuid: string
+    code: string
+    name: string
+    category: string | null
+    revision: number
+  }
+  parameters: DeviceProfileParameter[]
+  calculations: DeviceProfileCalculation[]
+  alarm_templates: DeviceProfileAlarmTemplate[]
+}
+
+export type DeviceProfile = {
+  parameters_count?: number
+  uuid: string
+  code: string
+  name: string
+  description: string | null
+  category: string | null
+  status: "draft" | "published" | "archived"
+  revision: number
+  draft_revision: number
+  definition_hash: string | null
+  published_at: string | null
+  extensions: JsonObject | null
+  updated_at: string
+}
+
+export type DeviceProfileArtifact = {
+  uuid: string
+  profile_uuid: string
+  revision: number
+  definition_hash: string
+  definition: CompiledDeviceProfileDefinition
+  status: "active" | "retired"
+  compiled_at: string
+}
+
+export type DeviceProfileDiagnostic = {
+  code: string
+  message: string
+  pointer: string
+}
+
+export type DeviceProfileValidationResult = {
+  draft_revision: number
+  valid: boolean
+  diagnostics: DeviceProfileDiagnostic[]
+}
+
+export type DeviceProfileCapabilities = Record<
+  | "view_any"
+  | "view"
+  | "create"
+  | "update"
+  | "delete_draft"
+  | "validate"
+  | "publish",
+  boolean
+>
+export type ProfileGroup = {
+  uuid: string
+  code: string
+  label: string
+  description: string | null
+  sort_order: number
+}
+export type AuthoringCalculation = Omit<
+  DeviceProfileCalculation,
+  "target_parameter_uuid"
+> & { uuid?: string }
+export type AuthoringParameter = Omit<
+  DeviceProfileParameter,
+  "validation" | "display" | "reporting" | "counter"
+> & {
+  description: string | null
+  parameter_group_uuid: string | null
+  sort_order: number
+  validation_logic: JsonObject | null
+  display_config: JsonObject | null
+  reporting_config: JsonObject | null
+  counter_config: JsonObject | null
+  calculation?: AuthoringCalculation | null
+}
+export type AuthoringAlarm = Omit<
+  DeviceProfileAlarmTemplate,
+  "condition" | "parameters"
+> & {
+  condition_config: JsonObject
+  parameter_references: Array<{ parameter_uuid: string; role: string }>
+}
+export type DeviceProfileDetail = DeviceProfile & {
+  parameter_groups: ProfileGroup[]
+  parameters: AuthoringParameter[]
+  alarm_templates: AuthoringAlarm[]
+  active_artifact: DeviceProfileArtifact | null
+}
+export type DraftInput = { draft_revision: number }
+export type ProfileInput = Pick<DeviceProfile, "name" | "code"> &
+  Partial<Pick<DeviceProfile, "description" | "category" | "extensions">>
+export type ParameterInput = Omit<AuthoringParameter, "uuid" | "calculation"> &
+  DraftInput
+export type GroupInput = Omit<ProfileGroup, "uuid" | "sort_order"> &
+  DraftInput & { sort_order?: number }
+export type CalculationInput = Omit<AuthoringCalculation, "uuid"> & DraftInput
+export type AlarmInput = Omit<AuthoringAlarm, "uuid"> & DraftInput
+export type ProfileDirectoryQuery = DirectoryQuery & {
+  status?: string
+  category?: string
+}
+export type CompiledDraft = {
+  definition: CompiledDeviceProfileDefinition
+  definition_hash: string
+  revision: number
+  draft_revision: number
+}
+export type ArtifactSummary = Omit<
+  DeviceProfileArtifact,
+  "definition" | "profile_uuid"
+>
+export type PreviewInput = DraftInput &
+  (
+    | {
+        kind: "validation"
+        parameter: Pick<
+          AuthoringParameter,
+          "data_type" | "format" | "validation_logic"
+        >
+        value: JsonValue
+        previous_value?: JsonValue
+      }
+    | {
+        kind: "calculation"
+        expression: JsonObject
+        inputs: AuthoringCalculation["inputs"]
+        samples: JsonObject
+      }
+  )
+export type PreviewResult = DeviceProfileValidationResult & {
+  result: JsonValue
 }
 
 export class ApiError extends Error {
@@ -165,7 +358,9 @@ export class ApiClient {
   constructor(baseUrl = "http://localhost:8000") {
     this.baseUrl = baseUrl.replace(/\/$/, "")
     this.selectedOrganizationUuid =
-      typeof window === "undefined" ? null : window.localStorage.getItem(ORGANIZATION_STORAGE_KEY)
+      typeof window === "undefined"
+        ? null
+        : window.localStorage.getItem(ORGANIZATION_STORAGE_KEY)
   }
 
   getSelectedOrganizationUuid(): string | null {
@@ -214,31 +409,308 @@ export class ApiClient {
     ).then((response) => response.data)
   }
 
-  async adminOrganizations(query: DirectoryQuery = {}): Promise<PaginatedResponse<Organization>> {
+  async deviceProfiles(
+    organizationUuid: string,
+    query: ProfileDirectoryQuery = {},
+  ): Promise<PaginatedResponse<DeviceProfile>> {
+    return this.request<PaginatedResponse<DeviceProfile>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/device-profiles${this.profileDirectoryQuery(query)}`,
+    )
+  }
+
+  async createDeviceProfile(
+    organizationUuid: string,
+    attributes: Pick<DeviceProfile, "code" | "name"> &
+      Partial<Pick<DeviceProfile, "description" | "category" | "extensions">>,
+  ): Promise<DeviceProfile> {
+    return this.request<ApiResponse<DeviceProfile>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/device-profiles`,
+      { method: "POST", body: JSON.stringify(attributes) },
+    ).then((response) => response.data)
+  }
+
+  private profileDirectoryQuery(query: ProfileDirectoryQuery): string {
+    const parameters = new URLSearchParams(
+      directoryQuery(query).replace(/^\\?/, ""),
+    )
+    if (query.status) parameters.set("status", query.status)
+    if (query.category) parameters.set("category", query.category)
+    return parameters.size ? "?" + parameters.toString() : ""
+  }
+
+  private profilePath(organizationUuid: string, profileUuid: string): string {
+    return `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/device-profiles/${encodeURIComponent(profileUuid)}`
+  }
+
+  private async profileOperation<T>(
+    organizationUuid: string,
+    profileUuid: string,
+    suffix: string,
+    method = "GET",
+    body?: unknown,
+  ): Promise<T> {
+    const response = await this.request<ApiResponse<T> | null>(
+      this.profilePath(organizationUuid, profileUuid) + suffix,
+      {
+        method,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      },
+    )
+    return response?.data as T
+  }
+
+  deviceProfile(org: string, profile: string): Promise<DeviceProfileDetail> {
+    return this.profileOperation(org, profile, "")
+  }
+  updateDeviceProfile(
+    org: string,
+    profile: string,
+    input: Partial<ProfileInput> & DraftInput,
+  ): Promise<DeviceProfileDetail> {
+    return this.profileOperation(org, profile, "", "PATCH", input)
+  }
+  deleteDeviceProfile(
+    org: string,
+    profile: string,
+    revision: number,
+  ): Promise<void> {
+    return this.profileOperation(org, profile, "", "DELETE", {
+      draft_revision: revision,
+    })
+  }
+  saveProfileParameter(
+    org: string,
+    profile: string,
+    uuid: string | null,
+    input: ParameterInput,
+  ): Promise<AuthoringParameter> {
+    return this.profileOperation(
+      org,
+      profile,
+      "/parameters" + (uuid ? "/" + encodeURIComponent(uuid) : ""),
+      uuid ? "PATCH" : "POST",
+      input,
+    )
+  }
+  deleteProfileParameter(
+    org: string,
+    profile: string,
+    uuid: string,
+    revision: number,
+  ): Promise<void> {
+    return this.profileOperation(
+      org,
+      profile,
+      "/parameters/" + encodeURIComponent(uuid),
+      "DELETE",
+      { draft_revision: revision },
+    )
+  }
+  reorderProfileParameters(
+    org: string,
+    profile: string,
+    uuids: string[],
+    revision: number,
+  ): Promise<void> {
+    return this.profileOperation(org, profile, "/parameter-order", "PUT", {
+      parameter_uuids: uuids,
+      draft_revision: revision,
+    })
+  }
+  saveProfileGroup(
+    org: string,
+    profile: string,
+    uuid: string | null,
+    input: GroupInput,
+  ): Promise<ProfileGroup> {
+    return this.profileOperation(
+      org,
+      profile,
+      "/parameter-groups" + (uuid ? "/" + encodeURIComponent(uuid) : ""),
+      uuid ? "PATCH" : "POST",
+      input,
+    )
+  }
+  deleteProfileGroup(
+    org: string,
+    profile: string,
+    uuid: string,
+    revision: number,
+  ): Promise<void> {
+    return this.profileOperation(
+      org,
+      profile,
+      "/parameter-groups/" + encodeURIComponent(uuid),
+      "DELETE",
+      { draft_revision: revision },
+    )
+  }
+  reorderProfileGroups(
+    org: string,
+    profile: string,
+    uuids: string[],
+    revision: number,
+  ): Promise<void> {
+    return this.profileOperation(org, profile, "/group-order", "PUT", {
+      group_uuids: uuids,
+      draft_revision: revision,
+    })
+  }
+  saveProfileCalculation(
+    org: string,
+    profile: string,
+    uuid: string,
+    input: CalculationInput,
+  ): Promise<AuthoringParameter> {
+    return this.profileOperation(
+      org,
+      profile,
+      "/parameters/" + encodeURIComponent(uuid) + "/calculation",
+      "PUT",
+      input,
+    )
+  }
+  deleteProfileCalculation(
+    org: string,
+    profile: string,
+    uuid: string,
+    revision: number,
+  ): Promise<void> {
+    return this.profileOperation(
+      org,
+      profile,
+      "/parameters/" + encodeURIComponent(uuid) + "/calculation",
+      "DELETE",
+      { draft_revision: revision },
+    )
+  }
+  saveProfileAlarm(
+    org: string,
+    profile: string,
+    uuid: string | null,
+    input: AlarmInput,
+  ): Promise<AuthoringAlarm> {
+    return this.profileOperation(
+      org,
+      profile,
+      "/alarm-templates" + (uuid ? "/" + encodeURIComponent(uuid) : ""),
+      uuid ? "PATCH" : "POST",
+      input,
+    )
+  }
+  deleteProfileAlarm(
+    org: string,
+    profile: string,
+    uuid: string,
+    revision: number,
+  ): Promise<void> {
+    return this.profileOperation(
+      org,
+      profile,
+      "/alarm-templates/" + encodeURIComponent(uuid),
+      "DELETE",
+      { draft_revision: revision },
+    )
+  }
+  validateDeviceProfile(
+    org: string,
+    profile: string,
+    revision?: number,
+  ): Promise<DeviceProfileValidationResult> {
+    return this.profileOperation(
+      org,
+      profile,
+      "/validate",
+      "POST",
+      revision ? { draft_revision: revision } : {},
+    )
+  }
+  compileDeviceProfile(
+    org: string,
+    profile: string,
+    revision?: number,
+  ): Promise<CompiledDraft> {
+    return this.profileOperation(
+      org,
+      profile,
+      "/compile",
+      "POST",
+      revision ? { draft_revision: revision } : {},
+    )
+  }
+  previewDeviceProfile(
+    org: string,
+    profile: string,
+    input: PreviewInput,
+  ): Promise<PreviewResult> {
+    return this.profileOperation(org, profile, "/preview", "POST", input)
+  }
+  profileArtifacts(
+    org: string,
+    profile: string,
+    page = 1,
+  ): Promise<PaginatedResponse<ArtifactSummary>> {
+    return this.request(
+      this.profilePath(org, profile) + "/artifacts?page=" + page,
+    )
+  }
+  profileArtifact(
+    org: string,
+    profile: string,
+    revision: number,
+  ): Promise<DeviceProfileArtifact> {
+    return this.profileOperation(org, profile, "/artifacts/" + revision)
+  }
+
+  async publishDeviceProfile(
+    organizationUuid: string,
+    profileUuid: string,
+    draftRevision: number,
+  ): Promise<DeviceProfileArtifact> {
+    return this.request<ApiResponse<DeviceProfileArtifact>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/device-profiles/${encodeURIComponent(profileUuid)}/publish`,
+      {
+        method: "POST",
+        body: JSON.stringify({ draft_revision: draftRevision }),
+      },
+    ).then((response) => response.data)
+  }
+
+  async adminOrganizations(
+    query: DirectoryQuery = {},
+  ): Promise<PaginatedResponse<Organization>> {
     return this.request<PaginatedResponse<Organization>>(
       `/api/v1/admin/organizations${directoryQuery(query)}`,
     )
   }
 
-  async adminUsers(query: DirectoryQuery = {}): Promise<PaginatedResponse<PlatformUser>> {
+  async adminUsers(
+    query: DirectoryQuery = {},
+  ): Promise<PaginatedResponse<PlatformUser>> {
     return this.request<PaginatedResponse<PlatformUser>>(
       `/api/v1/admin/users${directoryQuery(query)}`,
     )
   }
 
-  async adminRoles(query: DirectoryQuery = {}): Promise<PaginatedResponse<OrganizationRole>> {
+  async adminRoles(
+    query: DirectoryQuery = {},
+  ): Promise<PaginatedResponse<OrganizationRole>> {
     return this.request<PaginatedResponse<OrganizationRole>>(
       `/api/v1/admin/roles${directoryQuery(query)}`,
     )
   }
 
-  async adminOrganizationRoles(organizationUuid: string): Promise<OrganizationRole[]> {
+  async adminOrganizationRoles(
+    organizationUuid: string,
+  ): Promise<OrganizationRole[]> {
     return this.request<ApiResponse<OrganizationRole[]>>(
       `/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}/roles`,
     ).then((response) => response.data)
   }
 
-  async adminInvitations(query: DirectoryQuery = {}): Promise<PaginatedResponse<OrganizationInvitation>> {
+  async adminInvitations(
+    query: DirectoryQuery = {},
+  ): Promise<PaginatedResponse<OrganizationInvitation>> {
     return this.request<PaginatedResponse<OrganizationInvitation>>(
       `/api/v1/admin/invitations${directoryQuery(query)}`,
     )
@@ -259,9 +731,12 @@ export class ApiClient {
   }
 
   async revokeAdminInvitation(invitationUuid: string): Promise<void> {
-    await this.request(`/api/v1/admin/invitations/${encodeURIComponent(invitationUuid)}`, {
-      method: "DELETE",
-    })
+    await this.request(
+      `/api/v1/admin/invitations/${encodeURIComponent(invitationUuid)}`,
+      {
+        method: "DELETE",
+      },
+    )
   }
 
   async invitation(token: string): Promise<InvitationDetails> {
@@ -286,9 +761,9 @@ export class ApiClient {
   }
 
   async adminRole(id: number): Promise<OrganizationRoleDetail> {
-    return this.request<ApiResponse<OrganizationRoleDetail>>(`/api/v1/admin/roles/${id}`).then(
-      (response) => response.data,
-    )
+    return this.request<ApiResponse<OrganizationRoleDetail>>(
+      `/api/v1/admin/roles/${id}`,
+    ).then((response) => response.data)
   }
 
   async syncAdminRolePermissions(
@@ -308,6 +783,42 @@ export class ApiClient {
     await this.request("/api/v1/auth/logout", { method: "POST" })
   }
 
+  async devices(org: string, query: { search?: string; lifecycle?: string; page?: number } = {}) {
+    const search = new URLSearchParams(Object.entries(query).filter(([, value]) => value !== undefined && value !== "").map(([key, value]) => [key, String(value)]))
+    return this.request<{ data: Device[]; meta: { current_page: number; last_page: number; total: number } }>(`/api/v1/organizations/${encodeURIComponent(org)}/devices?${search}`)
+  }
+  private devicePath(org: string, id = "") { return `/api/v1/organizations/${encodeURIComponent(org)}/devices${id ? "/" + encodeURIComponent(id) : ""}` }
+  private async data<T>(path: string, method = "GET", body?: unknown): Promise<T> { return (await this.request<ApiResponse<T>>(path, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) })).data }
+  device(org: string, id: string) { return this.data<DeviceDetail>(this.devicePath(org, id)) }
+  createDevice(org: string, values: DeviceInput) { return this.data<DeviceDetail>(this.devicePath(org), "POST", values) }
+  updateDevice(org: string, id: string, values: DeviceInput & { draft_revision: number }) { return this.data<DeviceDetail>(this.devicePath(org, id), "PATCH", values) }
+  saveDeviceConfiguration(org: string, id: string, values: DeviceDraft & { draft_revision: number }) { return this.data<DeviceDetail>(this.devicePath(org, id) + "/configuration", "PUT", values) }
+  validateDevice(org: string, id: string, revision: number) { return this.data<DeviceValidation>(this.devicePath(org, id) + "/validate", "POST", { draft_revision: revision }) }
+  deviceAction(org: string, id: string, action: "activate" | "deactivate" | "archive", revision: number, rollback?: string) { return this.data<DeviceDetail>(this.devicePath(org, id) + "/" + action, "POST", { draft_revision: revision, rollback_configuration_uuid: rollback }) }
+  deviceLatest(org: string, id: string) { return this.request<{ data: Measurement[]; presence: string; configuration_uuid?: string }>(this.devicePath(org, id) + "/measurements/latest") }
+  deviceHistory(org: string, id: string, query: { parameter_uuid: string; from: string; to: string; max_points?: number }) { const search = new URLSearchParams(Object.entries(query).map(([key, value]) => [key, String(value)])); return this.data<HistorySeries[]>(this.devicePath(org, id) + "/measurements/history?" + search) }
+  deviceCommands(org: string, id: string) { return this.data<DeviceCommand[]>(this.devicePath(org, id) + "/commands") }
+  prepareDeviceCommand(org: string, id: string, values: { configuration_uuid: string; parameter_uuid: string; value: unknown; idempotency_key: string }) { return this.data<DeviceCommand>(this.devicePath(org, id) + "/commands", "POST", values) }
+  confirmDeviceCommand(org: string, id: string, command: string) { return this.data<DeviceCommand>(this.devicePath(org, id) + `/commands/${encodeURIComponent(command)}/confirm`, "POST", { confirmed: true }) }
+  cancelDeviceCommand(org: string, id: string, command: string) { return this.data<DeviceCommand>(this.devicePath(org, id) + `/commands/${encodeURIComponent(command)}/cancel`, "POST", {}) }
+  private sourceDirectory<T>(org: string, resource: string, query: import("./devices").DeviceDirectoryQuery = {}) { const search = new URLSearchParams(Object.entries(query).filter(([, value]) => value !== undefined && value !== "").map(([key, value]) => [key, String(value)])); return this.request<{ data: T[]; meta: import("./devices").DeviceDirectoryMeta }>(`/api/v1/organizations/${encodeURIComponent(org)}/${resource}?${search}`) }
+  connectionsPage(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return this.sourceDirectory<SparkplugConnection>(org, "sparkplug-connections", query) }
+  gatewaysPage(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return this.sourceDirectory<Gateway>(org, "gateways", query) }
+  discoveryPage(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return this.sourceDirectory<DiscoveryCandidate>(org, "discovery-candidates", query) }
+  discoveryCandidate(org: string, uuid: string) { return this.data<DiscoveryCandidate>(`/api/v1/organizations/${encodeURIComponent(org)}/discovery-candidates/${encodeURIComponent(uuid)}`) }
+  deviceMappingSuggestions(org: string, id: string, artifact: string) { return this.data<Array<{ binding_uuid: string; name: string; mappings: import("./devices").DeviceMapping[] }>>(this.devicePath(org, id) + "/mapping-suggestions?artifact_uuid=" + encodeURIComponent(artifact)) }
+  async connections(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return (await this.connectionsPage(org, query)).data }
+  createConnection(org: string, values: { name: string; group_id: string }) { return this.data<SparkplugConnection>(`/api/v1/organizations/${encodeURIComponent(org)}/sparkplug-connections`, "POST", values) }
+  provisionConnection(org: string, id: string) { return this.data<SparkplugConnection>(`/api/v1/organizations/${encodeURIComponent(org)}/sparkplug-connections/${encodeURIComponent(id)}/provision`, "POST", {}) }
+  provisionGateway(org: string, id: string) { return this.data<Gateway>(`/api/v1/organizations/${encodeURIComponent(org)}/gateways/${encodeURIComponent(id)}/provision`, "POST", {}) }
+  async gateways(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return (await this.gatewaysPage(org, query)).data }
+  createGateway(org: string, values: { connection_uuid: string; name: string; edge_node_id: string }) { return this.data<Gateway>(`/api/v1/organizations/${encodeURIComponent(org)}/gateways`, "POST", values) }
+  async discoveryCandidates(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return (await this.discoveryPage(org, query)).data }
+  reviewCandidate(org: string, id: string, status: "pending" | "rejected", birth_revision: number) { return this.data<DiscoveryCandidate>(`/api/v1/organizations/${encodeURIComponent(org)}/discovery-candidates/${encodeURIComponent(id)}`, "PATCH", { status, birth_revision }) }
+  private retentionPath(org?: string) { return "/api/v1/admin/" + (org ? `organizations/${encodeURIComponent(org)}/` : "") + "settings/telemetry-retention" }
+  retention(org?: string) { return this.data<RetentionSetting>(this.retentionPath(org)) }
+  updateRetention(values: { days: number | null; revision: number; confirmed_reduction?: boolean }, org?: string) { return this.data<RetentionSetting>(this.retentionPath(org), "PUT", values) }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers)
     headers.set("Accept", "application/json")
@@ -316,7 +827,9 @@ export class ApiClient {
       headers.set("X-Organization-UUID", this.selectedOrganizationUuid)
     }
 
-    if (!["GET", "HEAD", "OPTIONS"].includes((init.method ?? "GET").toUpperCase())) {
+    if (
+      !["GET", "HEAD", "OPTIONS"].includes((init.method ?? "GET").toUpperCase())
+    ) {
       const token = readCookie("XSRF-TOKEN")
 
       if (token) {
@@ -336,6 +849,13 @@ export class ApiClient {
     const payload = await response.json().catch(() => null)
 
     if (!response.ok) {
+      if (
+        (response.status === 401 || response.status === 419) &&
+        path !== "/api/v1/auth/login" &&
+        path !== "/api/v1/me" &&
+        typeof window !== "undefined"
+      )
+        window.dispatchEvent(new Event("iot-session-expired"))
       throw new ApiError(response.status, payload)
     }
 

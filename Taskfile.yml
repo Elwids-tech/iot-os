@@ -83,7 +83,7 @@ tasks:
       - docker compose --env-file .env -f {{.COMPOSE_FILE}} down
 
   stack:config:
-    desc: Validate the infrastructure plus API/admin Docker profile
+    desc: Validate the infrastructure plus API/portal/admin Docker profile
     preconditions:
       - sh: test -f .env
         msg: Run ./tooling/bootstrap to create .env first.
@@ -106,7 +106,7 @@ tasks:
       - docker compose --env-file .env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} ps
 
   stack:logs:
-    desc: Follow API/admin and infrastructure logs
+    desc: Follow API/portal/admin and infrastructure logs
     preconditions:
       - sh: test -f .env
         msg: Run ./tooling/bootstrap to create .env first.
@@ -146,3 +146,30 @@ tasks:
     cmds:
       - pnpm lint
       - cd services/runtime && go vet ./...
+
+  devices:setup:
+    desc: Generate private local Devices TLS and runtime configuration
+    cmds:
+      - node tooling/devices-setup.mjs .local/devices
+
+  devices:test:
+    desc: Run the disposable Devices integration, browser, and recovery suite
+    cmds:
+      - node tooling/test-devices.mjs
+
+  devices:serve:
+    desc: Keep a disposable Devices environment running for local review
+    cmds:
+      - node tooling/test-devices.mjs --serve
+
+  devices:config:
+    desc: Validate the opt-in Devices overlay for the existing EMQX deployment
+    cmds:
+      - docker compose --env-file .env --env-file .local/devices/devices.env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} -f deploy/compose/compose.devices.yml config --quiet
+
+  devices:up:
+    desc: Start the opt-in local Devices stack with TLS on the existing EMQX service
+    deps:
+      - devices:config
+    cmds:
+      - docker compose --env-file .env --env-file .local/devices/devices.env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} -f deploy/compose/compose.devices.yml up -d --build --wait

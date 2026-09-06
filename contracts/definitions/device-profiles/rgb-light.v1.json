@@ -1,0 +1,100 @@
+{
+  "alarm_templates": [],
+  "calculations": [
+    {
+      "engine": "json_logic",
+      "expression": {"/": [{"var": "brightness"}, 10]},
+      "failure_policy": "mark_invalid",
+      "inputs": [
+        {"alias": "brightness", "parameter_uuid": "10000000-0000-4000-8000-000000000004"}
+      ],
+      "target_parameter_uuid": "10000000-0000-4000-8000-000000000005",
+      "trigger": "on_input_change"
+    }
+  ],
+  "profile": {
+    "category": "lighting",
+    "code": "rgb-light",
+    "name": "RGB Light",
+    "revision": 1,
+    "uuid": "10000000-0000-4000-8000-000000000000"
+  },
+  "parameters": [
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "boolean",
+      "display": {"widget": "switch"},
+      "format": null,
+      "key": "power",
+      "kind": "state",
+      "label": "Power",
+      "reporting": null,
+      "reports_state": true,
+      "unit": null,
+      "uuid": "10000000-0000-4000-8000-000000000001",
+      "validation": null
+    },
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "string",
+      "display": {"widget": "color"},
+      "format": "hex_color",
+      "key": "color",
+      "kind": "state",
+      "label": "Color",
+      "reporting": null,
+      "reports_state": true,
+      "unit": null,
+      "uuid": "10000000-0000-4000-8000-000000000002",
+      "validation": null
+    },
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "string",
+      "display": {"options": ["blink", "strobe", "rainbow"], "widget": "select"},
+      "format": null,
+      "key": "mode",
+      "kind": "state",
+      "label": "Mode",
+      "reporting": null,
+      "reports_state": true,
+      "unit": null,
+      "uuid": "10000000-0000-4000-8000-000000000003",
+      "validation": {"diagnostic_code": "mode_not_supported", "engine": "json_logic", "message": "Mode must be blink, strobe, or rainbow.", "rule": {"in": [{"var": "value"}, ["blink", "strobe", "rainbow"]]}}
+    },
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "integer",
+      "display": {"step": 1, "widget": "number"},
+      "format": null,
+      "key": "brightness",
+      "kind": "state",
+      "label": "Brightness",
+      "reporting": null,
+      "reports_state": true,
+      "unit": "%",
+      "uuid": "10000000-0000-4000-8000-000000000004",
+      "validation": {"diagnostic_code": "brightness_out_of_range", "engine": "json_logic", "message": "Brightness must be between 1 and 10.", "rule": {"and": [{">=": [{"var": "value"}, 1]}, {"<=": [{"var": "value"}, 10]}]}}
+    },
+    {
+      "accepts_command": false,
+      "counter": null,
+      "data_type": "number",
+      "display": {"precision": 2, "widget": "number"},
+      "format": null,
+      "key": "estimated_output",
+      "kind": "derived",
+      "label": "Estimated output",
+      "reporting": null,
+      "reports_state": false,
+      "unit": "%",
+      "uuid": "10000000-0000-4000-8000-000000000005",
+      "validation": null
+    }
+  ],
+  "schema_version": "device-profile.v1"
+}

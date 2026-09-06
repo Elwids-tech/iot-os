@@ -1,0 +1,25 @@
+{
+  "name": "@iot-os/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.tsx"
+  },
+  "dependencies": {
+    "@iot-os/api-client": "workspace:*",
+    "@iot-os/ui": "workspace:*",
+    "lucide-react": "^0.468.0",
+    "react-router-dom": "^7.18.2"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "typescript": "~5.9.3"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -26,10 +26,11 @@ RUN apt-get update \
 WORKDIR /var/www/html
 COPY --from=vendor /app/vendor ./vendor
 COPY apps/api ./
+COPY contracts /var/contracts
 
 RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
     && chmod -R ug+rw storage bootstrap/cache
 
 EXPOSE 8000
 
-CMD ["sh", "-lc", "php artisan migrate --force && php artisan db:seed --force && php artisan serve --host=0.0.0.0 --port=8000"]
+CMD ["sh", "-lc", "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8000"]

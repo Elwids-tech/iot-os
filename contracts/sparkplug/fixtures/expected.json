@@ -1,0 +1,15 @@
+{
+  "encoder": "official Tahu schema; Python protobuf 6.33.0",
+  "timestamp_ms": 1712345000000,
+  "node_temperature": -5,
+  "meter_alias_1": {
+    "name": "Voltage L1",
+    "datatype": "Double",
+    "value": 232.0
+  },
+  "light_command": {
+    "name": "Brightness",
+    "datatype": "Int32",
+    "value": 8
+  }
+}

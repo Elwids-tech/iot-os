@@ -1,0 +1,275 @@
+[
+  {
+    "id": "average",
+    "expression": {
+      "/": [
+        {
+          "+": [
+            {
+              "var": "a"
+            },
+            {
+              "var": "b"
+            },
+            {
+              "var": "c"
+            }
+          ]
+        },
+        3
+      ]
+    },
+    "context": {
+      "a": 230,
+      "b": 231,
+      "c": 229
+    },
+    "expected": 230
+  },
+  {
+    "id": "variadic_multiply",
+    "expression": {
+      "*": [
+        2,
+        3,
+        4
+      ]
+    },
+    "context": {},
+    "expected": 24
+  },
+  {
+    "id": "strict_integer",
+    "expression": {
+      "===": [
+        {
+          "var": "x"
+        },
+        1
+      ]
+    },
+    "context": {
+      "x": 1
+    },
+    "expected": true
+  },
+  {
+    "id": "strict_float",
+    "expression": {
+      "===": [
+        {
+          "var": "x"
+        },
+        1
+      ]
+    },
+    "context": {
+      "x": 1.0
+    },
+    "expected": false
+  },
+  {
+    "id": "strict_arithmetic",
+    "expression": {
+      "===": [
+        {
+          "+": [
+            1,
+            2
+          ]
+        },
+        3
+      ]
+    },
+    "context": {},
+    "expected": true
+  },
+  {
+    "id": "strict_division",
+    "expression": {
+      "===": [
+        {
+          "/": [
+            4,
+            2
+          ]
+        },
+        2
+      ]
+    },
+    "context": {},
+    "expected": true
+  },
+  {
+    "id": "strict_float_arithmetic",
+    "expression": {
+      "===": [
+        {
+          "+": [
+            1.0,
+            2
+          ]
+        },
+        3
+      ]
+    },
+    "context": {},
+    "expected": false
+  },
+  {
+    "id": "lexical_order",
+    "expression": {
+      "<": [
+        "cool",
+        "warm"
+      ]
+    },
+    "context": {},
+    "expected": true
+  },
+  {
+    "id": "numeric_string_order",
+    "expression": {
+      ">": [
+        "10",
+        "2"
+      ]
+    },
+    "context": {},
+    "expected": true
+  },
+  {
+    "id": "number_string_loose",
+    "expression": {
+      "==": [
+        10,
+        "10"
+      ]
+    },
+    "context": {},
+    "expected": true
+  },
+  {
+    "id": "number_string_strict",
+    "expression": {
+      "===": [
+        10,
+        "10"
+      ]
+    },
+    "context": {},
+    "expected": false
+  },
+  {
+    "id": "state_boolean",
+    "expression": {
+      "===": [
+        {
+          "var": "power"
+        },
+        false
+      ]
+    },
+    "context": {
+      "power": false
+    },
+    "expected": true
+  },
+  {
+    "id": "boolean_loose",
+    "expression": {
+      "==": [
+        false,
+        0
+      ]
+    },
+    "context": {},
+    "expected": true
+  },
+  {
+    "id": "null_empty",
+    "expression": {
+      "==": [
+        null,
+        ""
+      ]
+    },
+    "context": {},
+    "expected": true
+  },
+  {
+    "id": "zero_string_truth",
+    "expression": {
+      "!": [
+        "0"
+      ]
+    },
+    "context": {},
+    "expected": false
+  },
+  {
+    "id": "state_enum",
+    "expression": {
+      "in": [
+        {
+          "var": "mode"
+        },
+        [
+          "blink",
+          "strobe"
+        ]
+      ]
+    },
+    "context": {
+      "mode": "blink"
+    },
+    "expected": true
+  },
+  {
+    "id": "brightness_bounds",
+    "expression": {
+      "and": [
+        {
+          ">=": [
+            {
+              "var": "value"
+            },
+            0
+          ]
+        },
+        {
+          "<=": [
+            {
+              "var": "value"
+            },
+            10
+          ]
+        }
+      ]
+    },
+    "context": {
+      "value": 11
+    },
+    "expected": false
+  },
+  {
+    "id": "computed_membership",
+    "expression": {
+      "in": [
+        {
+          "+": [
+            1,
+            2
+          ]
+        },
+        [
+          2,
+          3,
+          4
+        ]
+      ]
+    },
+    "context": {},
+    "expected": true
+  }
+]

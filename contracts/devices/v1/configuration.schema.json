@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/devices/v1/configuration.schema.json",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "device-configuration.v1"
+    },
+    "configuration_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "device_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "organization_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "profile_artifact_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "profile_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "profile_canonical_json": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "connection_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "candidate_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "group_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "edge_node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "device_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection_uuid",
+        "candidate_uuid",
+        "group_id",
+        "edge_node_id",
+        "device_id"
+      ],
+      "additionalProperties": false
+    },
+    "birth_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "mappings": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "parameter_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "metric": {
+            "type": "string",
+            "minLength": 1
+          },
+          "datatype": {
+            "type": "string",
+            "minLength": 1
+          },
+          "command_metric": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "command_datatype": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "parameter_uuid",
+          "metric",
+          "datatype",
+          "command_metric",
+          "command_datatype"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "configuration_uuid",
+    "device_uuid",
+    "organization_uuid",
+    "profile_artifact_uuid",
+    "profile_hash",
+    "profile_canonical_json",
+    "source",
+    "birth_revision",
+    "mappings"
+  ],
+  "additionalProperties": false
+}

@@ -25,6 +25,8 @@ final class OrganizationResource extends JsonResource
             'slug' => $this->slug,
             'users_count' => $this->whenCounted('users'),
             'capabilities' => $this->when($user instanceof User, fn (): array => [
+                'device_profiles' => app(\App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization::class)->capabilities($user, $this->resource),
+                'devices' => app(\App\Domain\Devices\Services\DeviceAuthorization::class)->capabilities($user, $this->resource),
                 'manage_administration' => app(OrganizationAdministrationAuthorization::class)->allows(
                     $user,
                     $this->resource,

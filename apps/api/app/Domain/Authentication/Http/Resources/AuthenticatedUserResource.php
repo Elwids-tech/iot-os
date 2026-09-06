@@ -25,6 +25,7 @@ final class AuthenticatedUserResource extends JsonResource
             'is_super_admin' => (bool) $this->is_super_admin,
             'capabilities' => [
                 'platform_administration' => app(PlatformAuthorization::class)->canAccessAdministration($this->resource),
+                'manage_retention' => app(PlatformAuthorization::class)->allows($this->resource, \App\Domain\Authorization\Permissions\PlatformAdministrationPermission::MANAGE_RETENTION),
             ],
             'organizations' => OrganizationResource::collection(
                 $this->is_super_admin

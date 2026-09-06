@@ -33,6 +33,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@iot-os/ui/components/sidebar"
+import { ThemePicker } from "@iot-os/ui/components/theme-picker"
 import { TooltipProvider } from "@iot-os/ui/components/tooltip"
 import {
   BoxesIcon,
@@ -40,6 +41,7 @@ import {
   ChevronsUpDownIcon,
   LogOutIcon,
   ShieldCheckIcon,
+  SlidersHorizontalIcon,
   UsersIcon,
 } from "lucide-react"
 import { NavLink, Outlet, useLocation } from "react-router-dom"
@@ -48,9 +50,11 @@ const navigation = [
   { title: "Organizations", to: "/organizations", icon: Building2Icon },
   { title: "Users", to: "/users", icon: UsersIcon },
   { title: "Roles", to: "/roles", icon: ShieldCheckIcon },
+  { title: "Measurement retention", to: "/settings/retention", icon: SlidersHorizontalIcon },
+  { title: "Tenant portal", to: import.meta.env.VITE_PORTAL_URL || `${window.location.protocol}//${window.location.hostname}:5173`, icon: SlidersHorizontalIcon },
 ]
 
-function AdminSidebar() {
+function AdminSidebar({ canManageRetention }: { canManageRetention: boolean }) {
   const location = useLocation()
   const { setOpenMobile } = useSidebar()
 
@@ -80,7 +84,7 @@ function AdminSidebar() {
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigation.map((item) => (
+              {navigation.filter(item => item.to !== "/settings/retention" || canManageRetention).map((item) => (
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton
                     asChild
@@ -122,7 +126,7 @@ export function AdminLayout({
   return (
     <TooltipProvider>
       <SidebarProvider>
-        <AdminSidebar />
+        <AdminSidebar canManageRetention={Boolean(user.capabilities.manage_retention)} />
         <SidebarInset>
           <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
             <SidebarTrigger className="-ml-1" />
@@ -134,9 +138,10 @@ export function AdminLayout({
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
+            <div className="ml-auto"><ThemePicker /></div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="ml-auto min-w-0">
+                <Button variant="ghost" className="min-w-0">
                   <span className="hidden max-w-48 truncate sm:inline">{user.name}</span>
                   <ChevronsUpDownIcon data-icon="inline-end" />
                 </Button>

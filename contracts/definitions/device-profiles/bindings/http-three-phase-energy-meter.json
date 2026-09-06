@@ -1,0 +1,10 @@
+{
+  "adapter_key": "http",
+  "mappings": [
+    {
+      "direction": "ingress",
+      "parameter_uuid": "20000000-0000-4000-8000-000000000001",
+      "transport_locator": {"path": "$.measurements.voltage_l1"}
+    }
+  ]
+}

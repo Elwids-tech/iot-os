@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/devices/v1/command.schema.json",
+  "type": "object",
+  "properties": {
+    "command_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "device_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "organization_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "configuration_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "parameter_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "value": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "confirmed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "command_uuid",
+    "device_uuid",
+    "organization_uuid",
+    "configuration_uuid",
+    "parameter_uuid",
+    "value",
+    "session_id",
+    "confirmed_at",
+    "expires_at"
+  ],
+  "additionalProperties": false
+}

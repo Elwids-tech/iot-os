@@ -9,7 +9,7 @@ services:
       APP_DEBUG: "true"
       APP_KEY: ${IOT_API_APP_KEY:-base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
       APP_URL: "http://127.0.0.1:${IOT_API_PORT:-8001}"
-      FRONTEND_URL: ${IOT_ADMIN_URL:-http://127.0.0.1:5174}
+      FRONTEND_URL: ${IOT_PORTAL_URL:-http://127.0.0.1:5173}
       LOG_CHANNEL: stderr
       DB_CONNECTION: pgsql
       DB_HOST: timescaledb
@@ -25,8 +25,8 @@ services:
       MAIL_PORT: 1025
       MAIL_FROM_ADDRESS: no-reply@iot-os.test
       MAIL_FROM_NAME: IoT OS
-      SANCTUM_STATEFUL_DOMAINS: localhost,localhost:${IOT_ADMIN_PORT:-5174},127.0.0.1,127.0.0.1:${IOT_ADMIN_PORT:-5174}
-      CORS_ALLOWED_ORIGINS: http://localhost:${IOT_ADMIN_PORT:-5174},http://127.0.0.1:${IOT_ADMIN_PORT:-5174}
+      SANCTUM_STATEFUL_DOMAINS: localhost,localhost:${IOT_PORTAL_PORT:-5173},127.0.0.1:${IOT_PORTAL_PORT:-5173},localhost:${IOT_ADMIN_PORT:-5174},localhost:5175,127.0.0.1,127.0.0.1:${IOT_ADMIN_PORT:-5174},127.0.0.1:5175
+      CORS_ALLOWED_ORIGINS: http://localhost:${IOT_PORTAL_PORT:-5173},http://127.0.0.1:${IOT_PORTAL_PORT:-5173},http://localhost:${IOT_ADMIN_PORT:-5174},http://localhost:5175,http://127.0.0.1:${IOT_ADMIN_PORT:-5174},http://127.0.0.1:5175
     ports:
       - "${IOT_API_PORT:-8001}:8000"
     depends_on:
@@ -49,6 +49,7 @@ services:
       dockerfile: deploy/docker/admin/Dockerfile
       args:
         VITE_API_URL: ${IOT_API_URL:-http://127.0.0.1:8001}
+        VITE_PORTAL_URL: ${IOT_PORTAL_URL:-}
     ports:
       - "${IOT_ADMIN_PORT:-5174}:80"
     depends_on:
@@ -57,3 +58,17 @@ services:
     restart: unless-stopped
     networks:
       - internal
+
+  portal:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/portal/Dockerfile
+      args:
+        VITE_API_URL: ${IOT_API_URL:-http://127.0.0.1:8001}
+        VITE_ADMIN_URL: ${IOT_ADMIN_URL:-http://127.0.0.1:5174}
+    ports:
+      - "${IOT_PORTAL_PORT:-5173}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

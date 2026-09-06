@@ -10,6 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/app"
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/storage"
+
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/health"
 )
 
@@ -17,6 +20,24 @@ const defaultHTTPAddress = ":8081"
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	var handler http.Handler = health.Routes()
+	if databaseURL := os.Getenv("DEVICE_DATABASE_URL"); databaseURL != "" {
+		store, err := storage.Open(shutdownContext, databaseURL)
+		if err != nil {
+			logger.Error("device storage startup failed", "error", err)
+			os.Exit(1)
+		}
+		defer store.Pool.Close()
+		runtime, err := app.New(shutdownContext, store, logger)
+		if err != nil {
+			logger.Error("device runtime startup failed", "error", err)
+			os.Exit(1)
+		}
+		defer runtime.Close()
+		handler = runtime.Handler()
+	}
 	httpAddress := os.Getenv("IOT_RUNTIME_HTTP_ADDRESS")
 	if httpAddress == "" {
 		httpAddress = defaultHTTPAddress
@@ -24,15 +45,12 @@ func main() {
 
 	server := &http.Server{
 		Addr:              httpAddress,
-		Handler:           health.Routes(),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-
-	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	go func() {
 		<-shutdownContext.Done()

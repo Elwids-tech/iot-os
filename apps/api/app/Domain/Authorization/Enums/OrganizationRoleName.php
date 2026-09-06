@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Authorization\Enums;
 
 use App\Domain\Authorization\Permissions\RolePermission;
+use App\Domain\DeviceProfiles\Permissions\DeviceProfilePermission;
+use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Shared\Permissions\OrganizationPermission;
 use App\Domain\Shared\Permissions\UserPermission;
 
@@ -33,14 +35,23 @@ enum OrganizationRoleName: string
                 ...array_map(static fn ($permission): string => $permission->value, OrganizationPermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, UserPermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, RolePermission::cases()),
+                ...array_map(static fn ($permission): string => $permission->value, DeviceProfilePermission::cases()),
+                ...array_map(static fn ($permission): string => $permission->value, DevicePermission::cases()),
             ],
             self::MODERATOR => [
+                DevicePermission::VIEW->value,
                 OrganizationPermission::VIEW->value,
                 UserPermission::VIEW_ANY->value,
                 UserPermission::VIEW->value,
+                DeviceProfilePermission::VIEW_ANY->value,
+                DeviceProfilePermission::VIEW->value,
+                DeviceProfilePermission::VALIDATE->value,
             ],
             self::MEMBER => [
+                DevicePermission::VIEW->value,
                 OrganizationPermission::VIEW->value,
+                DeviceProfilePermission::VIEW_ANY->value,
+                DeviceProfilePermission::VIEW->value,
             ],
         };
     }

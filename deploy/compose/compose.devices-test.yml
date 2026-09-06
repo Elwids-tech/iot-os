@@ -1,0 +1,39 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.29.2-pg17
+    environment:
+      POSTGRES_DB: iot_devices_test
+      POSTGRES_USER: devices_test
+      POSTGRES_PASSWORD: ${DEVICE_TEST_DB_PASSWORD:?}
+    ports:
+      - "127.0.0.1:${DEVICE_TEST_PG_PORT:-55435}:5432"
+    volumes:
+      - ./init/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U devices_test -d iot_devices_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  emqx:
+    image: emqx/emqx:5.9.3
+    environment:
+      EMQX_NODE__COOKIE: ${DEVICE_TEST_COOKIE:?}
+    ports:
+      - "127.0.0.1:${DEVICE_TEST_MQTT_PORT:-18885}:8883"
+      - "127.0.0.1:${DEVICE_TEST_EMQX_PORT:-18086}:18083"
+    volumes:
+      - ./emqx.devices.conf:/opt/emqx/etc/emqx.conf:ro
+      - ${DEVICE_CERT_DIR:?}/ca.crt:/opt/emqx/etc/device-certs/ca.crt:ro
+      - ${DEVICE_CERT_DIR:?}/server.crt:/opt/emqx/etc/device-certs/server.crt:ro
+      - ${DEVICE_CERT_DIR:?}/server.key:/opt/emqx/etc/device-certs/server.key:ro
+      - ${DEVICE_CERT_DIR:?}/api-keys:/opt/emqx/etc/device-certs/api-keys:ro
+    healthcheck:
+      test: [CMD, /opt/emqx/bin/emqx, ctl, status]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  nats:
+    image: nats:2.14.5-alpine
+    command: [--jetstream, --store_dir=/data]
+    ports:
+      - "127.0.0.1:${DEVICE_TEST_NATS_PORT:-14225}:4222"

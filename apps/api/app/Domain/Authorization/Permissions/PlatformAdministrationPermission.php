@@ -12,4 +12,5 @@ enum PlatformAdministrationPermission: string
 
     case ACCESS = 'PlatformAdministration.access';
     case MANAGE_ORGANIZATIONS = 'PlatformAdministration.manage-organizations';
+    case MANAGE_RETENTION = 'PlatformAdministration.manage-retention';
 }

@@ -30,12 +30,16 @@ final class ResolveOrganizationContext
         $permissionRegistrar = app(PermissionRegistrar::class);
         $previousTeamId = $permissionRegistrar->getPermissionsTeamId();
         $permissionRegistrar->setPermissionsTeamId($organization->getKey());
+        // A long-lived request user can retain role relations loaded under a
+        // previous tenant. Resolve them again after setting the active team.
+        $request->user()->unsetRelation('roles')->unsetRelation('permissions');
         $request->attributes->set('organization', $organization);
 
         try {
             return $next($request);
         } finally {
             $permissionRegistrar->setPermissionsTeamId($previousTeamId);
+            $request->user()->unsetRelation('roles')->unsetRelation('permissions');
         }
     }
 }

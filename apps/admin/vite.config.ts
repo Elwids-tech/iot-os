@@ -4,4 +4,9 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@contracts": new URL("../../contracts", import.meta.url).pathname,
+    },
+  },
 })

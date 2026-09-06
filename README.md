@@ -30,7 +30,13 @@ The current repository foundation requires Docker, Git, `curl`, `tar`, and a SHA
 
 Application workspaces are being added incrementally. The root doctor command reports which local language tools are available without treating optional local toolchains as a replacement for the pinned CI/release toolchains.
 
+## Device Profile Studio
+
+The tenant authoring portal runs on `http://localhost:5173`; platform administration remains on `http://localhost:5174`. See [Device Profile Studio](docs/device-profile-studio.md) for startup, login, safe upgrades, authoring, and isolated browser tests.
+
 ## Useful Commands
+
+The [Devices v1 guide](docs/devices-v1.md) covers registration, Sparkplug B on EMQX, live measurements and history, confirmed commands, retention, and recovery. Run `./taskw devices:test` for disposable simulator acceptance or `./taskw devices:serve` for an interactive review. The normal development stack is unchanged unless the Devices overlay is explicitly selected.
 
 ```bash
 ./taskw doctor
@@ -44,6 +50,8 @@ Application workspaces are being added incrementally. The root doctor command re
 ./taskw test
 ./taskw runtime:test
 ./taskw runtime:dev
+./taskw devices:test
+./taskw devices:serve
 ```
 
 Development credentials in `.env.example` are intentionally non-production values. Production packaging will generate unique secrets and must never reuse them.

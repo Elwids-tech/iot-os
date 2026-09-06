@@ -10,6 +10,8 @@ import { OrganizationsPage } from "./pages/OrganizationsPage"
 import { RolePermissionsPage } from "./pages/RolePermissionsPage"
 import { RolesPage } from "./pages/RolesPage"
 import { UsersPage } from "./pages/UsersPage"
+import { RetentionPage } from "./pages/RetentionPage"
+
 
 type ScreenState =
   | { status: "loading" }
@@ -88,8 +90,15 @@ function PlatformAdministrationApp() {
         <Route path="users" element={<UsersPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="roles/:roleId" element={<RolePermissionsPage />} />
+        <Route path="device-profiles" element={<TenantPortalRedirect />} />
+        <Route path="settings/retention" element={screen.user.capabilities.manage_retention ? <RetentionPage /> : <AccessDeniedPage user={screen.user} onSignOut={signOut} />} />
         <Route path="*" element={<Navigate to="/organizations" replace />} />
       </Route>
     </Routes>
   )
+}
+
+function TenantPortalRedirect() {
+  useEffect(() => { window.location.replace(import.meta.env.VITE_PORTAL_URL || `${window.location.protocol}//${window.location.hostname}:5173`) }, [])
+  return <p>Opening tenant portal…</p>
 }
