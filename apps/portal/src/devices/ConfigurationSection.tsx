@@ -4,10 +4,12 @@ import { Link, useSearchParams } from "react-router-dom"
 import {
   configurationProfile,
   type DeviceDetail,
+  type DeviceMapping,
   type DeviceDraft,
   type DeviceProfileArtifact,
   type DeviceValidation,
 } from "@iot-os/api-client"
+import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Button } from "@iot-os/ui/components/button"
 import {
   Card,
@@ -42,6 +44,17 @@ import {
   Confirm,
 } from "../components/forms"
 import { DevicePages, formatTime, useDeviceOrganization } from "./shared"
+import {
+  IncomingConversionFields,
+  conversionEligible,
+  conversionEquation,
+} from "../profiles/IncomingConversionFields"
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@iot-os/ui/components/accordion"
 import { MeasurementTable } from "./MeasurementsSection"
 import type { DeviceOperation } from "./DeviceWorkspace"
 
@@ -177,13 +190,22 @@ export function ConfigurationSection({
     uuid: string,
     metric: string,
     command: string | null = null,
+    conversion?: Partial<DeviceMapping>,
   ) {
     setDraft((current) => ({
       ...current,
       mappings: [
         ...current.mappings.filter((m) => m.parameter_uuid !== uuid),
         ...(metric
-          ? [{ parameter_uuid: uuid, metric, command_metric: command }]
+          ? [
+              {
+                ...current.mappings.find((m) => m.parameter_uuid === uuid),
+                parameter_uuid: uuid,
+                metric,
+                command_metric: command,
+                ...conversion,
+              },
+            ]
           : []),
       ],
     }))
@@ -203,6 +225,7 @@ export function ConfigurationSection({
     .map((p) => ({ value: p.uuid, label: p.name }))
   if (
     artifact &&
+    !profileSearch &&
     !profileOptions.some((p) => p.value === artifact.profile_uuid)
   )
     profileOptions.unshift({
@@ -245,16 +268,23 @@ export function ConfigurationSection({
         </CardHeader>
         <CardContent>
           <FieldGroup className="grid gap-4 md:grid-cols-2">
-            <TextField
-              label="Find a profile"
-              value={profileSearch}
-              onChange={(e) => {
-                setProfileSearch(e.target.value)
+            <SearchableSelect
+              search={profileSearch}
+              onSearchChange={(value) => {
+                setProfileSearch(value)
                 setProfilePage(1)
               }}
-              disabled={!writable}
-            />
-            <Choice
+              loading={profiles.isLoading}
+              selectedLabel={
+                artifact?.profile_uuid === profileUuid
+                  ? artifact.definition.profile.name
+                  : undefined
+              }
+              page={profilePage}
+              hasNextPage={Boolean(
+                profiles.data && profilePage < profiles.data.meta.last_page,
+              )}
+              onPageChange={setProfilePage}
               label="Device profile"
               value={profileUuid}
               disabled={!writable || busy}
@@ -309,15 +339,25 @@ export function ConfigurationSection({
                 ...revisionOptions,
               ]}
             />
-            <TextField
-              label="Find a source"
-              value={sourceSearch}
-              onChange={(e) => {
-                setSourceSearch(e.target.value)
+            <SearchableSelect
+              search={sourceSearch}
+              onSearchChange={(value) => {
+                setSourceSearch(value)
                 setSourcePage(1)
               }}
-            />
-            <Choice
+              loading={candidates.isLoading}
+              selectedLabel={
+                candidate
+                  ? (candidate.source_device_id || "Edge Node measurements") +
+                    " · " +
+                    candidate.gateway.name
+                  : undefined
+              }
+              page={sourcePage}
+              hasNextPage={Boolean(
+                candidates.data && sourcePage < candidates.data.meta.last_page,
+              )}
+              onPageChange={setSourcePage}
               label="Discovered source"
               value={draft.candidate_uuid ?? ""}
               disabled={!writable || busy}
@@ -332,7 +372,7 @@ export function ConfigurationSection({
               }}
               options={[
                 { value: "", label: "Not connected yet" },
-                ...sources
+                ...(candidates.data?.data ?? [])
                   .filter(
                     (c) =>
                       c.status !== "rejected" &&
@@ -346,16 +386,6 @@ export function ConfigurationSection({
               ]}
             />
           </FieldGroup>
-          <DevicePages
-            meta={candidates.data?.meta}
-            onPage={setSourcePage}
-            label="Source choices"
-          />
-          <DevicePages
-            meta={profiles.data?.meta}
-            onPage={setProfilePage}
-            label="Profile choices"
-          />
           <DevicePages
             meta={artifacts.data?.meta}
             onPage={setArtifactPage}
@@ -416,7 +446,10 @@ export function ConfigurationSection({
                       (s) => s.binding_uuid === uuid,
                     )
                     if (suggestion) {
-                      setDraft((d) => ({ ...d, mappings: suggestion.mappings }))
+                      setDraft((d) => ({
+                        ...d,
+                        mappings: suggestion.mappings,
+                      }))
                       setValidation(null)
                     }
                   }}
@@ -497,6 +530,99 @@ export function ConfigurationSection({
                             }
                             options={metricOptions}
                           />
+                          {mapping && conversionEligible(p) && (
+                            <Accordion type="single" collapsible>
+                              <AccordionItem value="conversion">
+                                <AccordionTrigger>
+                                  Incoming conversion for {p.label}
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                  <FieldGroup>
+                                    <Choice
+                                      label={`Conversion mode for ${p.label}`}
+                                      value={
+                                        mapping.conversion_mode ?? "profile"
+                                      }
+                                      disabled={!writable || busy}
+                                      options={[
+                                        {
+                                          value: "profile",
+                                          label: "Use profile default",
+                                        },
+                                        {
+                                          value: "custom",
+                                          label: "Custom conversion",
+                                        },
+                                        {
+                                          value: "none",
+                                          label: "No conversion",
+                                        },
+                                      ]}
+                                      onChange={(mode) =>
+                                        changeMapping(
+                                          p.uuid,
+                                          mapping.metric,
+                                          mapping.command_metric,
+                                          {
+                                            conversion_mode:
+                                              mode as DeviceMapping["conversion_mode"],
+                                            ingress_conversion:
+                                              mode === "custom"
+                                                ? (p.ingress_conversion ?? {
+                                                    source_unit: null,
+                                                    multiplier: 1,
+                                                    offset: 0,
+                                                  })
+                                                : null,
+                                          },
+                                        )
+                                      }
+                                    />
+                                    <p className="text-sm text-muted-foreground">
+                                      {mapping.conversion_mode === "custom"
+                                        ? "Device override"
+                                        : mapping.conversion_mode === "none"
+                                          ? "Conversion bypassed"
+                                          : "Selected published profile"}
+                                      :{" "}
+                                      {conversionEquation(
+                                        mapping.conversion_mode === "none"
+                                          ? null
+                                          : mapping.conversion_mode === "custom"
+                                            ? mapping.ingress_conversion
+                                            : p.ingress_conversion,
+                                      )}
+                                      . Stored unit: {p.unit ?? "No unit"}.
+                                    </p>
+                                    {mapping.conversion_mode === "custom" && (
+                                      <IncomingConversionFields
+                                        toggle={false}
+                                        value={
+                                          mapping.ingress_conversion ?? null
+                                        }
+                                        storedUnit={p.unit}
+                                        dataType={p.data_type}
+                                        disabled={!writable || busy}
+                                        onChange={(value) =>
+                                          changeMapping(
+                                            p.uuid,
+                                            mapping.metric,
+                                            mapping.command_metric,
+                                            { ingress_conversion: value },
+                                          )
+                                        }
+                                      />
+                                    )}
+                                    <p className="text-sm text-muted-foreground">
+                                      Save and validate the configuration to
+                                      check captured source samples in the
+                                      runtime. Changes apply after activation.
+                                    </p>
+                                  </FieldGroup>
+                                </AccordionContent>
+                              </AccordionItem>
+                            </Accordion>
+                          )}
                         </TableCell>
                         <TableCell>
                           {p.accepts_command ? (
@@ -663,6 +789,7 @@ export function ConfigurationSection({
                 <TableRow>
                   <TableHead>Configuration</TableHead>
                   <TableHead>Profile revision</TableHead>
+                  <TableHead>Incoming conversions</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Action</TableHead>
@@ -674,6 +801,40 @@ export function ConfigurationSection({
                     <TableCell>Revision {c.revision}</TableCell>
                     <TableCell>
                       {configurationProfile(c).profile.revision}
+                    </TableCell>
+                    <TableCell>
+                      {c.definition.mappings.filter(
+                        (m) =>
+                          m.ingress_conversion || m.conversion_mode === "none",
+                      ).length ? (
+                        <div className="flex flex-col gap-2">
+                          {c.definition.mappings
+                            .filter(
+                              (m) =>
+                                m.ingress_conversion ||
+                                m.conversion_mode === "none",
+                            )
+                            .map((m) => {
+                              const p = configurationProfile(c).parameters.find(
+                                (p) => p.uuid === m.parameter_uuid,
+                              )
+                              return (
+                                <p key={m.parameter_uuid} className="text-sm">
+                                  {p?.label ?? m.parameter_uuid}:{" "}
+                                  {m.conversion_mode === "custom"
+                                    ? "Device override"
+                                    : m.conversion_mode === "none"
+                                      ? "Bypassed"
+                                      : "Profile default"}{" "}
+                                  · {conversionEquation(m.ingress_conversion)} ·{" "}
+                                  {p?.unit ?? "No unit"}
+                                </p>
+                              )
+                            })}
+                        </div>
+                      ) : (
+                        "No conversions"
+                      )}
                     </TableCell>
                     <TableCell>{formatTime(c.created_at)}</TableCell>
                     <TableCell>

@@ -34,6 +34,8 @@ import {
   formatTime,
   useDeviceOrganization,
 } from "./shared"
+import { DeviceLifecycleAction } from "./DeviceLifecycleAction"
+import { lifecycleStorageKey, newerDevice, reconcileDevice } from "./lifecycle"
 import { ConfigurationSection } from "./ConfigurationSection"
 import { MeasurementsSection } from "./MeasurementsSection"
 import { CommandsSection } from "./CommandsSection"
@@ -55,30 +57,86 @@ export function DeviceWorkspace() {
     lock = useRef(false)
   const [busy, setBusy] = useState(false),
     [error, setError] = useState<unknown>(null),
-    [refreshRequired, setRefreshRequired] = useState(false)
+    [unconfirmed, setUnconfirmed] = useState(() =>
+      Boolean(sessionStorage.getItem(lifecycleStorageKey(org, deviceUuid))),
+    )
   const key = ["device", org, deviceUuid]
   const query = useQuery({
     queryKey: key,
-    queryFn: () => api.device(org, deviceUuid),
-    refetchInterval: 5000,
+    queryFn: async () => {
+      const incoming = await api.device(org, deviceUuid)
+      return newerDevice(cache.getQueryData<DeviceDetail>(key), incoming)
+    },
+    refetchInterval: (query) =>
+      unconfirmed || query.state.data?.deployment_status === "pending"
+        ? 1000
+        : 5000,
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
     refetchIntervalInBackground: false,
   })
+  const pendingRequest = (() => {
+    try {
+      return JSON.parse(
+        sessionStorage.getItem(lifecycleStorageKey(org, deviceUuid)) ?? "null",
+      ) as { operation_uuid: string } | null
+    } catch {
+      return null
+    }
+  })()
+  const recovery = useQuery({
+    queryKey: [
+      "device-operation",
+      org,
+      deviceUuid,
+      pendingRequest?.operation_uuid,
+    ],
+    enabled: Boolean(pendingRequest),
+    queryFn: () =>
+      api.deviceOperation(org, deviceUuid, pendingRequest!.operation_uuid),
+    retry: false,
+    refetchInterval: 1000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
+  })
+  useEffect(() => {
+    if (!recovery.data) return
+    reconcileDevice(cache, org, recovery.data.data)
+    if (recovery.data.operation.status !== "pending") {
+      sessionStorage.removeItem(lifecycleStorageKey(org, deviceUuid))
+      setUnconfirmed(false)
+    }
+  }, [recovery.data, cache, org, deviceUuid])
+  const lastState = useRef("")
+  useEffect(() => {
+    if (!query.data) return
+    const stamp =
+      query.data.deployment_generation + ":" + query.data.state_revision
+    if (stamp !== lastState.current) {
+      lastState.current = stamp
+      reconcileDevice(cache, org, query.data)
+    }
+  }, [query.data, cache, org])
   const run: DeviceOperation = useCallback(
     async (operation) => {
-      if (lock.current || refreshRequired)
-        throw new Error("Refresh the device before making another change.")
+      if (lock.current || unconfirmed)
+        throw new Error("Wait for the current request to be confirmed.")
       lock.current = true
       setBusy(true)
       setError(null)
+      await cache.cancelQueries({ queryKey: ["device", org, deviceUuid] })
       try {
         const result = await operation()
-        try {
-          const fresh = await api.device(org, deviceUuid)
-          cache.setQueryData(["device", org, deviceUuid], fresh)
-        } catch (reason) {
-          setRefreshRequired(true)
-          throw reason
+        if (
+          result &&
+          typeof result === "object" &&
+          "draft_revision" in result &&
+          "uuid" in result
+        ) {
+          reconcileDevice(cache, org, result as unknown as DeviceDetail)
         }
+        void cache.invalidateQueries({ queryKey: ["device", org, deviceUuid] })
         return result
       } catch (reason) {
         setError(reason)
@@ -88,7 +146,7 @@ export function DeviceWorkspace() {
         setBusy(false)
       }
     },
-    [org, deviceUuid, cache, refreshRequired],
+    [org, deviceUuid, cache, unconfirmed],
   )
   if (query.isPending) return <Skeleton className="h-80 w-full" />
   if (!query.data) return <RequestError error={query.error} />
@@ -113,35 +171,16 @@ export function DeviceWorkspace() {
         </div>
         <div className="flex flex-wrap gap-2">
           <DeviceStatus value={device.lifecycle} />
-          <DeviceStatus value={device.presence} />
-          <DeviceStatus value={device.deployment_status} />
+          {device.lifecycle !== "deactivated" && (
+            <DeviceStatus value={device.presence} />
+          )}
+          {device.lifecycle !== "deactivated" ||
+          device.deployment_status === "pending" ? (
+            <DeviceStatus value={device.deployment_status} />
+          ) : null}
         </div>
       </div>
       <RequestError error={error ?? query.error} />
-      {refreshRequired && (
-        <Alert>
-          <AlertTitle>Refresh required</AlertTitle>
-          <AlertDescription>
-            A change was saved, but its refreshed state could not be loaded.
-            Further changes are paused.
-            <Button
-              variant="outline"
-              onClick={async () => {
-                try {
-                  const fresh = await api.device(org, deviceUuid)
-                  cache.setQueryData(key, fresh)
-                  setRefreshRequired(false)
-                  setError(null)
-                } catch (reason) {
-                  setError(reason)
-                }
-              }}
-            >
-              Reload device
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
       {device.diagnostic && (
         <Alert>
           <AlertTitle>Device needs attention</AlertTitle>
@@ -168,8 +207,9 @@ export function DeviceWorkspace() {
             device={device}
             editable={capabilities.manage}
             canActivate={capabilities.activate}
+            onUnconfirmed={setUnconfirmed}
             run={run}
-            busy={busy || refreshRequired}
+            busy={busy || unconfirmed || device.deployment_status === "pending"}
           />
         </TabsContent>
         <TabsContent value="measurements">
@@ -187,16 +227,16 @@ export function DeviceWorkspace() {
             editable={capabilities.manage}
             canActivate={capabilities.activate}
             run={run}
-            busy={busy || refreshRequired}
+            busy={busy || unconfirmed || device.deployment_status === "pending"}
           />
         </TabsContent>
         <TabsContent value="commands">
           <CommandsSection
             org={org}
             device={device}
-            allowed={capabilities.command}
+            allowed={capabilities.command && !unconfirmed}
             run={run}
-            busy={busy || refreshRequired}
+            busy={busy || unconfirmed || device.deployment_status === "pending"}
           />
         </TabsContent>
       </Tabs>
@@ -209,6 +249,7 @@ function DeviceOverview({
   device,
   editable,
   canActivate,
+  onUnconfirmed,
   run,
   busy,
 }: {
@@ -216,6 +257,7 @@ function DeviceOverview({
   device: DeviceDetail
   editable: boolean
   canActivate: boolean
+  onUnconfirmed: (value: boolean) => void
   run: DeviceOperation
   busy: boolean
 }) {
@@ -227,8 +269,20 @@ function DeviceOverview({
   })
   const form = useForm<DeviceInput>({ defaultValues: savedValues(device) }),
     [revision, setRevision] = useState(device.draft_revision),
-    [action, setAction] = useState<"deactivate" | "archive" | null>(null)
+    [action, setAction] = useState<{
+      kind: "archive"
+      revision: number
+      description: string
+    } | null>(null)
   const dirty = form.formState.isDirty
+  function reviewAction(kind: "archive") {
+    setAction({
+      kind,
+      revision: device.draft_revision,
+      description:
+        "The record becomes read-only. Configuration and command history remain available.",
+    })
+  }
   useUnsaved(dirty)
   useEffect(() => {
     if (!dirty) {
@@ -332,6 +386,10 @@ function DeviceOverview({
             <dl className="grid grid-cols-[auto_1fr] gap-3 text-sm">
               <dt>Gateway</dt>
               <dd>{device.candidate?.gateway.name ?? "Not assigned"}</dd>
+              <dt>Source connection</dt>
+              <dd>
+                <DeviceStatus value={device.candidate?.presence ?? "unseen"} />
+              </dd>
               <dt>Source</dt>
               <dd>
                 {device.candidate
@@ -341,6 +399,12 @@ function DeviceOverview({
               </dd>
               <dt>Last seen</dt>
               <dd>{formatTime(device.last_seen_at)}</dd>
+              <dt>Last working revision</dt>
+              <dd>
+                {device.configurations.find(
+                  (c) => c.uuid === device.last_applied_configuration_uuid,
+                )?.revision ?? "None"}
+              </dd>
               <dt>Applied revision</dt>
               <dd>
                 {device.configurations.find(
@@ -361,21 +425,19 @@ function DeviceOverview({
             <CardHeader>
               <CardTitle>Lifecycle actions</CardTitle>
               <CardDescription>
-                Deactivate first to stop runtime processing. Archiving preserves
+                Activate a deactivated device using its saved configuration.
+                Deactivating stops runtime processing. Archiving preserves
                 configuration and command history.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-3">
-              {canActivate && device.applied_configuration_uuid && (
-                <Button
-                  variant="outline"
-                  disabled={
-                    busy || dirty || device.deployment_status === "pending"
-                  }
-                  onClick={() => setAction("deactivate")}
-                >
-                  Deactivate device
-                </Button>
+              {canActivate && (
+                <DeviceLifecycleAction
+                  org={org}
+                  device={device}
+                  disabled={busy}
+                  onUnconfirmed={onUnconfirmed}
+                />
               )}
               {editable && (
                 <Button
@@ -385,11 +447,11 @@ function DeviceOverview({
                     dirty ||
                     Boolean(
                       device.applied_configuration_uuid ||
-                        device.desired_configuration_uuid,
+                      device.desired_configuration_uuid,
                     ) ||
                     device.deployment_status === "pending"
                   }
-                  onClick={() => setAction("archive")}
+                  onClick={() => reviewAction("archive")}
                 >
                   Archive device
                 </Button>
@@ -400,22 +462,14 @@ function DeviceOverview({
       </div>
       <Confirm
         open={Boolean(action)}
-        title={
-          action === "archive"
-            ? "Archive this device?"
-            : "Deactivate this device?"
-        }
-        description={
-          action === "archive"
-            ? "The record becomes read-only. Configuration and command history remain available."
-            : "The runtime will stop processing this device after acknowledging the request. Pending command outcomes may remain uncertain."
-        }
-        action={action === "archive" ? "Archive device" : "Deactivate device"}
+        title="Archive this device?"
+        description={action?.description ?? ""}
+        action="Archive device"
         onClose={() => setAction(null)}
         onConfirm={async () => {
           if (action)
             await run(() =>
-              api.deviceAction(org, device.uuid, action, device.draft_revision),
+              api.deviceAction(org, device.uuid, action.kind, action.revision),
             )
         }}
       />

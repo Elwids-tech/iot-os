@@ -52,6 +52,8 @@ export type DiscoveryCandidate = {
   gateway: Gateway
 }
 export type DeviceMapping = {
+  conversion_mode?: "profile" | "custom" | "none"
+  ingress_conversion?: import("./index").IngressConversion | null
   parameter_uuid: string
   metric: string
   command_metric: string | null
@@ -65,7 +67,7 @@ export type DeviceDraft = {
   mappings: DeviceMapping[]
 }
 export type DeviceDefinition = {
-  schema_version: "device-configuration.v1"
+  schema_version: "device-configuration.v1" | "device-configuration.v2"
   configuration_uuid: string
   device_uuid: string
   organization_uuid: string
@@ -89,7 +91,30 @@ export type DeviceConfiguration = {
   definition: DeviceDefinition
   created_at: string
 }
+export type DeviceOperation = {
+  uuid: string
+  target_state: "active" | "inactive"
+  kind: "resume" | "deactivate" | "configure" | "rollback" | "legacy"
+  generation: number
+  configuration_uuid: string | null
+  status: "pending" | "succeeded" | "failed"
+  diagnostic: string | null
+  created_at: string
+  completed_at: string | null
+}
+export type DeviceLifecycleRequest = {
+  operation_uuid: string
+  target_state: "active" | "inactive"
+  expected_generation: number
+}
+export type DeviceOperationResponse = {
+  data: DeviceDetail
+  operation: DeviceOperation
+}
 export type Device = {
+  state_revision: number
+  last_applied_configuration_uuid: string | null
+  operation: DeviceOperation | null
   uuid: string
   code: string
   name: string
@@ -97,7 +122,7 @@ export type Device = {
   description: string | null
   lifecycle: "registered" | "active" | "deactivated" | "archived"
   presence: DevicePresence
-  deployment_status: "idle" | "pending" | "applied" | "failed"
+  deployment_status: "idle" | "pending" | "applied" | "failed" | "inactive"
   draft_revision: number
   deployment_generation: number
   desired_configuration_uuid: string | null
@@ -125,10 +150,11 @@ export type Measurement = {
   data_type: string
   unit: string | null
   value: unknown
-  quality: "good" | "stale" | "invalid"
+  quality: "good" | "stale" | "invalid" | "inactive"
   diagnostic?: string
   observed_at: string
   received_at: string
+  last_valid_received_at?: string
   historical: boolean
 }
 export type HistorySeries = {

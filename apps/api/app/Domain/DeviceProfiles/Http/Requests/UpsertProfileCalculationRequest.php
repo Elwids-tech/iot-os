@@ -17,6 +17,12 @@ final class UpsertProfileCalculationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'output' => ['sometimes', 'array:key,label,data_type,unit,parameter_group_uuid'],
+            'output.key' => ['required_with:output', 'string', 'max:255', 'regex:/^[a-zA-Z][a-zA-Z0-9._-]*$/'],
+            'output.label' => ['required_with:output', 'string', 'max:255'],
+            'output.data_type' => ['required_with:output', 'in:number,integer'],
+            'output.unit' => ['nullable', 'string', 'max:255'],
+            'output.parameter_group_uuid' => ['nullable', 'uuid'],
             'engine' => ['required', Rule::in(['json_logic'])],
             'expression' => ['required', 'array'],
             'trigger' => ['nullable', Rule::in(['on_input_change'])],

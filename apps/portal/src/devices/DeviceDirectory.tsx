@@ -137,10 +137,10 @@ export function DeviceDirectory() {
                       <DeviceStatus value={device.lifecycle} />
                     </TableCell>
                     <TableCell>
-                      <DeviceStatus value={device.presence} />
+                      {device.lifecycle !== "deactivated" && <DeviceStatus value={device.presence} />}
                     </TableCell>
                     <TableCell>
-                      <DeviceStatus value={device.deployment_status} />
+                      {device.lifecycle !== "deactivated" || device.deployment_status === "pending" ? <DeviceStatus value={device.deployment_status} /> : null}
                     </TableCell>
                     <TableCell>{formatTime(device.last_seen_at)}</TableCell>
                   </TableRow>

@@ -5,6 +5,7 @@ import { createRequire } from "node:module"
 import { resolve, dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { randomUUID } from "node:crypto"
+import { verifyLifecycle } from "./verify-device-lifecycle.mjs"
 const root = resolve(dirname(fileURLToPath(import.meta.url)), ".."),
   require = createRequire(join(root, "apps/portal/package.json"))
 const { chromium, expect } = require("@playwright/test"),
@@ -164,6 +165,7 @@ try {
     timeout: 20000,
   })
   const deviceUUID = new URL(page.url()).pathname.split("/")[4]
+  await verifyLifecycle({ page, context, expect, api, apiPath, deviceUUID, shot, healthy })
   resources.meter.device = (await api("GET", apiPath + "/" + deviceUUID)).data
   writeFileSync(
     join(env.directory, "verified-resources.json"),

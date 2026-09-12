@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Domain\Devices\Http\Controllers;
 
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Devices\Services\DeviceConfigurationService;
+use App\Domain\Devices\Services\DeviceLifecycleService;
 use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Devices\Services\RuntimeClient;
@@ -90,7 +92,7 @@ final class DeviceController
     public function saveConfiguration(Request $request, Organization $organization, Device $device)
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $device);
-        $values = $request->validate(['draft_revision' => ['required', 'integer', 'min:1'], 'artifact_uuid' => ['required', 'uuid'], 'candidate_uuid' => ['nullable', 'uuid'], 'birth_revision' => ['nullable', 'integer', 'min:0'], 'mappings' => ['present', 'array', 'max:2000'], 'mappings.*.parameter_uuid' => ['required', 'uuid'], 'mappings.*.metric' => ['required', 'string', 'max:255'], 'mappings.*.command_metric' => ['nullable', 'string', 'max:255']]);
+        $values = $request->validate(['draft_revision' => ['required', 'integer', 'min:1'], 'artifact_uuid' => ['required', 'uuid'], 'candidate_uuid' => ['nullable', 'uuid'], 'birth_revision' => ['nullable', 'integer', 'min:0'], 'mappings' => ['present', 'array', 'max:2000'], 'mappings.*.parameter_uuid' => ['required', 'uuid'], 'mappings.*.metric' => ['required', 'string', 'max:255'], 'mappings.*.conversion_mode' => ['sometimes', 'in:profile,custom,none'], 'mappings.*.ingress_conversion' => ['nullable', 'array:source_unit,multiplier,offset'], 'mappings.*.command_metric' => ['nullable', 'string', 'max:255']]);
         $revision = $values['draft_revision'];
         unset($values['draft_revision']);
 
@@ -137,6 +139,24 @@ final class DeviceController
         return ['data' => $suggestions];
     }
 
+    public function lifecycle(Request $request, Organization $organization, Device $device)
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::ACTIVATE, $organization, $device);
+        $input = $request->validate(['operation_uuid' => ['required', 'uuid'], 'target_state' => ['required', Rule::in(['active', 'inactive'])], 'expected_generation' => ['required', 'integer', 'min:0']]);
+        $result = app(DeviceLifecycleService::class)->request($device, $input, $request->user()->id);
+        $operation = DeviceOperation::where('device_id', $device->id)->where('uuid', $input['operation_uuid'])->firstOrFail();
+
+        return response()->json(['data' => DeviceView::device($result, true), 'operation' => DeviceView::operation($operation)], 202);
+    }
+
+    public function operation(Request $request, Organization $organization, Device $device, string $operation)
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $device);
+        $record = DeviceOperation::where('device_id', $device->id)->where('uuid', $operation)->firstOrFail();
+
+        return ['data' => DeviceView::device($device->fresh(), true), 'operation' => DeviceView::operation($record)];
+    }
+
     public function activate(Request $request, Organization $organization, Device $device)
     {
         $this->authorization->authorize($request->user(), DevicePermission::ACTIVATE, $organization, $device);
@@ -156,7 +176,7 @@ final class DeviceController
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $device);
 
-        return app(RuntimeClient::class)->request('GET', '/internal/measurements/latest', ['organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid]);
+        return app(RuntimeClient::class)->request('GET', '/internal/measurements/latest', ['organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'configuration_uuid' => $device->applied_configuration_uuid ?? $device->last_applied_configuration_uuid]);
     }
 
     public function history(Request $request, Organization $organization, Device $device)

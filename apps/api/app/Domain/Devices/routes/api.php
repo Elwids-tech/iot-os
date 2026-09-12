@@ -21,6 +21,8 @@ Route::prefix('v1/organizations/{organization}')->middleware(['auth:sanctum', Re
     Route::put('devices/{device}/configuration', [DeviceController::class, 'saveConfiguration']);
     Route::get('devices/{device}/mapping-suggestions', [DeviceController::class, 'mappingSuggestions']);
     Route::post('devices/{device}/validate', [DeviceController::class, 'validateConfiguration']);
+    Route::post('devices/{device}/lifecycle', [DeviceController::class, 'lifecycle']);
+    Route::get('devices/{device}/operations/{operation}', [DeviceController::class, 'operation']);
     Route::post('devices/{device}/activate', [DeviceController::class, 'activate']);
     Route::post('devices/{device}/deactivate', [DeviceController::class, 'deactivate']);
     Route::get('devices/{device}/measurements/latest', [DeviceController::class, 'latest']);

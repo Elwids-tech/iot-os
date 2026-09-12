@@ -6,6 +6,7 @@ namespace App\Domain\Devices\Http\Controllers;
 
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
+use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Models\DeviceOutbox;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugConnection;
@@ -31,7 +32,7 @@ final class RuntimeController
                 'password' => $c->password, 'broker_url' => config('devices.broker_url'),
             ]),
             'devices' => Device::where('lifecycle', '!=', 'archived')->with('organization')->get()->map(fn ($d) => [
-                'uuid' => $d->uuid, 'organization_uuid' => $d->organization->uuid, 'generation' => $d->deployment_generation,
+                'uuid' => $d->uuid, 'organization_uuid' => $d->organization->uuid, 'generation' => $d->deployment_generation, 'operation_uuid' => DeviceOperation::where('device_id', $d->id)->where('generation', $d->deployment_generation)->value('uuid'),
                 'lifecycle' => $d->lifecycle, 'deployment_status' => $d->deployment_status,
                 'desired' => $configurations->get($d->desired_configuration_uuid)?->definition,
                 'applied' => $configurations->get($d->applied_configuration_uuid)?->definition,
@@ -142,12 +143,15 @@ final class RuntimeController
                 if (in_array($command->status, ['observed', 'failed', 'timed_out', 'uncertain', 'already_at_target', 'cancelled'], true)) {
                     return ['ok' => true];
                 }
-                abort_unless(in_array($p['status'], ['sent', 'observed', 'failed', 'timed_out', 'uncertain'], true), 422);
+                abort_unless(in_array($p['status'], ['sent', 'observed', 'failed', 'timed_out', 'uncertain', 'cancelled'], true), 422);
                 $terminal = $p['status'] !== 'sent';
                 $command->update(['status' => $p['status'], 'sent_at' => $p['sent_at'] ?? $command->sent_at, 'diagnostic' => $p['diagnostic'] ?? null,
                     'completed_at' => $terminal ? now() : null, 'outstanding_key' => $terminal ? null : $command->outstanding_key]);
                 DeviceAudit::record('command.'.$p['status'], $device->organization_id, $command->created_by, $command->uuid, ['diagnostic' => $p['diagnostic'] ?? null]);
             } elseif ($event['type'] === 'device.presence.v1') {
+                if (isset($p['generation']) && $p['generation'] !== $device->deployment_generation) {
+                    return ['ok' => true, 'stale' => true];
+                }
                 if ($device->applied_configuration_uuid !== ($p['configuration_uuid'] ?? null)) {
                     return ['ok' => true, 'stale' => true];
                 }
@@ -159,17 +163,40 @@ final class RuntimeController
                 if ($device->deployment_generation !== ($p['generation'] ?? null)) {
                     return ['ok' => true, 'stale' => true];
                 }
+                $operation = DeviceOperation::where('device_id', $device->id)->where('generation', $device->deployment_generation)->lockForUpdate()->first();
+                if (! $operation || $operation->status !== 'pending') {
+                    return ['ok' => true, 'stale' => true];
+                }
+                if (isset($p['operation_uuid']) && $p['operation_uuid'] !== $operation->uuid) {
+                    return ['ok' => true, 'stale' => true];
+                }
+                if (array_key_exists('configuration_uuid', $p) && ($p['configuration_uuid'] ?: null) !== $operation->configuration_uuid) {
+                    return ['ok' => true, 'stale' => true];
+                }
+                if ($event['type'] === 'device.applied.v1' && ($operation->target_state !== 'active' || $operation->configuration_uuid !== ($p['configuration_uuid'] ?? null))) {
+                    return ['ok' => true, 'stale' => true];
+                }
+                if ($event['type'] === 'device.deactivated.v1' && $operation->target_state !== 'inactive') {
+                    return ['ok' => true, 'stale' => true];
+                }
                 if ($event['type'] === 'device.applied.v1') {
                     abort_unless($device->desired_configuration_uuid === ($p['configuration_uuid'] ?? null), 409);
-                    $device->update(['applied_configuration_uuid' => $p['configuration_uuid'], 'deployment_status' => 'applied', 'lifecycle' => 'active', 'presence' => $p['presence'] ?? 'unknown', 'diagnostic' => null, 'runtime_seen_at' => now()]);
+                    $device->update(['applied_configuration_uuid' => $p['configuration_uuid'], 'last_applied_configuration_uuid' => $p['configuration_uuid'], 'deployment_status' => 'applied', 'lifecycle' => 'active', 'presence' => $p['presence'] ?? 'unknown', 'diagnostic' => null, 'runtime_seen_at' => now()]);
                 } elseif ($event['type'] === 'device.deactivated.v1') {
                     abort_unless($device->desired_configuration_uuid === null, 409);
-                    $device->update(['applied_configuration_uuid' => null, 'deployment_status' => 'applied', 'lifecycle' => 'deactivated', 'presence' => 'offline', 'diagnostic' => null]);
+                    $device->update(['applied_configuration_uuid' => null, 'deployment_status' => 'inactive', 'lifecycle' => 'deactivated', 'presence' => 'offline', 'diagnostic' => null]);
+                    $uncertain = $p['uncertain_command_uuids'] ?? null;
+                    $device->commands()->whereNotNull('outstanding_key')->where('status', 'prepared')->update(['status' => 'cancelled', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => 'Unconfirmed command cancelled by deactivation.']);
+                    if (is_array($uncertain)) {
+                        $device->commands()->whereNotNull('outstanding_key')->whereNotIn('uuid', $uncertain)->where('status', 'pending')->update(['status' => 'cancelled', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => 'Unsent command cancelled by deactivation.']);
+                    }
                     $device->commands()->whereNotNull('outstanding_key')->update(['status' => 'uncertain', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => 'Device deactivated while the command was outstanding.']);
                 } elseif ($event['type'] === 'device.failed.v1') {
                     $device->update(['deployment_status' => 'failed', 'diagnostic' => $p['diagnostic'] ?? 'The runtime rejected the configuration.']);
                 }
-                DeviceAudit::record($event['type'], $device->organization_id, null, $device->uuid, ['generation' => $device->deployment_generation]);
+                $operation->update(['status' => $event['type'] === 'device.failed.v1' ? 'failed' : 'succeeded', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => $p['diagnostic'] ?? null]);
+                $device->increment('state_revision');
+                DeviceAudit::record($event['type'], $device->organization_id, null, $device->uuid, ['generation' => $device->deployment_generation, 'operation_uuid' => $operation->uuid, 'configuration_uuid' => $operation->configuration_uuid]);
             }
 
             return ['ok' => true];

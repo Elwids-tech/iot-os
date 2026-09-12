@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.4",
         "althinect/enum-permission": "^1.1",
+        "laravel/ai": "^0.11.2",
         "laravel/framework": "^13.17",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",

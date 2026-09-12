@@ -33,6 +33,7 @@ Route::prefix('v1/organizations/{organization}')
         Route::patch('device-profiles/{profile}/parameters/{parameter}', [ProfileParameterController::class, 'update'])->name('device-profiles.parameters.update');
         Route::delete('device-profiles/{profile}/parameters/{parameter}', [ProfileParameterController::class, 'destroy'])->name('device-profiles.parameters.destroy');
         Route::put('device-profiles/{profile}/parameter-order', [ProfileParameterController::class, 'reorder'])->name('device-profiles.parameters.reorder');
+        Route::post('device-profiles/{profile}/calculations', [ProfileCalculationController::class, 'store'])->name('device-profiles.calculations.store');
         Route::put('device-profiles/{profile}/parameters/{parameter}/calculation', [ProfileCalculationController::class, 'upsert'])->name('device-profiles.parameters.calculation.upsert');
         Route::delete('device-profiles/{profile}/parameters/{parameter}/calculation', [ProfileCalculationController::class, 'destroy'])->name('device-profiles.parameters.calculation.destroy');
         Route::post('device-profiles/{profile}/alarm-templates', [ProfileAlarmTemplateController::class, 'store'])->name('device-profiles.alarm-templates.store');

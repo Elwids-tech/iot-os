@@ -33,14 +33,7 @@ import {
   FieldGroup,
 } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-} from "@iot-os/ui/components/select"
+import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Switch } from "@iot-os/ui/components/switch"
 import { apiClient } from "../lib/api-client"
 
@@ -58,7 +51,8 @@ export function RetentionPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]),
     [search, setSearch] = useState(""),
     [page, setPage] = useState(1),
-    [more, setMore] = useState(false)
+    [more, setMore] = useState(false),
+    [organizationsLoading, setOrganizationsLoading] = useState(true)
   const [org, setOrg] = useState("platform"),
     [setting, setSetting] = useState<RetentionSetting | null>(null),
     [days, setDays] = useState("90"),
@@ -74,8 +68,8 @@ export function RetentionPage() {
       proposed ?? (org === "platform" ? 90 : (setting?.platform_days ?? 90))
   const dirty = Boolean(
     setting &&
-      (inherited !== (setting.override_days === null) ||
-        (!inherited && days !== String(setting.override_days))),
+    (inherited !== (setting.override_days === null) ||
+      (!inherited && days !== String(setting.override_days))),
   )
   function apply(value: RetentionSetting) {
     setSetting(value)
@@ -84,6 +78,7 @@ export function RetentionPage() {
   }
   useEffect(() => {
     let current = true
+    setOrganizationsLoading(true)
     const timer = window.setTimeout(() => {
       apiClient
         .adminOrganizations({ search, page, perPage: 25 })
@@ -95,6 +90,9 @@ export function RetentionPage() {
         })
         .catch((reason) => {
           if (current) setError(reason)
+        })
+        .finally(() => {
+          if (current) setOrganizationsLoading(false)
         })
     }, 200)
     return () => {
@@ -214,63 +212,32 @@ export function RetentionPage() {
         </CardHeader>
         <CardContent>
           <FieldGroup className="grid gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor={id + "-search"}>
-                Find an organization
-              </FieldLabel>
-              <Input
-                id={id + "-search"}
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value)
-                  setPage(1)
-                }}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={id + "-scope"}>Settings for</FieldLabel>
-              <Select
-                value={org}
-                disabled={busy}
-                onValueChange={(value) => {
-                  if (dirty) setLeave(() => () => setOrg(value))
-                  else setOrg(value)
-                }}
-              >
-                <SelectTrigger id={id + "-scope"} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="platform">Platform default</SelectItem>
-                    {organizations.map((o) => (
-                      <SelectItem key={o.uuid} value={o.uuid}>
-                        {o.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
+            <SearchableSelect
+              label="Settings for"
+              value={org}
+              disabled={busy}
+              search={search}
+              onSearchChange={(value) => {
+                setSearch(value)
+                setPage(1)
+              }}
+              loading={organizationsLoading}
+              page={page}
+              hasNextPage={more}
+              onPageChange={setPage}
+              onChange={(value) => {
+                if (value === org) return
+                if (dirty) setLeave(() => () => setOrg(value))
+                else setOrg(value)
+              }}
+              options={[
+                ...(!search || "platform default".includes(search.toLowerCase())
+                  ? [{ value: "platform", label: "Platform default" }]
+                  : []),
+                ...organizations.map((o) => ({ value: o.uuid, label: o.name })),
+              ]}
+            />
           </FieldGroup>
-          <div className="mt-4 flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous organizations
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={!more}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              More organizations
-            </Button>
-          </div>
         </CardContent>
       </Card>
       {setting && (

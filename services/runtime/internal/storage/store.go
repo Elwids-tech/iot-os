@@ -138,7 +138,7 @@ func (s *Store) Ack(ctx context.Context, id string) error {
 	_, e := s.Pool.Exec(ctx, "UPDATE device_runtime.outbox SET published_at=now() WHERE uuid=$1", id)
 	return e
 }
-func (s *Store) Apply(ctx context.Context, d devices.Definition, generation int, kind string) error {
+func (s *Store) Apply(ctx context.Context, d devices.Definition, generation int, kind string, extra ...map[string]any) error {
 	tx, e := s.Pool.Begin(ctx)
 	if e != nil {
 		return e
@@ -160,9 +160,22 @@ func (s *Store) Apply(ctx context.Context, d devices.Definition, generation int,
 	if tag.RowsAffected() == 0 {
 		return tx.Commit(ctx)
 	}
-	if e = event(ctx, tx, kind, map[string]any{"device_uuid": d.DeviceUUID, "organization_uuid": d.OrganizationUUID, "configuration_uuid": d.ConfigurationUUID, "generation": generation, "presence": "unknown"}); e != nil {
+	payload := map[string]any{"device_uuid": d.DeviceUUID, "organization_uuid": d.OrganizationUUID, "configuration_uuid": d.ConfigurationUUID, "generation": generation, "presence": "unknown"}
+	if len(extra) > 0 {
+		for key, value := range extra[0] {
+			if text, ok := value.(string); !ok || text != "" {
+				payload[key] = value
+			}
+		}
+	}
+	outcome, _ := json.Marshal(map[string]any{"type": kind, "payload": payload})
+	if _, e = tx.Exec(ctx, "UPDATE device_runtime.devices SET outcome=$2 WHERE device_uuid=$1", d.DeviceUUID, outcome); e != nil {
 		return e
 	}
+	if e = event(ctx, tx, kind, payload); e != nil {
+		return e
+	}
+
 	return tx.Commit(ctx)
 }
 func (s *Store) Persist(ctx context.Context, t devices.Telemetry) error {
@@ -171,6 +184,15 @@ func (s *Store) Persist(ctx context.Context, t devices.Telemetry) error {
 		return e
 	}
 	defer tx.Rollback(ctx)
+	var allowed bool
+	if e = tx.QueryRow(ctx, "SELECT true FROM device_runtime.devices WHERE device_uuid=$1 AND generation=$2 AND definition->>'configuration_uuid'=$3 FOR SHARE", t.Definition.DeviceUUID, t.Generation, t.Definition.ConfigurationUUID).Scan(&allowed); errors.Is(e, pgx.ErrNoRows) {
+		return tx.Commit(ctx)
+	} else if e != nil {
+		return e
+	}
+	if !allowed {
+		return tx.Commit(ctx)
+	}
 	for _, reading := range t.Readings {
 		raw, e := json.Marshal(reading)
 		if e != nil {
@@ -417,4 +439,52 @@ func (s *Store) SavedDevices(ctx context.Context) (map[string]devices.DeviceStat
 		result[d.UUID] = d
 	}
 	return result, rows.Err()
+}
+
+// Failed requests advance the fence while preserving the previous working definition.
+func (s *Store) FailTransition(ctx context.Context, d devices.Definition, generation int, operation, diagnostic string) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	payload := map[string]any{"device_uuid": d.DeviceUUID, "organization_uuid": d.OrganizationUUID, "generation": generation, "configuration_uuid": d.ConfigurationUUID, "diagnostic": diagnostic}
+	if operation != "" {
+		payload["operation_uuid"] = operation
+	}
+	outcome, _ := json.Marshal(map[string]any{"type": "device.failed.v1", "payload": payload})
+	tag, err := tx.Exec(ctx, "INSERT INTO device_runtime.devices(device_uuid,organization_uuid,generation,outcome) VALUES($1,$2,$3,$4) ON CONFLICT(device_uuid) DO UPDATE SET generation=excluded.generation,outcome=excluded.outcome,updated_at=now() WHERE device_runtime.devices.generation<excluded.generation", d.DeviceUUID, d.OrganizationUUID, generation, outcome)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return tx.Commit(ctx)
+	}
+	if err = event(ctx, tx, "device.failed.v1", payload); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+func (s *Store) ReplayOutcome(ctx context.Context, device string, generation int) error {
+	var raw []byte
+	// Legacy rows predate saved outcomes. Their durable generation and definition
+	// are confirmation evidence; startup has already restored their cache gates.
+	if err := s.Pool.QueryRow(ctx, `UPDATE device_runtime.devices SET outcome=COALESCE(outcome,
+	 jsonb_build_object('type',CASE WHEN definition IS NULL THEN 'device.deactivated.v1' ELSE 'device.applied.v1' END,
+	 'payload',jsonb_build_object('device_uuid',device_uuid,'organization_uuid',organization_uuid,'generation',generation,
+	 'configuration_uuid',definition->>'configuration_uuid','presence','unknown')))
+	 WHERE device_uuid=$1 AND generation=$2 RETURNING outcome`, device, generation).Scan(&raw); err != nil {
+		return err
+	}
+	if len(raw) == 0 {
+		return nil
+	}
+	var outcome struct {
+		Type    string         `json:"type"`
+		Payload map[string]any `json:"payload"`
+	}
+	if err := Decode(raw, &outcome); err != nil {
+		return err
+	}
+	return s.Emit(ctx, outcome.Type, outcome.Payload)
 }

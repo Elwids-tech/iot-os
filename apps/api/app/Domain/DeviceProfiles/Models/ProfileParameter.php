@@ -6,6 +6,7 @@ namespace App\Domain\DeviceProfiles\Models;
 
 use App\Domain\DeviceProfiles\Enums\ProfileParameterDataType;
 use App\Domain\DeviceProfiles\Enums\ProfileParameterKind;
+use App\Domain\DeviceProfiles\Services\IngressConversion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -27,11 +28,17 @@ final class ProfileParameter extends Model
             'display_config' => 'array',
             'reporting_config' => 'array',
             'counter_config' => 'array',
+            'ingress_conversion' => 'array',
         ];
     }
 
     protected static function booted(): void
     {
+        self::saving(function (self $parameter): void {
+            $attributes = $parameter->toArray();
+            $parameter->ingress_conversion = app(IngressConversion::class)
+                ->validate($attributes, $parameter->ingress_conversion);
+        });
         self::creating(function (self $parameter): void {
             $parameter->uuid ??= (string) Str::uuid();
         });

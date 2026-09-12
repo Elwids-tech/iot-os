@@ -37,6 +37,8 @@ export function DeviceStatus({ value }: { value: string }) {
     timed_out: "Timed out",
     unseen: "Not seen yet",
     applied: "Applied",
+    inactive: "Inactive",
+    deactivated: "Inactive",
     pending: "Pending",
     unknown: "Connection unknown",
   }

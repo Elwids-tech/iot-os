@@ -36,6 +36,7 @@ type broker struct {
 }
 type rebirthRequest struct{ Connection, Group, Edge string }
 type Application struct {
+	fences         sync.Map
 	releaseRuntime func()
 	ctx            context.Context
 	mu             sync.Mutex
@@ -47,6 +48,7 @@ type Application struct {
 	Engine         *sparkplug.Engine
 	definitions    map[string]devices.Definition
 	generations    map[string]int
+	activeSince    map[string]time.Time
 	latest         map[string]map[string]devices.Reading
 	sessions       map[string]string
 	compatible     map[string]bool
@@ -112,6 +114,10 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 		a.reviewRequired[state.UUID] = state.ReviewRequired
 		if state.Applied != nil {
 			a.definitions[state.UUID] = *state.Applied
+			if a.activeSince == nil {
+				a.activeSince = map[string]time.Time{}
+			}
+			a.activeSince[state.UUID] = time.Now().UTC()
 		}
 	}
 	if e = a.subscribe(); e != nil {
@@ -127,6 +133,15 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 	started = true
 	return a, nil
 }
+
+// Every device operation, persistence boundary, and acknowledgement uses this fence.
+func (a *Application) lockDevice(uuid string) func() {
+	value, _ := a.fences.LoadOrStore(uuid, &sync.Mutex{})
+	mutex := value.(*sync.Mutex)
+	mutex.Lock()
+	return mutex.Unlock
+}
+
 func env(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -150,23 +165,14 @@ func (a *Application) syncState() error {
 	}
 	for _, d := range state.Devices {
 		a.mu.Lock()
-		_, known := a.definitions[d.UUID]
 		generation := a.generations[d.UUID]
 		a.mu.Unlock()
-		if !known && d.Applied != nil {
-			if _, e := devices.ParseProfile(*d.Applied); e != nil {
-				return e
-			}
-			a.mu.Lock()
-			a.definitions[d.UUID] = *d.Applied
-			a.generations[d.UUID] = d.Generation
-			a.mu.Unlock()
-		}
+
 		if d.DeploymentStatus == "pending" && d.Generation >= generation {
 			if d.Desired != nil {
-				_ = a.activate(*d.Desired, d.Generation)
+				_ = a.activate(*d.Desired, d.Generation, d.OperationUUID)
 			} else {
-				_ = a.deactivate(d.UUID, d.OrganizationUUID, d.Generation)
+				_ = a.deactivate(d.UUID, d.OrganizationUUID, d.Generation, d.OperationUUID)
 			}
 		}
 	}
@@ -253,11 +259,12 @@ func (a *Application) requestRebirth(connection, group, edge string) {
 	b.Client.Publish("spBv1.0/"+group+"/NCMD/"+edge, 0, false, raw)
 }
 func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
+	received := time.Now().UTC()
 	parsed, e := sparkplug.ParseTopic(topic)
 	if e != nil || parsed.Group != c.GroupID {
 		return
 	}
-	p, e := a.Engine.Accept(c.UUID, topic, raw, time.Now().UTC())
+	p, e := a.Engine.Accept(c.UUID, topic, raw, received)
 	if e != nil {
 		if errors.Is(e, sparkplug.ErrDuplicate) {
 			return
@@ -293,91 +300,107 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 	}
 	a.mu.Lock()
 	definitions := []devices.Definition{}
+	packetGenerations := map[string]int{}
 	for _, d := range a.definitions {
 		if d.Source.ConnectionUUID == c.UUID && d.Source.EdgeNodeID == p.Topic.Edge && (d.Source.DeviceID == p.Topic.Device || p.Topic.Kind == "NDEATH") {
 			definitions = append(definitions, d)
+			packetGenerations[d.DeviceUUID] = a.generations[d.DeviceUUID]
 		}
 	}
 	a.mu.Unlock()
 	for _, d := range definitions {
-		if p.Death {
-			a.devicePresence(d, "offline", "Source sent a death certificate.", p.Received, true)
-			continue
-		}
-		session, metrics, online := a.Engine.Snapshot(d.Source)
-		if !online {
-			continue
-		}
-		_, compatibleError := devices.Preview(d, metrics)
-		if compatibleError != nil {
+		func() {
+			unlock := a.lockDevice(d.DeviceUUID)
+			defer unlock()
 			a.mu.Lock()
-			a.compatible[d.DeviceUUID] = false
-			a.reviewRequired[d.DeviceUUID] = true
+			current, enabled := a.definitions[d.DeviceUUID]
+			generation := a.generations[d.DeviceUUID]
+			activeSince := a.activeSince[d.DeviceUUID]
 			a.mu.Unlock()
-			if e := a.Store.RequireReview(a.ctx, d); e != nil {
-				a.Logger.Warn("configuration review persistence deferred", "error", e)
+			if !enabled || current.ConfigurationUUID != d.ConfigurationUUID || packetGenerations[d.DeviceUUID] != generation || received.Before(activeSince) {
+				return
 			}
-			a.devicePresence(d, "online", "Source changed: "+compatibleError.Error(), p.Received, true)
-			continue
-		}
-		profile, e := devices.ParseProfile(d)
-		if e != nil {
-			continue
-		}
-		a.mu.Lock()
-		if a.sessions[d.DeviceUUID] != session {
-			a.latest[d.DeviceUUID] = map[string]devices.Reading{}
-			a.sessions[d.DeviceUUID] = session
-		}
-		a.compatible[d.DeviceUUID] = !a.reviewRequired[d.DeviceUUID]
-		latest := a.latest[d.DeviceUUID]
-		if latest == nil {
-			latest = map[string]devices.Reading{}
-			a.latest[d.DeviceUUID] = latest
-		}
-		readings := devices.Readings(d, profile, p.Metrics, latest, p.Received)
-		for _, r := range readings {
-			if !r.Historical {
-				if r.Quality != "good" {
-					if previous, ok := latest[r.ParameterUUID]; ok {
-						r.Value = previous.Value
-						r.ObservedAt = previous.ObservedAt
-					} else {
-						r.Value = nil
-					}
-				}
-				latest[r.ParameterUUID] = r
+
+			if p.Death {
+				a.devicePresence(d, "offline", "Source sent a death certificate.", p.Received, true)
+				return
 			}
-		}
-		a.mu.Unlock()
-		if len(readings) > 0 {
-			telemetry := devices.Telemetry{UUID: storage.UUID(), Definition: d, SessionID: session, Readings: readings}
-			data, e := json.Marshal(telemetry)
-			if e == nil {
-				message := nats.NewMsg("iot.telemetry.device")
-				message.Data = data
-				message.Header.Set(nats.MsgIdHdr, telemetry.UUID)
-				_, e = a.JS.PublishMsg(message)
+			session, metrics, online := a.Engine.Snapshot(d.Source)
+			if !online {
+				return
 			}
-			if e != nil {
-				a.Logger.Error("telemetry durable handoff failed", "device", d.DeviceUUID, "error", e)
+			_, compatibleError := devices.Preview(d, metrics)
+			if compatibleError != nil {
 				a.mu.Lock()
 				a.compatible[d.DeviceUUID] = false
+				a.reviewRequired[d.DeviceUUID] = true
 				a.mu.Unlock()
-				a.devicePresence(d, "unknown", "Telemetry handoff failed; a data gap may exist.", p.Received, true)
-				continue
+				if e := a.Store.RequireReview(a.ctx, d); e != nil {
+					a.Logger.Warn("configuration review persistence deferred", "error", e)
+				}
+				a.devicePresence(d, "online", "Source changed: "+compatibleError.Error(), p.Received, true)
+				return
 			}
-		}
-		a.mu.Lock()
-		review := a.reviewRequired[d.DeviceUUID]
-		a.mu.Unlock()
-		if review {
-			a.devicePresence(d, "unknown", "A source birth changed approved metrics. Review and activate a configuration to restore controls.", p.Received, p.Birth)
-		} else {
-			a.devicePresence(d, "online", "", p.Received, p.Birth)
-		}
+			profile, e := devices.ParseProfile(d)
+			if e != nil {
+				return
+			}
+			a.mu.Lock()
+			if a.sessions[d.DeviceUUID] != session {
+				a.latest[d.DeviceUUID] = map[string]devices.Reading{}
+				a.sessions[d.DeviceUUID] = session
+			}
+			a.compatible[d.DeviceUUID] = !a.reviewRequired[d.DeviceUUID]
+			latest := a.latest[d.DeviceUUID]
+			if latest == nil {
+				latest = map[string]devices.Reading{}
+				a.latest[d.DeviceUUID] = latest
+			}
+			readings := devices.Readings(d, profile, p.Metrics, latest, p.Received)
+			for _, r := range readings {
+				if !r.Historical {
+					if r.Quality != "good" {
+						if previous, ok := latest[r.ParameterUUID]; ok {
+							r.Value = previous.Value
+							r.ObservedAt = previous.ObservedAt
+						} else {
+							r.Value = nil
+						}
+					}
+					latest[r.ParameterUUID] = r
+				}
+			}
+			a.mu.Unlock()
+			if len(readings) > 0 {
+				telemetry := devices.Telemetry{UUID: storage.UUID(), Definition: d, Generation: generation, SessionID: session, Readings: readings}
+				data, e := json.Marshal(telemetry)
+				if e == nil {
+					message := nats.NewMsg("iot.telemetry.device")
+					message.Data = data
+					message.Header.Set(nats.MsgIdHdr, telemetry.UUID)
+					_, e = a.JS.PublishMsg(message)
+				}
+				if e != nil {
+					a.Logger.Error("telemetry durable handoff failed", "device", d.DeviceUUID, "error", e)
+					a.mu.Lock()
+					a.compatible[d.DeviceUUID] = false
+					a.mu.Unlock()
+					a.devicePresence(d, "unknown", "Telemetry handoff failed; a data gap may exist.", p.Received, true)
+					return
+				}
+			}
+			a.mu.Lock()
+			review := a.reviewRequired[d.DeviceUUID]
+			a.mu.Unlock()
+			if review {
+				a.devicePresence(d, "unknown", "A source birth changed approved metrics. Review and activate a configuration to restore controls.", p.Received, p.Birth)
+			} else {
+				a.devicePresence(d, "online", "", p.Received, p.Birth)
+			}
+		}()
 	}
 }
+
 func (a *Application) devicePresence(d devices.Definition, presence, diagnostic string, at time.Time, force bool) {
 	a.mu.Lock()
 	if !force && time.Since(a.presenceAt[d.DeviceUUID]) < 5*time.Second {
@@ -385,8 +408,9 @@ func (a *Application) devicePresence(d devices.Definition, presence, diagnostic 
 		return
 	}
 	a.presenceAt[d.DeviceUUID] = time.Now()
+	generation := a.generations[d.DeviceUUID]
 	a.mu.Unlock()
-	a.emit("device.presence.v1", map[string]any{"organization_uuid": d.OrganizationUUID, "device_uuid": d.DeviceUUID, "configuration_uuid": d.ConfigurationUUID, "presence": presence, "diagnostic": diagnostic, "last_seen_at": at})
+	a.emit("device.presence.v1", map[string]any{"organization_uuid": d.OrganizationUUID, "device_uuid": d.DeviceUUID, "configuration_uuid": d.ConfigurationUUID, "generation": generation, "presence": presence, "diagnostic": diagnostic, "last_seen_at": at})
 }
 func (a *Application) connectionPresence(connection, presence, diagnostic string) {
 	a.emit("connection.presence.v1", map[string]any{"connection_uuid": connection, "presence": presence, "diagnostic": diagnostic})
@@ -403,71 +427,105 @@ func (a *Application) connectionPresence(connection, presence, diagnostic string
 		a.devicePresence(d, presence, diagnostic, time.Now().UTC(), true)
 	}
 }
-func (a *Application) activate(d devices.Definition, generation int) error {
+func (a *Application) activate(d devices.Definition, generation int, operation ...string) error {
+	unlock := a.lockDevice(d.DeviceUUID)
+	defer unlock()
 	a.mu.Lock()
 	previous := a.generations[d.DeviceUUID]
-	existing, exists := a.definitions[d.DeviceUUID]
 	a.mu.Unlock()
 	if generation < previous {
 		return nil
 	}
-	if generation == previous && exists && existing.ConfigurationUUID == d.ConfigurationUUID {
-		return a.Store.Apply(a.ctx, d, generation, "device.applied.v1")
+	if generation == previous {
+		return a.Store.ReplayOutcome(a.ctx, d.DeviceUUID, generation)
+	}
+	op := ""
+	if len(operation) > 0 {
+		op = operation[0]
 	}
 	session, metrics, online := a.Engine.Snapshot(d.Source)
 	var e error
 	if !online {
-		e = errors.New("source is offline or needs a fresh birth certificate")
+		e = errors.New("Source is offline or needs a fresh birth certificate. Review the source before retrying.")
 	} else {
 		_, e = devices.Preview(d, metrics)
 	}
 	if e != nil {
-		a.emit("device.failed.v1", map[string]any{"device_uuid": d.DeviceUUID, "organization_uuid": d.OrganizationUUID, "generation": generation, "diagnostic": e.Error()})
+		if err := a.Store.FailTransition(a.ctx, d, generation, op, e.Error()); err != nil {
+			return err
+		}
+		a.mu.Lock()
+		a.generations[d.DeviceUUID] = generation
+		a.mu.Unlock()
 		return nil
 	}
-	if e = a.Store.Apply(a.ctx, d, generation, "device.applied.v1"); e != nil {
+	if e = a.Store.Apply(a.ctx, d, generation, "device.applied.v1", map[string]any{"operation_uuid": op}); e != nil {
 		return e
 	}
 	a.mu.Lock()
 	a.definitions[d.DeviceUUID] = d
+	if a.activeSince == nil {
+		a.activeSince = map[string]time.Time{}
+	}
+	a.activeSince[d.DeviceUUID] = time.Now().UTC()
 	a.generations[d.DeviceUUID] = generation
 	a.latest[d.DeviceUUID] = map[string]devices.Reading{}
 	a.sessions[d.DeviceUUID] = session
 	a.compatible[d.DeviceUUID] = true
 	a.reviewRequired[d.DeviceUUID] = false
 	a.mu.Unlock()
-	// Request fresh data after the configuration is applied; saved birth samples are not live observations.
 	a.requestRebirth(d.Source.ConnectionUUID, d.Source.GroupID, d.Source.EdgeNodeID)
 	return nil
 }
-func (a *Application) deactivate(device, org string, generation int) error {
+func (a *Application) deactivate(device, org string, generation int, operation ...string) error {
+	unlock := a.lockDevice(device)
+	defer unlock()
 	a.mu.Lock()
-	if generation < a.generations[device] {
-		a.mu.Unlock()
+	previous := a.generations[device]
+	a.mu.Unlock()
+	if generation < previous {
 		return nil
 	}
-	d := a.definitions[device]
-	d.DeviceUUID = device
-	d.OrganizationUUID = org
-	a.mu.Unlock()
-	if e := a.Store.Apply(a.ctx, d, generation, "device.deactivated.v1"); e != nil {
-		return e
+	if generation == previous {
+		return a.Store.ReplayOutcome(a.ctx, device, generation)
+	}
+	op := ""
+	if len(operation) > 0 {
+		op = operation[0]
+	}
+	// Dispatch owns the same fence, so no command can enter the send window here.
+	outstanding, err := a.Store.Outstanding(a.ctx)
+	if err != nil {
+		return err
+	}
+	uncertain := []string{}
+	for _, c := range outstanding {
+		if c.DeviceUUID != device {
+			continue
+		}
+		uncertain = append(uncertain, c.UUID)
+		if err = a.Store.CommandStatus(a.ctx, c, "uncertain", "Device deactivated before a definitive command outcome.", nil); err != nil {
+			return err
+		}
+	}
+	d := devices.Definition{DeviceUUID: device, OrganizationUUID: org}
+	if err = a.Store.Apply(a.ctx, d, generation, "device.deactivated.v1", map[string]any{"operation_uuid": op, "uncertain_command_uuids": uncertain}); err != nil {
+		return err
 	}
 	a.mu.Lock()
 	delete(a.definitions, device)
 	delete(a.latest, device)
+	delete(a.sessions, device)
+	delete(a.compatible, device)
+	delete(a.reviewRequired, device)
+	delete(a.presenceAt, device)
 	a.generations[device] = generation
-	commands := []devices.Command{}
-	for id, p := range a.pending {
-		if p.Request.DeviceUUID == device {
-			commands = append(commands, p.Request)
+	for id, pending := range a.pending {
+		if pending.Request.DeviceUUID == device {
 			delete(a.pending, id)
 		}
 	}
 	a.mu.Unlock()
-	for _, c := range commands {
-		_ = a.Store.CommandStatus(a.ctx, c, "uncertain", "Device deactivated after dispatch.", nil)
-	}
 	return nil
 }
 func (a *Application) handleControl(ev devices.Event) error {
@@ -484,23 +542,25 @@ func (a *Application) handleControl(ev devices.Event) error {
 		return a.dispatch(c)
 	case "device.activate.v1":
 		var request struct {
-			Definition devices.Definition `json:"definition"`
-			Generation int                `json:"generation"`
+			Definition    devices.Definition `json:"definition"`
+			Generation    int                `json:"generation"`
+			OperationUUID string             `json:"operation_uuid"`
 		}
 		if e := storage.Decode(ev.Payload, &request); e != nil {
 			return e
 		}
-		return a.activate(request.Definition, request.Generation)
+		return a.activate(request.Definition, request.Generation, request.OperationUUID)
 	case "device.deactivate.v1":
 		var request struct {
 			DeviceUUID       string `json:"device_uuid"`
 			OrganizationUUID string `json:"organization_uuid"`
 			Generation       int    `json:"generation"`
+			OperationUUID    string `json:"operation_uuid"`
 		}
 		if e := storage.Decode(ev.Payload, &request); e != nil {
 			return e
 		}
-		return a.deactivate(request.DeviceUUID, request.OrganizationUUID, request.Generation)
+		return a.deactivate(request.DeviceUUID, request.OrganizationUUID, request.Generation, request.OperationUUID)
 	}
 	return fmt.Errorf("unsupported control event %s", ev.Type)
 }

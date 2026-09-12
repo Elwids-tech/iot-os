@@ -33,7 +33,13 @@ final class DeviceProfileDomainTest extends TestCase
         $first = app(CompileDeviceProfile::class)->handle($profile, 1);
         $second = app(CompileDeviceProfile::class)->handle($profile->fresh(), 1);
 
-        $this->assertSame($fixture, $first->definition);
+        $expected = $fixture;
+        $expected['schema_version'] = 'device-profile.v2';
+        foreach ($expected['parameters'] as &$parameter) {
+            $parameter['ingress_conversion'] = null;
+        }
+        unset($parameter);
+        $this->assertEquals($expected, $first->definition);
         $this->assertSame($first->canonicalJson, $second->canonicalJson);
         $this->assertSame($first->hash, $second->hash);
         $this->assertStringNotContainsString('transport_locator', $first->canonicalJson);

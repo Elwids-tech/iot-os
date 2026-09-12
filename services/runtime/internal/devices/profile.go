@@ -24,10 +24,10 @@ func ParseProfile(d Definition) (Profile, error) {
 	if err := decoder.Decode(&p); err != nil {
 		return p, err
 	}
-	if p.SchemaVersion != "device-profile.v1" || d.SchemaVersion != "device-configuration.v1" {
+	if (p.SchemaVersion != "device-profile.v1" && p.SchemaVersion != "device-profile.v2") || (d.SchemaVersion != "device-configuration.v1" && d.SchemaVersion != "device-configuration.v2") {
 		return p, errors.New("unsupported definition version")
 	}
-	return p, nil
+	return p, validateConversions(d, p)
 }
 
 var colorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -136,7 +136,19 @@ func Readings(d Definition, p Profile, metrics []Metric, latest map[string]Readi
 			r.ObservedAt = received
 			r.Diagnostic = "source clock is ahead; receipt time used"
 		}
-		err := ValidateValue(parameter, metric.Value)
+		var err error
+		if metric.IsNull || metric.Value == nil {
+			err = errors.New("source reported null value")
+		} else if metric.Diagnostic != "" {
+			err = errors.New(metric.Diagnostic)
+		} else if metric.Datatype != mapping.Datatype {
+			err = errors.New("source datatype changed; review mapping")
+		} else {
+			r.Value, err = Convert(parameter, mapping.IngressConversion, metric.Value)
+			if err == nil {
+				err = ValidateValue(parameter, r.Value)
+			}
+		}
 		if metric.IsNull {
 			err = errors.New("source reported a null value")
 		}
@@ -150,13 +162,14 @@ func Readings(d Definition, p Profile, metrics []Metric, latest map[string]Readi
 			previous, ok := latest[parameter.UUID]
 			if ok {
 				a, aok := Number(previous.Value)
-				b, bok := Number(metric.Value)
+				b, bok := Number(r.Value)
 				if aok && bok && b < a {
 					err = errors.New("counter decreased; reset requires review")
 				}
 			}
 		}
 		if err != nil {
+			r.Value = nil
 			r.Quality = "invalid"
 			r.Diagnostic = err.Error()
 		}

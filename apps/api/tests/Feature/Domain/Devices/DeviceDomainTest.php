@@ -276,4 +276,119 @@ final class DeviceDomainTest extends TestCase
         $this->getJson($this->prefix.'/discovery-candidates?per_page=1')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('meta.current_page', 1);
         $this->getJson($this->prefix.'/discovery-candidates?per_page=101')->assertUnprocessable();
     }
+
+    public function test_lifecycle_round_trip_resumes_confirmed_snapshot_and_not_changed_draft(): void
+    {
+        $device = $this->active($this->configured());
+        $configuration = $device->applied_configuration_uuid;
+        $path = $this->prefix.'/devices/'.$device->uuid;
+        $off = ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'inactive', 'expected_generation' => $device->deployment_generation];
+        $accepted = $this->postJson($path.'/lifecycle', $off)->assertAccepted()->assertJsonPath('data.lifecycle', 'active')->assertJsonPath('operation.status', 'pending');
+        $this->postJson($path.'/lifecycle', $off)->assertAccepted()->assertJsonPath('operation.uuid', $off['operation_uuid']);
+        $this->assertDatabaseCount('device_operations', 2);
+        $this->getJson($path.'/operations/'.$off['operation_uuid'])->assertOk()->assertJsonPath('operation.status', 'pending');
+        $device->refresh();
+        $ack = ['organization_uuid' => $this->organization->uuid, 'device_uuid' => $device->uuid, 'generation' => $device->deployment_generation, 'operation_uuid' => $off['operation_uuid'], 'uncertain_command_uuids' => []];
+        $this->runtimeEvent('device.deactivated.v1', [...$ack, 'operation_uuid' => (string) Str::uuid()])->assertOk()->assertJsonPath('stale', true);
+        $this->assertSame('active', $device->fresh()->lifecycle);
+        $this->runtimeEvent('device.deactivated.v1', $ack)->assertOk();
+        $this->runtimeEvent('device.deactivated.v1', $ack)->assertOk()->assertJsonPath('stale', true);
+        $this->getJson($path)->assertOk()->assertJsonPath('data.lifecycle', 'deactivated')->assertJsonPath('data.deployment_status', 'inactive')->assertJsonPath('data.last_applied_configuration_uuid', $configuration);
+        $device->refresh();
+        $draft = $device->draft;
+        $draft['mappings'] = [];
+        $device->update(['draft' => $draft]);
+        $on = ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'active', 'expected_generation' => $device->deployment_generation];
+        $this->postJson($path.'/lifecycle', $on)->assertAccepted()->assertJsonPath('data.lifecycle', 'deactivated')->assertJsonPath('data.desired_configuration_uuid', $configuration);
+        $this->assertDatabaseCount('device_configurations', 1);
+        $device->refresh();
+        $this->runtimeEvent('device.applied.v1', [...$ack, 'operation_uuid' => $on['operation_uuid'], 'generation' => $device->deployment_generation, 'configuration_uuid' => $configuration])->assertOk();
+        $this->getJson($path.'/operations/'.$on['operation_uuid'])->assertOk()->assertJsonPath('operation.status', 'succeeded')->assertJsonPath('data.lifecycle', 'active');
+        $this->assertSame([], $device->fresh()->draft['mappings']);
+    }
+
+    public function test_lifecycle_rejects_conflicts_and_keeps_previous_state_on_failure(): void
+    {
+        $device = $this->active($this->configured());
+        $path = $this->prefix.'/devices/'.$device->uuid;
+        $request = ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'inactive', 'expected_generation' => $device->deployment_generation];
+        $this->postJson($path.'/lifecycle', [...$request, 'expected_generation' => 0])->assertConflict();
+        $this->postJson($path.'/lifecycle', $request)->assertAccepted();
+        $this->postJson($path.'/lifecycle', [...$request, 'target_state' => 'active'])->assertConflict();
+        $this->postJson($path.'/lifecycle', [...$request, 'operation_uuid' => (string) Str::uuid()])->assertConflict();
+        $device->refresh();
+        $this->runtimeEvent('device.failed.v1', ['organization_uuid' => $this->organization->uuid, 'device_uuid' => $device->uuid, 'generation' => $device->deployment_generation, 'operation_uuid' => $request['operation_uuid'], 'diagnostic' => 'Runtime storage unavailable'])->assertOk();
+        $this->getJson($path.'/operations/'.$request['operation_uuid'])->assertOk()->assertJsonPath('operation.status', 'failed')->assertJsonPath('data.lifecycle', 'active');
+        $this->assertNotNull($device->fresh()->applied_configuration_uuid);
+    }
+
+    public function test_lifecycle_never_guesses_an_unconfirmed_configuration(): void
+    {
+        $device = $this->configured();
+        $device->update(['lifecycle' => 'deactivated']);
+        $this->postJson($this->prefix.'/devices/'.$device->uuid.'/lifecycle', ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'active', 'expected_generation' => 0])->assertUnprocessable();
+    }
+
+    public function test_lifecycle_and_operation_reads_reject_cross_organization_access(): void
+    {
+        $device = $this->active($this->configured());
+        $other = Organization::where('id', '!=', $this->organization->id)->firstOrFail();
+        $path = '/api/v1/organizations/'.$other->uuid.'/devices/'.$device->uuid;
+        $this->postJson($path.'/lifecycle', ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'inactive', 'expected_generation' => $device->deployment_generation])->assertNotFound();
+        $this->getJson($path.'/operations/'.(string) Str::uuid())->assertNotFound();
+    }
+
+    public function test_deactivation_blocks_commands_and_resolves_unsent_and_potentially_sent_outcomes(): void
+    {
+        foreach (['prepared', 'pending', 'sent'] as $status) {
+            $device = $this->active($this->configured('rgb-light', 'light-'.$status));
+            $path = $this->prefix.'/devices/'.$device->uuid;
+            $request = ['configuration_uuid' => $device->applied_configuration_uuid, 'parameter_uuid' => '10000000-0000-4000-8000-000000000004', 'value' => 8, 'idempotency_key' => (string) Str::uuid()];
+            $command = $this->postJson($path.'/commands', $request)->assertCreated()->json('data.uuid');
+            if ($status !== 'prepared') {
+                $this->postJson($path.'/commands/'.$command.'/confirm', ['confirmed' => true])->assertOk();
+            }
+            if ($status === 'sent') {
+                $this->runtimeEvent('command.status.v1', ['organization_uuid' => $this->organization->uuid, 'device_uuid' => $device->uuid, 'command_uuid' => $command, 'status' => 'sent'])->assertOk();
+            }
+            $operation = (string) Str::uuid();
+            $this->postJson($path.'/lifecycle', ['operation_uuid' => $operation, 'target_state' => 'inactive', 'expected_generation' => $device->deployment_generation])->assertAccepted();
+            $this->postJson($path.'/commands', [...$request, 'idempotency_key' => (string) Str::uuid()])->assertConflict();
+            if ($status === 'prepared') {
+                $this->postJson($path.'/commands/'.$command.'/confirm', ['confirmed' => true])->assertConflict();
+            }
+            $this->runtimeEvent('device.deactivated.v1', ['organization_uuid' => $this->organization->uuid, 'device_uuid' => $device->uuid, 'operation_uuid' => $operation, 'generation' => $device->fresh()->deployment_generation, 'uncertain_command_uuids' => $status === 'sent' ? [$command] : []])->assertOk();
+            $this->assertDatabaseHas('device_commands', ['uuid' => $command, 'status' => $status === 'sent' ? 'uncertain' : 'cancelled', 'outstanding_key' => null]);
+        }
+    }
+
+    public function test_conversion_modes_resolve_from_the_selected_artifact(): void
+    {
+        $device = $this->configured();
+        $old = DeviceProfileArtifact::where('uuid', $device->draft['artifact_uuid'])->firstOrFail();
+        $definition = $old->definition;
+        $definition['schema_version'] = 'device-profile.v2';
+        $definition['parameters'][0]['ingress_conversion'] = ['source_unit' => 'W', 'multiplier' => 0.001, 'offset' => 0];
+        $definition['parameters'][0]['kind'] = 'measurement';
+        $definition['parameters'][0]['data_type'] = 'number';
+        $definition['parameters'][0]['accepts_command'] = false;
+        $artifact = DeviceProfileArtifact::create(['device_profile_id' => $old->device_profile_id, 'revision' => 2, 'definition' => $definition, 'definition_hash' => hash('sha256', app(CanonicalJson::class)->encode($definition)), 'status' => 'active', 'compiled_at' => now(), 'compiled_by' => $this->actor->id]);
+        $draft = $device->draft;
+        $draft['artifact_uuid'] = $artifact->uuid;
+        $device = app(DeviceConfigurationService::class)->saveDraft($device, $draft, $device->draft_revision, $this->actor->id);
+        $compiled = app(DeviceConfigurationService::class)->compile($device);
+        $this->assertSame('device-configuration.v2', $compiled['schema_version']);
+        $this->assertSame('profile', $compiled['mappings'][0]['conversion_mode']);
+        $this->assertEquals(0.001, $compiled['mappings'][0]['ingress_conversion']['multiplier']);
+        foreach (['custom', 'none'] as $mode) {
+            $draft['mappings'][0]['conversion_mode'] = $mode;
+            $draft['mappings'][0]['ingress_conversion'] = $mode === 'custom' ? ['source_unit' => 'W', 'multiplier' => 0.01, 'offset' => 1] : null;
+            $device = app(DeviceConfigurationService::class)->saveDraft($device, $draft, $device->draft_revision, $this->actor->id);
+            $mapping = app(DeviceConfigurationService::class)->compile($device)['mappings'][0];
+            $this->assertSame($mode, $mapping['conversion_mode']);
+            $this->assertEquals($draft['mappings'][0]['ingress_conversion'], $mapping['ingress_conversion']);
+        }
+        $this->assertSame($old->definition, $old->fresh()->definition);
+        $this->assertSame($definition, $artifact->fresh()->definition);
+    }
 }

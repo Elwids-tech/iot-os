@@ -27,6 +27,7 @@ final class ProfileParameterResource extends JsonResource
             'display_config' => $this->display_config,
             'reporting_config' => $this->reporting_config,
             'counter_config' => $this->counter_config,
+            'ingress_conversion' => $this->ingress_conversion,
             'sort_order' => $this->sort_order,
             'calculation' => $this->whenLoaded('calculation', fn (): ?array => $this->calculation === null ? null : [
                 'uuid' => $this->calculation->uuid,

@@ -38,12 +38,15 @@ import {
   LogOutIcon,
   ArrowRightIcon,
   Building2Icon,
+  SparklesIcon,
 } from "lucide-react"
 import { api } from "./lib/api"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
 import { Choice, TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
+const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
+const AssistantPanel = lazy(() => import("./assistant/AssistantPanel"))
 const ProfileWorkspace = lazy(() =>
   import("./profiles/ProfileWorkspace").then((module) => ({
     default: module.ProfileWorkspace,
@@ -172,6 +175,7 @@ function Session() {
           <Route path="organizations/:organizationUuid/devices/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes page="discovery" /></Suspense>} />
           <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes page="gateways" /></Suspense>} />
+          <Route path="organizations/:organizationUuid/dashboards/:dashboardUuid?" element={<DashboardRoute />} />
           <Route
             path="organizations/:organizationUuid/device-profiles"
             element={<ProfileDirectory />}
@@ -195,6 +199,8 @@ function Session() {
           email={user.email}
           onRecovered={async () => {
             setExpired(false)
+            window.dispatchEvent(new Event("iot-session-restored"))
+            await cache.invalidateQueries({ predicate: query => ["assistant-settings", "assistant-conversations"].includes(String(query.queryKey[0])) })
             await cache.invalidateQueries({ queryKey: ["organization"] })
             await cache.invalidateQueries({ queryKey: ["profile"] })
             await cache.invalidateQueries({ predicate: query => String(query.queryKey[0]).startsWith("device") || ["discovery", "gateways", "connections"].includes(String(query.queryKey[0])) })
@@ -242,6 +248,11 @@ function OrganizationLanding({
     </div>
   )
 }
+
+function DashboardRoute() {
+  const { organizationUuid, dashboardUuid } = useParams()
+  return organizationUuid ? <Suspense fallback={<Skeleton className="h-80 w-full" />}><DashboardPage org={organizationUuid} id={dashboardUuid} /></Suspense> : null
+}
 export const profileDirectoryPath = (uuid: string) =>
   "/organizations/" + encodeURIComponent(uuid) + "/device-profiles"
 function PortalShell({
@@ -259,6 +270,8 @@ function PortalShell({
   const cache = useQueryClient()
   const { dirty, setDirty } = useDirtyContext()
   const [logoutConfirm, setLogoutConfirm] = useState(false)
+  const [assistantOpen, setAssistantOpen] = useState(false)
+  const [assistantLoaded, setAssistantLoaded] = useState(false)
   const [logoutError, setLogoutError] = useState<unknown>(null)
   async function logout() {
     try {
@@ -301,6 +314,7 @@ function PortalShell({
               {name}
             </span>
             <ThemePicker />
+            {org && <Button variant="outline" aria-expanded={assistantOpen} onClick={() => { setAssistantLoaded(true); setAssistantOpen(current => !current) }}><SparklesIcon data-icon="inline-start" />Assistant</Button>}
             <Button
               variant="ghost"
               size="icon"
@@ -314,7 +328,7 @@ function PortalShell({
           </div>
         </div>
       </header>
-      <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col lg:flex-row">
+      <div className={assistantOpen && org ? "mx-auto flex w-full max-w-[1600px] flex-1 flex-col md:pr-[440px] lg:flex-row" : "mx-auto flex w-full max-w-[1600px] flex-1 flex-col lg:flex-row"}>
         <aside className="flex flex-col gap-5 border-b p-4 lg:w-64 lg:shrink-0 lg:border-r lg:border-b-0 lg:p-6">
           <Choice
             label="Organization"
@@ -332,7 +346,7 @@ function PortalShell({
           />
           {org && (
             <nav aria-label="Workspace" className="flex flex-col gap-2">
-              {[{ path: "devices", label: "Devices" }, { path: "discovery", label: "Discovery" }, { path: "gateways", label: "Gateways" }].map(item => <Button key={item.path} asChild variant="ghost" className="justify-start [&.active]:bg-secondary"><NavLink to={`/organizations/${org.uuid}/${item.path}`}>{item.label}</NavLink></Button>)}
+              {[{ path: "dashboards", label: "Dashboards" }, { path: "devices", label: "Devices" }, { path: "discovery", label: "Discovery" }, { path: "gateways", label: "Gateways" }].map(item => <Button key={item.path} asChild variant="ghost" className="justify-start [&.active]:bg-secondary"><NavLink to={`/organizations/${org.uuid}/${item.path}`}>{item.label}</NavLink></Button>)}
             <Button asChild variant="ghost" className="justify-start [&.active]:bg-secondary">
               <NavLink to={profileDirectoryPath(org.uuid)}>
                 <CpuIcon data-icon="inline-start" />
@@ -363,6 +377,7 @@ function PortalShell({
           )}
         </main>
       </div>
+      {org && assistantLoaded && <Suspense fallback={null}><AssistantPanel key={org.uuid} org={org.uuid} organizationName={org.name} viewedProfile={params.profileUuid} open={assistantOpen} onClose={() => setAssistantOpen(false)} /></Suspense>}
       <Confirm
         open={logoutConfirm}
         title="Sign out without saving?"

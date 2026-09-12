@@ -8,12 +8,18 @@ use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceCommand;
 use App\Domain\Devices\Models\DeviceConfiguration;
+use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Shared\Models\User;
 
 final class DeviceView
 {
+    public static function operation(DeviceOperation $operation): array
+    {
+        return $operation->only(['uuid', 'target_state', 'kind', 'generation', 'configuration_uuid', 'status', 'diagnostic', 'created_at', 'completed_at']);
+    }
+
     public static function device(Device $device, bool $detail = false): array
     {
         $presence = $device->presence;
@@ -22,6 +28,11 @@ final class DeviceView
         }
         $data = $device->only(['uuid', 'code', 'name', 'serial_number', 'description', 'lifecycle', 'deployment_status', 'draft_revision', 'deployment_generation', 'desired_configuration_uuid', 'applied_configuration_uuid', 'diagnostic', 'last_seen_at']);
         $data['presence'] = $presence;
+        $data['state_revision'] = (int) $device->state_revision;
+        $data['last_applied_configuration_uuid'] = $device->last_applied_configuration_uuid;
+        $operation = DeviceOperation::where('device_id', $device->id)->orderByDesc('generation')->first();
+        $data['operation'] = $operation ? self::operation($operation) : null;
+
         $data['candidate'] = $device->candidate ? self::candidate($device->candidate) : null;
         if ($detail) {
             $data['retention'] = app(RetentionService::class)->effective($device->organization);

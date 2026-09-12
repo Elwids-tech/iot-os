@@ -9,6 +9,7 @@ use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\DeviceProfiles\Permissions\DeviceProfilePermission;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthoring;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization;
+use App\Domain\DeviceProfiles\Services\IngressConversion;
 use App\Domain\DeviceProfiles\Services\JsonLogicValidator;
 use App\Domain\DeviceProfiles\Services\RestrictedExpression;
 use App\Domain\Shared\Models\Organization;
@@ -24,13 +25,19 @@ final class ProfilePreviewController
         $authorization->authorize($request->user(), DeviceProfilePermission::VALIDATE);
         $authorization->ensureOrganizationProfile($profile, $organization);
         $values = $request->validate([
-            'kind' => ['required', Rule::in(['validation', 'calculation'])],
+            'kind' => ['required', Rule::in(['validation', 'conversion', 'calculation'])],
             'draft_revision' => ['required', 'integer', 'min:1'],
-            'parameter' => ['required_if:kind,validation', 'array'],
-            'parameter.data_type' => ['required_if:kind,validation', Rule::in(['boolean', 'integer', 'number', 'string', 'timestamp', 'bytes'])],
+            'parameter' => ['required_if:kind,validation,conversion', 'array'],
+            'parameter.data_type' => ['required_if:kind,validation,conversion', Rule::in(['boolean', 'integer', 'number', 'string', 'timestamp', 'bytes'])],
+            'parameter.kind' => ['sometimes', 'in:measurement,counter'],
+            'parameter.reports_state' => ['sometimes', 'boolean'],
+            'parameter.accepts_command' => ['sometimes', 'boolean'],
+            'parameter.counter_config' => ['nullable', 'array'],
+            'parameter.ingress_conversion' => ['nullable', 'array:source_unit,multiplier,offset'],
             'parameter.format' => ['nullable', 'string'],
             'parameter.validation_logic' => ['nullable', 'array'],
-            'value' => ['present_if:kind,validation'], 'previous_value' => ['nullable'],
+            'value' => ['present_if:kind,validation,conversion'], 'previous_value' => ['nullable'],
+            'output_data_type' => ['sometimes', 'in:boolean,integer,number,string,timestamp,bytes'],
             'expression' => ['required_if:kind,calculation', 'array'],
             'inputs' => ['required_if:kind,calculation', 'array', 'max:100'],
             'inputs.*.parameter_uuid' => ['required', 'uuid', 'distinct'],
@@ -41,9 +48,12 @@ final class ProfilePreviewController
         return $authoring->snapshot($profile, $values['draft_revision'], function (DeviceProfile $locked) use ($values, $validation, $expressions): JsonResponse {
             $diagnostics = [];
             $result = null;
-            if ($values['kind'] === 'validation') {
+            if (in_array($values['kind'], ['validation', 'conversion'], true)) {
                 $parameter = $values['parameter'];
                 $value = $values['value'] ?? null;
+                if ($values['kind'] === 'conversion') {
+                    $value = app(IngressConversion::class)->apply($parameter, $value);
+                }
                 if (! $this->matchesType($value, $parameter['data_type'])) {
                     $diagnostics[] = new ProfileDiagnostic('preview.type_mismatch', 'The sample must be a '.$parameter['data_type'].' value.', '/value');
                 }
@@ -58,7 +68,7 @@ final class ProfilePreviewController
                         $diagnostics[] = new ProfileDiagnostic($evaluation['diagnostic_code'], $evaluation['message'], '/value');
                     }
                 }
-                $result = $diagnostics === [];
+                $result = $values['kind'] === 'conversion' ? $value : $diagnostics === [];
             } else {
                 $parameters = $locked->parameters()->get()->keyBy('uuid');
                 foreach ($values['inputs'] as $input) {
@@ -73,6 +83,9 @@ final class ProfilePreviewController
                 if ($diagnostics === []) {
                     try {
                         $result = $expressions->evaluate($values['expression'], $values['samples']);
+                        if (isset($values['output_data_type']) && ! $this->matchesType($result, $values['output_data_type'])) {
+                            $diagnostics[] = new ProfileDiagnostic('preview.output_type_mismatch', 'The result must fit the output type without rounding.', '/expression');
+                        }
                     } catch (InvalidArgumentException $exception) {
                         $diagnostics[] = new ProfileDiagnostic('preview.evaluation_failed', $exception->getMessage(), '/expression');
                     }
@@ -86,7 +99,7 @@ final class ProfilePreviewController
     private function matchesType(mixed $value, string $type): bool
     {
         return match ($type) {
-            'boolean' => is_bool($value), 'integer' => is_int($value),
+            'boolean' => is_bool($value), 'integer' => (is_int($value) || is_float($value)) && is_finite((float) $value) && floor($value) == $value && abs($value) <= 9007199254740991,
             'number' => is_int($value) || (is_float($value) && is_finite($value)),
             'string' => is_string($value),
             'bytes' => is_string($value) && base64_decode($value, true) !== false,

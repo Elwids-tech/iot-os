@@ -17,7 +17,14 @@
           "minimum": 1
         },
         "definition": {
-          "$ref": "configuration.schema.json"
+          "oneOf": [
+            {
+              "$ref": "configuration.schema.json"
+            },
+            {
+              "$ref": "../v2/configuration.schema.json"
+            }
+          ]
         }
       },
       "required": [

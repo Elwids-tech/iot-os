@@ -1,0 +1,12 @@
+[
+  {"name":"watts to kilowatts","conversion":{"source_unit":"W","multiplier":0.001,"offset":0},"value":1000,"expected":1},
+  {"name":"fahrenheit to celsius","conversion":{"source_unit":"F","multiplier":0.5555555555555556,"offset":-17.77777777777778},"value":68,"expected":20},
+  {"name":"calibration","conversion":{"source_unit":null,"multiplier":2,"offset":3},"value":5,"expected":13},
+  {"name":"integer output","type":"integer","conversion":{"source_unit":"W","multiplier":0.001,"offset":0},"value":1000,"expected":1},
+  {"name":"integer fraction","type":"integer","conversion":{"source_unit":"W","multiplier":0.001,"offset":0},"value":1500,"error":true},
+  {"name":"zero multiplier","conversion":{"multiplier":0,"offset":0},"value":10,"error":true},
+  {"name":"missing offset","conversion":{"multiplier":1},"value":10,"error":true},
+  {"name":"overflow","conversion":{"multiplier":1e308,"offset":0},"value":1e308,"error":true},
+  {"name":"non numeric source","conversion":{"multiplier":0.001,"offset":0},"value":"1000","error":true},
+  {"name":"identity","conversion":null,"value":7,"expected":7}
+]

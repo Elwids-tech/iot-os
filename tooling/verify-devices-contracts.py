@@ -10,14 +10,14 @@ from referencing import Registry, Resource
 root = pathlib.Path(__file__).resolve().parents[1]
 directory = root / "contracts/devices/v1"
 schemas = {}
-for path in directory.glob("*.schema.json"):
+for path in (root / "contracts/devices").glob("v*/*.schema.json"):
     schema = json.loads(path.read_text())
-    schema["$id"] = "https://iot-os.local/contracts/devices/v1/" + path.name
+    schema["$id"] = "https://iot-os.local/contracts/devices/" + path.parent.name + "/" + path.name
     Draft202012Validator.check_schema(schema)
-    schemas[path.stem.removesuffix(".schema")] = schema
+    schemas[path.parent.name + "/" + path.stem.removesuffix(".schema")] = schema
 registry = Registry().with_resources((schema["$id"], Resource.from_contents(schema)) for schema in schemas.values())
 for name, schema in schemas.items():
-    instance = json.loads((directory / (name + ".fixture.json")).read_text())
+    instance = json.loads((root / "contracts/devices" / (name + ".fixture.json")).read_text())
     Draft202012Validator(schema, registry=registry, format_checker=FormatChecker()).validate(instance)
 configuration = json.loads((directory / "configuration.fixture.json").read_text())
 assert hashlib.sha256(configuration["profile_canonical_json"].encode()).hexdigest() == configuration["profile_hash"]

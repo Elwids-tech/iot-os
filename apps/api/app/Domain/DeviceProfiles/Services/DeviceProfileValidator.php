@@ -7,6 +7,7 @@ namespace App\Domain\DeviceProfiles\Services;
 use App\Domain\DeviceProfiles\Data\ProfileDiagnostic;
 use App\Domain\DeviceProfiles\Enums\ProfileParameterKind;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
+use Illuminate\Validation\ValidationException;
 
 final class DeviceProfileValidator
 {
@@ -34,6 +35,15 @@ final class DeviceProfileValidator
         }
         foreach ($profile->parameters as $parameter) {
             $pointer = '/parameters/'.$parameter->uuid;
+            try {
+                app(IngressConversion::class)->validate($parameter->toArray(), $parameter->ingress_conversion);
+            } catch (ValidationException $exception) {
+                foreach ($exception->errors() as $messages) {
+                    foreach ($messages as $message) {
+                        $diagnostics[] = new ProfileDiagnostic('parameter.invalid_conversion', $message, $pointer.'/ingress_conversion');
+                    }
+                }
+            }
             foreach (app(ProfileConfigurationValidator::class)->errors($parameter->only(['display_config', 'reporting_config', 'counter_config'])) as $field => $messages) {
                 foreach ($messages as $message) {
                     $diagnostics[] = new ProfileDiagnostic('parameter.invalid_configuration', $parameter->label.': '.$message, $pointer.'/'.str_replace('.', '/', $field));

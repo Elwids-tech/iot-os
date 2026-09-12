@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS device_runtime.devices (
  definition jsonb, updated_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE device_runtime.devices ADD COLUMN IF NOT EXISTS review_required boolean NOT NULL DEFAULT false;
+ALTER TABLE device_runtime.devices ADD COLUMN IF NOT EXISTS outcome jsonb;
 CREATE TABLE IF NOT EXISTS device_runtime.observations (
  event_uuid uuid NOT NULL, organization_uuid uuid NOT NULL, device_uuid uuid NOT NULL,
  configuration_uuid uuid NOT NULL, parameter_uuid uuid NOT NULL,

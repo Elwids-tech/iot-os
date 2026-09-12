@@ -127,3 +127,8 @@
     font-family: ui-sans-serif, system-ui, sans-serif;
   }
 }
+
+/* Grid coordinates must settle immediately when the container breakpoint changes. */
+.dashboard-grid > .react-grid-item {
+  transition: none;
+}

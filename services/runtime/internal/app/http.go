@@ -77,13 +77,30 @@ func respond(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 func (a *Application) latestHTTP(w http.ResponseWriter, r *http.Request) {
+	unlock := a.lockDevice(r.URL.Query().Get("device_uuid"))
+	defer unlock()
 	org, id := r.URL.Query().Get("organization_uuid"), r.URL.Query().Get("device_uuid")
 	a.mu.Lock()
 	d, exists := a.definitions[id]
 	compatible := a.compatible[id]
+	activeSince := a.activeSince[id]
 	a.mu.Unlock()
 	if !exists {
-		respond(w, 200, map[string]any{"data": []devices.Reading{}, "presence": "unseen"})
+		configuration := r.URL.Query().Get("configuration_uuid")
+		if configuration == "" {
+			respond(w, 200, map[string]any{"data": []devices.Reading{}, "presence": "unknown"})
+			return
+		}
+		readings, err := a.Store.Latest(r.Context(), org, id, configuration)
+		if err != nil {
+			respond(w, 503, map[string]string{"message": "measurement storage unavailable"})
+			return
+		}
+		for i := range readings {
+			readings[i].Quality = "inactive"
+			readings[i].Diagnostic = "Ingestion is disabled; retained last valid reading."
+		}
+		respond(w, 200, map[string]any{"data": readings, "presence": "unknown", "processing": "inactive"})
 		return
 	}
 	if d.OrganizationUUID != org {
@@ -112,7 +129,10 @@ func (a *Application) latestHTTP(w http.ResponseWriter, r *http.Request) {
 	for i := range readings {
 		p := params[readings[i].ParameterUUID]
 		if readings[i].Quality == "good" {
-			if !online || !compatible {
+			if readings[i].ReceivedAt.Before(activeSince) {
+				readings[i].Quality = "stale"
+				readings[i].Diagnostic = "Retained reading; waiting for telemetry after activation."
+			} else if !online || !compatible {
 				readings[i].Quality = "stale"
 				readings[i].Diagnostic = "Waiting for a current compatible source session."
 			} else if p.Reporting != nil && p.Reporting.StaleAfterSeconds > 0 && time.Since(readings[i].ReceivedAt) > time.Duration(p.Reporting.StaleAfterSeconds)*time.Second {

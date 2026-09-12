@@ -79,7 +79,7 @@ final class DeviceCommandService
             $command->update(['status' => $already ? 'already_at_target' : 'pending', 'confirmed_at' => now(), 'expires_at' => now()->addSeconds(30),
                 'completed_at' => $already ? now() : null, 'outstanding_key' => $already ? null : $command->outstanding_key]);
             if (! $already) {
-                DeviceAudit::enqueue('device.command.v1', ['command_uuid' => $command->uuid, 'organization_uuid' => $locked->organization->uuid,
+                DeviceAudit::enqueue('device.command.v1', ['command_uuid' => $command->uuid, 'generation' => $locked->deployment_generation, 'organization_uuid' => $locked->organization->uuid,
                     'device_uuid' => $locked->uuid, 'configuration_uuid' => $configuration->uuid, 'parameter_uuid' => $command->parameter_uuid,
                     'value' => $command->value, 'confirmed_at' => $command->confirmed_at->toIso8601String(), 'expires_at' => $command->expires_at->toIso8601String(),
                     'session_id' => $check['session_id'] ?? null]);

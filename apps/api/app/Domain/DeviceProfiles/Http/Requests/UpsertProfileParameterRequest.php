@@ -48,6 +48,7 @@ final class UpsertProfileParameterRequest extends FormRequest
             'display_config' => ['nullable', 'array'],
             'reporting_config' => ['nullable', 'array'],
             'counter_config' => ['nullable', 'array'],
+            'ingress_conversion' => ['nullable', 'array:source_unit,multiplier,offset'],
             'sort_order' => ['nullable', 'integer'],
             'draft_revision' => ['required', 'integer', 'min:1'],
         ];

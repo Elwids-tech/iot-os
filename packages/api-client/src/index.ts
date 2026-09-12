@@ -1,4 +1,21 @@
-import type { Device, DeviceDetail, DeviceDraft, DeviceInput, DeviceValidation, DeviceCommand, DeviceCapabilities, DiscoveryCandidate, Gateway, SparkplugConnection, Measurement, HistorySeries, RetentionSetting } from "./devices"
+import type {
+  Device,
+  DeviceDetail,
+  DeviceDraft,
+  DeviceInput,
+  DeviceValidation,
+  DeviceCommand,
+  DeviceCapabilities,
+  DiscoveryCandidate,
+  Gateway,
+  SparkplugConnection,
+  Measurement,
+  HistorySeries,
+  RetentionSetting,
+} from "./devices"
+
+import type { Dashboard, DashboardInput } from "./dashboards"
+export * from "./dashboards"
 export * from "./devices"
 
 export type Organization = {
@@ -111,9 +128,21 @@ export type AuthenticatedUser = {
 
 export type JsonObject = { [key: string]: JsonValue }
 export type JsonValue =
-  boolean | number | string | null | JsonObject | JsonValue[]
+  | boolean
+  | number
+  | string
+  | null
+  | JsonObject
+  | JsonValue[]
+
+export type IngressConversion = {
+  source_unit: string | null
+  multiplier: number
+  offset: number
+}
 
 export type DeviceProfileParameter = {
+  ingress_conversion?: IngressConversion | null
   uuid: string
   key: string
   label: string
@@ -150,7 +179,7 @@ export type DeviceProfileAlarmTemplate = {
 }
 
 export type CompiledDeviceProfileDefinition = {
-  schema_version: "device-profile.v1"
+  schema_version: "device-profile.v1" | "device-profile.v2"
   profile: {
     uuid: string
     code: string
@@ -255,7 +284,12 @@ export type ParameterInput = Omit<AuthoringParameter, "uuid" | "calculation"> &
   DraftInput
 export type GroupInput = Omit<ProfileGroup, "uuid" | "sort_order"> &
   DraftInput & { sort_order?: number }
-export type CalculationInput = Omit<AuthoringCalculation, "uuid"> & DraftInput
+export type CalculationOutput = Pick<
+  AuthoringParameter,
+  "key" | "label" | "data_type" | "unit" | "parameter_group_uuid"
+>
+export type CalculationInput = Omit<AuthoringCalculation, "uuid"> &
+  DraftInput & { output?: CalculationOutput }
 export type AlarmInput = Omit<AuthoringAlarm, "uuid"> & DraftInput
 export type ProfileDirectoryQuery = DirectoryQuery & {
   status?: string
@@ -274,16 +308,27 @@ export type ArtifactSummary = Omit<
 export type PreviewInput = DraftInput &
   (
     | {
-        kind: "validation"
+        kind: "validation" | "conversion"
         parameter: Pick<
           AuthoringParameter,
           "data_type" | "format" | "validation_logic"
-        >
+        > &
+          Partial<
+            Pick<
+              AuthoringParameter,
+              | "kind"
+              | "reports_state"
+              | "accepts_command"
+              | "counter_config"
+              | "ingress_conversion"
+            >
+          >
         value: JsonValue
         previous_value?: JsonValue
       }
     | {
         kind: "calculation"
+        output_data_type?: DeviceProfileParameter["data_type"]
         expression: JsonObject
         inputs: AuthoringCalculation["inputs"]
         samples: JsonObject
@@ -351,6 +396,7 @@ function directoryQuery(query: DirectoryQuery = {}): string {
   return value ? `?${value}` : ""
 }
 
+export type * from "./assistant"
 export class ApiClient {
   private readonly baseUrl: string
   private selectedOrganizationUuid: string | null
@@ -555,6 +601,13 @@ export class ApiClient {
       group_uuids: uuids,
       draft_revision: revision,
     })
+  }
+  createProfileCalculation(
+    org: string,
+    profile: string,
+    input: CalculationInput,
+  ): Promise<AuthoringParameter> {
+    return this.profileOperation(org, profile, "/calculations", "POST", input)
   }
   saveProfileCalculation(
     org: string,
@@ -783,41 +836,425 @@ export class ApiClient {
     await this.request("/api/v1/auth/logout", { method: "POST" })
   }
 
-  async devices(org: string, query: { search?: string; lifecycle?: string; page?: number } = {}) {
-    const search = new URLSearchParams(Object.entries(query).filter(([, value]) => value !== undefined && value !== "").map(([key, value]) => [key, String(value)]))
-    return this.request<{ data: Device[]; meta: { current_page: number; last_page: number; total: number } }>(`/api/v1/organizations/${encodeURIComponent(org)}/devices?${search}`)
+  async devices(
+    org: string,
+    query: { search?: string; lifecycle?: string; page?: number } = {},
+  ) {
+    const search = new URLSearchParams(
+      Object.entries(query)
+        .filter(([, value]) => value !== undefined && value !== "")
+        .map(([key, value]) => [key, String(value)]),
+    )
+    return this.request<{
+      data: Device[]
+      meta: { current_page: number; last_page: number; total: number }
+    }>(`/api/v1/organizations/${encodeURIComponent(org)}/devices?${search}`)
   }
-  private devicePath(org: string, id = "") { return `/api/v1/organizations/${encodeURIComponent(org)}/devices${id ? "/" + encodeURIComponent(id) : ""}` }
-  private async data<T>(path: string, method = "GET", body?: unknown): Promise<T> { return (await this.request<ApiResponse<T>>(path, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) })).data }
-  device(org: string, id: string) { return this.data<DeviceDetail>(this.devicePath(org, id)) }
-  createDevice(org: string, values: DeviceInput) { return this.data<DeviceDetail>(this.devicePath(org), "POST", values) }
-  updateDevice(org: string, id: string, values: DeviceInput & { draft_revision: number }) { return this.data<DeviceDetail>(this.devicePath(org, id), "PATCH", values) }
-  saveDeviceConfiguration(org: string, id: string, values: DeviceDraft & { draft_revision: number }) { return this.data<DeviceDetail>(this.devicePath(org, id) + "/configuration", "PUT", values) }
-  validateDevice(org: string, id: string, revision: number) { return this.data<DeviceValidation>(this.devicePath(org, id) + "/validate", "POST", { draft_revision: revision }) }
-  deviceAction(org: string, id: string, action: "activate" | "deactivate" | "archive", revision: number, rollback?: string) { return this.data<DeviceDetail>(this.devicePath(org, id) + "/" + action, "POST", { draft_revision: revision, rollback_configuration_uuid: rollback }) }
-  deviceLatest(org: string, id: string) { return this.request<{ data: Measurement[]; presence: string; configuration_uuid?: string }>(this.devicePath(org, id) + "/measurements/latest") }
-  deviceHistory(org: string, id: string, query: { parameter_uuid: string; from: string; to: string; max_points?: number }) { const search = new URLSearchParams(Object.entries(query).map(([key, value]) => [key, String(value)])); return this.data<HistorySeries[]>(this.devicePath(org, id) + "/measurements/history?" + search) }
-  deviceCommands(org: string, id: string) { return this.data<DeviceCommand[]>(this.devicePath(org, id) + "/commands") }
-  prepareDeviceCommand(org: string, id: string, values: { configuration_uuid: string; parameter_uuid: string; value: unknown; idempotency_key: string }) { return this.data<DeviceCommand>(this.devicePath(org, id) + "/commands", "POST", values) }
-  confirmDeviceCommand(org: string, id: string, command: string) { return this.data<DeviceCommand>(this.devicePath(org, id) + `/commands/${encodeURIComponent(command)}/confirm`, "POST", { confirmed: true }) }
-  cancelDeviceCommand(org: string, id: string, command: string) { return this.data<DeviceCommand>(this.devicePath(org, id) + `/commands/${encodeURIComponent(command)}/cancel`, "POST", {}) }
-  private sourceDirectory<T>(org: string, resource: string, query: import("./devices").DeviceDirectoryQuery = {}) { const search = new URLSearchParams(Object.entries(query).filter(([, value]) => value !== undefined && value !== "").map(([key, value]) => [key, String(value)])); return this.request<{ data: T[]; meta: import("./devices").DeviceDirectoryMeta }>(`/api/v1/organizations/${encodeURIComponent(org)}/${resource}?${search}`) }
-  connectionsPage(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return this.sourceDirectory<SparkplugConnection>(org, "sparkplug-connections", query) }
-  gatewaysPage(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return this.sourceDirectory<Gateway>(org, "gateways", query) }
-  discoveryPage(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return this.sourceDirectory<DiscoveryCandidate>(org, "discovery-candidates", query) }
-  discoveryCandidate(org: string, uuid: string) { return this.data<DiscoveryCandidate>(`/api/v1/organizations/${encodeURIComponent(org)}/discovery-candidates/${encodeURIComponent(uuid)}`) }
-  deviceMappingSuggestions(org: string, id: string, artifact: string) { return this.data<Array<{ binding_uuid: string; name: string; mappings: import("./devices").DeviceMapping[] }>>(this.devicePath(org, id) + "/mapping-suggestions?artifact_uuid=" + encodeURIComponent(artifact)) }
-  async connections(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return (await this.connectionsPage(org, query)).data }
-  createConnection(org: string, values: { name: string; group_id: string }) { return this.data<SparkplugConnection>(`/api/v1/organizations/${encodeURIComponent(org)}/sparkplug-connections`, "POST", values) }
-  provisionConnection(org: string, id: string) { return this.data<SparkplugConnection>(`/api/v1/organizations/${encodeURIComponent(org)}/sparkplug-connections/${encodeURIComponent(id)}/provision`, "POST", {}) }
-  provisionGateway(org: string, id: string) { return this.data<Gateway>(`/api/v1/organizations/${encodeURIComponent(org)}/gateways/${encodeURIComponent(id)}/provision`, "POST", {}) }
-  async gateways(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return (await this.gatewaysPage(org, query)).data }
-  createGateway(org: string, values: { connection_uuid: string; name: string; edge_node_id: string }) { return this.data<Gateway>(`/api/v1/organizations/${encodeURIComponent(org)}/gateways`, "POST", values) }
-  async discoveryCandidates(org: string, query: import("./devices").DeviceDirectoryQuery = {}) { return (await this.discoveryPage(org, query)).data }
-  reviewCandidate(org: string, id: string, status: "pending" | "rejected", birth_revision: number) { return this.data<DiscoveryCandidate>(`/api/v1/organizations/${encodeURIComponent(org)}/discovery-candidates/${encodeURIComponent(id)}`, "PATCH", { status, birth_revision }) }
-  private retentionPath(org?: string) { return "/api/v1/admin/" + (org ? `organizations/${encodeURIComponent(org)}/` : "") + "settings/telemetry-retention" }
-  retention(org?: string) { return this.data<RetentionSetting>(this.retentionPath(org)) }
-  updateRetention(values: { days: number | null; revision: number; confirmed_reduction?: boolean }, org?: string) { return this.data<RetentionSetting>(this.retentionPath(org), "PUT", values) }
+  private devicePath(org: string, id = "") {
+    return `/api/v1/organizations/${encodeURIComponent(org)}/devices${id ? "/" + encodeURIComponent(id) : ""}`
+  }
+  private async data<T>(
+    path: string,
+    method = "GET",
+    body?: unknown,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    return (
+      await this.request<ApiResponse<T>>(path, {
+        method,
+        signal,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      })
+    ).data
+  }
+  device(org: string, id: string) {
+    return this.data<DeviceDetail>(this.devicePath(org, id))
+  }
+  createDevice(org: string, values: DeviceInput) {
+    return this.data<DeviceDetail>(this.devicePath(org), "POST", values)
+  }
+  updateDevice(
+    org: string,
+    id: string,
+    values: DeviceInput & { draft_revision: number },
+  ) {
+    return this.data<DeviceDetail>(this.devicePath(org, id), "PATCH", values)
+  }
+  saveDeviceConfiguration(
+    org: string,
+    id: string,
+    values: DeviceDraft & { draft_revision: number },
+  ) {
+    return this.data<DeviceDetail>(
+      this.devicePath(org, id) + "/configuration",
+      "PUT",
+      values,
+    )
+  }
+  validateDevice(org: string, id: string, revision: number) {
+    return this.data<DeviceValidation>(
+      this.devicePath(org, id) + "/validate",
+      "POST",
+      { draft_revision: revision },
+    )
+  }
+  deviceLifecycle(
+    org: string,
+    id: string,
+    input: import("./devices").DeviceLifecycleRequest,
+  ) {
+    return this.request<import("./devices").DeviceOperationResponse>(
+      this.devicePath(org, id) + "/lifecycle",
+      { method: "POST", body: JSON.stringify(input) },
+    )
+  }
+  deviceOperation(org: string, id: string, operation: string) {
+    return this.request<import("./devices").DeviceOperationResponse>(
+      this.devicePath(org, id) + "/operations/" + encodeURIComponent(operation),
+    )
+  }
+  deviceAction(
+    org: string,
+    id: string,
+    action: "activate" | "deactivate" | "archive",
+    revision: number,
+    rollback?: string,
+  ) {
+    return this.data<DeviceDetail>(
+      this.devicePath(org, id) + "/" + action,
+      "POST",
+      { draft_revision: revision, rollback_configuration_uuid: rollback },
+    )
+  }
+  deviceLatest(org: string, id: string, signal?: AbortSignal) {
+    return this.request<{
+      data: Measurement[]
+      presence: string
+      configuration_uuid?: string
+    }>(this.devicePath(org, id) + "/measurements/latest", { signal })
+  }
+
+  dashboards(org: string) {
+    return this.data<Dashboard[]>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards`)
+  }
+
+  dashboard(org: string, dashboard: string) {
+    return this.data<Dashboard>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}`)
+  }
+
+  createDashboard(org: string, values: DashboardInput) {
+    return this.data<Dashboard>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards`, "POST", values)
+  }
+
+  updateDashboard(org: string, dashboard: string, values: DashboardInput & { revision: number }) {
+    return this.data<Dashboard>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}`, "PUT", values)
+  }
+
+  deleteDashboard(org: string, dashboard: string) {
+    return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}`, { method: "DELETE" })
+  }
+  deviceHistory(
+    org: string,
+    id: string,
+    query: {
+      parameter_uuid: string
+      from: string
+      to: string
+      max_points?: number
+    },
+    signal?: AbortSignal,
+  ) {
+    const search = new URLSearchParams(
+      Object.entries(query).map(([key, value]) => [key, String(value)]),
+    )
+    return this.data<HistorySeries[]>(
+      this.devicePath(org, id) + "/measurements/history?" + search,
+      "GET", undefined, signal,
+    )
+  }
+  deviceCommands(org: string, id: string) {
+    return this.data<DeviceCommand[]>(this.devicePath(org, id) + "/commands")
+  }
+  prepareDeviceCommand(
+    org: string,
+    id: string,
+    values: {
+      configuration_uuid: string
+      parameter_uuid: string
+      value: unknown
+      idempotency_key: string
+    },
+  ) {
+    return this.data<DeviceCommand>(
+      this.devicePath(org, id) + "/commands",
+      "POST",
+      values,
+    )
+  }
+  confirmDeviceCommand(org: string, id: string, command: string) {
+    return this.data<DeviceCommand>(
+      this.devicePath(org, id) +
+        `/commands/${encodeURIComponent(command)}/confirm`,
+      "POST",
+      { confirmed: true },
+    )
+  }
+  cancelDeviceCommand(org: string, id: string, command: string) {
+    return this.data<DeviceCommand>(
+      this.devicePath(org, id) +
+        `/commands/${encodeURIComponent(command)}/cancel`,
+      "POST",
+      {},
+    )
+  }
+  private sourceDirectory<T>(
+    org: string,
+    resource: string,
+    query: import("./devices").DeviceDirectoryQuery = {},
+  ) {
+    const search = new URLSearchParams(
+      Object.entries(query)
+        .filter(([, value]) => value !== undefined && value !== "")
+        .map(([key, value]) => [key, String(value)]),
+    )
+    return this.request<{
+      data: T[]
+      meta: import("./devices").DeviceDirectoryMeta
+    }>(`/api/v1/organizations/${encodeURIComponent(org)}/${resource}?${search}`)
+  }
+  connectionsPage(
+    org: string,
+    query: import("./devices").DeviceDirectoryQuery = {},
+  ) {
+    return this.sourceDirectory<SparkplugConnection>(
+      org,
+      "sparkplug-connections",
+      query,
+    )
+  }
+  gatewaysPage(
+    org: string,
+    query: import("./devices").DeviceDirectoryQuery = {},
+  ) {
+    return this.sourceDirectory<Gateway>(org, "gateways", query)
+  }
+  discoveryPage(
+    org: string,
+    query: import("./devices").DeviceDirectoryQuery = {},
+  ) {
+    return this.sourceDirectory<DiscoveryCandidate>(
+      org,
+      "discovery-candidates",
+      query,
+    )
+  }
+  discoveryCandidate(org: string, uuid: string) {
+    return this.data<DiscoveryCandidate>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/discovery-candidates/${encodeURIComponent(uuid)}`,
+    )
+  }
+  deviceMappingSuggestions(org: string, id: string, artifact: string) {
+    return this.data<
+      Array<{
+        binding_uuid: string
+        name: string
+        mappings: import("./devices").DeviceMapping[]
+      }>
+    >(
+      this.devicePath(org, id) +
+        "/mapping-suggestions?artifact_uuid=" +
+        encodeURIComponent(artifact),
+    )
+  }
+  async connections(
+    org: string,
+    query: import("./devices").DeviceDirectoryQuery = {},
+  ) {
+    return (await this.connectionsPage(org, query)).data
+  }
+  createConnection(org: string, values: { name: string; group_id: string }) {
+    return this.data<SparkplugConnection>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/sparkplug-connections`,
+      "POST",
+      values,
+    )
+  }
+  provisionConnection(org: string, id: string) {
+    return this.data<SparkplugConnection>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/sparkplug-connections/${encodeURIComponent(id)}/provision`,
+      "POST",
+      {},
+    )
+  }
+  provisionGateway(org: string, id: string) {
+    return this.data<Gateway>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/gateways/${encodeURIComponent(id)}/provision`,
+      "POST",
+      {},
+    )
+  }
+  async gateways(
+    org: string,
+    query: import("./devices").DeviceDirectoryQuery = {},
+  ) {
+    return (await this.gatewaysPage(org, query)).data
+  }
+  createGateway(
+    org: string,
+    values: { connection_uuid: string; name: string; edge_node_id: string },
+  ) {
+    return this.data<Gateway>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/gateways`,
+      "POST",
+      values,
+    )
+  }
+  async discoveryCandidates(
+    org: string,
+    query: import("./devices").DeviceDirectoryQuery = {},
+  ) {
+    return (await this.discoveryPage(org, query)).data
+  }
+  reviewCandidate(
+    org: string,
+    id: string,
+    status: "pending" | "rejected",
+    birth_revision: number,
+  ) {
+    return this.data<DiscoveryCandidate>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/discovery-candidates/${encodeURIComponent(id)}`,
+      "PATCH",
+      { status, birth_revision },
+    )
+  }
+  private retentionPath(org?: string) {
+    return (
+      "/api/v1/admin/" +
+      (org ? `organizations/${encodeURIComponent(org)}/` : "") +
+      "settings/telemetry-retention"
+    )
+  }
+  retention(org?: string) {
+    return this.data<RetentionSetting>(this.retentionPath(org))
+  }
+  updateRetention(
+    values: {
+      days: number | null
+      revision: number
+      confirmed_reduction?: boolean
+    },
+    org?: string,
+  ) {
+    return this.data<RetentionSetting>(this.retentionPath(org), "PUT", values)
+  }
+
+  private assistantPath(org: string, conversation?: string, suffix = "") {
+    return `/api/v1/organizations/${encodeURIComponent(org)}/assistant${conversation ? `/conversations/${encodeURIComponent(conversation)}` : ""}${suffix}`
+  }
+  assistantSettings(org: string) {
+    return this.data<import("./assistant").AssistantSettings>(
+      this.assistantPath(org, undefined, "/settings"),
+    )
+  }
+  assistantConversations(org: string) {
+    return this.data<import("./assistant").AssistantConversation[]>(
+      this.assistantPath(org, undefined, "/conversations"),
+    )
+  }
+  createAssistantConversation(org: string, profile_uuid?: string) {
+    return this.data<import("./assistant").AssistantConversation>(
+      this.assistantPath(org, undefined, "/conversations"),
+      "POST",
+      { profile_uuid },
+    )
+  }
+  assistantConversation(org: string, id: string) {
+    return this.data<import("./assistant").AssistantDetail>(
+      this.assistantPath(org, id),
+    )
+  }
+  deleteAssistantConversation(org: string, id: string) {
+    return this.request<null>(this.assistantPath(org, id), {
+      method: "DELETE",
+    })
+  }
+  assistantEvents(org: string, id: string, after: number) {
+    return this.data<{
+      events: import("./assistant").AssistantEvent[]
+      active: boolean
+    }>(this.assistantPath(org, id, `/events?after=${after}`))
+  }
+  assistantMessage(
+    org: string,
+    id: string,
+    input: {
+      request_id: string
+      text: string
+      source_ids?: string[]
+      answers?: import("./assistant").AssistantAnswer[]
+    },
+  ) {
+    return this.data<import("./assistant").AssistantRun>(
+      this.assistantPath(org, id, "/messages"),
+      "POST",
+      input,
+    )
+  }
+  assistantPreview(
+    org: string,
+    id: string,
+    input: import("./assistant").AssistantPreviewInput,
+  ) {
+    return this.data<import("./assistant").AssistantProposal>(
+      this.assistantPath(org, id, "/proposals"),
+      "POST",
+      input,
+    )
+  }
+  assistantDecision(
+    org: string,
+    id: string,
+    proposal: string,
+    input: {
+      decision: "approve" | "reject"
+      content_hash: string
+      request_id: string
+    },
+  ) {
+    return this.data<{
+      result: import("./assistant").AssistantSaved | null
+      run: import("./assistant").AssistantRun | null
+      notice: string | null
+    }>(
+      this.assistantPath(
+        org,
+        id,
+        `/proposals/${encodeURIComponent(proposal)}/decision`,
+      ),
+      "POST",
+      input,
+    )
+  }
+  assistantCancel(org: string, id: string, run: string) {
+    return this.data<import("./assistant").AssistantRun>(
+      this.assistantPath(org, id, `/runs/${encodeURIComponent(run)}/cancel`),
+      "POST",
+      {},
+    )
+  }
+  async assistantUpload(org: string, id: string, file: File) {
+    const body = new FormData()
+    body.append("file", file)
+    return (
+      await this.request<ApiResponse<import("./assistant").AssistantSource>>(
+        this.assistantPath(org, id, "/sources"),
+        { method: "POST", body },
+      )
+    ).data
+  }
+  assistantSourceUrl(org: string, id: string, source: string) {
+    return `${this.baseUrl}${this.assistantPath(org, id, `/sources/${encodeURIComponent(source)}`)}`
+  }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers)
@@ -837,7 +1274,7 @@ export class ApiClient {
       }
     }
 
-    if (init.body) {
+    if (init.body && !(init.body instanceof FormData)) {
       headers.set("Content-Type", "application/json")
     }
 

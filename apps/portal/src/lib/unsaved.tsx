@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react"
 import { useBlocker } from "react-router-dom"
+import { Button } from "@iot-os/ui/components/button"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -21,15 +22,27 @@ import {
 const DirtyContext = createContext({
   dirty: false,
   setDirty: (_dirty: boolean) => {},
+  setSaveHandler: (_save?: () => Promise<boolean>) => {},
 })
 export function UnsavedProvider({ children }: { children: ReactNode }) {
   const [dirty, updateDirty] = useState(false)
   const dirtyRef = useRef(false)
+  const saveRef = useRef<(() => Promise<boolean>) | undefined>(undefined)
+  const [saving, setSaving] = useState(false)
+  const [saveFailed, setSaveFailed] = useState(false)
+  const setSaveHandler = useCallback((save?: () => Promise<boolean>) => {
+    saveRef.current = save
+  }, [])
   const setDirty = useCallback((value: boolean) => {
     dirtyRef.current = value
     updateDirty(value)
   }, [])
-  const blocker = useBlocker(() => dirtyRef.current)
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      dirtyRef.current &&
+      (currentLocation.pathname !== nextLocation.pathname ||
+        !currentLocation.pathname.includes("/dashboards/")),
+  )
   useEffect(() => {
     if (!dirty) return
     const warn = (event: BeforeUnloadEvent) => {
@@ -40,7 +53,7 @@ export function UnsavedProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("beforeunload", warn)
   }, [dirty])
   return (
-    <DirtyContext.Provider value={{ dirty, setDirty }}>
+    <DirtyContext.Provider value={{ dirty, setDirty, setSaveHandler }}>
       {children}
       <AlertDialog open={blocker.state === "blocked"}>
         <AlertDialogContent>
@@ -51,11 +64,24 @@ export function UnsavedProvider({ children }: { children: ReactNode }) {
               them to continue.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {saveFailed && (
+            <p role="alert" className="text-sm text-destructive">
+              Saving did not complete. Keep editing to review the error; your
+              draft is preserved.
+            </p>
+          )}
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => blocker.reset?.()}>
+            <AlertDialogCancel
+              disabled={saving}
+              onClick={() => {
+                setSaveFailed(false)
+                blocker.reset?.()
+              }}
+            >
               Keep editing
             </AlertDialogCancel>
             <AlertDialogAction
+              disabled={saving}
               onClick={() => {
                 setDirty(false)
                 blocker.proceed?.()
@@ -63,14 +89,39 @@ export function UnsavedProvider({ children }: { children: ReactNode }) {
             >
               Discard and leave
             </AlertDialogAction>
+            {saveRef.current && (
+              <Button
+                disabled={saving}
+                onClick={async () => {
+                  setSaving(true)
+                  setSaveFailed(false)
+                  try {
+                    if (await saveRef.current?.()) {
+                      setDirty(false)
+                      blocker.proceed?.()
+                    } else setSaveFailed(true)
+                  } catch {
+                    setSaveFailed(true)
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+              >
+                {saving ? "Saving…" : "Save and leave"}
+              </Button>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </DirtyContext.Provider>
   )
 }
-export function useUnsaved(dirty: boolean) {
-  const { setDirty } = useContext(DirtyContext)
+export function useUnsaved(dirty: boolean, save?: () => Promise<boolean>) {
+  const { setDirty, setSaveHandler } = useContext(DirtyContext)
+  useEffect(() => {
+    setSaveHandler(save)
+    return () => setSaveHandler(undefined)
+  }, [save, setSaveHandler])
   useEffect(() => {
     setDirty(dirty)
     return () => setDirty(false)

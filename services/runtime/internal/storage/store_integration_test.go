@@ -39,13 +39,14 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 	parameter := UUID()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	reading := devices.Reading{ParameterUUID: parameter, DataType: "number", Value: 230, Quality: "good", ObservedAt: now, ReceivedAt: now}
-	packet := devices.Telemetry{UUID: UUID(), Definition: d, SessionID: "first", Readings: []devices.Reading{reading}}
+	packet := devices.Telemetry{Generation: 1, UUID: UUID(), Definition: d, SessionID: "first", Readings: []devices.Reading{reading}}
 	must := func(e error) {
 		t.Helper()
 		if e != nil {
 			t.Fatal(e)
 		}
 	}
+	must(s.Apply(ctx, d, 1, "device.applied.v1"))
 	must(s.Persist(ctx, packet))
 	must(s.Persist(ctx, packet))
 	var count int
@@ -65,6 +66,9 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 	if len(latest) != 1 || latest[0].Quality != "invalid" || latest[0].Value != json.Number("230") {
 		t.Fatalf("last valid value not retained: %+v", latest)
 	}
+	if latest[0].LastValidReceivedAt == nil || !latest[0].LastValidReceivedAt.Equal(now) {
+		t.Fatalf("last valid receipt not retained: %+v", latest)
+	}
 	// A delayed older observation cannot replace a newer diagnostic or its last valid value.
 	must(s.Persist(ctx, packet))
 	latest, e = s.Latest(ctx, org, d.DeviceUUID, d.ConfigurationUUID)
@@ -82,6 +86,7 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 	foreign.UUID = UUID()
 	foreign.Definition.OrganizationUUID = other
 	foreign.Definition.DeviceUUID = UUID()
+	must(s.Apply(ctx, foreign.Definition, 1, "device.applied.v1"))
 	must(s.Persist(ctx, foreign))
 	// A bounded pass must report backlog, remain tenant scoped, and resume safely.
 	older := old

@@ -102,7 +102,7 @@ final class DeviceProfileStudioTest extends TestCase
         $source = $this->parameter();
         $target = $this->parameter('average', 'derived');
         $this->postJson($this->path('/validate'))->assertJsonPath('data.valid', false);
-        $this->putJson($this->path('/parameters/'.$target.'/calculation'), ['draft_revision' => $this->revision(), 'engine' => 'json_logic', 'expression' => ['+' => [['var' => 'missing'], 2]], 'inputs' => [['parameter_uuid' => $source, 'alias' => 'voltage']]])->assertOk();
+        $this->putJson($this->path('/parameters/'.$target.'/calculation'), ['draft_revision' => $this->revision(), 'engine' => 'json_logic', 'expression' => ['+' => [['var' => 'missing'], 2]], 'inputs' => [['parameter_uuid' => $source, 'alias' => 'voltage']]])->assertUnprocessable();
         $this->postJson($this->path('/publish'), ['draft_revision' => $this->revision()])->assertUnprocessable();
         $this->postJson($this->path('/preview'), ['kind' => 'calculation', 'draft_revision' => $this->revision(), 'inputs' => [['parameter_uuid' => $source, 'alias' => 'v']], 'expression' => ['fetch' => 'https://example.test'], 'samples' => ['v' => 1]])->assertOk()->assertJsonPath('data.diagnostics.0.code', 'calculation.unsupported_operator');
         $this->postJson($this->path('/preview'), ['kind' => 'calculation', 'draft_revision' => $this->revision(), 'inputs' => [['parameter_uuid' => $source, 'alias' => 'v']], 'expression' => ['/' => [1, 0]], 'samples' => ['v' => 1]])->assertOk()->assertJsonPath('data.diagnostics.0.code', 'preview.evaluation_failed');
@@ -164,5 +164,36 @@ final class DeviceProfileStudioTest extends TestCase
         foreach ($unrelated as $permission) {
             $this->assertTrue($role->fresh()->hasPermissionTo($permission));
         }
+    }
+
+    public function test_conversion_is_preserved_and_capability_changes_are_rejected(): void
+    {
+        $conversion = ['source_unit' => 'W', 'multiplier' => 0.001, 'offset' => 0];
+        $uuid = $this->postJson($this->path('/parameters'), ['key' => 'power', 'label' => 'Power', 'kind' => 'measurement', 'data_type' => 'number', 'unit' => 'kW', 'ingress_conversion' => $conversion, 'draft_revision' => $this->revision()])->assertCreated()->json('data.uuid');
+        $this->patchJson($this->path('/parameters/'.$uuid), ['label' => 'Stored power', 'draft_revision' => $this->revision()])->assertOk()->assertJsonPath('data.ingress_conversion.multiplier', 0.001);
+        foreach ([['kind' => 'derived'], ['accepts_command' => true], ['data_type' => 'string']] as $change) {
+            $this->patchJson($this->path('/parameters/'.$uuid), $change + ['draft_revision' => $this->revision()])->assertUnprocessable();
+        }
+        $this->postJson($this->path('/preview'), ['kind' => 'conversion', 'draft_revision' => $this->revision(), 'parameter' => ['kind' => 'measurement', 'data_type' => 'number', 'ingress_conversion' => $conversion, 'validation_logic' => null], 'value' => 1000])->assertOk()->assertJsonPath('data.valid', true)->assertJsonPath('data.result', 1);
+        $this->patchJson($this->path('/parameters/'.$uuid), ['ingress_conversion' => null, 'kind' => 'derived', 'draft_revision' => $this->revision()])->assertOk()->assertJsonPath('data.ingress_conversion', null);
+    }
+
+    public function test_new_output_and_formula_save_atomically_with_one_revision(): void
+    {
+        $source = $this->parameter('power');
+        $revision = $this->revision();
+        $payload = ['draft_revision' => $revision, 'output' => ['key' => 'power_kw', 'label' => 'Power kW', 'data_type' => 'number', 'unit' => 'kW'], 'engine' => 'json_logic', 'expression' => ['/' => [['var' => 'watts'], 1000]], 'inputs' => [['parameter_uuid' => $source, 'alias' => 'watts']]];
+        $this->postJson($this->path('/calculations'), array_replace($payload, ['expression' => ['eval' => 'bad']]))->assertUnprocessable();
+        $this->assertSame($revision, $this->revision());
+        $this->assertSame(1, $this->profile->parameters()->count());
+        $response = $this->postJson($this->path('/calculations'), $payload)->assertOk()->assertJsonPath('data.kind', 'derived')->assertJsonPath('data.calculation.inputs.0.parameter_uuid', $source);
+        $this->assertSame($revision + 1, $this->revision());
+        $this->postJson($this->path('/calculations'), $payload)->assertConflict();
+        $payload['draft_revision'] = $this->revision();
+        $this->postJson($this->path('/calculations'), $payload)->assertUnprocessable();
+        $this->assertSame(2, $this->profile->parameters()->count());
+        $target = $response->json('data.uuid');
+        $this->putJson($this->path('/parameters/'.$target.'/calculation'), ['draft_revision' => $this->revision(), 'engine' => 'json_logic', 'expression' => ['var' => 'self'], 'inputs' => [['parameter_uuid' => $target, 'alias' => 'self']]])->assertUnprocessable();
+        $this->assertSame($revision + 1, $this->revision());
     }
 }

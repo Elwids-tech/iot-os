@@ -28,6 +28,7 @@ final class ProfileDefinitionCompiler
             ->map(fn (ProfileParameter $parameter): array => [
                 'accepts_command' => $parameter->accepts_command,
                 'counter' => $parameter->counter_config,
+                'ingress_conversion' => $parameter->ingress_conversion,
                 'data_type' => $parameter->data_type->value,
                 'display' => $parameter->display_config,
                 'format' => $parameter->format,
@@ -88,7 +89,7 @@ final class ProfileDefinitionCompiler
                 'uuid' => $profile->uuid,
             ],
             'parameters' => $parameters,
-            'schema_version' => 'device-profile.v1',
+            'schema_version' => 'device-profile.v2',
         ];
         foreach ($definition as $section => $value) {
             $definition[$section] = $this->canonicalJson->normalize($value);

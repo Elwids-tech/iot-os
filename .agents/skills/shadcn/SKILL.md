@@ -7,6 +7,19 @@ allowed-tools: Bash(npx shadcn@latest *), Bash(pnpm dlx shadcn@latest *), Bash(b
 
 # shadcn/ui
 
+## IoT platform completion requirement
+
+After changing components or their consumers in this repository, follow
+[local-container-verification](../local-container-verification/SKILL.md):
+rebuild the affected containers and verify the served UI before reporting
+completion. Shared UI changes require rebuilding both portal and administration.
+Repeat this after subsequent fixes and preserve unsaved browser edits.
+
+For searching options within a selection field, use the shared
+`@iot-os/ui/components/searchable-select` component. Keep search and result
+pagination inside the dropdown. Use standalone search fields for filtering
+directories or tables.
+
 A framework for building ui, components and design systems. Components are added as source code to the user's project via the CLI.
 
 > **IMPORTANT:** Run all CLI commands using the project's package runner: `npx shadcn@latest`, `pnpm dlx shadcn@latest`, or `bunx --bun shadcn@latest` — based on the project's `packageManager`. Examples below use `npx shadcn@latest` but substitute the correct runner for the project.

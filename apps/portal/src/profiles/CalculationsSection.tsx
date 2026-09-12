@@ -70,17 +70,12 @@ export function CalculationsSection() {
           <div>
             <CardTitle>Derived calculations</CardTitle>
             <CardDescription>
-              Pure formulas using current values from this profile. No network,
-              history, or device actions.
+              To change the units of an incoming measurement, configure its
+              incoming conversion. To create another value, add a calculation.
             </CardDescription>
           </div>
           {canEdit && (
-            <Button
-              disabled={
-                studio.busy || !derived.some((item) => !item.calculation)
-              }
-              onClick={() => setEditing("new")}
-            >
+            <Button disabled={studio.busy} onClick={() => setEditing("new")}>
               <PlusIcon data-icon="inline-start" />
               Add calculation
             </Button>
@@ -91,10 +86,9 @@ export function CalculationsSection() {
         {!derived.length && (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>Add a derived parameter first</EmptyTitle>
+              <EmptyTitle>Create a calculated output</EmptyTitle>
               <EmptyDescription>
-                In Parameters, add a value with the Derived kind. Then choose
-                the inputs and formula here.
+                Add calculation creates an output and its formula together.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -334,6 +328,12 @@ function CalculationEditor({
   const form = useForm({
     defaultValues: {
       target: target?.uuid ?? candidates[0]?.uuid ?? "",
+      output_mode: target ? "existing" : "new",
+      output_key: "",
+      output_label: "",
+      output_data_type: "number" as "number" | "integer",
+      output_unit: "",
+      output_group: "",
       inputs: target?.calculation?.inputs ?? [],
       expression: jsonText(target?.calculation?.expression ?? { "+": [0, 0] }),
     },
@@ -373,7 +373,7 @@ function CalculationEditor({
   return (
     <EditorSheet
       title={target?.calculation ? "Edit calculation" : "Configure calculation"}
-      description="Choose a derived output, name its inputs, then build a formula. Published revisions remain unchanged."
+      description="Create an output or choose an existing derived parameter, then define its inputs and formula. Published revisions remain unchanged."
       dirty={dirty}
       busy={form.formState.isSubmitting}
       onClose={onClose}
@@ -384,19 +384,39 @@ function CalculationEditor({
           try {
             setError(null)
             await studio.perform(() =>
-              api.saveProfileCalculation(
-                studio.org,
-                studio.profile.uuid,
-                input.target,
-                {
-                  engine: "json_logic",
-                  expression: parseObject(input.expression, false)!,
-                  inputs: input.inputs,
-                  trigger: "on_input_change",
-                  failure_policy: "mark_invalid",
-                  draft_revision: revision,
-                },
-              ),
+              input.output_mode === "new"
+                ? api.createProfileCalculation(
+                    studio.org,
+                    studio.profile.uuid,
+                    {
+                      engine: "json_logic",
+                      expression: parseObject(input.expression, false)!,
+                      inputs: input.inputs,
+                      trigger: "on_input_change",
+                      failure_policy: "mark_invalid",
+                      draft_revision: revision,
+                      output: {
+                        key: input.output_key,
+                        label: input.output_label,
+                        data_type: input.output_data_type,
+                        unit: input.output_unit || null,
+                        parameter_group_uuid: input.output_group || null,
+                      },
+                    },
+                  )
+                : api.saveProfileCalculation(
+                    studio.org,
+                    studio.profile.uuid,
+                    input.target,
+                    {
+                      engine: "json_logic",
+                      expression: parseObject(input.expression, false)!,
+                      inputs: input.inputs,
+                      trigger: "on_input_change",
+                      failure_policy: "mark_invalid",
+                      draft_revision: revision,
+                    },
+                  ),
             )
             onClose()
           } catch (reason) {
@@ -406,18 +426,93 @@ function CalculationEditor({
       >
         <div className="flex-1 overflow-y-auto p-6">
           <FieldGroup>
-            <Choice
-              label="Derived output parameter"
-              value={values.target}
-              disabled={disabled || Boolean(target?.calculation)}
-              options={candidates.map((item) => ({
-                value: item.uuid,
-                label: item.label,
-              }))}
-              onChange={(value) =>
-                form.setValue("target", value, { shouldDirty: true })
-              }
-            />
+            {!target && (
+              <Choice
+                label="Output"
+                value={values.output_mode}
+                disabled={disabled}
+                options={[
+                  { value: "new", label: "Create new output" },
+                  ...(candidates.length
+                    ? [
+                        {
+                          value: "existing",
+                          label: "Use existing derived parameter",
+                        },
+                      ]
+                    : []),
+                ]}
+                onChange={(v) =>
+                  form.setValue("output_mode", v, { shouldDirty: true })
+                }
+              />
+            )}
+            {values.output_mode === "new" ? (
+              <FieldGroup>
+                <TextField
+                  label="Output label"
+                  required
+                  disabled={disabled}
+                  {...form.register("output_label")}
+                />
+                <TextField
+                  label="Output key"
+                  required
+                  disabled={disabled}
+                  pattern="[a-zA-Z][a-zA-Z0-9._-]*"
+                  {...form.register("output_key")}
+                />
+                <Choice
+                  label="Output numeric type"
+                  value={values.output_data_type}
+                  disabled={disabled}
+                  options={[
+                    { value: "number", label: "Number" },
+                    { value: "integer", label: "Integer" },
+                  ]}
+                  onChange={(v) =>
+                    form.setValue(
+                      "output_data_type",
+                      v as "number" | "integer",
+                      { shouldDirty: true },
+                    )
+                  }
+                />
+                <TextField
+                  label="Output unit"
+                  disabled={disabled}
+                  {...form.register("output_unit")}
+                />
+                <Choice
+                  label="Output group"
+                  value={values.output_group}
+                  disabled={disabled}
+                  options={[
+                    { value: "", label: "No group" },
+                    ...studio.profile.parameter_groups.map((g) => ({
+                      value: g.uuid,
+                      label: g.label,
+                    })),
+                  ]}
+                  onChange={(v) =>
+                    form.setValue("output_group", v, { shouldDirty: true })
+                  }
+                />
+              </FieldGroup>
+            ) : (
+              <Choice
+                label="Derived output parameter"
+                value={values.target}
+                disabled={disabled || Boolean(target?.calculation)}
+                options={candidates.map((item) => ({
+                  value: item.uuid,
+                  label: item.label,
+                }))}
+                onChange={(value) =>
+                  form.setValue("target", value, { shouldDirty: true })
+                }
+              />
+            )}
             {values.inputs.map((input, index) => (
               <FieldGroup key={index} className="rounded-lg border p-3">
                 <Choice
@@ -427,7 +522,11 @@ function CalculationEditor({
                   options={[
                     { value: "", label: "Choose parameter" },
                     ...studio.profile.parameters
-                      .filter((item) => item.uuid !== values.target)
+                      .filter(
+                        (item) =>
+                          values.output_mode === "new" ||
+                          item.uuid !== values.target,
+                      )
                       .map((item) => ({
                         value: item.uuid,
                         label: item.label + " · " + item.key,
@@ -566,6 +665,12 @@ function CalculationEditor({
                     studio.profile.uuid,
                     {
                       kind: "calculation",
+                      output_data_type:
+                        values.output_mode === "new"
+                          ? values.output_data_type
+                          : studio.profile.parameters.find(
+                              (p) => p.uuid === values.target,
+                            )?.data_type,
                       draft_revision: revision,
                       expression: parseObject(values.expression, false)!,
                       inputs: values.inputs,
@@ -625,7 +730,11 @@ function CalculationEditor({
         <SaveBar
           dirty={dirty}
           busy={form.formState.isSubmitting || studio.busy}
-          disabled={disabled || !values.inputs.length || !values.target}
+          disabled={
+            disabled ||
+            !values.inputs.length ||
+            (values.output_mode === "existing" && !values.target)
+          }
           onCancel={onClose}
           label="Save calculation"
         />

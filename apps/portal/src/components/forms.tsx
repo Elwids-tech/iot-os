@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useRef,
   useState,
   type ComponentProps,
   type ReactNode,
@@ -179,7 +180,7 @@ export function SaveBar({
   label?: string
 }) {
   return (
-    <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4">
+    <div className="sticky bottom-0 flex w-full flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4">
       <span className="text-xs text-muted-foreground" role="status">
         {busy ? "Saving…" : dirty ? "Unsaved changes" : "No unsaved changes"}
       </span>
@@ -220,6 +221,7 @@ export function Confirm({
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const returnFocus = useRef<HTMLElement | null>(null)
   return (
     <AlertDialog
       open={open}
@@ -230,7 +232,23 @@ export function Confirm({
         }
       }}
     >
-      <AlertDialogContent>
+      <AlertDialogContent
+        onOpenAutoFocus={() => {
+          returnFocus.current =
+            document.activeElement instanceof HTMLElement
+              ? document.activeElement
+              : null
+        }}
+        onCloseAutoFocus={(event) => {
+          if (
+            returnFocus.current?.isConnected &&
+            !returnFocus.current.matches(":disabled")
+          ) {
+            event.preventDefault()
+            returnFocus.current.focus()
+          }
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>

@@ -69,6 +69,9 @@ func targetEqual(datatype string, actual, target any) bool {
 	return devices.Equal(actual, target)
 }
 func (a *Application) dispatch(c devices.Command) error {
+	unlock := a.lockDevice(c.DeviceUUID)
+	defer unlock()
+
 	claimed, e := a.Store.ClaimCommand(a.ctx, c)
 	if e != nil {
 		return e
@@ -77,6 +80,13 @@ func (a *Application) dispatch(c devices.Command) error {
 		return nil
 	}
 	fail := func(status, reason string) error { return a.Store.CommandStatus(a.ctx, c, status, reason, nil) }
+	a.mu.Lock()
+	generation := a.generations[c.DeviceUUID]
+	_, enabled := a.definitions[c.DeviceUUID]
+	a.mu.Unlock()
+	if !enabled || c.Generation != generation {
+		return fail("cancelled", "Command belongs to an inactive or superseded device generation.")
+	}
 	if !c.ExpiresAt.After(time.Now()) {
 		return fail("timed_out", "The command expired before dispatch.")
 	}

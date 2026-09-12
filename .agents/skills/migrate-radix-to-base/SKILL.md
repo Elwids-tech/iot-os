@@ -5,6 +5,12 @@ description: Migrates React projects and components from Radix UI to Base UI. Us
 
 # Radix UI -> Base UI migration
 
+For migrations in this IoT platform repository, finish with
+[local-container-verification](../local-container-verification/SKILL.md).
+Rebuild the affected local containers after the final changes and verify the
+served UI; shared component migrations require both portal and administration.
+Preserve unsaved browser edits during verification.
+
 You migrate shadcn wrappers, hand-rolled radix compositions, and their
 consumers to `@base-ui/react`, keeping the project buildable at every step.
 Be precise; never guess a mapping. When a prop or part is not in these

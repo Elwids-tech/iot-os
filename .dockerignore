@@ -14,6 +14,7 @@ coverage
 **/.env
 apps/api/database/database.sqlite
 apps/api/storage/logs/*
+apps/api/storage/app/private/**
 apps/api/storage/framework/sessions/*
 apps/api/storage/framework/cache/*
 apps/api/storage/framework/views/*

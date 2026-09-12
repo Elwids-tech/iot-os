@@ -31,6 +31,10 @@ import { useStudio } from "./use-studio"
 import { jsonText, objectValue, updateConfig } from "./authoring"
 import { ValidationControls, ParameterPreview } from "./ValidationControls"
 import { PresentationOptions } from "./PresentationOptions"
+import {
+  IncomingConversionFields,
+  conversionEligible,
+} from "./IncomingConversionFields"
 import { ConflictReview } from "./ConflictReview"
 export function ParameterEditor({
   parameter,
@@ -63,6 +67,7 @@ export function ParameterEditor({
       display_config: jsonText(parameter?.display_config),
       reporting_config: jsonText(parameter?.reporting_config),
       counter_config: jsonText(parameter?.counter_config),
+      ingress_conversion: parameter?.ingress_conversion ?? null,
     },
   })
   const values = form.watch(),
@@ -251,11 +256,40 @@ export function ParameterEditor({
                   />
                 </FieldGroup>
                 <TextField
-                  label="Engineering unit"
+                  label="Stored unit"
                   placeholder="V, °C, kWh…"
                   disabled={disabled}
                   {...form.register("unit")}
                 />
+                {(conversionEligible(values) || values.ingress_conversion) && (
+                  <IncomingConversionFields
+                    value={values.ingress_conversion}
+                    onChange={(value) => set("ingress_conversion", value)}
+                    storedUnit={values.unit}
+                    dataType={values.data_type}
+                    eligible={conversionEligible(values)}
+                    disabled={disabled}
+                    onPreset={() => set("unit", "kW")}
+                    onValidate={
+                      studio.capabilities.validate
+                        ? (sample) =>
+                            api.previewDeviceProfile(studio.org, profile.uuid, {
+                              kind: "conversion",
+                              draft_revision: revision,
+                              parameter: {
+                                ...previewParameter!,
+                                kind: values.kind,
+                                reports_state: values.reports_state,
+                                accepts_command: values.accepts_command,
+                                counter_config: counter,
+                                ingress_conversion: values.ingress_conversion,
+                              },
+                              value: sample,
+                            })
+                        : undefined
+                    }
+                  />
+                )}
                 <TextField
                   label="Semantic format"
                   placeholder="Optional, e.g. hex_color"

@@ -1,6 +1,6 @@
 # Development Compose Profile
 
-For the opt-in Sparkplug B device runtime on the existing EMQX service, see [Devices v1 setup and recovery](../../docs/devices-v1.md). `compose.devices.yml` adds TLS, scoped broker access, and a private runtime; `compose.devices-test.yml` is the separate disposable integration environment. Run `./taskw devices:setup`, then `./taskw devices:config` to validate the overlay before opting in with `./taskw devices:up`. Existing databases also need the additive permission seeder documented in the guide. The runtime container build remains unverified locally because its base-image registry timed out; the native runtime passed simulator acceptance.
+For the opt-in Sparkplug B device runtime on the existing EMQX service, see [Devices v1 setup and recovery](../../docs/devices-v1.md). `compose.devices.yml` adds TLS, scoped broker access, and a private runtime; `compose.devices-test.yml` is the separate disposable integration environment. Run `./taskw devices:setup`, then `./taskw devices:config` to validate the overlay before opting in with `./taskw devices:up`. Existing databases also need the additive permission seeder documented in the guide. The runtime container built and started successfully on 2026-09-07; see the D1 simulator guide for the local walkthrough.
 
 The development profile starts the shared dependencies required by the platform workspaces:
 

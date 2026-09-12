@@ -16,11 +16,13 @@ type Source struct {
 func (s Source) Key() string { return s.ConnectionUUID + "/" + s.EdgeNodeID + "/" + s.DeviceID }
 
 type Mapping struct {
-	ParameterUUID   string  `json:"parameter_uuid"`
-	Metric          string  `json:"metric"`
-	Datatype        string  `json:"datatype"`
-	CommandMetric   *string `json:"command_metric"`
-	CommandDatatype *string `json:"command_datatype"`
+	ConversionMode    string      `json:"conversion_mode,omitempty"`
+	IngressConversion *Conversion `json:"ingress_conversion,omitempty"`
+	ParameterUUID     string      `json:"parameter_uuid"`
+	Metric            string      `json:"metric"`
+	Datatype          string      `json:"datatype"`
+	CommandMetric     *string     `json:"command_metric"`
+	CommandDatatype   *string     `json:"command_datatype"`
 }
 type Definition struct {
 	SchemaVersion        string    `json:"schema_version"`
@@ -35,16 +37,17 @@ type Definition struct {
 	Mappings             []Mapping `json:"mappings"`
 }
 type Parameter struct {
-	UUID           string  `json:"uuid"`
-	Key            string  `json:"key"`
-	Label          string  `json:"label"`
-	Kind           string  `json:"kind"`
-	DataType       string  `json:"data_type"`
-	Unit           *string `json:"unit"`
-	Format         *string `json:"format"`
-	ReportsState   bool    `json:"reports_state"`
-	AcceptsCommand bool    `json:"accepts_command"`
-	Validation     *struct {
+	IngressConversion *Conversion `json:"ingress_conversion,omitempty"`
+	UUID              string      `json:"uuid"`
+	Key               string      `json:"key"`
+	Label             string      `json:"label"`
+	Kind              string      `json:"kind"`
+	DataType          string      `json:"data_type"`
+	Unit              *string     `json:"unit"`
+	Format            *string     `json:"format"`
+	ReportsState      bool        `json:"reports_state"`
+	AcceptsCommand    bool        `json:"accepts_command"`
+	Validation        *struct {
 		Rule    any    `json:"rule"`
 		Message string `json:"message"`
 	} `json:"validation"`
@@ -81,17 +84,18 @@ type Metric struct {
 	Diagnostic string     `json:"diagnostic,omitempty"`
 }
 type Reading struct {
-	ParameterUUID string    `json:"parameter_uuid"`
-	Key           string    `json:"key"`
-	Label         string    `json:"label"`
-	DataType      string    `json:"data_type"`
-	Unit          *string   `json:"unit"`
-	Value         any       `json:"value"`
-	Quality       string    `json:"quality"`
-	Diagnostic    string    `json:"diagnostic,omitempty"`
-	ObservedAt    time.Time `json:"observed_at"`
-	ReceivedAt    time.Time `json:"received_at"`
-	Historical    bool      `json:"historical"`
+	ParameterUUID       string     `json:"parameter_uuid"`
+	Key                 string     `json:"key"`
+	Label               string     `json:"label"`
+	DataType            string     `json:"data_type"`
+	Unit                *string    `json:"unit"`
+	Value               any        `json:"value"`
+	Quality             string     `json:"quality"`
+	Diagnostic          string     `json:"diagnostic,omitempty"`
+	ObservedAt          time.Time  `json:"observed_at"`
+	ReceivedAt          time.Time  `json:"received_at"`
+	LastValidReceivedAt *time.Time `json:"last_valid_received_at,omitempty"`
+	Historical          bool       `json:"historical"`
 }
 type Event struct {
 	UUID       string          `json:"uuid"`
@@ -109,6 +113,7 @@ type Connection struct {
 	BrokerURL        string `json:"broker_url"`
 }
 type DeviceState struct {
+	OperationUUID    string      `json:"operation_uuid"`
 	UUID             string      `json:"uuid"`
 	OrganizationUUID string      `json:"organization_uuid"`
 	Generation       int         `json:"generation"`
@@ -128,12 +133,14 @@ type ControlState struct {
 	Retention   []Retention   `json:"retention"`
 }
 type Telemetry struct {
+	Generation int        `json:"generation"`
 	UUID       string     `json:"uuid"`
 	Definition Definition `json:"definition"`
 	SessionID  string     `json:"session_id"`
 	Readings   []Reading  `json:"readings"`
 }
 type Command struct {
+	Generation        int       `json:"generation"`
 	UUID              string    `json:"command_uuid"`
 	OrganizationUUID  string    `json:"organization_uuid"`
 	DeviceUUID        string    `json:"device_uuid"`

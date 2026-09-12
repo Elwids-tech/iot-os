@@ -1,6 +1,6 @@
 # Devices v1 — accepted delivery plan
 
-Status: implemented; local simulator acceptance passed on 2026-09-06. Accepted in the Devices planning conversation on 2026-09-05. Runtime container packaging remains unverified after registry timeouts; hardware and production verification remain separate.
+Status: implemented; local simulator acceptance passed on 2026-09-06. Accepted in the Devices planning conversation on 2026-09-05. Runtime container packaging and local startup were verified on 2026-09-07; hardware and production verification remain separate.
 
 ## Outcome
 
@@ -27,4 +27,9 @@ An organization can register or discover devices, select an immutable published 
 5. Control: preparation, confirmation, dispatch, observed-state verification and audit.
 6. Verification: isolated API, Go, cross-language, integration and browser checks; recovery documentation.
 
-All six stages passed local simulator acceptance. Setup, recovery, test evidence, and the outstanding container-build limitation are recorded in the [Devices v1 guide](../../docs/devices-v1.md). Hardware and production verification are not implied.
+All six stages passed local simulator acceptance. Setup, recovery, test evidence, and operating limits are recorded in the [Devices v1 guide](../../docs/devices-v1.md). Hardware and production verification are not implied.
+
+
+### Lifecycle follow-up (2026-09-07)
+
+Implemented durable, generation-correlated lifecycle operations and retained working configuration recovery. The shared confirmation action reconciles backend acknowledgements automatically, preserves unsaved edits, and remains disabled during delayed or uncertain delivery. Runtime gates, caches, command outcomes, and restart recovery are fenced against stale work. See the lifecycle contract and local verification instructions in [Devices v1](../../docs/devices-v1.md#confirmed-device-lifecycle).

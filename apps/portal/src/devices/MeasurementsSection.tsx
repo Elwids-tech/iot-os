@@ -70,10 +70,11 @@ export function MeasurementsSection({
       "device-latest",
       org,
       device.uuid,
-      device.applied_configuration_uuid,
+      device.applied_configuration_uuid ?? device.last_applied_configuration_uuid,
+      device.lifecycle,
     ],
     queryFn: () => api.deviceLatest(org, device.uuid),
-    enabled: Boolean(device.applied_configuration_uuid),
+    enabled: Boolean(device.applied_configuration_uuid || device.last_applied_configuration_uuid),
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
   })
@@ -82,13 +83,13 @@ export function MeasurementsSection({
       <CardHeader>
         <CardTitle>Latest measurements</CardTitle>
         <CardDescription>
-          Updates every five seconds while this page is visible. Invalid
+          {device.lifecycle === "deactivated" ? "Ingestion is disabled. These are retained readings from the last working configuration. " : "Updates every five seconds while this page is visible. "}Invalid
           readings preserve the last valid value and show their current quality.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <RequestError error={query.error} />
-        {!device.applied_configuration_uuid ? (
+        {!device.applied_configuration_uuid && !device.last_applied_configuration_uuid ? (
           <DeviceEmpty
             title="Configure and activate this device"
             description="Measurements appear after the runtime applies a reviewed configuration and receives data."

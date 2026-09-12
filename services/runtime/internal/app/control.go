@@ -89,14 +89,21 @@ func (a *Application) relay(ctx context.Context) {
 				continue
 			}
 			for _, ev := range events {
+				var identity struct {
+					DeviceUUID string `json:"device_uuid"`
+				}
+				_ = storage.Decode(ev.Payload, &identity)
+				unlock := a.lockDevice(identity.DeviceUUID)
 				raw, _ := json.Marshal(ev)
 				m := nats.NewMsg("iot.runtime." + ev.Type)
 				m.Data = raw
 				m.Header.Set(nats.MsgIdHdr, ev.UUID)
 				if _, e = a.JS.PublishMsg(m); e != nil {
 					a.Logger.Warn("runtime event publication failed", "error", e)
+					unlock()
 					break
 				}
+				unlock()
 				if e = a.Store.Ack(ctx, ev.UUID); e != nil {
 					a.Logger.Warn("runtime outbox acknowledgement failed", "error", e)
 				}
@@ -145,6 +152,15 @@ func (a *Application) subscribe() error {
 			var telemetry devices.Telemetry
 			if e := storage.Decode(m.Data, &telemetry); e != nil {
 				return e
+			}
+			unlock := a.lockDevice(telemetry.Definition.DeviceUUID)
+			defer unlock()
+			a.mu.Lock()
+			definition, enabled := a.definitions[telemetry.Definition.DeviceUUID]
+			generation := a.generations[telemetry.Definition.DeviceUUID]
+			a.mu.Unlock()
+			if !enabled || telemetry.Generation != generation || definition.ConfigurationUUID != telemetry.Definition.ConfigurationUUID {
+				return nil
 			}
 			if e := a.Store.Persist(a.ctx, telemetry); e != nil {
 				return e

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Devices\Services;
 
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
+use App\Domain\DeviceProfiles\Services\IngressConversion;
 use App\Domain\DeviceProfiles\Support\CanonicalJson;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DiscoveryCandidate;
@@ -82,11 +83,15 @@ final class DeviceConfigurationService
                 $errors["mappings.$i"] = 'Each parameter can have only one input mapping.';
             }
             $used[$parameter['uuid']] = true;
+            $conversion = app(IngressConversion::class)->resolve($parameter, $mapping, "mappings.$i");
             $allowed = match ($parameter['data_type']) {
                 'boolean' => ['Boolean'], 'integer' => ['Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64'],
                 'number' => ['Float', 'Double', 'Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64'],
                 'string' => ['String', 'Text', 'UUID'], 'timestamp' => ['DateTime'], 'bytes' => ['Bytes'], default => [],
             };
+            if ($conversion['ingress_conversion'] !== null && $parameter['data_type'] === 'integer') {
+                $allowed = [...$allowed, 'Float', 'Double'];
+            }
             if (! in_array($metric['datatype'], $allowed, true)) {
                 $errors["mappings.$i"] = 'The source datatype is incompatible with this profile parameter.';
             }
@@ -94,7 +99,7 @@ final class DeviceConfigurationService
             if ($commandMetric && (! $parameter['accepts_command'] || ! isset($metrics[$commandMetric]) || ! in_array($metrics[$commandMetric]['datatype'], $allowed, true))) {
                 $errors["mappings.$i.command_metric"] = 'Commands require a writable profile parameter and a compatible discovered target metric.';
             }
-            $mappings[] = ['parameter_uuid' => $parameter['uuid'], 'metric' => $metric['name'], 'datatype' => $metric['datatype'],
+            $mappings[] = $conversion + ['parameter_uuid' => $parameter['uuid'], 'metric' => $metric['name'], 'datatype' => $metric['datatype'],
                 'command_metric' => $commandMetric, 'command_datatype' => $commandMetric ? $metrics[$commandMetric]['datatype'] : null];
         }
         foreach ($parameters as $parameter) {
@@ -108,7 +113,7 @@ final class DeviceConfigurationService
         $gateway = $candidate->gateway;
 
         return [
-            'schema_version' => 'device-configuration.v1', 'device_uuid' => $device->uuid,
+            'schema_version' => 'device-configuration.v2', 'device_uuid' => $device->uuid,
             'organization_uuid' => $device->organization->uuid, 'profile_artifact_uuid' => $artifact->uuid,
             'profile_hash' => $artifact->definition_hash, 'profile_canonical_json' => $this->canonical->encode($artifact->definition),
             'source' => ['connection_uuid' => $gateway->connection->uuid, 'candidate_uuid' => $candidate->uuid,
@@ -151,11 +156,12 @@ final class DeviceConfigurationService
                 'created_by' => $actor, 'created_at' => now(),
             ]);
             $locked->forceFill(['desired_configuration_uuid' => $uuid, 'deployment_status' => 'pending',
-                'deployment_generation' => $locked->deployment_generation + 1, 'draft_revision' => $locked->draft_revision + 1,
+                'state_revision' => $locked->state_revision + 1, 'deployment_generation' => $locked->deployment_generation + 1, 'draft_revision' => $locked->draft_revision + 1,
                 'diagnostic' => null, 'updated_by' => $actor])->save();
+            $operation = DeviceLifecycleService::record($locked, $rollback ? 'rollback' : 'configure', $actor);
             $locked->candidate->update(['status' => 'approved']);
             DeviceAudit::enqueue('device.activate.v1', ['organization_uuid' => $locked->organization->uuid,
-                'device_uuid' => $locked->uuid, 'generation' => $locked->deployment_generation, 'definition' => $configuration->definition]);
+                'device_uuid' => $locked->uuid, 'generation' => $locked->deployment_generation, 'operation_uuid' => $operation->uuid, 'definition' => $configuration->definition]);
             DeviceAudit::record($rollback ? 'device.rollback.requested' : 'device.activation.requested', $locked->organization_id, $actor, $locked->uuid, ['configuration_uuid' => $uuid]);
 
             return $locked->fresh();
@@ -167,9 +173,10 @@ final class DeviceConfigurationService
         return $this->locked($device, $revision, function (Device $locked) use ($actor) {
             abort_if($locked->deployment_status === 'pending', 409, 'Wait for the pending deployment to finish.');
             $locked->forceFill(['desired_configuration_uuid' => null, 'deployment_status' => 'pending',
-                'deployment_generation' => $locked->deployment_generation + 1, 'draft_revision' => $locked->draft_revision + 1])->save();
+                'state_revision' => $locked->state_revision + 1, 'deployment_generation' => $locked->deployment_generation + 1, 'draft_revision' => $locked->draft_revision + 1])->save();
+            $operation = DeviceLifecycleService::record($locked, 'deactivate', $actor);
             DeviceAudit::enqueue('device.deactivate.v1', ['organization_uuid' => $locked->organization->uuid,
-                'device_uuid' => $locked->uuid, 'generation' => $locked->deployment_generation]);
+                'device_uuid' => $locked->uuid, 'generation' => $locked->deployment_generation, 'operation_uuid' => $operation->uuid]);
             DeviceAudit::record('device.deactivation.requested', $locked->organization_id, $actor, $locked->uuid);
 
             return $locked->fresh();

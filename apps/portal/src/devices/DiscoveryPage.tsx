@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import type { DiscoveryCandidate } from "@iot-os/api-client"
+import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Button } from "@iot-os/ui/components/button"
 import {
   Card,
@@ -28,7 +29,7 @@ import {
   TableRow,
 } from "@iot-os/ui/components/table"
 import { api } from "../lib/api"
-import { Choice, RequestError, Confirm, TextField } from "../components/forms"
+import { RequestError, Confirm, TextField } from "../components/forms"
 import {
   devicePath,
   DevicePages,
@@ -77,7 +78,7 @@ export function DiscoveryPage() {
           to a device.
         </p>
       </div>
-      <RequestError error={query.error} />
+      <RequestError error={query.error ?? devices.error} />
       <TextField
         label="Search discovered sources"
         value={search}
@@ -194,15 +195,18 @@ export function DiscoveryPage() {
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
-            <TextField
-              label="Find a registered device"
-              value={deviceSearch}
-              onChange={(e) => {
-                setDeviceSearch(e.target.value)
+            <SearchableSelect
+              search={deviceSearch}
+              onSearchChange={(value) => {
+                setDeviceSearch(value)
                 setAttachPage(1)
               }}
-            />
-            <Choice
+              loading={devices.isLoading}
+              page={attachPage}
+              hasNextPage={Boolean(
+                devices.data && attachPage < devices.data.meta.last_page,
+              )}
+              onPageChange={setAttachPage}
               label="Existing device"
               value={existing}
               onChange={setExisting}
@@ -218,11 +222,6 @@ export function DiscoveryPage() {
               ]}
             />
           </FieldGroup>
-          <DevicePages
-            meta={devices.data?.meta}
-            onPage={setAttachPage}
-            label="Registered devices"
-          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreate(true)}>
               Register new device

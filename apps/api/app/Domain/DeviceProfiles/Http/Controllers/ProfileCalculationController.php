@@ -9,14 +9,13 @@ use App\Domain\DeviceProfiles\Http\Requests\DeleteProfileCalculationRequest;
 use App\Domain\DeviceProfiles\Http\Requests\UpsertProfileCalculationRequest;
 use App\Domain\DeviceProfiles\Http\Resources\ProfileParameterResource;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
-use App\Domain\DeviceProfiles\Models\ProfileCalculation;
 use App\Domain\DeviceProfiles\Models\ProfileParameter;
 use App\Domain\DeviceProfiles\Permissions\DeviceProfilePermission;
+use App\Domain\DeviceProfiles\Services\CalculationAuthoring;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthoring;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Response;
-use Illuminate\Validation\ValidationException;
 
 final class ProfileCalculationController
 {
@@ -24,6 +23,17 @@ final class ProfileCalculationController
         private readonly DeviceProfileAuthorization $authorization,
         private readonly DeviceProfileAuthoring $authoring,
     ) {}
+
+    public function store(UpsertProfileCalculationRequest $request, Organization $organization, DeviceProfile $profile): ProfileParameterResource
+    {
+        $this->authorization->authorize($request->user(), DeviceProfilePermission::UPDATE);
+        abort_unless($profile->organization_id === $organization->id, 404);
+        $values = $request->validated();
+        $result = $this->authoring->mutate($profile, $request->user(), $values['draft_revision'],
+            fn (DeviceProfile $locked) => app(CalculationAuthoring::class)->save($locked, $values));
+
+        return ProfileParameterResource::make($result['result']);
+    }
 
     public function upsert(UpsertProfileCalculationRequest $request, Organization $organization, DeviceProfile $profile, ProfileParameter $parameter): ProfileParameterResource
     {
@@ -34,31 +44,8 @@ final class ProfileCalculationController
         $result = $this->authoring->mutate($profile, $request->user(), $validated['draft_revision'], function (DeviceProfile $locked) use ($parameter, $validated): ProfileParameter {
             /** @var ProfileParameter $target */
             $target = $locked->parameters()->whereKey($parameter->getKey())->firstOrFail();
-            $calculation = ProfileCalculation::query()->updateOrCreate(
-                ['target_profile_parameter_id' => $target->getKey()],
-                [
-                    'device_profile_id' => $locked->getKey(),
-                    'engine' => $validated['engine'],
-                    'expression' => $validated['expression'],
-                    'trigger' => $validated['trigger'] ?? 'on_input_change',
-                    'failure_policy' => $validated['failure_policy'] ?? 'mark_invalid',
-                ],
-            );
-            $calculation->inputs()->delete();
-            $parameters = $locked->parameters()->whereIn('uuid', array_column($validated['inputs'], 'parameter_uuid'))->get()->keyBy('uuid');
 
-            foreach ($validated['inputs'] as $input) {
-                $source = $parameters->get($input['parameter_uuid']);
-                if ($source === null) {
-                    throw ValidationException::withMessages(['inputs' => 'Every calculation input must belong to this profile.']);
-                }
-                $calculation->inputs()->create([
-                    'profile_parameter_id' => $source->getKey(),
-                    'alias' => $input['alias'],
-                ]);
-            }
-
-            return $target;
+            return app(CalculationAuthoring::class)->save($locked, $validated, $target);
         });
 
         return ProfileParameterResource::make($result['result']->fresh()->load('calculation.inputs.parameter'));
