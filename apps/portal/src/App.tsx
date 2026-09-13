@@ -509,7 +509,7 @@ function PortalShell({
               </Button>
             </div>
           </header>
-          <div className="mx-auto w-full max-w-[1344px] min-w-0 flex-1 p-4 md:p-8">
+          <div className="w-full min-w-0 flex-1 p-4 md:p-8">
             <RequestError error={logoutError} />
             {params.organizationUuid && !org ? (
               <Card>

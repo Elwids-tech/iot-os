@@ -131,13 +131,6 @@ export default function TimeSeriesPanel({
   const hasData = series.some((s) => s.points.some((p) => p.value !== null))
   return (
     <div className="flex h-full min-h-64 flex-col gap-3">
-      <p className="text-xs text-muted-foreground">
-        Bucket averages by platform receipt time ·{" "}
-        {view.timezone === "utc"
-          ? "UTC"
-          : Intl.DateTimeFormat().resolvedOptions().timeZone}{" "}
-        · Drag across the plot to zoom all charts
-      </p>
       {(clipped || incompatible) && (
         <Alert>
           <AlertDescription>

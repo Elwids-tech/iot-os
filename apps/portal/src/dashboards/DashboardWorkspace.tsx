@@ -447,16 +447,6 @@ export function DashboardWorkspace({
                         </span>
                       </span>
                     </CardTitle>
-                    {widget.description && (
-                      <CardDescription className="line-clamp-2">
-                        {widget.description}
-                      </CardDescription>
-                    )}
-                    <Badge variant="outline" className="mt-2">
-                      {widgetRegistry[widget.type].mode === "latest"
-                        ? "Latest"
-                        : "Time range"}
-                    </Badge>
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

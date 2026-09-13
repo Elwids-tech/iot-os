@@ -367,7 +367,9 @@ test("time travel changes chart queries, never latest values or saved defaults",
 }, info) => {
   const { dashboards, calls, errors } = await setup(page)
   await page.goto(basePath + "/first")
-  await expect(page.getByText(/Bucket averages/)).toBeVisible()
+  await expect(page.locator(".recharts-line-curve").first()).toBeVisible()
+  await expect(page.getByText("Latest", { exact: true })).toHaveCount(0)
+  await expect(page.getByText("Time range", { exact: true })).toHaveCount(0)
   await expect(page.getByText(/Last valid value received:/)).toBeVisible()
   const defaults = structuredClone(dashboards[0].defaults),
     latest = calls.latest
