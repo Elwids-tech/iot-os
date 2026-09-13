@@ -67,8 +67,17 @@ final class DashboardTest extends TestCase
     public function test_controls_resolve_applied_metadata_and_reject_read_only_sources(): void
     {
         $source = $this->source('%', 'integer', true);
-        $values = [...$this->emptyDashboard(), 'widgets' => [['id' => 'control', 'schema_version' => 2, 'type' => 'controls', 'title' => 'Controls', 'description' => '', 'config' => ['sources' => [$source]]]]];
-        $this->postJson($this->url, $values)->assertOk()->assertJsonPath('data.widgets.0.config.sources.0.data_type', 'integer')->assertJsonPath('data.widgets.0.config.sources.0.unit', '%')->assertJsonPath('data.widgets.0.config.sources.0.thresholds', []);
+        $values = [...$this->emptyDashboard(), 'widgets' => [['id' => 'control', 'schema_version' => 2, 'type' => 'controls', 'title' => 'Controls', 'description' => '', 'config' => ['sources' => [$source], 'columns' => 3]]]];
+        $this->postJson($this->url, $values)->assertOk()->assertJsonPath('data.widgets.0.config.columns', 3)->assertJsonPath('data.widgets.0.config.sources.0.data_type', 'integer')->assertJsonPath('data.widgets.0.config.sources.0.unit', '%')->assertJsonPath('data.widgets.0.config.sources.0.thresholds', []);
+        $values['widgets'][0]['config']['columns'] = 5;
+        $this->postJson($this->url, $values)->assertUnprocessable()->assertJsonValidationErrors('widgets.0.config.columns');
+        unset($values['widgets'][0]['config']['columns']);
+        $this->postJson($this->url, $values)->assertOk()->assertJsonMissingPath('data.widgets.0.config.columns');
+        $values['widgets'][0]['config']['columns'] = 'auto';
+        $values['widgets'][0]['type'] = 'status';
+        $this->postJson($this->url, $values)->assertUnprocessable()->assertJsonValidationErrors('widgets.0.config.columns');
+        $values['widgets'][0]['type'] = 'controls';
+        unset($values['widgets'][0]['config']['columns']);
         $values['widgets'][0]['config']['sources'] = [$this->source()];
         $this->postJson($this->url, $values)->assertUnprocessable();
         $device = Device::where('uuid', $source['device_uuid'])->firstOrFail();

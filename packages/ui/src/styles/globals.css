@@ -133,6 +133,70 @@
   transition: none;
 }
 
+.dashboard-grid .react-resizable-handle {
+  background-image: none;
+  opacity: 0.8;
+}
+
+.dashboard-grid .react-resizable-handle::after {
+  border: 0;
+  background: var(--muted-foreground);
+}
+
+.dashboard-grid .react-resizable-handle-s::after {
+  bottom: 3px;
+  left: 50%;
+  width: 2.5rem;
+  height: 3px;
+  transform: translateX(-50%);
+}
+
+.dashboard-grid .react-resizable-handle-e::after {
+  top: 50%;
+  right: 3px;
+  width: 3px;
+  height: 2.5rem;
+  transform: translateY(-50%);
+}
+
+.dashboard-grid .react-resizable-handle-se::after {
+  right: 4px;
+  bottom: 4px;
+  width: 10px;
+  height: 10px;
+  border-right: 3px solid var(--muted-foreground);
+  border-bottom: 3px solid var(--muted-foreground);
+  background: transparent;
+}
+
+.device-controls-container {
+  container-type: inline-size;
+}
+
+.device-controls-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+@container (min-width: 28rem) {
+  .device-controls-grid:is([data-columns="auto"], [data-columns="2"], [data-columns="3"], [data-columns="4"]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 44rem) {
+  .device-controls-grid:is([data-columns="auto"], [data-columns="3"], [data-columns="4"]) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 60rem) {
+  .device-controls-grid:is([data-columns="auto"], [data-columns="4"]) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .history-unknown {
   background-image: repeating-linear-gradient(
     135deg,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type {
+  DashboardControlColumns,
   DeviceDetail,
   DeviceCommand,
   Measurement,
@@ -8,7 +9,7 @@ import type {
 import { api } from "../lib/api"
 import { useUnsavedContribution } from "../lib/unsaved"
 import { RequestError } from "../components/forms"
-import { DeviceStatus, formatTime, formatValue } from "../devices/shared"
+import { formatValue } from "../devices/shared"
 import { ParameterControl } from "./ParameterControl"
 import {
   controlSpec,
@@ -33,12 +34,14 @@ export function DeviceControls({
   allowed,
   preview = false,
   sources,
+  columns,
 }: {
   org: string
   deviceUuid: string
   allowed: boolean
   preview?: boolean
   sources?: Array<{ parameter_uuid: string; label?: string }>
+  columns?: DashboardControlColumns
 }) {
   const cache = useQueryClient(),
     key = ["device-controls", org, deviceUuid]
@@ -66,6 +69,7 @@ export function DeviceControls({
   const selected =
     sources ??
     parameters.map((p) => ({ parameter_uuid: p.uuid, label: p.label }))
+  const resolvedColumns = columns ?? (sources ? 1 : "auto")
   const ready =
     allowed &&
     !preview &&
@@ -128,11 +132,8 @@ export function DeviceControls({
       {!selected.length && snapshot && (
         <p>No writable state parameters are configured.</p>
       )}
-      <div
-        className={
-          sources ? "flex flex-col gap-4" : "grid gap-4 md:grid-cols-2"
-        }
-      >
+      <div className="device-controls-container">
+        <div className="device-controls-grid" data-columns={resolvedColumns}>
         {selected.map((source) => {
           const parameter = parameters.find(
             (p) => p.uuid === source.parameter_uuid,
@@ -167,7 +168,7 @@ export function DeviceControls({
           return (
             <div
               key={parameter.uuid + device?.applied_configuration_uuid}
-              className="flex flex-col gap-2 rounded-lg border p-4"
+              className="flex min-w-0 flex-col gap-2 rounded-lg border p-3"
             >
               <ParameterControl
                 parameter={{
@@ -189,36 +190,39 @@ export function DeviceControls({
                   }))
                 }
               />
-              <p className="text-sm text-muted-foreground">
-                Reported: {reading ? formatValue(reading.value) : "No reading"}{" "}
-                {parameter.unit} ·{" "}
-                {reading
-                  ? formatTime(
-                      reading.last_valid_received_at ?? reading.received_at,
-                    )
-                  : "Waiting for device"}
-                {!fresh ? " · Stale or unavailable" : ""}
-              </p>
-              {command && (
-                <div
-                  role="status"
-                  className="flex flex-wrap items-center gap-2 text-sm"
-                >
-                  <DeviceStatus value={command.status} />
-                  {pending ? (
-                    <span>Requested: {formatValue(command.value)}</span>
-                  ) : (
-                    command.diagnostic && (
-                      <span className="text-muted-foreground">
-                        {command.diagnostic}
-                      </span>
-                    )
-                  )}
-                </div>
+              {ready && !fresh && (
+                <p role="status" className="text-sm text-warning">
+                  Latest state is stale. Control unavailable.
+                </p>
               )}
+              {pending && command && (
+                <p role="status" className="text-sm text-muted-foreground">
+                  Applying {formatValue(command.value)}…
+                </p>
+              )}
+              {command &&
+                ["failed", "timed_out", "uncertain"].includes(
+                  command.status,
+                ) && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {command.status === "timed_out"
+                      ? "Update timed out."
+                      : command.status === "uncertain"
+                        ? "Update could not be confirmed."
+                        : "Update failed."}{" "}
+                    {command.diagnostic}
+                  </p>
+                )}
+              {command &&
+                ["observed", "already_at_target"].includes(command.status) && (
+                  <span className="sr-only" role="status" aria-live="polite">
+                    {source.label || parameter.label} updated successfully.
+                  </span>
+                )}
             </div>
           )
         })}
+        </div>
       </div>
     </div>
   )

@@ -15,7 +15,11 @@ export type DashboardSource = {
   thresholds: DashboardThreshold[]
 }
 export type StatusWidgetSource = DashboardSource
-export type StatusWidgetConfig = { sources: DashboardSource[] }
+export type DashboardControlColumns = "auto" | 1 | 2 | 3 | 4
+export type StatusWidgetConfig = {
+  sources: DashboardSource[]
+  columns?: DashboardControlColumns
+}
 export type DashboardWidget = {
   id: string
   schema_version: 2

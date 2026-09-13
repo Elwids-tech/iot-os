@@ -189,16 +189,15 @@ test("direct controls preserve actual state, deduplicate edits, and receive loca
   const controls = await setup(page)
   await page.goto(`${path}/devices/${deviceId}/controls`)
   await page.getByRole("switch", { name: "Power" }).click()
-  await expect(page.getByText("Requested: true")).toBeVisible()
-  await expect(page.getByText("Pending", { exact: true })).toHaveAttribute(
-    "data-variant",
-    "warning",
-  )
+  await expect(page.getByText("Applying true…", { exact: true })).toBeVisible()
   await expect(page.getByRole("switch", { name: "Power" })).toBeDisabled()
   await expect(page.getByRole("switch", { name: "Power" })).toBeEnabled()
   await expect(
+    page.getByText("Power updated successfully.", { exact: true }),
+  ).toBeAttached()
+  await expect(
     page.getByText("Target state observed", { exact: true }),
-  ).toHaveAttribute("data-variant", "success")
+  ).toHaveCount(0)
   await expect(page.getByText("online", { exact: true })).toHaveAttribute(
     "data-variant",
     "success",
@@ -209,8 +208,8 @@ test("direct controls preserve actual state, deduplicate edits, and receive loca
   const brightness = page.getByRole("spinbutton", { name: "Brightness (%)" })
   await brightness.fill("42")
   controls.state.brightness = 17
-  await expect(page.getByText(/Reported: 17/)).toBeVisible()
   await expect(brightness).toHaveValue("42")
+  await expect(page.getByText(/Reported:/)).toHaveCount(0)
   await brightness.press("Enter")
   await brightness.blur()
   await expect(brightness).toBeEnabled()
@@ -293,7 +292,9 @@ test("dashboard controls disable offline and editing, without losing pending out
   await expect(page.getByRole("switch", { name: "Power" })).toBeEnabled()
   controls.outcome = "uncertain"
   await page.getByRole("switch", { name: "Power" }).click()
-  await expect(page.getByText("uncertain", { exact: true })).toBeVisible()
+  await expect(
+    page.getByText("Update could not be confirmed.", { exact: true }),
+  ).toBeVisible()
   expect(controls.sendCount).toBe(2)
   await page
     .getByRole("button", { name: "Edit dashboard", exact: true })

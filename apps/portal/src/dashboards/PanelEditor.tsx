@@ -43,6 +43,10 @@ import { Textarea } from "@iot-os/ui/components/textarea"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
 import { Badge } from "@iot-os/ui/components/badge"
 import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@iot-os/ui/components/toggle-group"
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -132,6 +136,7 @@ export function PanelEditor({
     setWidget((current) => ({
       ...current,
       config: {
+        ...current.config,
         sources: current.config.sources.map((s, index) =>
           index === selected ? { ...s, ...patch } : s,
         ),
@@ -163,7 +168,10 @@ export function PanelEditor({
     setSelected(widget.config.sources.length)
     setWidget({
       ...widget,
-      config: { sources: [...widget.config.sources, next] },
+      config: {
+        ...widget.config,
+        sources: [...widget.config.sources, next],
+      },
     })
     setParameterId("")
     setParameterSearch("")
@@ -174,7 +182,7 @@ export function PanelEditor({
       sources[index + direction],
       sources[index],
     ]
-    setWidget({ ...widget, config: { sources } })
+    setWidget({ ...widget, config: { ...widget.config, sources } })
     setSelected(index + direction)
   }
   function close() {
@@ -437,6 +445,7 @@ export function PanelEditor({
                               setWidget({
                                 ...widget,
                                 config: {
+                                  ...widget.config,
                                   sources: widget.config.sources.filter(
                                     (_, i) => i !== index,
                                   ),
@@ -482,6 +491,43 @@ export function PanelEditor({
                   </div>
                 )}
                 <TabsContent value="display">
+                  {widget.type === "controls" && (
+                    <FieldGroup>
+                      <Field>
+                        <FieldLabel>Cards per row</FieldLabel>
+                        <ToggleGroup
+                          type="single"
+                          variant="outline"
+                          value={String(widget.config.columns ?? 1)}
+                          onValueChange={(value) => {
+                            if (!value) return
+                            setWidget({
+                              ...widget,
+                              config: {
+                                ...widget.config,
+                                columns:
+                                  value === "auto"
+                                    ? "auto"
+                                    : (Number(value) as 1 | 2 | 3 | 4),
+                              },
+                            })
+                          }}
+                          aria-label="Cards per row"
+                          className="flex-wrap"
+                        >
+                          {["auto", "1", "2", "3", "4"].map((value) => (
+                            <ToggleGroupItem key={value} value={value}>
+                              {value === "auto" ? "Auto" : value}
+                            </ToggleGroupItem>
+                          ))}
+                        </ToggleGroup>
+                        <FieldDescription>
+                          Sets the preferred maximum. Cards collapse to fewer
+                          columns when the panel is narrow.
+                        </FieldDescription>
+                      </Field>
+                    </FieldGroup>
+                  )}
                   {source ? (
                     <FieldGroup>
                       <Field>
@@ -786,6 +832,7 @@ export function PanelEditor({
                   ...widget,
                   title: widget.title.trim(),
                   config: {
+                    ...widget.config,
                     sources: widget.config.sources.map((s) => ({
                       ...s,
                       thresholds: [...s.thresholds].sort(
@@ -852,6 +899,7 @@ export function PanelEditor({
                   setWidget({
                     ...widget,
                     config: {
+                      ...widget.config,
                       sources: widget.config.sources.map((s) =>
                         targets.includes(sourceKey(s))
                           ? {

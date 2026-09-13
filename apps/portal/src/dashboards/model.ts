@@ -64,7 +64,8 @@ export function newWidget(type: DashboardWidget["type"]): DashboardWidget {
               ? "State history"
               : "Colour history",
     description: "",
-    config: { sources: [] },
+    config:
+      type === "controls" ? { sources: [], columns: "auto" } : { sources: [] },
   }
 }
 export function appliedParameters(device?: DeviceDetail) {

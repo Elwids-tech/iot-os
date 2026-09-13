@@ -10,22 +10,28 @@ export function ControlsPanel({ org, widget, preview }: PanelProps) {
         Add writable parameters to preview controls.
       </p>
     )
+  const groups = Array.from(
+    widget.config.sources.reduce((devices, source) => {
+      const group = devices.get(source.device_uuid)
+      if (group) group.push(source)
+      else devices.set(source.device_uuid, [source])
+      return devices
+    }, new Map<string, typeof widget.config.sources>()),
+  )
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto">
-      {widget.config.sources.map((source) => (
-        <section
-          key={`${source.device_uuid}:${source.parameter_uuid}`}
-          className="flex flex-col gap-2"
-        >
+    <div className="flex h-full flex-col gap-5 overflow-auto">
+      {groups.map(([deviceUuid, sources]) => (
+        <section key={deviceUuid} className="flex flex-col gap-2">
           <h3 className="text-sm font-medium">
-            {source.device_name ?? "Device"}
+            {sources[0]?.device_name ?? "Device"}
           </h3>
           <DeviceControls
             org={org}
-            deviceUuid={source.device_uuid}
+            deviceUuid={deviceUuid}
             allowed={capabilities.command}
             preview={preview}
-            sources={[source]}
+            sources={sources}
+            columns={widget.config.columns}
           />
         </section>
       ))}

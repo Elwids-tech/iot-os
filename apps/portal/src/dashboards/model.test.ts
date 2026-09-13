@@ -79,6 +79,10 @@ describe("per-parameter thresholds", () => {
     panel.config.sources[1].unit = "C"
     expect(widgetError(panel)).toBeNull()
   })
+  it("defaults new control panels to a responsive card grid", () => {
+    expect(newWidget("controls").config.columns).toBe("auto")
+    expect(newWidget("status").config.columns).toBeUndefined()
+  })
 })
 describe("historical viewing state", () => {
   it("rolls relative ranges but never moves absolute ranges", () => {

@@ -202,7 +202,7 @@ async function setup(
         ],
       })
     }
-    if (path.endsWith("/measurements/state-history")) {
+      if (path.endsWith("/measurements/state-history")) {
       const parameter = url.searchParams.get("parameter_uuid")
       const from = url.searchParams.get("from")!
       const to = url.searchParams.get("to")!
@@ -234,9 +234,10 @@ async function setup(
           ],
           sampled: false,
         },
-      })
-    }
-    if (path.endsWith("/devices"))
+        })
+      }
+      if (path.endsWith("/commands")) return json({ data: [] })
+      if (path.endsWith("/devices"))
       return json({
         data:
           url.searchParams.get("page") === "2"
@@ -253,7 +254,7 @@ async function setup(
         data: {
           uuid: deviceId,
           name: "Boiler room",
-          applied_configuration_uuid: null,
+          applied_configuration_uuid: "configuration-1",
           last_applied_configuration_uuid: "configuration-1",
           configurations: [
             {
@@ -276,24 +277,37 @@ async function setup(
                       data_type: "number",
                       unit: "C",
                     },
-                    {
-                      uuid: stateParameter,
-                      key: "power",
-                      label: "Power",
-                      data_type: "boolean",
-                      unit: null,
-                    },
+                  {
+                    uuid: stateParameter,
+                    key: "power",
+                    label: "Power",
+                    data_type: "boolean",
+                    unit: null,
+                    kind: "state",
+                    accepts_command: true,
+                    reports_state: true,
+                  },
                     {
                       uuid: colourParameter,
                       key: "colour",
                       label: "Colour",
-                      data_type: "string",
-                      unit: null,
-                      format: "hex_color",
-                      display: { widget: "color" },
+                    data_type: "string",
+                    unit: null,
+                    format: "hex_color",
+                    display: { widget: "color" },
+                    kind: "state",
+                    accepts_command: true,
+                    reports_state: true,
                     },
                   ],
                 }),
+                mappings: [stateParameter, colourParameter].map(
+                  (parameterUuid) => ({
+                    parameter_uuid: parameterUuid,
+                    metric: parameterUuid,
+                    command_metric: parameterUuid,
+                  }),
+                ),
               },
             },
           ],
@@ -417,7 +431,11 @@ test("cancel and conflict preserve saved data and unsaved drafts", async ({
   await page
     .getByRole("button", { name: "Edit dashboard", exact: true })
     .click()
+  await page
+    .getByRole("button", { name: "Dashboard settings", exact: true })
+    .click()
   await page.getByLabel("Dashboard name", { exact: true }).fill("Local draft")
+  await page.getByRole("button", { name: "Close", exact: true }).click()
   await page
     .getByRole("button", { name: "Cancel editing", exact: true })
     .click()
@@ -432,8 +450,12 @@ test("cancel and conflict preserve saved data and unsaved drafts", async ({
     .getByRole("button", { name: "Edit dashboard", exact: true })
     .click()
   await page
+    .getByRole("button", { name: "Dashboard settings", exact: true })
+    .click()
+  await page
     .getByLabel("Dashboard name", { exact: true })
     .fill("Preserved draft")
+  await page.getByRole("button", { name: "Close", exact: true }).click()
   calls.conflict = true
   await page
     .getByRole("button", { name: "Save dashboard", exact: true })
@@ -441,6 +463,9 @@ test("cancel and conflict preserve saved data and unsaved drafts", async ({
   await expect(
     page.getByRole("button", { name: "Reload saved dashboard…", exact: true }),
   ).toBeVisible()
+  await page
+    .getByRole("button", { name: "Dashboard settings", exact: true })
+    .click()
   await expect(page.getByLabel("Dashboard name", { exact: true })).toHaveValue(
     "Preserved draft",
   )
@@ -567,6 +592,100 @@ test("viewers can explore dashboards but cannot create or edit", async ({
     .getByRole("menuitem", { name: "View fullscreen", exact: true })
     .click()
   await expect(page.getByRole("dialog")).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("control panels group devices and persist responsive card columns", async ({
+  page,
+}) => {
+  const { dashboards, calls, errors } = await setup(page)
+  await page.goto(basePath + "/first")
+  await page
+    .getByRole("button", { name: "Edit dashboard", exact: true })
+    .click()
+  await page.getByRole("button", { name: "Add widget", exact: true }).click()
+  await page
+    .getByRole("button", { name: "Add Controls", exact: true })
+    .click()
+  await page.getByRole("combobox", { name: "Device", exact: true }).click()
+  await page
+    .getByRole("button", { name: "Next device options", exact: true })
+    .click()
+  await page.getByRole("option", { name: "Boiler room", exact: true }).click()
+
+  for (const parameter of [/Power/, /Colour/]) {
+    await page
+      .getByRole("combobox", { name: "Parameter", exact: true })
+      .click()
+    await page.getByRole("option", { name: parameter }).click()
+    await page
+      .getByRole("button", { name: "Add parameter", exact: true })
+      .click()
+  }
+  await page.getByRole("tab", { name: "Display", exact: true }).click()
+  const columns = page.locator('[aria-label="Cards per row"]')
+  await expect(columns.locator('[data-state="on"]')).toHaveText("Auto")
+  await columns.getByText("3", { exact: true }).click()
+  await page
+    .getByRole("button", { name: "Apply to dashboard", exact: true })
+    .click()
+
+  const grid = page.locator('.device-controls-grid[data-columns="3"]')
+  await expect(grid).toBeVisible()
+  await expect(grid.locator(":scope > div")).toHaveCount(2)
+  await expect(grid.locator("xpath=../../..").locator("h3")).toHaveCount(1)
+  await page
+    .getByRole("button", { name: "Save dashboard", exact: true })
+    .click()
+
+  await expect.poll(() => calls.writes).toBe(1)
+  expect(
+    dashboards[0].widgets.find((widget) => widget.type === "controls")?.config
+      .columns,
+  ).toBe(3)
+  expect(errors).toEqual([])
+})
+
+test("dashboard settings use a side sheet and panels expose fit height", async ({
+  page,
+}) => {
+  const { dashboards, calls, errors } = await setup(page)
+  await page.goto(basePath + "/first")
+  await page
+    .getByRole("button", { name: "Edit dashboard", exact: true })
+    .click()
+
+  await expect(
+    page.getByRole("heading", { name: "Dashboard settings", exact: true }),
+  ).toHaveCount(0)
+  await page
+    .getByRole("button", { name: "Dashboard settings", exact: true })
+    .click()
+  const settings = page.getByRole("dialog", { name: "Dashboard settings" })
+  await expect(settings).toBeVisible()
+  await expect(settings.getByText("Current viewing settings")).toBeVisible()
+  await settings.getByLabel("Dashboard name", { exact: true }).fill("Plant floor")
+  await settings.getByRole("button", { name: "Close", exact: true }).click()
+
+  const panel = page.locator(".react-grid-item").first()
+  await expect(panel.locator(".react-resizable-handle-s")).toBeVisible()
+  await expect(panel.locator(".react-resizable-handle-e")).toBeVisible()
+  await expect(panel.locator(".react-resizable-handle-se")).toBeVisible()
+  await menu(page)
+  await page
+    .getByRole("menuitem", { name: "Fit height to content", exact: true })
+    .click()
+  await page
+    .getByRole("button", { name: "Save dashboard", exact: true })
+    .click()
+
+  await expect.poll(() => calls.writes).toBe(1)
+  expect(dashboards[0].name).toBe("Plant floor")
+  expect(
+    Object.values(dashboards[0].layouts)
+      .flat()
+      .some((item) => item?.i === "status" && item.h < 6),
+  ).toBe(true)
   expect(errors).toEqual([])
 })
 

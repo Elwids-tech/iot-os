@@ -8,6 +8,7 @@ use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 final class DashboardDefinition
@@ -50,8 +51,9 @@ final class DashboardDefinition
             'widgets.*.type' => ['required', 'in:status,timeseries,controls,state_history,color_history'],
             'widgets.*.title' => ['required', 'string', 'max:120'],
             'widgets.*.description' => ['nullable', 'string', 'max:1000'],
-            'widgets.*.config' => ['required', 'array:sources'],
+            'widgets.*.config' => ['required', 'array:sources,columns'],
             'widgets.*.config.sources' => ['required', 'array', 'min:1', 'max:100'],
+            'widgets.*.config.columns' => ['sometimes', Rule::in(['auto', 1, 2, 3, 4])],
             'widgets.*.config.sources.*' => ['array:device_uuid,parameter_uuid,device_name,label,unit,data_type,format,display_widget,precision,color,base,thresholds'],
             'widgets.*.config.sources.*.device_uuid' => ['required', 'uuid'],
             'widgets.*.config.sources.*.parameter_uuid' => ['required', 'uuid'],
@@ -104,6 +106,14 @@ final class DashboardDefinition
             $widget['description'] = $widget['description'] ?? '';
             if ($widget['title'] === '') {
                 $this->fail("widgets.$wi.title", 'Enter a panel title.');
+            }
+            if (array_key_exists('columns', $widget['config'])) {
+                if ($widget['type'] !== 'controls') {
+                    $this->fail("widgets.$wi.config.columns", 'Cards per row is only available for controls panels.');
+                }
+                if ($widget['config']['columns'] !== 'auto') {
+                    $widget['config']['columns'] = (int) $widget['config']['columns'];
+                }
             }
             $seen = [];
             $units = [];

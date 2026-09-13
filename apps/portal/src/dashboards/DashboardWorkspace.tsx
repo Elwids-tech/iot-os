@@ -61,16 +61,25 @@ import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Field, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { Badge } from "@iot-os/ui/components/badge"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@iot-os/ui/components/sheet"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import {
   ArrowLeftIcon,
   CopyIcon,
+  ChevronsUpDownIcon,
   GripVerticalIcon,
   MaximizeIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
   SaveIcon,
+  Settings2Icon,
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -97,6 +106,8 @@ import { TimeControls } from "./TimeControls"
 const Grid = WidthProvider(Responsive)
 const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
 const COLS = { lg: 12, md: 10, sm: 6, xs: 1, xxs: 1 }
+const ROW_HEIGHT = 48
+const GRID_MARGIN = 16
 
 export function DashboardWorkspace({
   org,
@@ -123,12 +134,15 @@ export function DashboardWorkspace({
   const [editor, setEditor] = useState<DashboardWidget | null>(null)
   const [editorDirty, setEditorDirty] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [fullscreen, setFullscreen] = useState<string | null>(null)
   const [discard, setDiscard] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [switchSearch, setSwitchSearch] = useState("")
+  const [breakpoint, setBreakpoint] = useState("lg")
   const layoutAction = useRef(false)
+  const panelContent = useRef(new Map<string, HTMLDivElement>())
   const { setDirty } = useDirtyContext()
   const dirty =
     Boolean(draft && JSON.stringify(draft) !== JSON.stringify(base)) ||
@@ -171,6 +185,7 @@ export function DashboardWorkspace({
       void cache.invalidateQueries({ queryKey: ["dashboards", org] })
       setBase(next)
       setDraft(null)
+      setSettingsOpen(false)
       setDirty(false)
       toast.success("Dashboard saved")
       return true
@@ -213,7 +228,10 @@ export function DashboardWorkspace({
   }
   function cancelEditing() {
     if (dirty) setDiscard(true)
-    else setDraft(null)
+    else {
+      setDraft(null)
+      setSettingsOpen(false)
+    }
   }
   function discardDraft() {
     setDraft(null)
@@ -221,6 +239,7 @@ export function DashboardWorkspace({
     setEditorDirty(false)
     setDirty(false)
     setError(null)
+    setSettingsOpen(false)
     setDiscard(false)
     void cache.invalidateQueries({ queryKey: ["dashboard", org, saved.uuid] })
   }
@@ -236,6 +255,54 @@ export function DashboardWorkspace({
     window,
     onZoom: (from: string, to: string) =>
       updateView({ ...view, range: { mode: "absolute", from, to } }),
+  }
+  function fitPanelHeight(widgetId: string) {
+    const content = panelContent.current.get(widgetId)
+    if (!content) return
+    const header = content.previousElementSibling as HTMLElement | null
+    const contentTop = content.getBoundingClientRect().top
+    const contentStyle = getComputedStyle(content)
+    const visibleLeaves = Array.from(content.querySelectorAll<HTMLElement>("*"))
+      .filter((element) => {
+        const style = getComputedStyle(element)
+        return (
+          element.childElementCount === 0 &&
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          style.position !== "absolute"
+        )
+      })
+      .map((element) => element.getBoundingClientRect())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+    const contentBottom = Math.max(
+      contentTop + Number.parseFloat(contentStyle.paddingTop || "0"),
+      ...visibleLeaves.map((rect) => rect.bottom),
+    )
+    const naturalContentHeight =
+      contentBottom -
+      contentTop +
+      Number.parseFloat(contentStyle.paddingBottom || "0")
+    const requiredHeight = (header?.offsetHeight ?? 0) + naturalContentHeight + 2
+    const rows = Math.min(
+      100,
+      Math.max(
+        1,
+        Math.ceil((requiredHeight + GRID_MARGIN) / (ROW_HEIGHT + GRID_MARGIN)),
+      ),
+    )
+    setDraft((current) => {
+      if (!current) return current
+      const currentLayout = responsiveLayouts(current.layouts)[breakpoint] ?? []
+      return {
+        ...current,
+        layouts: cleanLayouts({
+          ...current.layouts,
+          [breakpoint]: currentLayout.map((item) =>
+            item.i === widgetId ? { ...item, h: rows } : item,
+          ),
+        }),
+      }
+    })
   }
   return (
     <div className="flex min-w-0 flex-col gap-5">
@@ -273,6 +340,14 @@ export function DashboardWorkspace({
                 >
                   <PlusIcon data-icon="inline-start" />
                   Add widget
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <Settings2Icon data-icon="inline-start" />
+                  Dashboard settings
                 </Button>
                 <Button
                   variant="outline"
@@ -336,25 +411,37 @@ export function DashboardWorkspace({
         </Alert>
       )}
       {draft && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Dashboard settings</CardTitle>
-            <CardDescription>
-              Only Save dashboard publishes this draft. Viewing a different time
-              range does not change these defaults.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FieldGroup className="grid items-end gap-4 md:grid-cols-2">
-              <Field>
+        <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <SheetContent className="data-[side=right]:w-full sm:data-[side=right]:max-w-md">
+            <SheetHeader>
+              <SheetTitle>Dashboard settings</SheetTitle>
+              <SheetDescription>
+                Changes stay in this draft until you save the dashboard.
+              </SheetDescription>
+            </SheetHeader>
+            <FieldGroup className="overflow-y-auto px-4 pb-4">
+              <Field data-invalid={!draft.name.trim()}>
                 <FieldLabel htmlFor="dashboard-name">Dashboard name</FieldLabel>
                 <Input
                   id="dashboard-name"
                   maxLength={120}
                   value={draft.name}
                   disabled={saving}
-                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  aria-invalid={!draft.name.trim()}
+                  onChange={(event) =>
+                    setDraft({ ...draft, name: event.target.value })
+                  }
                 />
+              </Field>
+              <Field>
+                <FieldLabel>Current viewing settings</FieldLabel>
+                <p className="text-sm text-muted-foreground">
+                  {view.range.mode === "relative"
+                    ? PRESET_LABELS[view.range.preset]
+                    : "Fixed historical interval"}{" "}
+                  · {view.timezone === "browser" ? "Browser time" : "UTC"} ·{" "}
+                  {view.refresh ? `Refresh every ${view.refresh}s` : "Refresh off"}
+                </p>
               </Field>
               <Field>
                 <FieldLabel>Saved viewing defaults</FieldLabel>
@@ -362,9 +449,12 @@ export function DashboardWorkspace({
                   {draft.defaults.range.mode === "relative"
                     ? PRESET_LABELS[draft.defaults.range.preset]
                     : "Fixed historical interval"}{" "}
-                  · {draft.defaults.timezone} ·{" "}
+                  · {draft.defaults.timezone === "browser"
+                    ? "Browser time"
+                    : "UTC"}{" "}
+                  ·{" "}
                   {draft.defaults.refresh
-                    ? `${draft.defaults.refresh}s refresh`
+                    ? `Refresh every ${draft.defaults.refresh}s`
                     : "Refresh off"}
                 </p>
                 <Button
@@ -378,8 +468,8 @@ export function DashboardWorkspace({
                 </Button>
               </Field>
             </FieldGroup>
-          </CardContent>
-        </Card>
+          </SheetContent>
+        </Sheet>
       )}
       <RequestError error={error} />
       {error instanceof ApiError && error.status === 409 && (
@@ -408,12 +498,14 @@ export function DashboardWorkspace({
           layouts={gridLayouts as ResponsiveLayouts}
           breakpoints={BREAKPOINTS}
           cols={COLS}
-          rowHeight={48}
-          margin={[16, 16]}
+          rowHeight={ROW_HEIGHT}
+          margin={[GRID_MARGIN, GRID_MARGIN]}
           containerPadding={[0, 0]}
           isDraggable={Boolean(draft) && !saving}
           isResizable={Boolean(draft) && !saving}
+          resizeHandles={["s", "e", "se"]}
           draggableHandle=".dashboard-drag-handle"
+          onBreakpointChange={setBreakpoint}
           onDragStart={() => {
             layoutAction.current = true
           }}
@@ -477,6 +569,13 @@ export function DashboardWorkspace({
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={saving}
+                              onSelect={() => fitPanelHeight(widget.id)}
+                            >
+                              <ChevronsUpDownIcon />
+                              Fit height to content
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={saving}
                               onSelect={() =>
                                 applyWidget({
                                   ...structuredClone(widget),
@@ -516,7 +615,13 @@ export function DashboardWorkspace({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </CardHeader>
-                <CardContent className="min-h-0 flex-1 overflow-auto">
+                <CardContent
+                  ref={(node) => {
+                    if (node) panelContent.current.set(widget.id, node)
+                    else panelContent.current.delete(widget.id)
+                  }}
+                  className="min-h-0 flex-1 overflow-auto"
+                >
                   <PanelBody {...bodyProps} widget={widget} />
                 </CardContent>
               </Card>
