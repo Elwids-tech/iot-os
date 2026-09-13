@@ -16,7 +16,7 @@ import {
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
 import { StateHistoryVisualization } from "../history/StateHistoryVisualization"
-import { sourceKey } from "./model"
+import { resolveRange, sourceKey } from "./model"
 import { telemetryRequest } from "./requests"
 
 export function HistoryStatePanel({
@@ -24,17 +24,20 @@ export function HistoryStatePanel({
   widget,
   view,
   window,
-  refreshToken,
   colour = false,
 }: {
   org: string
   widget: DashboardWidget
   view: DashboardView
   window: { from: string; to: string }
-  refreshToken: number
   colour?: boolean
 }) {
   const sources = widget.config.sources
+  const rangeKey = JSON.stringify(view.range)
+  const refreshInterval =
+    view.range.mode === "relative" && view.refresh
+      ? view.refresh * 1000
+      : (false as const)
   const histories = useQueries({
     queries: sources.map((source) => ({
       queryKey: [
@@ -42,25 +45,22 @@ export function HistoryStatePanel({
         org,
         source.device_uuid,
         source.parameter_uuid,
-        window.from,
-        window.to,
-        refreshToken,
+        rangeKey,
       ],
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         telemetryRequest(signal, () =>
-          api.deviceStateHistory(
-            org,
-            source.device_uuid,
-            {
-              parameter_uuid: source.parameter_uuid,
-              ...window,
-              max_points: 500,
-            },
-            signal,
-          ),
+          api.deviceStateHistory(org, source.device_uuid, {
+            parameter_uuid: source.parameter_uuid,
+            ...(view.range.mode === "relative"
+              ? resolveRange(view.range)
+              : window),
+            max_points: 500,
+          }, signal),
         ),
       staleTime: Infinity,
       gcTime: 30000,
+      refetchInterval: refreshInterval,
+      refetchIntervalInBackground: false,
       refetchOnWindowFocus: false,
       retry: 1,
     })),

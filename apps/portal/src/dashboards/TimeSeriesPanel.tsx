@@ -22,7 +22,7 @@ import {
 } from "recharts"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
-import { sourceKey, timeLabel } from "./model"
+import { resolveRange, sourceKey, timeLabel } from "./model"
 import { telemetryRequest } from "./requests"
 
 export default function TimeSeriesPanel({
@@ -30,17 +30,20 @@ export default function TimeSeriesPanel({
   widget,
   view,
   window,
-  refreshToken,
   onZoom,
 }: {
   org: string
   widget: DashboardWidget
   view: DashboardView
   window: { from: string; to: string }
-  refreshToken: number
   onZoom?: (from: string, to: string) => void
 }) {
   const sources = widget.config.sources
+  const rangeKey = JSON.stringify(view.range)
+  const refreshInterval =
+    view.range.mode === "relative" && view.refresh
+      ? view.refresh * 1000
+      : (false as const)
   const queries = useQueries({
     queries: sources.map((source) => ({
       queryKey: [
@@ -48,25 +51,22 @@ export default function TimeSeriesPanel({
         org,
         source.device_uuid,
         source.parameter_uuid,
-        window.from,
-        window.to,
-        refreshToken,
+        rangeKey,
       ],
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         telemetryRequest(signal, () =>
-          api.deviceHistory(
-            org,
-            source.device_uuid,
-            {
-              parameter_uuid: source.parameter_uuid,
-              ...window,
-              max_points: 500,
-            },
-            signal,
-          ),
+          api.deviceHistory(org, source.device_uuid, {
+            parameter_uuid: source.parameter_uuid,
+            ...(view.range.mode === "relative"
+              ? resolveRange(view.range)
+              : window),
+            max_points: 500,
+          }, signal),
         ),
       staleTime: Infinity,
       gcTime: 30000,
+      refetchInterval: refreshInterval,
+      refetchIntervalInBackground: false,
       refetchOnWindowFocus: false,
       retry: 1,
     })),

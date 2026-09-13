@@ -42,7 +42,11 @@ const panel = (
   config: { sources: [structuredClone(source)] },
 })
 
-async function setup(page: Page, manage = true) {
+async function setup(
+  page: Page,
+  manage = true,
+  options: { historyDelayMs?: number } = {},
+) {
   const dashboards: Dashboard[] = [
     {
       uuid: "first",
@@ -177,6 +181,10 @@ async function setup(page: Page, manage = true) {
     if (path.endsWith("/measurements/history")) {
       calls.history++
       calls.historyWindows.push(url.search)
+      if (calls.history > 1 && options.historyDelayMs)
+        await new Promise((resolve) =>
+          setTimeout(resolve, options.historyDelayMs),
+        )
       const start = Date.parse(url.searchParams.get("from")!),
         end = Date.parse(url.searchParams.get("to")!)
       return json({
@@ -620,6 +628,22 @@ test("plot zoom updates history and manual refresh keeps absolute bounds", async
   expect(after.get("from")).toBe(bounds.get("from"))
   expect(after.get("to")).toBe(bounds.get("to"))
   expect(calls.writes).toBe(0)
+  expect(errors).toEqual([])
+})
+
+test("relative charts poll in place without replacing rendered data", async ({
+  page,
+}) => {
+  const { calls, errors } = await setup(page, true, { historyDelayMs: 500 })
+  await page.goto(basePath + "/first?refresh=5")
+  const chart = page.locator(".recharts-wrapper").first()
+  await expect(chart).toBeVisible()
+  const initialHistoryCalls = calls.history
+
+  await expect
+    .poll(() => calls.history, { timeout: 8000 })
+    .toBeGreaterThan(initialHistoryCalls)
+  await expect(chart).toBeVisible()
   expect(errors).toEqual([])
 })
 

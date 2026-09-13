@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Link,
@@ -128,8 +128,6 @@ export function DashboardWorkspace({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [switchSearch, setSwitchSearch] = useState("")
-  const [now, setNow] = useState(Date.now)
-  const [refreshToken, setRefreshToken] = useState(0)
   const layoutAction = useRef(false)
   const { setDirty } = useDirtyContext()
   const dirty =
@@ -137,17 +135,7 @@ export function DashboardWorkspace({
     editorDirty
   const view = readView(params, saved.defaults)
   const rangeKey = JSON.stringify(view.range)
-  const window = useMemo(() => resolveRange(view.range, now), [rangeKey, now])
-  useEffect(() => {
-    if (view.range.mode !== "relative" || !view.refresh) return
-    const timer = globalThis.setInterval(() => {
-      if (!document.hidden) setNow(Date.now())
-    }, view.refresh * 1000)
-    return () => globalThis.clearInterval(timer)
-  }, [rangeKey, view.refresh])
-  useEffect(() => {
-    setNow(Date.now())
-  }, [rangeKey])
+  const window = useMemo(() => resolveRange(view.range), [rangeKey])
   const list = useQuery({
     queryKey: ["dashboards", org],
     queryFn: () => api.dashboards(org),
@@ -204,7 +192,6 @@ export function DashboardWorkspace({
   ])
   useUnsaved(dirty, save)
   function updateView(next: DashboardView) {
-    setNow(Date.now())
     setParams(writeView(params, next))
   }
   function applyWidget(widget: DashboardWidget) {
@@ -247,7 +234,6 @@ export function DashboardWorkspace({
     org,
     view,
     window,
-    refreshToken,
     onZoom: (from: string, to: string) =>
       updateView({ ...view, range: { mode: "absolute", from, to } }),
   }
@@ -334,9 +320,11 @@ export function DashboardWorkspace({
         view={view}
         onChange={updateView}
         onRefresh={() => {
-          setNow(Date.now())
-          setRefreshToken((t) => t + 1)
           void cache.invalidateQueries({ queryKey: ["dashboard-latest", org] })
+          void cache.invalidateQueries({ queryKey: ["dashboard-history", org] })
+          void cache.invalidateQueries({
+            queryKey: ["dashboard-state-history", org],
+          })
         }}
       />
       {absoluteIssue && (

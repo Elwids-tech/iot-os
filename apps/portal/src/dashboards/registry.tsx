@@ -60,7 +60,6 @@ export type PanelProps = {
   widget: DashboardWidget
   view: DashboardView
   window: { from: string; to: string }
-  refreshToken: number
   onZoom?: (from: string, to: string) => void
   simulation?: { source: string; value: number }
 }

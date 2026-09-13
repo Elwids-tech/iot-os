@@ -76,7 +76,6 @@ export function PanelEditor({
   org,
   view,
   window,
-  refreshToken,
   onApply,
   onClose,
   onDirty,
@@ -85,7 +84,6 @@ export function PanelEditor({
   org: string
   view: DashboardView
   window: { from: string; to: string }
-  refreshToken: number
   onApply: (widget: DashboardWidget) => void
   onClose: () => void
   onDirty: (dirty: boolean) => void
@@ -226,7 +224,6 @@ export function PanelEditor({
                     widget={widget}
                     view={view}
                     window={window}
-                    refreshToken={refreshToken}
                     simulation={
                       simulationEnabled && source
                         ? { source: sourceKey(source), value: sample }
