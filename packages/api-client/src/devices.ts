@@ -89,6 +89,10 @@ export type DeviceConfiguration = {
   revision: number
   definition_hash: string
   definition: DeviceDefinition
+  profile_artifact_uuid: string | null
+  profile_uuid: string | null
+  profile_name: string | null
+  profile_revision: number | null
   created_at: string
 }
 export type DeviceOperation = {
@@ -168,6 +172,55 @@ export type HistorySeries = {
     max?: number
     count: number
   }>
+}
+export type HistoryRecord = {
+  event_uuid: string
+  configuration_uuid: string
+  parameter_uuid: string
+  received_at: string
+  observed_at: string
+  data_type: string
+  unit: string | null
+  value: unknown
+  quality: "good" | "stale" | "invalid" | "inactive" | string
+  diagnostic?: string
+}
+export type HistoryRecordsMeta = {
+  from: string
+  to: string
+  limit: number
+  page_size: number
+  returned: number
+  consumed: number
+  next_cursor: string | null
+  has_more: boolean
+  limit_reached: boolean
+}
+export type HistoryRecordsPage = {
+  data: HistoryRecord[]
+  meta: HistoryRecordsMeta
+}
+export type StateHistorySegment = {
+  from: string
+  to: string
+  value: unknown
+  known: boolean
+  data_type?: string
+  configuration_uuid?: string
+}
+export type StateHistoryDuration = {
+  value: unknown
+  known: boolean
+  data_type?: string
+  duration_ms: number
+  percentage: number
+}
+export type StateHistory = {
+  from: string
+  to: string
+  durations: StateHistoryDuration[]
+  timeline: StateHistorySegment[]
+  sampled: boolean
 }
 export type DeviceCommand = {
   actor_name: string

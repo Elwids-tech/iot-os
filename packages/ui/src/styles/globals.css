@@ -132,3 +132,13 @@
 .dashboard-grid > .react-grid-item {
   transition: none;
 }
+
+.history-unknown {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0,
+    transparent 5px,
+    rgb(255 255 255 / 35%) 5px,
+    rgb(255 255 255 / 35%) 9px
+  );
+}

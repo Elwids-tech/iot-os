@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS device_runtime.observations (
 );
 SELECT create_hypertable('device_runtime.observations', 'received_at', if_not_exists => TRUE, chunk_time_interval => INTERVAL '1 day');
 CREATE INDEX IF NOT EXISTS observations_lookup ON device_runtime.observations (organization_uuid,device_uuid,parameter_uuid,received_at DESC);
+CREATE INDEX IF NOT EXISTS observations_history_cursor ON device_runtime.observations (organization_uuid,device_uuid,parameter_uuid,received_at DESC,event_uuid DESC);
 CREATE TABLE IF NOT EXISTS device_runtime.latest (
  organization_uuid uuid NOT NULL, device_uuid uuid NOT NULL, configuration_uuid uuid NOT NULL, parameter_uuid uuid NOT NULL,
  received_at timestamptz NOT NULL, reading jsonb NOT NULL,

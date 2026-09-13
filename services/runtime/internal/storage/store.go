@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -320,6 +321,335 @@ func (s *Store) History(ctx context.Context, org, device, param string, from, to
 		series[i].Points = append(series[i].Points, point)
 	}
 	return series, rows.Err()
+}
+
+type HistoryCursor struct {
+	At        time.Time `json:"at"`
+	EventUUID string    `json:"event_uuid"`
+	Consumed  int       `json:"consumed"`
+	Scope     string    `json:"scope"`
+}
+
+type HistoryRecord struct {
+	EventUUID         string    `json:"event_uuid"`
+	ConfigurationUUID string    `json:"configuration_uuid"`
+	ParameterUUID     string    `json:"parameter_uuid"`
+	ReceivedAt        time.Time `json:"received_at"`
+	ObservedAt        time.Time `json:"observed_at"`
+	DataType          string    `json:"data_type"`
+	Unit              *string   `json:"unit"`
+	Value             any       `json:"value"`
+	Quality           string    `json:"quality"`
+	Diagnostic        string    `json:"diagnostic,omitempty"`
+}
+
+type HistoryRecordsPage struct {
+	Records      []HistoryRecord `json:"data"`
+	Next         *HistoryCursor  `json:"-"`
+	Consumed     int             `json:"consumed"`
+	LimitReached bool            `json:"limit_reached"`
+}
+
+func (s *Store) HistoryRecords(ctx context.Context, org, device, param string, from, to time.Time, limit, pageSize int, cursor *HistoryCursor) (HistoryRecordsPage, error) {
+	consumed := 0
+	var cursorAt any
+	cursorEvent := ""
+	if cursor != nil {
+		consumed = cursor.Consumed
+		cursorAt = cursor.At
+		cursorEvent = cursor.EventUUID
+	}
+	remaining := limit - consumed
+	if remaining <= 0 {
+		return HistoryRecordsPage{Records: []HistoryRecord{}, Consumed: consumed}, nil
+	}
+	pageLimit := pageSize
+	if remaining < pageLimit {
+		pageLimit = remaining
+	}
+	rows, err := s.Pool.Query(ctx, `
+      SELECT event_uuid::text, configuration_uuid::text, parameter_uuid::text,
+        received_at, observed_at, reading
+      FROM device_runtime.observations
+      WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3
+        AND received_at>=$4 AND received_at<=$5
+        AND ($6::timestamptz IS NULL OR (received_at,event_uuid::text) < ($6::timestamptz,$7))
+      ORDER BY received_at DESC,event_uuid DESC
+      LIMIT $8`, org, device, param, from, to, cursorAt, cursorEvent, pageLimit+1)
+	if err != nil {
+		return HistoryRecordsPage{}, err
+	}
+	defer rows.Close()
+	records := make([]HistoryRecord, 0, pageLimit+1)
+	for rows.Next() {
+		var record HistoryRecord
+		var reading devices.Reading
+		var raw []byte
+		if err = rows.Scan(&record.EventUUID, &record.ConfigurationUUID, &record.ParameterUUID, &record.ReceivedAt, &record.ObservedAt, &raw); err != nil {
+			return HistoryRecordsPage{}, err
+		}
+		if err = Decode(raw, &reading); err != nil {
+			return HistoryRecordsPage{}, err
+		}
+		record.DataType = reading.DataType
+		record.Unit = reading.Unit
+		record.Value = reading.Value
+		record.Quality = reading.Quality
+		record.Diagnostic = reading.Diagnostic
+		records = append(records, record)
+	}
+	if err = rows.Err(); err != nil {
+		return HistoryRecordsPage{}, err
+	}
+	hasExtra := len(records) > pageLimit
+	if hasExtra {
+		records = records[:pageLimit]
+	}
+	consumed += len(records)
+	page := HistoryRecordsPage{
+		Records:      records,
+		Consumed:     consumed,
+		LimitReached: hasExtra && consumed >= limit,
+	}
+	if hasExtra && consumed < limit && len(records) > 0 {
+		last := records[len(records)-1]
+		page.Next = &HistoryCursor{At: last.ReceivedAt, EventUUID: last.EventUUID, Consumed: consumed}
+	}
+	return page, nil
+}
+
+type StateSegment struct {
+	From              time.Time `json:"from"`
+	To                time.Time `json:"to"`
+	Value             any       `json:"value"`
+	Known             bool      `json:"known"`
+	DataType          string    `json:"data_type,omitempty"`
+	ConfigurationUUID string    `json:"configuration_uuid,omitempty"`
+}
+
+type StateDuration struct {
+	Value      any     `json:"value"`
+	Known      bool    `json:"known"`
+	DataType   string  `json:"data_type,omitempty"`
+	DurationMS int64   `json:"duration_ms"`
+	Percentage float64 `json:"percentage"`
+}
+
+type StateHistory struct {
+	From      time.Time       `json:"from"`
+	To        time.Time       `json:"to"`
+	Durations []StateDuration `json:"durations"`
+	Timeline  []StateSegment  `json:"timeline"`
+	Sampled   bool            `json:"sampled"`
+}
+
+type stateChange struct {
+	At                time.Time
+	Value             any
+	Known             bool
+	DataType          string
+	ConfigurationUUID string
+}
+
+func (s *Store) StateHistory(ctx context.Context, org, device, param string, from, to time.Time, maxPoints int) (StateHistory, error) {
+	rows, err := s.Pool.Query(ctx, `
+      WITH raw AS (
+        SELECT * FROM (
+          SELECT event_uuid,configuration_uuid,received_at,reading
+          FROM device_runtime.observations
+          WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND received_at<$4
+          ORDER BY received_at DESC,event_uuid DESC LIMIT 1
+        ) carry
+        UNION ALL
+        SELECT event_uuid,configuration_uuid,received_at,reading
+        FROM device_runtime.observations
+        WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3
+          AND received_at>=$4 AND received_at<=$5
+      ), ordered AS (
+        SELECT event_uuid,configuration_uuid,received_at,reading,
+          row_number() OVER (ORDER BY received_at,event_uuid) AS sequence,
+          lag(reading->'value') OVER (ORDER BY received_at,event_uuid) AS previous_value,
+          lag(configuration_uuid) OVER (ORDER BY received_at,event_uuid) AS previous_configuration,
+          lag(COALESCE(reading->>'quality','')) OVER (ORDER BY received_at,event_uuid) AS previous_quality,
+          lag(COALESCE(reading->>'data_type','')) OVER (ORDER BY received_at,event_uuid) AS previous_data_type
+        FROM raw
+      )
+      SELECT configuration_uuid::text,received_at,reading
+      FROM ordered
+      WHERE sequence=1
+        OR reading->'value' IS DISTINCT FROM previous_value
+        OR configuration_uuid IS DISTINCT FROM previous_configuration
+        OR COALESCE(reading->>'quality','') IS DISTINCT FROM previous_quality
+        OR COALESCE(reading->>'data_type','') IS DISTINCT FROM previous_data_type
+      ORDER BY received_at,event_uuid`, org, device, param, from, to)
+	if err != nil {
+		return StateHistory{}, err
+	}
+	defer rows.Close()
+	changes := []stateChange{}
+	for rows.Next() {
+		var change stateChange
+		var reading devices.Reading
+		var raw []byte
+		if err = rows.Scan(&change.ConfigurationUUID, &change.At, &raw); err != nil {
+			return StateHistory{}, err
+		}
+		if err = Decode(raw, &reading); err != nil {
+			return StateHistory{}, err
+		}
+		change.Value = reading.Value
+		change.DataType = reading.DataType
+		change.Known = reading.Value != nil && (reading.Quality == "" || reading.Quality == "good")
+		changes = append(changes, change)
+	}
+	if err = rows.Err(); err != nil {
+		return StateHistory{}, err
+	}
+
+	segments := stateSegments(changes, from, to)
+	durations := stateDurations(segments, to.Sub(from))
+	timeline := segments
+	sampled := len(timeline) > maxPoints
+	if sampled {
+		timeline = sampleStateSegments(segments, from, to, maxPoints)
+	}
+	return StateHistory{From: from, To: to, Durations: durations, Timeline: timeline, Sampled: sampled}, nil
+}
+
+func stateSegments(changes []stateChange, from, to time.Time) []StateSegment {
+	segments := []StateSegment{}
+	start := from
+	var current *stateChange
+	appendCurrent := func(end time.Time) {
+		if !end.After(start) {
+			return
+		}
+		segment := StateSegment{From: start, To: end}
+		if current != nil {
+			segment.Value = current.Value
+			segment.Known = current.Known
+			segment.DataType = current.DataType
+			segment.ConfigurationUUID = current.ConfigurationUUID
+		}
+		if len(segments) > 0 && timelineKey(segments[len(segments)-1]) == timelineKey(segment) {
+			segments[len(segments)-1].To = end
+			return
+		}
+		segments = append(segments, segment)
+	}
+	for i := range changes {
+		change := changes[i]
+		if change.At.Before(from) {
+			current = &change
+			continue
+		}
+		if change.At.After(to) {
+			break
+		}
+		appendCurrent(change.At)
+		current = &change
+		start = change.At
+	}
+	appendCurrent(to)
+	return segments
+}
+
+func stateValueKey(value any) string {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprint(value)
+	}
+	return string(raw)
+}
+
+func segmentKey(segment StateSegment) string {
+	if !segment.Known {
+		return "unknown"
+	}
+	return segment.DataType + ":" + stateValueKey(segment.Value)
+}
+
+func timelineKey(segment StateSegment) string {
+	return segmentKey(segment) + ":" + segment.ConfigurationUUID
+}
+
+func stateDurations(segments []StateSegment, total time.Duration) []StateDuration {
+	type durationValue struct {
+		segment StateSegment
+		value   time.Duration
+	}
+	values := map[string]durationValue{}
+	for _, segment := range segments {
+		key := segmentKey(segment)
+		entry := values[key]
+		entry.segment = segment
+		entry.value += segment.To.Sub(segment.From)
+		values[key] = entry
+	}
+	result := make([]StateDuration, 0, len(values))
+	for _, entry := range values {
+		milliseconds := entry.value.Milliseconds()
+		percentage := 0.0
+		if total > 0 {
+			percentage = float64(entry.value) / float64(total) * 100
+		}
+		result = append(result, StateDuration{
+			Value: entry.segment.Value, Known: entry.segment.Known, DataType: entry.segment.DataType,
+			DurationMS: milliseconds, Percentage: percentage,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].DurationMS > result[j].DurationMS })
+	return result
+}
+
+func sampleStateSegments(segments []StateSegment, from, to time.Time, maxPoints int) []StateSegment {
+	if maxPoints < 1 || len(segments) <= maxPoints {
+		return segments
+	}
+	total := to.Sub(from)
+	result := make([]StateSegment, 0, maxPoints)
+	for i := 0; i < maxPoints; i++ {
+		bucketFrom := from.Add(time.Duration(float64(total) * float64(i) / float64(maxPoints)))
+		bucketTo := from.Add(time.Duration(float64(total) * float64(i+1) / float64(maxPoints)))
+		overlaps := map[string]time.Duration{}
+		representatives := map[string]StateSegment{}
+		order := []string{}
+		for _, segment := range segments {
+			start := segment.From
+			if start.Before(bucketFrom) {
+				start = bucketFrom
+			}
+			end := segment.To
+			if end.After(bucketTo) {
+				end = bucketTo
+			}
+			if !end.After(start) {
+				continue
+			}
+			key := timelineKey(segment)
+			if _, exists := representatives[key]; !exists {
+				order = append(order, key)
+			}
+			overlaps[key] += end.Sub(start)
+			representatives[key] = segment
+		}
+		winner := ""
+		best := time.Duration(-1)
+		for _, key := range order {
+			overlap := overlaps[key]
+			if overlap > best {
+				winner, best = key, overlap
+			}
+		}
+		segment := representatives[winner]
+		segment.From, segment.To = bucketFrom, bucketTo
+		if len(result) > 0 && timelineKey(result[len(result)-1]) == timelineKey(segment) {
+			result[len(result)-1].To = bucketTo
+		} else {
+			result = append(result, segment)
+		}
+	}
+	return result
 }
 
 var ErrCleanupIncomplete = errors.New("bounded cleanup has more expired measurements to remove")

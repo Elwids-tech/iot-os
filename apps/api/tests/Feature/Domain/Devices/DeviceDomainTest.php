@@ -20,6 +20,7 @@ use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\DevicePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -201,12 +202,12 @@ final class DeviceDomainTest extends TestCase
         $device = $this->active($this->configured('rgb-light'));
         $url = $this->prefix.'/devices/'.$device->uuid.'/commands/send';
         $request = ['configuration_uuid' => $device->applied_configuration_uuid, 'parameter_uuid' => '10000000-0000-4000-8000-000000000004', 'value' => 8, 'idempotency_key' => (string) Str::uuid()];
-        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::swap(new Factory);
         Http::fake(['http://runtime:8081/*' => Http::sequence()->push(['session_id' => 'session-test', 'already_at_target' => false])->push(['error' => 'The source is offline.'], 409)]);
         $this->postJson($url, $request)->assertStatus(503);
         $this->assertDatabaseCount('device_commands', 0);
         $this->assertSame(0, DB::table('device_outbox')->where('type', 'device.command.v1')->count());
-        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::swap(new Factory);
         Http::fake(['http://runtime:8081/*' => Http::response(['session_id' => 'session-test', 'already_at_target' => true])]);
         $this->postJson($url, $request)->assertCreated()->assertJsonPath('data.status', 'already_at_target');
         $this->assertSame(0, DB::table('device_outbox')->where('type', 'device.command.v1')->count());
@@ -246,6 +247,58 @@ final class DeviceDomainTest extends TestCase
         $this->assertSame(1, SparkplugGateway::count());
         $this->actingAs(User::where('email', 'acme.member@example.test')->firstOrFail(), 'sanctum');
         $this->postJson($url)->assertForbidden();
+    }
+
+    public function test_device_configuration_includes_profile_identity_and_revision(): void
+    {
+        $device = $this->active($this->configured('rgb-light'));
+        $configuration = $device->configurations()->with('artifact.profile')->firstOrFail();
+
+        $this->getJson($this->prefix.'/devices/'.$device->uuid)
+            ->assertOk()
+            ->assertJsonPath('data.configurations.0.profile_artifact_uuid', $configuration->artifact->uuid)
+            ->assertJsonPath('data.configurations.0.profile_uuid', $configuration->artifact->profile->uuid)
+            ->assertJsonPath('data.configurations.0.profile_name', $configuration->artifact->profile->name)
+            ->assertJsonPath('data.configurations.0.profile_revision', $configuration->artifact->revision);
+    }
+
+    public function test_history_record_and_state_endpoints_proxy_bounded_contracts(): void
+    {
+        $device = $this->active($this->configured('rgb-light'));
+        $parameter = '10000000-0000-4000-8000-000000000001';
+        Http::swap(new Factory);
+        Http::fake([
+            'http://runtime:8081/internal/measurements/records*' => Http::response([
+                'data' => [['event_uuid' => (string) Str::uuid(), 'data_type' => 'boolean', 'value' => true]],
+                'meta' => ['limit' => 500, 'page_size' => 50, 'next_cursor' => null, 'has_more' => false, 'limit_reached' => false],
+            ]),
+            'http://runtime:8081/internal/measurements/state-history*' => Http::response([
+                'data' => ['durations' => [], 'timeline' => [], 'sampled' => false],
+            ]),
+        ]);
+        $range = ['parameter_uuid' => $parameter, 'from' => '2026-09-12T00:00:00Z', 'to' => '2026-09-12T01:00:00Z'];
+
+        $this->getJson($this->prefix.'/devices/'.$device->uuid.'/measurements/records?'.http_build_query($range))
+            ->assertOk()
+            ->assertJsonPath('meta.limit', 500)
+            ->assertJsonPath('data.0.value', true);
+        $this->getJson($this->prefix.'/devices/'.$device->uuid.'/measurements/state-history?'.http_build_query([...$range, 'max_points' => 500]))
+            ->assertOk()
+            ->assertJsonPath('data.sampled', false);
+        $this->getJson($this->prefix.'/devices/'.$device->uuid.'/measurements/state-history?'.http_build_query([...$range, 'parameter_uuid' => '10000000-0000-4000-8000-000000000004']))
+            ->assertUnprocessable();
+        $this->getJson($this->prefix.'/devices/'.$device->uuid.'/measurements/records?'.http_build_query([...$range, 'limit' => 5001]))
+            ->assertUnprocessable();
+        $this->getJson($this->prefix.'/devices/'.$device->uuid.'/measurements/state-history?'.http_build_query([...$range, 'max_points' => 501]))
+            ->assertUnprocessable();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/internal/measurements/records')
+            && str_contains($request->url(), 'limit=500')
+            && str_contains($request->url(), 'page_size=50')
+            && str_contains($request->url(), 'retention_days='));
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/internal/measurements/state-history')
+            && str_contains($request->url(), 'max_points=500')
+            && str_contains($request->url(), 'retention_days='));
     }
 
     public function test_retention_overrides_persist_require_reduction_confirmation_and_are_platform_only(): void

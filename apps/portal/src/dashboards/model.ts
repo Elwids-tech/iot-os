@@ -9,6 +9,7 @@ import type {
   Measurement,
 } from "@iot-os/api-client"
 import { configurationProfile } from "@iot-os/api-client"
+import { isColorSource } from "../history/model"
 
 export const DEFAULT_VIEW: DashboardView = {
   range: { mode: "relative", preset: "6h" },
@@ -57,7 +58,11 @@ export function newWidget(type: DashboardWidget["type"]): DashboardWidget {
         ? "Status"
         : type === "controls"
           ? "Controls"
-          : "Time series",
+          : type === "timeseries"
+            ? "Time series"
+            : type === "state_history"
+              ? "State history"
+              : "Colour history",
     description: "",
     config: { sources: [] },
   }
@@ -102,6 +107,18 @@ export function widgetError(widget: DashboardWidget): string | null {
     if (new Set(widget.config.sources.map((s) => s.unit ?? "")).size > 1)
       return "Use parameters with the same unit, or add a separate chart."
   }
+  if (
+    widget.type === "state_history" &&
+    widget.config.sources.some(
+      (source) => !["boolean", "enum"].includes(source.data_type),
+    )
+  )
+    return "State history requires boolean or enum parameters."
+  if (
+    widget.type === "color_history" &&
+    widget.config.sources.some((source) => !isColorSource(source))
+  )
+    return "Colour history requires parameters configured as colour controls."
   return null
 }
 export function bandFor(

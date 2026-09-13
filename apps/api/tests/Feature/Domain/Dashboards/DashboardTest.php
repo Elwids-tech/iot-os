@@ -39,9 +39,13 @@ final class DashboardTest extends TestCase
         return ['name' => $name, 'widgets' => [], 'layouts' => [], 'defaults' => DashboardDefinition::defaults()];
     }
 
-    private function source(string $unit = 'C', string $dataType = 'number', bool $writable = false): array
+    private function source(string $unit = 'C', string $dataType = 'number', bool $writable = false, ?string $format = null, ?string $displayWidget = null): array
     {
-        $parameter = ['uuid' => (string) Str::uuid(), 'label' => 'Temperature', 'data_type' => $dataType, 'unit' => $unit, 'kind' => 'state', 'reports_state' => true, 'accepts_command' => $writable];
+        $parameter = [
+            'uuid' => (string) Str::uuid(), 'label' => 'Temperature', 'data_type' => $dataType,
+            'unit' => $unit, 'kind' => 'state', 'reports_state' => true, 'accepts_command' => $writable,
+            'format' => $format, 'display' => $displayWidget ? ['widget' => $displayWidget] : [],
+        ];
         $definition = ['parameters' => [$parameter]];
         $profile = DeviceProfile::create(['organization_id' => $this->organization->id, 'code' => (string) Str::uuid(), 'name' => 'Test profile']);
         $artifact = DeviceProfileArtifact::create(['device_profile_id' => $profile->id, 'revision' => 1, 'definition' => $definition, 'definition_hash' => hash('sha256', json_encode($definition)), 'compiled_at' => now()]);
@@ -138,6 +142,43 @@ final class DashboardTest extends TestCase
     {
         $this->actingAs(User::factory()->create(), 'sanctum');
         $this->postJson($this->url, $this->emptyDashboard())->assertForbidden();
+    }
+
+    public function test_state_and_colour_history_use_authoritative_profile_semantics(): void
+    {
+        $boolean = $this->source('', 'boolean');
+        $statePanel = $this->panel($boolean, 'state_history');
+        $statePayload = [...$this->emptyDashboard(),
+            'widgets' => [$statePanel],
+            'layouts' => ['lg' => [['i' => $statePanel['id'], 'x' => 0, 'y' => 0, 'w' => 6, 'h' => 6]]],
+        ];
+        $this->postJson($this->url, $statePayload)
+            ->assertOk()
+            ->assertJsonPath('data.widgets.0.config.sources.0.data_type', 'boolean')
+            ->assertJsonPath('data.widgets.0.config.sources.0.thresholds', []);
+
+        $numeric = $this->source();
+        $statePayload['widgets'][0]['config']['sources'] = [$numeric];
+        $this->postJson($this->url, $statePayload)->assertUnprocessable();
+
+        $colour = $this->source('', 'string', false, 'hex_color', 'color');
+        $colour['data_type'] = 'number';
+        $colour['format'] = 'forged';
+        $colour['display_widget'] = 'forged';
+        $colourPanel = $this->panel($colour, 'color_history');
+        $colourPayload = [...$this->emptyDashboard(),
+            'widgets' => [$colourPanel],
+            'layouts' => ['lg' => [['i' => $colourPanel['id'], 'x' => 0, 'y' => 0, 'w' => 6, 'h' => 6]]],
+        ];
+        $this->postJson($this->url, $colourPayload)
+            ->assertOk()
+            ->assertJsonPath('data.widgets.0.config.sources.0.data_type', 'string')
+            ->assertJsonPath('data.widgets.0.config.sources.0.format', 'hex_color')
+            ->assertJsonPath('data.widgets.0.config.sources.0.display_widget', 'color');
+
+        $plainString = $this->source('', 'string');
+        $colourPayload['widgets'][0]['config']['sources'] = [$plainString];
+        $this->postJson($this->url, $colourPayload)->assertUnprocessable();
     }
 
     public function test_time_series_validates_authoritative_profile_units_and_data_types(): void

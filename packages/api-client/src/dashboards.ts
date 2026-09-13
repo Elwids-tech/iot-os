@@ -7,6 +7,8 @@ export type DashboardSource = {
   label: string
   unit: string | null
   data_type: string
+  format?: string | null
+  display_widget?: string | null
   precision: number | null
   color: string
   base: DashboardBand
@@ -17,7 +19,7 @@ export type StatusWidgetConfig = { sources: DashboardSource[] }
 export type DashboardWidget = {
   id: string
   schema_version: 2
-  type: "status" | "timeseries" | "controls"
+  type: "status" | "timeseries" | "controls" | "state_history" | "color_history"
   title: string
   description: string
   config: StatusWidgetConfig

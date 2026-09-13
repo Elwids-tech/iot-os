@@ -27,7 +27,7 @@ final class DashboardDefinition
             $widget['title'] ??= 'Status';
             $widget['description'] ??= 'Live parameter state';
             $widget['config']['sources'] = array_map(fn (array $source): array => [
-                'label' => '', 'unit' => null, 'data_type' => 'number', 'precision' => null,
+                'label' => '', 'unit' => null, 'data_type' => 'number', 'format' => null, 'display_widget' => null, 'precision' => null,
                 'color' => '#2563eb',
                 'base' => ['label' => $legacy ? 'Below range' : 'Current', 'color' => '#64748b'],
                 'thresholds' => $legacy ? $rules : [], ...$source,
@@ -47,18 +47,20 @@ final class DashboardDefinition
             'widgets.*' => ['array:id,schema_version,type,title,description,config'],
             'widgets.*.id' => ['required', 'string', 'max:100', 'distinct:strict'],
             'widgets.*.schema_version' => ['required', 'integer', 'in:2'],
-            'widgets.*.type' => ['required', 'in:status,timeseries,controls'],
+            'widgets.*.type' => ['required', 'in:status,timeseries,controls,state_history,color_history'],
             'widgets.*.title' => ['required', 'string', 'max:120'],
             'widgets.*.description' => ['nullable', 'string', 'max:1000'],
             'widgets.*.config' => ['required', 'array:sources'],
             'widgets.*.config.sources' => ['required', 'array', 'min:1', 'max:100'],
-            'widgets.*.config.sources.*' => ['array:device_uuid,parameter_uuid,device_name,label,unit,data_type,precision,color,base,thresholds'],
+            'widgets.*.config.sources.*' => ['array:device_uuid,parameter_uuid,device_name,label,unit,data_type,format,display_widget,precision,color,base,thresholds'],
             'widgets.*.config.sources.*.device_uuid' => ['required', 'uuid'],
             'widgets.*.config.sources.*.parameter_uuid' => ['required', 'uuid'],
             'widgets.*.config.sources.*.device_name' => ['sometimes', 'string', 'max:255'],
             'widgets.*.config.sources.*.label' => ['nullable', 'string', 'max:120'],
             'widgets.*.config.sources.*.unit' => ['nullable', 'string', 'max:100'],
             'widgets.*.config.sources.*.data_type' => ['required', 'string'],
+            'widgets.*.config.sources.*.format' => ['nullable', 'string', 'max:100'],
+            'widgets.*.config.sources.*.display_widget' => ['nullable', 'string', 'max:100'],
             'widgets.*.config.sources.*.precision' => ['nullable', 'integer', 'between:0,10'],
             'widgets.*.config.sources.*.color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'widgets.*.config.sources.*.base' => ['required', 'array:label,color'],
@@ -128,9 +130,20 @@ final class DashboardDefinition
                     $source['thresholds'] = [];
                 }
                 $source['data_type'] = $parameter['data_type'];
+                $source['format'] = $parameter['format'] ?? null;
+                $source['display_widget'] = $parameter['display']['widget'] ?? null;
                 $source['device_name'] = $device->name;
                 $source['label'] = trim($source['label'] ?? '') ?: $parameter['label'];
                 $numeric = in_array($source['data_type'], ['number', 'integer'], true);
+                if ($widget['type'] === 'state_history' && ! in_array($source['data_type'], ['boolean', 'enum'], true)) {
+                    $this->fail($path, 'State history requires a boolean or enum parameter.');
+                }
+                if ($widget['type'] === 'color_history' && ! ($source['data_type'] === 'string' && ($source['format'] === 'hex_color' || $source['display_widget'] === 'color'))) {
+                    $this->fail($path, 'Colour history requires a string parameter configured as a colour control.');
+                }
+                if (in_array($widget['type'], ['state_history', 'color_history'], true)) {
+                    $source['thresholds'] = [];
+                }
                 if (! $numeric && ($source['thresholds'] || $widget['type'] === 'timeseries')) {
                     $this->fail($path, 'Charts and numeric thresholds require a numeric parameter.');
                 }

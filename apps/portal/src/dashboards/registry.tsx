@@ -5,6 +5,8 @@ import { StatusPanel } from "./StatusPanel"
 import { ControlsPanel } from "./ControlsPanel"
 
 const TimeSeriesPanel = lazy(() => import("./TimeSeriesPanel"))
+const StateHistoryPanel = lazy(() => import("./StateHistoryPanel"))
+const ColorHistoryPanel = lazy(() => import("./ColorHistoryPanel"))
 export const widgetRegistry = {
   controls: {
     label: "Controls",
@@ -31,6 +33,24 @@ export const widgetRegistry = {
     editor: "parameter-panel",
     version: 2,
     renderer: TimeSeriesPanel,
+  },
+  state_history: {
+    label: "State history",
+    mode: "range",
+    description:
+      "Compare time spent in boolean or enum states and inspect state changes.",
+    editor: "parameter-panel",
+    version: 2,
+    renderer: StateHistoryPanel,
+  },
+  color_history: {
+    label: "Colour history",
+    mode: "range",
+    description:
+      "Inspect reported colour values as an actual-colour chronological strip.",
+    editor: "parameter-panel",
+    version: 2,
+    renderer: ColorHistoryPanel,
   },
 } as const
 

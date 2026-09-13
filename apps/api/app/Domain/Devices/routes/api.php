@@ -27,6 +27,8 @@ Route::prefix('v1/organizations/{organization}')->middleware(['auth:sanctum', Re
     Route::post('devices/{device}/deactivate', [DeviceController::class, 'deactivate']);
     Route::get('devices/{device}/measurements/latest', [DeviceController::class, 'latest']);
     Route::get('devices/{device}/measurements/history', [DeviceController::class, 'history']);
+    Route::get('devices/{device}/measurements/records', [DeviceController::class, 'historyRecords']);
+    Route::get('devices/{device}/measurements/state-history', [DeviceController::class, 'stateHistory']);
     Route::get('devices/{device}/commands', [CommandController::class, 'index']);
     Route::post('devices/{device}/commands', [CommandController::class, 'prepare']);
     Route::post('devices/{device}/commands/send', [CommandController::class, 'send']);

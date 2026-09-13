@@ -18,6 +18,7 @@ use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 final class DeviceController
 {
@@ -185,6 +186,60 @@ final class DeviceController
         $values = $request->validate(['from' => ['required', 'date'], 'to' => ['required', 'date', 'after:from'], 'parameter_uuid' => ['required', 'uuid'], 'max_points' => ['sometimes', 'integer', 'min:10', 'max:1000']]);
 
         return app(RuntimeClient::class)->request('GET', '/internal/measurements/history', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
+    }
+
+    public function historyRecords(Request $request, Organization $organization, Device $device)
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $device);
+        $values = $request->validate([
+            'from' => ['required', 'date'],
+            'to' => ['required', 'date', 'after:from'],
+            'parameter_uuid' => ['required', 'uuid'],
+            'limit' => ['sometimes', 'integer', 'min:1', 'max:5000'],
+            'page_size' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'cursor' => ['sometimes', 'string', 'max:512'],
+        ]);
+        $values['limit'] ??= 500;
+        $values['page_size'] ??= 50;
+
+        return app(RuntimeClient::class)->request('GET', '/internal/measurements/records', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
+    }
+
+    public function stateHistory(Request $request, Organization $organization, Device $device)
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $device);
+        $values = $request->validate([
+            'from' => ['required', 'date'],
+            'to' => ['required', 'date', 'after:from'],
+            'parameter_uuid' => ['required', 'uuid'],
+            'max_points' => ['sometimes', 'integer', 'min:10', 'max:500'],
+        ]);
+        $values['max_points'] ??= 500;
+        if (! $this->supportsStateHistory($device, $values['parameter_uuid'])) {
+            throw ValidationException::withMessages([
+                'parameter_uuid' => 'Choose a boolean, enum, or colour-compatible string parameter from a device configuration.',
+            ]);
+        }
+
+        return app(RuntimeClient::class)->request('GET', '/internal/measurements/state-history', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
+    }
+
+    private function supportsStateHistory(Device $device, string $parameterUuid): bool
+    {
+        return $device->configurations()->get()->contains(function ($configuration) use ($parameterUuid): bool {
+            $canonical = $configuration->definition['profile_canonical_json'] ?? [];
+            $profile = is_string($canonical) ? json_decode($canonical, true) : $canonical;
+            $parameter = collect(is_array($profile) ? ($profile['parameters'] ?? []) : [])->firstWhere('uuid', $parameterUuid);
+            if (! $parameter) {
+                return false;
+            }
+            if (in_array($parameter['data_type'] ?? null, ['boolean', 'enum'], true)) {
+                return true;
+            }
+
+            return ($parameter['data_type'] ?? null) === 'string'
+                && (($parameter['format'] ?? null) === 'hex_color' || data_get($parameter, 'display.widget') === 'color');
+        });
     }
 
     private function revision(Request $request): int

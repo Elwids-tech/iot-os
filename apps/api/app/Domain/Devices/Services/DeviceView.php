@@ -39,7 +39,7 @@ final class DeviceView
             $data['draft'] = $device->draft;
             $artifact = isset($device->draft['artifact_uuid']) ? DeviceProfileArtifact::where('uuid', $device->draft['artifact_uuid'])->first() : null;
             $data['draft_artifact'] = $artifact ? [...$artifact->only(['uuid', 'revision', 'definition_hash', 'definition', 'status', 'compiled_at']), 'profile_uuid' => $artifact->profile->uuid] : null;
-            $data['configurations'] = $device->configurations()->orderByDesc('revision')->get()->map(fn ($c) => self::configuration($c));
+            $data['configurations'] = $device->configurations()->with('artifact.profile')->orderByDesc('revision')->get()->map(fn ($c) => self::configuration($c));
         }
 
         return $data;
@@ -47,7 +47,15 @@ final class DeviceView
 
     public static function configuration(DeviceConfiguration $configuration): array
     {
-        return $configuration->only(['uuid', 'revision', 'definition_hash', 'definition', 'created_at']);
+        $artifact = $configuration->artifact;
+
+        return [
+            ...$configuration->only(['uuid', 'revision', 'definition_hash', 'definition', 'created_at']),
+            'profile_artifact_uuid' => $artifact?->uuid ?? ($configuration->definition['profile_artifact_uuid'] ?? null),
+            'profile_uuid' => $artifact?->profile?->uuid,
+            'profile_name' => $artifact?->profile?->name,
+            'profile_revision' => $artifact?->revision,
+        ];
     }
 
     public static function gateway(SparkplugGateway $gateway): array

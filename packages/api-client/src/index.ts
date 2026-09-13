@@ -11,6 +11,8 @@ import type {
   SparkplugConnection,
   Measurement,
   HistorySeries,
+  HistoryRecordsPage,
+  StateHistory,
   RetentionSetting,
 } from "./devices"
 
@@ -976,6 +978,48 @@ export class ApiClient {
     )
     return this.data<HistorySeries[]>(
       this.devicePath(org, id) + "/measurements/history?" + search,
+      "GET", undefined, signal,
+    )
+  }
+  deviceHistoryRecords(
+    org: string,
+    id: string,
+    query: {
+      parameter_uuid: string
+      from: string
+      to: string
+      limit?: number
+      page_size?: number
+      cursor?: string
+    },
+    signal?: AbortSignal,
+  ) {
+    const search = new URLSearchParams(
+      Object.entries(query)
+        .filter(([, value]) => value !== undefined && value !== "")
+        .map(([key, value]) => [key, String(value)]),
+    )
+    return this.request<HistoryRecordsPage>(
+      this.devicePath(org, id) + "/measurements/records?" + search,
+      { signal },
+    )
+  }
+  deviceStateHistory(
+    org: string,
+    id: string,
+    query: {
+      parameter_uuid: string
+      from: string
+      to: string
+      max_points?: number
+    },
+    signal?: AbortSignal,
+  ) {
+    const search = new URLSearchParams(
+      Object.entries(query).map(([key, value]) => [key, String(value)]),
+    )
+    return this.data<StateHistory>(
+      this.devicePath(org, id) + "/measurements/state-history?" + search,
       "GET", undefined, signal,
     )
   }

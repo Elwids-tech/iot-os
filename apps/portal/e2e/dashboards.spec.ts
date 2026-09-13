@@ -11,6 +11,8 @@ const basePath = `/organizations/${org}/dashboards`
 const deviceId = "11111111-1111-4111-8111-111111111111"
 const parameterId = "22222222-2222-4222-8222-222222222222"
 const secondParameter = "33333333-3333-4333-8333-333333333333"
+const stateParameter = "44444444-4444-4444-8444-444444444444"
+const colourParameter = "55555555-5555-4555-8555-555555555555"
 const source: DashboardSource = {
   device_uuid: deviceId,
   parameter_uuid: parameterId,
@@ -192,6 +194,40 @@ async function setup(page: Page, manage = true) {
         ],
       })
     }
+    if (path.endsWith("/measurements/state-history")) {
+      const parameter = url.searchParams.get("parameter_uuid")
+      const from = url.searchParams.get("from")!
+      const to = url.searchParams.get("to")!
+      const colour = parameter === colourParameter
+      return json({
+        data: {
+          from,
+          to,
+          durations: colour
+            ? []
+            : [
+                {
+                  value: true,
+                  known: true,
+                  data_type: "boolean",
+                  duration_ms: Date.parse(to) - Date.parse(from),
+                  percentage: 100,
+                },
+              ],
+          timeline: [
+            {
+              from,
+              to,
+              value: colour ? "#22C55E" : true,
+              known: true,
+              data_type: colour ? "string" : "boolean",
+              configuration_uuid: "configuration-1",
+            },
+          ],
+          sampled: false,
+        },
+      })
+    }
     if (path.endsWith("/devices"))
       return json({
         data:
@@ -217,15 +253,38 @@ async function setup(page: Page, manage = true) {
               revision: 1,
               definition: {
                 profile_canonical_json: JSON.stringify({
-                  parameters: [parameterId, secondParameter].map(
-                    (uuid, index) => ({
-                      uuid,
-                      key: index ? "return_temp" : "temperature",
-                      label: index ? "Return temperature" : "Temperature",
+                  parameters: [
+                    {
+                      uuid: parameterId,
+                      key: "temperature",
+                      label: "Temperature",
                       data_type: "number",
                       unit: "C",
-                    }),
-                  ),
+                    },
+                    {
+                      uuid: secondParameter,
+                      key: "return_temp",
+                      label: "Return temperature",
+                      data_type: "number",
+                      unit: "C",
+                    },
+                    {
+                      uuid: stateParameter,
+                      key: "power",
+                      label: "Power",
+                      data_type: "boolean",
+                      unit: null,
+                    },
+                    {
+                      uuid: colourParameter,
+                      key: "colour",
+                      label: "Colour",
+                      data_type: "string",
+                      unit: null,
+                      format: "hex_color",
+                      display: { widget: "color" },
+                    },
+                  ],
                 }),
               },
             },
@@ -429,6 +488,51 @@ test("paginated selectors, no-reading parameters, per-source copying, and panel 
     .getByRole("button", { name: "Apply to dashboard", exact: true })
     .click()
   expect(calls.writes).toBe(0)
+  expect(errors).toEqual([])
+})
+
+test("state and colour history panels select only compatible parameters", async ({
+  page,
+}) => {
+  const { dashboards, calls, errors } = await setup(page)
+  await page.goto(basePath + "/first")
+  await page
+    .getByRole("button", { name: "Edit dashboard", exact: true })
+    .click()
+
+  async function addHistoryPanel(
+    type: "State history" | "Colour history",
+    parameter: RegExp,
+  ) {
+    await page.getByRole("button", { name: "Add widget", exact: true }).click()
+    await page.getByRole("button", { name: `Add ${type}`, exact: true }).click()
+    await page.getByRole("combobox", { name: "Device", exact: true }).click()
+    await page
+      .getByRole("button", { name: "Next device options", exact: true })
+      .click()
+    await page.getByRole("option", { name: "Boiler room", exact: true }).click()
+    await page.getByRole("combobox", { name: "Parameter", exact: true }).click()
+    await page.getByRole("option", { name: parameter }).click()
+    await page
+      .getByRole("button", { name: "Add parameter", exact: true })
+      .click()
+    await page
+      .getByRole("button", { name: "Apply to dashboard", exact: true })
+      .click()
+  }
+
+  await addHistoryPanel("State history", /Power/)
+  await expect(page.getByText("On (1)", { exact: true })).toBeVisible()
+  await addHistoryPanel("Colour history", /Colour/)
+  await expect(page.getByText("#22C55E", { exact: true })).toBeVisible()
+
+  await page
+    .getByRole("button", { name: "Save dashboard", exact: true })
+    .click()
+  await expect.poll(() => calls.writes).toBe(1)
+  expect(dashboards[0].widgets.map((widget) => widget.type)).toEqual(
+    expect.arrayContaining(["state_history", "color_history"]),
+  )
   expect(errors).toEqual([])
 })
 

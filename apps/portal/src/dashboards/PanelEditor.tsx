@@ -69,6 +69,7 @@ import {
 } from "./model"
 import { PanelBody, widgetRegistry } from "./registry"
 import { writableParameters, controlSpec } from "../controls/model"
+import { isColorParameter } from "../history/model"
 
 export function PanelEditor({
   initial,
@@ -149,6 +150,11 @@ export function PanelEditor({
       label: parameter.label,
       unit: parameter.unit,
       data_type: parameter.data_type,
+      format: parameter.format,
+      display_widget:
+        typeof parameter.display?.widget === "string"
+          ? parameter.display.widget
+          : null,
       precision: null,
       color: COLORS[widget.config.sources.length % COLORS.length],
       base: { ...NEUTRAL },
@@ -352,6 +358,10 @@ export function PanelEditor({
                           (p) =>
                             (widget.type !== "timeseries" ||
                               ["number", "integer"].includes(p.data_type)) &&
+                            (widget.type !== "state_history" ||
+                              ["boolean", "enum"].includes(p.data_type)) &&
+                            (widget.type !== "color_history" ||
+                              isColorParameter(p)) &&
                             `${p.label} ${p.key} ${p.unit ?? ""}`
                               .toLowerCase()
                               .includes(parameterSearch.toLowerCase()),
