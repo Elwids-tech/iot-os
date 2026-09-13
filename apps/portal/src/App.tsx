@@ -8,6 +8,7 @@ import {
   Outlet,
   Link,
   useNavigate,
+  useLocation,
   useParams,
   NavLink,
 } from "react-router-dom"
@@ -25,6 +26,31 @@ import {
 import { FieldGroup } from "@iot-os/ui/components/field"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { ThemePicker } from "@iot-os/ui/components/theme-picker"
+import { Separator } from "@iot-os/ui/components/separator"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@iot-os/ui/components/dropdown-menu"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+  useSidebar,
+} from "@iot-os/ui/components/sidebar"
+import { TooltipProvider } from "@iot-os/ui/components/tooltip"
 import {
   Dialog,
   DialogContent,
@@ -38,11 +64,17 @@ import {
   LogOutIcon,
   ArrowRightIcon,
   Building2Icon,
+  ChevronsUpDownIcon,
+  FileCogIcon,
+  HardDriveIcon,
+  LayoutDashboardIcon,
+  RadarIcon,
+  RouterIcon,
   SparklesIcon,
 } from "lucide-react"
 import { api } from "./lib/api"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
-import { Choice, TextField, RequestError, Confirm } from "./components/forms"
+import { TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
 const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
@@ -255,6 +287,137 @@ function DashboardRoute() {
 }
 export const profileDirectoryPath = (uuid: string) =>
   "/organizations/" + encodeURIComponent(uuid) + "/device-profiles"
+
+const portalNavigation = [
+  { path: "dashboards", label: "Dashboards", icon: LayoutDashboardIcon },
+  { path: "devices", label: "Devices", icon: HardDriveIcon },
+  { path: "discovery", label: "Discovery", icon: RadarIcon },
+  { path: "gateways", label: "Gateways", icon: RouterIcon },
+  { path: "device-profiles", label: "Device profiles", icon: FileCogIcon },
+]
+
+function PortalSidebar({
+  organizations,
+  organization,
+  onOrganization,
+}: {
+  organizations: Organization[]
+  organization?: Organization
+  onOrganization: (uuid: string) => void
+}) {
+  const location = useLocation()
+  const { setOpenMobile } = useSidebar()
+  const closeMobile = () => setOpenMobile(false)
+
+  return (
+    <Sidebar collapsible="icon">
+      <nav aria-label="Workspace" className="flex h-full flex-col">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="lg"
+                asChild
+                tooltip="IoT OS Tenant portal"
+              >
+                <Link
+                  to={
+                    organization ? profileDirectoryPath(organization.uuid) : "/"
+                  }
+                  onClick={closeMobile}
+                >
+                  <CpuIcon />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-semibold">IoT OS</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      Tenant portal
+                    </span>
+                  </span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    size="lg"
+                    tooltip="Change organization"
+                    aria-label="Organization"
+                  >
+                    <Building2Icon />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-xs text-muted-foreground">
+                        Organization
+                      </span>
+                      <span className="truncate font-medium">
+                        {organization?.name ?? "Choose organization"}
+                      </span>
+                    </span>
+                    <ChevronsUpDownIcon className="ml-auto" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="right"
+                  align="start"
+                  className="w-64"
+                >
+                  {organizations.map((item) => (
+                    <DropdownMenuItem
+                      key={item.uuid}
+                      onSelect={() => {
+                        onOrganization(item.uuid)
+                        closeMobile()
+                      }}
+                    >
+                      <Building2Icon />
+                      <span className="truncate">{item.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent>
+          {organization && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {portalNavigation.map((item) => {
+                    const to = `/organizations/${organization.uuid}/${item.path}`
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip={item.label}
+                          isActive={location.pathname.startsWith(to)}
+                        >
+                          <NavLink to={to} onClick={closeMobile}>
+                            <item.icon />
+                            <span>{item.label}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+        </SidebarContent>
+        <SidebarFooter>
+          <div className="flex items-center gap-2 px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+            <Building2Icon className="size-4 shrink-0" />
+            <p>Define once. Connect through any protocol.</p>
+          </div>
+        </SidebarFooter>
+        <SidebarRail />
+      </nav>
+    </Sidebar>
+  )
+}
+
 function PortalShell({
   organizations,
   name,
@@ -267,6 +430,7 @@ function PortalShell({
     (item) => item.uuid === params.organizationUuid,
   )
   const navigate = useNavigate()
+  const location = useLocation()
   const cache = useQueryClient()
   const { dirty, setDirty } = useDirtyContext()
   const [logoutConfirm, setLogoutConfirm] = useState(false)
@@ -293,100 +457,97 @@ function PortalShell({
   useEffect(() => {
     if (org) api.setSelectedOrganizationUuid(org.uuid)
   }, [org?.uuid])
+  const currentSection =
+    portalNavigation.find((item) => location.pathname.includes(`/${item.path}`))
+      ?.label ?? "Tenant portal"
+
   return (
-    <div className="flex min-h-svh flex-col">
-      <header className="sticky top-0 z-10 border-b bg-card">
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-3 md:px-8">
-          <Link
-            to={org ? profileDirectoryPath(org.uuid) : "/"}
-            className="flex items-center gap-3 font-semibold"
-          >
-            <CpuIcon className="text-primary" />
-            <span>
-              IoT OS{" "}
-              <span className="font-normal text-muted-foreground">
-                / Tenant portal
+    <TooltipProvider>
+      <SidebarProvider>
+        <PortalSidebar
+          organizations={organizations}
+          organization={org}
+          onOrganization={(uuid) => navigate(profileDirectoryPath(uuid))}
+        />
+        <SidebarInset
+          className={assistantOpen && org ? "md:pr-[440px]" : undefined}
+        >
+          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-card px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <span className="truncate text-sm font-medium">
+              {currentSection}
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="hidden text-sm text-muted-foreground sm:inline">
+                {name}
               </span>
-            </span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-muted-foreground sm:inline">
-              {name}
-            </span>
-            <ThemePicker />
-            {org && <Button variant="outline" aria-expanded={assistantOpen} onClick={() => { setAssistantLoaded(true); setAssistantOpen(current => !current) }}><SparklesIcon data-icon="inline-start" />Assistant</Button>}
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Sign out"
-              onClick={() =>
-                dirty ? setLogoutConfirm(true) : void logout().catch(() => {})
-              }
-            >
-              <LogOutIcon />
-            </Button>
+              <ThemePicker />
+              {org && (
+                <Button
+                  variant="outline"
+                  aria-label="Assistant"
+                  aria-expanded={assistantOpen}
+                  onClick={() => {
+                    setAssistantLoaded(true)
+                    setAssistantOpen((current) => !current)
+                  }}
+                >
+                  <SparklesIcon data-icon="inline-start" />
+                  <span className="hidden sm:inline">Assistant</span>
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Sign out"
+                onClick={() =>
+                  dirty ? setLogoutConfirm(true) : void logout().catch(() => {})
+                }
+              >
+                <LogOutIcon />
+              </Button>
+            </div>
+          </header>
+          <div className="mx-auto w-full max-w-[1344px] min-w-0 flex-1 p-4 md:p-8">
+            <RequestError error={logoutError} />
+            {params.organizationUuid && !org ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Workspace unavailable</CardTitle>
+                  <CardDescription>
+                    You do not have access to this organization. Choose one of
+                    your workspaces.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ) : (
+              <Outlet />
+            )}
           </div>
-        </div>
-      </header>
-      <div className={assistantOpen && org ? "mx-auto flex w-full max-w-[1600px] flex-1 flex-col md:pr-[440px] lg:flex-row" : "mx-auto flex w-full max-w-[1600px] flex-1 flex-col lg:flex-row"}>
-        <aside className="flex flex-col gap-5 border-b p-4 lg:w-64 lg:shrink-0 lg:border-r lg:border-b-0 lg:p-6">
-          <Choice
-            label="Organization"
-            value={org?.uuid ?? ""}
-            options={[
-              { value: "", label: "Select organization" },
-              ...organizations.map((item) => ({
-                value: item.uuid,
-                label: item.name,
-              })),
-            ]}
-            onChange={(uuid) =>
-              navigate(uuid ? profileDirectoryPath(uuid) : "/")
-            }
-          />
-          {org && (
-            <nav aria-label="Workspace" className="flex flex-col gap-2">
-              {[{ path: "dashboards", label: "Dashboards" }, { path: "devices", label: "Devices" }, { path: "discovery", label: "Discovery" }, { path: "gateways", label: "Gateways" }].map(item => <Button key={item.path} asChild variant="ghost" className="justify-start [&.active]:bg-secondary"><NavLink to={`/organizations/${org.uuid}/${item.path}`}>{item.label}</NavLink></Button>)}
-            <Button asChild variant="ghost" className="justify-start [&.active]:bg-secondary">
-              <NavLink to={profileDirectoryPath(org.uuid)}>
-                <CpuIcon data-icon="inline-start" />
-                Device profiles
-              </NavLink>
-            </Button>
-            </nav>
-          )}
-          <div className="hidden flex-col gap-2 text-xs text-muted-foreground lg:mt-auto lg:flex">
-            <Building2Icon />
-            <p>Define once. Connect through any protocol.</p>
-          </div>
-        </aside>
-        <main className="min-w-0 flex-1 p-4 md:p-8">
-          <RequestError error={logoutError} />
-          {params.organizationUuid && !org ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Workspace unavailable</CardTitle>
-                <CardDescription>
-                  You do not have access to this organization. Choose one of
-                  your workspaces.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          ) : (
-            <Outlet />
-          )}
-        </main>
-      </div>
-      {org && assistantLoaded && <Suspense fallback={null}><AssistantPanel key={org.uuid} org={org.uuid} organizationName={org.name} viewedProfile={params.profileUuid} open={assistantOpen} onClose={() => setAssistantOpen(false)} /></Suspense>}
-      <Confirm
-        open={logoutConfirm}
-        title="Sign out without saving?"
-        description="Unsaved form changes will be discarded."
-        action="Sign out"
-        onClose={() => setLogoutConfirm(false)}
-        onConfirm={logout}
-      />
-    </div>
+        </SidebarInset>
+        {org && assistantLoaded && (
+          <Suspense fallback={null}>
+            <AssistantPanel
+              key={org.uuid}
+              org={org.uuid}
+              organizationName={org.name}
+              viewedProfile={params.profileUuid}
+              open={assistantOpen}
+              onClose={() => setAssistantOpen(false)}
+            />
+          </Suspense>
+        )}
+        <Confirm
+          open={logoutConfirm}
+          title="Sign out without saving?"
+          description="Unsaved form changes will be discarded."
+          action="Sign out"
+          onClose={() => setLogoutConfirm(false)}
+          onConfirm={logout}
+        />
+      </SidebarProvider>
+    </TooltipProvider>
   )
 }
 

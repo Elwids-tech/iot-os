@@ -977,7 +977,7 @@ export default function AssistantPanel({
         <aside
           hidden={!open}
           aria-labelledby="assistant-title"
-          className="fixed inset-y-0 right-0 top-[69px] w-[440px] border-l bg-background shadow-lg"
+          className="fixed inset-y-0 right-0 top-14 w-[440px] border-l bg-background shadow-lg"
         >
           {content}
         </aside>
