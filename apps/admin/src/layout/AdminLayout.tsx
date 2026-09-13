@@ -70,7 +70,7 @@ function AdminSidebar({ canManageRetention }: { canManageRetention: boolean }) {
             <SidebarMenuButton asChild size="lg" tooltip="IoT OS Administration">
               <NavLink to="/organizations" onClick={closeMobileSidebar}>
                 <BoxesIcon />
-                <span className="flex min-w-0 flex-col">
+                <span className="flex min-w-0 flex-col group-data-[collapsible=icon]:sr-only">
                   <span className="truncate font-semibold">IoT OS</span>
                   <span className="truncate text-xs text-muted-foreground">Administration</span>
                 </span>
@@ -88,12 +88,12 @@ function AdminSidebar({ canManageRetention }: { canManageRetention: boolean }) {
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton
                     asChild
-                    isActive={location.pathname.startsWith(item.to)}
+                    isActive={location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)}
                     tooltip={item.title}
                   >
                     <NavLink to={item.to} onClick={closeMobileSidebar}>
                       <item.icon />
-                      <span>{item.title}</span>
+                      <span className="group-data-[collapsible=icon]:sr-only">{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -327,7 +327,7 @@ function PortalSidebar({
                   onClick={closeMobile}
                 >
                   <CpuIcon />
-                  <span className="flex min-w-0 flex-col">
+                  <span className="flex min-w-0 flex-col group-data-[collapsible=icon]:sr-only">
                     <span className="truncate font-semibold">IoT OS</span>
                     <span className="truncate text-xs text-muted-foreground">
                       Tenant portal
@@ -345,7 +345,7 @@ function PortalSidebar({
                     aria-label="Organization"
                   >
                     <Building2Icon />
-                    <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:sr-only">
                       <span className="truncate text-xs text-muted-foreground">
                         Organization
                       </span>
@@ -353,7 +353,7 @@ function PortalSidebar({
                         {organization?.name ?? "Choose organization"}
                       </span>
                     </span>
-                    <ChevronsUpDownIcon className="ml-auto" />
+                    <ChevronsUpDownIcon className="ml-auto group-data-[collapsible=icon]:hidden" />
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -391,11 +391,11 @@ function PortalSidebar({
                         <SidebarMenuButton
                           asChild
                           tooltip={item.label}
-                          isActive={location.pathname.startsWith(to)}
+                          isActive={location.pathname === to || location.pathname.startsWith(`${to}/`)}
                         >
                           <NavLink to={to} onClick={closeMobile}>
                             <item.icon />
-                            <span>{item.label}</span>
+                            <span className="group-data-[collapsible=icon]:sr-only">{item.label}</span>
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
