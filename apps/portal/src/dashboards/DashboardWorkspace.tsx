@@ -243,6 +243,7 @@ export function DashboardWorkspace({
       : null
   const fullWidget = dashboard.widgets.find((w) => w.id === fullscreen)
   const bodyProps = {
+    preview: Boolean(draft),
     org,
     view,
     window,

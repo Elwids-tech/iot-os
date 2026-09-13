@@ -2,9 +2,18 @@ import { lazy, Suspense } from "react"
 import type { DashboardView, DashboardWidget } from "@iot-os/api-client"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { StatusPanel } from "./StatusPanel"
+import { ControlsPanel } from "./ControlsPanel"
 
 const TimeSeriesPanel = lazy(() => import("./TimeSeriesPanel"))
 export const widgetRegistry = {
+  controls: {
+    label: "Controls",
+    mode: "latest",
+    description: "Set writable device parameters and follow reported state.",
+    editor: "parameter-panel",
+    version: 2,
+    renderer: ControlsPanel,
+  },
   status: {
     label: "Status",
     mode: "latest",
@@ -26,6 +35,7 @@ export const widgetRegistry = {
 } as const
 
 export type PanelProps = {
+  preview?: boolean
   org: string
   widget: DashboardWidget
   view: DashboardView

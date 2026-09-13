@@ -87,7 +87,7 @@ final class DeviceConfigurationService
             $allowed = match ($parameter['data_type']) {
                 'boolean' => ['Boolean'], 'integer' => ['Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64'],
                 'number' => ['Float', 'Double', 'Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64'],
-                'string' => ['String', 'Text', 'UUID'], 'timestamp' => ['DateTime'], 'bytes' => ['Bytes'], default => [],
+                'enum', 'string' => ['String', 'Text', 'UUID'], 'timestamp' => ['DateTime'], 'bytes' => ['Bytes'], default => [],
             };
             if ($conversion['ingress_conversion'] !== null && $parameter['data_type'] === 'integer') {
                 $allowed = [...$allowed, 'Float', 'Double'];

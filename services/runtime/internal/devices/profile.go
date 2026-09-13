@@ -42,7 +42,7 @@ func ValidateValue(p Parameter, v any) error {
 		valid = ok && math.Trunc(n) == n && math.Abs(n) <= 9007199254740991
 	case "number":
 		_, valid = Number(v)
-	case "string":
+	case "enum", "string":
 		s, ok := v.(string)
 		valid = ok && len(s) <= 65536
 	case "timestamp":

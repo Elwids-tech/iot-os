@@ -147,7 +147,14 @@ export type DeviceProfileParameter = {
   key: string
   label: string
   kind: "state" | "measurement" | "counter" | "event" | "derived"
-  data_type: "boolean" | "integer" | "number" | "string" | "timestamp" | "bytes"
+  data_type:
+    | "boolean"
+    | "integer"
+    | "number"
+    | "enum"
+    | "string"
+    | "timestamp"
+    | "bytes"
   format: string | null
   unit: string | null
   reports_state: boolean
@@ -987,6 +994,22 @@ export class ApiClient {
   ) {
     return this.data<DeviceCommand>(
       this.devicePath(org, id) + "/commands",
+      "POST",
+      values,
+    )
+  }
+  sendDeviceCommand(
+    org: string,
+    id: string,
+    values: {
+      configuration_uuid: string
+      parameter_uuid: string
+      value: unknown
+      idempotency_key: string
+    },
+  ) {
+    return this.data<DeviceCommand>(
+      this.devicePath(org, id) + "/commands/send",
       "POST",
       values,
     )

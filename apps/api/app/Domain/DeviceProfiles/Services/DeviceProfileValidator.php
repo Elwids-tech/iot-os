@@ -44,7 +44,7 @@ final class DeviceProfileValidator
                     }
                 }
             }
-            foreach (app(ProfileConfigurationValidator::class)->errors($parameter->only(['display_config', 'reporting_config', 'counter_config'])) as $field => $messages) {
+            foreach (app(ProfileConfigurationValidator::class)->errors($parameter->only(['data_type', 'validation_logic', 'display_config', 'reporting_config', 'counter_config'])) as $field => $messages) {
                 foreach ($messages as $message) {
                     $diagnostics[] = new ProfileDiagnostic('parameter.invalid_configuration', $parameter->label.': '.$message, $pointer.'/'.str_replace('.', '/', $field));
                 }

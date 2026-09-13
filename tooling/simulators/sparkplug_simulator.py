@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 import paho.mqtt.client as mqtt
 import sparkplug_b_pb2 as sp
+from rgb_controls import load_state, save_state, validate_changes, serve_controls
 
 
 def metric(name, datatype, value, alias=None):
@@ -34,7 +35,7 @@ def metric(name, datatype, value, alias=None):
 
 
 class Simulator:
-    def __init__(self, config, state_file, ignore_commands=False):
+    def __init__(self, config, state_file, ignore_commands=False, rgb_v2=False):
         self.config = config
         self.state_file = pathlib.Path(state_file)
         self.ignore_commands = ignore_commands
@@ -45,6 +46,10 @@ class Simulator:
         self.running = True
         self.started = time.monotonic()
         self.values = {"power": False, "color": "#ff0000", "mode": "blink", "brightness": 5}
+        self.rgb_v2 = rgb_v2
+        self.rgb_state_file = pathlib.Path(str(state_file) + ".rgb.json")
+        if rgb_v2:
+            self.values = load_state(self.rgb_state_file)
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=config["username"], protocol=mqtt.MQTTv311)
         self.client.username_pw_set(config["username"], config["password"])
         self.client.tls_set(ca_certs=config["ca_file"], tls_version=ssl.PROTOCOL_TLS_CLIENT)
@@ -129,6 +134,22 @@ class Simulator:
             print("State command received", flush=True)
             if self.ignore_commands:
                 return
+            if self.rgb_v2:
+                changes = {}
+                for m in payload.metrics:
+                    if m.name == "Power" and m.datatype == sp.Boolean:
+                        changes["power"] = m.boolean_value
+                    elif m.name == "Color" and m.datatype == sp.String:
+                        changes["color"] = m.string_value
+                    elif m.name == "Mode" and m.datatype == sp.String:
+                        changes["mode"] = m.string_value
+                    elif m.name == "Brightness" and m.datatype == sp.Int32:
+                        changes["brightness"] = m.int_value
+                try:
+                    self.apply_rgb_changes(changes)
+                except ValueError as error:
+                    print(f"RGB command rejected: {error}", flush=True)
+                return
             for m in payload.metrics:
                 if m.name == "Power" and m.datatype == sp.Boolean:
                     self.values["power"] = m.boolean_value
@@ -140,6 +161,14 @@ class Simulator:
                     self.values["brightness"] = m.int_value
             self.send("DDATA", self.light(), "rgb-light")
 
+    def apply_rgb_changes(self, changes):
+        with self.lock:
+            next_values = {**self.values, **validate_changes(changes)}
+            save_state(self.rgb_state_file, next_values)
+            self.values = next_values
+            if self.online:
+                self.send("DDATA", self.light(), "rgb-light")
+
     def run(self):
         parsed = urlparse(self.config["broker_url"])
         if parsed.scheme != "ssl":
@@ -150,10 +179,11 @@ class Simulator:
         try:
             while True:
                 time.sleep(1)
-                if self.online:
-                    self.send("DDATA", self.meter(aliases_only=True), "meter")
-                    if int(time.monotonic() - self.started) % 5 == 0:
-                        self.send("DDATA", self.light(), "rgb-light")
+                with self.lock:
+                    if self.online:
+                        self.send("DDATA", self.meter(aliases_only=True), "meter")
+                        if int(time.monotonic() - self.started) % 5 == 0:
+                            self.send("DDATA", self.light(), "rgb-light")
         except KeyboardInterrupt:
             with self.lock:
                 self.online = False
@@ -169,5 +199,16 @@ if __name__ == "__main__":
     parser.add_argument("--config", required=True)
     parser.add_argument("--state-file", required=True)
     parser.add_argument("--ignore-commands", action="store_true")
+    parser.add_argument("--rgb-v2", action="store_true", help="Use Solid/Blink/Strobe and 0–100% brightness; persist RGB state.")
+    parser.add_argument("--control-port", type=int, help="Serve optional local RGB controls on this loopback port (requires --rgb-v2).")
     args = parser.parse_args()
-    Simulator(json.loads(pathlib.Path(args.config).read_text()), args.state_file, args.ignore_commands).run()
+    if args.control_port is not None and not args.rgb_v2:
+        parser.error("--control-port requires --rgb-v2")
+    simulator = Simulator(json.loads(pathlib.Path(args.config).read_text()), args.state_file, args.ignore_commands, args.rgb_v2)
+    server = serve_controls(simulator, args.control_port) if args.control_port is not None else None
+    try:
+        simulator.run()
+    finally:
+        if server:
+            server.shutdown()
+            server.server_close()

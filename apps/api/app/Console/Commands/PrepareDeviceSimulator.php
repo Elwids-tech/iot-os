@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 
 final class PrepareDeviceSimulator extends Command
 {
-    protected $signature = 'devices:prepare-simulator {--organization=acme-manufacturing} {--output=} {--broker=ssl://localhost:8883} {--ca=}';
+    protected $signature = 'devices:prepare-simulator {--organization=acme-manufacturing} {--output=} {--broker=ssl://localhost:8883} {--ca=} {--rgb-controls : Prepare a separate RGB v2 profile and gateway}';
 
     protected $description = 'Create additive local simulator profiles and write private gateway credentials to a file.';
 
@@ -35,12 +35,12 @@ final class PrepareDeviceSimulator extends Command
         }
         $organization = Organization::where('slug', $this->option('organization'))->firstOrFail();
         $actor = User::where('is_super_admin', true)->firstOrFail();
-        foreach (['three-phase-energy-meter', 'rgb-light'] as $fixture) {
+        foreach ($this->option('rgb-controls') ? ['rgb-light-v2'] : ['three-phase-energy-meter', 'rgb-light'] as $fixture) {
             if (DeviceProfile::where('organization_id', $organization->id)->where('code', 'simulator-'.$fixture)->exists()) {
                 continue;
             }
             DB::transaction(function () use ($fixture, $organization, $actor): void {
-                $definition = json_decode(file_get_contents(base_path('../../contracts/definitions/device-profiles/'.$fixture.'.v1.json')), true, 512, JSON_THROW_ON_ERROR);
+                $definition = json_decode(file_get_contents(base_path('../../contracts/definitions/device-profiles/'.($fixture === 'rgb-light-v2' ? 'rgb-light.v2' : $fixture.'.v1').'.json')), true, 512, JSON_THROW_ON_ERROR);
                 $profile = DeviceProfile::create(['organization_id' => $organization->id, 'code' => 'simulator-'.$fixture, 'name' => $definition['profile']['name'].' (simulator)', 'category' => $definition['profile']['category'], 'created_by' => $actor->id, 'updated_by' => $actor->id]);
                 $parameters = [];
                 foreach ($definition['parameters'] as $index => $parameter) {
@@ -63,8 +63,8 @@ final class PrepareDeviceSimulator extends Command
         $group = 'simulator-'.$organization->uuid;
         $connection = SparkplugConnection::firstOrCreate(['group_id' => $group], ['organization_id' => $organization->id, 'name' => 'Local simulator', 'host_id' => 'iot-host-'.$organization->uuid, 'username' => 'sim-host-'.$organization->uuid, 'password' => Str::random(48)]);
         app(BrokerProvisioner::class)->connection($connection);
-        $gateway = SparkplugGateway::firstOrCreate(['sparkplug_connection_id' => $connection->id, 'edge_node_id' => 'simulator-edge'],
-            ['organization_id' => $organization->id, 'name' => 'Simulator gateway', 'username' => 'sim-edge-'.$organization->uuid, 'password' => Str::random(48)]);
+        $gateway = SparkplugGateway::firstOrCreate(['sparkplug_connection_id' => $connection->id, 'edge_node_id' => $this->option('rgb-controls') ? 'simulator-rgb-edge' : 'simulator-edge'],
+            ['organization_id' => $organization->id, 'name' => $this->option('rgb-controls') ? 'RGB simulator gateway' : 'Simulator gateway', 'username' => ($this->option('rgb-controls') ? 'sim-rgb-edge-' : 'sim-edge-').$organization->uuid, 'password' => Str::random(48)]);
         app(BrokerProvisioner::class)->gateway($gateway);
         $path = $this->option('output');
         if (! str_starts_with($path, '/') || ! str_starts_with($this->option('ca'), '/')) {

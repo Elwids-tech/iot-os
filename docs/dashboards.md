@@ -1,5 +1,7 @@
 # Organization dashboards
 
+Reusable [device Controls panels](device-controls.md) are also available alongside Status and Time series. They follow reported state and send direct commands when outside dashboard editing.
+
 The tenant portal supports multiple organization-shared dashboards at `/organizations/:organizationUuid/dashboards`, each with a direct detail URL. Existing `Device.view` and `Device.manage` capabilities govern access and editing.
 
 ## Editing

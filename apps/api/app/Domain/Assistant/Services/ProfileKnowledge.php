@@ -16,7 +16,7 @@ final class ProfileKnowledge
         $parameter->setMethod('POST');
         $rules = $parameter->rules();
         $rules['kind'] = ['required', 'state|measurement|counter|event|derived'];
-        $rules['data_type'] = ['required', 'boolean|integer|number|string|timestamp|bytes'];
+        $rules['data_type'] = ['required', 'boolean|integer|number|enum|string|timestamp|bytes'];
 
         return [
             'version' => 2,

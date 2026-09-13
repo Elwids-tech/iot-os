@@ -47,7 +47,7 @@ final class DashboardDefinition
             'widgets.*' => ['array:id,schema_version,type,title,description,config'],
             'widgets.*.id' => ['required', 'string', 'max:100', 'distinct:strict'],
             'widgets.*.schema_version' => ['required', 'integer', 'in:2'],
-            'widgets.*.type' => ['required', 'in:status,timeseries'],
+            'widgets.*.type' => ['required', 'in:status,timeseries,controls'],
             'widgets.*.title' => ['required', 'string', 'max:120'],
             'widgets.*.description' => ['nullable', 'string', 'max:1000'],
             'widgets.*.config' => ['required', 'array:sources'],
@@ -120,6 +120,13 @@ final class DashboardDefinition
                     $this->fail($path, 'Choose a parameter from an applied device profile in this organization.');
                 }
                 $source['unit'] = $parameter['unit'] ?? null;
+                if ($widget['type'] === 'controls') {
+                    $mapping = collect($config->definition['mappings'] ?? [])->firstWhere('parameter_uuid', $parameter['uuid']);
+                    if ($device->applied_configuration_uuid !== $config->uuid || ($parameter['kind'] ?? '') !== 'state' || ! ($parameter['accepts_command'] ?? false) || ! ($parameter['reports_state'] ?? false) || empty($mapping['command_metric']) || ! in_array($parameter['data_type'], ['boolean', 'integer', 'number', 'string'], true)) {
+                        $this->fail($path, 'Choose a writable state parameter with an applied command mapping.');
+                    }
+                    $source['thresholds'] = [];
+                }
                 $source['data_type'] = $parameter['data_type'];
                 $source['device_name'] = $device->name;
                 $source['label'] = trim($source['label'] ?? '') ?: $parameter['label'];

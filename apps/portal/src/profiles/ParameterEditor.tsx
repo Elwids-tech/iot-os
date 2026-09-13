@@ -28,14 +28,73 @@ import {
 import { useUnsaved } from "../lib/unsaved"
 import { api } from "../lib/api"
 import { useStudio } from "./use-studio"
-import { jsonText, objectValue, updateConfig } from "./authoring"
+import { jsonText, objectValue, readValidation, updateConfig } from "./authoring"
 import { ValidationControls, ParameterPreview } from "./ValidationControls"
-import { PresentationOptions } from "./PresentationOptions"
 import {
   IncomingConversionFields,
   conversionEligible,
 } from "./IncomingConversionFields"
 import { ConflictReview } from "./ConflictReview"
+
+type WidgetChoice = { value: string; label: string }
+
+const optionWidgets: WidgetChoice[] = [
+  { value: "toggle_group", label: "Choice buttons" },
+  { value: "searchable_select", label: "Searchable select" },
+]
+
+function controlWidgetChoices(
+  type: AuthoringParameter["data_type"],
+  current: string,
+): WidgetChoice[] {
+  const automatic = { value: "", label: "Automatic" }
+  const choices: WidgetChoice[] =
+    type === "boolean"
+      ? [automatic, { value: "switch", label: "Switch" }]
+      : type === "enum"
+        ? [automatic, ...optionWidgets]
+        : type === "string"
+          ? [
+              automatic,
+              { value: "text", label: "Text input" },
+              { value: "color", label: "Colour picker" },
+              ...optionWidgets,
+            ]
+          : type === "integer" || type === "number"
+            ? [
+                automatic,
+                { value: "number", label: "Number input" },
+                { value: "slider", label: "Slider" },
+                ...optionWidgets,
+              ]
+            : [automatic]
+
+  if (current && !choices.some((choice) => choice.value === current)) {
+    choices.push({
+      value: current,
+      label:
+        current === "select"
+          ? "Automatic choices (legacy)"
+          : `Custom widget (${current})`,
+    })
+  }
+  return choices
+}
+
+function widgetHelp(type: AuthoringParameter["data_type"], widget: string) {
+  if (["toggle_group", "searchable_select", "select"].includes(widget))
+    return "Choices come from Allowed values on the Validation tab."
+  if (widget === "slider")
+    return "Minimum and maximum come from Number range on the Validation tab."
+  if (widget === "color")
+    return "Uses a colour picker and sets the semantic format to hex_color."
+  if (!widget && type === "enum")
+    return "Uses choice buttons for a short list and a searchable select for a longer list."
+  if (!widget && ["timestamp", "bytes"].includes(type))
+    return "This data type does not yet have an editable control."
+  return "Automatic uses the default component for the selected data type and validation."
+}
+
 export function ParameterEditor({
   parameter,
   onClose,
@@ -79,6 +138,14 @@ export function ParameterEditor({
     studio.blocked
   useUnsaved(dirty)
   useEffect(() => {
+    if (fieldError(error, "validation_logic")) {
+      setTab("validation")
+      return
+    }
+    if (fieldError(error, "display_config")) {
+      setTab("behavior")
+      return
+    }
     const name = fieldError(error, "label")
       ? "label"
       : fieldError(error, "key")
@@ -118,6 +185,10 @@ export function ParameterEditor({
     reporting = objectValue(values.reporting_config) ?? {}
     counter = objectValue(values.counter_config) ?? {}
   } catch {}
+  const currentWidget =
+    typeof display.widget === "string" ? display.widget : ""
+  const guidedValidation = readValidation(values.validation_logic)
+  const widgetChoices = controlWidgetChoices(values.data_type, currentWidget)
   let previewParameter: Pick<
     AuthoringParameter,
     "data_type" | "format" | "validation_logic"
@@ -246,13 +317,24 @@ export function ParameterEditor({
                       "boolean",
                       "integer",
                       "number",
+                      "enum",
                       "string",
                       "timestamp",
                       "bytes",
                     ].map((value) => ({ value, label: value }))}
-                    onChange={(value) =>
-                      set("data_type", value as typeof values.data_type)
-                    }
+                    onChange={(value) => {
+                      const type = value as typeof values.data_type
+                      set("data_type", type)
+                      if (
+                        currentWidget &&
+                        !controlWidgetChoices(type, "").some(
+                          (choice) => choice.value === currentWidget,
+                        )
+                      )
+                        configuration("display_config", "widget", undefined)
+                      if (type !== "string" && values.format === "hex_color")
+                        set("format", "")
+                    }}
                   />
                 </FieldGroup>
                 <TextField
@@ -345,42 +427,43 @@ export function ParameterEditor({
                 </FieldDescription>
                 <Separator />
                 <Choice
-                  label="Presentation hint"
+                  label="Control UI component"
                   disabled={disabled}
-                  value={String(display.widget ?? "")}
-                  options={[
-                    { value: "", label: "Automatic" },
-                    ...Array.from(
-                      new Set([
-                        "number",
-                        "switch",
-                        "select",
-                        "color",
-                        "text",
-                        ...(typeof display.widget === "string"
-                          ? [display.widget]
-                          : []),
-                      ]),
-                    ).map((value) => ({ value, label: value })),
-                  ]}
-                  onChange={(value) =>
+                  value={currentWidget}
+                  options={widgetChoices}
+                  help={widgetHelp(values.data_type, currentWidget)}
+                  onChange={(value) => {
                     configuration(
                       "display_config",
                       "widget",
                       value || undefined,
                     )
-                  }
+                    if (value === "color" && values.format !== "hex_color")
+                      set("format", "hex_color")
+                  }}
                 />
-                {display.widget === "select" && (
-                  <PresentationOptions
-                    options={display.options}
-                    type={values.data_type}
-                    disabled={disabled}
-                    onChange={(options) =>
-                      configuration("display_config", "options", options)
-                    }
-                  />
+                {["toggle_group", "searchable_select", "select"].includes(
+                  currentWidget,
+                ) && guidedValidation.mode !== "options" && (
+                  <FieldDescription>
+                    Add Allowed values on the Validation tab before this
+                    control can be used.
+                  </FieldDescription>
                 )}
+                {currentWidget === "slider" &&
+                  guidedValidation.mode !== "range" && (
+                    <FieldDescription>
+                      Add a minimum and maximum with Number range on the
+                      Validation tab before this slider can be used.
+                    </FieldDescription>
+                  )}
+                {values.data_type === "enum" &&
+                  guidedValidation.mode !== "options" && (
+                    <FieldDescription>
+                      Enum parameters require at least one unique string under
+                      Allowed values on the Validation tab.
+                    </FieldDescription>
+                  )}
                 {["number", "integer"].includes(values.data_type) && (
                   <FieldGroup className="grid gap-4 sm:grid-cols-2">
                     <TextField
@@ -485,8 +568,9 @@ export function ParameterEditor({
             </TabsContent>
             <TabsContent value="validation">
               <FieldGroup>
-                <ValidationControls
-                  text={values.validation_logic}
+                  <ValidationControls
+                    key={values.data_type}
+                    text={values.validation_logic}
                   onChange={(value) => set("validation_logic", value)}
                   type={values.data_type}
                   disabled={disabled}

@@ -40,7 +40,15 @@ import { editedEvidence } from "./state"
 const JsonCode = lazy(() => import("@iot-os/ui/components/json-code"))
 const enums: Record<string, string[]> = {
   kind: ["state", "measurement", "counter", "event", "derived"],
-  data_type: ["boolean", "integer", "number", "string", "timestamp", "bytes"],
+  data_type: [
+    "boolean",
+    "integer",
+    "number",
+    "enum",
+    "string",
+    "timestamp",
+    "bytes",
+  ],
   engine: ["json_logic"],
   trigger: ["on_input_change"],
   failure_policy: ["mark_invalid"],

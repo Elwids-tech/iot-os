@@ -29,6 +29,7 @@ Route::prefix('v1/organizations/{organization}')->middleware(['auth:sanctum', Re
     Route::get('devices/{device}/measurements/history', [DeviceController::class, 'history']);
     Route::get('devices/{device}/commands', [CommandController::class, 'index']);
     Route::post('devices/{device}/commands', [CommandController::class, 'prepare']);
+    Route::post('devices/{device}/commands/send', [CommandController::class, 'send']);
     Route::post('devices/{device}/commands/{command}/confirm', [CommandController::class, 'confirm']);
     Route::post('devices/{device}/commands/{command}/cancel', [CommandController::class, 'cancel']);
     Route::get('sparkplug-connections', [DiscoveryController::class, 'connections']);

@@ -28,7 +28,7 @@ final class ProfilePreviewController
             'kind' => ['required', Rule::in(['validation', 'conversion', 'calculation'])],
             'draft_revision' => ['required', 'integer', 'min:1'],
             'parameter' => ['required_if:kind,validation,conversion', 'array'],
-            'parameter.data_type' => ['required_if:kind,validation,conversion', Rule::in(['boolean', 'integer', 'number', 'string', 'timestamp', 'bytes'])],
+            'parameter.data_type' => ['required_if:kind,validation,conversion', Rule::in(['boolean', 'integer', 'number', 'enum', 'string', 'timestamp', 'bytes'])],
             'parameter.kind' => ['sometimes', 'in:measurement,counter'],
             'parameter.reports_state' => ['sometimes', 'boolean'],
             'parameter.accepts_command' => ['sometimes', 'boolean'],
@@ -101,7 +101,7 @@ final class ProfilePreviewController
         return match ($type) {
             'boolean' => is_bool($value), 'integer' => (is_int($value) || is_float($value)) && is_finite((float) $value) && floor($value) == $value && abs($value) <= 9007199254740991,
             'number' => is_int($value) || (is_float($value) && is_finite($value)),
-            'string' => is_string($value),
+            'enum', 'string' => is_string($value),
             'bytes' => is_string($value) && base64_decode($value, true) !== false,
             'timestamp' => is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}T/', $value) && strtotime($value) !== false,
             default => false,

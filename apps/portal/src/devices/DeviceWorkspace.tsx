@@ -39,6 +39,7 @@ import { lifecycleStorageKey, newerDevice, reconcileDevice } from "./lifecycle"
 import { ConfigurationSection } from "./ConfigurationSection"
 import { MeasurementsSection } from "./MeasurementsSection"
 import { CommandsSection } from "./CommandsSection"
+import { DeviceControls } from "../controls/DeviceControls"
 
 const HistorySection = lazy(() => import("./HistorySection"))
 const sections = [
@@ -46,6 +47,7 @@ const sections = [
   "measurements",
   "history",
   "configuration",
+  "controls",
   "commands",
 ] as const
 export type DeviceOperation = <T>(operation: () => Promise<T>) => Promise<T>
@@ -228,6 +230,13 @@ export function DeviceWorkspace() {
             canActivate={capabilities.activate}
             run={run}
             busy={busy || unconfirmed || device.deployment_status === "pending"}
+          />
+        </TabsContent>
+        <TabsContent value="controls">
+          <DeviceControls
+            org={org}
+            deviceUuid={device.uuid}
+            allowed={capabilities.command && !unconfirmed && !busy}
           />
         </TabsContent>
         <TabsContent value="commands">

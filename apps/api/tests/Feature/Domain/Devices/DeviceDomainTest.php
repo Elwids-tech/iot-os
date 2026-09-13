@@ -177,6 +177,41 @@ final class DeviceDomainTest extends TestCase
         $this->postJson($url, [...$request, 'value' => 11, 'idempotency_key' => (string) Str::uuid()])->assertUnprocessable();
     }
 
+    public function test_direct_controls_send_once_and_preserve_command_fences(): void
+    {
+        $device = $this->active($this->configured('rgb-light'));
+        $url = $this->prefix.'/devices/'.$device->uuid.'/commands/send';
+        $request = ['configuration_uuid' => $device->applied_configuration_uuid, 'parameter_uuid' => '10000000-0000-4000-8000-000000000004', 'value' => 8, 'idempotency_key' => (string) Str::uuid()];
+        $command = $this->postJson($url, $request)->assertCreated()->assertJsonPath('data.status', 'pending')->json('data');
+        $this->assertNotNull($command['confirmed_at']);
+        $this->postJson($url, $request)->assertCreated()->assertJsonPath('data.uuid', $command['uuid']);
+        $this->assertSame(1, DB::table('device_outbox')->where('type', 'device.command.v1')->count());
+        $this->postJson($url, [...$request, 'value' => 9])->assertConflict();
+        $this->postJson($url, [...$request, 'idempotency_key' => (string) Str::uuid()])->assertConflict();
+        $this->postJson($url, [...$request, 'configuration_uuid' => (string) Str::uuid()])->assertConflict();
+        $this->postJson($url, [...$request, 'value' => 101])->assertUnprocessable();
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $this->postJson('/api/v1/organizations/'.$other->uuid.'/devices/'.$device->uuid.'/commands/send', $request)->assertNotFound();
+        $this->actingAs(User::where('email', 'acme.member@example.test')->firstOrFail(), 'sanctum');
+        $this->postJson($url, $request)->assertForbidden();
+    }
+
+    public function test_direct_control_failure_rolls_back_preparation_and_already_target_does_not_dispatch(): void
+    {
+        $device = $this->active($this->configured('rgb-light'));
+        $url = $this->prefix.'/devices/'.$device->uuid.'/commands/send';
+        $request = ['configuration_uuid' => $device->applied_configuration_uuid, 'parameter_uuid' => '10000000-0000-4000-8000-000000000004', 'value' => 8, 'idempotency_key' => (string) Str::uuid()];
+        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::fake(['http://runtime:8081/*' => Http::sequence()->push(['session_id' => 'session-test', 'already_at_target' => false])->push(['error' => 'The source is offline.'], 409)]);
+        $this->postJson($url, $request)->assertStatus(503);
+        $this->assertDatabaseCount('device_commands', 0);
+        $this->assertSame(0, DB::table('device_outbox')->where('type', 'device.command.v1')->count());
+        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::fake(['http://runtime:8081/*' => Http::response(['session_id' => 'session-test', 'already_at_target' => true])]);
+        $this->postJson($url, $request)->assertCreated()->assertJsonPath('data.status', 'already_at_target');
+        $this->assertSame(0, DB::table('device_outbox')->where('type', 'device.command.v1')->count());
+    }
+
     public function test_mapping_suggestions_copy_direct_bindings_using_pinned_parameter_definitions(): void
     {
         $device = $this->configured('rgb-light');

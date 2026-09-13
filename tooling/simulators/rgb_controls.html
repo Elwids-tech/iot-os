@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  /><title>RGB LED · Local device</title>
+  <style>
+    :root {
+      font: 16px system-ui;
+      color-scheme: light dark;
+      --surface: light-dark(#fff, #202127);
+      --muted: light-dark(#5c6370, #aab0bf);
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: light-dark(#f2f4f8, #13151a);
+      color: light-dark(#1b2330, #eff1f7);
+    }
+    main {
+      max-width: 640px;
+      margin: 48px auto;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 28px;
+      margin: 12px 0;
+    }
+    p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .card {
+      background: var(--surface);
+      padding: 24px;
+      border: 1px solid light-dark(#dce0e7, #373d47);
+      border-radius: 16px;
+      display: grid;
+      gap: 24px;
+    }
+    .preview {
+      display: grid;
+      place-items: center;
+      min-height: 160px;
+      background: #13151a;
+      border-radius: 12px;
+    }
+    .led {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: var(--color);
+      opacity: var(--brightness);
+    }
+    .on {
+      box-shadow: 0 0 50px var(--color);
+    }
+    .blink {
+      animation: blink 1s steps(1) infinite;
+    }
+    .strobe {
+      animation: strobe 1s steps(1) infinite;
+    }
+    @keyframes blink {
+      0%,
+      100% {
+        opacity: var(--brightness);
+      }
+      50% {
+        opacity: 0;
+      }
+    }
+    @keyframes strobe {
+      0%,
+      100% {
+        opacity: var(--brightness);
+      }
+      10% {
+        opacity: 0;
+      }
+    }
+    label,
+    legend {
+      font-weight: 600;
+    }
+    fieldset {
+      border: 0;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    legend {
+      margin-bottom: 12px;
+    }
+    fieldset label {
+      font-weight: 400;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .field {
+      display: grid;
+      gap: 12px;
+    }
+    input,
+    button {
+      font: inherit;
+    }
+    input[type="text"],
+    input[type="number"] {
+      padding: 10px;
+      border: 1px solid #7a8190;
+      border-radius: 6px;
+      max-width: 160px;
+    }
+    input[type="range"] {
+      flex: 1;
+      min-width: 150px;
+    }
+    input[type="color"] {
+      width: 64px;
+      height: 42px;
+    }
+    #status {
+      font-size: 14px;
+    }
+    #error {
+      color: light-dark(#af1824, #ff8790);
+    }
+    button {
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    small {
+      color: var(--muted);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .blink,
+      .strobe {
+        animation: none;
+      }
+    }
+  </style>
+  <main>
+    <small>SIMULATED DEVICE</small>
+    <h1>RGB LED</h1>
+    <p>
+      These controls act locally on the device. Changes are reported to the
+      platform. Platform commands also update this panel.
+    </p>
+    <div class="card">
+      <div class="preview">
+        <div id="led" class="led" role="img" aria-label="LED preview"></div>
+      </div>
+      <div id="status" role="status">Connecting…</div>
+      <div class="row">
+        <input id="power" type="checkbox" role="switch" /><label for="power"
+          >Power</label
+        >
+      </div>
+      <div class="field">
+        <label for="color">Colour</label>
+        <div class="row">
+          <input id="picker" type="color" aria-label="Colour picker" /><input
+            id="color"
+            type="text"
+            pattern="#[0-9a-fA-F]{6}"
+            maxlength="7"
+            placeholder="#RRGGBB"
+          />
+        </div>
+      </div>
+      <fieldset>
+        <legend>Mode</legend>
+        <label><input type="radio" name="mode" value="solid" /> Solid</label
+        ><label><input type="radio" name="mode" value="blink" /> Blink</label
+        ><label><input type="radio" name="mode" value="strobe" /> Strobe</label>
+      </fieldset>
+      <div class="field">
+        <label for="brightness">Brightness (%)</label>
+        <div class="row">
+          <input
+            id="slider"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            aria-label="Brightness"
+          /><input id="brightness" type="number" min="0" max="100" step="1" />
+        </div>
+      </div>
+      <p id="error" role="alert"></p>
+      <small
+        >Settings are retained while power is off. Blink: 500 ms on/off. Strobe:
+        100 ms on, 900 ms off. Reduced-motion preferences disable preview
+        animation.</small
+      >
+    </div>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let activeEdit = null;
+    function show(data) {
+      const s = data.values;
+      $("status").textContent = data.online
+        ? "Connected · Reporting state to the platform"
+        : "Offline · Local changes will be reported after reconnection";
+      for (const key of ["color", "brightness"])
+        if (activeEdit !== key) $(key).value = s[key];
+      if (activeEdit !== "slider") $("slider").value = s.brightness;
+      if (activeEdit !== "picker") $("picker").value = s.color;
+      $("power").checked = s.power;
+      document
+        .querySelectorAll("[name=mode]")
+        .forEach((e) => (e.checked = e.value === s.mode));
+      $("led").style.setProperty("--color", s.color);
+      $("led").style.setProperty(
+        "--brightness",
+        s.power ? s.brightness / 100 : 0,
+      );
+      $("led").className = "led" + (s.power ? " on " + s.mode : "");
+      $("led").ariaLabel =
+        `${s.power ? "On" : "Off"}, ${s.color}, ${s.mode}, ${s.brightness}%`;
+    }
+    async function change(key, value) {
+      try {
+        const r = await fetch("/state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [key]: value }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw Error(data.error);
+        $("error").textContent = "";
+        activeEdit = null;
+        show(data);
+      } catch (e) {
+        $("error").textContent = e.message;
+      }
+    }
+    $("power").onchange = (e) => change("power", e.target.checked);
+    document
+      .querySelectorAll("[name=mode]")
+      .forEach((e) => (e.onchange = () => change("mode", e.value)));
+    for (const id of ["color", "picker", "brightness", "slider"]) {
+      $(id).oninput = () => (activeEdit = id);
+      $(id).onchange = (e) =>
+        change(
+          ["color", "picker"].includes(id) ? "color" : "brightness",
+          ["color", "picker"].includes(id)
+            ? e.target.value
+            : Number(e.target.value),
+        );
+      $(id).onkeydown = (e) => {
+        if (e.key === "Enter") {
+          e.target.blur();
+        }
+        if (e.key === "Escape") {
+          activeEdit = null;
+          e.target.blur();
+        }
+      };
+    }
+    async function poll() {
+      try {
+        if (!document.hidden) {
+          const r = await fetch("/state");
+          if (!r.ok) throw Error("Device panel is unavailable.");
+          show(await r.json());
+        }
+      } catch (e) {
+        $("status").textContent = "Simulator unavailable";
+      } finally {
+        setTimeout(poll, 1000);
+      }
+    }
+    poll();
+  </script>
+</html>

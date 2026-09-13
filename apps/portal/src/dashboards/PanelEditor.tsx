@@ -68,6 +68,7 @@ import {
   widgetError,
 } from "./model"
 import { PanelBody, widgetRegistry } from "./registry"
+import { writableParameters, controlSpec } from "../controls/model"
 
 export function PanelEditor({
   initial,
@@ -120,7 +121,12 @@ export function PanelEditor({
     enabled: Boolean(deviceId),
     staleTime: 30000,
   })
-  const parameters = appliedParameters(device.data)
+  const parameters =
+    widget.type === "controls"
+      ? writableParameters(device.data).filter(
+          (parameter) => controlSpec(parameter).kind !== "unsupported",
+        )
+      : appliedParameters(device.data)
   const source = widget.config.sources[selected]
   const error = widgetError(widget)
   function patchSource(patch: Partial<DashboardSource>) {
@@ -209,6 +215,7 @@ export function PanelEditor({
                 </CardHeader>
                 <CardContent className="min-h-0 flex-1">
                   <PanelBody
+                    preview
                     org={org}
                     widget={widget}
                     view={view}
@@ -497,7 +504,7 @@ export function PanelEditor({
                           by the dashboard.
                         </FieldDescription>
                       </Field>
-                      {numeric(source) && (
+                      {numeric(source) && widget.type !== "controls" && (
                         <Field>
                           <FieldLabel htmlFor="source-precision">
                             Decimal places

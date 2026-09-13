@@ -97,3 +97,34 @@ func TestRestrictedExpressionsAndCommandValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestEnumValueValidationUsesProfileAllowedValues(t *testing.T) {
+	raw, err := os.ReadFile("../../../../contracts/definitions/device-profiles/rgb-light.v2.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var profile Profile
+	if err = json.Unmarshal(raw, &profile); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, parameter := range profile.Parameters {
+		if parameter.Key != "mode" {
+			continue
+		}
+		if parameter.DataType != "enum" {
+			t.Fatalf("mode data type = %q, want enum", parameter.DataType)
+		}
+		if err = ValidateValue(parameter, "blink"); err != nil {
+			t.Fatalf("allowed enum rejected: %v", err)
+		}
+		if err = ValidateValue(parameter, "pulse"); err == nil {
+			t.Fatal("unknown enum value accepted")
+		}
+		if err = ValidateValue(parameter, 1); err == nil {
+			t.Fatal("non-string enum value accepted")
+		}
+		return
+	}
+	t.Fatal("mode parameter not found")
+}

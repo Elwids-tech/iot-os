@@ -52,7 +52,12 @@ export function newWidget(type: DashboardWidget["type"]): DashboardWidget {
     id: crypto.randomUUID(),
     schema_version: 2,
     type,
-    title: type === "status" ? "Status" : "Time series",
+    title:
+      type === "status"
+        ? "Status"
+        : type === "controls"
+          ? "Controls"
+          : "Time series",
     description: "",
     config: { sources: [] },
   }

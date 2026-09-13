@@ -17,7 +17,7 @@ export type StatusWidgetConfig = { sources: DashboardSource[] }
 export type DashboardWidget = {
   id: string
   schema_version: 2
-  type: "status" | "timeseries"
+  type: "status" | "timeseries" | "controls"
   title: string
   description: string
   config: StatusWidgetConfig

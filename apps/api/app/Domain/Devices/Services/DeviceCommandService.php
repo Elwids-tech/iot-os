@@ -12,6 +12,15 @@ use Illuminate\Support\Facades\DB;
 final class DeviceCommandService
 {
     public function __construct(private readonly RuntimeClient $runtime, private readonly ParameterValue $values) {}
+    /** An intentional control interaction prepares and confirms one audited request. */
+    public function send(Device $device, array $values, int $actor): DeviceCommand
+    {
+        return DB::transaction(function () use ($device, $values, $actor) {
+            $command = $this->prepare($device, $values, $actor);
+
+            return $this->confirm($device, $command, $actor);
+        });
+    }
 
     public function expire(Device $device): void
     {

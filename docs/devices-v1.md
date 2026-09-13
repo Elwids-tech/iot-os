@@ -1,5 +1,7 @@
 # Devices v1
 
+For direct parameter controls on devices and dashboards, including the two-way RGB simulator, see [Reusable device controls](device-controls.md). The prepared/confirmed Commands workflow below remains available.
+
 Implemented and verified locally on 2026-09-06. Devices now supports registration, Sparkplug discovery, reviewed configuration activation, measurements, history, and confirmed state-setting commands. Platform administration manages measurement retention. See the [accepted delivery plan](../plan/tasks/devices-v1.md).
 
 ## Ownership and scope

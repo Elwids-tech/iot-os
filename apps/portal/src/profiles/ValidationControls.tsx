@@ -45,7 +45,16 @@ export function ValidationControls({
 }) {
   const inferred = readValidation(text)
   const [chosen, setChosen] = useState(inferred.mode)
-  const mode = inferred.mode === "custom" ? "custom" : chosen
+  const enumNeedsOptions =
+    type === "enum" &&
+    inferred.mode !== "options" &&
+    inferred.mode !== "custom"
+  const mode =
+    inferred.mode === "custom"
+      ? "custom"
+      : enumNeedsOptions
+        ? "options"
+        : chosen
   const [replace, setReplace] = useState<string | null>(null)
   let metadata: JsonObject = {}
   try {
@@ -71,7 +80,11 @@ export function ValidationControls({
         validationRule(base, {
           "===": [
             { var: "value" },
-            type === "boolean" ? true : type === "string" ? "" : 0,
+            type === "boolean"
+              ? true
+              : ["enum", "string"].includes(type)
+                ? ""
+                : 0,
           ],
         }),
       )
@@ -110,13 +123,29 @@ export function ValidationControls({
         help={validationSummary(inferred)}
         value={mode}
         disabled={disabled}
-        options={[
-          { value: "none", label: "No additional constraints" },
-          ...(numeric ? [{ value: "range", label: "Number range" }] : []),
-          { value: "options", label: "Allowed values" },
-          { value: "conditions", label: "All / any conditions" },
-          { value: "custom", label: "Advanced JSON Logic" },
-        ]}
+        options={
+          type === "enum"
+            ? [
+                { value: "options", label: "Allowed values (required)" },
+                ...(inferred.mode === "custom"
+                  ? [
+                      {
+                        value: "custom",
+                        label: "Advanced JSON Logic",
+                      },
+                    ]
+                  : []),
+              ]
+            : [
+                { value: "none", label: "No additional constraints" },
+                ...(numeric
+                  ? [{ value: "range", label: "Number range" }]
+                  : []),
+                { value: "options", label: "Allowed values" },
+                { value: "conditions", label: "All / any conditions" },
+                { value: "custom", label: "Advanced JSON Logic" },
+              ]
+        }
         onChange={(next) =>
           inferred.mode === "custom" && next !== "custom"
             ? setReplace(next)
@@ -167,10 +196,11 @@ export function ValidationControls({
           />
         </FieldGroup>
       )}
-      {mode === "options" && inferred.mode === "options" && (
+      {mode === "options" &&
+        (inferred.mode === "options" || enumNeedsOptions) && (
         <AllowedValues
           key={type}
-          options={inferred.options}
+          options={inferred.mode === "options" ? inferred.options : []}
           type={type}
           disabled={disabled}
           onChange={(values) =>
@@ -350,8 +380,8 @@ function AllowedValues({
         }}
       />
       <FieldDescription>
-        One {type} value per line. These constrain input; presentation options
-        are separate.
+        One {type === "enum" ? "string" : type} value per line. These values
+        constrain input and populate choice controls.
       </FieldDescription>
     </Field>
   )
@@ -368,7 +398,7 @@ export function ParameterPreview({
 }) {
   const studio = useStudio()
   const [sample, setSample] = useState(
-    ["string", "timestamp", "bytes"].includes(parameter.data_type)
+    ["enum", "string", "timestamp", "bytes"].includes(parameter.data_type)
       ? '""'
       : parameter.data_type === "boolean"
         ? "false"

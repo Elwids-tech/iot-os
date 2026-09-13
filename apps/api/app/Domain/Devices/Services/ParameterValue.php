@@ -14,7 +14,7 @@ final class ParameterValue
         $valid = match ($parameter['data_type']) {
             'boolean' => is_bool($value), 'integer' => is_int($value) && abs($value) <= 9007199254740991,
             'number' => (is_int($value) || is_float($value)) && is_finite((float) $value),
-            'string' => is_string($value) && mb_strlen($value) <= 65536,
+            'enum', 'string' => is_string($value) && mb_strlen($value) <= 65536,
             'timestamp' => is_string($value) && strtotime($value) !== false,
             'bytes' => is_string($value) && base64_decode($value, true) !== false,
             default => false,

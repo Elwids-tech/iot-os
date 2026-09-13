@@ -39,15 +39,18 @@ final class DashboardTest extends TestCase
         return ['name' => $name, 'widgets' => [], 'layouts' => [], 'defaults' => DashboardDefinition::defaults()];
     }
 
-    private function source(string $unit = 'C', string $dataType = 'number'): array
+    private function source(string $unit = 'C', string $dataType = 'number', bool $writable = false): array
     {
-        $parameter = ['uuid' => (string) Str::uuid(), 'label' => 'Temperature', 'data_type' => $dataType, 'unit' => $unit];
+        $parameter = ['uuid' => (string) Str::uuid(), 'label' => 'Temperature', 'data_type' => $dataType, 'unit' => $unit, 'kind' => 'state', 'reports_state' => true, 'accepts_command' => $writable];
         $definition = ['parameters' => [$parameter]];
         $profile = DeviceProfile::create(['organization_id' => $this->organization->id, 'code' => (string) Str::uuid(), 'name' => 'Test profile']);
         $artifact = DeviceProfileArtifact::create(['device_profile_id' => $profile->id, 'revision' => 1, 'definition' => $definition, 'definition_hash' => hash('sha256', json_encode($definition)), 'compiled_at' => now()]);
         $device = Device::create(['organization_id' => $this->organization->id, 'code' => (string) Str::uuid(), 'name' => 'Applied device']);
-        $configuration = DeviceConfiguration::create(['device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => 1, 'definition_hash' => $artifact->definition_hash, 'definition' => ['profile_canonical_json' => json_encode($definition)], 'created_at' => now()]);
+        $configuration = DeviceConfiguration::create(['device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => 1, 'definition_hash' => $artifact->definition_hash, 'definition' => ['profile_canonical_json' => json_encode($definition), 'mappings' => [['parameter_uuid' => $parameter['uuid'], 'metric' => 'Temperature', 'command_metric' => $writable ? 'Temperature' : null]]], 'created_at' => now()]);
         $device->update(['last_applied_configuration_uuid' => $configuration->uuid, 'lifecycle' => 'deactivated']);
+        if ($writable) {
+            $device->update(['applied_configuration_uuid' => $configuration->uuid, 'lifecycle' => 'active', 'deployment_status' => 'applied']);
+        }
 
         return ['device_uuid' => $device->uuid, 'parameter_uuid' => $parameter['uuid'], 'label' => 'Room temperature', 'unit' => 'C', 'data_type' => 'number', 'precision' => 2, 'color' => '#2563eb', 'base' => ['label' => 'Below range', 'color' => '#64748b'], 'thresholds' => array_map(fn ($v) => ['value' => $v, 'label' => 'Band '.$v, 'color' => '#2563eb'], [-10, 0, 20, 40, 80])];
     }
@@ -55,6 +58,19 @@ final class DashboardTest extends TestCase
     private function panel(array $source, string $type = 'status'): array
     {
         return ['id' => (string) Str::uuid(), 'schema_version' => 2, 'type' => $type, 'title' => 'Temperature overview', 'description' => 'Operator view', 'config' => ['sources' => [$source]]];
+    }
+
+    public function test_controls_resolve_applied_metadata_and_reject_read_only_sources(): void
+    {
+        $source = $this->source('%', 'integer', true);
+        $values = [...$this->emptyDashboard(), 'widgets' => [['id' => 'control', 'schema_version' => 2, 'type' => 'controls', 'title' => 'Controls', 'description' => '', 'config' => ['sources' => [$source]]]]];
+        $this->postJson($this->url, $values)->assertOk()->assertJsonPath('data.widgets.0.config.sources.0.data_type', 'integer')->assertJsonPath('data.widgets.0.config.sources.0.unit', '%')->assertJsonPath('data.widgets.0.config.sources.0.thresholds', []);
+        $values['widgets'][0]['config']['sources'] = [$this->source()];
+        $this->postJson($this->url, $values)->assertUnprocessable();
+        $device = Device::where('uuid', $source['device_uuid'])->firstOrFail();
+        $device->update(['applied_configuration_uuid' => null]);
+        $values['widgets'][0]['config']['sources'] = [$source];
+        $this->postJson($this->url, $values)->assertUnprocessable();
     }
 
     public function test_multiple_dashboards_are_independent_and_updates_are_revision_checked(): void

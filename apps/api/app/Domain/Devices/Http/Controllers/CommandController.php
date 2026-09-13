@@ -35,6 +35,13 @@ final class CommandController
         return response()->json(['data' => DeviceView::command($this->commands->prepare($device, $values, $request->user()->id))], 201);
     }
 
+    public function send(Request $request, Organization $organization, Device $device)
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::COMMAND, $organization, $device);
+        $values = $request->validate(['configuration_uuid' => ['required', 'uuid'], 'parameter_uuid' => ['required', 'uuid'], 'idempotency_key' => ['required', 'uuid'], 'value' => ['present']]);
+
+        return response()->json(['data' => DeviceView::command($this->commands->send($device, $values, $request->user()->id))], 201);
+    }
     public function confirm(Request $request, Organization $organization, Device $device, DeviceCommand $command): array
     {
         $this->authorization->authorize($request->user(), DevicePermission::COMMAND, $organization, $device);

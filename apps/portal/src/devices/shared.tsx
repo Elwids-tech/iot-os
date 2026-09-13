@@ -18,6 +18,52 @@ const denied: DeviceCapabilities = {
   activate: false,
   command: false,
 }
+
+const deviceStatusLabels: Record<string, string> = {
+  observed: "Target state observed",
+  already_at_target: "Already at target",
+  timed_out: "Timed out",
+  unseen: "Not seen yet",
+  applied: "Applied",
+  inactive: "Inactive",
+  deactivated: "Inactive",
+  pending: "Pending",
+  unknown: "Connection unknown",
+}
+
+const deviceStatusVariants: Record<
+  string,
+  "success" | "warning" | "destructive" | "secondary"
+> = {
+  online: "success",
+  active: "success",
+  applied: "success",
+  observed: "success",
+  already_at_target: "success",
+  good: "success",
+  ready: "success",
+  approved: "success",
+  succeeded: "success",
+  pending: "warning",
+  sent: "warning",
+  prepared: "warning",
+  stale: "warning",
+  provisioning: "warning",
+  offline: "destructive",
+  failed: "destructive",
+  uncertain: "destructive",
+  invalid: "destructive",
+  timed_out: "destructive",
+  rejected: "destructive",
+  inactive: "secondary",
+  deactivated: "secondary",
+  unknown: "secondary",
+  unseen: "secondary",
+  cancelled: "secondary",
+  idle: "secondary",
+  registered: "secondary",
+  archived: "secondary",
+}
 export function useDeviceOrganization() {
   const { organizationUuid = "" } = useParams()
   const query = useQuery({
@@ -31,29 +77,11 @@ export function useDeviceOrganization() {
   }
 }
 export function DeviceStatus({ value }: { value: string }) {
-  const label: Record<string, string> = {
-    observed: "Target state observed",
-    already_at_target: "Already at target",
-    timed_out: "Timed out",
-    unseen: "Not seen yet",
-    applied: "Applied",
-    inactive: "Inactive",
-    deactivated: "Inactive",
-    pending: "Pending",
-    unknown: "Connection unknown",
-  }
-  const bad = ["failed", "uncertain", "invalid", "timed_out"].includes(value)
+  const normalized = value.trim().toLowerCase()
+
   return (
-    <Badge
-      variant={
-        bad
-          ? "destructive"
-          : ["online", "good", "observed", "active"].includes(value)
-            ? "default"
-            : "secondary"
-      }
-    >
-      {label[value] ?? value.replaceAll("_", " ")}
+    <Badge variant={deviceStatusVariants[normalized] ?? "secondary"}>
+      {deviceStatusLabels[normalized] ?? normalized.replaceAll("_", " ")}
     </Badge>
   )
 }
