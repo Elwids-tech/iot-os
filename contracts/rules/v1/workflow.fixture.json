@@ -1,0 +1,91 @@
+{
+  "schema_version": "automation-workflow.v1",
+  "uuid": "00000000-0000-4000-8000-0000000003e8",
+  "version_uuid": "00000000-0000-4000-8000-0000000003e9",
+  "nodes": [
+    {
+      "id": "0",
+      "type": "location.source.v1",
+      "config": {
+        "binding": {
+          "schema_version": "location-binding.v1",
+          "uuid": "00000000-0000-4000-8000-000000000001",
+          "revision": 1,
+          "organization_uuid": "00000000-0000-4000-8000-000000000002",
+          "device_uuid": "00000000-0000-4000-8000-000000000003",
+          "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+          "generation": 1,
+          "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+          "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+          "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+          "pairing": "same_event",
+          "max_age_seconds": 90,
+          "max_future_skew_seconds": 5,
+          "allow_unknown_accuracy": true
+        }
+      }
+    },
+    {
+      "id": "1",
+      "type": "geofence.membership.v1",
+      "config": {
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -114.01,
+                50.99
+              ],
+              [
+                -113.99,
+                50.99
+              ],
+              [
+                -113.99,
+                51.01
+              ],
+              [
+                -114.01,
+                51.01
+              ],
+              [
+                -114.01,
+                50.99
+              ]
+            ]
+          ]
+        },
+        "uncertainty_metres": 2
+      }
+    },
+    {
+      "id": "2",
+      "type": "condition.sustained.v1",
+      "config": {
+        "outside_for_seconds": 60,
+        "max_gap_seconds": 45,
+        "minimum_samples": 2
+      }
+    },
+    {
+      "id": "3",
+      "type": "alert.condition.v1",
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "source": "0",
+      "target": "1"
+    },
+    {
+      "source": "1",
+      "target": "2"
+    },
+    {
+      "source": "2",
+      "target": "3"
+    }
+  ]
+}
