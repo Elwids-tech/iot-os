@@ -20,6 +20,10 @@ use Illuminate\Support\Str;
 require '/var/www/html/vendor/autoload.php';
 $app = require '/var/www/html/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+set_exception_handler(static function (Throwable $exception): void {
+    file_put_contents('php://stderr', 'FAIL '.$exception->getMessage().PHP_EOL);
+    exit(1);
+});
 if (! $app->environment('local', 'testing')) {
     throw new RuntimeException('This verification is for a local/test API container only.');
 }
@@ -55,10 +59,11 @@ try {
     $artifact = DeviceProfileArtifact::create(['device_profile_id' => $profile->id, 'revision' => 1, 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'status' => 'active', 'compiled_at' => now(), 'compiled_by' => $actor->id]);
     $configuration = DeviceConfiguration::create(['device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => 1, 'definition_hash' => str_repeat('b', 64), 'definition' => [], 'created_at' => now()]);
     $graph = $fixture('workflow.fixture.json');
-    $binding = &$graph['nodes'][0]['config']['binding'];
+    $binding = $graph['nodes'][0]['config']['binding'];
     $binding['organization_uuid'] = $org->uuid;
     $binding['device_uuid'] = $device->uuid;
     $binding['configuration_uuid'] = $configuration->uuid;
+    $graph['nodes'][0]['config']['binding'] = $binding;
     $base = '/api/v1/organizations/'.$org->uuid.'/workflows';
     $call('GET', $base, [], 401, false);
     $check(count($call('GET', $base.'/node-types', [], 200)['data']) === 4, 'registry mismatch');
