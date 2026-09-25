@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/rules"
 )
 
 func (a *Application) Handler() http.Handler {
@@ -58,6 +59,8 @@ func (a *Application) Handler() http.Handler {
 	internal.HandleFunc("GET /internal/measurements/latest", a.latestHTTP)
 	internal.HandleFunc("GET /internal/telemetry/committed-status", a.committedStatus)
 	internal.HandleFunc("POST /internal/locations/resolve", a.resolveLocation)
+	internal.HandleFunc("POST /internal/rules/simulate", a.simulateRule)
+	internal.HandleFunc("GET /internal/rules/node-types", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, rules.NodeTypes()) })
 	internal.HandleFunc("GET /internal/measurements/history", a.historyHTTP)
 	internal.HandleFunc("GET /internal/measurements/records", a.historyRecordsHTTP)
 	internal.HandleFunc("GET /internal/measurements/state-history", a.stateHistoryHTTP)

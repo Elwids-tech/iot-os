@@ -1,0 +1,15 @@
+{
+  "schema_version": "rule-transition.v1",
+  "id": "762454d2c0f8a071e4d4daa1b84be89d8253f032301786d68df15f593d87d582",
+  "type": "activated",
+  "rule_uuid": "00000000-0000-4000-8000-0000000003e8",
+  "version_uuid": "00000000-0000-4000-8000-0000000003e9",
+  "definition_hash": "d5a72d3f26f266b1d297c52fc983f6f3534895767d354ee7c25b31c2cd1d3e0f",
+  "organization_uuid": "00000000-0000-4000-8000-000000000002",
+  "device_uuid": "00000000-0000-4000-8000-000000000003",
+  "binding_uuid": "00000000-0000-4000-8000-000000000001",
+  "binding_revision": 1,
+  "episode": 1,
+  "event_id": "00000000-0000-4000-8000-00000000080c",
+  "occurred_at": "2026-09-25T00:01:32Z"
+}

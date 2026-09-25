@@ -1,0 +1,80 @@
+[
+  {
+    "condition": "inside",
+    "active": false,
+    "reason": "inside",
+    "transition": null
+  },
+  {
+    "condition": "outside",
+    "active": false,
+    "reason": "outside_pending",
+    "transition": null
+  },
+  {
+    "condition": "outside",
+    "active": false,
+    "reason": "outside_pending",
+    "transition": null
+  },
+  {
+    "condition": "outside",
+    "active": false,
+    "reason": "duplicate",
+    "transition": null
+  },
+  {
+    "condition": "outside",
+    "active": true,
+    "reason": "activated",
+    "transition": "activated"
+  },
+  {
+    "condition": "unknown",
+    "active": true,
+    "reason": "stale_evidence",
+    "transition": null
+  },
+  {
+    "condition": "unknown",
+    "active": true,
+    "reason": "historical",
+    "transition": null
+  },
+  {
+    "condition": "outside",
+    "active": true,
+    "reason": "outside_active",
+    "transition": null
+  },
+  {
+    "condition": "inside",
+    "active": false,
+    "reason": "inside",
+    "transition": "cleared"
+  },
+  {
+    "condition": "outside",
+    "active": false,
+    "reason": "outside_pending",
+    "transition": null
+  },
+  {
+    "condition": "unknown",
+    "active": false,
+    "reason": "boundary_uncertainty",
+    "transition": null
+  },
+  {
+    "condition": "outside",
+    "active": false,
+    "reason": "outside_pending",
+    "transition": null
+  },
+  {
+    "condition": "unknown",
+    "active": false,
+    "reason": "stale_evidence",
+    "transition": null
+  }
+]

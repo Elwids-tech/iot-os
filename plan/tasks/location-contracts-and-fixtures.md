@@ -1,7 +1,7 @@
 # Location contracts and fixture delivery
 
-**Status:** Implemented and verified locally on 2026-09-25; hardware/production acceptance remains separate  
-**Date:** 2026-09-25  
+**Status:** Implemented and verified locally on 2026-09-25; hardware/production acceptance remains separate
+**Date:** 2026-09-25
 **Parent:** [Core priorities](../roadmap/core-for-vertical-applications.md), P0
 
 ## Delivered scope

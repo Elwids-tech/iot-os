@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/rules/v1/state.schema.json",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "geofence-state.v1"
+    },
+    "definition_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "condition": {
+      "enum": [
+        "inside",
+        "outside",
+        "unknown"
+      ]
+    },
+    "active": {
+      "type": "boolean"
+    },
+    "episode": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "outside_since": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "samples": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "last_observed_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "last_event_id": {
+      "type": "string"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evaluated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "schema_version",
+    "definition_hash",
+    "condition",
+    "active",
+    "episode",
+    "outside_since",
+    "samples",
+    "last_observed_at",
+    "last_event_id",
+    "expires_at",
+    "evaluated_at"
+  ],
+  "additionalProperties": false
+}

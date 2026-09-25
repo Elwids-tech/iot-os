@@ -42,10 +42,19 @@ for path, schema in zip(location_paths, location_schemas):
     Draft202012Validator.check_schema(schema)
     fixture = json.loads(path.with_name(path.name.replace(".schema.json", ".fixture.json")).read_text())
     Draft202012Validator(schema, registry=location_registry, format_checker=FormatChecker()).validate(fixture)
+rule_paths = list((root / "contracts/rules").glob("v*/*.schema.json"))
+rule_schemas = [json.loads(path.read_text()) for path in rule_paths]
+rule_registry = Registry().with_resources(
+    (s["$id"], Resource.from_contents(s)) for s in event_schemas + location_schemas + rule_schemas
+)
+for path, schema in zip(rule_paths, rule_schemas):
+    Draft202012Validator.check_schema(schema)
+    fixture = json.loads(path.with_name(path.name.replace(".schema.json", ".fixture.json")).read_text())
+    Draft202012Validator(schema, registry=rule_registry, format_checker=FormatChecker()).validate(fixture)
 configuration = json.loads((directory / "configuration.fixture.json").read_text())
 assert hashlib.sha256(configuration["profile_canonical_json"].encode()).hexdigest() == configuration["profile_hash"]
 command = json.loads((directory / "command.fixture.json").read_text())
 assert (datetime.fromisoformat(command["expires_at"]) - datetime.fromisoformat(command["confirmed_at"])).total_seconds() == 30
 upstream = json.loads((root / "contracts/sparkplug/upstream.json").read_text())
 assert hashlib.sha256((root / "contracts/sparkplug/sparkplug_b.proto").read_bytes()).hexdigest() == upstream["sha256"]
-print(f"PASS {len(schemas)} Devices, {event_count} event, {len(location_schemas)} location contracts and pinned official Sparkplug definition")
+print(f"PASS {len(schemas)} Devices, {event_count} event, {len(location_schemas)} location, {len(rule_schemas)} rule contracts and pinned official Sparkplug definition")

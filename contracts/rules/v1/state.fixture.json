@@ -1,0 +1,13 @@
+{
+  "schema_version": "geofence-state.v1",
+  "definition_hash": "d5a72d3f26f266b1d297c52fc983f6f3534895767d354ee7c25b31c2cd1d3e0f",
+  "condition": "outside",
+  "active": true,
+  "episode": 1,
+  "outside_since": "2026-09-25T00:00:32Z",
+  "samples": 2,
+  "last_observed_at": "2026-09-25T00:01:00Z",
+  "last_event_id": "00000000-0000-4000-8000-00000000080c",
+  "expires_at": "2026-09-25T00:01:46Z",
+  "evaluated_at": "2026-09-25T00:01:32Z"
+}

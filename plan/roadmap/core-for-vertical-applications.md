@@ -1,8 +1,8 @@
 # Core platform priorities for vertical applications
 
-**Status:** Draft delivery plan; user-directed priority, detailed behavior proposed  
-**Date:** 2026-09-23  
-**First use case:** Cattle location and geofence alerts  
+**Status:** Draft delivery plan; user-directed priority, detailed behavior proposed
+**Date:** 2026-09-23
+**First use case:** Cattle location and geofence alerts
 **Scope:** Extend the existing IoT core; no cattle application implementation or customer commitment is implied.
 
 ## Objective
@@ -16,6 +16,8 @@ This plan builds on the accepted [responsibility boundaries](../architecture/res
 Repository inspection on 2026-09-23 establishes source presence. Existing guides record earlier local verification; runtime tests were not rerun for this planning-only change. Older task statuses are not a reliable inventory of everything currently delivered.
 
 **Delivery update, 2026-09-25:** P0's [committed telemetry events](../tasks/committed-telemetry-events.md) and [location contracts/fixtures](../tasks/location-contracts-and-fixtures.md) are implemented and verified locally. Evidence includes real database/broker recovery, the full Devices regression suite and 30 location scenarios through the rebuilt runtime. P1 rules/geofencing remains next. The baseline table below records the original planning assessment, not a claim that completed P0 work remains absent.
+
+**P1 progress, 2026-09-25:** The [geofence evaluator/simulation slice](../tasks/geofence-evaluator.md) now provides typed definitions, polygon validation, sustained evidence and deterministic serialized-state replay, verified against the rebuilt runtime. P1 still requires Laravel authoring/activation and durable live execution; simulated transitions are not operational alerts.
 
 | Capability | Current evidence | Remaining work for this outcome |
 | --- | --- | --- |
@@ -160,4 +162,4 @@ For implementation, use focused contract, unit, database/broker integration and 
 - Exact rule event-time, uncertainty and geometry limits; resolve in versioned contracts before P1 implementation.
 - Application identity lifecycle and customer grants; resolve before P3 exposes external access.
 
-**Next task:** Implement P1 rule definition/activation contracts and the minimal typed evaluator pipeline, including geofence membership and sustained-condition state, on top of P0's delivered events and location resolver. Keep Laine's customer workflow and hardware choices open while making the generic core independently demonstrable.
+**Next task:** Add Laravel organization-scoped rule authoring and activation with runtime acknowledgements, then wire the delivered evaluator to committed events with atomic state/checkpoint/transition persistence and restart-safe timers. Keep Laine's customer workflow and hardware choices open while making the generic core independently demonstrable.

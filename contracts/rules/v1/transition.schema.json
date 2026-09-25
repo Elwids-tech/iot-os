@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/rules/v1/transition.schema.json",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "rule-transition.v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "type": {
+      "enum": [
+        "activated",
+        "cleared"
+      ]
+    },
+    "rule_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "definition_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "organization_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "device_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "binding_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "binding_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "episode": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "type",
+    "rule_uuid",
+    "version_uuid",
+    "definition_hash",
+    "organization_uuid",
+    "device_uuid",
+    "binding_uuid",
+    "binding_revision",
+    "episode",
+    "event_id",
+    "occurred_at"
+  ],
+  "additionalProperties": false
+}
