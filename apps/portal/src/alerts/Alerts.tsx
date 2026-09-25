@@ -38,7 +38,12 @@ import {
 } from "@iot-os/ui/components/alert";
 import { api } from "../lib/api";
 import { useUnsavedContribution } from "../lib/unsaved";
-import { RequestError } from "../components/forms";
+import {
+  NotificationDirectory,
+  NotificationSettingsRoute,
+} from "./NotificationSettings";
+import type { AlertDelivery } from "@iot-os/api-client";
+import { Confirm, RequestError } from "../components/forms";
 import {
   DeviceEmpty,
   DevicePages,
@@ -50,6 +55,11 @@ export default function AlertRoutes() {
   return (
     <Routes>
       <Route index element={<AlertDirectory />} />
+      <Route path="notifications" element={<NotificationDirectory />} />
+      <Route
+        path="notifications/:workflowUuid"
+        element={<NotificationSettingsRoute />}
+      />
       <Route path=":alertUuid" element={<DetailRoute />} />
     </Routes>
   );
@@ -78,6 +88,14 @@ function AlertDirectory() {
           Review conditions, acknowledge episodes and record follow-up.
         </p>
       </div>
+      {capabilities.manage ? (
+        <Link
+          className="underline underline-offset-4"
+          to={`/organizations/${org}/alerts/notifications`}
+        >
+          Notification settings
+        </Link>
+      ) : null}
       <RequestError error={organization.error ?? query.error} />
       {!organization.isPending && !capabilities.view ? (
         <DeviceEmpty
@@ -190,6 +208,7 @@ function AlertDetail({ id }: { id: string }) {
     body: "",
   });
   const [page, setPage] = useState(1);
+  const [retry, setRetry] = useState<AlertDelivery | null>(null);
   useUnsavedContribution(Boolean(comment.body));
   const query = useQuery({
     queryKey: ["alert", org, id],
@@ -241,6 +260,28 @@ function AlertDetail({ id }: { id: string }) {
           description="You need device viewing access in this organization."
         />
       ) : null}
+      <Confirm
+        open={Boolean(retry)}
+        title="Retry failed email?"
+        description={`Retry delivery to ${retry?.recipient_name ?? "this recipient"}. A previous attempt may have reached the mail server, so another email could be received. Current access and notification preferences will be checked again.`}
+        action="Retry delivery"
+        onClose={() => setRetry(null)}
+        onConfirm={async () => {
+          if (!retry) return;
+          try {
+            await api.retryAlertDelivery(
+              org,
+              id,
+              retry.uuid,
+              retry.retry_generation,
+            );
+          } finally {
+            await cache.invalidateQueries({
+              queryKey: ["alert-deliveries", org, id],
+            });
+          }
+        }}
+      />
       {alert ? (
         <>
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -385,6 +426,12 @@ function AlertDetail({ id }: { id: string }) {
                 <CardDescription>
                   Email is opt-in. Delivery failures do not stop rule
                   evaluation.
+                  <Link
+                    className="underline underline-offset-4"
+                    to={`/organizations/${org}/alerts/notifications/${alert.workflow_uuid}`}
+                  >
+                    Manage notifications
+                  </Link>
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
@@ -407,6 +454,31 @@ function AlertDetail({ id }: { id: string }) {
                           · {item.attempts} attempt
                           {item.attempts === 1 ? "" : "s"}
                         </span>
+                        {item.status === "failed" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setRetry(item)}
+                          >
+                            Retry email
+                          </Button>
+                        ) : null}
+                        {item.history.length ? (
+                          <details className="w-full text-sm">
+                            <summary>Attempt history</summary>
+                            <ul>
+                              {item.history.map((attempt) => (
+                                <li key={attempt.attempt}>
+                                  Attempt {attempt.attempt} ·{" "}
+                                  {attempt.status === "accepted"
+                                    ? "Accepted by mail server"
+                                    : "Transport failed; outcome uncertain"}{" "}
+                                  · {formatTime(attempt.created_at)}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        ) : null}
                         {item.diagnostic ? (
                           <p className="w-full text-sm text-muted-foreground">
                             {item.diagnostic}

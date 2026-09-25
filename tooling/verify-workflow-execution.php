@@ -107,10 +107,16 @@ try {
     $alert = $call('GET', '/api/v1/organizations/'.$org->uuid.'/alerts')['data'][0];
     $alertUrl = '/api/v1/organizations/'.$org->uuid.'/alerts/'.$alert['uuid'];
     $wait(fn () => ($call('GET', $alertUrl.'/deliveries')['data'][0]['status'] ?? null) === 'sent', 'Activation email was not delivered by the queue worker.');
+    $retryFixture = getenv('WORKFLOW_VERIFY_UI') === '1' && getenv('WORKFLOW_VERIFY_RETRY') === '1';
+    if ($retryFixture) {
+        // Simulate an uncertain terminal outcome after SMTP acceptance. Explicit
+        // retry should deliver a second message while preserving the logical ID.
+        DB::table('automation_alert_deliveries')->where('automation_alert_id', DB::table('automation_alerts')->where('uuid', $alert['uuid'])->value('id'))->where('type', 'activated')->update(['status' => 'failed', 'diagnostic' => 'Simulated terminal failure for local recovery verification.']);
+    }
     if (getenv('WORKFLOW_VERIFY_UI') === '1') {
         $actor->organizations()->syncWithoutDetaching([$org->id]);
         @unlink('/tmp/iot-alert-verify-release');
-        file_put_contents('/tmp/iot-alert-verify.json', json_encode(['org' => $org->uuid, 'alert' => $alert['uuid'], 'token' => $access->plainTextToken], JSON_THROW_ON_ERROR));
+        file_put_contents('/tmp/iot-alert-verify.json', json_encode(['org' => $org->uuid, 'alert' => $alert['uuid'], 'workflow' => $alert['workflow_uuid'], 'token' => $access->plainTextToken], JSON_THROW_ON_ERROR));
         chmod('/tmp/iot-alert-verify.json', 0600);
         echo "UI fixture ready; waiting for local browser verification.\n";
         $until = microtime(true) + 180;
@@ -126,14 +132,14 @@ try {
         return count($deliveries) === 2 && count(array_filter($deliveries, fn ($d) => $d['status'] === 'sent')) === 2;
     }, 'Recovery email was not delivered.');
     $mail = json_decode(file_get_contents('http://mailpit:8025/api/v1/search?query='.urlencode('to:'.$recipient->email)), true, 512, JSON_THROW_ON_ERROR);
-    $check(count($mail['messages'] ?? []) === 2, 'Mailpit did not receive exactly two fixture messages.');
+    $check(count($mail['messages'] ?? []) === ($retryFixture ? 3 : 2), 'Mailpit did not receive the expected fixture messages.');
     $check($call('GET', $alertUrl)['data']['acknowledged_at'] !== null, 'Clearing lost acknowledgement.');
     $disable = ['operation_uuid' => (string) Str::uuid(), 'draft_revision' => 1, 'expected_generation' => 1, 'target_state' => 'inactive'];
     $call('POST', $url.'/deployments', $disable, 202);
     $wait(fn () => $call('GET', $url)['data']['deployment_status'] === 'inactive', 'Disable was not acknowledged.');
     $check($call('GET', $url.'/transitions')['meta']['total'] === 2, 'Disable invented a clear transition.');
     echo "PASS real activation acknowledgement, retry, committed outbox → broker → durable evaluation → API transitions, execution reads and disable\n";
-    echo "PASS one alert episode, independent acknowledgement, separate queued activation/recovery emails and two Mailpit messages\n";
+    echo "PASS one alert episode, independent acknowledgement, separate queued activation/recovery emails and expected Mailpit messages\n";
 } finally {
     // Only UUIDs belonging to the temporary organization are removed. Keep the
     // global stream checkpoint: it must never be reset for a verification run.

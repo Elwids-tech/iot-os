@@ -29,8 +29,7 @@ records remain accessible through the workflow transition API.
 
 ## Notification policy
 
-Email is **off by default** and configured per workflow using the notification
-API. Select up to 20 verified organization members with `Device.view` access.
+Email is **off by default** and configured per workflow in **Alerts → Notification settings**, or using the notification API. Select up to 20 verified organization members with `Device.view` access.
 The worker rechecks membership, verification, permission, subscription and the
 applied execution before each send. Removing access, disabling notifications or
 requesting workflow disable cancels pending delivery at processing time.
@@ -72,8 +71,7 @@ Attempt history records completed attempts; a process killed mid-send cannot
 reliably record whether SMTP accepted the message. Timeout/crash ambiguity and
 transport errors are not presented as guaranteed non-delivery.
 
-There is no automatic terminal-failure replay or administrative retry UI yet.
-Inspect failed delivery records before choosing a recovery policy. Alert, comment,
+Managers can retry a failed delivery from its alert detail. The confirmation explains that an uncertain previous attempt may already have reached the recipient. Retry keeps the logical delivery UUID and Message-ID, preserves cumulative attempt history, and starts a new cycle of up to five recorded transport attempts with a fresh 24-hour queue deadline. Each request carries the current `retry_generation`; duplicate or stale requests return 409 without adding jobs. Older jobs and failure callbacks are fenced by generation. The worker rechecks current access, preferences and execution state, cancelling ineligible deliveries. Sent, cancelled and pending deliveries cannot be manually retried. Retry admission and its queue job commit atomically, with an actor audit record. Alert, comment,
 delivery and attempt retention is not yet configurable.
 
 ## APIs
@@ -87,7 +85,8 @@ Base `/api/v1/organizations/{organization_uuid}`:
 | POST `/alerts/{uuid}/acknowledge` | Idempotent first acknowledgement |
 | GET `/alerts/{uuid}/comments` | Comments, 50 per page |
 | POST `/alerts/{uuid}/comments` | `{uuid, body}`; max 5000 characters |
-| GET `/alerts/{uuid}/deliveries` | Delivery states and attempt history |
+| GET `/alerts/{uuid}/deliveries` | Delivery states, retry generation and attempt history |
+| POST `/alerts/{uuid}/deliveries/{delivery_uuid}/retry` | Retry a failed delivery with `{retry_generation}` |
 | GET `/workflows/{uuid}/notifications` | Current notification settings/revision |
 | PUT `/workflows/{uuid}/notifications` | Optimistic settings update |
 | GET `/workflows/{uuid}/notification-recipients` | Paginated verified member choices; optional name search |
@@ -107,8 +106,7 @@ Settings use the notification revision, independently of the workflow draft.
 Stale updates return 409. Invalid or out-of-organization recipients return 422.
 Alert/comment reads require `Device.view`; acknowledgement, comment creation,
 delivery details and notification settings require `Device.manage`. Organization
-membership and resource ownership are enforced separately. Notification settings
-currently have API access; a recipient/settings form in the portal remains pending.
+membership and resource ownership are enforced separately. The portal provides a paginated workflow directory, recipient search and pagination inside the picker, selected-recipient removal, opt-in and recovery switches, saved feedback and unsaved-navigation protection. A 409 preserves the local draft; reloading saved preferences requires an explicit discard confirmation.
 
 ## Verification
 
@@ -124,6 +122,6 @@ retries and cancellation after access revocation or condition clearing. Browser
 verification covers list filters, detail, acknowledgement, comment preservation
 on navigation, comment save, delivery status, desktop and mobile dark appearance.
 
-Next: portal notification settings, operational handling of terminal delivery
-failures and customer-specific notification policy. Then proceed to scoped
-application access and the first SDK. The visual builder remains deferred.
+Next: scoped application access and the first SDK. Cooldown, escalation and other customer-specific notification policies remain requirement-led. The visual builder remains deferred.
+
+The local verification fixture also accepts `WORKFLOW_VERIFY_UI=1 WORKFLOW_VERIFY_RETRY=1` for an isolated UI recovery test: it simulates terminal uncertainty after transport acceptance, then expects an explicitly retried activation and the normal recovery (three Mailpit messages). This demonstrates duplicate risk instead of treating SMTP acceptance as exactly-once delivery. Only fixture records are changed.

@@ -30,5 +30,6 @@ Route::prefix('v1/organizations/{organization}/alerts')->middleware(['auth:sanct
     Route::post('{alert}/acknowledge', [AlertController::class, 'acknowledge']);
     Route::get('{alert}/comments', [AlertController::class, 'comments']);
     Route::post('{alert}/comments', [AlertController::class, 'comment']);
+    Route::post('{alert}/deliveries/{delivery}/retry', [AlertController::class, 'retry']);
     Route::get('{alert}/deliveries', [AlertController::class, 'deliveries']);
 });

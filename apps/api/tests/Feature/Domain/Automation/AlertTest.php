@@ -203,4 +203,58 @@ final class AlertTest extends TestCase
         $this->getJson($settings)->assertForbidden();
         $this->getJson($this->base.'/alerts/'.$alert->uuid.'/deliveries')->assertForbidden();
     }
+
+    public function test_manual_retry_preserves_history_and_fences_old_jobs(): void
+    {
+        $this->settings();
+        $this->transition('activated');
+        $delivery = AlertDelivery::firstOrFail();
+        $delivery->update(['status' => 'failed', 'attempts' => 5, 'cycle_attempts' => 5]);
+        DB::table('automation_alert_delivery_attempts')->insert(['automation_alert_delivery_id' => $delivery->id, 'attempt' => 5, 'status' => 'transport_failed', 'created_at' => now()]);
+        $url = $this->base.'/alerts/'.Alert::firstOrFail()->uuid.'/deliveries/'.$delivery->uuid.'/retry';
+        $this->postJson($url, ['retry_generation' => 0])->assertAccepted();
+        $this->postJson($url, ['retry_generation' => 0])->assertConflict();
+        $this->assertDatabaseCount('jobs', 2);
+        $this->deliver($delivery); // Original generation cannot send or fail new work.
+        (new DeliverAlertEmail($delivery->uuid))->failed(null);
+        Mail::assertNothingSent();
+        $this->assertSame('pending', $delivery->fresh()->status);
+        (new DeliverAlertEmail($delivery->uuid, 1))->handle(app(DeviceAuthorization::class));
+        Mail::assertSent(AlertEmail::class, 1);
+        $this->assertSame(6, (int) $delivery->fresh()->attempts);
+        $this->assertSame(1, (int) $delivery->fresh()->cycle_attempts);
+        $this->assertDatabaseCount('automation_alert_delivery_attempts', 2);
+        $this->postJson($url, ['retry_generation' => 1])->assertConflict();
+    }
+
+    public function test_retry_is_scoped_and_rechecks_current_subscription(): void
+    {
+        $this->settings();
+        $this->transition('activated');
+        $alert = Alert::firstOrFail();
+        $delivery = AlertDelivery::firstOrFail();
+        $delivery->update(['status' => 'failed']);
+        $suffix = '/alerts/'.$alert->uuid.'/deliveries/'.$delivery->uuid.'/retry';
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $this->postJson('/api/v1/organizations/'.$other->uuid.$suffix, ['retry_generation' => 0])->assertNotFound();
+        $this->postJson($this->base.'/alerts/'.$alert->uuid.'/deliveries/'.Str::uuid().'/retry', ['retry_generation' => 0])->assertNotFound();
+        $this->postJson($this->base.$suffix, ['retry_generation' => 0])->assertAccepted();
+        $this->workflow->update(['notification_settings' => ['enabled' => false]]);
+        (new DeliverAlertEmail($delivery->uuid, 1))->handle(app(DeviceAuthorization::class));
+        $this->assertSame('cancelled', $delivery->fresh()->status);
+        Mail::assertNothingSent();
+        $this->actingAs($this->recipient, 'sanctum');
+        $this->postJson($this->base.$suffix, ['retry_generation' => 1])->assertForbidden();
+    }
+
+    public function test_settings_return_selected_names_and_reject_stale_edits(): void
+    {
+        $this->settings();
+        $url = $this->base.'/workflows/'.$this->workflow->uuid;
+        $this->getJson($url.'/notifications')->assertOk()->assertJsonPath('data.recipients.0.name', $this->recipient->name);
+        $this->getJson($url.'/notification-recipients?search=')->assertOk();
+        $this->getJson($url.'/notification-recipients?search='.urlencode($this->recipient->name))->assertOk()->assertJsonPath('data.0.id', $this->recipient->id);
+        $this->putJson($url.'/notifications', ['revision' => 0, 'enabled' => false, 'notify_on_clear' => false, 'recipient_ids' => []])->assertConflict();
+        $this->getJson($url.'/notifications')->assertJsonPath('data.enabled', true);
+    }
 }

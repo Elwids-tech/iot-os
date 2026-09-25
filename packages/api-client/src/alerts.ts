@@ -26,10 +26,26 @@ export type AlertDelivery = {
   type: "activated" | "cleared";
   status: string;
   attempts: number;
+  retry_generation: number;
+  history: { attempt: number; status: string; created_at: string }[];
   sent_at: string | null;
   diagnostic: string | null;
 };
 export type AlertPage<T> = {
   data: T[];
   meta: { current_page: number; last_page: number; total: number };
+};
+
+export type NotificationRecipient = {
+  id: number;
+  name: string;
+  email?: string;
+};
+export type NotificationSettings = {
+  workflow_name: string;
+  revision: number;
+  enabled: boolean;
+  notify_on_clear: boolean;
+  recipient_ids: number[];
+  recipients: NotificationRecipient[];
 };

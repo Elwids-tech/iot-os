@@ -24,7 +24,8 @@ final class DeliverAlertEmail implements ShouldQueue
 
     public int $timeout = 30;
 
-    public function __construct(public readonly string $deliveryUuid) {}
+    public int $generation = 0;
+    public function __construct(public readonly string $deliveryUuid, int $generation = 0) { $this->generation = $generation; }
 
     public function retryUntil(): \DateTimeInterface
     {
@@ -40,7 +41,7 @@ final class DeliverAlertEmail implements ShouldQueue
     {
         $retry = DB::transaction(function () use ($authorization): bool {
             $delivery = AlertDelivery::where('uuid', $this->deliveryUuid)->lockForUpdate()->first();
-            if (! $delivery || in_array($delivery->status, ['sent', 'cancelled', 'failed'], true)) {
+            if (! $delivery || (int) $delivery->retry_generation !== $this->generation || in_array($delivery->status, ['sent', 'cancelled', 'failed'], true)) {
                 return false;
             }
             $alert = Alert::with(['workflow', 'deployment'])->findOrFail($delivery->automation_alert_id);
@@ -75,13 +76,14 @@ final class DeliverAlertEmail implements ShouldQueue
                 return false;
             }
             $delivery->attempts++;
+            $delivery->cycle_attempts++;
             $failed = false;
             try {
                 Mail::to($user->email)->send(new AlertEmail($delivery->uuid, $workflow->name, $alert->uuid, $alert->episode, $delivery->type, ($delivery->type === 'activated' ? $alert->activated_at : $alert->cleared_at)->toIso8601String()));
             } catch (Throwable) {
                 $failed = true;
             }
-            $delivery->status = $failed ? ($delivery->attempts >= 5 ? 'failed' : 'pending') : 'sent';
+            $delivery->status = $failed ? ($delivery->cycle_attempts >= 5 ? 'failed' : 'pending') : 'sent';
             $delivery->diagnostic = $failed ? 'Email transport failed; delivery may be uncertain.' : null;
             if (! $failed) {
                 $delivery->sent_at = now();
@@ -98,6 +100,6 @@ final class DeliverAlertEmail implements ShouldQueue
 
     public function failed(?Throwable $exception): void
     {
-        AlertDelivery::where('uuid', $this->deliveryUuid)->where('status', 'pending')->update(['status' => 'failed', 'diagnostic' => 'Delivery retry deadline expired or worker failed.']);
+        AlertDelivery::where('uuid', $this->deliveryUuid)->where('retry_generation', $this->generation)->where('status', 'pending')->update(['status' => 'failed', 'diagnostic' => 'Delivery retry deadline expired or worker failed.']);
     }
 }

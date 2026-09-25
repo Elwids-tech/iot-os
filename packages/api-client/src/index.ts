@@ -1343,6 +1343,22 @@ export class ApiClient {
     return this.request<{ data: import("./alerts").AlertDelivery[] }>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/deliveries`)
   }
 
+  notificationWorkflows(org: string, page: number) {
+    return this.request<import("./alerts").AlertPage<{ uuid: string; name: string }>>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?page=${page}`)
+  }
+  workflowNotifications(org: string, workflow: string) {
+    return this.data<import("./alerts").NotificationSettings>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(workflow)}/notifications`)
+  }
+  saveWorkflowNotifications(org: string, workflow: string, settings: import("./alerts").NotificationSettings) {
+    return this.data<import("./alerts").NotificationSettings>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(workflow)}/notifications`, "PUT", settings)
+  }
+  notificationRecipients(org: string, workflow: string, search: string, page: number) {
+    return this.request<{ data: import("./alerts").NotificationRecipient[]; meta: { current_page: number; last_page: number } }>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(workflow)}/notification-recipients?${new URLSearchParams({ search, page: String(page) })}`)
+  }
+  retryAlertDelivery(org: string, alert: string, delivery: string, generation: number) {
+    return this.data<{ status: string }>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(alert)}/deliveries/${encodeURIComponent(delivery)}/retry`, "POST", { retry_generation: generation })
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers)
     headers.set("Accept", "application/json")

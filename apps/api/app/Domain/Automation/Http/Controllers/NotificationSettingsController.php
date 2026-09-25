@@ -50,7 +50,7 @@ final class NotificationSettingsController
     public function recipients(Request $request, Organization $organization, Workflow $workflow): array
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $workflow);
-        $request->validate(['search' => 'sometimes|string|max:255', 'page' => 'sometimes|integer|min:1']);
+        $request->validate(['search' => 'sometimes|nullable|string|max:255', 'page' => 'sometimes|integer|min:1']);
         $page = $organization->users()->whereNotNull('email_verified_at')->when($request->input('search'), fn ($q, $search) => $q->where('name', 'like', '%'.$search.'%'))->orderBy('users.id')->paginate(50);
 
         return ['data' => $page->getCollection()->filter(fn ($u) => $this->authorization->capabilities($u, $organization)['view'])->values()->map(fn ($u) => $u->only(['id', 'name', 'email'])), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage()]];
@@ -58,6 +58,6 @@ final class NotificationSettingsController
 
     private function view(Workflow $workflow): array
     {
-        return ['revision' => $workflow->notification_revision ?? 0, ...($workflow->notification_settings ?? ['enabled' => false, 'notify_on_clear' => false, 'recipient_ids' => []])];
+        return ['workflow_name' => $workflow->name, 'recipients' => User::whereIn('id', $workflow->notification_settings['recipient_ids'] ?? [])->get(['id', 'name'])->toArray(), 'revision' => $workflow->notification_revision ?? 0, ...($workflow->notification_settings ?? ['enabled' => false, 'notify_on_clear' => false, 'recipient_ids' => []])];
     }
 }

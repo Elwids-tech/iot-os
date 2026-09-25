@@ -16,6 +16,8 @@ Devices regression suite; rebuilt API/workers/portal/admin; real queued email
 round trip into Mailpit; isolated Playwright desktop/mobile dark checks and
 WCAG-tagged axe checks. Temporary verification data was removed.
 
-Pending: notification settings UI, terminal delivery recovery, recipient-specific
+Follow-up delivered: portal notification settings with searchable member selection, revision conflicts and unsaved protection; audited, generation-fenced manual retry with cumulative attempt history. Verified with 132 Laravel tests, portal typecheck/unit tests and rebuilt-container UI/email checks.
+
+Pending: recipient-specific
 cooldown/escalation requirements, historical alert backfill and retention policy.
 Visual workflow authoring remains deferred.

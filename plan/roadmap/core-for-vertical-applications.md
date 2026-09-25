@@ -170,9 +170,8 @@ verification and operational limits.
 
 **P2 progress:** [Alert episodes and initial email delivery](../../docs/workflow-alerts.md)
 are implemented, including portal review, acknowledgement/comments and durable
-queued delivery to opted-in members. Notification settings currently use APIs.
+queued delivery to opted-in members. Portal notification settings and audited, generation-fenced terminal-delivery retry are also implemented.
 
-**Next task:** Portal notification settings and terminal-delivery recovery before
-P3 scoped application access. Cooldown/escalation policies remain requirement-led.
+**Next task:** P3 scoped application access and first SDK. Cooldown/escalation policies remain requirement-led.
 The visual builder is deferred at the user's request. Keep Laine's customer
 workflow and hardware choices open while making the generic core demonstrable.
