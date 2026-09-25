@@ -26,7 +26,7 @@ func historyStore(t *testing.T) (*Store, context.Context, string) {
 	}
 	organization := UUID()
 	t.Cleanup(func() {
-		for _, table := range []string{"observations", "diagnostics", "latest", "commands", "devices"} {
+		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices"} {
 			_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1", organization)
 		}
 		_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime.outbox WHERE event->'payload'->>'organization_uuid'=$1", organization)
@@ -126,10 +126,10 @@ func TestStateHistoryCarriesAndCollapsesReports(t *testing.T) {
 	if len(history.Timeline) != 2 || history.Sampled {
 		t.Fatalf("repeated report was not collapsed: %#v", history)
 	}
-	if history.Timeline[0].Value != true || history.Timeline[0].From != from || history.Timeline[0].To != from.Add(2*time.Minute) {
+	if history.Timeline[0].Value != true || !history.Timeline[0].From.Equal(from) || !history.Timeline[0].To.Equal(from.Add(2*time.Minute)) {
 		t.Fatalf("carry-in state is incorrect: %#v", history.Timeline[0])
 	}
-	if history.Timeline[1].Value != false || history.Timeline[1].To != from.Add(5*time.Minute) {
+	if history.Timeline[1].Value != false || !history.Timeline[1].To.Equal(from.Add(5*time.Minute)) {
 		t.Fatalf("final state was not extended: %#v", history.Timeline[1])
 	}
 }

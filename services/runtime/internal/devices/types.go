@@ -93,6 +93,7 @@ type Reading struct {
 	Quality             string     `json:"quality"`
 	Diagnostic          string     `json:"diagnostic,omitempty"`
 	ObservedAt          time.Time  `json:"observed_at"`
+	TimestampSource     string     `json:"timestamp_source,omitempty"`
 	ReceivedAt          time.Time  `json:"received_at"`
 	LastValidReceivedAt *time.Time `json:"last_valid_received_at,omitempty"`
 	Historical          bool       `json:"historical"`

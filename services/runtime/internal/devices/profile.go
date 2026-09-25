@@ -132,8 +132,13 @@ func Readings(d Definition, p Profile, metrics []Metric, latest map[string]Readi
 			observed = *metric.Timestamp
 		}
 		r := Reading{ParameterUUID: parameter.UUID, Key: parameter.Key, Label: parameter.Label, DataType: parameter.DataType, Unit: parameter.Unit, Value: metric.Value, Quality: "good", ObservedAt: observed, ReceivedAt: received, Historical: metric.Historical}
+		r.TimestampSource = "receipt"
+		if metric.Timestamp != nil {
+			r.TimestampSource = "source"
+		}
 		if observed.After(received.Add(5 * time.Minute)) {
 			r.ObservedAt = received
+			r.TimestampSource = "corrected_future"
 			r.Diagnostic = "source clock is ahead; receipt time used"
 		}
 		var err error
@@ -219,6 +224,7 @@ func Readings(d Definition, p Profile, metrics []Metric, latest map[string]Readi
 			}
 			parameter := params[calculation.TargetParameterUUID]
 			r := Reading{ParameterUUID: parameter.UUID, Key: parameter.Key, Label: parameter.Label, DataType: parameter.DataType, Unit: parameter.Unit, Quality: "good", ReceivedAt: received, ObservedAt: received, Historical: historical}
+			r.TimestampSource = "derived"
 			var err error
 			if invalid != "" {
 				err = errors.New(invalid)

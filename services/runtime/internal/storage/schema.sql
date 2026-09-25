@@ -35,3 +35,15 @@ CREATE TABLE IF NOT EXISTS device_runtime.outbox (
  uuid uuid PRIMARY KEY, event jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), published_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS runtime_outbox_pending ON device_runtime.outbox(created_at) WHERE published_at IS NULL;
+
+-- Separate from lifecycle events: telemetry must never enter the Laravel inbox.
+-- Published rows also serve as the durable ingestion deduplication ledger.
+CREATE TABLE IF NOT EXISTS device_runtime.telemetry_outbox (
+ sequence bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ telemetry_uuid uuid NOT NULL UNIQUE,
+ organization_uuid uuid NOT NULL,
+ event jsonb NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ published_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS telemetry_outbox_pending ON device_runtime.telemetry_outbox(sequence) WHERE published_at IS NULL;

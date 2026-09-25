@@ -76,6 +76,14 @@
           },
           "historical": {
             "type": "boolean"
+          },
+          "timestamp_source": {
+            "enum": [
+              "source",
+              "receipt",
+              "corrected_future",
+              "derived"
+            ]
           }
         },
         "required": [

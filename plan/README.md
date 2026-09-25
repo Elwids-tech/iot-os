@@ -1,7 +1,7 @@
 # IIoT Platform Plan
 
 **Status:** Active architecture plan  
-**Last updated:** 2026-08-22
+**Last updated:** 2026-09-25
 
 This directory records the agreed target architecture for the next IIoT platform. It separates accepted decisions from draft contracts and future scaling options so that planned work is not mistaken for implemented work.
 
@@ -56,6 +56,9 @@ The current [`docs/c4-architecture.md`](../docs/c4-architecture.md) is an earlie
 
 ### Current Work
 
+- [Core platform priorities for vertical applications](roadmap/core-for-vertical-applications.md) — current planning priority: durable telemetry events, rules with geofencing, alerts, then external application access. Detailed contracts remain draft; this is not an implementation completion claim.
+- [First delivery slice: committed telemetry events](tasks/committed-telemetry-events.md) — implemented and verified locally.
+- [Location contracts and fixtures](tasks/location-contracts-and-fixtures.md) — implemented and verified locally; next: P1 rules and geofencing.
 - [Administration foundation](tasks/admin-foundation.md)
 
 ### Supporting Plans

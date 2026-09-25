@@ -1,0 +1,23 @@
+{
+  "schema_version": "location-fix.v1",
+  "binding_uuid": "00000000-0000-4000-8000-000000000001",
+  "binding_revision": 1,
+  "event_id": "00000000-0000-4000-8000-000000000065",
+  "organization_uuid": "00000000-0000-4000-8000-000000000002",
+  "device_uuid": "00000000-0000-4000-8000-000000000003",
+  "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+  "generation": 1,
+  "evaluated_at": "2026-09-25T00:00:32Z",
+  "observed_at": "2026-09-25T00:00:30Z",
+  "received_at": "2026-09-25T00:00:31Z",
+  "timestamp_source": "source",
+  "historical": false,
+  "status": "valid",
+  "reason": "eligible",
+  "live_eligible": true,
+  "point": {
+    "latitude": 51.0,
+    "longitude": -114.0,
+    "accuracy_metres": 5
+  }
+}

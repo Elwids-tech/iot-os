@@ -186,12 +186,28 @@ func (s *Store) Persist(ctx context.Context, t devices.Telemetry) error {
 	}
 	defer tx.Rollback(ctx)
 	var allowed bool
-	if e = tx.QueryRow(ctx, "SELECT true FROM device_runtime.devices WHERE device_uuid=$1 AND generation=$2 AND definition->>'configuration_uuid'=$3 FOR SHARE", t.Definition.DeviceUUID, t.Generation, t.Definition.ConfigurationUUID).Scan(&allowed); errors.Is(e, pgx.ErrNoRows) {
+	if e = tx.QueryRow(ctx, "SELECT true FROM device_runtime.devices WHERE device_uuid=$1 AND generation=$2 AND definition->>'configuration_uuid'=$3 AND organization_uuid=$4 FOR SHARE", t.Definition.DeviceUUID, t.Generation, t.Definition.ConfigurationUUID, t.Definition.OrganizationUUID).Scan(&allowed); errors.Is(e, pgx.ErrNoRows) {
 		return tx.Commit(ctx)
 	} else if e != nil {
 		return e
 	}
 	if !allowed {
+		return tx.Commit(ctx)
+	}
+	if len(t.Readings) == 0 {
+		return tx.Commit(ctx)
+	}
+	// The ledger and telemetry commit together. Do not infer acceptance from a
+	// nil error: stale generations and duplicate deliveries are intentional no-ops.
+	committed, e := json.Marshal(devices.ProjectCommitted(t))
+	if e != nil {
+		return e
+	}
+	inserted, e := tx.Exec(ctx, "INSERT INTO device_runtime.telemetry_outbox(telemetry_uuid,organization_uuid,event) VALUES($1,$2,$3) ON CONFLICT(telemetry_uuid) DO NOTHING", t.UUID, t.Definition.OrganizationUUID, committed)
+	if e != nil {
+		return e
+	}
+	if inserted.RowsAffected() == 0 {
 		return tx.Commit(ctx)
 	}
 	for _, reading := range t.Readings {

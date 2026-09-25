@@ -28,7 +28,7 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 	t.Cleanup(s.Pool.Close)
 	org, other := UUID(), UUID()
 	t.Cleanup(func() {
-		for _, table := range []string{"observations", "diagnostics", "latest", "commands", "devices"} {
+		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices"} {
 			if _, e := s.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1 OR organization_uuid=$2", org, other); e != nil {
 				t.Error(e)
 			}

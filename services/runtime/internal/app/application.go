@@ -36,30 +36,31 @@ type broker struct {
 }
 type rebirthRequest struct{ Connection, Group, Edge string }
 type Application struct {
-	fences         sync.Map
-	releaseRuntime func()
-	ctx            context.Context
-	mu             sync.Mutex
-	Store          *storage.Store
-	Control        *ControlClient
-	JS             nats.JetStreamContext
-	NATS           *nats.Conn
-	Logger         *slog.Logger
-	Engine         *sparkplug.Engine
-	definitions    map[string]devices.Definition
-	generations    map[string]int
-	activeSince    map[string]time.Time
-	latest         map[string]map[string]devices.Reading
-	sessions       map[string]string
-	compatible     map[string]bool
-	reviewRequired map[string]bool
-	brokers        map[string]*broker
-	pending        map[string]*pendingCommand
-	rebirth        map[string]time.Time
-	rebirthPending map[string]rebirthRequest
-	presenceAt     map[string]time.Time
-	subscriptions  []*nats.Subscription
-	tlsConfig      *tls.Config
+	committedFailures atomic.Uint64
+	fences            sync.Map
+	releaseRuntime    func()
+	ctx               context.Context
+	mu                sync.Mutex
+	Store             *storage.Store
+	Control           *ControlClient
+	JS                nats.JetStreamContext
+	NATS              *nats.Conn
+	Logger            *slog.Logger
+	Engine            *sparkplug.Engine
+	definitions       map[string]devices.Definition
+	generations       map[string]int
+	activeSince       map[string]time.Time
+	latest            map[string]map[string]devices.Reading
+	sessions          map[string]string
+	compatible        map[string]bool
+	reviewRequired    map[string]bool
+	brokers           map[string]*broker
+	pending           map[string]*pendingCommand
+	rebirth           map[string]time.Time
+	rebirthPending    map[string]rebirthRequest
+	presenceAt        map[string]time.Time
+	subscriptions     []*nats.Subscription
+	tlsConfig         *tls.Config
 }
 
 func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Application, error) {
@@ -129,6 +130,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 		return nil, e
 	}
 	go a.relay(ctx)
+	go a.relayCommitted(ctx)
 	go a.maintenance(ctx)
 	started = true
 	return a, nil

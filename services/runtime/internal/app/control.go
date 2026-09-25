@@ -117,6 +117,9 @@ func (a *Application) emit(kind string, payload any) {
 	}
 }
 func (a *Application) subscribe() error {
+	if err := a.ensureCommittedStream(); err != nil {
+		return err
+	}
 	for _, stream := range []struct {
 		Name, Subject string
 		Bytes         int64

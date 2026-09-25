@@ -1,0 +1,2201 @@
+{
+  "schema_version": "location-scenarios.v1",
+  "test_parameters": {
+    "interval_seconds": 30,
+    "accuracy_metres": 5
+  },
+  "reference_polygon": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -114.01,
+          50.99
+        ],
+        [
+          -113.99,
+          50.99
+        ],
+        [
+          -113.99,
+          51.01
+        ],
+        [
+          -114.01,
+          51.01
+        ],
+        [
+          -114.01,
+          50.99
+        ]
+      ]
+    ]
+  },
+  "cases": [
+    {
+      "name": "inside",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000065",
+        "telemetry_id": "00000000-0000-4000-8000-000000000065",
+        "sequence": "1",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:30Z",
+            "received_at": "2026-09-25T00:00:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:30Z",
+            "received_at": "2026-09-25T00:00:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:30Z",
+            "received_at": "2026-09-25T00:00:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:00:32Z",
+      "expected": {
+        "status": "valid",
+        "reason": "eligible",
+        "live_eligible": true
+      }
+    },
+    {
+      "name": "outside",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000066",
+        "telemetry_id": "00000000-0000-4000-8000-000000000066",
+        "sequence": "2",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.02,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:01:00Z",
+            "received_at": "2026-09-25T00:01:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:01:00Z",
+            "received_at": "2026-09-25T00:01:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:01:00Z",
+            "received_at": "2026-09-25T00:01:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:01:02Z",
+      "expected": {
+        "status": "valid",
+        "reason": "eligible",
+        "live_eligible": true
+      }
+    },
+    {
+      "name": "boundary",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000067",
+        "telemetry_id": "00000000-0000-4000-8000-000000000067",
+        "sequence": "3",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.01,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:01:30Z",
+            "received_at": "2026-09-25T00:01:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:01:30Z",
+            "received_at": "2026-09-25T00:01:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:01:30Z",
+            "received_at": "2026-09-25T00:01:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:01:32Z",
+      "expected": {
+        "status": "valid",
+        "reason": "eligible",
+        "live_eligible": true
+      }
+    },
+    {
+      "name": "jitter_inside",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000068",
+        "telemetry_id": "00000000-0000-4000-8000-000000000068",
+        "sequence": "4",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.00999,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:02:00Z",
+            "received_at": "2026-09-25T00:02:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:02:00Z",
+            "received_at": "2026-09-25T00:02:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:02:00Z",
+            "received_at": "2026-09-25T00:02:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:02:02Z",
+      "expected": {
+        "status": "valid",
+        "reason": "eligible",
+        "live_eligible": true
+      }
+    },
+    {
+      "name": "jitter_outside",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000069",
+        "telemetry_id": "00000000-0000-4000-8000-000000000069",
+        "sequence": "5",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.01001,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:02:30Z",
+            "received_at": "2026-09-25T00:02:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:02:30Z",
+            "received_at": "2026-09-25T00:02:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:02:30Z",
+            "received_at": "2026-09-25T00:02:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:02:32Z",
+      "expected": {
+        "status": "valid",
+        "reason": "eligible",
+        "live_eligible": true
+      }
+    },
+    {
+      "name": "reentry",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000006a",
+        "telemetry_id": "00000000-0000-4000-8000-00000000006a",
+        "sequence": "6",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:03:00Z",
+            "received_at": "2026-09-25T00:03:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:03:00Z",
+            "received_at": "2026-09-25T00:03:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:03:00Z",
+            "received_at": "2026-09-25T00:03:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:03:02Z",
+      "expected": {
+        "status": "valid",
+        "reason": "eligible",
+        "live_eligible": true
+      }
+    },
+    {
+      "name": "no_fix",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000006b",
+        "telemetry_id": "00000000-0000-4000-8000-00000000006b",
+        "sequence": "7",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": null,
+            "quality": "invalid",
+            "observed_at": "2026-09-25T00:03:30Z",
+            "received_at": "2026-09-25T00:03:31Z",
+            "timestamp_source": "source",
+            "historical": false,
+            "diagnostic": "no GPS fix"
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": null,
+            "quality": "invalid",
+            "observed_at": "2026-09-25T00:03:30Z",
+            "received_at": "2026-09-25T00:03:31Z",
+            "timestamp_source": "source",
+            "historical": false,
+            "diagnostic": "no GPS fix"
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:03:30Z",
+            "received_at": "2026-09-25T00:03:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:03:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "invalid_quality",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "missing_longitude",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000006c",
+        "telemetry_id": "00000000-0000-4000-8000-00000000006c",
+        "sequence": "8",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:04:00Z",
+            "received_at": "2026-09-25T00:04:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:04:00Z",
+            "received_at": "2026-09-25T00:04:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:04:02Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "incomplete_fix",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "split_timestamp",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000006d",
+        "telemetry_id": "00000000-0000-4000-8000-00000000006d",
+        "sequence": "9",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:04:30Z",
+            "received_at": "2026-09-25T00:04:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:01Z",
+            "received_at": "2026-09-25T00:04:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:04:30Z",
+            "received_at": "2026-09-25T00:04:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:04:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "incoherent_fix",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "stale",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000006e",
+        "telemetry_id": "00000000-0000-4000-8000-00000000006e",
+        "sequence": "10",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:05:00Z",
+            "received_at": "2026-09-25T00:05:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:05:00Z",
+            "received_at": "2026-09-25T00:05:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:05:00Z",
+            "received_at": "2026-09-25T00:05:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:06:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "stale_fix",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "delayed",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000006f",
+        "telemetry_id": "00000000-0000-4000-8000-00000000006f",
+        "sequence": "11",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:00Z",
+            "received_at": "2026-09-25T00:05:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:00Z",
+            "received_at": "2026-09-25T00:05:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:00Z",
+            "received_at": "2026-09-25T00:05:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:05:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "stale_fix",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "historical",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000070",
+        "telemetry_id": "00000000-0000-4000-8000-000000000070",
+        "sequence": "12",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:00Z",
+            "received_at": "2026-09-25T00:06:01Z",
+            "timestamp_source": "source",
+            "historical": true
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:00Z",
+            "received_at": "2026-09-25T00:06:01Z",
+            "timestamp_source": "source",
+            "historical": true
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:00Z",
+            "received_at": "2026-09-25T00:06:01Z",
+            "timestamp_source": "source",
+            "historical": true
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:06:02Z",
+      "expected": {
+        "status": "valid",
+        "reason": "historical",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "receipt_fallback",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000071",
+        "telemetry_id": "00000000-0000-4000-8000-000000000071",
+        "sequence": "13",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:06:30Z",
+            "received_at": "2026-09-25T00:06:31Z",
+            "timestamp_source": "receipt",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:06:30Z",
+            "received_at": "2026-09-25T00:06:31Z",
+            "timestamp_source": "receipt",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:06:30Z",
+            "received_at": "2026-09-25T00:06:31Z",
+            "timestamp_source": "receipt",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:06:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "untrusted_time",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "corrected_clock",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000072",
+        "telemetry_id": "00000000-0000-4000-8000-000000000072",
+        "sequence": "14",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:07:00Z",
+            "received_at": "2026-09-25T00:07:01Z",
+            "timestamp_source": "corrected_future",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:07:00Z",
+            "received_at": "2026-09-25T00:07:01Z",
+            "timestamp_source": "corrected_future",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:07:00Z",
+            "received_at": "2026-09-25T00:07:01Z",
+            "timestamp_source": "corrected_future",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:07:02Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "untrusted_time",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "derived_position",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000073",
+        "telemetry_id": "00000000-0000-4000-8000-000000000073",
+        "sequence": "15",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:07:30Z",
+            "received_at": "2026-09-25T00:07:31Z",
+            "timestamp_source": "derived",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:07:30Z",
+            "received_at": "2026-09-25T00:07:31Z",
+            "timestamp_source": "derived",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:07:30Z",
+            "received_at": "2026-09-25T00:07:31Z",
+            "timestamp_source": "derived",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:07:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "untrusted_time",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "legacy_time",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000074",
+        "telemetry_id": "00000000-0000-4000-8000-000000000074",
+        "sequence": "16",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:08:00Z",
+            "received_at": "2026-09-25T00:08:01Z",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:08:00Z",
+            "received_at": "2026-09-25T00:08:01Z",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:08:00Z",
+            "received_at": "2026-09-25T00:08:01Z",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:08:02Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "untrusted_time",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "future_clock",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000075",
+        "telemetry_id": "00000000-0000-4000-8000-000000000075",
+        "sequence": "17",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-26T03:46:40Z",
+            "received_at": "2026-09-25T00:08:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-26T03:46:40Z",
+            "received_at": "2026-09-25T00:08:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-26T03:46:40Z",
+            "received_at": "2026-09-25T00:08:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:08:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "future_time",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "unknown_accuracy",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000076",
+        "telemetry_id": "00000000-0000-4000-8000-000000000076",
+        "sequence": "18",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:09:00Z",
+            "received_at": "2026-09-25T00:09:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:09:00Z",
+            "received_at": "2026-09-25T00:09:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:09:02Z",
+      "expected": {
+        "status": "valid",
+        "reason": "eligible",
+        "live_eligible": true
+      }
+    },
+    {
+      "name": "required_accuracy",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": false
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000077",
+        "telemetry_id": "00000000-0000-4000-8000-000000000077",
+        "sequence": "19",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:09:30Z",
+            "received_at": "2026-09-25T00:09:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:09:30Z",
+            "received_at": "2026-09-25T00:09:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:09:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "accuracy_required",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "bad_accuracy",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000078",
+        "telemetry_id": "00000000-0000-4000-8000-000000000078",
+        "sequence": "20",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:10:00Z",
+            "received_at": "2026-09-25T00:10:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:10:00Z",
+            "received_at": "2026-09-25T00:10:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": -1,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:10:00Z",
+            "received_at": "2026-09-25T00:10:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:10:02Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "invalid_accuracy",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "wrong_units",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000079",
+        "telemetry_id": "00000000-0000-4000-8000-000000000079",
+        "sequence": "21",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "rad",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:10:30Z",
+            "received_at": "2026-09-25T00:10:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:10:30Z",
+            "received_at": "2026-09-25T00:10:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:10:30Z",
+            "received_at": "2026-09-25T00:10:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:10:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "invalid_units",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "out_of_range",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000007a",
+        "telemetry_id": "00000000-0000-4000-8000-00000000007a",
+        "sequence": "22",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 91,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:11:00Z",
+            "received_at": "2026-09-25T00:11:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:11:00Z",
+            "received_at": "2026-09-25T00:11:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:11:00Z",
+            "received_at": "2026-09-25T00:11:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:11:02Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "invalid_coordinates",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "cross_tenant",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000007b",
+        "telemetry_id": "00000000-0000-4000-8000-00000000007b",
+        "sequence": "23",
+        "organization_uuid": "00000000-0000-4000-8000-0000000003e7",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:11:30Z",
+            "received_at": "2026-09-25T00:11:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:11:30Z",
+            "received_at": "2026-09-25T00:11:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:11:30Z",
+            "received_at": "2026-09-25T00:11:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:11:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "scope_mismatch",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "configuration_changed",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000007c",
+        "telemetry_id": "00000000-0000-4000-8000-00000000007c",
+        "sequence": "24",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-0000000003e6",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:12:00Z",
+            "received_at": "2026-09-25T00:12:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:12:00Z",
+            "received_at": "2026-09-25T00:12:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:12:00Z",
+            "received_at": "2026-09-25T00:12:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:12:02Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "scope_mismatch",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "generation_changed",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000007d",
+        "telemetry_id": "00000000-0000-4000-8000-00000000007d",
+        "sequence": "25",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 2,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:12:30Z",
+            "received_at": "2026-09-25T00:12:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:12:30Z",
+            "received_at": "2026-09-25T00:12:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:12:30Z",
+            "received_at": "2026-09-25T00:12:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:12:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "scope_mismatch",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "reconnect",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-00000000007e",
+        "telemetry_id": "00000000-0000-4000-8000-00000000007e",
+        "sequence": "26",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:13:00Z",
+            "received_at": "2026-09-25T00:13:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:13:00Z",
+            "received_at": "2026-09-25T00:13:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:13:00Z",
+            "received_at": "2026-09-25T00:13:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:13:02Z",
+      "expected": {
+        "status": "valid",
+        "reason": "eligible",
+        "live_eligible": true
+      }
+    },
+    {
+      "name": "duplicate",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000065",
+        "telemetry_id": "00000000-0000-4000-8000-000000000065",
+        "sequence": "1",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:30Z",
+            "received_at": "2026-09-25T00:00:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:30Z",
+            "received_at": "2026-09-25T00:00:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:30Z",
+            "received_at": "2026-09-25T00:00:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:00:32Z",
+      "expected": {
+        "status": "valid",
+        "reason": "eligible",
+        "live_eligible": true
+      }
+    },
+    {
+      "name": "runtime_restart",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000065",
+        "telemetry_id": "00000000-0000-4000-8000-000000000065",
+        "sequence": "1",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:30Z",
+            "received_at": "2026-09-25T00:00:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:30Z",
+            "received_at": "2026-09-25T00:00:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:30Z",
+            "received_at": "2026-09-25T00:00:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:00:32Z",
+      "expected": {
+        "status": "valid",
+        "reason": "eligible",
+        "live_eligible": true
+      }
+    },
+    {
+      "name": "duplicate_parameter",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000081",
+        "telemetry_id": "00000000-0000-4000-8000-000000000081",
+        "sequence": "29",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:14:30Z",
+            "received_at": "2026-09-25T00:14:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:14:30Z",
+            "received_at": "2026-09-25T00:14:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:14:30Z",
+            "received_at": "2026-09-25T00:14:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:14:30Z",
+            "received_at": "2026-09-25T00:14:31Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:14:32Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "ambiguous_parameters",
+        "live_eligible": false
+      }
+    },
+    {
+      "name": "accuracy_other_fix",
+      "binding": {
+        "schema_version": "location-binding.v1",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "revision": 1,
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+        "pairing": "same_event",
+        "max_age_seconds": 90,
+        "max_future_skew_seconds": 5,
+        "allow_unknown_accuracy": true
+      },
+      "event": {
+        "schema_version": "telemetry.committed.v1",
+        "event_id": "00000000-0000-4000-8000-000000000082",
+        "telemetry_id": "00000000-0000-4000-8000-000000000082",
+        "sequence": "30",
+        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+        "device_uuid": "00000000-0000-4000-8000-000000000003",
+        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+        "generation": 1,
+        "readings": [
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+            "key": "location.latitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": 51.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:15:00Z",
+            "received_at": "2026-09-25T00:15:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+            "key": "location.longitude",
+            "data_type": "number",
+            "unit": "deg",
+            "value": -114.0,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:15:00Z",
+            "received_at": "2026-09-25T00:15:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          },
+          {
+            "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+            "key": "location.accuracy",
+            "data_type": "number",
+            "unit": "m",
+            "value": 5,
+            "quality": "good",
+            "observed_at": "2026-09-25T00:00:00Z",
+            "received_at": "2026-09-25T00:15:01Z",
+            "timestamp_source": "source",
+            "historical": false
+          }
+        ]
+      },
+      "evaluated_at": "2026-09-25T00:15:02Z",
+      "expected": {
+        "status": "unknown",
+        "reason": "incoherent_accuracy",
+        "live_eligible": false
+      }
+    }
+  ]
+}

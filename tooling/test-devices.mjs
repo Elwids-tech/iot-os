@@ -215,11 +215,12 @@ try {
   )
   await waitFor(`http://127.0.0.1:${ports.api}/up`)
   console.log("Checking protocol, storage, retention, and recovery contracts…")
-  const runtimeTest = await run("go", ["test", "-race", "./..."], {
+  const runtimeTest = await run("go", ["test", "-race", "-p", "1", "./..."], {
     cwd: join(root, "services/runtime"),
     env: {
       ...baseEnv,
       DEVICE_TEST_DATABASE_URL: `postgres://devices_test:${secrets.DEVICE_TEST_DB_PASSWORD}@127.0.0.1:${ports.postgres}/iot_devices_test?sslmode=disable`,
+      DEVICE_TEST_NATS_URL: `nats://127.0.0.1:${ports.nats}`,
     },
   })
   writeFileSync(join(directory, "runtime-tests.log"), runtimeTest)

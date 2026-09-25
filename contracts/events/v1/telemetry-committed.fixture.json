@@ -1,0 +1,23 @@
+{
+  "schema_version": "telemetry.committed.v1",
+  "event_id": "90000000-0000-4000-8000-000000000009",
+  "telemetry_id": "90000000-0000-4000-8000-000000000009",
+  "sequence": "1",
+  "organization_uuid": "90000000-0000-4000-8000-000000000003",
+  "device_uuid": "90000000-0000-4000-8000-000000000002",
+  "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+  "generation": 1,
+  "readings": [
+    {
+      "parameter_uuid": "20000000-0000-4000-8000-000000000001",
+      "key": "voltage.l1",
+      "data_type": "number",
+      "unit": "V",
+      "value": 230,
+      "quality": "good",
+      "observed_at": "2026-09-06T00:00:00Z",
+      "received_at": "2026-09-06T00:00:01Z",
+      "historical": false
+    }
+  ]
+}

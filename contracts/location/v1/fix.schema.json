@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/location/v1/fix.schema.json",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "location-fix.v1"
+    },
+    "binding_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "binding_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "organization_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "device_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "configuration_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "evaluated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observed_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "received_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "timestamp_source": {
+      "enum": [
+        "source",
+        "receipt",
+        "corrected_future",
+        "derived",
+        "unknown"
+      ]
+    },
+    "historical": {
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "valid",
+        "unknown"
+      ]
+    },
+    "reason": {
+      "enum": [
+        "scope_mismatch",
+        "ambiguous_parameters",
+        "incomplete_fix",
+        "incoherent_fix",
+        "invalid_quality",
+        "invalid_coordinates",
+        "invalid_units",
+        "invalid_time",
+        "future_time",
+        "untrusted_time",
+        "incoherent_accuracy",
+        "invalid_accuracy",
+        "accuracy_required",
+        "historical",
+        "stale_fix",
+        "eligible"
+      ]
+    },
+    "live_eligible": {
+      "type": "boolean"
+    },
+    "point": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "latitude": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            "longitude": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            "accuracy_metres": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            }
+          },
+          "required": [
+            "latitude",
+            "longitude",
+            "accuracy_metres"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "binding_uuid",
+    "binding_revision",
+    "event_id",
+    "organization_uuid",
+    "device_uuid",
+    "configuration_uuid",
+    "generation",
+    "evaluated_at",
+    "observed_at",
+    "received_at",
+    "timestamp_source",
+    "historical",
+    "status",
+    "reason",
+    "live_eligible",
+    "point"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "unknown"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "point": {
+            "type": "null"
+          },
+          "live_eligible": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "live_eligible": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "valid"
+          },
+          "reason": {
+            "const": "eligible"
+          },
+          "historical": {
+            "const": false
+          },
+          "point": {
+            "type": "object",
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90
+              },
+              "longitude": {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
+              },
+              "accuracy_metres": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "required": [
+              "latitude",
+              "longitude",
+              "accuracy_metres"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  ]
+}

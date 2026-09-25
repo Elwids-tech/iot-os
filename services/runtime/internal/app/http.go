@@ -56,6 +56,8 @@ func (a *Application) Handler() http.Handler {
 		respond(w, 200, check)
 	})
 	internal.HandleFunc("GET /internal/measurements/latest", a.latestHTTP)
+	internal.HandleFunc("GET /internal/telemetry/committed-status", a.committedStatus)
+	internal.HandleFunc("POST /internal/locations/resolve", a.resolveLocation)
 	internal.HandleFunc("GET /internal/measurements/history", a.historyHTTP)
 	internal.HandleFunc("GET /internal/measurements/records", a.historyRecordsHTTP)
 	internal.HandleFunc("GET /internal/measurements/state-history", a.stateHistoryHTTP)

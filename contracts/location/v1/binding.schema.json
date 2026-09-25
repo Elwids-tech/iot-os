@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/location/v1/binding.schema.json",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "location-binding.v1"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "organization_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "device_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "configuration_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "latitude_parameter_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "longitude_parameter_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "accuracy_parameter_uuid": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pairing": {
+      "const": "same_event"
+    },
+    "max_age_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "max_future_skew_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 300
+    },
+    "allow_unknown_accuracy": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "uuid",
+    "revision",
+    "organization_uuid",
+    "device_uuid",
+    "configuration_uuid",
+    "generation",
+    "latitude_parameter_uuid",
+    "longitude_parameter_uuid",
+    "accuracy_parameter_uuid",
+    "pairing",
+    "max_age_seconds",
+    "max_future_skew_seconds",
+    "allow_unknown_accuracy"
+  ],
+  "additionalProperties": false
+}
