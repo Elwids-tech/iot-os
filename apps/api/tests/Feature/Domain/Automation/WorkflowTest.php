@@ -207,7 +207,7 @@ final class WorkflowTest extends TestCase
         // Suspension may be projected before its activation acknowledgement.
         $this->runtimeEvent('workflow.suspended.v1', $base)->assertOk();
         $this->runtimeEvent('workflow.deployment.v1', [...$base, 'generation' => 1, 'target' => 'active', 'status' => 'succeeded'])->assertOk();
-        $transition = ['id' => str_repeat('a', 64), 'type' => 'activated', 'rule_uuid' => $draft['uuid'], 'version_uuid' => $op, 'definition_hash' => $deployment->definition_hash, 'organization_uuid' => $this->organization->uuid, 'device_uuid' => $deployment->definition['binding']['device_uuid']];
+        $transition = ['id' => str_repeat('a', 64), 'type' => 'activated', 'episode' => 1, 'occurred_at' => now()->toIso8601String(), 'rule_uuid' => $draft['uuid'], 'version_uuid' => $op, 'definition_hash' => $deployment->definition_hash, 'organization_uuid' => $this->organization->uuid, 'device_uuid' => $deployment->definition['binding']['device_uuid']];
         $this->runtimeEvent('workflow.transition.v1', [...$base, 'transition' => $transition])->assertOk();
         $this->runtimeEvent('workflow.transition.v1', [...$base, 'transition' => $transition])->assertOk();
         $this->getJson($url.'/transitions')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.type', 'activated');

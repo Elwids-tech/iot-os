@@ -51,6 +51,21 @@ services:
     networks:
       - internal
 
+  alerts-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/api/Dockerfile
+    environment:
+      <<: *api-environment
+    command: ["php", "artisan", "queue:work", "alerts", "--queue=alerts", "--sleep=1", "--timeout=30", "--max-time=3600"]
+    depends_on:
+      api:
+        condition: service_healthy
+    stop_grace_period: 40s
+    restart: unless-stopped
+    networks:
+      - internal
+
   assistant-worker:
     build:
       context: ../..

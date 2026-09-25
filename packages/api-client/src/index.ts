@@ -19,6 +19,7 @@ import type {
 import type { Dashboard, DashboardInput } from "./dashboards"
 export * from "./dashboards"
 export * from "./devices"
+export * from "./alerts"
 
 export type Organization = {
   uuid: string
@@ -1321,6 +1322,25 @@ export class ApiClient {
   }
   assistantSourceUrl(org: string, id: string, source: string) {
     return `${this.baseUrl}${this.assistantPath(org, id, `/sources/${encodeURIComponent(source)}`)}`
+  }
+
+  alerts(org: string, query: string) {
+    return this.request<import("./alerts").AlertPage<import("./alerts").WorkflowAlert>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts?${query}`)
+  }
+  alert(org: string, id: string) {
+    return this.data<import("./alerts").WorkflowAlert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}`)
+  }
+  acknowledgeAlert(org: string, id: string) {
+    return this.data<import("./alerts").WorkflowAlert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/acknowledge`, "POST", {})
+  }
+  alertComments(org: string, id: string, page: number) {
+    return this.request<import("./alerts").AlertPage<import("./alerts").AlertComment>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/comments?page=${page}`)
+  }
+  addAlertComment(org: string, id: string, comment: { uuid: string; body: string }) {
+    return this.data<{ uuid: string; body: string }>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/comments`, "POST", comment)
+  }
+  alertDeliveries(org: string, id: string) {
+    return this.request<{ data: import("./alerts").AlertDelivery[] }>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/deliveries`)
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

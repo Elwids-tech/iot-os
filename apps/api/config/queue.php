@@ -31,6 +31,15 @@ return [
 
     'connections' => [
 
+        'alerts' => [
+            'driver' => 'database',
+            'connection' => null,
+            'table' => 'jobs',
+            'queue' => 'alerts',
+            'retry_after' => 120,
+            'after_commit' => false,
+        ],
+
         'assistant' => [
             'driver' => 'database',
             'connection' => env('DB_QUEUE_CONNECTION'),

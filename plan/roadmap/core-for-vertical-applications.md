@@ -168,6 +168,11 @@ transition persistence and restart-safe timers are implemented. See
 [durable workflow execution](../../docs/durable-workflow-execution.md) for behavior,
 verification and operational limits.
 
-**Next task:** P2 alert episodes and notification delivery. The visual builder is
-deferred at the user's request. Keep Laine's customer workflow and hardware
-choices open while making the generic core independently demonstrable.
+**P2 progress:** [Alert episodes and initial email delivery](../../docs/workflow-alerts.md)
+are implemented, including portal review, acknowledgement/comments and durable
+queued delivery to opted-in members. Notification settings currently use APIs.
+
+**Next task:** Portal notification settings and terminal-delivery recovery before
+P3 scoped application access. Cooldown/escalation policies remain requirement-led.
+The visual builder is deferred at the user's request. Keep Laine's customer
+workflow and hardware choices open while making the generic core demonstrable.

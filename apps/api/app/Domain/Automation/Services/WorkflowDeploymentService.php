@@ -63,10 +63,11 @@ final class WorkflowDeploymentService
         $workflow = Workflow::where('organization_id', $org->id)->where('uuid', $payload['rule_uuid'])->lockForUpdate()->firstOrFail();
         $deployment = Deployment::where('automation_workflow_id', $workflow->id)->where('uuid', $payload['operation_uuid'])->lockForUpdate()->firstOrFail();
         if ($type === 'workflow.transition.v1') {
-            validator($payload, ['transition' => 'required|array', 'transition.id' => 'required|string|size:64', 'transition.type' => 'required|in:activated,cleared', 'transition.definition_hash' => 'required|string|size:64'])->validate();
+            validator($payload, ['transition' => 'required|array', 'transition.id' => 'required|string|size:64', 'transition.type' => 'required|in:activated,cleared', 'transition.definition_hash' => 'required|string|size:64', 'transition.episode' => 'required|integer|min:1', 'transition.occurred_at' => 'required|date'])->validate();
             $transition = $payload['transition'];
             abort_unless($deployment->target === 'active' && ($transition['rule_uuid'] ?? null) === $workflow->uuid && ($transition['version_uuid'] ?? null) === $deployment->uuid && ($transition['organization_uuid'] ?? null) === $org->uuid && ($transition['device_uuid'] ?? null) === $deployment->definition['binding']['device_uuid'] && $transition['definition_hash'] === $deployment->definition_hash, 422, 'Transition does not match the execution snapshot.');
             DB::table('automation_transitions')->insertOrIgnore(['id' => $transition['id'], 'automation_deployment_id' => $deployment->id, 'transition' => json_encode($transition, JSON_THROW_ON_ERROR), 'received_at' => now()]);
+            app(AlertProjector::class)->project($workflow, $deployment, $transition);
 
             return;
         }

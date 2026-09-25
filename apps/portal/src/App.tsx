@@ -61,6 +61,7 @@ import {
 } from "@iot-os/ui/components/dialog"
 import {
   CpuIcon,
+  BellRingIcon,
   LogOutIcon,
   ArrowRightIcon,
   Building2Icon,
@@ -78,6 +79,7 @@ import { TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
 const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
+const AlertRoutes = lazy(() => import("./alerts/Alerts"))
 const AssistantPanel = lazy(() => import("./assistant/AssistantPanel"))
 const ProfileWorkspace = lazy(() =>
   import("./profiles/ProfileWorkspace").then((module) => ({
@@ -205,6 +207,7 @@ function Session() {
           }
         >
           <Route path="organizations/:organizationUuid/devices/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes /></Suspense>} />
+          <Route path="organizations/:organizationUuid/alerts/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><AlertRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes page="discovery" /></Suspense>} />
           <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes page="gateways" /></Suspense>} />
           <Route path="organizations/:organizationUuid/dashboards/:dashboardUuid?" element={<DashboardRoute />} />
@@ -291,6 +294,7 @@ export const profileDirectoryPath = (uuid: string) =>
 const portalNavigation = [
   { path: "dashboards", label: "Dashboards", icon: LayoutDashboardIcon },
   { path: "devices", label: "Devices", icon: HardDriveIcon },
+  { path: "alerts", label: "Alerts", icon: BellRingIcon },
   { path: "discovery", label: "Discovery", icon: RadarIcon },
   { path: "gateways", label: "Gateways", icon: RouterIcon },
   { path: "device-profiles", label: "Device profiles", icon: FileCogIcon },

@@ -1,9 +1,9 @@
 # Durable geofence workflow execution
 
 This slice adds operational activation and geofence condition transitions to
-the saved workflow drafts. The visual editor remains deferred. There are no
-notification channels, ERP calls, arbitrary scripts or automated device command
-nodes in this release.
+the saved workflow drafts. A subsequent [alert slice](workflow-alerts.md) adds
+alert episodes and opt-in queued email. The visual editor remains deferred.
+ERP calls, arbitrary scripts and automated device command nodes are not included.
 
 ## Public control API
 
@@ -121,6 +121,7 @@ acknowledgements, duplicates and reconnect/restart. Laravel tests cover
 permissions, idempotency, immutable snapshots, editing while deployment is
 pending, acknowledgement ordering, disable and transition deduplication.
 
-Next: alert records, acknowledgement/escalation policy and notification delivery
-with retries/idempotency. The visual builder and conversational authoring can be
-added later against these same APIs.
+Alert records, acknowledgement and initial queued email delivery are now
+implemented; see the alert guide for the remaining notification-policy work.
+The visual builder and conversational authoring can be added later against
+these same APIs.
