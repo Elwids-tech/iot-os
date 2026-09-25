@@ -123,14 +123,19 @@ func (a *Application) subscribe() error {
 	for _, stream := range []struct {
 		Name, Subject string
 		Bytes         int64
-	}{{"IOT_DEVICE_CONTROL", "iot.control.>", 64 << 20}, {"IOT_DEVICE_EVENTS", "iot.runtime.>", 128 << 20}, {"IOT_DEVICE_TELEMETRY", "iot.telemetry.>", 256 << 20}} {
+	}{{"IOT_DEVICE_CONTROL", "iot.control.>", 64 << 20}, {"IOT_DEVICE_EVENTS", "iot.runtime.>", 256 << 20}, {"IOT_DEVICE_TELEMETRY", "iot.telemetry.>", 768 << 20}} {
 		cfg := &nats.StreamConfig{Name: stream.Name, Subjects: []string{stream.Subject}, Storage: nats.FileStorage, Retention: nats.LimitsPolicy, MaxAge: 7 * 24 * time.Hour, MaxBytes: stream.Bytes, Discard: nats.DiscardNew}
-		if _, e := a.JS.StreamInfo(stream.Name); e == nats.ErrStreamNotFound {
+		if existing, e := a.JS.StreamInfo(stream.Name); e == nats.ErrStreamNotFound {
 			if _, e = a.JS.AddStream(cfg); e != nil {
 				return e
 			}
 		} else if e != nil {
 			return e
+		} else if existing.Config.MaxBytes != cfg.MaxBytes {
+			existing.Config.MaxBytes = cfg.MaxBytes
+			if _, e = a.JS.UpdateStream(&existing.Config); e != nil {
+				return e
+			}
 		}
 	}
 	handlers := []struct {
