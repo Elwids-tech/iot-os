@@ -13,4 +13,8 @@ Route::prefix('v1/organizations/{organization}/workflows')->middleware(['auth:sa
     Route::get('{workflow}', [WorkflowController::class, 'show']);
     Route::put('{workflow}', [WorkflowController::class, 'update']);
     Route::post('{workflow}/simulate', [WorkflowController::class, 'simulate']);
+    Route::post('{workflow}/deployments', [WorkflowController::class, 'deploy']);
+    Route::get('{workflow}/deployments/{operation}', [WorkflowController::class, 'deployment']);
+    Route::get('{workflow}/transitions', [WorkflowController::class, 'transitions']);
+    Route::get('{workflow}/execution', [WorkflowController::class, 'execution']);
 });

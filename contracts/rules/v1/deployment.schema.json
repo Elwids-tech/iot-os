@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/rules/v1/deployment.schema.json",
+  "type": "object",
+  "properties": {
+    "operation_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "rule_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "organization_uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "target": {
+      "enum": [
+        "active",
+        "inactive"
+      ]
+    },
+    "definition": {
+      "oneOf": [
+        {
+          "$ref": "https://iot-os.local/contracts/rules/v1/definition.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "operation_uuid",
+    "rule_uuid",
+    "organization_uuid",
+    "generation",
+    "target",
+    "definition"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "const": "active"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "definition": {
+            "$ref": "https://iot-os.local/contracts/rules/v1/definition.schema.json"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "definition": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

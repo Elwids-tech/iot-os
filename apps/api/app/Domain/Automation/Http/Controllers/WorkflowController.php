@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Automation\Http\Controllers;
 
+use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
+use App\Domain\Automation\Services\WorkflowDeploymentService;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
@@ -141,6 +143,48 @@ final class WorkflowController
         DeviceAudit::record('workflow.draft_saved', $workflow->organization_id, $actor, $workflow->uuid, ['revision' => $workflow->draft_revision, 'definition_hash' => $workflow->definition_hash]);
     }
 
+    public function deploy(Request $request, Organization $organization, Workflow $workflow)
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::ACTIVATE, $organization, $workflow);
+        $input = $request->validate(['operation_uuid' => ['required', 'uuid'], 'target_state' => ['required', 'in:active,inactive'], 'draft_revision' => ['required', 'integer', 'min:1'], 'expected_generation' => ['required', 'integer', 'min:0']]);
+        $deployment = app(WorkflowDeploymentService::class)->request($workflow, $input, $request->user()->id);
+
+        return response()->json(['data' => $this->view($workflow->fresh()), 'deployment' => $this->deploymentView($deployment)], 202);
+    }
+
+    public function deployment(Request $request, Organization $organization, Workflow $workflow, string $operation): array
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $workflow);
+        validator(['operation' => $operation], ['operation' => 'required|uuid'])->validate();
+        $deployment = Deployment::where('automation_workflow_id', $workflow->id)->where('uuid', $operation)->firstOrFail();
+
+        return ['data' => $this->view($workflow), 'deployment' => $this->deploymentView($deployment)];
+    }
+
+    public function transitions(Request $request, Organization $organization, Workflow $workflow): array
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $workflow);
+        $request->validate(['page' => 'sometimes|integer|min:1', 'per_page' => 'sometimes|integer|min:1|max:100']);
+        $page = DB::table('automation_transitions')->whereIn('automation_deployment_id', Deployment::where('automation_workflow_id', $workflow->id)->select('id'))->orderByDesc('received_at')->orderBy('id')->paginate($request->integer('per_page', 25));
+
+        return ['data' => $page->getCollection()->map(fn ($row) => json_decode($row->transition, true)), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];
+    }
+
+    private function deploymentView(Deployment $deployment): array
+    {
+        return $deployment->only(['uuid', 'generation', 'draft_revision', 'target', 'definition_hash', 'status', 'stopped_reason', 'diagnostic', 'created_at', 'completed_at']);
+    }
+
+    public function execution(Request $request, Organization $organization, Workflow $workflow): array
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $workflow);
+        if (! $workflow->applied_deployment_uuid) {
+            return ['data' => null];
+        }
+
+        return ['operation_uuid' => $workflow->applied_deployment_uuid, 'data' => $this->runtime->request('GET', '/internal/workflows/execution', ['operation_uuid' => $workflow->applied_deployment_uuid, 'organization_uuid' => $organization->uuid])];
+    }
+
     private function view(Workflow $workflow): array
     {
         $graph = $workflow->workflow;
@@ -150,6 +194,6 @@ final class WorkflowController
             }
         }
 
-        return ['uuid' => $workflow->uuid, 'name' => $workflow->name, 'status' => 'draft', 'draft_revision' => $workflow->draft_revision, 'workflow' => $graph, 'definition_hash' => $workflow->definition_hash];
+        return ['uuid' => $workflow->uuid, 'name' => $workflow->name, 'status' => 'draft', 'draft_revision' => $workflow->draft_revision, 'workflow' => $graph, 'definition_hash' => $workflow->definition_hash, 'deployment_generation' => $workflow->deployment_generation ?? 0, 'deployment_status' => $workflow->deployment_status ?? 'inactive', 'desired_deployment_uuid' => $workflow->desired_deployment_uuid, 'applied_deployment_uuid' => $workflow->applied_deployment_uuid, 'pending_operation_uuid' => $workflow->pending_operation_uuid];
     }
 }

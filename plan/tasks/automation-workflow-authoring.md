@@ -11,8 +11,9 @@ conversational assistant. See [architecture and API](../../docs/automation-workf
 - Saved-revision simulation uses the real Go evaluator without activation.
 - Existing device view/manage permissions are reused for this initial slice.
 
-Pending: live activation, durable state/checkpoint/transition writes, restart-safe
-timers, rendered editor, assistant tools, notifications and external SDK access.
+Follow-up: [durable execution](../../docs/durable-workflow-execution.md) implements
+live activation, durable state/checkpoint/transition writes and restart-safe timers.
+Pending: rendered editor, assistant tools, notifications and external SDK access.
 Do not describe saved drafts or simulated transitions as operational alerts.
 
 Verification:

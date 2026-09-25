@@ -1,0 +1,271 @@
+package storage
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/rules"
+	"github.com/jackc/pgx/v5"
+)
+
+func (s *Store) DeployRule(ctx context.Context, request rules.Deployment, at time.Time) error {
+	if err := request.Validate(); err != nil {
+		return err
+	}
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	diagnostic := ""
+	if request.Target == "active" {
+		var raw []byte
+		var generation int
+		var review bool
+		err = tx.QueryRow(ctx, `SELECT definition,generation,review_required FROM device_runtime.devices WHERE device_uuid=$1 AND organization_uuid=$2 FOR SHARE`, request.Definition.Binding.DeviceUUID, request.OrganizationUUID).Scan(&raw, &generation, &review)
+		if err != nil && err != pgx.ErrNoRows {
+			return err
+		}
+		var device devices.Definition
+		if err == pgx.ErrNoRows || len(raw) == 0 {
+			diagnostic = "Bound device is not active."
+		} else {
+			if err = Decode(raw, &device); err != nil {
+				return err
+			}
+			if err = rules.CheckDevice(*request.Definition, device, generation, review); err != nil {
+				diagnostic = err.Error()
+			}
+		}
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO device_runtime.rule_heads(rule_uuid,organization_uuid) VALUES($1,$2) ON CONFLICT DO NOTHING`, request.RuleUUID, request.OrganizationUUID)
+	if err != nil {
+		return err
+	}
+	var generation int
+	var org string
+	var operation *string
+	if err = tx.QueryRow(ctx, `SELECT generation,organization_uuid,operation_uuid FROM device_runtime.rule_heads WHERE rule_uuid=$1 FOR UPDATE`, request.RuleUUID).Scan(&generation, &org, &operation); err != nil {
+		return err
+	}
+	if org != request.OrganizationUUID {
+		return fmt.Errorf("workflow organization mismatch")
+	}
+	if request.Generation <= generation {
+		if request.Generation == generation && (operation == nil || *operation != request.OperationUUID) {
+			return fmt.Errorf("workflow generation conflict")
+		}
+		return tx.Commit(ctx) // original outcome is already durably in the outbox
+	}
+	status := "succeeded"
+	if diagnostic != "" {
+		status = "failed"
+	} else {
+		reason := "superseded"
+		if request.Target == "inactive" {
+			reason = "disabled"
+		}
+		if _, err = tx.Exec(ctx, `UPDATE device_runtime.rule_executions SET enabled=false,stopped_reason=$2,updated_at=$3 WHERE rule_uuid=$1 AND enabled`, request.RuleUUID, reason, at); err != nil {
+			return err
+		}
+		if request.Target == "active" {
+			compiled, err := rules.Compile(*request.Definition)
+			if err != nil {
+				return err
+			}
+			raw, _ := json.Marshal(request.Definition)
+			state, _ := json.Marshal(compiled.Initial())
+			_, err = tx.Exec(ctx, `INSERT INTO device_runtime.rule_executions(operation_uuid,rule_uuid,organization_uuid,device_uuid,definition,definition_hash,state,started_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8)`, request.OperationUUID, request.RuleUUID, org, request.Definition.Binding.DeviceUUID, raw, compiled.Hash, state, at)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	outcome := map[string]any{"operation_uuid": request.OperationUUID, "rule_uuid": request.RuleUUID, "organization_uuid": org, "generation": request.Generation, "target": request.Target, "status": status, "diagnostic": diagnostic}
+	raw, _ := json.Marshal(outcome)
+	if _, err = tx.Exec(ctx, `UPDATE device_runtime.rule_heads SET generation=$2,operation_uuid=$3,outcome=$4 WHERE rule_uuid=$1`, request.RuleUUID, request.Generation, request.OperationUUID, raw); err != nil {
+		return err
+	}
+	if err = event(ctx, tx, "workflow.deployment.v1", outcome); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// PrepareRuleConsumer binds the durable SQL checkpoint to a particular stream
+// incarnation. Retention loss or replacement is an explicit recovery failure.
+func (s *Store) PrepareRuleConsumer(ctx context.Context, created time.Time, first, last uint64) (uint64, error) {
+	baseline := uint64(0)
+	if first > 0 {
+		baseline = first - 1
+	}
+	_, err := s.Pool.Exec(ctx, `INSERT INTO device_runtime.rule_checkpoint(singleton,stream_created,sequence) VALUES(true,$1,$2) ON CONFLICT DO NOTHING`, created, baseline)
+	if err != nil {
+		return 0, err
+	}
+	var stored time.Time
+	var sequence uint64
+	if err = s.Pool.QueryRow(ctx, `SELECT stream_created,sequence FROM device_runtime.rule_checkpoint WHERE singleton`).Scan(&stored, &sequence); err != nil {
+		return 0, err
+	}
+	if !stored.Equal(created.Truncate(time.Microsecond)) || sequence < baseline || sequence > last {
+		return 0, fmt.Errorf("workflow telemetry checkpoint lost continuity; recovery required")
+	}
+	return sequence, nil
+}
+
+// ConsumeRuleTelemetry atomically records deduplication, all affected rule states,
+// transitions, their outbox records and the broker checkpoint before acknowledgement.
+func (s *Store) ConsumeRuleTelemetry(ctx context.Context, sequence uint64, input devices.CommittedTelemetry, at time.Time) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var previous uint64
+	if err = tx.QueryRow(ctx, `SELECT sequence FROM device_runtime.rule_checkpoint WHERE singleton FOR UPDATE`).Scan(&previous); err != nil {
+		return err
+	}
+	if sequence <= previous {
+		return tx.Commit(ctx)
+	}
+	if sequence != previous+1 {
+		return fmt.Errorf("workflow telemetry sequence gap: expected %d, got %d", previous+1, sequence)
+	}
+	insert, err := tx.Exec(ctx, `INSERT INTO device_runtime.rule_inputs(event_uuid,consumed_at) VALUES($1,$2) ON CONFLICT DO NOTHING`, input.EventID, at)
+	if err != nil {
+		return err
+	}
+	if insert.RowsAffected() != 0 {
+		if err = evaluateRules(ctx, tx, &input, at); err != nil {
+			return err
+		}
+	}
+	if _, err = tx.Exec(ctx, `UPDATE device_runtime.rule_checkpoint SET sequence=$1 WHERE singleton`, sequence); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (s *Store) TickRules(ctx context.Context, at time.Time) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if err = evaluateRules(ctx, tx, nil, at); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func evaluateRules(ctx context.Context, tx pgx.Tx, input *devices.CommittedTelemetry, at time.Time) error {
+	device := ""
+	if input != nil {
+		device = input.DeviceUUID
+	}
+	// Devices are retained after deactivation, so an inner join also lets us fence
+	// old bindings. The device row lock serializes against configuration changes.
+	rows, err := tx.Query(ctx, `SELECT r.operation_uuid,r.definition,r.state,r.started_at,d.definition,d.generation,d.review_required
+ FROM device_runtime.rule_executions r JOIN device_runtime.devices d ON d.device_uuid=r.device_uuid
+ WHERE r.enabled AND ($1='' OR r.device_uuid::text=$1) ORDER BY r.operation_uuid FOR UPDATE OF r FOR SHARE OF d`, device)
+	if err != nil {
+		return err
+	}
+	type execution struct {
+		operation  string
+		definition rules.Definition
+		state      rules.State
+		started    time.Time
+		device     devices.Definition
+		generation int
+		review     bool
+	}
+	executions := []execution{}
+	for rows.Next() {
+		var x execution
+		var definition, state, device []byte
+		if err = rows.Scan(&x.operation, &definition, &state, &x.started, &device, &x.generation, &x.review); err != nil {
+			rows.Close()
+			return err
+		}
+		for _, pair := range []struct {
+			raw    []byte
+			target any
+		}{{definition, &x.definition}, {state, &x.state}} {
+			if err = Decode(pair.raw, pair.target); err != nil {
+				rows.Close()
+				return err
+			}
+		}
+		if len(device) > 0 {
+			if err = Decode(device, &x.device); err != nil {
+				rows.Close()
+				return err
+			}
+		}
+		executions = append(executions, x)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, x := range executions {
+		if err = rules.CheckDevice(x.definition, x.device, x.generation, x.review); err != nil {
+			if _, err = tx.Exec(ctx, `UPDATE device_runtime.rule_executions SET enabled=false,stopped_reason='binding_changed',updated_at=$2 WHERE operation_uuid=$1`, x.operation, at); err != nil {
+				return err
+			}
+			if err = event(ctx, tx, "workflow.suspended.v1", map[string]any{"operation_uuid": x.operation, "rule_uuid": x.definition.UUID, "organization_uuid": x.definition.Binding.OrganizationUUID, "reason": "binding_changed"}); err != nil {
+				return err
+			}
+			continue
+		}
+		if input != nil {
+			if input.OrganizationUUID != x.definition.Binding.OrganizationUUID {
+				continue
+			}
+			before := false
+			for _, reading := range input.Readings {
+				if reading.ParameterUUID == x.definition.Binding.LatitudeParameterUUID || reading.ParameterUUID == x.definition.Binding.LongitudeParameterUUID {
+					before = before || reading.ReceivedAt.Before(x.started) || reading.ObservedAt.Before(x.started)
+				}
+			}
+			if before {
+				continue
+			} // activation never replays evidence received before it
+		}
+		compiled, err := rules.Compile(x.definition)
+		if err != nil {
+			return err
+		}
+		evaluatedAt := at
+		if evaluatedAt.Before(x.state.EvaluatedAt) {
+			evaluatedAt = x.state.EvaluatedAt
+		}
+		result, err := compiled.Step(x.state, input, evaluatedAt)
+		if err != nil {
+			return err
+		}
+		raw, _ := json.Marshal(result.State)
+		if _, err = tx.Exec(ctx, `UPDATE device_runtime.rule_executions SET state=$2,updated_at=$3 WHERE operation_uuid=$1`, x.operation, raw, evaluatedAt); err != nil {
+			return err
+		}
+		if result.Transition != nil {
+			raw, _ := json.Marshal(result.Transition)
+			insert, err := tx.Exec(ctx, `INSERT INTO device_runtime.rule_transitions(id,operation_uuid,transition,created_at) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, result.Transition.ID, x.operation, raw, evaluatedAt)
+			if err != nil {
+				return err
+			}
+			if insert.RowsAffected() > 0 {
+				if err = event(ctx, tx, "workflow.transition.v1", map[string]any{"operation_uuid": x.operation, "rule_uuid": x.definition.UUID, "organization_uuid": x.definition.Binding.OrganizationUUID, "transition": result.Transition}); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}

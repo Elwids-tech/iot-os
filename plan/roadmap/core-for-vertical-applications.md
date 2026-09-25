@@ -162,4 +162,12 @@ For implementation, use focused contract, unit, database/broker integration and 
 - Exact rule event-time, uncertainty and geometry limits; resolve in versioned contracts before P1 implementation.
 - Application identity lifecycle and customer grants; resolve before P3 exposes external access.
 
-**Next task:** Add Laravel organization-scoped rule authoring and activation with runtime acknowledgements, then wire the delivered evaluator to committed events with atomic state/checkpoint/transition persistence and restart-safe timers. Keep Laine's customer workflow and hardware choices open while making the generic core independently demonstrable.
+**Delivered follow-up:** Laravel workflow drafts and immutable activation snapshots,
+runtime acknowledgements, committed-event evaluation, atomic state/checkpoint/
+transition persistence and restart-safe timers are implemented. See
+[durable workflow execution](../../docs/durable-workflow-execution.md) for behavior,
+verification and operational limits.
+
+**Next task:** P2 alert episodes and notification delivery. The visual builder is
+deferred at the user's request. Keep Laine's customer workflow and hardware
+choices open while making the generic core independently demonstrable.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Http\Controllers;
 
+use App\Domain\Automation\Services\WorkflowDeploymentService;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Devices\Models\DeviceOperation;
@@ -70,7 +71,7 @@ final class RuntimeController
     public function event(Request $request): array
     {
         $event = $request->validate(['uuid' => ['required', 'uuid'], 'type' => ['required', Rule::in([
-            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1',
+            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1', 'workflow.deployment.v1', 'workflow.suspended.v1', 'workflow.transition.v1',
         ])], 'payload' => ['required', 'array']]);
 
         return DB::transaction(function () use ($event): array {
@@ -78,6 +79,11 @@ final class RuntimeController
                 return ['ok' => true, 'duplicate' => true];
             }
             $p = $event['payload'];
+            if (str_starts_with($event['type'], 'workflow.')) {
+                app(WorkflowDeploymentService::class)->event($event['type'], $p);
+
+                return ['ok' => true];
+            }
             if ($event['type'] === 'runtime.heartbeat.v1') {
                 Device::whereNotNull('applied_configuration_uuid')->update(['runtime_seen_at' => now()]);
                 SparkplugGateway::query()->update(['runtime_seen_at' => now()]);

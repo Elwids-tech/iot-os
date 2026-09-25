@@ -12,6 +12,6 @@ final class Workflow extends DeviceModel
 
     protected function casts(): array
     {
-        return ['workflow' => 'array', 'definition' => 'array', 'draft_revision' => 'integer'];
+        return ['workflow' => 'array', 'definition' => 'array', 'draft_revision' => 'integer', 'deployment_generation' => 'integer'];
     }
 }

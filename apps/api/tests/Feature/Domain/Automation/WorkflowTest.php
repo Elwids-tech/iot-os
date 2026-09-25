@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Automation;
 
+use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
@@ -133,5 +134,87 @@ final class WorkflowTest extends TestCase
         $this->assertSame(1, Workflow::firstOrFail()->draft_revision);
         $this->assertDatabaseCount('automation_workflow_revisions', 1);
         $this->assertDatabaseCount('device_outbox', 0);
+    }
+
+    private function applyDevice(): void
+    {
+        $binding = $this->graph['nodes'][0]['config']['binding'];
+        Device::where('uuid', $binding['device_uuid'])->update(['lifecycle' => 'active', 'deployment_status' => 'applied', 'deployment_generation' => $binding['generation'], 'applied_configuration_uuid' => $binding['configuration_uuid']]);
+    }
+
+    private function runtimeEvent(string $type, array $payload, ?string $id = null)
+    {
+        return $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/events', ['uuid' => $id ?? (string) Str::uuid(), 'type' => $type, 'payload' => $payload]);
+    }
+
+    public function test_activation_is_idempotent_immutable_acknowledged_and_independent_of_draft_edits(): void
+    {
+        $this->applyDevice();
+        $draft = $this->create();
+        $url = $this->url.'/'.$draft['uuid'];
+        $input = ['operation_uuid' => (string) Str::uuid(), 'expected_generation' => 0, 'draft_revision' => 1, 'target_state' => 'active'];
+        $this->postJson($url.'/deployments', $input)->assertAccepted()->assertJsonPath('data.deployment_status', 'pending')->assertJsonPath('data.applied_deployment_uuid', null);
+        $this->postJson($url.'/deployments', $input)->assertAccepted();
+        $this->assertDatabaseCount('automation_deployments', 1);
+        $this->assertDatabaseCount('device_outbox', 1);
+        $this->postJson($url.'/deployments', [...$input, 'target_state' => 'inactive'])->assertConflict();
+        $this->postJson($url.'/deployments', [...$input, 'operation_uuid' => (string) Str::uuid(), 'expected_generation' => 1])->assertConflict();
+        $definition = Deployment::firstOrFail()->definition;
+        $this->assertSame($input['operation_uuid'], $definition['version_uuid']);
+        $this->putJson($url, ['name' => 'Changed draft', 'workflow' => $draft['workflow'], 'draft_revision' => 1])->assertOk();
+        $this->assertSame($definition, Deployment::firstOrFail()->definition);
+        $ack = ['operation_uuid' => $input['operation_uuid'], 'rule_uuid' => $draft['uuid'], 'organization_uuid' => $this->organization->uuid, 'generation' => 1, 'target' => 'active', 'status' => 'succeeded'];
+        $this->runtimeEvent('workflow.deployment.v1', $ack)->assertOk();
+        $this->runtimeEvent('workflow.deployment.v1', $ack)->assertOk();
+        $this->getJson($url.'/deployments/'.$input['operation_uuid'])->assertOk()->assertJsonPath('deployment.status', 'succeeded')->assertJsonPath('data.applied_deployment_uuid', $input['operation_uuid'])->assertJsonPath('data.draft_revision', 2);
+        $disable = ['operation_uuid' => (string) Str::uuid(), 'expected_generation' => 1, 'draft_revision' => 2, 'target_state' => 'inactive'];
+        $this->postJson($url.'/deployments', $disable)->assertAccepted()->assertJsonPath('data.applied_deployment_uuid', $input['operation_uuid']);
+        $this->runtimeEvent('workflow.deployment.v1', [...$ack, 'operation_uuid' => $disable['operation_uuid'], 'generation' => 2, 'target' => 'inactive'])->assertOk();
+        $this->getJson($url)->assertJsonPath('data.deployment_status', 'inactive')->assertJsonPath('data.applied_deployment_uuid', null);
+        $this->assertSame('disabled', Deployment::where('uuid', $input['operation_uuid'])->firstOrFail()->stopped_reason);
+        $this->runtimeEvent('workflow.deployment.v1', $ack)->assertOk();
+        $this->getJson($url)->assertJsonPath('data.applied_deployment_uuid', null);
+        $this->expectException(\LogicException::class);
+        Deployment::firstOrFail()->update(['definition' => []]);
+    }
+
+    public function test_activation_requires_applied_binding_permissions_and_tenant_scope(): void
+    {
+        $draft = $this->create();
+        $url = $this->url.'/'.$draft['uuid'].'/deployments';
+        $input = ['operation_uuid' => (string) Str::uuid(), 'expected_generation' => 0, 'draft_revision' => 1, 'target_state' => 'active'];
+        $this->postJson($url, $input)->assertUnprocessable();
+        $this->applyDevice();
+        Device::query()->update(['deployment_generation' => 2]);
+        $this->postJson($url, $input)->assertUnprocessable();
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $this->postJson('/api/v1/organizations/'.$other->uuid.'/workflows/'.$draft['uuid'].'/deployments', $input)->assertNotFound();
+        $this->actingAs(User::where('email', 'acme.member@example.test')->firstOrFail(), 'sanctum');
+        $this->postJson($url, $input)->assertForbidden();
+        $this->assertDatabaseCount('automation_deployments', 0);
+        $this->assertDatabaseCount('device_outbox', 0);
+    }
+
+    public function test_transitions_are_deduplicated_and_suspension_is_not_a_clear(): void
+    {
+        $this->applyDevice();
+        $draft = $this->create();
+        $url = $this->url.'/'.$draft['uuid'];
+        $op = (string) Str::uuid();
+        $this->postJson($url.'/deployments', ['operation_uuid' => $op, 'expected_generation' => 0, 'draft_revision' => 1, 'target_state' => 'active'])->assertAccepted();
+        $deployment = Deployment::firstOrFail();
+        $base = ['operation_uuid' => $op, 'rule_uuid' => $draft['uuid'], 'organization_uuid' => $this->organization->uuid];
+        // Suspension may be projected before its activation acknowledgement.
+        $this->runtimeEvent('workflow.suspended.v1', $base)->assertOk();
+        $this->runtimeEvent('workflow.deployment.v1', [...$base, 'generation' => 1, 'target' => 'active', 'status' => 'succeeded'])->assertOk();
+        $transition = ['id' => str_repeat('a', 64), 'type' => 'activated', 'rule_uuid' => $draft['uuid'], 'version_uuid' => $op, 'definition_hash' => $deployment->definition_hash, 'organization_uuid' => $this->organization->uuid, 'device_uuid' => $deployment->definition['binding']['device_uuid']];
+        $this->runtimeEvent('workflow.transition.v1', [...$base, 'transition' => $transition])->assertOk();
+        $this->runtimeEvent('workflow.transition.v1', [...$base, 'transition' => $transition])->assertOk();
+        $this->getJson($url.'/transitions')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.type', 'activated');
+        $this->getJson($url)->assertJsonPath('data.deployment_status', 'suspended');
+        $this->runtimeEvent('workflow.transition.v1', [...$base, 'transition' => [...$transition, 'version_uuid' => (string) Str::uuid()]])->assertUnprocessable();
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $this->getJson('/api/v1/organizations/'.$other->uuid.'/workflows/'.$draft['uuid'].'/transitions')->assertNotFound();
+        $this->getJson('/api/v1/organizations/'.$other->uuid.'/workflows/'.$draft['uuid'].'/deployments/'.$op)->assertNotFound();
     }
 }

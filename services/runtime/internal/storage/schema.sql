@@ -1,4 +1,27 @@
 CREATE SCHEMA IF NOT EXISTS device_runtime;
+CREATE TABLE IF NOT EXISTS device_runtime.rule_heads (
+ rule_uuid uuid PRIMARY KEY, organization_uuid uuid NOT NULL, generation bigint NOT NULL DEFAULT 0,
+ operation_uuid uuid, outcome jsonb
+);
+CREATE TABLE IF NOT EXISTS device_runtime.rule_executions (
+ operation_uuid uuid PRIMARY KEY, rule_uuid uuid NOT NULL, organization_uuid uuid NOT NULL,
+ device_uuid uuid NOT NULL, definition jsonb NOT NULL, definition_hash text NOT NULL,
+ state jsonb NOT NULL, enabled boolean NOT NULL DEFAULT true, stopped_reason text,
+ started_at timestamptz NOT NULL, updated_at timestamptz NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS rule_execution_enabled ON device_runtime.rule_executions(rule_uuid) WHERE enabled;
+CREATE INDEX IF NOT EXISTS rule_execution_device ON device_runtime.rule_executions(device_uuid) WHERE enabled;
+CREATE TABLE IF NOT EXISTS device_runtime.rule_checkpoint (
+ singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton), stream_created timestamptz NOT NULL,
+ sequence bigint NOT NULL
+);
+CREATE TABLE IF NOT EXISTS device_runtime.rule_inputs (
+ event_uuid uuid PRIMARY KEY, consumed_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS device_runtime.rule_transitions (
+ id text PRIMARY KEY, operation_uuid uuid NOT NULL, transition jsonb NOT NULL,
+ created_at timestamptz NOT NULL
+);
 CREATE TABLE IF NOT EXISTS device_runtime.devices (
  device_uuid uuid PRIMARY KEY, organization_uuid uuid NOT NULL, generation bigint NOT NULL,
  definition jsonb, updated_at timestamptz NOT NULL DEFAULT now()

@@ -71,8 +71,10 @@ Saving requires the runtime compiler to be available; runtime failure does not
 leave a partially saved draft. Client retry after a lost create response is not
 yet idempotent; fetch existing drafts before creating another.
 
-There is no visual editor, conversational workflow tool, activation endpoint,
-live rule subscriber, persisted execution state or timer runner in this slice.
+The original authoring slice has now been extended with
+[durable activation and execution](durable-workflow-execution.md), including
+deployment acknowledgements, condition transitions and restart-safe timers.
+The visual editor and conversational workflow tools remain deferred.
 
 ## Reusable editor and SDK plan
 
@@ -118,17 +120,15 @@ Conversation alone must not silently turn a draft into live device control.
 
 ## Next delivery sequence
 
-1. Durable activation and execution: immutable versions, desired/applied status,
-   scope/configuration fencing, committed-event subscription, atomic
-   state/checkpoint/transition outbox, restart-safe timers and recovery tests.
-   Define what replacing/disabling a rule does to an already active episode.
-2. Constrained React Flow editor using this contract: location selection,
-   polygon editing, sustained-condition settings and simulation trace. Clearly
-   distinguish drafts, deployment pending, active and failed.
-3. Conversational graph proposal/review tools using those same services.
-4. Durable alert/notification delivery and a cattle demonstration from simulated
-   GPS through restart recovery. Then scoped external app access, first SDK and
-   package extraction validated in a second host.
+1. Durable activation and execution are implemented; see the linked execution
+   guide for the limits and verified recovery behavior.
+2. Next: durable alert/notification delivery and a cattle demonstration from
+   simulated GPS through restart recovery.
+3. Visual authoring is deferred at the user's request. Later add the constrained
+   React Flow editor and conversational graph proposal/review tools using these
+   same services.
+4. Then scoped external app access, first SDK and package extraction validated
+   in a second host.
 
 Editor implementation can overlap durable execution work, but operational
 activation should not be exposed until recovery and authorization are verified.

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/rules"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/sparkplug"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/sparkplug/pb"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/storage"
@@ -37,6 +38,7 @@ type broker struct {
 type rebirthRequest struct{ Connection, Group, Edge string }
 type Application struct {
 	committedFailures atomic.Uint64
+	rulesHealthy      atomic.Bool
 	fences            sync.Map
 	releaseRuntime    func()
 	ctx               context.Context
@@ -126,6 +128,10 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 		return nil, e
 	}
 	if e = a.syncState(); e != nil {
+		nc.Close()
+		return nil, e
+	}
+	if e = a.startRuleConsumer(ctx); e != nil {
 		nc.Close()
 		return nil, e
 	}
@@ -532,6 +538,12 @@ func (a *Application) deactivate(device, org string, generation int, operation .
 }
 func (a *Application) handleControl(ev devices.Event) error {
 	switch ev.Type {
+	case "workflow.deploy.v1":
+		var request rules.Deployment
+		if err := storage.Decode(ev.Payload, &request); err != nil {
+			return err
+		}
+		return a.Store.DeployRule(a.ctx, request, time.Now().UTC())
 	case "connection.changed.v1":
 		return a.syncState()
 	case "settings.retention.changed.v1":
