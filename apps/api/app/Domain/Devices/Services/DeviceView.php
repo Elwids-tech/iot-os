@@ -20,12 +20,14 @@ final class DeviceView
         return $operation->only(['uuid', 'target_state', 'kind', 'generation', 'configuration_uuid', 'status', 'diagnostic', 'created_at', 'completed_at']);
     }
 
+    public static function presence(Device $device): string
+    {
+        return $device->presence === 'online' && (! $device->runtime_seen_at || $device->runtime_seen_at->lt(now()->subSeconds(20))) ? 'unknown' : $device->presence;
+    }
+
     public static function device(Device $device, bool $detail = false): array
     {
-        $presence = $device->presence;
-        if ($presence === 'online' && (! $device->runtime_seen_at || $device->runtime_seen_at->lt(now()->subSeconds(20)))) {
-            $presence = 'unknown';
-        }
+        $presence = self::presence($device);
         $data = $device->only(['uuid', 'code', 'name', 'serial_number', 'description', 'lifecycle', 'deployment_status', 'draft_revision', 'deployment_generation', 'desired_configuration_uuid', 'applied_configuration_uuid', 'diagnostic', 'last_seen_at']);
         $data['presence'] = $presence;
         $data['state_revision'] = (int) $device->state_revision;

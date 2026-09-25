@@ -172,6 +172,8 @@ verification and operational limits.
 are implemented, including portal review, acknowledgement/comments and durable
 queued delivery to opted-in members. Portal notification settings and audited, generation-fenced terminal-delivery retry are also implemented.
 
-**Next task:** P3 scoped application access and first SDK. Cooldown/escalation policies remain requirement-led.
+**P3 progress:** [Scoped application access and the TypeScript/Node SDK](../../docs/application-access.md) provide organization/device grants, token lifecycle and read-only device/alert APIs. Verified using a separately installed package against the rebuilt API. Durable events and telemetry APIs remain pending.
+
+**Next task:** P3 durable integration events and recovery, followed by telemetry read contracts. Cooldown/escalation policies remain requirement-led.
 The visual builder is deferred at the user's request. Keep Laine's customer
 workflow and hardware choices open while making the generic core demonstrable.
