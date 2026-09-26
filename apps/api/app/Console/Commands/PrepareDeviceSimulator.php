@@ -11,13 +11,14 @@ use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Devices\Services\BrokerProvisioner;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
+use Database\Seeders\GpsUseCaseSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class PrepareDeviceSimulator extends Command
 {
-    protected $signature = 'devices:prepare-simulator {--organization=acme-manufacturing} {--output=} {--broker=ssl://localhost:8883} {--ca=} {--rgb-controls : Prepare a separate RGB v2 profile and gateway}';
+    protected $signature = 'devices:prepare-simulator {--organization=acme-manufacturing} {--output=} {--broker=ssl://localhost:8883} {--ca=} {--rgb-controls : Prepare a separate RGB v2 profile and gateway} {--gps : Prepare the GPS use-case fixture and gateway}';
 
     protected $description = 'Create additive local simulator profiles and write private gateway credentials to a file.';
 
@@ -33,9 +34,17 @@ final class PrepareDeviceSimulator extends Command
 
             return self::FAILURE;
         }
+        if ($this->option('gps') && $this->option('rgb-controls')) {
+            $this->error('--gps cannot be combined with --rgb-controls.');
+
+            return self::FAILURE;
+        }
         $organization = Organization::where('slug', $this->option('organization'))->firstOrFail();
         $actor = User::where('is_super_admin', true)->firstOrFail();
-        foreach ($this->option('rgb-controls') ? ['rgb-light-v2'] : ['three-phase-energy-meter', 'rgb-light'] as $fixture) {
+        if ($this->option('gps')) {
+            app(GpsUseCaseSeeder::class)->run($organization->slug);
+        }
+        foreach ($this->option('gps') ? [] : ($this->option('rgb-controls') ? ['rgb-light-v2'] : ['three-phase-energy-meter', 'rgb-light']) as $fixture) {
             if (DeviceProfile::where('organization_id', $organization->id)->where('code', 'simulator-'.$fixture)->exists()) {
                 continue;
             }
@@ -63,8 +72,12 @@ final class PrepareDeviceSimulator extends Command
         $group = 'simulator-'.$organization->uuid;
         $connection = SparkplugConnection::firstOrCreate(['group_id' => $group], ['organization_id' => $organization->id, 'name' => 'Local simulator', 'host_id' => 'iot-host-'.$organization->uuid, 'username' => 'sim-host-'.$organization->uuid, 'password' => Str::random(48)]);
         app(BrokerProvisioner::class)->connection($connection);
-        $gateway = SparkplugGateway::firstOrCreate(['sparkplug_connection_id' => $connection->id, 'edge_node_id' => $this->option('rgb-controls') ? 'simulator-rgb-edge' : 'simulator-edge'],
-            ['organization_id' => $organization->id, 'name' => $this->option('rgb-controls') ? 'RGB simulator gateway' : 'Simulator gateway', 'username' => ($this->option('rgb-controls') ? 'sim-rgb-edge-' : 'sim-edge-').$organization->uuid, 'password' => Str::random(48)]);
+        $edge = $this->option('gps') ? 'simulator-gps-edge' : ($this->option('rgb-controls') ? 'simulator-rgb-edge' : 'simulator-edge');
+        $gateway = SparkplugGateway::firstOrCreate(['sparkplug_connection_id' => $connection->id, 'edge_node_id' => $edge],
+            ['organization_id' => $organization->id,
+                'name' => $this->option('gps') ? 'GPS simulator gateway' : ($this->option('rgb-controls') ? 'RGB simulator gateway' : 'Simulator gateway'),
+                'username' => ($this->option('gps') ? 'sim-gps-edge-' : ($this->option('rgb-controls') ? 'sim-rgb-edge-' : 'sim-edge-')).$organization->uuid,
+                'password' => Str::random(48)]);
         app(BrokerProvisioner::class)->gateway($gateway);
         $path = $this->option('output');
         if (! str_starts_with($path, '/') || ! str_starts_with($this->option('ca'), '/')) {
@@ -83,7 +96,7 @@ final class PrepareDeviceSimulator extends Command
         } finally {
             umask($previous);
         }
-        $this->info('Simulator profiles are ready. Private configuration written to '.$path);
+        $this->info(($this->option('gps') ? 'GPS use-case fixture' : 'Simulator profiles').' ready. Private configuration written to '.$path);
 
         return self::SUCCESS;
     }

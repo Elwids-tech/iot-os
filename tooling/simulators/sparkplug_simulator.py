@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent Python Sparkplug meter/light simulator; credentials are read from a private file."""
+"""Independent Sparkplug meter, light, or GPS simulator; credentials stay private."""
 import argparse
 import json
 import pathlib
@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 import paho.mqtt.client as mqtt
 import sparkplug_b_pb2 as sp
 from rgb_controls import load_state, save_state, validate_changes, serve_controls
+from gps_route import gps_position
 
 
 def metric(name, datatype, value, alias=None):
@@ -35,7 +36,7 @@ def metric(name, datatype, value, alias=None):
 
 
 class Simulator:
-    def __init__(self, config, state_file, ignore_commands=False, rgb_v2=False):
+    def __init__(self, config, state_file, ignore_commands=False, rgb_v2=False, gps=False):
         self.config = config
         self.state_file = pathlib.Path(state_file)
         self.ignore_commands = ignore_commands
@@ -47,6 +48,7 @@ class Simulator:
         self.started = time.monotonic()
         self.values = {"power": False, "color": "#ff0000", "mode": "blink", "brightness": 5}
         self.rgb_v2 = rgb_v2
+        self.gps = gps
         self.rgb_state_file = pathlib.Path(str(state_file) + ".rgb.json")
         if rgb_v2:
             self.values = load_state(self.rgb_state_file)
@@ -103,12 +105,27 @@ class Simulator:
         return [metric("Power", sp.Boolean, self.values["power"], 1), metric("Color", sp.String, self.values["color"], 2),
                 metric("Mode", sp.String, self.values["mode"], 3), metric("Brightness", sp.Int32, self.values["brightness"], 4)]
 
+    def location(self, aliases_only=False):
+        latitude, longitude, accuracy = gps_position(time.monotonic() - self.started)
+        values = [("Latitude", latitude), ("Longitude", longitude), ("Accuracy", accuracy)]
+        result = []
+        for alias, (name, value) in enumerate(values, 1):
+            item = metric(name, sp.Double, value, alias)
+            if aliases_only:
+                item.ClearField("name")
+                item.ClearField("datatype")
+            result.append(item)
+        return result
+
     def birth(self):
         with self.lock:
             self.seq = 0
             self.send("NBIRTH", [metric("bdSeq", sp.Int64, self.bd_seq), metric("Node Control/Rebirth", sp.Boolean, False), metric("Uptime", sp.Double, time.monotonic() - self.started, 1)])
-            self.send("DBIRTH", self.meter(), "meter")
-            self.send("DBIRTH", self.light(), "rgb-light")
+            if self.gps:
+                self.send("DBIRTH", self.location(), "gps-tracker")
+            else:
+                self.send("DBIRTH", self.meter(), "meter")
+                self.send("DBIRTH", self.light(), "rgb-light")
             self.online = True
 
     def on_message(self, client, userdata, message):
@@ -175,15 +192,18 @@ class Simulator:
             raise ValueError("The simulator requires ssl:// and verified TLS")
         self.client.connect_async(parsed.hostname, parsed.port or 8883, keepalive=10)
         self.client.loop_start()
-        print("Sparkplug meter and RGB-light simulator started.", flush=True)
+        print("Sparkplug GPS simulator started." if self.gps else "Sparkplug meter and RGB-light simulator started.", flush=True)
         try:
             while True:
                 time.sleep(1)
                 with self.lock:
                     if self.online:
-                        self.send("DDATA", self.meter(aliases_only=True), "meter")
-                        if int(time.monotonic() - self.started) % 5 == 0:
-                            self.send("DDATA", self.light(), "rgb-light")
+                        if self.gps:
+                            self.send("DDATA", self.location(aliases_only=True), "gps-tracker")
+                        else:
+                            self.send("DDATA", self.meter(aliases_only=True), "meter")
+                            if int(time.monotonic() - self.started) % 5 == 0:
+                                self.send("DDATA", self.light(), "rgb-light")
         except KeyboardInterrupt:
             with self.lock:
                 self.online = False
@@ -200,11 +220,14 @@ if __name__ == "__main__":
     parser.add_argument("--state-file", required=True)
     parser.add_argument("--ignore-commands", action="store_true")
     parser.add_argument("--rgb-v2", action="store_true", help="Use Solid/Blink/Strobe and 0–100% brightness; persist RGB state.")
+    parser.add_argument("--gps", action="store_true", help="Publish a GPS route that crosses the demo geofence.")
     parser.add_argument("--control-port", type=int, help="Serve optional local RGB controls on this loopback port (requires --rgb-v2).")
     args = parser.parse_args()
     if args.control_port is not None and not args.rgb_v2:
         parser.error("--control-port requires --rgb-v2")
-    simulator = Simulator(json.loads(pathlib.Path(args.config).read_text()), args.state_file, args.ignore_commands, args.rgb_v2)
+    if args.gps and (args.rgb_v2 or args.control_port is not None):
+        parser.error("--gps cannot be combined with RGB controls")
+    simulator = Simulator(json.loads(pathlib.Path(args.config).read_text()), args.state_file, args.ignore_commands, args.rgb_v2, args.gps)
     server = serve_controls(simulator, args.control_port) if args.control_port is not None else None
     try:
         simulator.run()

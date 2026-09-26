@@ -20,7 +20,12 @@ final class BrokerProvisioner
             $response = $client->put($auth.'/'.rawurlencode($username), ['password' => $password, 'is_superuser' => false]);
         }
         abort_unless($response->successful(), 503, 'Broker credential provisioning failed. Check the broker authentication configuration.');
-        $response = $client->post('/authorization/sources/built_in_database/rules/users', [['username' => $username, 'rules' => [...$rules, ['permission' => 'deny', 'action' => 'all', 'topic' => '#']]]]);
+        $authorization = '/authorization/sources/built_in_database/rules/users';
+        $rules = [...$rules, ['permission' => 'deny', 'action' => 'all', 'topic' => '#']];
+        $response = $client->post($authorization, [['username' => $username, 'rules' => $rules]]);
+        if ($response->status() === 409) {
+            $response = $client->put($authorization.'/'.rawurlencode($username), ['username' => $username, 'rules' => $rules]);
+        }
         abort_unless($response->successful(), 503, 'Broker namespace authorization could not be applied.');
     }
 
