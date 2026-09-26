@@ -9,7 +9,7 @@ published to a registry.
 pnpm --filter @iot-os/integration-sdk build
 pnpm --filter @iot-os/integration-sdk pack --pack-destination /tmp
 # In an independent application:
-npm install /tmp/iot-os-integration-sdk-0.2.0.tgz
+npm install /tmp/iot-os-integration-sdk-0.3.0.tgz
 ```
 
 ```ts
@@ -65,5 +65,27 @@ transactional database and deduplicate business side effects by event ID.
 
 The journal begins at deployment with no historical transition backfill. Existing
 alerts are reconciled through the current-state API. Events are retained
-indefinitely for now; configurable retention and signed webhooks remain pending.
+indefinitely for now; configurable retention remains pending. Signed webhook delivery is available separately.
 See the repository's `docs/integration-events.md` for the contract and limits.
+
+## Webhook verification (0.3.0)
+
+Verify the exact raw request body before JSON parsing:
+
+```ts
+import { verifyWebhook } from '@iot-os/integration-sdk'
+const event = await verifyWebhook({
+  body: rawBody, // Uint8Array/Buffer, or the untouched UTF-8 body string
+  secret: process.env.IOT_WEBHOOK_SECRET!,
+  signature: request.headers.get('x-iot-signature') ?? '',
+  timestamp: request.headers.get('x-iot-timestamp') ?? '',
+  deliveryId: request.headers.get('x-iot-delivery-id') ?? '',
+})
+```
+
+The default/max clock-skew window is 300 seconds. This verifies HMAC and the event
+contract; it does not remember receipts. Deduplicate event IDs durably before
+acknowledging a delivery. Retries can arrive out of order: use a verified webhook
+as a wake-up for the cursor feed when maintaining an ordered projection.
+See `docs/integration-webhooks.md` in the repository for destination policy,
+configuration, key rotation and retries. No SDK package has been registry-published.

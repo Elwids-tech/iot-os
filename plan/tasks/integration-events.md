@@ -10,4 +10,6 @@ Delivered 2026-09-25. [Contract and operational limits](../../docs/integration-e
 
 Verified: 141 API tests, eight SDK/recovery tests, rebuilt API/workers, actual geofence→alert→email flow, real PostgreSQL concurrent commit/rollback check, and separately installed SDK with two consumer processes resuming one projection. Temporary fixture records and credentials removed.
 
-Still pending: signed webhooks, explicit event retention/pruning and expiry contract, device/status/command events, telemetry APIs, pilot throughput validation and management UI. Existing episodes require current-state bootstrap; no lifecycle history is fabricated. Visual builder remains deferred.
+Follow-up: [signed webhook delivery](../../docs/integration-webhooks.md) implemented.
+
+Still pending: explicit event retention/pruning and expiry contract, device/status/command events, telemetry APIs, pilot throughput validation and management UI. Existing episodes require current-state bootstrap; no lifecycle history is fabricated. Visual builder remains deferred.

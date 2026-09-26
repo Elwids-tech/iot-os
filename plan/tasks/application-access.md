@@ -13,4 +13,6 @@ Verification: 137 Laravel tests, six SDK tests, rebuilt API and worker container
 
 Follow-up: [durable alert polling and recovery](../../docs/integration-events.md) delivered in SDK 0.2.0.
 
-Still pending in P3: signed webhook delivery, telemetry access, integration management UI, and pilot-scale quota/load verification. Current-state lists are not an event stream. Visual builder deferred.
+Signed webhooks are delivered in the subsequent [webhook slice](../../docs/integration-webhooks.md).
+
+Still pending in P3: telemetry access, integration management UI, and pilot-scale quota/load verification. Current-state lists are not an event stream. Visual builder deferred.

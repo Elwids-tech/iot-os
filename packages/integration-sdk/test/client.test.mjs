@@ -54,3 +54,17 @@ test('event checkpoints, opaque cursors and snapshots are validated', async()=>{
   await assert.rejects(make(async()=>Response.json({data:[],next_cursor:'next',has_more:true})).events(),IotContractError)
   await assert.rejects(client.events({limit:101}),TypeError)
 })
+test('webhook raw-body signature rejects tampering, stale timestamps and wrong delivery identity', async()=>{
+  const {createHmac}=await import('node:crypto')
+  const {verifyWebhook}=await import('../dist/index.js')
+  const secret='whsec_'+'s'.repeat(64), timestamp='1800000000'
+  const payload={id,schema_version:'integration-event.v1',type:'alert.activated.v1',occurred_at:'2026-09-25T00:00:00Z',recorded_at:'2026-09-25T00:00:00Z',data:{uuid:id,device_uuid:id,workflow_uuid:id,workflow_name:'Boundary',episode:1,condition:'active',activated_at:null,cleared_at:null,acknowledged_at:null,execution_stopped_reason:null}}
+  const body=JSON.stringify(payload)
+  const signature='v1='+createHmac('sha256',secret).update(`${timestamp}.${id}.${body}`).digest('hex')
+  const options={body,secret,signature,timestamp,deliveryId:id,nowSeconds:Number(timestamp)}
+  assert.equal((await verifyWebhook(options)).id,id)
+  await assert.rejects(verifyWebhook({...options,body:body+' '}),/Invalid webhook/)
+  await assert.rejects(verifyWebhook({...options,nowSeconds:Number(timestamp)+301}),/Invalid webhook/)
+  await assert.rejects(verifyWebhook({...options,deliveryId:'00000000-0000-4000-8000-000000000002'}),/Invalid webhook/)
+  await assert.rejects(verifyWebhook({...options,secret:'different-secret-value'}),/Invalid webhook/)
+})

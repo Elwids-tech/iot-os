@@ -63,6 +63,34 @@ function page<T>(value: unknown, parse: (item: unknown) => T): Page<T> {
   return { data: result.data.map(parse), meta: meta as unknown as Page<T>["meta"] };
 }
 
+function integrationEvent(item: unknown): IntegrationEvent {
+  const value = fields(item, ["id", "schema_version", "type", "occurred_at", "recorded_at"], []);
+  if (value.schema_version !== "integration-event.v1" || !["alert.activated.v1", "alert.cleared.v1", "alert.acknowledged.v1"].includes(String(value.type))) throw new IotContractError();
+  return { ...value, data: alert(value.data) } as unknown as IntegrationEvent;
+}
+
+/** Verify raw request bytes before parsing. Receivers must also deduplicate IDs. */
+export async function verifyWebhook(options: {
+  body: string | Uint8Array; secret: string; signature: string; timestamp: string;
+  deliveryId: string; nowSeconds?: number; toleranceSeconds?: number;
+}): Promise<IntegrationEvent> {
+  const fail = () => { throw new Error("Invalid webhook signature or timestamp."); };
+  const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
+  const tolerance = options.toleranceSeconds ?? 300;
+  if (!Number.isSafeInteger(now) || !Number.isSafeInteger(tolerance) || tolerance < 0 || tolerance > 300 || !/^\d{1,12}$/.test(options.timestamp) || Math.abs(now - Number(options.timestamp)) > tolerance || !/^v1=[a-f0-9]{64}$/.test(options.signature) || !/^[a-f0-9-]{36}$/i.test(options.deliveryId) || options.secret.length < 16) return fail();
+  const encoder = new TextEncoder();
+  const body = typeof options.body === "string" ? encoder.encode(options.body) : options.body;
+  if (body.length > 1048576) return fail();
+  const prefix = encoder.encode(`${options.timestamp}.${options.deliveryId}.`);
+  const message = new Uint8Array(prefix.length + body.length);
+  message.set(prefix); message.set(body, prefix.length);
+  const signature = new Uint8Array(options.signature.slice(3).match(/../g)!.map(byte => parseInt(byte,16)));
+  const key = await crypto.subtle.importKey("raw", encoder.encode(options.secret), {name:"HMAC",hash:"SHA-256"}, false, ["verify"]);
+  if (!await crypto.subtle.verify("HMAC",key,signature,message)) return fail();
+  try { return integrationEvent(JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(body))); }
+  catch { throw new IotContractError(); }
+}
+
 /** Server-only. Store the application token in your backend secret store. */
 export class IotClient {
   #base: string; #token: string; #fetch: typeof fetch; #timeout: number;
@@ -94,11 +122,7 @@ export class IotClient {
     }
     const response = record(await this.#request("events" + (query.size ? "?" + query : ""), options.signal));
     if (!Array.isArray(response.data) || response.data.length > (options.limit ?? 100) || typeof response.next_cursor !== "string" || !response.next_cursor || response.next_cursor.length > 4096 || typeof response.has_more !== "boolean" || (response.has_more && !response.data.length)) throw new IotContractError();
-    const data = response.data.map((item): IntegrationEvent => {
-      const value = fields(item, ["id", "schema_version", "type", "occurred_at", "recorded_at"], []);
-      if (value.schema_version !== "integration-event.v1" || !["alert.activated.v1", "alert.cleared.v1", "alert.acknowledged.v1"].includes(String(value.type))) throw new IotContractError();
-      return { ...value, data: alert(value.data) } as unknown as IntegrationEvent;
-    });
+    const data = response.data.map(integrationEvent);
     return { data, next_cursor: response.next_cursor, has_more: response.has_more };
   }
   async devices(options: PageOptions = {}): Promise<Page<Device>> {

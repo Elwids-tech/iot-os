@@ -1,0 +1,18 @@
+# Local verification only; no host ports or access to platform storage.
+services:
+  api:
+    environment:
+      IOT_WEBHOOK_LOCAL_SINK_ENABLED: "true"
+  webhooks-worker:
+    environment:
+      IOT_WEBHOOK_LOCAL_SINK_ENABLED: "true"
+  webhook-sink:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/api/Dockerfile
+    entrypoint: ["php", "-S", "0.0.0.0:8080", "/var/www/html/resources/webhook-verification/router.php"]
+    environment:
+      APP_ENV: local
+    restart: "no"
+    networks:
+      - internal

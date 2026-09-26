@@ -1,6 +1,6 @@
 {
   "name": "@iot-os/integration-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "Server-side client for scoped IoT OS application APIs",
   "engines": { "node": ">=22.12" },

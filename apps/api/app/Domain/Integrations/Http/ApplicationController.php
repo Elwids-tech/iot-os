@@ -56,6 +56,7 @@ final class ApplicationController
             $locked = $this->lock($application, (int) $revision);
             $locked->update([...$input, 'revision' => $locked->revision + 1, 'grant_revision' => $locked->grant_revision + 1]);
             $locked->tokens()->delete();
+            \App\Domain\Integrations\Services\WebhookDispatch::cancel($locked->id, 'Application grants changed.');
             DeviceAudit::record('application.grants_updated', $locked->organization_id, $request->user()->id, $locked->uuid, $input);
             return $locked;
         });
@@ -87,6 +88,7 @@ final class ApplicationController
             $locked = $this->lock($application, (int) $revision);
             $locked->tokens()->delete();
             $locked->update(['revoked_at' => now(), 'revision' => $locked->revision + 1]);
+            \App\Domain\Integrations\Services\WebhookDispatch::cancel($locked->id, 'Application revoked.');
             DeviceAudit::record('application.revoked', $locked->organization_id, $request->user()->id, $locked->uuid);
             return $locked;
         });

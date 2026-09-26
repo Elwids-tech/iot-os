@@ -1,9 +1,7 @@
 # Durable alert events and consumer recovery
 
 This P3 slice adds an authenticated, resumable **pull feed** to the application
-API. Signed webhook delivery is still pending. There are no tenant-controlled
-outbound destinations, raw telemetry events, device commands or broker access in
-this slice. Alert events are lower-volume lifecycle records, separate from the
+API. [Signed webhook delivery](integration-webhooks.md) is now available separately. This pull-feed slice does not expose raw telemetry events, device commands or broker access. Alert events are lower-volume lifecycle records, separate from the
 internal telemetry stream.
 
 ## Journal and commit ordering

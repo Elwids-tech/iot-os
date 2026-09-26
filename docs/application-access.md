@@ -2,8 +2,7 @@
 
 Application access provides independent machine identities and read-only device
 metadata and alert state. A follow-up adds the [durable alert event feed](integration-events.md)
-and consumer recovery. Telemetry history, commands, workflow mutation and signed
-webhooks remain pending; current-state lists alone are not a durable stream.
+and consumer recovery. [Signed webhooks](integration-webhooks.md) are also available. Telemetry history, commands and workflow mutation remain pending; current-state lists alone are not a durable stream.
 
 ## Identity and grants
 
@@ -104,5 +103,5 @@ and uses the SDK for device/alert reads, pagination and isolation checks. Signal
 completion by touching `/tmp/iot-sdk-release` in the API container. The fixture
 cleans its own database records and credentials; remove the host copy as well.
 
-Remaining P3: signed webhook delivery, telemetry read contracts, integration management UI and pilot quotas/load tests. Durable alert polling and projection recovery are now implemented.
+Remaining P3: telemetry read contracts, integration management UI and pilot quotas/load tests. Durable alert polling and projection recovery are now implemented.
 The visual workflow builder remains deferred.

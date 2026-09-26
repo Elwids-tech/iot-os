@@ -31,7 +31,14 @@ try {
     while (!file_exists('/tmp/iot-sdk-release') && microtime(true) < $until) { usleep(250000); }
     if (!file_exists('/tmp/iot-sdk-release')) { throw new RuntimeException('SDK verification timed out.'); }
 } finally {
-    foreach (IntegrationApplication::where('organization_id', $org->id)->get() as $application) { $application->tokens()->delete(); $application->delete(); }
+    foreach (IntegrationApplication::where('organization_id', $org->id)->get() as $application) {
+        $hooks = DB::table('integration_webhooks')->where('integration_application_id', $application->id)->pluck('id');
+        $deliveries = DB::table('integration_webhook_deliveries')->whereIn('integration_webhook_id', $hooks)->pluck('id');
+        DB::table('integration_webhook_attempts')->whereIn('integration_webhook_delivery_id', $deliveries)->delete();
+        DB::table('integration_webhook_deliveries')->whereIn('id', $deliveries)->delete();
+        DB::table('integration_webhooks')->whereIn('id', $hooks)->delete();
+        $application->tokens()->delete(); $application->delete();
+    }
     DB::table('automation_alerts')->where('organization_id', $org->id)->delete();
     $workflows = Workflow::where('organization_id', $org->id)->pluck('id');
     Deployment::whereIn('automation_workflow_id', $workflows)->delete();
