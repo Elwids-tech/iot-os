@@ -17,7 +17,7 @@ use Illuminate\Validation\Rule;
 
 final class ApplicationController
 {
-    public const ABILITIES = ['devices:read', 'alerts:read', 'events:read'];
+    public const ABILITIES = ['devices:read', 'alerts:read', 'events:read', 'telemetry:read'];
 
     public function __construct(private readonly DeviceAuthorization $authorization) {}
 

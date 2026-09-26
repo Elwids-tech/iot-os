@@ -9,7 +9,7 @@ published to a registry.
 pnpm --filter @iot-os/integration-sdk build
 pnpm --filter @iot-os/integration-sdk pack --pack-destination /tmp
 # In an independent application:
-npm install /tmp/iot-os-integration-sdk-0.3.0.tgz
+npm install /tmp/iot-os-integration-sdk-0.4.0.tgz
 ```
 
 ```ts
@@ -89,3 +89,19 @@ acknowledging a delivery. Retries can arrive out of order: use a verified webhoo
 as a wake-up for the cursor feed when maintaining an ordered projection.
 See `docs/integration-webhooks.md` in the repository for destination policy,
 configuration, key rotation and retries. No SDK package has been registry-published.
+
+## Telemetry reads (0.4.0)
+
+Grant `telemetry:read` and issue a token with that ability.
+
+```js
+const latest = await client.latestTelemetry(deviceUuid)
+const history = await client.telemetryHistory(deviceUuid, {
+  parameterUuid, from: '2026-09-25T10:00:00Z', to: '2026-09-25T11:00:00Z', maxPoints: 500,
+})
+```
+
+History is receipt-time chart aggregation over at most 31 days, clipped by
+retention. Empty data is not zero; latest quality/timestamps must be checked.
+Independent parameter readings are not paired GPS fixes. See
+[the telemetry contract](../../docs/integration-telemetry.md) for bounds and semantics.

@@ -172,8 +172,8 @@ verification and operational limits.
 are implemented, including portal review, acknowledgement/comments and durable
 queued delivery to opted-in members. Portal notification settings and audited, generation-fenced terminal-delivery retry are also implemented.
 
-**P3 progress:** [Scoped application access and the TypeScript/Node SDK](../../docs/application-access.md) provide organization/device grants, token lifecycle and read-only device/alert APIs. Verified using a separately installed package against the rebuilt API. The [durable alert-event journal and consumer recovery](../../docs/integration-events.md) are also implemented; [signed webhooks](../../docs/integration-webhooks.md) are delivered and telemetry APIs remain pending.
+**P3 progress:** [Scoped application access and the TypeScript/Node SDK](../../docs/application-access.md) provide organization/device grants, token lifecycle and read-only device/alert APIs. Verified using a separately installed package against the rebuilt API. The [durable alert-event journal and consumer recovery](../../docs/integration-events.md) are also implemented; [signed webhooks](../../docs/integration-webhooks.md) are delivered. [Latest telemetry and chart history](../../docs/integration-telemetry.md) are delivered in SDK 0.4.0.
 
-**Next task:** P3 telemetry read contracts. Cooldown/escalation policies remain requirement-led.
+**Next task:** P3 raw telemetry and paired location read contracts. Cooldown/escalation policies remain requirement-led.
 The visual builder is deferred at the user's request. Keep Laine's customer
 workflow and hardware choices open while making the generic core demonstrable.

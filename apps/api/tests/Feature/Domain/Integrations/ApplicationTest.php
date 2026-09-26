@@ -110,4 +110,40 @@ final class ApplicationTest extends TestCase
         RateLimiter::clear($key);
         $this->api($new['token'], 'GET', $this->read.'/devices')->assertOk();
     }
+
+    public function test_telemetry_authority_projection_and_runtime_failure(): void
+    {
+        config(['devices.runtime_token' => 'test', 'devices.runtime_url' => 'http://runtime']);
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::sequence()->push([
+            'data' => [['parameter_uuid' => $this->device->uuid, 'value' => null, 'quality' => 'stale', 'internal_secret' => 'hidden']],
+            'presence' => 'offline', 'internal_secret' => 'hidden',
+        ])->push([], 503)]);
+        $app = $this->api($this->admin, 'POST', $this->manage, ['name' => 'Telemetry', 'device_uuids' => [$this->device->uuid], 'abilities' => ['telemetry:read']])->assertCreated()->json('data');
+        $issued = $this->token($app, ['telemetry:read']);
+        $path = $this->read.'/devices/'.$this->device->uuid.'/telemetry/latest';
+        $this->api($issued['token'], 'GET', $path)->assertOk()->assertJsonPath('schema_version', 'telemetry-latest.v1')->assertJsonPath('data.0.value', null)->assertJsonMissing(['internal_secret' => 'hidden']);
+        \Illuminate\Support\Facades\Http::assertSent(fn ($request) => $request['organization_uuid'] === $this->org->uuid && $request['device_uuid'] === $this->device->uuid);
+        $this->api($this->admin, 'GET', $path)->assertUnauthorized();
+        $this->api($issued['token'], 'GET', $this->read.'/devices/'.\Illuminate\Support\Str::uuid().'/telemetry/latest')->assertNotFound();
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $this->api($issued['token'], 'GET', str_replace($this->org->uuid, $other->uuid, $path))->assertNotFound();
+        $readOnly = $this->token($this->create());
+        $this->api($readOnly['token'], 'GET', $path)->assertForbidden();
+        $this->api($issued['token'], 'GET', $path)->assertStatus(503);
+    }
+
+    public function test_telemetry_history_bounds_and_empty_data(): void
+    {
+        config(['devices.runtime_token' => 'test', 'devices.runtime_url' => 'http://runtime']);
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response(['data' => []])]);
+        $app = $this->api($this->admin, 'POST', $this->manage, ['name' => 'Telemetry', 'device_uuids' => [$this->device->uuid], 'abilities' => ['telemetry:read']])->assertCreated()->json('data');
+        $issued = $this->token($app, ['telemetry:read']);
+        $path = $this->read.'/devices/'.$this->device->uuid.'/telemetry/history';
+        $query = ['parameter_uuid' => $this->device->uuid, 'from' => '2026-09-01T00:00:00Z', 'to' => '2026-09-02T00:00:00Z'];
+        $this->api($issued['token'], 'GET', $path.'?'.http_build_query($query))->assertOk()->assertJsonPath('data', [])->assertJsonPath('from', null);
+        \Illuminate\Support\Facades\Http::assertSent(fn ($request) => $request['retention_days'] > 0 && $request['max_points'] === 500);
+        foreach ([['to' => '2026-11-01T00:00:00Z'], ['from' => 'yesterday'], ['max_points' => 1001], ['to' => $query['from']]] as $invalid) {
+            $this->api($issued['token'], 'GET', $path.'?'.http_build_query([...$query, ...$invalid]))->assertUnprocessable();
+        }
+    }
 }

@@ -68,3 +68,18 @@ test('webhook raw-body signature rejects tampering, stale timestamps and wrong d
   await assert.rejects(verifyWebhook({...options,deliveryId:'00000000-0000-4000-8000-000000000002'}),/Invalid webhook/)
   await assert.rejects(verifyWebhook({...options,secret:'different-secret-value'}),/Invalid webhook/)
 })
+
+test('telemetry preserves no data and validates history bounds and response identity', async () => {
+  let calls = 0
+  const latest = { schema_version: 'telemetry-latest.v1', device_uuid: id, configuration_uuid: null, presence: 'unknown', data: [] }
+  const history = { schema_version: 'telemetry-history.v1', device_uuid: id, parameter_uuid: id, retention_days: 30, from: null, to: null, data: [] }
+  const client = make(async url => { calls++; return Response.json(url.includes('/latest') ? latest : history) })
+  assert.deepEqual((await client.latestTelemetry(id)).data, [])
+  const options = { parameterUuid: id, from: '2026-09-01T00:00:00Z', to: '2026-09-02T00:00:00Z' }
+  assert.deepEqual((await client.telemetryHistory(id, options)).data, [])
+  await assert.rejects(client.telemetryHistory(id, { ...options, to: '2026-11-01T00:00:00Z' }), TypeError)
+  await assert.rejects(client.telemetryHistory(id, { ...options, maxPoints: 1001 }), TypeError)
+  assert.equal(calls, 2)
+  await assert.rejects(make(async () => Response.json({ ...latest, device_uuid: 'wrong' })).latestTelemetry(id), IotContractError)
+  await assert.rejects(make(async () => Response.json({ ...history, data: [{ configuration_uuid: id, unit: null, data_type: 'number', points: [{ at: options.from, value: null, count: -1 }] }] })).telemetryHistory(id, options), IotContractError)
+})

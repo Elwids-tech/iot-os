@@ -7,7 +7,7 @@ and consumer recovery. [Signed webhooks](integration-webhooks.md) are also avail
 ## Identity and grants
 
 An application belongs to one organization, with 1–100 explicitly selected device
-UUIDs and a subset of `devices:read`, `alerts:read`, `events:read`. The event feed requires both `events:read` and `alerts:read`. There are no wildcard grants.
+UUIDs and a subset of `devices:read`, `alerts:read`, `events:read`, `telemetry:read`. The event feed requires both `events:read` and `alerts:read`. There are no wildcard grants.
 Devices must belong to the organization, and reads recheck device ownership.
 Alerts are scoped using their immutable deployment's device binding, not the
 workflow's current draft. Responses omit internal configuration, credentials,
@@ -103,5 +103,5 @@ and uses the SDK for device/alert reads, pagination and isolation checks. Signal
 completion by touching `/tmp/iot-sdk-release` in the API container. The fixture
 cleans its own database records and credentials; remove the host copy as well.
 
-Remaining P3: telemetry read contracts, integration management UI and pilot quotas/load tests. Durable alert polling and projection recovery are now implemented.
+Latest telemetry and chart history are available through the separate `telemetry:read` ability; see [telemetry contracts](integration-telemetry.md). Remaining P3: raw telemetry/location contracts, integration management UI and pilot quotas/load tests. Durable alert polling and projection recovery are now implemented.
 The visual workflow builder remains deferred.

@@ -15,4 +15,4 @@ Follow-up: [durable alert polling and recovery](../../docs/integration-events.md
 
 Signed webhooks are delivered in the subsequent [webhook slice](../../docs/integration-webhooks.md).
 
-Still pending in P3: telemetry access, integration management UI, and pilot-scale quota/load verification. Current-state lists are not an event stream. Visual builder deferred.
+Latest telemetry and chart history are delivered in [SDK 0.4.0](../../docs/integration-telemetry.md). Still pending in P3: raw telemetry/location contracts, integration management UI, and pilot-scale quota/load verification. Current-state lists are not an event stream. Visual builder deferred.

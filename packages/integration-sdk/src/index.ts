@@ -1,3 +1,21 @@
+export interface TelemetryReading {
+  parameter_uuid: string; key: string; label: string; data_type: string; unit: string | null;
+  value: unknown; quality: string; observed_at: string; received_at: string;
+  historical: boolean; timestamp_source?: string; last_valid_received_at?: string;
+}
+export interface LatestTelemetry {
+  schema_version: "telemetry-latest.v1"; device_uuid: string; configuration_uuid: string | null;
+  presence: string; data: TelemetryReading[];
+}
+export interface HistoryPoint { at: string; value: unknown; count: number; min?: number; max?: number }
+export interface TelemetryHistory {
+  schema_version: "telemetry-history.v1"; device_uuid: string; parameter_uuid: string;
+  retention_days: number; from: string | null; to: string | null;
+  data: { configuration_uuid: string; unit: string | null; data_type: string; points: HistoryPoint[] }[];
+}
+export interface HistoryOptions {
+  parameterUuid: string; from: string; to: string; maxPoints?: number; signal?: AbortSignal;
+}
 export interface Device {
   uuid: string; code: string; name: string; lifecycle: string; presence: string;
   last_seen_at: string | null;
@@ -124,6 +142,40 @@ export class IotClient {
     if (!Array.isArray(response.data) || response.data.length > (options.limit ?? 100) || typeof response.next_cursor !== "string" || !response.next_cursor || response.next_cursor.length > 4096 || typeof response.has_more !== "boolean" || (response.has_more && !response.data.length)) throw new IotContractError();
     const data = response.data.map(integrationEvent);
     return { data, next_cursor: response.next_cursor, has_more: response.has_more };
+  }
+  async latestTelemetry(id: string, signal?: AbortSignal): Promise<LatestTelemetry> {
+    const response = fields(await this.#request(`devices/${uuid(id)}/telemetry/latest`, signal), ["device_uuid", "presence"], ["configuration_uuid"]);
+    if (response.schema_version !== "telemetry-latest.v1" || response.device_uuid !== id || !Array.isArray(response.data)) throw new IotContractError();
+    const data = response.data.map(item => {
+      const reading = fields(item, ["parameter_uuid", "key", "label", "data_type", "quality", "observed_at", "received_at"], ["unit"]);
+      if (!("value" in reading) || typeof reading.historical !== "boolean" || ["timestamp_source", "last_valid_received_at"].some(key => reading[key] !== undefined && typeof reading[key] !== "string")) throw new IotContractError();
+      return reading as unknown as TelemetryReading;
+    });
+    return { ...response, data } as unknown as LatestTelemetry;
+  }
+  async telemetryHistory(id: string, options: HistoryOptions): Promise<TelemetryHistory> {
+    const format = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/;
+    const span = Date.parse(options.to) - Date.parse(options.from);
+    if (!format.test(options.from) || !format.test(options.to) || !Number.isFinite(span) || span <= 0 || span > 31 * 86400000) throw new TypeError("Use RFC3339 timestamps and a history window of at most 31 days.");
+    const max = options.maxPoints ?? 500;
+    if (!Number.isInteger(max) || max < 10 || max > 1000) throw new TypeError("maxPoints must be between 10 and 1000.");
+    const query = new URLSearchParams({ parameter_uuid: uuid(options.parameterUuid), from: options.from, to: options.to, max_points: String(max) });
+    const response = fields(await this.#request(`devices/${uuid(id)}/telemetry/history?${query}`, options.signal), ["device_uuid", "parameter_uuid"], ["from", "to"]);
+    if (response.schema_version !== "telemetry-history.v1" || response.device_uuid !== id || response.parameter_uuid !== options.parameterUuid || !Number.isInteger(response.retention_days) || Number(response.retention_days) < 1 || !Array.isArray(response.data)) throw new IotContractError();
+    let total = 0;
+    const data = response.data.map(item => {
+      const series = fields(item, ["configuration_uuid", "data_type"], ["unit"]);
+      if (!Array.isArray(series.points)) throw new IotContractError();
+      total += series.points.length;
+      if (total > 2000) throw new IotContractError();
+      const points = series.points.map(item => {
+        const point = fields(item, ["at"], []);
+        if (!("value" in point) || !Number.isSafeInteger(point.count) || Number(point.count) < 0 || ["min", "max"].some(key => point[key] !== undefined && (typeof point[key] !== "number" || !Number.isFinite(point[key])))) throw new IotContractError();
+        return point as unknown as HistoryPoint;
+      });
+      return { ...series, points };
+    });
+    return { ...response, data } as unknown as TelemetryHistory;
   }
   async devices(options: PageOptions = {}): Promise<Page<Device>> {
     return page(await this.#request("devices" + this.#query(options), options.signal), device);
