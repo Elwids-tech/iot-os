@@ -15,9 +15,9 @@ rebuilt for the shared presentation addition.
 
 See [sample setup and limitations](../../apps/vertical-demo/README.md).
 
-Core regression follow-up: [chart measurement and contrast failures](dashboard-chart-measurement.md) were exposed during verification and remain unresolved.
+Core regression follow-up: [chart measurement and contrast fixes](dashboard-chart-measurement.md) are now delivered and verified.
 
-Next: resolve that dashboard regression, then decide the pilot's required live machine-view contract (latest committed
+Next: decide the pilot's required live machine-view contract (latest committed
 location and current workflow state versus selected historical evidence), then
 implement the smallest scoped contract needed. Multi-tenant host authentication,
 production capacity/retention checks and real-tag acceptance remain pending. The

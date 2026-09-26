@@ -837,7 +837,8 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
   await expect(page.getByText("0 active, unacknowledged", { exact: true })).toBeVisible()
   await expect(page.getByText("Cleared", { exact: true })).toBeVisible()
-  await page.screenshot({ path: info.outputPath("workflow-panels-desktop.png"), fullPage: true })
+  await page.screenshot({ fullPage: true })
+  await page.screenshot({ path: info.outputPath("workflow-panels-desktop.png") })
   const before = locationReads
   unavailable = true
   await page.getByRole("button", { name: "Refresh dashboard", exact: true }).click()
@@ -887,4 +888,46 @@ test("location marker expires with polling paused and newer incomplete evidence 
   await page.getByRole("button", { name: "Refresh dashboard", exact: true }).click()
   await expect(page.getByText("incomplete event", { exact: true })).toBeVisible()
   await expect(page.getByText("51.500000", { exact: true })).toHaveCount(0)
+})
+
+
+test("chart labels survive repeated layout changes, full-page capture and refresh", async ({ page }) => {
+  const { errors, calls } = await setup(page)
+  await page.goto(basePath + "/first")
+  for (const width of [1440, 1000, 390, 1440]) {
+    await page.setViewportSize({width, height: 900})
+    await expect(page.getByRole("list", {name: "Chart legend"})).toContainText("Temperature")
+    await expect(page.locator(".recharts-line-curve").first()).toBeVisible()
+    await expect.poll(() => page.locator(".react-grid-item").evaluateAll(items =>
+      items.every(item => getComputedStyle(item).transitionDuration === "0s")
+    )).toBe(true)
+    await page.screenshot({fullPage: true})
+    const before = calls.history
+    await page.getByRole("button", {name: "Refresh dashboard", exact: true}).click()
+    await expect.poll(() => calls.history).toBeGreaterThan(before)
+  }
+  expect(errors).toEqual([])
+})
+
+test("enabling a primary button restores full contrast immediately", async ({page}) => {
+  await setup(page)
+  await page.goto(basePath + "/first")
+  await page.getByRole("button", {name: "Edit dashboard", exact: true}).click()
+  const save = page.getByRole("button", {name: "Save dashboard", exact: true})
+  await expect(save).toBeDisabled()
+  await expect(save).toHaveCSS("opacity", "0.5")
+  // Sample the first painted frame after enabling, not the end of a transition.
+  await save.evaluate(button => {
+    (window as any).__enabledOpacity = null
+    new MutationObserver((_, observer) => {
+      if (!(button as HTMLButtonElement).disabled) {
+        observer.disconnect()
+        requestAnimationFrame(() => { (window as any).__enabledOpacity = getComputedStyle(button).opacity })
+      }
+    }).observe(button, {attributes: true, attributeFilter: ["disabled"]})
+  })
+  await page.getByRole("button", {name: "Dashboard settings", exact: true}).click()
+  await page.getByLabel("Dashboard name", {exact: true}).fill("Changed name")
+  await expect.poll(() => page.evaluate(() => (window as any).__enabledOpacity)).not.toBeNull()
+  expect(await page.evaluate(() => (window as any).__enabledOpacity)).toBe("1")
 })

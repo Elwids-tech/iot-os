@@ -524,7 +524,9 @@ export function DashboardWorkspace({
           }}
         >
           {dashboard.widgets.map((widget) => (
-            <div key={widget.id}>
+            // Chart dimensions must settle with the grid, not animate through
+            // intermediate sizes that trigger synchronous measurement updates.
+            <div key={widget.id} style={{ transition: "none" }}>
               <Card className="h-full overflow-hidden">
                 <CardHeader className="flex flex-row items-start justify-between gap-2 pb-3">
                   <div className="min-w-0">

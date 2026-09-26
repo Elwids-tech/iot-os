@@ -13,7 +13,6 @@ import {
 } from "@iot-os/ui/components/empty"
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ReferenceArea,
@@ -154,104 +153,120 @@ export default function TimeSeriesPanel({
       {queries.some((q) => q.isPending) ? (
         <Skeleton className="min-h-48 flex-1" />
       ) : hasData ? (
-        <ChartContainer
-          className="min-h-48 w-full flex-1"
-          config={Object.fromEntries(
-            series.map((s) => [s.key, { label: s.name, color: s.color }]),
-          )}
-        >
-          <LineChart
-            accessibilityLayer
-            data={data}
-            onMouseDown={(state) => {
-              const at = Number(state.activeLabel)
-              if (onZoom && Number.isFinite(at))
-                setSelection({ from: at, to: at })
-            }}
-            onMouseMove={(state) => {
-              const at = Number(state.activeLabel)
-              if (selection && Number.isFinite(at))
-                setSelection({ ...selection, to: at })
-            }}
-            onMouseUp={() => {
-              if (selection && selection.from !== selection.to)
-                onZoom?.(
-                  new Date(
-                    Math.min(selection.from, selection.to),
-                  ).toISOString(),
-                  new Date(
-                    Math.max(selection.from, selection.to),
-                  ).toISOString(),
-                )
-              setSelection(null)
-            }}
-            onMouseLeave={() => setSelection(null)}
-          >
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="time"
-              type="number"
-              domain={[Date.parse(window.from), Date.parse(window.to)]}
-              allowDataOverflow
-              tickFormatter={(v) =>
-                new Date(v).toLocaleString(undefined, {
-                  ...(view.timezone === "utc" ? { timeZone: "UTC" } : {}),
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              }
-              minTickGap={45}
-            />
-            <YAxis
-              domain={["auto", "auto"]}
-              width={65}
-              label={{
-                value: unit || "Value",
-                angle: -90,
-                position: "insideLeft",
-              }}
-            />
-            <ChartTooltip
-              labelFormatter={(value) =>
-                timeLabel(new Date(Number(value)).toISOString(), view.timezone)
-              }
-              formatter={(value, name) => [
-                typeof value === "number"
-                  ? value.toLocaleString(undefined, {
-                      maximumFractionDigits:
-                        sources.find((s) => String(name).startsWith(s.label))
-                          ?.precision ?? 4,
-                    }) + (unit ? ` ${unit}` : "")
-                  : "No sample",
-                `${name} (average)`,
-              ]}
-            />
-            <Legend />
-            {series.map((s) => (
-              <Line
-                key={s.key}
-                data={s.points.map((p) => ({ ...p, [s.key]: p.value }))}
-                dataKey={s.key}
-                name={s.name}
-                stroke={s.color}
-                type="linear"
-                dot={s.points.filter((p) => p.value !== null).length < 3}
-                connectNulls={false}
-                isAnimationActive={false}
-              />
-            ))}
-            {selection && (
-              <ReferenceArea
-                x1={Math.min(selection.from, selection.to)}
-                x2={Math.max(selection.from, selection.to)}
-                fill="var(--primary)"
-                fillOpacity={0.12}
-              />
+        <div className="flex min-h-48 flex-1 flex-col gap-2">
+          <ChartContainer
+            className="min-h-48 w-full flex-1"
+            config={Object.fromEntries(
+              series.map((s) => [s.key, { label: s.name, color: s.color }]),
             )}
-          </LineChart>
-        </ChartContainer>
+          >
+            <LineChart
+              accessibilityLayer
+              data={data}
+              onMouseDown={(state) => {
+                const at = Number(state.activeLabel)
+                if (onZoom && Number.isFinite(at))
+                  setSelection({ from: at, to: at })
+              }}
+              onMouseMove={(state) => {
+                const at = Number(state.activeLabel)
+                if (selection && Number.isFinite(at))
+                  setSelection({ ...selection, to: at })
+              }}
+              onMouseUp={() => {
+                if (selection && selection.from !== selection.to)
+                  onZoom?.(
+                    new Date(
+                      Math.min(selection.from, selection.to),
+                    ).toISOString(),
+                    new Date(
+                      Math.max(selection.from, selection.to),
+                    ).toISOString(),
+                  )
+                setSelection(null)
+              }}
+              onMouseLeave={() => setSelection(null)}
+            >
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="time"
+                type="number"
+                domain={[Date.parse(window.from), Date.parse(window.to)]}
+                allowDataOverflow
+                tickFormatter={(v) =>
+                  new Date(v).toLocaleString(undefined, {
+                    ...(view.timezone === "utc" ? { timeZone: "UTC" } : {}),
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                }
+                minTickGap={45}
+              />
+              <YAxis
+                domain={["auto", "auto"]}
+                width={65}
+                label={{
+                  value: unit || "Value",
+                  angle: -90,
+                  position: "insideLeft",
+                }}
+              />
+              <ChartTooltip
+                labelFormatter={(value) =>
+                  timeLabel(new Date(Number(value)).toISOString(), view.timezone)
+                }
+                formatter={(value, name) => [
+                  typeof value === "number"
+                    ? value.toLocaleString(undefined, {
+                        maximumFractionDigits:
+                          sources.find((s) => String(name).startsWith(s.label))
+                            ?.precision ?? 4,
+                      }) + (unit ? ` ${unit}` : "")
+                    : "No sample",
+                  `${name} (average)`,
+                ]}
+              />
+              {series.map((s) => (
+                <Line
+                  key={s.key}
+                  data={s.points.map((p) => ({ ...p, [s.key]: p.value }))}
+                  dataKey={s.key}
+                  name={s.name}
+                  stroke={s.color}
+                  type="linear"
+                  dot={s.points.filter((p) => p.value !== null).length < 3}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                />
+              ))}
+              {selection && (
+                <ReferenceArea
+                  x1={Math.min(selection.from, selection.to)}
+                  x2={Math.max(selection.from, selection.to)}
+                  fill="var(--primary)"
+                  fillOpacity={0.12}
+                />
+              )}
+            </LineChart>
+          </ChartContainer>
+          {/* Keep static labels outside Recharts' viewport-measurement loop
+              when the dashboard moves or resizes a chart. */}
+          <ul
+            aria-label="Chart legend"
+            className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs"
+          >
+            {series.map((s) => (
+              <li key={s.key} className="flex min-w-0 items-center gap-1">
+                <svg aria-hidden="true" width="14" height="10" className="shrink-0">
+                  <path d="M0 5H14" stroke={s.color} strokeWidth="2" />
+                </svg>
+                <span className="break-all">{s.name}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : (
         <Empty>
           <EmptyHeader>
