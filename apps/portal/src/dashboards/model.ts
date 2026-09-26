@@ -54,7 +54,7 @@ export function newWidget(type: DashboardWidget["type"]): DashboardWidget {
     schema_version: 2,
     type,
     title:
-      type === "status"
+      type === "location" ? "Location" : type === "alerts" ? "Alerts" : type === "status"
         ? "Status"
         : type === "controls"
           ? "Controls"
@@ -90,6 +90,7 @@ export function thresholdError(source: DashboardSource): string | null {
 }
 export function widgetError(widget: DashboardWidget): string | null {
   if (!widget.title.trim()) return "Enter a panel title."
+  if (widget.type === "location" || widget.type === "alerts") return widget.config.workflow_uuid ? null : "Choose a workflow."
   if (!widget.config.sources.length) return "Add at least one parameter."
   for (const source of widget.config.sources) {
     if (

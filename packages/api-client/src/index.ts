@@ -1388,6 +1388,15 @@ export class ApiClient {
     return this.request<{ data: import("./alerts").AlertDelivery[] }>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/deliveries`)
   }
 
+  dashboardWorkflows(org: string, search: string, page: number) {
+    return this.request<{data: {uuid: string; name: string}[]; meta: {current_page: number; last_page: number; total: number}}>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?${new URLSearchParams({search,page:String(page)})}`)
+  }
+  workflowLocationOverview(org: string, id: string, signal?: AbortSignal) {
+    return this.data<import("./dashboards").WorkflowLocationOverview>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/location-overview`, "GET", undefined, signal)
+  }
+  workflowAlertOverview(org: string, id: string, signal?: AbortSignal) {
+    return this.data<import("./dashboards").WorkflowAlertOverview>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/alert-overview`, "GET", undefined, signal)
+  }
   notificationWorkflows(org: string, page: number) {
     return this.request<import("./alerts").AlertPage<{ uuid: string; name: string }>>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?page=${page}`)
   }

@@ -63,6 +63,7 @@ func (a *Application) Handler() http.Handler {
 	internal.HandleFunc("POST /internal/rules/simulate", a.simulateRule)
 	internal.HandleFunc("POST /internal/workflows/compile", a.compileWorkflow)
 	internal.HandleFunc("GET /internal/workflows/execution", a.ruleExecution)
+	internal.HandleFunc("GET /internal/workflows/location-overview", a.workflowLocationOverview)
 	internal.HandleFunc("GET /internal/rules/node-types", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, rules.NodeTypes()) })
 	internal.HandleFunc("GET /internal/measurements/history", a.historyHTTP)
 	internal.HandleFunc("GET /internal/measurements/records", a.historyRecordsHTTP)

@@ -32,6 +32,22 @@ func (s *Store) CommittedEvent(ctx context.Context, org, device, id string, cuto
 	return &event, nil
 }
 
+// Latest persisted device event, including incomplete/invalid fixes. Never
+// search backwards for a good point and conceal a newer unknown location.
+func (s *Store) LatestCommittedEvent(ctx context.Context, org, device string, cutoff, until time.Time) (*devices.CommittedTelemetry, error) {
+	var id string
+	err := s.Pool.QueryRow(ctx, `SELECT telemetry_uuid::text FROM device_runtime.telemetry_outbox
+	 WHERE organization_uuid=$1 AND event->>'device_uuid'=$2 AND created_at >= $3 AND created_at <= $4
+	 ORDER BY sequence DESC LIMIT 1`, org, device, cutoff, until).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.CommittedEvent(ctx, org, device, id, cutoff, until)
+}
+
 func (s *Store) CommittedPending(ctx context.Context) ([]devices.CommittedTelemetry, error) {
 	rows, err := s.Pool.Query(ctx, "SELECT sequence,event FROM device_runtime.telemetry_outbox WHERE published_at IS NULL ORDER BY sequence LIMIT 100")
 	if err != nil {

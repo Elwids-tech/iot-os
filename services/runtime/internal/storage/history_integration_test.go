@@ -63,6 +63,24 @@ func TestHistoryRecordsUsesStableLimitedKeysetPagination(t *testing.T) {
 		}
 	}
 
+	latest, err := store.LatestCommittedEvent(ctx, organization, definition.DeviceUUID, time.Now().Add(-time.Hour), time.Now().Add(time.Minute))
+	if err != nil || latest == nil || latest.EventID != events[len(events)-1] {
+		t.Fatal("latest committed identity lost", err)
+	}
+	foreignLatest, err := store.LatestCommittedEvent(ctx, UUID(), definition.DeviceUUID, time.Now().Add(-time.Hour), time.Now().Add(time.Minute))
+	if err != nil || foreignLatest != nil {
+		t.Fatal("latest crossed tenant", err)
+	}
+	// A newer incomplete/invalid event must replace the earlier good evidence.
+	invalidID := UUID()
+	invalid := devices.Telemetry{UUID: invalidID, Generation: 1, Definition: definition, SessionID: "history", Readings: []devices.Reading{{ParameterUUID: UUID(), DataType: "number", Quality: "invalid", ReceivedAt: receivedAt, ObservedAt: receivedAt}}}
+	if err := store.Persist(ctx, invalid); err != nil {
+		t.Fatal(err)
+	}
+	latest, err = store.LatestCommittedEvent(ctx, organization, definition.DeviceUUID, time.Now().Add(-time.Hour), time.Now().Add(time.Minute))
+	if err != nil || latest == nil || latest.EventID != invalidID {
+		t.Fatal("invalid newest event was hidden", err)
+	}
 	from, to := receivedAt.Add(-time.Minute), receivedAt.Add(time.Minute)
 	first, err := store.HistoryRecords(ctx, organization, definition.DeviceUUID, parameter, from, to, 3, 2, nil)
 	if err != nil {

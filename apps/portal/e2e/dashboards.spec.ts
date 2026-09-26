@@ -792,3 +792,99 @@ test("browser timezone rejects nonexistent daylight-saving input", async ({
   await expect(page).toHaveURL(/from=2026-03-08T08/)
   await context.close()
 })
+
+
+test("workflow panels preview, persist, refresh failures and remain usable on mobile", async ({ page }, info) => {
+  const { dashboards, calls, errors } = await setup(page)
+  let unavailable = false
+  let locationReads = 0
+  await page.route("**/workflows**", async route => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith("/location-overview")) {
+      locationReads++
+      return route.fulfill({ status: unavailable ? 503 : 200, json: unavailable
+        ? { message: "Location evidence unavailable" }
+        : { data: { workflow_name: "Pasture boundary", deployment_status: "inactive", snapshot: null } } })
+    }
+    if (path.endsWith("/alert-overview")) return route.fulfill({ json: { data: {
+      workflow_name: "Pasture boundary", active: 1, unacknowledged_active: 0, total: 2,
+      checked_at: new Date().toISOString(), recent: [
+        { uuid: "alert-one", episode: 1, activated_at: new Date().toISOString(), cleared_at: null, acknowledged_at: new Date().toISOString() },
+        { uuid: "alert-two", episode: 2, activated_at: new Date().toISOString(), cleared_at: new Date().toISOString(), acknowledged_at: null }
+      ]
+    } } })
+    return route.fulfill({ json: { data: [{ uuid: "workflow-one", name: "Pasture boundary" }], meta: { current_page: 1, last_page: 1, total: 1 } } })
+  })
+  await page.goto(basePath + "/first")
+  await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
+  for (const type of ["Location", "Alerts"]) {
+    await page.getByRole("button", { name: "Add widget", exact: true }).click()
+    await page.getByRole("button", { name: `Add ${type}`, exact: true }).click()
+    await expect(page.getByRole("button", { name: "Apply to dashboard", exact: true })).toBeDisabled()
+    await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
+    await page.getByRole("option", { name: "Pasture boundary", exact: true }).click()
+    if (type === "Location") await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
+    else await expect(page.getByText("1 active", { exact: true })).toBeVisible()
+    await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
+  }
+  expect(calls.writes).toBe(0)
+  await page.getByRole("button", { name: "Save dashboard", exact: true }).click()
+  await expect.poll(() => calls.writes).toBe(1)
+  expect(dashboards[0].widgets.slice(-2).map(w => w.config)).toEqual([
+    { sources: [], workflow_uuid: "workflow-one" }, { sources: [], workflow_uuid: "workflow-one" }
+  ])
+  await page.reload()
+  await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
+  await expect(page.getByText("0 active, unacknowledged", { exact: true })).toBeVisible()
+  await expect(page.getByText("Cleared", { exact: true })).toBeVisible()
+  await page.screenshot({ path: info.outputPath("workflow-panels-desktop.png"), fullPage: true })
+  const before = locationReads
+  unavailable = true
+  await page.getByRole("button", { name: "Refresh dashboard", exact: true }).click()
+  await expect.poll(() => locationReads).toBeGreaterThan(before)
+  await expect(page.getByRole("button", { name: "Retry location" })).toBeVisible()
+  await expect(page.getByText("No applied workflow", { exact: true })).toHaveCount(0)
+  await expect(page.getByText("1 active", { exact: true })).toBeVisible()
+  unavailable = false
+  await page.getByRole("button", { name: "Retry location" }).click()
+  await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
+  await page.getByRole("button", { name: "Add widget", exact: true }).click()
+  await page.getByRole("button", { name: "Add Location", exact: true }).click()
+  await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
+  await page.keyboard.press("ArrowDown")
+  await page.keyboard.press("Enter")
+  await expect(page.getByRole("dialog").getByText("No applied workflow", { exact: true })).toBeVisible()
+  const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
+  expect(audit.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([])
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
+  await page.screenshot({ path: info.outputPath("workflow-editor-mobile.png"), fullPage: true })
+  expect(errors).toEqual([])
+})
+
+
+test("location marker expires with polling paused and newer incomplete evidence stays unknown", async ({ page }) => {
+  const { dashboards } = await setup(page)
+  dashboards[0].widgets = [{ id: "location", type: "location", schema_version: 2, title: "Location", description: "", config: { sources: [], workflow_uuid: "workflow-one" } }]
+  dashboards[0].layouts = { lg: [{ i: "location", x: 0, y: 0, w: 6, h: 10 }] }
+  let incomplete = false
+  await page.route("**/workflows/workflow-one/location-overview", route => {
+    const now = new Date().toISOString()
+    return route.fulfill({ json: { data: { workflow_name: "Boundary", deployment_status: "applied", snapshot: {
+      evaluated_at: now, max_age_seconds: 3,
+      geometry: { coordinates: [[[-115,51],[-113,51],[-113,52],[-115,52],[-115,51]]] },
+      fix: { event_id: "event-one", status: incomplete ? "unknown" : "valid", reason: incomplete ? "incomplete_event" : "valid", observed_at: now, received_at: now, historical: false, point: incomplete ? null : { latitude: 51.5, longitude: -114.1, accuracy_metres: null } },
+      execution: { enabled: true, stopped_reason: null, consumer_healthy: true, state: { last_event_id: "event-one", condition: "inside", active: false, expires_at: new Date(Date.now()+3000).toISOString() } }
+    } } } })
+  })
+  await page.goto(basePath + "/first")
+  await expect(page.getByRole("img", { name: "Geofence outline and reported location", exact: true })).toBeVisible()
+  await expect(page.getByText("51.500000", { exact: true })).toBeVisible()
+  await expect(page.getByText("Unknown location", { exact: true })).toBeVisible({ timeout: 8000 })
+  await expect(page.getByRole("img", { name: "Geofence outline; no current location marker", exact: true })).toBeVisible()
+  incomplete = true
+  await page.getByRole("button", { name: "Refresh dashboard", exact: true }).click()
+  await expect(page.getByText("incomplete event", { exact: true })).toBeVisible()
+  await expect(page.getByText("51.500000", { exact: true })).toHaveCount(0)
+})

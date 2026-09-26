@@ -18,6 +18,8 @@ Route::prefix('v1/organizations/{organization}/workflows')->middleware(['auth:sa
     Route::post('{workflow}/deployments', [WorkflowController::class, 'deploy']);
     Route::get('{workflow}/deployments/{operation}', [WorkflowController::class, 'deployment']);
     Route::get('{workflow}/transitions', [WorkflowController::class, 'transitions']);
+    Route::get('{workflow}/location-overview', [WorkflowController::class, 'locationOverview']);
+    Route::get('{workflow}/alert-overview', [WorkflowController::class, 'alertOverview']);
     Route::get('{workflow}/execution', [WorkflowController::class, 'execution']);
     Route::get('{workflow}/notifications', [NotificationSettingsController::class, 'show']);
     Route::put('{workflow}/notifications', [NotificationSettingsController::class, 'update']);

@@ -32,8 +32,8 @@ final class WorkflowController
     public function index(Request $request, Organization $organization): array
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
-        $request->validate(['page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100']]);
-        $page = Workflow::where('organization_id', $organization->id)->orderBy('id')->paginate($request->integer('per_page', 25));
+        $request->validate(['page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'], 'search' => ['sometimes', 'nullable', 'string', 'max:255']]);
+        $page = Workflow::where('organization_id', $organization->id)->when($request->filled('search'), fn ($query) => $query->where('name', 'like', '%'.$request->string('search').'%'))->orderBy('id')->paginate($request->integer('per_page', 25));
 
         return ['data' => $page->getCollection()->map(fn ($w) => $this->view($w)), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];
     }
@@ -183,6 +183,36 @@ final class WorkflowController
         }
 
         return ['operation_uuid' => $workflow->applied_deployment_uuid, 'data' => $this->runtime->request('GET', '/internal/workflows/execution', ['operation_uuid' => $workflow->applied_deployment_uuid, 'organization_uuid' => $organization->uuid])];
+    }
+
+    public function locationOverview(Request $request, Organization $organization, Workflow $workflow): array
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $workflow);
+        $data = null;
+        if ($workflow->applied_deployment_uuid) {
+            $version = Deployment::where('automation_workflow_id', $workflow->id)->where('uuid', $workflow->applied_deployment_uuid)->firstOrFail();
+            Device::where('organization_id', $organization->id)->where('uuid', $version->definition['binding']['device_uuid'] ?? '')->firstOrFail();
+            $data = $this->runtime->request('GET', '/internal/workflows/location-overview', [
+                'operation_uuid' => $workflow->applied_deployment_uuid, 'organization_uuid' => $organization->uuid,
+                'retention_days' => app(\App\Domain\Devices\Services\RetentionService::class)->effective($organization)['days'],
+            ]);
+        }
+        return ['data' => ['workflow_uuid' => $workflow->uuid, 'workflow_name' => $workflow->name,
+            'deployment_status' => $workflow->deployment_status ?? 'inactive', 'operation_uuid' => $workflow->applied_deployment_uuid,
+            'snapshot' => $data]];
+    }
+
+    public function alertOverview(Request $request, Organization $organization, Workflow $workflow): array
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $workflow);
+        $query = \App\Domain\Automation\Models\Alert::where('organization_id', $organization->id)->where('automation_workflow_id', $workflow->id);
+        $counts = (clone $query)->selectRaw('COUNT(*) as total, SUM(CASE WHEN cleared_at IS NULL THEN 1 ELSE 0 END) as active, SUM(CASE WHEN cleared_at IS NULL AND acknowledged_at IS NULL THEN 1 ELSE 0 END) as unacknowledged')->first();
+        return ['data' => ['workflow_uuid' => $workflow->uuid, 'workflow_name' => $workflow->name, 'checked_at' => now()->toIso8601String(),
+            'active' => (int) $counts->active,
+            'unacknowledged_active' => (int) $counts->unacknowledged,
+            'total' => (int) $counts->total,
+            'recent' => $query->orderByDesc('id')->limit(10)->get()->map(fn ($alert) => $alert->only(['uuid', 'episode', 'activated_at', 'cleared_at', 'acknowledged_at'])),
+        ]];
     }
 
     private function view(Workflow $workflow): array

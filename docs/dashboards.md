@@ -1,5 +1,7 @@
 # Organization dashboards
 
+[Location and Alerts panels](workflow-dashboard-panels.md) show applied workflow location evidence and durable alert episodes. They use live state independently of the historical chart time range.
+
 Reusable [device Controls panels](device-controls.md) are also available alongside Status and Time series. They follow reported state and send direct commands when outside dashboard editing.
 
 The tenant portal supports multiple organization-shared dashboards at `/organizations/:organizationUuid/dashboards`, each with a direct detail URL. Existing `Device.view` and `Device.manage` capabilities govern access and editing.

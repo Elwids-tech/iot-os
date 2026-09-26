@@ -397,6 +397,8 @@ export function DashboardWorkspace({
         onRefresh={() => {
           void cache.invalidateQueries({ queryKey: ["dashboard-latest", org] })
           void cache.invalidateQueries({ queryKey: ["dashboard-history", org] })
+          void cache.invalidateQueries({ queryKey: ["dashboard-workflow-location", org] })
+          void cache.invalidateQueries({ queryKey: ["dashboard-workflow-alerts", org] })
           void cache.invalidateQueries({
             queryKey: ["dashboard-state-history", org],
           })
@@ -630,11 +632,11 @@ export function DashboardWorkspace({
         </Grid>
       )}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90svh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add widget</DialogTitle>
             <DialogDescription>
-              Choose a panel connected to your device parameters.
+              Choose a panel connected to device parameters or a workflow.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">

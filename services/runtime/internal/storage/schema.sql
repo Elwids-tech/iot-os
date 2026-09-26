@@ -70,3 +70,4 @@ CREATE TABLE IF NOT EXISTS device_runtime.telemetry_outbox (
  published_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS telemetry_outbox_pending ON device_runtime.telemetry_outbox(sequence) WHERE published_at IS NULL;
+CREATE INDEX IF NOT EXISTS telemetry_outbox_device_latest ON device_runtime.telemetry_outbox(organization_uuid, (event->>'device_uuid'), sequence DESC);

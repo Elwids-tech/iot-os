@@ -4,10 +4,14 @@ import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { StatusPanel } from "./StatusPanel"
 import { ControlsPanel } from "./ControlsPanel"
 
+import { LocationPanel, AlertsPanel } from "./WorkflowPanels"
 const TimeSeriesPanel = lazy(() => import("./TimeSeriesPanel"))
 const StateHistoryPanel = lazy(() => import("./StateHistoryPanel"))
 const ColorHistoryPanel = lazy(() => import("./ColorHistoryPanel"))
+
 export const widgetRegistry = {
+  location: {label: "Location", mode: "latest", description: "Paired location, geofence outline and workflow condition.", editor: "workflow-panel", version: 2, renderer: LocationPanel},
+  alerts: {label: "Alerts", mode: "latest", description: "Active conditions, acknowledgements and recent workflow episodes.", editor: "workflow-panel", version: 2, renderer: AlertsPanel},
   controls: {
     label: "Controls",
     mode: "latest",

@@ -34,6 +34,13 @@ final class DashboardTest extends TestCase
         $this->url = '/api/v1/organizations/'.$this->organization->uuid.'/dashboards';
     }
 
+    public function test_workflow_picker_accepts_empty_search_and_panels_require_a_workflow(): void
+    {
+        $this->getJson('/api/v1/organizations/'.$this->organization->uuid.'/workflows?search=')->assertOk();
+        $panel = ['id' => 'location', 'schema_version' => 2, 'type' => 'location', 'title' => 'Location', 'description' => '', 'config' => ['sources' => []]];
+        $this->postJson($this->url, [...$this->emptyDashboard(), 'widgets' => [$panel]])->assertUnprocessable();
+    }
+
     private function emptyDashboard(string $name = 'Operations'): array
     {
         return ['name' => $name, 'widgets' => [], 'layouts' => [], 'defaults' => DashboardDefinition::defaults()];
@@ -202,5 +209,35 @@ final class DashboardTest extends TestCase
         $this->postJson($this->url, [...$this->emptyDashboard(), 'widgets' => [$panel]])->assertUnprocessable();
         $panel['config']['sources'] = [$this->source('C', 'string')];
         $this->postJson($this->url, [...$this->emptyDashboard(), 'widgets' => [$panel]])->assertUnprocessable();
+    }
+
+    public function test_workflow_widgets_are_tenant_scoped_and_do_not_accept_parameter_sources(): void
+    {
+        $workflow = \App\Domain\Automation\Models\Workflow::create(['organization_id' => $this->organization->id, 'name' => 'Boundary', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('a',64), 'updated_by' => auth()->id()]);
+        foreach (['location', 'alerts'] as $type) {
+            $input = [...$this->emptyDashboard(), 'widgets' => [['id' => $type, 'schema_version' => 2, 'type' => $type, 'title' => 'Workflow panel', 'description' => '', 'config' => ['sources' => [], 'workflow_uuid' => $workflow->uuid]]]];
+            $this->postJson($this->url, $input)->assertOk()->assertJsonPath('data.widgets.0.config.workflow_uuid', $workflow->uuid);
+            $input['widgets'][0]['config']['sources'] = [$this->source()];
+            $this->postJson($this->url, $input)->assertUnprocessable();
+            $input['widgets'][0]['config']['sources'] = [];
+            $input['widgets'][0]['config']['workflow_uuid'] = (string) Str::uuid();
+            $this->postJson($this->url, $input)->assertUnprocessable();
+        }
+        $path = '/api/v1/organizations/'.$this->organization->uuid.'/workflows/'.$workflow->uuid;
+        $this->getJson($path.'/location-overview')->assertOk()->assertJsonPath('data.snapshot', null);
+        $this->getJson($path.'/alert-overview')->assertOk()->assertJsonPath('data.active', 0)->assertJsonPath('data.recent', []);
+        $workflow->update(['organization_id' => Organization::where('slug', 'northstar-utilities')->firstOrFail()->id]);
+        $this->getJson($path.'/location-overview')->assertNotFound();
+        $this->getJson($path.'/alert-overview')->assertNotFound();
+    }
+
+    public function test_alert_overview_keeps_acknowledgement_separate_from_active_condition(): void
+    {
+        $workflow = \App\Domain\Automation\Models\Workflow::create(['organization_id' => $this->organization->id, 'name' => 'Boundary', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('a',64), 'updated_by' => auth()->id()]);
+        $version = \App\Domain\Automation\Models\Deployment::create(['automation_workflow_id' => $workflow->id, 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition' => [], 'definition_hash' => str_repeat('a',64), 'created_by' => auth()->id(), 'created_at' => now()]);
+        foreach ([[null,null],[null,now()],[now(),null]] as $i => [$cleared,$ack]) {
+            \App\Domain\Automation\Models\Alert::create(['organization_id' => $this->organization->id, 'automation_workflow_id' => $workflow->id, 'automation_deployment_id' => $version->id, 'episode' => $i+1, 'activated_at' => now(), 'cleared_at' => $cleared, 'acknowledged_at' => $ack]);
+        }
+        $this->getJson('/api/v1/organizations/'.$this->organization->uuid.'/workflows/'.$workflow->uuid.'/alert-overview')->assertOk()->assertJsonPath('data.active',2)->assertJsonPath('data.unacknowledged_active',1)->assertJsonPath('data.total',3)->assertJsonPath('data.recent.0.episode',3);
     }
 }

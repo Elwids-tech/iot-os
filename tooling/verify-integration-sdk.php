@@ -31,12 +31,13 @@ try {
         DB::table('device_runtime.observations')->insert([...$row, 'event_uuid' => (string) Str::uuid(), 'observed_at' => $at]);
         $telemetry = ['parameter' => $parameter, 'configuration' => $configuration, 'from' => $at->copy()->subMinute()->toIso8601String(), 'to' => $at->copy()->addMinute()->toIso8601String()];
     }
-    $workflow = Workflow::create(['organization_id' => $org->id, 'name' => 'SDK fixture boundary', 'workflow' => [], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => $actor->id]);
+    $workflow = Workflow::create(['organization_id' => $org->id, 'name' => 'SDK fixture boundary', 'workflow' => ['nodes' => [], 'edges' => []], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => $actor->id]);
     $deployment = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $actor->id, 'created_at' => now(), 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('a', 64), 'definition' => ['binding' => ['device_uuid' => $devices[0]->uuid]]]);
     if ($telemetry !== null) {
         $latitude = (string) Str::uuid(); $longitude = (string) Str::uuid();
         $binding = ['schema_version' => 'location-binding.v1', 'uuid' => (string) Str::uuid(), 'revision' => 1, 'organization_uuid' => $org->uuid, 'device_uuid' => $devices[0]->uuid, 'configuration_uuid' => $configuration, 'generation' => 1, 'latitude_parameter_uuid' => $latitude, 'longitude_parameter_uuid' => $longitude, 'accuracy_parameter_uuid' => null, 'pairing' => 'same_event', 'max_age_seconds' => 3600, 'max_future_skew_seconds' => 30, 'allow_unknown_accuracy' => true];
-        $locationVersion = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $actor->id, 'created_at' => now(), 'generation' => 2, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('b', 64), 'definition' => ['binding' => $binding]]);
+        $definition = ['binding' => $binding, 'geometry' => ['type' => 'Polygon', 'coordinates' => [[[-115, 51], [-113, 51], [-113, 52], [-115, 52], [-115, 51]]]]];
+        $locationVersion = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $actor->id, 'created_at' => now(), 'generation' => 2, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('b', 64), 'definition' => $definition]);
         $gpsEvents = [];
         for ($index = 0; $index < 3; $index++) {
             $eventID = (string) Str::uuid(); $gpsEvents[] = $eventID;
@@ -51,11 +52,22 @@ try {
             // Already published fixture rows never enter the live broker or rules pipeline.
             DB::table('device_runtime.telemetry_outbox')->insert(['telemetry_uuid' => $eventID, 'organization_uuid' => $org->uuid, 'event' => json_encode($event, JSON_THROW_ON_ERROR), 'created_at' => $at, 'published_at' => now()]);
         }
+        if (getenv('IOT_VERIFY_DASHBOARD') === '1') {
+            $workflow->update(['applied_deployment_uuid' => $locationVersion->uuid, 'deployment_status' => 'applied']);
+            // Disabled fixture proves stored reads without executing rules or emitting actions.
+            DB::table('device_runtime.rule_executions')->insert([
+                'operation_uuid' => $locationVersion->uuid, 'rule_uuid' => $workflow->uuid,
+                'organization_uuid' => $org->uuid, 'device_uuid' => $devices[0]->uuid,
+                'definition' => json_encode($definition, JSON_THROW_ON_ERROR), 'definition_hash' => str_repeat('b', 64),
+                'state' => json_encode(['condition' => 'unknown', 'active' => false, 'last_event_id' => end($gpsEvents), 'expires_at' => null]),
+                'enabled' => false, 'stopped_reason' => 'Verification fixture is stopped', 'started_at' => now(), 'updated_at' => now(),
+            ]);
+        }
         $telemetry += ['latitude' => $latitude, 'events' => $gpsEvents, 'version' => $locationVersion->uuid];
     }
     $alert = Alert::create(['organization_id' => $org->id, 'automation_workflow_id' => $workflow->id, 'automation_deployment_id' => $deployment->id, 'episode' => 1, 'activated_at' => now()]);
     @unlink('/tmp/iot-sdk-release');
-    file_put_contents('/tmp/iot-sdk-fixture.json', json_encode(['organization' => $org->uuid, 'foreign' => $foreign->uuid, 'devices' => array_map(fn ($d) => $d->uuid, $devices), 'alert' => $alert->uuid, 'adminToken' => $token->plainTextToken, 'telemetry' => $telemetry], JSON_THROW_ON_ERROR));
+    file_put_contents('/tmp/iot-sdk-fixture.json', json_encode(['organization' => $org->uuid, 'foreign' => $foreign->uuid, 'devices' => array_map(fn ($d) => $d->uuid, $devices), 'alert' => $alert->uuid, 'workflow' => $workflow->uuid, 'adminToken' => $token->plainTextToken, 'telemetry' => $telemetry], JSON_THROW_ON_ERROR));
     chmod('/tmp/iot-sdk-fixture.json', 0600);
     echo "SDK fixture ready for isolated HTTP client.\n";
     $until = microtime(true) + 180;
@@ -70,6 +82,8 @@ try {
         DB::table('integration_webhooks')->whereIn('id', $hooks)->delete();
         $application->tokens()->delete(); $application->delete();
     }
+    DB::table('dashboards')->where('organization_id', $org->id)->delete();
+    DB::table('device_runtime.rule_executions')->where('organization_uuid', $org->uuid)->delete();
     DB::table('automation_alerts')->where('organization_id', $org->id)->delete();
     $workflows = Workflow::where('organization_id', $org->id)->pluck('id');
     Deployment::whereIn('automation_workflow_id', $workflows)->delete();

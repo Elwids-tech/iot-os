@@ -75,7 +75,11 @@ import { PanelBody, widgetRegistry } from "./registry"
 import { writableParameters, controlSpec } from "../controls/model"
 import { isColorParameter } from "../history/model"
 
-export function PanelEditor({
+import { WorkflowPanelEditor } from "./WorkflowPanelEditor"
+export function PanelEditor(props: Parameters<typeof ParameterPanelEditor>[0]) {
+  return props.initial.type === "location" || props.initial.type === "alerts" ? <WorkflowPanelEditor {...props} /> : <ParameterPanelEditor {...props} />
+}
+function ParameterPanelEditor({
   initial,
   org,
   view,

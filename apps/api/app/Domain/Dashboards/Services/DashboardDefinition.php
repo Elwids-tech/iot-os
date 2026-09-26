@@ -48,11 +48,12 @@ final class DashboardDefinition
             'widgets.*' => ['array:id,schema_version,type,title,description,config'],
             'widgets.*.id' => ['required', 'string', 'max:100', 'distinct:strict'],
             'widgets.*.schema_version' => ['required', 'integer', 'in:2'],
-            'widgets.*.type' => ['required', 'in:status,timeseries,controls,state_history,color_history'],
+            'widgets.*.type' => ['required', 'in:status,timeseries,controls,state_history,color_history,location,alerts'],
             'widgets.*.title' => ['required', 'string', 'max:120'],
             'widgets.*.description' => ['nullable', 'string', 'max:1000'],
-            'widgets.*.config' => ['required', 'array:sources,columns'],
-            'widgets.*.config.sources' => ['required', 'array', 'min:1', 'max:100'],
+            'widgets.*.config' => ['required', 'array:sources,columns,workflow_uuid'],
+            'widgets.*.config.sources' => ['present', 'array', 'max:100'],
+            'widgets.*.config.workflow_uuid' => ['sometimes', 'uuid'],
             'widgets.*.config.columns' => ['sometimes', Rule::in(['auto', 1, 2, 3, 4])],
             'widgets.*.config.sources.*' => ['array:device_uuid,parameter_uuid,device_name,label,unit,data_type,format,display_widget,precision,color,base,thresholds'],
             'widgets.*.config.sources.*.device_uuid' => ['required', 'uuid'],
@@ -106,6 +107,19 @@ final class DashboardDefinition
             $widget['description'] = $widget['description'] ?? '';
             if ($widget['title'] === '') {
                 $this->fail("widgets.$wi.title", 'Enter a panel title.');
+            }
+            if (in_array($widget['type'], ['location', 'alerts'], true)) {
+                if ($widget['config']['sources'] !== [] || isset($widget['config']['columns'])) {
+                    $this->fail("widgets.$wi.config", 'Workflow panels accept one workflow and no parameter sources.');
+                }
+                $workflowId = $widget['config']['workflow_uuid'] ?? null;
+                if (! $workflowId || ! \App\Domain\Automation\Models\Workflow::where('organization_id', $organization->id)->where('uuid', $workflowId)->exists()) {
+                    $this->fail("widgets.$wi.config.workflow_uuid", 'Choose a workflow in this organization.');
+                }
+                continue;
+            }
+            if (isset($widget['config']['workflow_uuid']) || count($widget['config']['sources']) < 1) {
+                $this->fail("widgets.$wi.config", 'Parameter panels require sources and cannot select a workflow.');
             }
             if (array_key_exists('columns', $widget['config'])) {
                 if ($widget['type'] !== 'controls') {
