@@ -1,6 +1,11 @@
-import { lazy, Suspense, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useId, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
+import type { TrailWindow } from "@iot-os/api-client"
+import { Switch } from "@iot-os/ui/components/switch"
+import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { Field, FieldLabel } from "@iot-os/ui/components/field"
+import { trailColors } from "./presentation"
 import { Badge } from "@iot-os/ui/components/badge"
 import { Button } from "@iot-os/ui/components/button"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
@@ -12,13 +17,18 @@ import { telemetryRequest } from "../dashboards/requests"
 const LocationMap = lazy(() => import("./LocationMap").then((module) => ({ default: module.LocationMap })))
 
 export function LocationDashboardPanel({ org, widget, view }: PanelProps) {
+  const controlId = useId()
+  const [showTrails, setShowTrails] = useState(widget.config.show_trails ?? true)
+  const [trailWindow, setTrailWindow] = useState<TrailWindow>(widget.config.trail_window ?? "24h")
+  useEffect(() => setShowTrails(widget.config.show_trails ?? true), [widget.config.show_trails])
+  useEffect(() => setTrailWindow(widget.config.trail_window ?? "24h"), [widget.config.trail_window])
   const devices = widget.config.location_device_uuids ?? []
   const [selected, setSelected] = useState<string | null>(devices[0] ?? null)
   const query = useQuery({
-    queryKey: ["dashboard-location-map", org, devices, widget.config.geofence_uuid, widget.config.show_trails, widget.config.trail_window],
+    queryKey: ["dashboard-location-map", org, devices, widget.config.geofence_uuid, showTrails, trailWindow],
     queryFn: ({ signal }) => telemetryRequest(signal, () => api.locationMap(org, { device_uuids: devices,
-      geofence_uuid: widget.config.geofence_uuid, include_trails: widget.config.show_trails ?? true,
-      trail_window: widget.config.trail_window ?? "24h" }, signal)),
+      geofence_uuid: widget.config.geofence_uuid, include_trails: showTrails,
+      trail_window: trailWindow }, signal)),
     enabled: devices.length > 0,
     refetchInterval: view.refresh ? view.refresh * 1000 : false,
     refetchIntervalInBackground: false,
@@ -39,7 +49,6 @@ export function LocationDashboardPanel({ org, widget, view }: PanelProps) {
   if (query.isPending) return <Skeleton className="h-96 w-full" />
   const current = query.data.devices.find((device) => device.device_uuid === selected) ?? query.data.devices[0]
   const currentIndex = current ? query.data.devices.findIndex((device) => device.device_uuid === current.device_uuid) : -1
-  const trailColors = ["#2563eb", "#16a34a", "#d97706", "#9333ea", "#dc2626", "#0891b2"]
   return <section className="flex min-h-96 flex-col gap-3" aria-label="GPS monitoring map">
     <div className="flex flex-wrap gap-2">
       <Badge variant="secondary">{counts.inside} inside</Badge><Badge variant="outline">{counts.outside} outside</Badge>
@@ -47,6 +56,14 @@ export function LocationDashboardPanel({ org, widget, view }: PanelProps) {
       <Badge variant="outline">{counts.stale} stale</Badge><Badge variant="outline">{counts.unknown} unknown</Badge>
       {query.data.geofence && <Button asChild size="sm" variant="outline"><Link to={`/organizations/${encodeURIComponent(org)}/geofences/${encodeURIComponent(query.data.geofence.uuid)}`}>Edit geofence</Link></Button>}
     </div>
+    <div className="flex flex-wrap items-center gap-4">
+      <Field orientation="horizontal" className="w-auto"><Switch id={controlId} checked={showTrails} onCheckedChange={setShowTrails} /><FieldLabel htmlFor={controlId}>Movement trails</FieldLabel></Field>
+      <ToggleGroup type="single" variant="outline" size="sm" aria-label="Movement trail time limit" value={trailWindow} disabled={!showTrails} onValueChange={(value) => value && setTrailWindow(value as TrailWindow)}>
+        {(["1h", "6h", "24h", "7d"] as const).map((value) => <ToggleGroupItem key={value} value={value} aria-label={`Last ${value} of movement`}>{value}</ToggleGroupItem>)}
+      </ToggleGroup>
+      <span className="text-sm text-muted-foreground">{query.data.geofence?.name ?? "Watch only · no fence selected"}</span>
+    </div>
+    <p className="text-xs text-muted-foreground">Green: inside · Red: outside · Grey: stale or unknown · Dashed lines: movement trails</p>
     <div className="grid min-h-96 gap-3 xl:grid-cols-[minmax(0,1fr)_16rem]">
       <Suspense fallback={<Skeleton className="h-96 w-full" />}><LocationMap devices={query.data.devices} polygon={query.data.geofence?.geometry.coordinates} selected={current?.device_uuid} onSelect={setSelected} showLabels={widget.config.show_labels ?? true} /></Suspense>
       {current && <aside className="flex flex-col gap-3 rounded-md border p-3">
@@ -59,7 +76,7 @@ export function LocationDashboardPanel({ org, widget, view }: PanelProps) {
           <dt>Deployment</dt><dd>{current.deployment_status ?? "Watch only"}</dd>
           <dt>Alert</dt><dd>{current.active_alert ? "Active" : "None"}</dd>
           <dt>Trail colour</dt><dd><span className="inline-block size-3 rounded-full" style={{ backgroundColor: trailColors[Math.max(0, currentIndex) % trailColors.length] }} /> <span className="sr-only">{trailColors[Math.max(0, currentIndex) % trailColors.length]}</span></dd>
-          <dt>Trail</dt><dd>{widget.config.show_trails === false ? "Off" : widget.config.trail_window ?? "24h"}</dd>
+          <dt>Trail</dt><dd>{!showTrails ? "Off" : trailWindow}</dd>
           <dt>Samples</dt><dd>{current.trail.segments.reduce((total, segment) => total + segment.length, 0)}{current.trail.sampled ? "+" : ""}</dd></dl>
         <p className="text-xs text-muted-foreground">{current.latest?.reason.replaceAll("_", " ") ?? "No committed location"}</p>
       </aside>}

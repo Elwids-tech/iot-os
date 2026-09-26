@@ -62,48 +62,64 @@ final class GpsUseCaseSeeder extends Seeder
                 ['organization_id' => $organization->id, 'name' => 'GPS simulator gateway',
                     'username' => 'sim-gps-edge-'.$organization->uuid, 'password' => Str::random(48)],
             );
-            $candidate = DiscoveryCandidate::firstOrCreate(
-                ['sparkplug_gateway_id' => $gateway->id, 'source_device_id' => 'gps-tracker'],
-                ['uuid' => '30000000-0000-4000-8000-000000000102', 'organization_id' => $organization->id,
-                    'status' => 'approved', 'presence' => 'unseen', 'birth_revision' => 1, 'metrics' => $this->metrics()],
-            );
-            $device = Device::firstOrCreate(
-                ['organization_id' => $organization->id, 'code' => self::DEVICE_CODE],
-                ['uuid' => self::DEVICE_UUID, 'name' => 'GPS Demo Tracker', 'serial_number' => 'SIM-GPS-001',
-                    'description' => 'Local simulator device following a route across the demo geofence.',
-                    'lifecycle' => 'deactivated', 'presence' => 'offline', 'deployment_status' => 'inactive',
-                    'deployment_generation' => 0, 'device_discovery_candidate_id' => $candidate->id,
-                    'reserved_source_uuid' => $candidate->uuid, 'created_by' => $actor->id, 'updated_by' => $actor->id],
-            );
+            for ($tracker = 0; $tracker < 3; $tracker++) {
+                $offset = $tracker * 10;
+                $sourceId = $tracker === 0 ? 'gps-tracker' : 'gps-tracker-'.($tracker + 1);
+                $candidate = DiscoveryCandidate::firstOrCreate(
+                    ['sparkplug_gateway_id' => $gateway->id, 'source_device_id' => $sourceId],
+                    ['uuid' => self::fixtureUuid(102 + $offset), 'organization_id' => $organization->id,
+                        'status' => 'approved', 'presence' => 'unseen', 'birth_revision' => 1, 'metrics' => $this->metrics()],
+                );
+                $device = Device::firstOrCreate(
+                    ['organization_id' => $organization->id, 'code' => self::DEVICE_CODE.($tracker === 0 ? '' : '-'.($tracker + 1))],
+                    ['uuid' => self::fixtureUuid(100 + $offset), 'name' => 'GPS Demo Tracker'.($tracker === 0 ? '' : ' '.($tracker + 1)), 'serial_number' => sprintf('SIM-GPS-%03d', $tracker + 1),
+                        'description' => 'Local simulator device following a route across the demo geofence.',
+                        'lifecycle' => 'deactivated', 'presence' => 'offline', 'deployment_status' => 'inactive',
+                        'deployment_generation' => 0, 'device_discovery_candidate_id' => $candidate->id,
+                        'reserved_source_uuid' => $candidate->uuid, 'created_by' => $actor->id, 'updated_by' => $actor->id],
+                );
 
-            $parameters = $profile->parameters()->get()->keyBy('key');
-            $canonical = app(CanonicalJson::class)->encode($artifact->definition);
-            $definition = [
-                'schema_version' => 'device-configuration.v2', 'configuration_uuid' => self::CONFIGURATION_UUID,
-                'device_uuid' => $device->uuid, 'organization_uuid' => $organization->uuid,
-                'profile_artifact_uuid' => $artifact->uuid, 'profile_hash' => $artifact->definition_hash,
-                'profile_canonical_json' => $canonical,
-                'source' => ['connection_uuid' => $connection->uuid, 'candidate_uuid' => $candidate->uuid,
-                    'group_id' => $connection->group_id, 'edge_node_id' => $gateway->edge_node_id, 'device_id' => 'gps-tracker'],
-                'birth_revision' => 1,
-                'mappings' => collect(['location.latitude' => 'Latitude', 'location.longitude' => 'Longitude', 'location.accuracy' => 'Accuracy'])
-                    ->map(fn (string $metric, string $key): array => ['parameter_uuid' => $parameters[$key]->uuid, 'metric' => $metric,
-                        'datatype' => 'Double', 'command_metric' => null, 'command_datatype' => null])->values()->all(),
-            ];
-            $configuration = DeviceConfiguration::firstOrCreate(
-                ['uuid' => self::CONFIGURATION_UUID],
-                ['device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => 1,
-                    'definition_hash' => hash('sha256', app(CanonicalJson::class)->encode($definition)), 'definition' => $definition,
-                    'created_by' => $actor->id, 'created_at' => now()],
-            );
-            if ($device->wasRecentlyCreated) {
-                $device->forceFill(['last_applied_configuration_uuid' => $configuration->uuid])->save();
+                $parameters = $profile->parameters()->get()->keyBy('key');
+                $canonical = app(CanonicalJson::class)->encode($artifact->definition);
+                $definition = [
+                    'schema_version' => 'device-configuration.v2', 'configuration_uuid' => self::fixtureUuid(101 + $offset),
+                    'device_uuid' => $device->uuid, 'organization_uuid' => $organization->uuid,
+                    'profile_artifact_uuid' => $artifact->uuid, 'profile_hash' => $artifact->definition_hash,
+                    'profile_canonical_json' => $canonical,
+                    'source' => ['connection_uuid' => $connection->uuid, 'candidate_uuid' => $candidate->uuid,
+                        'group_id' => $connection->group_id, 'edge_node_id' => $gateway->edge_node_id, 'device_id' => $sourceId],
+                    'birth_revision' => 1,
+                    'mappings' => collect(['location.latitude' => 'Latitude', 'location.longitude' => 'Longitude', 'location.accuracy' => 'Accuracy'])
+                        ->map(fn (string $metric, string $key): array => ['parameter_uuid' => $parameters[$key]->uuid, 'metric' => $metric,
+                            'datatype' => 'Double', 'command_metric' => null, 'command_datatype' => null])->values()->all(),
+                ];
+                $configuration = DeviceConfiguration::firstOrCreate(
+                    ['uuid' => self::fixtureUuid(101 + $offset)],
+                    ['device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => 1,
+                        'definition_hash' => hash('sha256', app(CanonicalJson::class)->encode($definition)), 'definition' => $definition,
+                        'created_by' => $actor->id, 'created_at' => now()],
+                );
+                if ($device->wasRecentlyCreated) {
+                    $device->forceFill(['last_applied_configuration_uuid' => $configuration->uuid])->save();
+                }
+
+                $workflow = $this->workflow($organization, $actor, $device, $configuration, $parameters->all(), $offset);
+                $this->geospatial($organization, $actor, $device, $configuration, $workflow, $parameters->all());
+                if ($tracker === 0) {
+                    $this->dashboard($organization, $actor, $device, $workflow, $parameters->all());
+                }
             }
-
-            $workflow = $this->workflow($organization, $actor, $device, $configuration, $parameters->all());
-            $this->geospatial($organization, $actor, $device, $configuration, $workflow, $parameters->all());
-            $this->dashboard($organization, $actor, $device, $workflow, $parameters->all());
         });
+    }
+
+    public static function fixtureUuid(int $number): string
+    {
+        return sprintf('30000000-0000-4000-8000-%012d', $number);
+    }
+
+    public static function deviceUuids(): array
+    {
+        return [self::DEVICE_UUID, self::fixtureUuid(110), self::fixtureUuid(120)];
     }
 
     private function profile(Organization $organization, User $actor): DeviceProfile
@@ -131,16 +147,17 @@ final class GpsUseCaseSeeder extends Seeder
         });
     }
 
-    private function workflow(Organization $organization, User $actor, Device $device, DeviceConfiguration $configuration, array $parameters): Workflow
+    private function workflow(Organization $organization, User $actor, Device $device, DeviceConfiguration $configuration, array $parameters, int $offset): Workflow
     {
-        $binding = ['schema_version' => 'location-binding.v1', 'uuid' => '30000000-0000-4000-8000-000000000201', 'revision' => 1,
+        $binding = ['schema_version' => 'location-binding.v1', 'uuid' => self::fixtureUuid(201 + $offset), 'revision' => 1,
             'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'configuration_uuid' => $configuration->uuid,
             'generation' => 1, 'latitude_parameter_uuid' => $parameters['location.latitude']->uuid,
             'longitude_parameter_uuid' => $parameters['location.longitude']->uuid, 'accuracy_parameter_uuid' => $parameters['location.accuracy']->uuid,
             'pairing' => 'same_event', 'max_age_seconds' => 90, 'max_future_skew_seconds' => 5, 'allow_unknown_accuracy' => true];
         $geometry = ['type' => 'Polygon', 'coordinates' => [[[-114.01, 50.99], [-113.99, 50.99], [-113.99, 51.01], [-114.01, 51.01], [-114.01, 50.99]]]];
-        $graph = ['schema_version' => 'automation-workflow.v1', 'uuid' => self::WORKFLOW_UUID,
-            'version_uuid' => '30000000-0000-4000-8000-000000000202',
+        $geometry = Geofence::where('uuid', self::WORKFLOW_UUID)->first()?->geometry ?? $geometry;
+        $graph = ['schema_version' => 'automation-workflow.v1', 'uuid' => self::fixtureUuid(200 + $offset),
+            'version_uuid' => self::fixtureUuid(202 + $offset),
             'nodes' => [
                 ['id' => '0', 'type' => 'location.source.v1', 'config' => ['binding' => $binding]],
                 ['id' => '1', 'type' => 'geofence.membership.v1', 'config' => ['geometry' => $geometry, 'uncertainty_metres' => 2]],
@@ -148,12 +165,12 @@ final class GpsUseCaseSeeder extends Seeder
                 ['id' => '3', 'type' => 'alert.condition.v1', 'config' => (object) []],
             ],
             'edges' => [['source' => '0', 'target' => '1'], ['source' => '1', 'target' => '2'], ['source' => '2', 'target' => '3']]];
-        $definition = ['schema_version' => 'geofence-rule.v1', 'uuid' => self::WORKFLOW_UUID,
+        $definition = ['schema_version' => 'geofence-rule.v1', 'uuid' => self::fixtureUuid(200 + $offset),
             'version_uuid' => $graph['version_uuid'], 'evaluator_version' => 'geofence.v1',
             'pipeline' => ['location.source.v1', 'geofence.membership.v1', 'condition.sustained.v1', 'alert.condition.v1'],
             'binding' => $binding, 'geometry' => $geometry,
             'policy' => ['outside_for_seconds' => 60, 'max_gap_seconds' => 45, 'minimum_samples' => 2, 'uncertainty_metres' => 2]];
-        $workflow = Workflow::firstOrCreate(['uuid' => self::WORKFLOW_UUID], ['organization_id' => $organization->id,
+        $workflow = Workflow::firstOrCreate(['uuid' => self::fixtureUuid(200 + $offset)], ['organization_id' => $organization->id,
             'name' => 'GPS demo geofence', 'workflow' => $graph, 'definition' => $definition,
             'definition_hash' => hash('sha256', app(CanonicalJson::class)->encode($definition)), 'updated_by' => $actor->id]);
         if ($workflow->wasRecentlyCreated) {
@@ -168,7 +185,7 @@ final class GpsUseCaseSeeder extends Seeder
     private function geospatial(Organization $organization, User $actor, Device $device, DeviceConfiguration $configuration, Workflow $workflow, array $parameters): void
     {
         $definition = $workflow->definition;
-        $binding = LocationBinding::updateOrCreate(
+        $binding = LocationBinding::firstOrCreate(
             ['organization_id' => $organization->id, 'device_id' => $device->id],
             ['uuid' => $definition['binding']['uuid'], 'configuration_uuid' => $configuration->uuid,
                 'generation' => $definition['binding']['generation'], 'latitude_parameter_uuid' => $parameters['location.latitude']->uuid,
@@ -176,12 +193,12 @@ final class GpsUseCaseSeeder extends Seeder
                 'max_age_seconds' => 90, 'max_future_skew_seconds' => 5, 'allow_unknown_accuracy' => true,
                 'revision' => 1, 'updated_by' => $actor->id],
         );
-        $fence = Geofence::updateOrCreate(['uuid' => $workflow->uuid], ['organization_id' => $organization->id,
+        $fence = Geofence::firstOrCreate(['uuid' => self::WORKFLOW_UUID], ['organization_id' => $organization->id,
             'name' => 'GPS Demo Boundary', 'geometry' => $definition['geometry'], 'revision' => 1,
             'created_by' => $actor->id, 'updated_by' => $actor->id]);
-        GeofenceAssignment::updateOrCreate(['geofence_id' => $fence->id, 'device_location_binding_id' => $binding->id],
+        GeofenceAssignment::firstOrCreate(['geofence_id' => $fence->id, 'device_location_binding_id' => $binding->id],
             ['organization_id' => $organization->id, 'automation_workflow_id' => $workflow->id, 'policy' => $definition['policy'],
-                'desired_geofence_revision' => 1, 'applied_geofence_revision' => $workflow->applied_deployment_uuid ? 1 : null,
+                'desired_geofence_revision' => $fence->revision, 'applied_geofence_revision' => $workflow->applied_deployment_uuid ? $fence->revision : null,
                 'status' => $workflow->deployment_status ?? 'inactive']);
     }
 
@@ -204,7 +221,7 @@ final class GpsUseCaseSeeder extends Seeder
                     $source('location.latitude', 'Latitude', 6, '#2563eb'), $source('location.longitude', 'Longitude', 6, '#16a34a')]]],
             ['id' => 'location', 'schema_version' => 2, 'type' => 'location', 'title' => 'GPS map and geofence',
                 'description' => 'Latest accepted fix, movement trail, and fence state.', 'config' => ['sources' => [],
-                    'workflow_uuid' => $workflow->uuid, 'location_device_uuids' => [$device->uuid], 'geofence_uuid' => $workflow->uuid,
+                    'workflow_uuid' => $workflow->uuid, 'location_device_uuids' => self::deviceUuids(), 'geofence_uuid' => $workflow->uuid,
                     'show_trails' => true, 'show_labels' => true, 'trail_window' => '24h']],
             ['id' => 'alerts', 'schema_version' => 2, 'type' => 'alerts', 'title' => 'Geofence alerts',
                 'description' => 'Active and recent boundary alerts.', 'config' => ['sources' => [], 'workflow_uuid' => $workflow->uuid]],
@@ -219,13 +236,17 @@ final class GpsUseCaseSeeder extends Seeder
             'defaults' => DashboardDefinition::defaults(), 'created_by' => $actor->id, 'updated_by' => $actor->id]);
         if (! $dashboard->wasRecentlyCreated) {
             $locationDefaults = collect($widgets)->firstWhere('id', 'location')['config'];
-            $dashboard->update(['widgets' => collect($dashboard->widgets)->map(function (array $widget) use ($locationDefaults): array {
+            $widgets = collect($dashboard->widgets)->map(function (array $widget) use ($locationDefaults): array {
                 if (($widget['id'] ?? null) === 'location' && ($widget['type'] ?? null) === 'location') {
                     $widget['config'] = [...$locationDefaults, ...($widget['config'] ?? [])];
+                    $widget['config']['location_device_uuids'] = array_values(array_unique([...$widget['config']['location_device_uuids'], ...self::deviceUuids()]));
                 }
 
                 return $widget;
-            })->all()]);
+            })->all();
+            if ($widgets !== $dashboard->widgets) {
+                $dashboard->update(['widgets' => $widgets, 'revision' => $dashboard->revision + 1]);
+            }
         }
     }
 

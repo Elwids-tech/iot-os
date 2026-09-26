@@ -942,3 +942,47 @@ test("enabling a primary button restores full contrast immediately", async ({pag
   await expect.poll(() => page.evaluate(() => (window as any).__enabledOpacity)).not.toBeNull()
   expect(await page.evaluate(() => (window as any).__enabledOpacity)).toBe("1")
 })
+
+
+test("GPS map loads its worker, colours membership, and queries selectable dashed trails", async ({ page }, info) => {
+  const { dashboards, errors } = await setup(page)
+  const ids = [deviceId, "11111111-1111-4111-8111-111111111112", "11111111-1111-4111-8111-111111111113"]
+  dashboards[0].widgets = [{ id: "gps", schema_version: 2, type: "location", title: "GPS monitoring", description: "", config: {
+    sources: [], location_device_uuids: ids, geofence_uuid: "fence", show_trails: true, trail_window: "24h"
+  } }]
+  dashboards[0].layouts = { lg: [{ i: "gps", x: 0, y: 0, w: 12, h: 14 }] }
+  const requests: { trail_window: string; include_trails: boolean }[] = []
+  await page.route("**/location-map/query", route => {
+    const input = route.request().postDataJSON()
+    requests.push(input)
+    return route.fulfill({ json: { data: {
+      schema_version: "location-map.v1", trail_window: input.trail_window,
+      geofence: { uuid: "fence", name: "Demo boundary", revision: 1, geometry: { type: "Polygon", coordinates: [[[-114.01,50.99],[-113.99,50.99],[-113.99,51.01],[-114.01,51.01],[-114.01,50.99]]] } },
+      devices: ids.map((id, index) => ({ device_uuid: id, device_name: `Tracker ${index + 1}`, binding_uuid: id,
+        condition: ["inside", "outside", "unknown"][index], wandering: false, active_alert: null, deployment_status: "applied",
+        latest: { point: { longitude: -114 + index * 0.012, latitude: 51, accuracy_metres: 5 }, live_eligible: index < 2,
+          received_at: new Date().toISOString(), observed_at: new Date().toISOString(), reason: index < 2 ? "eligible" : "stale" },
+        trail: { sampled: false, segments: input.include_trails ? [[{ point: { longitude: -114, latitude: 50.996 } }, { point: { longitude: -114 + index * 0.012, latitude: 51 } }]] : [] }
+      }))
+    } } })
+  })
+  const workerResponse = page.waitForResponse(response => /maplibre-gl-worker.*\.js/.test(response.url()))
+  await page.goto(basePath + "/first")
+  expect((await workerResponse).ok()).toBe(true)
+  await expect(page.getByRole("button", { name: "Tracker 1: inside", exact: true })).toHaveCSS("background-color", "rgb(22, 163, 74)")
+  await expect(page.getByRole("button", { name: "Tracker 2: outside", exact: true })).toHaveCSS("background-color", "rgb(220, 38, 38)")
+  await expect(page.getByRole("button", { name: "Tracker 3: unknown", exact: true })).toHaveCSS("background-color", "rgb(100, 116, 139)")
+  await page.getByRole("radio", { name: "Last 1h of movement", exact: true }).click()
+  await expect.poll(() => requests.at(-1)?.trail_window).toBe("1h")
+  await page.getByRole("switch", { name: "Movement trails", exact: true }).click()
+  await expect.poll(() => requests.at(-1)?.include_trails).toBe(false)
+  await page.getByRole("switch", { name: "Movement trails", exact: true }).click()
+  await expect(page.getByRole("switch", { name: "Movement trails", exact: true })).toBeChecked()
+  await expect(page.getByRole("region", { name: "GPS monitoring map", exact: true }).getByText("Off", { exact: true })).toHaveCount(0)
+  await page.screenshot({ path: info.outputPath("gps-trails-desktop.png") })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByRole("switch", { name: "Movement trails", exact: true })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
+  await page.screenshot({ path: info.outputPath("gps-trails-mobile.png"), fullPage: true })
+  expect(errors).toEqual([])
+})

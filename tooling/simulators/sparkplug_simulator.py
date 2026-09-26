@@ -105,8 +105,8 @@ class Simulator:
         return [metric("Power", sp.Boolean, self.values["power"], 1), metric("Color", sp.String, self.values["color"], 2),
                 metric("Mode", sp.String, self.values["mode"], 3), metric("Brightness", sp.Int32, self.values["brightness"], 4)]
 
-    def location(self, aliases_only=False):
-        latitude, longitude, accuracy = gps_position(time.monotonic() - self.started)
+    def location(self, aliases_only=False, tracker=0):
+        latitude, longitude, accuracy = gps_position(time.monotonic() - self.started, tracker)
         values = [("Latitude", latitude), ("Longitude", longitude), ("Accuracy", accuracy)]
         result = []
         for alias, (name, value) in enumerate(values, 1):
@@ -122,7 +122,8 @@ class Simulator:
             self.seq = 0
             self.send("NBIRTH", [metric("bdSeq", sp.Int64, self.bd_seq), metric("Node Control/Rebirth", sp.Boolean, False), metric("Uptime", sp.Double, time.monotonic() - self.started, 1)])
             if self.gps:
-                self.send("DBIRTH", self.location(), "gps-tracker")
+                for tracker, source in enumerate(("gps-tracker", "gps-tracker-2", "gps-tracker-3")):
+                    self.send("DBIRTH", self.location(tracker=tracker), source)
             else:
                 self.send("DBIRTH", self.meter(), "meter")
                 self.send("DBIRTH", self.light(), "rgb-light")
@@ -199,7 +200,8 @@ class Simulator:
                 with self.lock:
                     if self.online:
                         if self.gps:
-                            self.send("DDATA", self.location(aliases_only=True), "gps-tracker")
+                            for tracker, source in enumerate(("gps-tracker", "gps-tracker-2", "gps-tracker-3")):
+                                self.send("DDATA", self.location(aliases_only=True, tracker=tracker), source)
                         else:
                             self.send("DDATA", self.meter(aliases_only=True), "meter")
                             if int(time.monotonic() - self.started) % 5 == 0:
