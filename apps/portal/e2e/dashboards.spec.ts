@@ -360,7 +360,18 @@ test("multiple dashboards, explicit apply/save, and save before switching", asyn
   expect(calls.writes).toBe(before)
   await page.getByRole("combobox", { name: "Dashboard", exact: true }).click()
   await page.getByRole("option", { name: "Utilities", exact: true }).click()
-  await expect(page.getByRole("alertdialog")).toBeVisible()
+  const leaveDialog = page.getByRole("alertdialog")
+  await expect(leaveDialog).toBeVisible()
+  const dialogBox = await leaveDialog.boundingBox()
+  const footerBox = await leaveDialog
+    .locator('[data-slot="alert-dialog-footer"]')
+    .boundingBox()
+  expect(dialogBox).not.toBeNull()
+  expect(footerBox).not.toBeNull()
+  expect(footerBox!.x).toBeGreaterThanOrEqual(dialogBox!.x)
+  expect(footerBox!.x + footerBox!.width).toBeLessThanOrEqual(
+    dialogBox!.x + dialogBox!.width,
+  )
   await page
     .getByRole("button", { name: "Save and leave", exact: true })
     .click()
