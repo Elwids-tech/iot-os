@@ -11,8 +11,12 @@ import { api } from "../lib/api";
 import { RequestError } from "../components/forms";
 import type { PanelProps } from "./registry";
 import { telemetryRequest } from "./requests";
+import { LocationDashboardPanel } from "../geospatial/LocationDashboardPanel";
 
 export function LocationPanel({ org, widget, view }: PanelProps) {
+  if (widget.config.location_device_uuids?.length) {
+    return <LocationDashboardPanel org={org} widget={widget} view={view} window={{ from: "", to: "" }} />;
+  }
   const id = widget.config.workflow_uuid;
   const query = useQuery({
     queryKey: ["dashboard-workflow-location", org, id],

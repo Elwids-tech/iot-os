@@ -5,9 +5,11 @@ import math
 
 def gps_position(elapsed_seconds: float) -> tuple[float, float, float]:
     """Circle across the demo geofence boundary and return lat, lon, accuracy."""
-    angle = elapsed_seconds / 30.0
+    # A full lap takes about six minutes. Each outside arc lasts long enough to
+    # exercise the seeded 60-second sustained-outside wandering policy.
+    angle = elapsed_seconds / 60.0
     return (
-        51.0 + 0.015 * math.sin(angle),
-        -114.0 + 0.015 * math.cos(angle),
+        51.0 + 0.012 * math.sin(angle),
+        -114.0 + 0.012 * math.cos(angle),
         5.0,
     )

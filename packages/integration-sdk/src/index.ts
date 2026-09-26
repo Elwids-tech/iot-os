@@ -53,6 +53,22 @@ export interface Alert {
   workflow_uuid: string; workflow_name: string; device_uuid: string;
   execution_stopped_reason: string | null;
 }
+export type TrailWindow = "1h" | "6h" | "24h" | "7d";
+export interface GeofencePolicy { outside_for_seconds: number; max_gap_seconds: number; minimum_samples: number; uncertainty_metres: number }
+export interface GeofenceEvent { uuid: string; geofence_uuid: string; geofence_name: string; assignment_uuid: string; device_uuid: string;
+  type: "entered" | "exited" | "wandering_started" | "wandering_resolved"; source_event_uuid: string | null; occurred_at: string }
+export interface GeofenceAssignment { uuid: string; device: { uuid: string; name: string; code: string }; workflow_uuid: string; policy: GeofencePolicy;
+  desired_geofence_revision: number; applied_geofence_revision: number | null; status: string; diagnostic: string | null; deployment_status: string }
+export interface Geofence { uuid: string; name: string; geometry: { type: "Polygon"; coordinates: number[][][] }; revision: number;
+  assignments: GeofenceAssignment[]; created_at: string; updated_at: string }
+export interface GeofenceInput { operation_uuid: string; expected_revision: number; name: string; geometry: Geofence["geometry"];
+  assignments: Array<{ device_uuid: string; policy: GeofencePolicy }> }
+export interface GeofenceActivationBatch { uuid: string; geofence_revision: number; status: "pending" | "partial_failure" | "succeeded";
+  items: Array<{ id: number; assignment_uuid: string; device_uuid: string; operation_uuid: string; target: string; status: string; diagnostic: string | null }> }
+export interface LocationMapSnapshot { schema_version: "location-map.v1"; trail_window: TrailWindow; geofence: Geofence | null;
+  devices: Array<{ device_uuid: string; device_name: string; binding_uuid: string; latest: LocationFix | null; condition: "inside" | "outside" | "unknown";
+    active: boolean; trail: { sampled: boolean; segments: Array<Array<{ event_id: string; observed_at: string | null; received_at: string | null; historical: boolean;
+      point: { latitude: number; longitude: number; accuracy_metres: number | null } }>> } }> }
 export interface Page<T> {
   data: T[];
   meta: { current_page: number; last_page: number; total: number };
@@ -60,10 +76,10 @@ export interface Page<T> {
 export interface IntegrationEvent {
   id: string;
   schema_version: "integration-event.v1";
-  type: "alert.activated.v1" | "alert.cleared.v1" | "alert.acknowledged.v1";
+  type: "alert.activated.v1" | "alert.cleared.v1" | "alert.acknowledged.v1" | "geofence.entered.v1" | "geofence.exited.v1" | "geofence.wandering_started.v1" | "geofence.wandering_resolved.v1";
   occurred_at: string;
   recorded_at: string;
-  data: Alert;
+  data: Alert | GeofenceEvent;
 }
 export interface EventPage { data: IntegrationEvent[]; next_cursor: string; has_more: boolean }
 export interface EventOptions { cursor?: string; limit?: number; signal?: AbortSignal }
@@ -116,8 +132,10 @@ function historyWindow(options: Pick<HistoryOptions, "from" | "to">): void {
 
 function integrationEvent(item: unknown): IntegrationEvent {
   const value = fields(item, ["id", "schema_version", "type", "occurred_at", "recorded_at"], []);
-  if (value.schema_version !== "integration-event.v1" || !["alert.activated.v1", "alert.cleared.v1", "alert.acknowledged.v1"].includes(String(value.type))) throw new IotContractError();
-  return { ...value, data: alert(value.data) } as unknown as IntegrationEvent;
+  const types = ["alert.activated.v1", "alert.cleared.v1", "alert.acknowledged.v1", "geofence.entered.v1", "geofence.exited.v1", "geofence.wandering_started.v1", "geofence.wandering_resolved.v1"];
+  if (value.schema_version !== "integration-event.v1" || !types.includes(String(value.type))) throw new IotContractError();
+  const data = String(value.type).startsWith("alert.") ? alert(value.data) : fields(value.data, ["uuid", "geofence_uuid", "geofence_name", "assignment_uuid", "device_uuid", "type", "occurred_at"], ["source_event_uuid"]);
+  return { ...value, data } as unknown as IntegrationEvent;
 }
 
 /** Verify raw request bytes before parsing. Receivers must also deduplicate IDs. */
@@ -245,6 +263,32 @@ export class IotClient {
     });
     return { ...response, data } as unknown as TelemetryHistory;
   }
+  async locationMap(input: { deviceUuids: string[]; trailWindow?: TrailWindow; includeTrails?: boolean; geofenceUuid?: string; signal?: AbortSignal }): Promise<LocationMapSnapshot> {
+    if (!input.deviceUuids.length || input.deviceUuids.length > 100) throw new TypeError("Choose between 1 and 100 devices.");
+    const response = record(await this.#write("location-map/query", "POST", { device_uuids: input.deviceUuids.map(uuid), trail_window: input.trailWindow ?? "24h", include_trails: input.includeTrails ?? true, geofence_uuid: input.geofenceUuid }, input.signal));
+    return record(response.data) as unknown as LocationMapSnapshot;
+  }
+  async geofences(signal?: AbortSignal): Promise<Geofence[]> {
+    const response = record(await this.#request("geofences", signal));
+    if (!Array.isArray(response.data) || response.data.length > 100) throw new IotContractError();
+    return response.data.map(item => record(item) as unknown as Geofence);
+  }
+  async geofence(id: string, signal?: AbortSignal): Promise<Geofence> {
+    return record(record(await this.#request(`geofences/${uuid(id)}`, signal)).data) as unknown as Geofence;
+  }
+  async createGeofence(input: GeofenceInput, signal?: AbortSignal): Promise<{ data: Geofence; activation: GeofenceActivationBatch }> {
+    return await this.#write("geofences", "POST", input, signal) as { data: Geofence; activation: GeofenceActivationBatch };
+  }
+  async updateGeofence(id: string, input: GeofenceInput, signal?: AbortSignal): Promise<{ data: Geofence; activation: GeofenceActivationBatch }> {
+    return await this.#write(`geofences/${uuid(id)}`, "PUT", input, signal) as { data: Geofence; activation: GeofenceActivationBatch };
+  }
+  async geofenceActivation(id: string, batch: string, signal?: AbortSignal): Promise<GeofenceActivationBatch> {
+    return record(record(await this.#request(`geofences/${uuid(id)}/activations/${uuid(batch)}`, signal)).data) as unknown as GeofenceActivationBatch;
+  }
+  async retryGeofenceActivation(id: string, batch: string, item: number, signal?: AbortSignal): Promise<GeofenceActivationBatch> {
+    if (!Number.isSafeInteger(item) || item < 1) throw new TypeError("A valid activation item is required.");
+    return record(record(await this.#write(`geofences/${uuid(id)}/activations/${uuid(batch)}/items/${item}/retry`, "POST", {}, signal)).data) as unknown as GeofenceActivationBatch;
+  }
   async devices(options: PageOptions = {}): Promise<Page<Device>> {
     return page(await this.#request("devices" + this.#query(options), options.signal), device);
   }
@@ -309,6 +353,19 @@ export class IotClient {
     } catch (error) {
       if (error instanceof IotApiError || error instanceof IotContractError) throw error;
       // Do not expose fetch errors that can contain authorization headers.
+      throw new IotTransportError();
+    } finally { clearTimeout(timer); signal?.removeEventListener("abort", abort); }
+  }
+  async #write(path: string, method: "POST" | "PUT", body: unknown, signal?: AbortSignal): Promise<unknown> {
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), this.#timeout); const abort = () => controller.abort();
+    signal?.addEventListener("abort", abort, { once: true }); if (signal?.aborted) controller.abort();
+    try {
+      const response = await this.#fetch(`${this.#base}/${path}`, { method, headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${this.#token}` },
+        credentials: "omit", redirect: "error", body: JSON.stringify(body), signal: controller.signal });
+      if (!response.ok) { const raw = response.headers.get("Retry-After"); throw new IotApiError(response.status, raw !== null && /^\d+$/.test(raw) ? Number(raw) : null); }
+      try { return await response.json(); } catch { throw new IotContractError(); }
+    } catch (error) {
+      if (error instanceof IotApiError || error instanceof IotContractError) throw error;
       throw new IotTransportError();
     } finally { clearTimeout(timer); signal?.removeEventListener("abort", abort); }
   }

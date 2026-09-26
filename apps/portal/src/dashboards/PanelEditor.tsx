@@ -76,8 +76,9 @@ import { writableParameters, controlSpec } from "../controls/model"
 import { isColorParameter } from "../history/model"
 
 import { WorkflowPanelEditor } from "./WorkflowPanelEditor"
+import { LocationPanelEditor } from "./LocationPanelEditor"
 export function PanelEditor(props: Parameters<typeof ParameterPanelEditor>[0]) {
-  return props.initial.type === "location" || props.initial.type === "alerts" ? <WorkflowPanelEditor {...props} /> : <ParameterPanelEditor {...props} />
+  return props.initial.type === "location" ? <LocationPanelEditor {...props} /> : props.initial.type === "alerts" ? <WorkflowPanelEditor {...props} /> : <ParameterPanelEditor {...props} />
 }
 function ParameterPanelEditor({
   initial,

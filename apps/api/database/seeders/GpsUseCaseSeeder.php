@@ -15,6 +15,9 @@ use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
+use App\Domain\Geospatial\Models\Geofence;
+use App\Domain\Geospatial\Models\GeofenceAssignment;
+use App\Domain\Geospatial\Models\LocationBinding;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Database\Seeder;
@@ -98,6 +101,7 @@ final class GpsUseCaseSeeder extends Seeder
             }
 
             $workflow = $this->workflow($organization, $actor, $device, $configuration, $parameters->all());
+            $this->geospatial($organization, $actor, $device, $configuration, $workflow, $parameters->all());
             $this->dashboard($organization, $actor, $device, $workflow, $parameters->all());
         });
     }
@@ -161,6 +165,26 @@ final class GpsUseCaseSeeder extends Seeder
         return $workflow;
     }
 
+    private function geospatial(Organization $organization, User $actor, Device $device, DeviceConfiguration $configuration, Workflow $workflow, array $parameters): void
+    {
+        $definition = $workflow->definition;
+        $binding = LocationBinding::updateOrCreate(
+            ['organization_id' => $organization->id, 'device_id' => $device->id],
+            ['uuid' => $definition['binding']['uuid'], 'configuration_uuid' => $configuration->uuid,
+                'generation' => $definition['binding']['generation'], 'latitude_parameter_uuid' => $parameters['location.latitude']->uuid,
+                'longitude_parameter_uuid' => $parameters['location.longitude']->uuid, 'accuracy_parameter_uuid' => $parameters['location.accuracy']->uuid,
+                'max_age_seconds' => 90, 'max_future_skew_seconds' => 5, 'allow_unknown_accuracy' => true,
+                'revision' => 1, 'updated_by' => $actor->id],
+        );
+        $fence = Geofence::updateOrCreate(['uuid' => $workflow->uuid], ['organization_id' => $organization->id,
+            'name' => 'GPS Demo Boundary', 'geometry' => $definition['geometry'], 'revision' => 1,
+            'created_by' => $actor->id, 'updated_by' => $actor->id]);
+        GeofenceAssignment::updateOrCreate(['geofence_id' => $fence->id, 'device_location_binding_id' => $binding->id],
+            ['organization_id' => $organization->id, 'automation_workflow_id' => $workflow->id, 'policy' => $definition['policy'],
+                'desired_geofence_revision' => 1, 'applied_geofence_revision' => $workflow->applied_deployment_uuid ? 1 : null,
+                'status' => $workflow->deployment_status ?? 'inactive']);
+    }
+
     private function dashboard(Organization $organization, User $actor, Device $device, Workflow $workflow, array $parameters): void
     {
         $source = fn (string $key, string $label, int $precision, string $color): array => [
@@ -178,8 +202,10 @@ final class GpsUseCaseSeeder extends Seeder
             ['id' => 'trail', 'schema_version' => 2, 'type' => 'timeseries', 'title' => 'Coordinate history',
                 'description' => 'Latitude and longitude over the selected time range.', 'config' => ['sources' => [
                     $source('location.latitude', 'Latitude', 6, '#2563eb'), $source('location.longitude', 'Longitude', 6, '#16a34a')]]],
-            ['id' => 'location', 'schema_version' => 2, 'type' => 'location', 'title' => 'Geofence location',
-                'description' => 'Latest accepted fix and fence state.', 'config' => ['sources' => [], 'workflow_uuid' => $workflow->uuid]],
+            ['id' => 'location', 'schema_version' => 2, 'type' => 'location', 'title' => 'GPS map and geofence',
+                'description' => 'Latest accepted fix, movement trail, and fence state.', 'config' => ['sources' => [],
+                    'workflow_uuid' => $workflow->uuid, 'location_device_uuids' => [$device->uuid], 'geofence_uuid' => $workflow->uuid,
+                    'show_trails' => true, 'show_labels' => true, 'trail_window' => '24h']],
             ['id' => 'alerts', 'schema_version' => 2, 'type' => 'alerts', 'title' => 'Geofence alerts',
                 'description' => 'Active and recent boundary alerts.', 'config' => ['sources' => [], 'workflow_uuid' => $workflow->uuid]],
         ];
@@ -188,9 +214,19 @@ final class GpsUseCaseSeeder extends Seeder
             ['i' => 'trail', 'x' => 0, 'y' => 4, 'w' => 12, 'h' => 6], ['i' => 'location', 'x' => 0, 'y' => 10, 'w' => 6, 'h' => 7],
             ['i' => 'alerts', 'x' => 6, 'y' => 10, 'w' => 6, 'h' => 7],
         ];
-        Dashboard::firstOrCreate(['uuid' => self::DASHBOARD_UUID], ['organization_id' => $organization->id,
+        $dashboard = Dashboard::firstOrCreate(['uuid' => self::DASHBOARD_UUID], ['organization_id' => $organization->id,
             'name' => 'GPS and geofence demo', 'widgets' => $widgets, 'layouts' => ['lg' => $layout],
             'defaults' => DashboardDefinition::defaults(), 'created_by' => $actor->id, 'updated_by' => $actor->id]);
+        if (! $dashboard->wasRecentlyCreated) {
+            $locationDefaults = collect($widgets)->firstWhere('id', 'location')['config'];
+            $dashboard->update(['widgets' => collect($dashboard->widgets)->map(function (array $widget) use ($locationDefaults): array {
+                if (($widget['id'] ?? null) === 'location' && ($widget['type'] ?? null) === 'location') {
+                    $widget['config'] = [...$locationDefaults, ...($widget['config'] ?? [])];
+                }
+
+                return $widget;
+            })->all()]);
+        }
     }
 
     private function metrics(): array

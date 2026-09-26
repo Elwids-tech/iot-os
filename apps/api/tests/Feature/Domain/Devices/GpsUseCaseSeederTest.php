@@ -43,11 +43,16 @@ final class GpsUseCaseSeederTest extends TestCase
         $dashboard = Dashboard::where('uuid', GpsUseCaseSeeder::DASHBOARD_UUID)->firstOrFail();
         $this->assertSame(['status', 'status', 'timeseries', 'location', 'alerts'], collect($dashboard->widgets)->pluck('type')->all());
         $this->assertSame($workflow->uuid, $dashboard->widgets[3]['config']['workflow_uuid']);
+        $this->assertSame([$device->uuid], $dashboard->widgets[3]['config']['location_device_uuids']);
+        $this->assertSame($workflow->uuid, $dashboard->widgets[3]['config']['geofence_uuid']);
 
-        $dashboard->update(['name' => 'My GPS operations view']);
+        $legacyWidgets = $dashboard->widgets;
+        $legacyWidgets[3]['config'] = ['sources' => [], 'workflow_uuid' => $workflow->uuid];
+        $dashboard->update(['name' => 'My GPS operations view', 'widgets' => $legacyWidgets]);
         $this->seed(GpsUseCaseSeeder::class);
 
         $this->assertSame('My GPS operations view', $dashboard->fresh()->name);
+        $this->assertSame([$device->uuid], $dashboard->fresh()->widgets[3]['config']['location_device_uuids']);
         $this->assertSame(1, Device::where('code', GpsUseCaseSeeder::DEVICE_CODE)->count());
         $this->assertSame(1, DiscoveryCandidate::where('source_device_id', 'gps-tracker')->count());
         $this->assertSame(1, Workflow::where('uuid', GpsUseCaseSeeder::WORKFLOW_UUID)->count());

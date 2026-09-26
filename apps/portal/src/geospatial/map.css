@@ -1,0 +1,6 @@
+.location-map-marker,.geofence-vertex{border:2px solid white;box-shadow:0 1px 4px rgb(0 0 0/45%)}
+.location-map-marker{width:1rem;height:1rem;border-radius:9999px;background:var(--marker-color)}
+.location-map-marker[data-selected="true"]{outline:3px solid color-mix(in srgb,var(--marker-color),transparent 45%);outline-offset:2px}
+.location-map-marker[data-label]::after{content:attr(data-label);position:absolute;left:1.1rem;top:-.35rem;white-space:nowrap;border-radius:.25rem;background:rgb(0 0 0/75%);color:white;padding:.125rem .375rem;font-size:.75rem}
+.geofence-vertex{width:.9rem;height:.9rem;border-radius:.2rem;background:#16a34a}
+.geofence-vertex[data-selected="true"]{outline:3px solid rgb(22 163 74/35%);outline-offset:2px}
