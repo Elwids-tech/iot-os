@@ -67,8 +67,7 @@ const history = await client.telemetryHistory(deviceUuid, {
 Both methods support cancellation, validate the public response, and retain the
 SDK's existing timeout/error behavior. They do not retry automatically.
 
-This slice does not expose raw observation pagination, paired location fixes,
-telemetry streaming/webhooks, or ML export. Do not combine independent latest
+SDK 0.5.0 adds [raw observation pagination and stored paired fixes](integration-raw-location.md). Telemetry streaming/webhooks and complete ML export remain pending. Do not combine independent latest
 latitude/longitude values or aggregated history into a GPS fix. Those require
 separate source-fix/provenance contracts. Alert events remain the durable external
 event feed.

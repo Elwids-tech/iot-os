@@ -83,3 +83,23 @@ test('telemetry preserves no data and validates history bounds and response iden
   await assert.rejects(make(async () => Response.json({ ...latest, device_uuid: 'wrong' })).latestTelemetry(id), IotContractError)
   await assert.rejects(make(async () => Response.json({ ...history, data: [{ configuration_uuid: id, unit: null, data_type: 'number', points: [{ at: options.from, value: null, count: -1 }] }] })).telemetryHistory(id, options), IotContractError)
 })
+
+test('raw records preserve provenance and reject malformed pagination', async () => {
+  const options={parameterUuid:id,from:'2026-09-01T00:00:00Z',to:'2026-09-02T00:00:00Z',pageSize:1,limit:2}
+  const row={event_uuid:id,configuration_uuid:id,parameter_uuid:id,received_at:options.from,observed_at:options.from,data_type:'number',unit:null,value:0,quality:'good',timestamp_source:'source',historical:true}
+  const body={schema_version:'telemetry-records.v1',device_uuid:id,parameter_uuid:id,data:[row],meta:{from:options.from,to:options.to,limit:2,page_size:1,returned:1,consumed:1,next_cursor:'signed',has_more:true,limit_reached:false}}
+  const client=make(async()=>Response.json(body))
+  assert.equal((await client.telemetryRecords(id,options)).data[0].historical,true)
+  await assert.rejects(client.telemetryRecords(id,{...options,cursor:'signed'}),IotContractError)
+  await assert.rejects(client.telemetryRecords(id,{...options,limit:5001}),TypeError)
+  await assert.rejects(make(async()=>Response.json({...body,meta:{...body.meta,has_more:false}})).telemetryRecords(id,options),IotContractError)
+  await assert.rejects(make(async()=>Response.json({...body,data:[{...row,historical:'false'}]})).telemetryRecords(id,options),IotContractError)
+})
+test('location fixes preserve unknown and reject invented valid coordinates', async () => {
+  const fix={schema_version:'location-fix.v1',binding_uuid:id,binding_revision:1,event_id:id,organization_uuid:id,device_uuid:id,configuration_uuid:id,generation:1,evaluated_at:'2026-09-01T00:00:00Z',observed_at:null,received_at:null,timestamp_source:'unknown',historical:false,status:'unknown',reason:'incomplete_fix',live_eligible:false,point:null}
+  const client=make(async()=>Response.json({version_uuid:id,data:fix}))
+  assert.equal((await client.locationFix(id,id,id)).point,null)
+  for(const invalid of [{...fix,point:{latitude:0,longitude:0,accuracy_metres:null}},{...fix,status:'valid',point:{latitude:91,longitude:0,accuracy_metres:null}},{...fix,live_eligible:true}]) {
+    await assert.rejects(make(async()=>Response.json({version_uuid:id,data:invalid})).locationFix(id,id,id),IotContractError)
+  }
+})

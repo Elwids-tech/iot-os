@@ -55,7 +55,7 @@ func TestHistoryRecordsUsesStableLimitedKeysetPagination(t *testing.T) {
 			UUID: eventUUID, Generation: 1, Definition: definition, SessionID: "history",
 			Readings: []devices.Reading{{
 				ParameterUUID: parameter, DataType: "integer", Value: index,
-				Quality: "good", ObservedAt: receivedAt, ReceivedAt: receivedAt,
+				Quality: "good", ObservedAt: receivedAt, ReceivedAt: receivedAt, TimestampSource: "source", Historical: true,
 			}},
 		}
 		if err := store.Persist(ctx, packet); err != nil {
@@ -70,6 +70,23 @@ func TestHistoryRecordsUsesStableLimitedKeysetPagination(t *testing.T) {
 	}
 	if len(first.Records) != 2 || first.Next == nil || first.Consumed != 2 || first.LimitReached {
 		t.Fatalf("unexpected first page: %#v", first)
+	}
+	if first.Records[0].TimestampSource != "source" || !first.Records[0].Historical {
+		t.Fatal("raw provenance lost")
+	}
+	committed, err := store.CommittedEvent(ctx, organization, definition.DeviceUUID, events[0], time.Now().Add(-time.Hour), time.Now().Add(time.Minute))
+	if err != nil || committed == nil || committed.Sequence == "" || committed.Readings[0].ParameterUUID != parameter {
+		t.Fatalf("stored event unavailable: %v %v", committed, err)
+	}
+	for _, scope := range [][2]string{{UUID(), definition.DeviceUUID}, {organization, UUID()}} {
+		hidden, err := store.CommittedEvent(ctx, scope[0], scope[1], events[0], time.Now().Add(-time.Hour), time.Now().Add(time.Minute))
+		if err != nil || hidden != nil {
+			t.Fatal("stored event crossed scope", err)
+		}
+	}
+	expired, err := store.CommittedEvent(ctx, organization, definition.DeviceUUID, events[0], time.Now().Add(time.Minute), time.Now().Add(time.Hour))
+	if err != nil || expired != nil {
+		t.Fatal("stored event crossed retention", err)
 	}
 	second, err := store.HistoryRecords(ctx, organization, definition.DeviceUUID, parameter, from, to, 3, 2, first.Next)
 	if err != nil {

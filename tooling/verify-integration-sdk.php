@@ -33,6 +33,26 @@ try {
     }
     $workflow = Workflow::create(['organization_id' => $org->id, 'name' => 'SDK fixture boundary', 'workflow' => [], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => $actor->id]);
     $deployment = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $actor->id, 'created_at' => now(), 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('a', 64), 'definition' => ['binding' => ['device_uuid' => $devices[0]->uuid]]]);
+    if ($telemetry !== null) {
+        $latitude = (string) Str::uuid(); $longitude = (string) Str::uuid();
+        $binding = ['schema_version' => 'location-binding.v1', 'uuid' => (string) Str::uuid(), 'revision' => 1, 'organization_uuid' => $org->uuid, 'device_uuid' => $devices[0]->uuid, 'configuration_uuid' => $configuration, 'generation' => 1, 'latitude_parameter_uuid' => $latitude, 'longitude_parameter_uuid' => $longitude, 'accuracy_parameter_uuid' => null, 'pairing' => 'same_event', 'max_age_seconds' => 3600, 'max_future_skew_seconds' => 30, 'allow_unknown_accuracy' => true];
+        $locationVersion = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $actor->id, 'created_at' => now(), 'generation' => 2, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('b', 64), 'definition' => ['binding' => $binding]]);
+        $gpsEvents = [];
+        for ($index = 0; $index < 3; $index++) {
+            $eventID = (string) Str::uuid(); $gpsEvents[] = $eventID;
+            $readings = [];
+            foreach ([$latitude => 51.5, $longitude => -114.1] as $parameterID => $value) {
+                if ($index === 2 && $parameterID === $longitude) { continue; }
+                $gpsReading = [...$reading, 'parameter_uuid' => $parameterID, 'key' => $parameterID === $latitude ? 'latitude' : 'longitude', 'unit' => 'deg', 'value' => $value];
+                $readings[] = $gpsReading;
+                DB::table('device_runtime.observations')->insert([...$row, 'parameter_uuid' => $parameterID, 'event_uuid' => $eventID, 'observed_at' => $at, 'reading' => json_encode($gpsReading, JSON_THROW_ON_ERROR)]);
+            }
+            $event = ['schema_version' => 'telemetry.committed.v1', 'event_id' => $eventID, 'telemetry_id' => $eventID, 'sequence' => '', 'organization_uuid' => $org->uuid, 'device_uuid' => $devices[0]->uuid, 'configuration_uuid' => $configuration, 'generation' => 1, 'readings' => $readings];
+            // Already published fixture rows never enter the live broker or rules pipeline.
+            DB::table('device_runtime.telemetry_outbox')->insert(['telemetry_uuid' => $eventID, 'organization_uuid' => $org->uuid, 'event' => json_encode($event, JSON_THROW_ON_ERROR), 'created_at' => $at, 'published_at' => now()]);
+        }
+        $telemetry += ['latitude' => $latitude, 'events' => $gpsEvents, 'version' => $locationVersion->uuid];
+    }
     $alert = Alert::create(['organization_id' => $org->id, 'automation_workflow_id' => $workflow->id, 'automation_deployment_id' => $deployment->id, 'episode' => 1, 'activated_at' => now()]);
     @unlink('/tmp/iot-sdk-release');
     file_put_contents('/tmp/iot-sdk-fixture.json', json_encode(['organization' => $org->uuid, 'foreign' => $foreign->uuid, 'devices' => array_map(fn ($d) => $d->uuid, $devices), 'alert' => $alert->uuid, 'adminToken' => $token->plainTextToken, 'telemetry' => $telemetry], JSON_THROW_ON_ERROR));
@@ -55,6 +75,7 @@ try {
     Deployment::whereIn('automation_workflow_id', $workflows)->delete();
     Workflow::where('organization_id', $org->id)->delete();
     if (getenv('IOT_VERIFY_TELEMETRY') === '1') {
+        DB::table('device_runtime.telemetry_outbox')->where('organization_uuid', $org->uuid)->delete();
         DB::table('device_runtime.latest')->where('organization_uuid', $org->uuid)->delete();
         DB::table('device_runtime.observations')->where('organization_uuid', $org->uuid)->delete();
     }

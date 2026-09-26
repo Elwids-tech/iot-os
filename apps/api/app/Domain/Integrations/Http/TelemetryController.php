@@ -37,19 +37,46 @@ final class TelemetryController
             ]), $result['data'] ?? [])];
     }
 
-    public function history(Request $request, Organization $organization, string $uuid): array
+    public function records(Request $request, Organization $organization, string $uuid): array
     {
         $device = $this->device($request, $organization, $uuid);
+        $values = $this->window($request);
+        $values += $request->validate([
+            'limit' => ['sometimes', 'integer', 'min:1', 'max:5000'],
+            'page_size' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'cursor' => ['sometimes', 'string', 'max:512'],
+        ]);
+        $result = app(RuntimeClient::class)->request('GET', '/internal/measurements/records', [
+            ...$values, 'limit' => $values['limit'] ?? 500, 'page_size' => $values['page_size'] ?? 50,
+            'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid,
+            'retention_days' => app(RetentionService::class)->effective($organization)['days'],
+        ]);
+        return ['schema_version' => 'telemetry-records.v1', 'device_uuid' => $device->uuid,
+            'parameter_uuid' => $values['parameter_uuid'],
+            'data' => array_map(fn (array $row) => Arr::only($row, [
+                'event_uuid', 'configuration_uuid', 'parameter_uuid', 'received_at', 'observed_at',
+                'data_type', 'unit', 'value', 'quality', 'timestamp_source', 'historical',
+            ]), $result['data']),
+            'meta' => Arr::only($result['meta'], ['from', 'to', 'limit', 'page_size', 'returned', 'consumed', 'next_cursor', 'has_more', 'limit_reached'])];
+    }
+
+    private function window(Request $request): array
+    {
         $values = $request->validate([
             'parameter_uuid' => ['required', 'uuid'],
             'from' => ['required', 'date', 'regex:/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/'],
             'to' => ['required', 'date', 'regex:/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/', 'after:from'],
-            'max_points' => ['sometimes', 'integer', 'min:10', 'max:1000'],
         ]);
-        $from = CarbonImmutable::parse($values['from']); $to = CarbonImmutable::parse($values['to']);
-        if ($from->diffInSeconds($to) > 31 * 86400) {
+        if (CarbonImmutable::parse($values['from'])->diffInSeconds(CarbonImmutable::parse($values['to'])) > 31 * 86400) {
             throw ValidationException::withMessages(['to' => 'Use a history window of at most 31 days.']);
         }
+        return $values;
+    }
+
+    public function history(Request $request, Organization $organization, string $uuid): array
+    {
+        $device = $this->device($request, $organization, $uuid);
+        $values = $this->window($request) + $request->validate(['max_points' => ['sometimes', 'integer', 'min:10', 'max:1000']]);
         $retention = app(RetentionService::class)->effective($organization)['days'];
         $result = app(RuntimeClient::class)->request('GET', '/internal/measurements/history', [
             ...$values, 'max_points' => $values['max_points'] ?? 500,

@@ -23,6 +23,9 @@ Route::prefix('v1/organizations/{organization}/applications')->middleware(['auth
 Route::prefix('integration/v1/organizations/{organization}')->middleware('throttle:240,1')->group(function (): void {
     Route::get('events/checkpoint', [EventController::class, 'checkpoint'])->middleware(AuthenticateApplication::class.':events:read');
     Route::get('events', [EventController::class, 'index'])->middleware(AuthenticateApplication::class.':events:read');
+    Route::get('devices/{uuid}/telemetry/records', [\App\Domain\Integrations\Http\TelemetryController::class, 'records'])->middleware(AuthenticateApplication::class.':telemetry:read');
+    Route::get('devices/{uuid}/location-bindings', [\App\Domain\Integrations\Http\LocationController::class, 'bindings'])->middleware(AuthenticateApplication::class.':telemetry:read');
+    Route::get('devices/{uuid}/locations/{event}', [\App\Domain\Integrations\Http\LocationController::class, 'show'])->middleware(AuthenticateApplication::class.':telemetry:read');
     Route::get('devices/{uuid}/telemetry/latest', [\App\Domain\Integrations\Http\TelemetryController::class, 'latest'])->middleware(AuthenticateApplication::class.':telemetry:read');
     Route::get('devices/{uuid}/telemetry/history', [\App\Domain\Integrations\Http\TelemetryController::class, 'history'])->middleware(AuthenticateApplication::class.':telemetry:read');
     Route::get('devices', [ReadController::class, 'devices'])->middleware(AuthenticateApplication::class.':devices:read');

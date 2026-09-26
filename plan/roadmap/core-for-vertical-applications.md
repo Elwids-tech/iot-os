@@ -174,6 +174,6 @@ queued delivery to opted-in members. Portal notification settings and audited, g
 
 **P3 progress:** [Scoped application access and the TypeScript/Node SDK](../../docs/application-access.md) provide organization/device grants, token lifecycle and read-only device/alert APIs. Verified using a separately installed package against the rebuilt API. The [durable alert-event journal and consumer recovery](../../docs/integration-events.md) are also implemented; [signed webhooks](../../docs/integration-webhooks.md) are delivered. [Latest telemetry and chart history](../../docs/integration-telemetry.md) are delivered in SDK 0.4.0.
 
-**Next task:** P3 raw telemetry and paired location read contracts. Cooldown/escalation policies remain requirement-led.
+**Next task:** P3 integration management UI. [Raw telemetry and paired location reads](../../docs/integration-raw-location.md) are delivered in SDK 0.5.0. Cooldown/escalation policies remain requirement-led.
 The visual builder is deferred at the user's request. Keep Laine's customer
 workflow and hardware choices open while making the generic core demonstrable.

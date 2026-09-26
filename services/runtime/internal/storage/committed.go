@@ -2,10 +2,35 @@ package storage
 
 import (
 	"context"
+	"errors"
+	"github.com/jackc/pgx/v5"
 	"strconv"
+	"time"
 
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
 )
+
+// Read one persisted event by tenant/device identity. The outbox is not exposed
+// as a public stream; retention still bounds reads even while rows are retained.
+func (s *Store) CommittedEvent(ctx context.Context, org, device, id string, cutoff, until time.Time) (*devices.CommittedTelemetry, error) {
+	var raw []byte
+	var sequence int64
+	err := s.Pool.QueryRow(ctx, `SELECT sequence,event FROM device_runtime.telemetry_outbox
+	 WHERE telemetry_uuid=$1 AND organization_uuid=$2 AND event->>'device_uuid'=$3
+	 AND created_at >= $4 AND created_at <= $5`, id, org, device, cutoff, until).Scan(&sequence, &raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var event devices.CommittedTelemetry
+	if err = Decode(raw, &event); err != nil {
+		return nil, err
+	}
+	event.Sequence = strconv.FormatInt(sequence, 10)
+	return &event, nil
+}
 
 func (s *Store) CommittedPending(ctx context.Context) ([]devices.CommittedTelemetry, error) {
 	rows, err := s.Pool.Query(ctx, "SELECT sequence,event FROM device_runtime.telemetry_outbox WHERE published_at IS NULL ORDER BY sequence LIMIT 100")

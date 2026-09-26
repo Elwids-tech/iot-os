@@ -146,4 +146,27 @@ final class ApplicationTest extends TestCase
             $this->api($issued['token'], 'GET', $path.'?'.http_build_query([...$query, ...$invalid]))->assertUnprocessable();
         }
     }
+
+    public function test_raw_records_and_location_binding_scope(): void
+    {
+        config(['devices.runtime_token' => 'test', 'devices.runtime_url' => 'http://runtime']);
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response(['data' => [], 'meta' => ['has_more' => false, 'next_cursor' => null], 'found' => true])]);
+        $app = $this->api($this->admin, 'POST', $this->manage, ['name' => 'Raw telemetry', 'device_uuids' => [$this->device->uuid], 'abilities' => ['telemetry:read']])->assertCreated()->json('data');
+        $issued = $this->token($app, ['telemetry:read']);
+        $base = $this->read.'/devices/'.$this->device->uuid;
+        $query = ['parameter_uuid' => $this->device->uuid, 'from' => '2026-09-01T00:00:00Z', 'to' => '2026-09-02T00:00:00Z', 'page_size' => 1, 'limit' => 2, 'cursor' => 'signed-cursor'];
+        $this->api($issued['token'], 'GET', $base.'/telemetry/records?'.http_build_query($query))->assertOk()->assertJsonPath('schema_version', 'telemetry-records.v1');
+        \Illuminate\Support\Facades\Http::assertSent(fn ($request) => $request['cursor'] === 'signed-cursor' && $request['device_uuid'] === $this->device->uuid && $request['organization_uuid'] === $this->org->uuid);
+        foreach ([['page_size' => 101], ['limit' => 5001], ['cursor' => str_repeat('a', 513)]] as $invalid) {
+            $this->api($issued['token'], 'GET', $base.'/telemetry/records?'.http_build_query([...$query, ...$invalid]))->assertUnprocessable();
+        }
+        $workflow = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Location', 'workflow' => [], 'definition' => [], 'definition_hash' => str_repeat('a',64), 'updated_by' => User::where('is_super_admin', true)->firstOrFail()->id]);
+        $version = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $workflow->updated_by, 'created_at' => now(), 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('a',64), 'definition' => ['binding' => ['schema_version' => 'location-binding.v1', 'organization_uuid' => $this->org->uuid, 'device_uuid' => $this->device->uuid], 'private' => 'hidden']]);
+        $this->api($issued['token'], 'GET', $base.'/location-bindings')->assertOk()->assertJsonPath('data.0.version_uuid', $version->uuid)->assertJsonMissing(['private' => 'hidden']);
+        $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.$version->uuid)->assertOk();
+        $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.\Illuminate\Support\Str::uuid())->assertNotFound();
+        $workflow->update(['organization_id' => Organization::where('slug', 'northstar-utilities')->firstOrFail()->id]);
+        $this->api($issued['token'], 'GET', $base.'/location-bindings')->assertOk()->assertJsonPath('data', []);
+        $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.$version->uuid)->assertNotFound();
+    }
 }

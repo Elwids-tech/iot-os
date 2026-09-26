@@ -1,3 +1,30 @@
+export interface TelemetryRecord {
+  event_uuid: string; configuration_uuid: string; parameter_uuid: string;
+  received_at: string; observed_at: string; data_type: string; unit: string | null;
+  value: unknown; quality: string; timestamp_source: string; historical: boolean;
+}
+export interface RecordOptions extends Omit<HistoryOptions, "maxPoints"> {
+  limit?: number; pageSize?: number; cursor?: string;
+}
+export interface TelemetryRecords {
+  schema_version: "telemetry-records.v1"; device_uuid: string; parameter_uuid: string; data: TelemetryRecord[];
+  meta: { from: string; to: string; limit: number; page_size: number; returned: number;
+    consumed: number; next_cursor: string | null; has_more: boolean; limit_reached: boolean };
+}
+export interface LocationBinding {
+  version_uuid: string;
+  binding: { schema_version: "location-binding.v1"; uuid: string; revision: number;
+    organization_uuid: string; device_uuid: string; configuration_uuid: string; generation: number;
+    latitude_parameter_uuid: string; longitude_parameter_uuid: string; accuracy_parameter_uuid: string | null;
+    pairing: "same_event"; max_age_seconds: number; max_future_skew_seconds: number; allow_unknown_accuracy: boolean };
+}
+export interface LocationFix {
+  schema_version: "location-fix.v1"; binding_uuid: string; binding_revision: number;
+  event_id: string; organization_uuid: string; device_uuid: string; configuration_uuid: string;
+  generation: number; evaluated_at: string; observed_at: string | null; received_at: string | null;
+  timestamp_source: string; historical: boolean; status: "unknown" | "valid"; reason: string;
+  live_eligible: boolean; point: { latitude: number; longitude: number; accuracy_metres: number | null } | null;
+}
 export interface TelemetryReading {
   parameter_uuid: string; key: string; label: string; data_type: string; unit: string | null;
   value: unknown; quality: string; observed_at: string; received_at: string;
@@ -81,6 +108,12 @@ function page<T>(value: unknown, parse: (item: unknown) => T): Page<T> {
   return { data: result.data.map(parse), meta: meta as unknown as Page<T>["meta"] };
 }
 
+function historyWindow(options: Pick<HistoryOptions, "from" | "to">): void {
+    const format = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/;
+    const span = Date.parse(options.to) - Date.parse(options.from);
+    if (!format.test(options.from) || !format.test(options.to) || !Number.isFinite(span) || span <= 0 || span > 31 * 86400000) throw new TypeError("Use RFC3339 timestamps and a history window of at most 31 days.");
+}
+
 function integrationEvent(item: unknown): IntegrationEvent {
   const value = fields(item, ["id", "schema_version", "type", "occurred_at", "recorded_at"], []);
   if (value.schema_version !== "integration-event.v1" || !["alert.activated.v1", "alert.cleared.v1", "alert.acknowledged.v1"].includes(String(value.type))) throw new IotContractError();
@@ -143,6 +176,43 @@ export class IotClient {
     const data = response.data.map(integrationEvent);
     return { data, next_cursor: response.next_cursor, has_more: response.has_more };
   }
+  async telemetryRecords(id: string, options: RecordOptions): Promise<TelemetryRecords> {
+    historyWindow(options);
+    const limit = options.limit ?? 500, size = options.pageSize ?? 50;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 5000 || !Number.isInteger(size) || size < 1 || size > 100) throw new TypeError("Invalid record limits.");
+    if (options.cursor !== undefined && (!options.cursor || options.cursor.length > 512)) throw new TypeError("Invalid record cursor.");
+    const query = new URLSearchParams({ parameter_uuid: uuid(options.parameterUuid), from: options.from, to: options.to, limit: String(limit), page_size: String(size) });
+    if (options.cursor !== undefined) query.set("cursor", options.cursor);
+    const response = record(await this.#request(`devices/${uuid(id)}/telemetry/records?${query}`, options.signal));
+    const meta = fields(response.meta, ["from", "to"], ["next_cursor"]);
+    if (response.schema_version !== "telemetry-records.v1" || response.device_uuid !== id || response.parameter_uuid !== options.parameterUuid || !Array.isArray(response.data) || response.data.length > size || meta.limit !== limit || meta.page_size !== size || meta.returned !== response.data.length || !Number.isInteger(meta.consumed) || Number(meta.consumed) < response.data.length || Number(meta.consumed) > limit || typeof meta.has_more !== "boolean" || typeof meta.limit_reached !== "boolean" || meta.has_more !== (meta.next_cursor !== null) || (meta.has_more && (!response.data.length || Number(meta.consumed) >= limit || meta.limit_reached)) || (meta.limit_reached && Number(meta.consumed) !== limit) || (typeof meta.next_cursor === "string" && (!meta.next_cursor || meta.next_cursor.length > 512 || meta.next_cursor === options.cursor))) throw new IotContractError();
+    const data = response.data.map(item => {
+      const row = fields(item, ["event_uuid", "configuration_uuid", "parameter_uuid", "received_at", "observed_at", "data_type", "quality", "timestamp_source"], ["unit"]);
+      if (row.parameter_uuid !== options.parameterUuid || !("value" in row) || typeof row.historical !== "boolean") throw new IotContractError();
+      return row as unknown as TelemetryRecord;
+    });
+    return { ...response, data, meta } as unknown as TelemetryRecords;
+  }
+  async locationBindings(id: string, options: PageOptions = {}): Promise<Page<LocationBinding>> {
+    return page(await this.#request(`devices/${uuid(id)}/location-bindings` + this.#query(options), options.signal), item => {
+      const version = fields(item, ["version_uuid"], []);
+      const binding = fields(version.binding, ["uuid", "organization_uuid", "device_uuid", "configuration_uuid", "latitude_parameter_uuid", "longitude_parameter_uuid"], ["accuracy_parameter_uuid"]);
+      if (binding.schema_version !== "location-binding.v1" || binding.pairing !== "same_event" || binding.device_uuid !== id || !["revision", "generation", "max_age_seconds"].every(key => Number.isInteger(binding[key]) && Number(binding[key]) > 0) || !Number.isInteger(binding.max_future_skew_seconds) || Number(binding.max_future_skew_seconds) < 0 || typeof binding.allow_unknown_accuracy !== "boolean") throw new IotContractError();
+      return { version_uuid: version.version_uuid, binding } as unknown as LocationBinding;
+    });
+  }
+  async locationFix(id: string, eventId: string, versionUuid: string, signal?: AbortSignal): Promise<LocationFix> {
+    const response = record(await this.#request(`devices/${uuid(id)}/locations/${uuid(eventId)}?version_uuid=${uuid(versionUuid)}`, signal));
+    const fix = fields(response.data, ["binding_uuid", "event_id", "organization_uuid", "device_uuid", "configuration_uuid", "evaluated_at", "timestamp_source", "reason"], ["observed_at", "received_at"]);
+    if (response.version_uuid !== versionUuid || fix.schema_version !== "location-fix.v1" || fix.event_id !== eventId || fix.device_uuid !== id || !["binding_revision", "generation"].every(key => Number.isInteger(fix[key]) && Number(fix[key]) > 0) || !["valid", "unknown"].includes(String(fix.status)) || typeof fix.historical !== "boolean" || typeof fix.live_eligible !== "boolean") throw new IotContractError();
+    if (fix.status === "unknown") {
+      if (fix.point !== null || fix.live_eligible) throw new IotContractError();
+    } else {
+      const point = record(fix.point);
+      if (typeof point.latitude !== "number" || !Number.isFinite(point.latitude) || Math.abs(point.latitude) > 90 || typeof point.longitude !== "number" || !Number.isFinite(point.longitude) || Math.abs(point.longitude) > 180 || (point.accuracy_metres !== null && (typeof point.accuracy_metres !== "number" || !Number.isFinite(point.accuracy_metres) || point.accuracy_metres < 0)) || (fix.historical && fix.live_eligible)) throw new IotContractError();
+    }
+    return fix as unknown as LocationFix;
+  }
   async latestTelemetry(id: string, signal?: AbortSignal): Promise<LatestTelemetry> {
     const response = fields(await this.#request(`devices/${uuid(id)}/telemetry/latest`, signal), ["device_uuid", "presence"], ["configuration_uuid"]);
     if (response.schema_version !== "telemetry-latest.v1" || response.device_uuid !== id || !Array.isArray(response.data)) throw new IotContractError();
@@ -154,9 +224,7 @@ export class IotClient {
     return { ...response, data } as unknown as LatestTelemetry;
   }
   async telemetryHistory(id: string, options: HistoryOptions): Promise<TelemetryHistory> {
-    const format = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/;
-    const span = Date.parse(options.to) - Date.parse(options.from);
-    if (!format.test(options.from) || !format.test(options.to) || !Number.isFinite(span) || span <= 0 || span > 31 * 86400000) throw new TypeError("Use RFC3339 timestamps and a history window of at most 31 days.");
+    historyWindow(options);
     const max = options.maxPoints ?? 500;
     if (!Number.isInteger(max) || max < 10 || max > 1000) throw new TypeError("maxPoints must be between 10 and 1000.");
     const query = new URLSearchParams({ parameter_uuid: uuid(options.parameterUuid), from: options.from, to: options.to, max_points: String(max) });

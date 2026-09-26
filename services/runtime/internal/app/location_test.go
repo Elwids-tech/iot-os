@@ -49,3 +49,22 @@ func TestLocationPreviewRequiresRuntimeAuthentication(t *testing.T) {
 		t.Fatal(response.Code)
 	}
 }
+
+func TestStoredLocationRejectsUnauthenticatedAndInvalidRequests(t *testing.T) {
+	a := &Application{Control: &ControlClient{Token: "test-token"}}
+	for _, authorized := range []bool{false, true} {
+		req := httptest.NewRequest(http.MethodPost, "/internal/locations/read", bytes.NewBufferString(`{}`))
+		if authorized {
+			req.Header.Set("Authorization", "Bearer test-token")
+		}
+		response := httptest.NewRecorder()
+		a.Handler().ServeHTTP(response, req)
+		expected := 401
+		if authorized {
+			expected = 422
+		}
+		if response.Code != expected {
+			t.Fatal(response.Code, response.Body.String())
+		}
+	}
+}

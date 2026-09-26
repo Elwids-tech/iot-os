@@ -347,6 +347,8 @@ type HistoryCursor struct {
 }
 
 type HistoryRecord struct {
+	TimestampSource   string    `json:"timestamp_source"`
+	Historical        bool      `json:"historical"`
 	EventUUID         string    `json:"event_uuid"`
 	ConfigurationUUID string    `json:"configuration_uuid"`
 	ParameterUUID     string    `json:"parameter_uuid"`
@@ -411,6 +413,8 @@ func (s *Store) HistoryRecords(ctx context.Context, org, device, param string, f
 		record.Unit = reading.Unit
 		record.Value = reading.Value
 		record.Quality = reading.Quality
+		record.TimestampSource = reading.TimestampSource
+		record.Historical = reading.Historical
 		record.Diagnostic = reading.Diagnostic
 		records = append(records, record)
 	}

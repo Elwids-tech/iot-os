@@ -9,7 +9,7 @@ published to a registry.
 pnpm --filter @iot-os/integration-sdk build
 pnpm --filter @iot-os/integration-sdk pack --pack-destination /tmp
 # In an independent application:
-npm install /tmp/iot-os-integration-sdk-0.4.0.tgz
+npm install /tmp/iot-os-integration-sdk-0.5.0.tgz
 ```
 
 ```ts
@@ -105,3 +105,15 @@ History is receipt-time chart aggregation over at most 31 days, clipped by
 retention. Empty data is not zero; latest quality/timestamps must be checked.
 Independent parameter readings are not paired GPS fixes. See
 [the telemetry contract](../../docs/integration-telemetry.md) for bounds and semantics.
+
+## Raw records and paired location fixes (0.5.0)
+
+`telemetryRecords(deviceUuid, {parameterUuid, from, to, pageSize?, limit?, cursor?})`
+reads unaggregated good-quality observations with signed keyset pagination. Check
+`meta.limit_reached`; the total cap is not a complete export.
+
+`locationBindings(deviceUuid)` lists approved immutable location bindings.
+`locationFix(deviceUuid, eventUuid, versionUuid)` resolves stored evidence through
+the selected binding. Incomplete or stale fixes remain unknown; historical fixes
+are not live eligible. Both use the existing `telemetry:read` ability. See
+[raw/location semantics](../../docs/integration-raw-location.md).

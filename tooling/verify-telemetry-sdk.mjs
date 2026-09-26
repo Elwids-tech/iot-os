@@ -30,3 +30,37 @@ await assert.rejects(client.devices(),error=>error instanceof IotApiError && err
 const foreign=new IotClient({baseUrl:origin,organization:fixture.foreign,token:issued.token,allowInsecureLocalhost:true})
 await assert.rejects(foreign.latestTelemetry(fixture.devices[0]),error=>error instanceof IotApiError && error.status===404)
 console.log('PASS live telemetry SDK: retained latest quality, numeric history, no data, device grants, ability and tenant isolation.')
+
+const rawOptions={...options,parameterUuid:fixture.telemetry.latitude,pageSize:1,limit:3}
+const events=[]
+let cursor
+for(let page=0;page<3;page++){
+ const result=await client.telemetryRecords(fixture.devices[0],{...rawOptions,...(cursor?{cursor}:{})})
+ assert.equal(result.data.length,1)
+ assert.equal(result.data[0].timestamp_source,'source')
+ assert.equal(result.data[0].historical,false)
+ events.push(result.data[0].event_uuid)
+ cursor=result.meta.next_cursor
+}
+assert.equal(cursor,null)
+assert.equal(new Set(events).size,3)
+assert.deepEqual([...events].sort(),[...fixture.telemetry.events].sort())
+const limited=await client.telemetryRecords(fixture.devices[0],{...rawOptions,limit:1})
+assert.equal(limited.meta.limit_reached,true)
+assert.equal(limited.meta.next_cursor,null)
+const first=await client.telemetryRecords(fixture.devices[0],rawOptions)
+await assert.rejects(client.telemetryRecords(fixture.devices[0],{...rawOptions,cursor:first.meta.next_cursor+'tampered'}),e=>e instanceof IotApiError && e.status===422)
+await assert.rejects(client.telemetryRecords(fixture.devices[1],{...rawOptions,cursor:first.meta.next_cursor}),e=>e instanceof IotApiError && e.status===422)
+const bindings=await client.locationBindings(fixture.devices[0])
+assert.equal(bindings.data[0].version_uuid,fixture.telemetry.version)
+const fix=await client.locationFix(fixture.devices[0],fixture.telemetry.events[0],fixture.telemetry.version)
+assert.equal(fix.status,'valid')
+assert.equal(fix.point.latitude,51.5)
+assert.equal(fix.point.longitude,-114.1)
+assert.equal(fix.point.accuracy_metres,null)
+const incomplete=await client.locationFix(fixture.devices[0],fixture.telemetry.events[2],fixture.telemetry.version)
+assert.equal(incomplete.status,'unknown')
+assert.equal(incomplete.reason,'incomplete_fix')
+assert.equal(incomplete.point,null)
+await assert.rejects(client.locationFix(fixture.devices[1],fixture.telemetry.events[0],fixture.telemetry.version),e=>e instanceof IotApiError && e.status===404)
+console.log('PASS raw/location SDK: stable pagination, explicit cap, signed cursor scope, trusted paired fix, incomplete fix unknown and binding isolation.')
