@@ -12,6 +12,16 @@ export interface Page<T> {
   data: T[];
   meta: { current_page: number; last_page: number; total: number };
 }
+export interface IntegrationEvent {
+  id: string;
+  schema_version: "integration-event.v1";
+  type: "alert.activated.v1" | "alert.cleared.v1" | "alert.acknowledged.v1";
+  occurred_at: string;
+  recorded_at: string;
+  data: Alert;
+}
+export interface EventPage { data: IntegrationEvent[]; next_cursor: string; has_more: boolean }
+export interface EventOptions { cursor?: string; limit?: number; signal?: AbortSignal }
 export interface PageOptions { page?: number; perPage?: number; signal?: AbortSignal }
 export interface AlertOptions extends PageOptions { condition?: "active" | "cleared" }
 export class IotApiError extends Error {
@@ -66,6 +76,30 @@ export class IotClient {
     if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 120000) throw new TypeError("timeoutMs must be between 1 and 120000.");
     this.#base = `${url.origin}/api/integration/v1/organizations/${uuid(options.organization)}`;
     this.#token = options.token; this.#fetch = options.fetch ?? globalThis.fetch; this.#timeout = timeout;
+  }
+  async eventCheckpoint(signal?: AbortSignal): Promise<string> {
+    const response = record(await this.#request("events/checkpoint", signal));
+    if (typeof response.cursor !== "string" || !response.cursor || response.cursor.length > 4096) throw new IotContractError();
+    return response.cursor;
+  }
+  async events(options: EventOptions = {}): Promise<EventPage> {
+    const query = new URLSearchParams();
+    if (options.cursor !== undefined) {
+      if (!options.cursor || options.cursor.length > 4096) throw new TypeError("Invalid event cursor.");
+      query.set("cursor", options.cursor);
+    }
+    if (options.limit !== undefined) {
+      if (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 100) throw new TypeError("Invalid event limit.");
+      query.set("limit", String(options.limit));
+    }
+    const response = record(await this.#request("events" + (query.size ? "?" + query : ""), options.signal));
+    if (!Array.isArray(response.data) || response.data.length > (options.limit ?? 100) || typeof response.next_cursor !== "string" || !response.next_cursor || response.next_cursor.length > 4096 || typeof response.has_more !== "boolean" || (response.has_more && !response.data.length)) throw new IotContractError();
+    const data = response.data.map((item): IntegrationEvent => {
+      const value = fields(item, ["id", "schema_version", "type", "occurred_at", "recorded_at"], []);
+      if (value.schema_version !== "integration-event.v1" || !["alert.activated.v1", "alert.cleared.v1", "alert.acknowledged.v1"].includes(String(value.type))) throw new IotContractError();
+      return { ...value, data: alert(value.data) } as unknown as IntegrationEvent;
+    });
+    return { data, next_cursor: response.next_cursor, has_more: response.has_more };
   }
   async devices(options: PageOptions = {}): Promise<Page<Device>> {
     return page(await this.#request("devices" + this.#query(options), options.signal), device);

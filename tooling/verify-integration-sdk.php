@@ -39,6 +39,8 @@ try {
     Device::where('organization_id', $org->id)->delete();
     DB::table('device_audit_events')->where('organization_id', $org->id)->delete();
     $token->accessToken->delete();
+    DB::table('integration_events')->where('organization_id', $org->id)->delete();
+    DB::table('integration_streams')->where('organization_id', $org->id)->delete();
     $org->forceDelete(); $foreign->forceDelete();
     @unlink('/tmp/iot-sdk-fixture.json'); @unlink('/tmp/iot-sdk-release');
     echo "Temporary SDK records removed.\n";

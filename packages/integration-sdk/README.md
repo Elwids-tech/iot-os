@@ -9,7 +9,7 @@ published to a registry.
 pnpm --filter @iot-os/integration-sdk build
 pnpm --filter @iot-os/integration-sdk pack --pack-destination /tmp
 # In an independent application:
-npm install /tmp/iot-os-integration-sdk-0.1.0.tgz
+npm install /tmp/iot-os-integration-sdk-0.2.0.tgz
 ```
 
 ```ts
@@ -46,3 +46,24 @@ it must honor AbortSignal and redirect handling, and must not log Authorization.
 Runtime validators enforce the documented v1 field types and allow additive
 fields. Tests cover pagination, malformed responses, timeout, safe URLs and
 non-replay of HTTP failures. `examples/read.mjs` is a minimal external consumer.
+
+## Durable alert events (0.2.0)
+
+Grant both `events:read` and `alerts:read` to the application and token. Use
+`eventCheckpoint()` before reading current alert state, then `events({cursor,
+limit})` to reconcile and resume. Each page returns `data`, `next_cursor` and
+`has_more`. Store the next cursor atomically with your processed snapshots, even
+for empty pages. Do not advance it after a failed request. Rotation preserves a
+cursor; grant changes return 409 and require rebuilding your projection.
+
+The packed `examples/project.mjs` demonstrates bootstrap, single-writer locking,
+atomic file replacement and restart across separate Node processes. Run it with
+an output path and the same environment variables as `examples/read.mjs`; pass
+`--rebuild` to replace old state after a grant change. After a crashed process,
+confirm it is stopped before removing a stale `.lock`. For production, use a
+transactional database and deduplicate business side effects by event ID.
+
+The journal begins at deployment with no historical transition backfill. Existing
+alerts are reconciled through the current-state API. Events are retained
+indefinitely for now; configurable retention and signed webhooks remain pending.
+See the repository's `docs/integration-events.md` for the contract and limits.

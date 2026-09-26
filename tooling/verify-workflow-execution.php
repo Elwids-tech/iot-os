@@ -167,6 +167,8 @@ try {
         DB::table('automation_workflow_revisions')->whereIn('automation_workflow_id', $workflows)->delete();
         DB::table('automation_workflows')->whereIn('id', $workflows)->delete();
         DB::table('device_outbox')->whereRaw("payload->>'organization_uuid' = ?", [$org->uuid])->delete();
+        DB::table('integration_events')->where('organization_id', $org->id)->delete();
+        DB::table('integration_streams')->where('organization_id', $org->id)->delete();
         DB::table('device_audit_events')->where('organization_id', $org->id)->delete();
         $devices = DB::table('devices')->where('organization_id', $org->id)->pluck('id');
         DB::table('device_configurations')->whereIn('device_id', $devices)->delete();

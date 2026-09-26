@@ -1,14 +1,14 @@
 # Scoped application access and Node SDK
 
-This first P3 slice provides independent machine identities and read-only device
-metadata and alert state. It does not yet expose telemetry history, commands,
-workflow mutation, durable events, webhooks or event recovery. Those remain
-follow-up work; current-state polling is not a durable integration stream.
+Application access provides independent machine identities and read-only device
+metadata and alert state. A follow-up adds the [durable alert event feed](integration-events.md)
+and consumer recovery. Telemetry history, commands, workflow mutation and signed
+webhooks remain pending; current-state lists alone are not a durable stream.
 
 ## Identity and grants
 
 An application belongs to one organization, with 1–100 explicitly selected device
-UUIDs and a subset of `devices:read`, `alerts:read`. There are no wildcard grants.
+UUIDs and a subset of `devices:read`, `alerts:read`, `events:read`. The event feed requires both `events:read` and `alerts:read`. There are no wildcard grants.
 Devices must belong to the organization, and reads recheck device ownership.
 Alerts are scoped using their immutable deployment's device binding, not the
 workflow's current draft. Responses omit internal configuration, credentials,
@@ -104,6 +104,5 @@ and uses the SDK for device/alert reads, pagination and isolation checks. Signal
 completion by touching `/tmp/iot-sdk-release` in the API container. The fixture
 cleans its own database records and credentials; remove the host copy as well.
 
-Remaining P3: durable public event projection/delivery and reconciliation,
-telemetry read contracts, integration management UI and pilot quotas/load tests.
+Remaining P3: signed webhook delivery, telemetry read contracts, integration management UI and pilot quotas/load tests. Durable alert polling and projection recovery are now implemented.
 The visual workflow builder remains deferred.

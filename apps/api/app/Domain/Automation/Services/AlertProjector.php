@@ -17,12 +17,14 @@ final class AlertProjector
     public function project(Workflow $workflow, Deployment $deployment, array $transition): void
     {
         $alert = Alert::firstOrCreate(['automation_deployment_id' => $deployment->id, 'episode' => $transition['episode']], ['organization_id' => $workflow->organization_id, 'automation_workflow_id' => $workflow->id]);
+        $alert = Alert::whereKey($alert->id)->lockForUpdate()->firstOrFail();
         $active = $transition['type'] === 'activated';
         $column = $active ? 'activation_transition_id' : 'clear_transition_id';
         if ($alert->$column !== null) {
             return;
         }
         $alert->update([$column => $transition['id'], $active ? 'activated_at' : 'cleared_at' => $transition['occurred_at']]);
+        \App\Domain\Integrations\Services\EventJournal::alert($alert, $transition['type']);
         DeviceAudit::record('alert.'.$transition['type'], $workflow->organization_id, null, $alert->uuid, ['transition_id' => $transition['id'], 'episode' => $alert->episode]);
         // A late activation fills history without reopening or notifying an
         // already-cleared episode. Clear-first envelopes never invent activation.

@@ -13,7 +13,7 @@ final class IntegrationApplication extends DeviceModel
 {
     protected function casts(): array
     {
-        return ['abilities' => 'array', 'device_uuids' => 'array', 'revision' => 'integer', 'revoked_at' => 'immutable_datetime'];
+        return ['abilities' => 'array', 'device_uuids' => 'array', 'revision' => 'integer', 'grant_revision' => 'integer', 'revoked_at' => 'immutable_datetime'];
     }
 
     public function tokens(): MorphMany

@@ -24,6 +24,9 @@ final class AuthenticateApplication
         $organization = $request->route('organization');
         abort_unless($organization instanceof Organization && $organization->id === $application->organization_id, 404);
         abort_unless(in_array($ability, $application->abilities, true) && in_array($ability, $token->abilities, true), 403, 'Application ability is not granted.');
+        if ($ability === 'events:read') {
+            abort_unless(in_array('alerts:read', $application->abilities, true) && in_array('alerts:read', $token->abilities, true), 403, 'Alert read access is required for the event feed.');
+        }
         $key = 'integration-application:'.$application->uuid;
         if (! RateLimiter::attempt($key, 60, fn () => true, 60)) {
             return response()->json(['message' => 'Application rate limit exceeded.'], 429)->header('Retry-After', (string) RateLimiter::availableIn($key));

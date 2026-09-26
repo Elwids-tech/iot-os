@@ -48,6 +48,7 @@ final class AlertController
             $locked = Alert::whereKey($alert->id)->lockForUpdate()->firstOrFail();
             if (! $locked->acknowledged_at) {
                 $locked->update(['acknowledged_by' => $request->user()->id, 'acknowledged_at' => now()]);
+                \App\Domain\Integrations\Services\EventJournal::alert($locked, 'acknowledged');
                 DeviceAudit::record('alert.acknowledged', $locked->organization_id, $request->user()->id, $locked->uuid);
             }
 

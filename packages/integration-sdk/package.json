@@ -1,10 +1,10 @@
 {
   "name": "@iot-os/integration-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Server-side client for scoped IoT OS application APIs",
   "engines": { "node": ">=22.12" },
-  "files": ["dist", "README.md"],
+  "files": ["dist", "README.md", "examples"],
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "scripts": { "build": "tsc", "typecheck": "tsc --noEmit", "test": "pnpm run build && node --test test/*.test.mjs", "prepack": "pnpm run build" },
   "devDependencies": { "typescript": "~5.9.3" }

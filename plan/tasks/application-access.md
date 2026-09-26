@@ -11,4 +11,6 @@ Delivered 2026-09-25. [Contract and operations](../../docs/application-access.md
 
 Verification: 137 Laravel tests, six SDK tests, rebuilt API and worker containers; SDK tarball installed into a separate temporary Node project and exercised over real HTTP for reads, pagination, scope denial, portal separation, rotation, reduced abilities and revocation. Temporary fixture credentials/data removed. No registry publication or production deployment.
 
-Still pending in P3: durable public events/delivery, recovery/reconciliation, telemetry access, integration management UI, and pilot-scale quota/load verification. Current-state lists are not an event stream. Visual builder deferred.
+Follow-up: [durable alert polling and recovery](../../docs/integration-events.md) delivered in SDK 0.2.0.
+
+Still pending in P3: signed webhook delivery, telemetry access, integration management UI, and pilot-scale quota/load verification. Current-state lists are not an event stream. Visual builder deferred.

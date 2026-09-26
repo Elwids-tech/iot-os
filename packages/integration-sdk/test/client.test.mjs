@@ -44,3 +44,13 @@ test('validates alerts and preserves unknown timestamps', async () => {
   assert.equal((await make(async()=>Response.json({data:alert})).alert(id)).cleared_at,null)
   await assert.rejects(make(async()=>Response.json({data:{...alert,condition:'safe'}})).alert(id),IotContractError)
 })
+test('event checkpoints, opaque cursors and snapshots are validated', async()=>{
+  const alert={uuid:id,device_uuid:id,workflow_uuid:id,workflow_name:'Boundary',episode:1,condition:'cleared',activated_at:null,cleared_at:'2026-09-25T00:00:00Z',acknowledged_at:null,execution_stopped_reason:null}
+  let request
+  const client=make(async(url)=>{request=url;return Response.json({data:[{id,schema_version:'integration-event.v1',type:'alert.activated.v1',occurred_at:'2026-09-25T00:00:00Z',recorded_at:'2026-09-25T00:00:00Z',data:alert}],next_cursor:'next',has_more:false})})
+  assert.equal((await client.events({cursor:'opaque+/=',limit:1})).data[0].data.condition,'cleared')
+  assert.match(request,/cursor=opaque%2B%2F%3D/)
+  assert.equal(await make(async()=>Response.json({cursor:'checkpoint'})).eventCheckpoint(),'checkpoint')
+  await assert.rejects(make(async()=>Response.json({data:[],next_cursor:'next',has_more:true})).events(),IotContractError)
+  await assert.rejects(client.events({limit:101}),TypeError)
+})

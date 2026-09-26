@@ -67,6 +67,6 @@ final class ReadController
 
     private function alertView(Alert $alert): array
     {
-        return [...$alert->only(['uuid', 'episode', 'activated_at', 'cleared_at', 'acknowledged_at']), 'condition' => $alert->cleared_at ? 'cleared' : 'active', 'workflow_uuid' => $alert->workflow->uuid, 'workflow_name' => $alert->workflow->name, 'device_uuid' => $alert->deployment->definition['binding']['device_uuid'], 'execution_stopped_reason' => $alert->deployment->stopped_reason];
+        return \App\Domain\Integrations\Services\AlertSnapshot::of($alert);
     }
 }
