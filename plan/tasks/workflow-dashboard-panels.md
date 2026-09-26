@@ -6,4 +6,4 @@ Verified API tests, portal unit/type checks, isolated Devices database/broker/re
 
 See [behavior and verification](../../docs/workflow-dashboard-panels.md).
 
-Next: validate an independent vertical application host and its authorized backend adapter against these presentation contracts. Public packaging, production capacity/retention checks and real-tag pilot acceptance remain open. Visual workflow builder stays deferred.
+The [independent application host](independent-application-host.md) now validates scoped SDK reads and portable presentation for selected evidence. Live machine workflow overview parity is still pending. Public packaging, production capacity/retention checks and real-tag pilot acceptance remain open. Visual workflow builder stays deferred.
