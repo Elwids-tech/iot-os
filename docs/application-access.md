@@ -103,5 +103,7 @@ and uses the SDK for device/alert reads, pagination and isolation checks. Signal
 completion by touching `/tmp/iot-sdk-release` in the API container. The fixture
 cleans its own database records and credentials; remove the host copy as well.
 
-Latest telemetry and chart history are available through the separate `telemetry:read` ability; see [telemetry contracts](integration-telemetry.md). Remaining P3: integration management UI and pilot quotas/load tests. Durable alert polling and projection recovery are now implemented.
+Latest telemetry and chart history are available through the separate `telemetry:read` ability; see [telemetry contracts](integration-telemetry.md). Remaining P3: pilot quotas/load tests. Durable alert polling and projection recovery are now implemented.
 The visual workflow builder remains deferred.
+
+Portal management is delivered: [applications, tokens and webhooks](integration-management.md).

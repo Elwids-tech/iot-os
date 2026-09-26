@@ -169,4 +169,16 @@ final class ApplicationTest extends TestCase
         $this->api($issued['token'], 'GET', $base.'/location-bindings')->assertOk()->assertJsonPath('data', []);
         $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.$version->uuid)->assertNotFound();
     }
+
+    public function test_all_four_grants_and_safe_management_credential_metadata(): void
+    {
+        $abilities = ['devices:read', 'alerts:read', 'events:read', 'telemetry:read'];
+        $app = $this->api($this->admin, 'POST', $this->manage, ['name' => 'Full integration', 'device_uuids' => [$this->device->uuid], 'abilities' => $abilities])->assertCreated()->json('data');
+        $issued = $this->token($app, $abilities);
+        $list = $this->api($this->admin, 'GET', $this->manage)->assertOk()->assertJsonPath('data.0.credential.abilities', $abilities)->assertJsonPath('data.0.devices.0.name', $this->device->name);
+        $this->assertStringNotContainsString($issued['token'], $list->getContent());
+        $this->assertArrayNotHasKey('token', $list->json('data.0.credential'));
+        $this->api($this->admin, 'PUT', $this->manage.'/'.$app['uuid'], ['revision' => $issued['application']['revision'], 'name' => 'Reduced', 'device_uuids' => [$this->device->uuid], 'abilities' => ['devices:read']])->assertOk()->assertJsonPath('data.credential', null);
+        $this->api($issued['token'], 'GET', $this->read.'/devices')->assertUnauthorized();
+    }
 }

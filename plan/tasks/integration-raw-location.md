@@ -16,6 +16,8 @@ HTTP verification from an independently installed SDK tarball. Temporary fixture
 credentials, telemetry and binding versions were removed. No registry publication
 or production deployment.
 
-Next: integration management UI. Telemetry streaming, complete export/reconciliation,
+Next: P4 generic location/alert presentation. Integration management UI is delivered. Telemetry streaming, complete export/reconciliation,
 standalone binding authoring and pilot load/retention operations remain pending.
 The visual workflow builder stays deferred.
+
+Portal management is delivered: [applications, tokens and webhooks](../../docs/integration-management.md).

@@ -66,7 +66,7 @@ final class ApplicationController
     public function rotate(Request $request, Organization $organization, IntegrationApplication $application)
     {
         $this->authorize($request, $organization, $application);
-        $input = $request->validate(['revision' => 'required|integer|min:1', 'expires_in_days' => 'required|integer|min:1|max:90', 'abilities' => 'required|array|min:1|max:3', 'abilities.*' => ['required', 'string', 'distinct', Rule::in(self::ABILITIES)]]);
+        $input = $request->validate(['revision' => 'required|integer|min:1', 'expires_in_days' => 'required|integer|min:1|max:90', 'abilities' => 'required|array|min:1|max:4', 'abilities.*' => ['required', 'string', 'distinct', Rule::in(self::ABILITIES)]]);
         $result = DB::transaction(function () use ($application, $input, $request) {
             $locked = $this->lock($application, (int) $input['revision']);
             abort_if(array_diff($input['abilities'], $locked->abilities), 422, 'Token abilities exceed application grants.');
@@ -104,7 +104,7 @@ final class ApplicationController
 
     private function grants(Request $request, Organization $organization): array
     {
-        $input = $request->validate(['name' => 'required|string|max:255', 'abilities' => 'required|array|min:1|max:3', 'abilities.*' => ['required', 'string', 'distinct', Rule::in(self::ABILITIES)], 'device_uuids' => 'required|array|min:1|max:100', 'device_uuids.*' => 'required|uuid|distinct']);
+        $input = $request->validate(['name' => 'required|string|max:255', 'abilities' => 'required|array|min:1|max:4', 'abilities.*' => ['required', 'string', 'distinct', Rule::in(self::ABILITIES)], 'device_uuids' => 'required|array|min:1|max:100', 'device_uuids.*' => 'required|uuid|distinct']);
         $input['device_uuids'] = array_map('strtolower', $input['device_uuids']);
         abort_unless(count(array_unique($input['device_uuids'])) === count($input['device_uuids']) && Device::where('organization_id', $organization->id)->whereIn('uuid', $input['device_uuids'])->count() === count($input['device_uuids']), 422, 'Every device must belong to this organization.');
         return $input;
@@ -112,6 +112,8 @@ final class ApplicationController
 
     private function view(IntegrationApplication $app): array
     {
-        return $app->only(['uuid', 'name', 'abilities', 'device_uuids', 'revision', 'grant_revision', 'revoked_at']);
+        return [...$app->only(['uuid', 'name', 'abilities', 'device_uuids', 'revision', 'grant_revision', 'revoked_at']),
+            'devices' => Device::where('organization_id', $app->organization_id)->whereIn('uuid', $app->device_uuids)->get(['uuid', 'name', 'code']),
+            'credential' => $app->tokens()->latest('id')->first()?->only(['abilities', 'expires_at'])];
     }
 }

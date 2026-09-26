@@ -407,6 +407,22 @@ function directoryQuery(query: DirectoryQuery = {}): string {
 }
 
 export type * from "./assistant"
+export type IntegrationAbility = "devices:read" | "alerts:read" | "events:read" | "telemetry:read"
+export interface IntegrationApplication {
+  uuid: string; name: string; abilities: IntegrationAbility[]; device_uuids: string[];
+  revision: number; grant_revision: number; revoked_at: string | null;
+  devices: {uuid: string; name: string; code: string}[];
+  credential: { abilities: IntegrationAbility[]; expires_at: string } | null;
+}
+export type IntegrationGrants = Pick<IntegrationApplication, "name" | "abilities" | "device_uuids">
+export interface IntegrationWebhook {
+  uuid: string; url: string; revision: number; enabled: boolean; diagnostic: string | null; grant_revision: number;
+}
+export interface IntegrationDelivery {
+  uuid: string; status: string; attempts: number; retry_revision: number; diagnostic: string | null;
+  next_attempt_at: string | null; expires_at: string; delivered_at: string | null;
+  history: {attempt: number; http_status: number | null; outcome: string; created_at: string}[];
+}
 export class ApiClient {
   private readonly baseUrl: string
   private selectedOrganizationUuid: string | null
@@ -846,6 +862,35 @@ export class ApiClient {
     await this.request("/api/v1/auth/logout", { method: "POST" })
   }
 
+  private applicationPath(org: string, id = "") {
+    return `/api/v1/organizations/${encodeURIComponent(org)}/applications${id ? "/" + encodeURIComponent(id) : ""}`
+  }
+  integrationApplications(org: string) { return this.data<IntegrationApplication[]>(this.applicationPath(org)) }
+  createIntegrationApplication(org: string, input: IntegrationGrants) {
+    return this.data<IntegrationApplication>(this.applicationPath(org), "POST", input)
+  }
+  updateIntegrationApplication(org: string, id: string, input: IntegrationGrants & { revision: number }) {
+    return this.data<IntegrationApplication>(this.applicationPath(org, id), "PUT", input)
+  }
+  issueIntegrationToken(org: string, id: string, input: { revision: number; abilities: IntegrationAbility[]; expires_in_days: number }) {
+    return this.data<{application: IntegrationApplication; token: string; expires_at: string}>(this.applicationPath(org,id) + "/token", "POST", input)
+  }
+  revokeIntegrationApplication(org: string, id: string, revision: number) {
+    return this.data<IntegrationApplication>(this.applicationPath(org,id) + "/revoke", "POST", {revision})
+  }
+  integrationWebhook(org: string, id: string) { return this.data<IntegrationWebhook | null>(this.applicationPath(org,id) + "/webhook") }
+  configureIntegrationWebhook(org: string, id: string, input: {revision: number; url: string}) {
+    return this.data<IntegrationWebhook & {signing_secret: string}>(this.applicationPath(org,id) + "/webhook", "PUT", input)
+  }
+  disableIntegrationWebhook(org: string, id: string, revision: number) {
+    return this.data<IntegrationWebhook>(this.applicationPath(org,id) + "/webhook/disable", "POST", {revision})
+  }
+  integrationDeliveries(org: string, id: string, page = 1) {
+    return this.request<{data: IntegrationDelivery[]; meta: {current_page: number; last_page: number; total: number}}>(this.applicationPath(org,id) + "/webhook/deliveries?page=" + page)
+  }
+  retryIntegrationDelivery(org: string, id: string, delivery: string, revision: number) {
+    return this.data<{status: string}>(this.applicationPath(org,id) + "/webhook/deliveries/" + encodeURIComponent(delivery) + "/retry", "POST", {retry_revision: revision})
+  }
   async devices(
     org: string,
     query: { search?: string; lifecycle?: string; page?: number } = {},

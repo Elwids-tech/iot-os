@@ -8,5 +8,7 @@ Verified: 150 API tests, 10 SDK tests, rebuilt API/workers, independent SDK pack
 reading retained synthetic telemetry and chart history through the public API.
 Live checks covered empty data, ability/device/tenant denial and fixture cleanup.
 
-Follow-up: [raw observations and stored paired fixes](../../docs/integration-raw-location.md) delivered in SDK 0.5.0. Pending: telemetry streaming, integration management UI and pilot quota/load validation. This does
+Follow-up: [raw observations and stored paired fixes](../../docs/integration-raw-location.md) delivered in SDK 0.5.0. Pending: telemetry streaming, pilot quota/load validation. This does
 not establish raw ML export or location pairing. Visual builder remains deferred.
+
+Portal management is delivered: [applications, tokens and webhooks](../../docs/integration-management.md).
