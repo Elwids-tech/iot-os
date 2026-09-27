@@ -1,7 +1,8 @@
+import { runtimeConfig } from "@iot-os/api-client"
 import { ApiClient } from "@iot-os/api-client"
 
 function apiBaseUrl(): string {
-  const configuredUrl = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8001"
+  const configuredUrl = runtimeConfig("VITE_API_URL", import.meta.env.VITE_API_URL) ?? "http://127.0.0.1:8001"
 
   if (typeof window === "undefined") {
     return configuredUrl

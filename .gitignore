@@ -19,3 +19,6 @@ vendor/
 *.out
 
 deploy/compose/data/
+
+# Private release credentials, disposable integration evidence and tool environments
+.local/release-*/

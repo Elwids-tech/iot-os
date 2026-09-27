@@ -1,0 +1,8 @@
+all:
+  hosts:
+    staging:
+      # Use the server's VPN address. Provision its VPN and SSH key first.
+      ansible_host: 100.100.100.100
+      ansible_user: root
+      public_interface: eth0
+      vpn_interface: tailscale0

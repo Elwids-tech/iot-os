@@ -1,0 +1,93 @@
+groups:
+  - name: platform
+    rules:
+      - alert: ScrapeFailed
+        expr: up == 0
+        for: 3m
+        labels: {severity: critical}
+        annotations: {summary: "Monitoring cannot scrape {{ $labels.job }}"}
+      - alert: ProbeFailed
+        expr: probe_success == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Health probe failed for {{ $labels.instance }}"}
+      - alert: MemoryHeadroomLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.25
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Less than 25% host memory headroom"}
+      - alert: DiskSpaceLow
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes < 0.2
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Less than 20% disk free"}
+      - alert: WorkerStalled
+        expr: time() - iot_worker_heartbeat_timestamp_seconds > 180
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Worker heartbeat is stale: {{ $labels.worker }}"}
+      - alert: TelemetryStalled
+        expr: (time() - iot_simulator_oldest_observation_timestamp_seconds > 120) and on() (iot_simulator_active_devices > 0)
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "A staging simulator is no longer persisting telemetry"}
+      - alert: QueueBacklog
+        expr: iot_queue_oldest_seconds > 120 or iot_device_outbox_pending > 100 or iot_runtime_outbox_pending > 100
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Durable processing is falling behind"}
+      - alert: FailedJobs
+        expr: iot_failed_jobs > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Failed application jobs require review"}
+      - alert: CertificateExpiry
+        expr: probe_ssl_earliest_cert_expiry - time() < 1209600
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Certificate expires in less than 14 days"}
+      - alert: BackupOverdue
+        expr: time() - iot_backup_success_timestamp_seconds > 93600 or absent(iot_backup_success_timestamp_seconds)
+        for: 10m
+        labels: {severity: critical}
+        annotations: {summary: "No successful off-host backup within 26 hours"}
+      - alert: RestoreDrillOverdue
+        expr: time() - iot_restore_verified_timestamp_seconds > 2764800 or absent(iot_restore_verified_timestamp_seconds)
+        for: 1h
+        labels: {severity: warning}
+        annotations: {summary: "Isolated restore verification is overdue"}
+      - alert: AssistantAllowanceLow
+        expr: (iot_assistant_spent_usd + iot_assistant_reserved_usd) / iot_assistant_daily_budget_usd > 0.8
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "More than 80% of AI daily application allowance consumed"}
+      - alert: ContainerFailure
+        expr: iot_container_oom > 0 or iot_container_running == 0 or increase(iot_container_restarts_total[15m]) > 2
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Container failed or restarted repeatedly: {{ $labels.service }}"}
+      - alert: RetentionCleanupFailure
+        expr: iot_retention_cleanup_failures > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Telemetry retention cleanup has unresolved failures"}
+      - alert: MessagingUnhealthy
+        expr: iot_nats_monitor_up == 0 or iot_nats_store_bytes > 1500000000 or iot_nats_consumer_pending > 1000
+        for: 3m
+        labels: {severity: critical}
+        annotations: {summary: "JetStream is unavailable or approaching its capacity"}
+      - alert: HostCollectorStalled
+        expr: time() - iot_collector_timestamp_seconds > 180 or absent(iot_collector_timestamp_seconds)
+        for: 3m
+        labels: {severity: warning}
+        annotations: {summary: "Host container collector is not updating"}
+      - alert: ApiErrors
+        expr: sum(iot_http_requests_window{status_class="5xx"}) / clamp_min(sum(iot_http_requests_window), 1) > 0.05 and sum(iot_http_requests_window) >= 20
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "More than 5% of API responses are server errors"}
+      - alert: ApiSlow
+        expr: sum(iot_http_duration_window_seconds) / clamp_min(sum(iot_http_requests_window), 1) > 2 and sum(iot_http_requests_window) >= 20
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Average API latency exceeds two seconds"}

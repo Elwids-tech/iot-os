@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Services\PlatformAuthorization;
 use App\Domain\Shared\Models\User;
+use App\Support\Operations;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -23,6 +25,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Queue::looping(static fn () => Operations::heartbeat());
+
         Gate::before(static fn (?User $user): ?bool => $user?->is_super_admin ? true : null);
 
         foreach (PlatformAdministrationPermission::cases() as $permission) {

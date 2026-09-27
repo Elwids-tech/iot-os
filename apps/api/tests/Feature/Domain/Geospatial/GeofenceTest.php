@@ -69,7 +69,7 @@ final class GeofenceTest extends TestCase
 
         $this->assertSame(2, $this->fence->fresh()->revision);
         $this->assertSame(1, GeofenceActivationBatch::where('uuid', $operation)->count());
-        $this->assertSame(1, GeofenceAssignment::where('geofence_id', $this->fence->id)->count());
+        $this->assertSame(3, GeofenceAssignment::where('geofence_id', $this->fence->id)->count());
 
         $this->putJson($this->url, [...$input, 'name' => 'A different request'])->assertConflict();
     }
@@ -154,9 +154,9 @@ final class GeofenceTest extends TestCase
             'generation' => $deployment->generation, 'target' => 'inactive', 'status' => 'succeeded']);
 
         $this->getJson($this->url.'/activations/'.$response['activation']['uuid'])->assertOk()
-            ->assertJsonPath('data.items.1.assignment_uuid', $removed->uuid)
-            ->assertJsonPath('data.items.1.device_uuid', $device->uuid)
-            ->assertJsonPath('data.items.1.status', 'succeeded');
+            ->assertJsonPath('data.items.3.assignment_uuid', $removed->uuid)
+            ->assertJsonPath('data.items.3.device_uuid', $device->uuid)
+            ->assertJsonPath('data.items.3.status', 'succeeded');
         $this->assertDatabaseMissing('geofence_assignments', ['id' => $removed->id]);
         $this->assertDatabaseHas('geofence_activation_items', ['id' => $item['id'], 'geofence_assignment_id' => null,
             'assignment_uuid' => $removed->uuid, 'device_uuid' => $device->uuid]);
@@ -168,7 +168,7 @@ final class GeofenceTest extends TestCase
 
         return ['operation_uuid' => $operation, 'expected_revision' => 1, 'name' => 'GPS Demo Boundary',
             'geometry' => $this->fence->geometry,
-            'assignments' => [['device_uuid' => GpsUseCaseSeeder::DEVICE_UUID, 'policy' => $assignment->policy]]];
+            'assignments' => array_map(fn (string $uuid) => ['device_uuid' => $uuid, 'policy' => $assignment->policy], GpsUseCaseSeeder::deviceUuids())];
     }
 
     private function applicationToken(string $admin, string $manage, array $devices, array $abilities): string

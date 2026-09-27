@@ -1488,3 +1488,5 @@ export class ApiClient {
 }
 
 export const apiClient = new ApiClient()
+
+export { runtimeConfig, type RuntimeConfig } from "./runtime-config"

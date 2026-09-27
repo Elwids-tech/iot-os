@@ -1,0 +1,161 @@
+- name: Prepare a single-node IoT host
+  hosts: all
+  become: true
+  vars:
+    checkout: /srv/iot/repository
+    private_dir: /srv/iot/private
+  pre_tasks:
+    - name: Require Ubuntu and a VPN SSH connection before restricting SSH
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == 'Ubuntu'
+          - ansible_distribution_version is version('24.04', '>=')
+          - ansible_host is match('^100\.')
+          - ansible_facts['architecture'] == 'x86_64'
+        fail_msg: Prepare the VPN and connect through its address before applying the host playbook.
+  tasks:
+    - name: Create bounded Loki filesystem image
+      ansible.builtin.command: truncate -s 4G /srv/iot-loki.ext4
+      args:
+        creates: /srv/iot-loki.ext4
+      register: loki_image
+    - name: Format new Loki image
+      ansible.builtin.command: mkfs.ext4 -F /srv/iot-loki.ext4
+      when: loki_image.changed
+    - name: Create Loki mount point
+      ansible.builtin.file:
+        path: /srv/iot/state/loki
+        state: directory
+        mode: '0755'
+    - name: Persist bounded log mount
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: '/srv/iot-loki.ext4 /srv/iot/state/loki ext4 loop,nodev,nosuid 0 0'
+    - name: Mount bounded log filesystem
+      ansible.builtin.command: mount /srv/iot/state/loki
+      register: log_mount
+      failed_when: log_mount.rc != 0 and 'already mounted' not in log_mount.stderr
+      changed_when: log_mount.rc == 0
+    - name: Install host dependencies
+      ansible.builtin.apt:
+        name: [docker.io, docker-compose-v2, python3-yaml, restic, certbot, python3-certbot-dns-cloudflare, ufw, chrony, unattended-upgrades]
+        update_cache: true
+        state: present
+    - name: Enable Docker
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+    - name: Create private configuration directory
+      ansible.builtin.file:
+        path: '{{ private_dir }}'
+        state: directory
+        mode: '0700'
+    - name: Create state root
+      ansible.builtin.file:
+        path: /srv/iot/state
+        state: directory
+        mode: '0700'
+    - name: Configure firewall defaults
+      ansible.builtin.command: ufw default deny incoming
+      changed_when: false
+    - name: Allow public application listeners
+      ansible.builtin.command: 'ufw allow {{ item }}/tcp'
+      loop: ['80', '443', '8883']
+      changed_when: false
+    - name: Allow SSH only on VPN interface
+      ansible.builtin.command: 'ufw allow in on {{ vpn_interface }} to any port 22 proto tcp'
+      changed_when: false
+    - name: Enable firewall
+      ansible.builtin.command: ufw --force enable
+      changed_when: false
+    - name: Install Docker forwarding firewall
+      ansible.builtin.copy:
+        dest: /usr/local/sbin/iot-docker-firewall
+        mode: '0755'
+        content: |
+          #!/bin/sh
+          set -eu
+          iptables -N IOT-INGRESS 2>/dev/null || true
+          iptables -F IOT-INGRESS
+          iptables -A IOT-INGRESS -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+          iptables -A IOT-INGRESS -i {{ public_interface }} -p tcp -m multiport --dports 80,443,8883 -j RETURN
+          iptables -A IOT-INGRESS -i {{ public_interface }} -j DROP
+          iptables -A IOT-INGRESS -j RETURN
+          iptables -C DOCKER-USER -j IOT-INGRESS 2>/dev/null || iptables -I DOCKER-USER 1 -j IOT-INGRESS
+    - name: Install Docker firewall service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/iot-firewall.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Requires=docker.service
+          After=docker.service
+          PartOf=docker.service
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/sbin/iot-docker-firewall
+          RemainAfterExit=yes
+          [Install]
+          WantedBy=docker.service
+    - name: Enable Docker firewall
+      ansible.builtin.systemd:
+        name: iot-firewall
+        daemon_reload: true
+        enabled: true
+        state: restarted
+    - name: Disable SSH password and root password authentication
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/00-iot.conf
+        mode: '0644'
+        content: |
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          PermitRootLogin prohibit-password
+      notify: Reload SSH
+    - name: Install operations services
+      ansible.builtin.copy:
+        dest: '/etc/systemd/system/iot-{{ item.name }}.service'
+        mode: '0644'
+        content: |
+          [Unit]
+          After=docker.service network-online.target
+          Requires=docker.service
+          ConditionPathExists={{ private_dir }}/current-release.json
+          [Service]
+          Type=oneshot
+          UMask=0077
+          ExecStart=/usr/bin/python3 {{ checkout }}/tooling/release/manage.py {{ item.command }} --env {{ private_dir }}/environment --manifest {{ private_dir }}/current-release.json {{ item.extra }}
+      loop:
+        - {name: backup, command: backup, extra: '--backup-env /srv/iot/private/backup.env'}
+        - {name: metrics, command: metrics, extra: ''}
+        - {name: certificates, command: certificates, extra: '--cloudflare-file /srv/iot/private/cloudflare.ini'}
+    - name: Install operations timers
+      ansible.builtin.copy:
+        dest: '/etc/systemd/system/iot-{{ item.name }}.timer'
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=IoT {{ item.name }}
+          [Timer]
+          OnCalendar={{ item.schedule }}
+          Persistent=true
+          RandomizedDelaySec={{ item.jitter }}
+          [Install]
+          WantedBy=timers.target
+      loop:
+        - {name: backup, schedule: '*-*-* 08:00:00 UTC', jitter: 300}
+        - {name: metrics, schedule: '*-*-* *:*:00', jitter: 0}
+        - {name: certificates, schedule: '*-*-* 09,21:00:00 UTC', jitter: 300}
+    - name: Enable operations timers
+      ansible.builtin.systemd:
+        name: 'iot-{{ item }}.timer'
+        daemon_reload: true
+        enabled: true
+        state: started
+      loop: [backup, metrics, certificates]
+  handlers:
+    - name: Reload SSH
+      ansible.builtin.systemd:
+        name: ssh
+        state: reloaded

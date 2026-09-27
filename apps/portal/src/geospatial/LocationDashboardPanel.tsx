@@ -49,7 +49,7 @@ export function LocationDashboardPanel({ org, widget, view }: PanelProps) {
   if (query.isPending) return <Skeleton className="h-96 w-full" />
   const current = query.data.devices.find((device) => device.device_uuid === selected) ?? query.data.devices[0]
   const currentIndex = current ? query.data.devices.findIndex((device) => device.device_uuid === current.device_uuid) : -1
-  return <section className="flex min-h-96 flex-col gap-3" aria-label="GPS monitoring map">
+  return <section className="flex h-full min-h-0 flex-col gap-3" aria-label="GPS monitoring map">
     <div className="flex flex-wrap gap-2">
       <Badge variant="secondary">{counts.inside} inside</Badge><Badge variant="outline">{counts.outside} outside</Badge>
       <Badge variant={counts.wandering ? "warning" : "outline"}>{counts.wandering} wandering</Badge>
@@ -64,9 +64,11 @@ export function LocationDashboardPanel({ org, widget, view }: PanelProps) {
       <span className="text-sm text-muted-foreground">{query.data.geofence?.name ?? "Watch only · no fence selected"}</span>
     </div>
     <p className="text-xs text-muted-foreground">Green: inside · Red: outside · Grey: stale or unknown · Dashed lines: movement trails</p>
-    <div className="grid min-h-96 gap-3 xl:grid-cols-[minmax(0,1fr)_16rem]">
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}><LocationMap devices={query.data.devices} polygon={query.data.geofence?.geometry.coordinates} selected={current?.device_uuid} onSelect={setSelected} showLabels={widget.config.show_labels ?? true} /></Suspense>
-      {current && <aside className="flex flex-col gap-3 rounded-md border p-3">
+    <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden xl:grid-cols-[minmax(0,1fr)_16rem]">
+      <div className="relative h-full min-h-0 overflow-hidden rounded-md">
+        <Suspense fallback={<Skeleton className="h-full min-h-0 w-full" />}><LocationMap devices={query.data.devices} polygon={query.data.geofence?.geometry.coordinates} selected={current?.device_uuid} onSelect={setSelected} showLabels={widget.config.show_labels ?? true} /></Suspense>
+      </div>
+      {current && <aside className="flex min-h-0 flex-col gap-3 overflow-auto rounded-md border p-3">
         <div><p className="font-medium">{current.device_name}</p><Badge variant={current.latest?.live_eligible ? "secondary" : "outline"}>{current.wandering ? "Wandering" : current.condition}</Badge></div>
         <dl className="grid grid-cols-2 gap-2 text-sm"><dt>Observed</dt><dd>{current.latest?.observed_at ? new Date(current.latest.observed_at).toLocaleString() : "Unknown"}</dd>
           <dt>Received</dt><dd>{current.latest?.received_at ? new Date(current.latest.received_at).toLocaleString() : "Unknown"}</dd>

@@ -1,3 +1,4 @@
+import { runtimeConfig } from "@iot-os/api-client"
 import { useState } from "react"
 import type { AuthenticatedUser } from "@iot-os/api-client"
 import {
@@ -51,7 +52,7 @@ const navigation = [
   { title: "Users", to: "/users", icon: UsersIcon },
   { title: "Roles", to: "/roles", icon: ShieldCheckIcon },
   { title: "Measurement retention", to: "/settings/retention", icon: SlidersHorizontalIcon },
-  { title: "Tenant portal", to: import.meta.env.VITE_PORTAL_URL || `${window.location.protocol}//${window.location.hostname}:5173`, icon: SlidersHorizontalIcon },
+  { title: "Tenant portal", to: runtimeConfig("VITE_PORTAL_URL", import.meta.env.VITE_PORTAL_URL) || `${window.location.protocol}//${window.location.hostname}:5173`, icon: SlidersHorizontalIcon },
 ]
 
 function AdminSidebar({ canManageRetention }: { canManageRetention: boolean }) {

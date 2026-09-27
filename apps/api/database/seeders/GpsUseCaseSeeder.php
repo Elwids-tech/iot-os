@@ -20,6 +20,7 @@ use App\Domain\Geospatial\Models\GeofenceAssignment;
 use App\Domain\Geospatial\Models\LocationBinding;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
+use App\Support\DemoEnvironment;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -42,8 +43,8 @@ final class GpsUseCaseSeeder extends Seeder
 
     public function run(string $organizationSlug = 'acme-manufacturing'): void
     {
-        if (! app()->environment(['local', 'testing'])) {
-            throw new LogicException('The GPS use-case seeder is restricted to local and testing environments.');
+        if (! DemoEnvironment::allowed()) {
+            throw new LogicException('The GPS use-case seeder is restricted to local/testing or explicitly enabled staging environments.');
         }
 
         $organization = Organization::where('slug', $organizationSlug)->firstOrFail();

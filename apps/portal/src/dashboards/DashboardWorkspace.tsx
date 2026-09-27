@@ -527,7 +527,7 @@ export function DashboardWorkspace({
             // Chart dimensions must settle with the grid, not animate through
             // intermediate sizes that trigger synchronous measurement updates.
             <div key={widget.id} style={{ transition: "none" }}>
-              <Card className="h-full overflow-hidden">
+              <Card className="flex h-full min-h-0 flex-col overflow-hidden">
                 <CardHeader className="flex flex-row items-start justify-between gap-2 pb-3">
                   <div className="min-w-0">
                     <CardTitle>
@@ -624,7 +624,11 @@ export function DashboardWorkspace({
                     if (node) panelContent.current.set(widget.id, node)
                     else panelContent.current.delete(widget.id)
                   }}
-                  className="min-h-0 flex-1 overflow-auto"
+                  className={
+                    widget.type === "location"
+                      ? "min-h-0 flex-1 overflow-hidden"
+                      : "min-h-0 flex-1 overflow-auto"
+                  }
                 >
                   <PanelBody {...bodyProps} widget={widget} />
                 </CardContent>

@@ -1,3 +1,4 @@
+import { runtimeConfig } from "@iot-os/api-client"
 import { useEffect, useRef, useState } from "react"
 import * as maplibregl from "maplibre-gl"
 import type { GeoJSONSource, Map as MapLibreMap, Marker, MapMouseEvent } from "maplibre-gl"
@@ -34,7 +35,7 @@ export function LocationMap({ devices, polygon, selected, onSelect, showLabels =
 
   useEffect(() => {
     if (!container.current) return
-    const instance = new maplibregl.Map({ container: container.current, style: import.meta.env.VITE_MAP_STYLE_URL || FALLBACK_STYLE,
+    const instance = new maplibregl.Map({ container: container.current, style: runtimeConfig("VITE_MAP_STYLE_URL", import.meta.env.VITE_MAP_STYLE_URL) || FALLBACK_STYLE,
       center: [-114, 51], zoom: 12, attributionControl: {} })
     instance.once("load", () => setReady(true))
     instance.addControl(new maplibregl.NavigationControl(), "top-right")
@@ -101,7 +102,7 @@ export function LocationMap({ devices, polygon, selected, onSelect, showLabels =
     render()
   }, [ready, devices, polygon, selected, showLabels, editable, vertices, selectedVertex, onSelect, onSelectedVertex, onVerticesChange])
 
-  return <div ref={container} className="h-full min-h-96 w-full overflow-hidden rounded-md border" aria-label={editable ? "Geofence editor map" : "GPS location map"} />
+  return <div ref={container} className="h-full min-h-0 w-full overflow-hidden rounded-md border" aria-label={editable ? "Geofence editor map" : "GPS location map"} />
 }
 
 function setSource(map: MapLibreMap, id: string, data: object) {
