@@ -166,7 +166,7 @@ function Workspace() {
           <TabsList
             variant="line"
             aria-label="Profile sections"
-            className="max-w-full justify-start overflow-x-auto [scrollbar-width:none]"
+            className="max-w-full justify-start overflow-x-auto scrollbar-none"
           >
             {sections.map((item) => (
               <TabsTrigger key={item.key} value={item.key} className="flex-none">

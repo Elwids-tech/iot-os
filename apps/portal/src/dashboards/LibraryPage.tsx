@@ -284,7 +284,7 @@ export function DashboardLibrary({
       <div className="grid gap-4 p-4 md:grid-cols-[11rem_minmax(0,1fr)] md:gap-6 md:p-6">
         <nav
           aria-label="Dashboard views"
-          className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0"
+          className="flex gap-1 overflow-x-auto scrollbar-none md:flex-col md:overflow-visible"
         >
           {(Object.keys(VIEWS) as View[])
             .filter((v) => v !== "templates" || canManage)

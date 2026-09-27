@@ -292,7 +292,7 @@ function Workspace({
         }
       >
         <StateLine device={device} />
-        <div className="-mx-1 w-full overflow-x-auto [scrollbar-width:none]">
+        <div className="-mx-1 w-full overflow-x-auto scrollbar-none">
           <TabsList variant="line" className="justify-start px-1">
             {Object.entries(sections).map(([value, label]) => (
               <TabsTrigger key={value} value={value} className="flex-none">

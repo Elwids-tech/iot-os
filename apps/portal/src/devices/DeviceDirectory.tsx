@@ -111,7 +111,7 @@ export function DeviceDirectory() {
           value={search}
           onChange={(e) => filter("search", e.target.value)}
         />
-        <div className="max-w-full overflow-x-auto">
+        <div className="max-w-full overflow-x-auto scrollbar-none">
           <ToggleGroup
             type="single"
             size="sm"

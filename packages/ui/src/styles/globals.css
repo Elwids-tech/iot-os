@@ -225,6 +225,14 @@
   letter-spacing: var(--label-tracking);
 }
 
+/* Horizontal tab and filter strips scroll by touch or wheel without showing a bar. Keep bars on tables. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
