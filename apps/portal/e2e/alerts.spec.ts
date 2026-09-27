@@ -1,0 +1,555 @@
+import { test, expect, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+
+const org = "18b842d4-dbe9-44b7-a82f-8409bf31401a";
+const gps = "18b842d4-dbe9-44b7-a82f-8409bf314d01";
+const meter = "18b842d4-dbe9-44b7-a82f-8409bf314d02";
+const geofence = "18b842d4-dbe9-44b7-a82f-8409bf314f01";
+const voltage = "18b842d4-dbe9-44b7-a82f-8409bf314f02";
+const base = `/organizations/${org}/alerts`;
+const now = Date.now();
+const ago = (minutes: number) => new Date(now - minutes * 60000).toISOString();
+const members = [
+  { id: 1, name: "Manager", email: "manager@example.test" },
+  { id: 2, name: "Operator Two", email: "operator@example.test" },
+];
+
+type Alert = Record<string, unknown> & { uuid: string };
+type Operation = { uuid: string; target: string; generation: number; status: string; polls: number };
+/** Records a pending deployment the way WorkflowDeploymentService does. */
+function start(workflow: Record<string, unknown>, uuid: string, target: string): Operation {
+  const generation = (workflow.deployment_generation as number) + 1;
+  Object.assign(workflow, {
+    deployment_generation: generation,
+    deployment_status: "pending",
+    pending_operation_uuid: uuid,
+  });
+  return { uuid, target, generation, status: "pending", polls: 0 };
+}
+const view = (workflow: Record<string, unknown>, op: Operation) => ({
+  uuid: op.uuid,
+  generation: op.generation,
+  draft_revision: workflow.draft_revision,
+  target: op.target,
+  status: op.status,
+  stopped_reason: null,
+  diagnostic: null,
+  created_at: new Date().toISOString(),
+  completed_at: op.status === "pending" ? null : new Date().toISOString(),
+});
+async function setup(page: Page, manage = true) {
+  const alert = (
+    uuid: string,
+    workflow: string,
+    device: string,
+    episode: number,
+    extra: Record<string, unknown>,
+  ): Alert => ({
+    uuid,
+    workflow_uuid: workflow,
+    workflow_name: workflow === geofence ? "GPS demo geofence" : "Phase voltage band",
+    operation_uuid: uuid,
+    device_uuid: device,
+    device_name: device === gps ? "GPS tracker" : "Energy meter",
+    episode,
+    condition: "active",
+    activated_at: ago(19),
+    cleared_at: null,
+    acknowledged_at: null,
+    acknowledged_by: null,
+    acknowledged_by_name: null,
+    assignee: null,
+    assigned_at: null,
+    execution_stopped_reason: null,
+    ...extra,
+  });
+  const state = {
+    alerts: [
+      alert("a3", geofence, gps, 3, {}),
+      alert("a2", voltage, meter, 2, {
+        condition: "cleared",
+        activated_at: ago(130),
+        cleared_at: ago(100),
+        acknowledged_at: ago(120),
+        acknowledged_by: 1,
+        acknowledged_by_name: "Manager",
+      }),
+      alert("a1", geofence, gps, 1, {
+        condition: "cleared",
+        activated_at: ago(300),
+        cleared_at: ago(280),
+        assignee: members[1],
+        assigned_at: ago(290),
+      }),
+    ],
+    comments: [] as Record<string, unknown>[],
+    queries: [] as URLSearchParams[],
+    retried: false,
+    assigned: undefined as number | null | undefined,
+    saved: null as Record<string, unknown> | null,
+    posts: [] as Record<string, unknown>[],
+    ops: {} as Record<string, Operation>,
+    loseNextResponse: false,
+    workflows: {
+      [geofence]: {
+        uuid: geofence,
+        name: "GPS demo geofence",
+        draft_revision: 2,
+        deployment_generation: 1,
+        deployment_status: "applied",
+        applied_deployment_uuid: "op-0",
+        pending_operation_uuid: null as string | null,
+      },
+      [voltage]: {
+        uuid: voltage,
+        name: "Phase voltage band",
+        draft_revision: 1,
+        deployment_generation: 0,
+        deployment_status: "inactive",
+        applied_deployment_uuid: null,
+        pending_operation_uuid: null as string | null,
+      },
+    } as Record<string, Record<string, unknown>>,
+    settings: {
+      [geofence]: { enabled: true, notify_on_clear: true, recipient_ids: [1] },
+      [voltage]: { enabled: false, notify_on_clear: false, recipient_ids: [] },
+    } as Record<string, { enabled: boolean; notify_on_clear: boolean; recipient_ids: number[] }>,
+  };
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.route("**/api/**", async (route) => {
+    const req = route.request();
+    const url = new URL(req.url());
+    const path = url.pathname.replace(`/api/v1/organizations/${org}`, "");
+    const body = req.postData() ? req.postDataJSON() : null;
+    const reply = (data: unknown, status = 200) =>
+      route.fulfill({
+        status,
+        contentType: "application/json",
+        body: JSON.stringify(data),
+      });
+    const page1 = (data: unknown[]) => ({
+      data,
+      meta: { current_page: 1, last_page: 1, total: data.length },
+    });
+    const context = {
+      uuid: org,
+      name: "Test workspace",
+      slug: "test",
+      capabilities: {
+        devices: { view: true, manage, activate: manage, connections: false, command: false },
+      },
+    };
+    if (url.pathname === "/api/v1/me")
+      return reply({
+        data: {
+          id: 1,
+          name: "Manager",
+          email: "manager@example.test",
+          email_verified_at: "2026-01-01",
+          is_super_admin: false,
+          capabilities: { platform_administration: false },
+          organizations: [context],
+        },
+      });
+    if (path === "/context") return reply({ data: context });
+    if (path === "/alerts") {
+      const q = url.searchParams;
+      state.queries.push(q);
+      const rows = state.alerts.filter(
+        (a) =>
+          (!q.get("condition") || a.condition === q.get("condition")) &&
+          (!q.get("acknowledged") ||
+            (q.get("acknowledged") === "1") === Boolean(a.acknowledged_at)) &&
+          (!q.get("device") || a.device_uuid === q.get("device")) &&
+          (!q.get("workflow") || a.workflow_uuid === q.get("workflow")) &&
+          (!q.get("assignee") || String(a.assignee?.id) === q.get("assignee")),
+      );
+      return reply({
+        data: rows.slice(0, Number(q.get("per_page") ?? 25)),
+        meta: { current_page: 1, last_page: 1, total: rows.length },
+      });
+    }
+    const alertMatch = path.match(/^\/alerts\/(a\d)(\/.*)?$/);
+    if (alertMatch) {
+      const item = state.alerts.find((a) => a.uuid === alertMatch[1])!;
+      const suffix = alertMatch[2] ?? "";
+      if (suffix === "/acknowledge") {
+        Object.assign(item, {
+          acknowledged_at: new Date().toISOString(),
+          acknowledged_by: 1,
+          acknowledged_by_name: "Manager",
+        });
+        return reply({ data: item });
+      }
+      if (suffix === "/assignee") {
+        state.assigned = body.user_id;
+        Object.assign(item, {
+          assignee: members.find((m) => m.id === body.user_id) ?? null,
+          assigned_at: body.user_id ? new Date().toISOString() : null,
+        });
+        return reply({ data: item });
+      }
+      if (suffix === "/comments") {
+        if (req.method() === "POST") {
+          state.comments.push({
+            uuid: body.uuid,
+            body: body.body,
+            created_by: 1,
+            author_name: "Manager",
+            created_at: new Date().toISOString(),
+          });
+          return reply({ data: body }, 201);
+        }
+        return reply(page1(state.comments));
+      }
+      if (suffix.endsWith("/retry")) {
+        state.retried = true;
+        return reply({ data: { status: "pending" } }, 202);
+      }
+      if (suffix === "/deliveries")
+        return reply({
+          data: [
+            {
+              uuid: "d1",
+              recipient_id: 1,
+              recipient_name: "Manager",
+              type: "activated",
+              status: "sent",
+              attempts: 1,
+              retry_generation: 0,
+              history: [{ attempt: 1, status: "accepted", created_at: ago(18) }],
+              sent_at: ago(18),
+              diagnostic: null,
+            },
+            {
+              uuid: "d2",
+              recipient_id: 2,
+              recipient_name: "Operator Two",
+              type: "activated",
+              status: state.retried ? "pending" : "failed",
+              attempts: 1,
+              retry_generation: 0,
+              history: [{ attempt: 1, status: "failed", created_at: ago(17) }],
+              sent_at: null,
+              diagnostic: "Mailbox unavailable",
+            },
+          ],
+        });
+      return reply({ data: item });
+    }
+    if (path === "/dashboards")
+      return reply({
+        data: [
+          {
+            uuid: "dash-1",
+            name: "Fleet overview",
+            widgets: [{ id: "w1", config: { sources: [{ device_uuid: gps }] } }],
+          },
+          {
+            uuid: "dash-2",
+            name: "Energy",
+            widgets: [{ id: "w2", config: { sources: [{ device_uuid: meter }] } }],
+          },
+        ],
+      });
+    if (path === "/devices")
+      return reply(
+        page1([
+          { uuid: gps, name: "GPS tracker", code: "gps-1" },
+          { uuid: meter, name: "Energy meter", code: "meter-1" },
+        ]),
+      );
+    if (path === "/workflows") return reply(page1(Object.values(state.workflows)));
+    const workflowMatch = path.match(/^\/workflows\/([^/]+)(\/.*)?$/);
+    if (workflowMatch) {
+      const workflow = state.workflows[workflowMatch[1]];
+      const suffix = workflowMatch[2] ?? "";
+      if (suffix === "/notification-recipients") return reply(page1(members));
+      if (suffix === "/notifications") {
+        const settings = state.settings[workflowMatch[1]];
+        if (req.method() === "PUT") {
+          state.saved = body;
+          Object.assign(settings, {
+            enabled: body.enabled,
+            notify_on_clear: body.notify_on_clear,
+            recipient_ids: body.recipient_ids,
+          });
+        }
+        return reply({
+          data: {
+            workflow_name: workflow.name,
+            revision: state.saved ? 1 : 0,
+            ...settings,
+            recipients: members.filter((m) => settings.recipient_ids.includes(m.id)),
+          },
+        });
+      }
+      if (suffix === "/deployments" && req.method() === "POST") {
+        state.posts.push({ ...body });
+        const existing = state.ops[body.operation_uuid];
+        if (!existing) {
+          if (
+            body.expected_generation !== workflow.deployment_generation ||
+            workflow.pending_operation_uuid
+          )
+            return reply({ message: "Workflow changed. Reload before deploying." }, 409);
+          state.ops[body.operation_uuid] = start(workflow, body.operation_uuid, body.target_state);
+        }
+        // The server applied the request but the response never arrives.
+        if (state.loseNextResponse) {
+          state.loseNextResponse = false;
+          return route.abort("failed");
+        }
+        return reply({ data: workflow, deployment: view(workflow, state.ops[body.operation_uuid]) }, 202);
+      }
+      if (suffix.startsWith("/deployments/")) {
+        const op = state.ops[suffix.split("/")[2]];
+        if (!op) return reply({ message: "Not found." }, 404);
+        op.polls++;
+        if (op.status === "pending" && op.polls > 1) {
+          op.status = "succeeded";
+          Object.assign(workflow, {
+            deployment_status: op.target === "inactive" ? "inactive" : "applied",
+            applied_deployment_uuid: op.target === "inactive" ? null : op.uuid,
+            pending_operation_uuid: null,
+          });
+        }
+        return reply({ data: workflow, deployment: view(workflow, op) });
+      }
+      return reply({ data: workflow });
+    }
+    return reply({ data: [] });
+  });
+  return { state, errors };
+}
+
+/** Makes TanStack Query treat the window as refocused, which refetches stale queries. */
+const refocus = (page: Page) =>
+  page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+
+async function pick(page: Page, label: string, option: string) {
+  await page.getByRole("combobox", { name: label, exact: true }).click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+}
+
+test("filters the list, then acknowledges, assigns, retries and comments in the detail", async ({
+  page,
+}) => {
+  const { state, errors } = await setup(page);
+  await page.goto(base);
+  const episodes = page.getByRole("list", { name: "Alert episodes" }).getByRole("listitem");
+  await expect(episodes).toHaveCount(3);
+  await expect(page.getByRole("radio", { name: "Active 1" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Cleared 2" })).toBeVisible();
+  await page.getByRole("radio", { name: /^Active/ }).click();
+  await expect(page).toHaveURL(/condition=active/);
+  await expect(episodes).toHaveCount(1);
+  await page.getByRole("radio", { name: /^All/ }).click();
+  await page.getByLabel("Unacknowledged only").click();
+  await expect(page.getByLabel("Unacknowledged only")).toBeChecked();
+  await expect(page).toHaveURL(/acknowledged=0/);
+  await expect(episodes).toHaveCount(2);
+  await pick(page, "Device", "GPS tracker");
+  await expect(page).toHaveURL(new RegExp(`device=${gps}`));
+  await pick(page, "Workflow", "GPS demo geofence");
+  await expect(page).toHaveURL(new RegExp(`workflow=${geofence}`));
+  await expect
+    .poll(() =>
+      state.queries.some(
+        (q) =>
+          q.get("acknowledged") === "0" &&
+          q.get("device") === gps &&
+          q.get("workflow") === geofence &&
+          q.get("per_page") !== "1",
+      ),
+    )
+    .toBe(true);
+  await expect(episodes).toHaveCount(2);
+
+  await page.getByRole("link", { name: "GPS demo geofence · Episode 3", exact: true }).click();
+  const detail = page.getByRole("region", { name: "Episode detail" });
+  await expect(
+    detail.getByRole("heading", { name: "GPS demo geofence · Episode 3" }),
+  ).toBeVisible();
+  await expect(detail.getByText("Unacknowledged", { exact: true })).toBeVisible();
+  await expect(detail.getByRole("link", { name: "GPS tracker" })).toHaveAttribute(
+    "href",
+    `/organizations/${org}/devices/${gps}`,
+  );
+  await expect(detail.getByRole("link", { name: "Fleet overview" })).toHaveAttribute(
+    "href",
+    `/organizations/${org}/dashboards/dash-1`,
+  );
+  await expect(detail.getByRole("link", { name: "Energy" })).toHaveCount(0);
+  await expect(
+    detail.getByRole("link", { name: "GPS demo geofence", exact: true }),
+  ).toHaveAttribute("href", `${base}/notifications/${geofence}`);
+
+  await detail.getByRole("button", { name: "Acknowledge alert" }).click();
+  await expect(detail.getByText("Acknowledged by Manager")).toBeVisible();
+  await expect(detail.getByRole("button", { name: "Acknowledge alert" })).toHaveCount(0);
+  await expect(detail.getByText("Active", { exact: true })).toBeVisible();
+
+  await pick(page, "Assignee", "Operator Two");
+  await expect(detail.getByText("Assigned to Operator Two")).toBeVisible();
+  expect(state.assigned).toBe(2);
+
+  await detail.getByRole("button", { name: "Retry email" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Retry email" }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(state.retried).toBe(true);
+
+  await detail.getByLabel("Add a comment").fill("Checked with dispatch.");
+  await detail.getByRole("button", { name: "Add comment" }).click();
+  await expect(detail.getByText("Comment by Manager")).toBeVisible();
+  await expect(detail.getByText("Checked with dispatch.")).toBeVisible();
+
+  expect(errors).toEqual([]);
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+});
+
+test("notification settings list the email state and disable a workflow after confirming", async ({
+  page,
+}) => {
+  const { state, errors } = await setup(page);
+  await page.goto(base);
+  await page.getByRole("link", { name: "Notification settings" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Notification settings" })).toBeVisible();
+  const row = page.getByRole("row", { name: /GPS demo geofence/ });
+  await expect(row).toContainText("Active");
+  await expect(row).toContainText("On");
+  await expect(row).toContainText("1");
+  await expect(row).toContainText("Email");
+  await expect(page.getByRole("row", { name: /Phase voltage band/ })).toContainText("Off");
+
+  await page.getByRole("link", { name: "GPS demo geofence", exact: true }).click();
+  const detail = page.getByRole("region", { name: "Workflow notifications" });
+  await expect(detail.getByText("Draft revision 2")).toBeVisible();
+  await expect(detail.getByRole("button", { name: "Activate" })).toBeDisabled();
+  await expect(detail.getByText("Already active")).toBeVisible();
+  await detail.getByRole("button", { name: "Disable workflow" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toContainText("Disable GPS demo geofence?");
+  await dialog.getByRole("button", { name: "Disable workflow" }).click();
+  await expect(detail.getByText("Workflow disabled.")).toBeVisible();
+  expect(state.posts).toHaveLength(1);
+  expect(state.posts[0]).toMatchObject({
+    target_state: "inactive",
+    draft_revision: 2,
+    expected_generation: 1,
+  });
+  expect(Object.values(state.ops)[0].polls).toBeGreaterThan(1);
+  await expect(detail.getByText("Inactive", { exact: true })).toBeVisible();
+  await expect(detail.getByRole("button", { name: "Activate" })).toBeEnabled();
+  await expect(detail.getByRole("button", { name: "Disable workflow" })).toBeDisabled();
+
+  await detail.getByLabel("Email when the condition clears").click();
+  await detail.getByRole("button", { name: "Save notification settings" }).click();
+  await expect(detail.getByText("Notification settings saved.")).toBeVisible();
+  expect(state.saved).toMatchObject({ notify_on_clear: false, recipient_ids: [1] });
+  await expect(row).toContainText("No email");
+
+  expect(errors).toEqual([]);
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+});
+
+test("a lost deployment response is resolved before retrying, so it is never sent twice", async ({
+  page,
+}) => {
+  const { state, errors } = await setup(page);
+  await page.goto(`${base}/notifications/${geofence}`);
+  // CSS locator: the open dialog hides the page from the accessibility tree.
+  const detail = page.locator("section[aria-label='Workflow notifications']");
+  await detail.getByRole("button", { name: "Disable workflow" }).click();
+  const dialog = page.getByRole("alertdialog");
+  state.loseNextResponse = true;
+  await dialog.getByRole("button", { name: "Disable workflow" }).click();
+  await expect(dialog).toContainText("Action needs attention");
+  // A refocus refetches the workflow, whose generation has moved on in the meantime.
+  await refocus(page);
+  await expect(detail.getByText("Inactive", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Disable workflow" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(detail.getByText("Workflow disabled.")).toBeVisible();
+  expect(state.posts).toHaveLength(1);
+  expect(Object.keys(state.ops)).toHaveLength(1);
+  expect(errors).toEqual([]);
+});
+
+test("after our operation settles, polling follows another user's operation", async ({ page }) => {
+  const { state } = await setup(page);
+  await page.goto(`${base}/notifications/${geofence}`);
+  const detail = page.getByRole("region", { name: "Workflow notifications" });
+  await detail.getByRole("button", { name: "Disable workflow" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Disable workflow" }).click();
+  await expect(detail.getByText("Workflow disabled.")).toBeVisible();
+  state.ops["op-other"] = start(state.workflows[geofence], "op-other", "active");
+  await refocus(page);
+  await expect(detail.getByText("Waiting for the runtime to confirm…")).toBeVisible();
+  await expect(detail.getByText("Active", { exact: true })).toBeVisible();
+  await expect(detail.getByText("Workflow disabled.")).toHaveCount(0);
+  expect(state.ops["op-other"].polls).toBeGreaterThan(1);
+});
+
+test("drafts survive crossing the 1280px layout breakpoint", async ({ page }) => {
+  const { errors } = await setup(page);
+  await page.goto(`${base}/notifications/${geofence}`);
+  const onClear = page.getByLabel("Email when the condition clears");
+  await onClear.click();
+  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await expect(page.getByRole("heading", { level: 1, name: "GPS demo geofence" })).toBeVisible();
+  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
+  await expect(onClear).not.toBeChecked();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(onClear).not.toBeChecked();
+  await expect(page.getByRole("table", { name: "Workflows" })).toBeVisible();
+  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save notification settings" }).click();
+  await expect(page.getByText("Notification settings saved.")).toBeVisible();
+
+  await page.goto(`${base}/a3`);
+  await page.getByLabel("Add a comment").fill("Draft kept across layouts");
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await expect(
+    page.getByRole("heading", { level: 1, name: "GPS demo geofence · Episode 3" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Add a comment")).toHaveValue("Draft kept across layouts");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(page.getByRole("list", { name: "Alert episodes" })).toBeVisible();
+  await expect(page.getByLabel("Add a comment")).toHaveValue("Draft kept across layouts");
+  expect(errors).toEqual([]);
+});
+
+test("mobile shows one pane at a time without sideways scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { errors } = await setup(page);
+  await page.goto(base);
+  await page.getByRole("link", { name: "GPS demo geofence · Episode 3", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "GPS demo geofence · Episode 3" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Alert episodes" })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+  await page.getByRole("link", { name: "Back to Alerts" }).click();
+  await expect(page.getByRole("list", { name: "Alert episodes" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.goto(`${base}/notifications/${geofence}`);
+  await expect(page.getByRole("heading", { level: 1, name: "GPS demo geofence" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("viewers read alerts without management actions", async ({ page }) => {
+  await setup(page, false);
+  await page.goto(`${base}/a1`);
+  const detail = page.getByRole("region", { name: "Episode detail" });
+  await expect(detail.getByText("Operator Two", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Notification settings" })).toHaveCount(0);
+  await expect(detail.getByRole("button", { name: "Acknowledge alert" })).toHaveCount(0);
+  await expect(detail.getByRole("combobox", { name: "Assignee" })).toHaveCount(0);
+  await expect(detail.getByLabel("Add a comment")).toHaveCount(0);
+  await page.goto(`${base}/notifications`);
+  await expect(page.getByText("Settings unavailable")).toBeVisible();
+});

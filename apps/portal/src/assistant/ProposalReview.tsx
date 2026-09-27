@@ -32,10 +32,18 @@ import {
   TabsContent,
 } from "@iot-os/ui/components/tabs"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { Choice, RequestError, TextField } from "../components/forms"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@iot-os/ui/components/table"
+import { Choice, Confirm, RequestError, TextField } from "../components/forms"
 import { api } from "../lib/api"
 import { IncomingConversionFields } from "../profiles/IncomingConversionFields"
-import { editedEvidence } from "./state"
+import { editedEvidence, fieldDiff } from "./state"
 
 const JsonCode = lazy(() => import("@iot-os/ui/components/json-code"))
 const enums: Record<string, string[]> = {
@@ -175,6 +183,28 @@ function beforeValue(
       )
 }
 
+const show = (value: AssistantValue | undefined) =>
+  value === undefined || value === null
+    ? "Not set"
+    : typeof value === "object"
+      ? JSON.stringify(value)
+      : String(value)
+const changeTitle = (proposal: AssistantProposal, change: AssistantChange) =>
+  `${
+    change.operation === "remove"
+      ? "Remove"
+      : change.uuid ||
+          (proposal.section === "identity" && proposal.draft_revision !== null)
+        ? "Update"
+        : "Add"
+  }: ${String(
+    change.values.label ??
+      change.values.name ??
+      change.values.key ??
+      change.uuid ??
+      proposal.section,
+  )}`
+
 export function ProposalReview({
   org,
   conversation,
@@ -219,6 +249,7 @@ export function ProposalReview({
   }, [cache, org, proposal.id, changes, evidence])
   const [error, setError] = useState<unknown>(null)
   const [saving, setSaving] = useState(false)
+  const [dismiss, setDismiss] = useState(false)
   const edited =
     JSON.stringify(changes) !== JSON.stringify(proposal.changes) ||
     JSON.stringify(evidence) !== JSON.stringify(proposal.evidence)
@@ -309,21 +340,7 @@ export function ProposalReview({
                   className="flex flex-col gap-4 rounded-lg border p-4"
                 >
                   <legend className="px-1 text-sm font-medium">
-                    {change.operation === "remove"
-                      ? "Remove"
-                      : change.uuid ||
-                          (proposal.section === "identity" &&
-                            proposal.draft_revision !== null)
-                        ? "Update"
-                        : "Add"}
-                    :{" "}
-                    {String(
-                      change.values.label ??
-                        change.values.name ??
-                        change.values.key ??
-                        change.uuid ??
-                        proposal.section,
-                    )}
+                    {changeTitle(proposal, change)}
                   </legend>
                   {change.operation === "remove" ? (
                     <Alert>
@@ -417,29 +434,52 @@ export function ProposalReview({
                 Close this review and describe the change in chat.
               </p>
             </TabsContent>
-            <TabsContent value="changes" className="flex flex-col gap-4">
-              {changes.map((change, index) => (
-                <div key={index} className="grid min-w-0 gap-3 md:grid-cols-2">
-                  <div>
-                    <p className="mb-2 text-sm font-medium">Before</p>
-                    <pre className="max-h-80 overflow-auto rounded-lg border p-3 text-xs whitespace-pre-wrap break-all">
-                      {JSON.stringify(beforeValue(proposal, change), null, 2)}
-                    </pre>
-                  </div>
-                  <div>
-                    <p className="mb-2 text-sm font-medium">
-                      After · {change.operation}
-                    </p>
-                    <pre className="max-h-80 overflow-auto rounded-lg border p-3 text-xs whitespace-pre-wrap break-all">
-                      {JSON.stringify(
-                        change.operation === "remove" ? null : change.values,
-                        null,
-                        2,
-                      )}
-                    </pre>
-                  </div>
-                </div>
-              ))}
+            <TabsContent value="changes" className="flex flex-col gap-6">
+              {changes.map((change, index) => {
+                const rows = fieldDiff(
+                  beforeValue(proposal, change),
+                  change.operation === "remove" ? null : change.values,
+                )
+                return (
+                  <section key={index} className="flex min-w-0 flex-col gap-2">
+                    <h3 className="text-sm font-medium">
+                      {changeTitle(proposal, change)}
+                    </h3>
+                    {rows.length ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Field</TableHead>
+                            <TableHead>Before</TableHead>
+                            <TableHead>After</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {rows.map((row) => (
+                            <TableRow key={row.field}>
+                              <TableCell className="align-top">
+                                {row.field.split(".").map(label).join(" · ")}
+                              </TableCell>
+                              <TableCell className="align-top whitespace-normal break-all text-muted-foreground">
+                                {show(row.before)}
+                              </TableCell>
+                              <TableCell className="align-top whitespace-normal break-all">
+                                {change.operation === "remove"
+                                  ? "Removed"
+                                  : show(row.after)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No field changes.
+                      </p>
+                    )}
+                  </section>
+                )
+              })}
             </TabsContent>
             <TabsContent value="json">
               <div className="h-96 overflow-hidden rounded-lg border">
@@ -549,7 +589,7 @@ export function ProposalReview({
               <Button
                 variant="outline"
                 disabled={saving || busy}
-                onClick={() => void decide("reject")}
+                onClick={() => setDismiss(true)}
               >
                 Dismiss proposal
               </Button>
@@ -572,6 +612,14 @@ export function ProposalReview({
           )}
         </DialogFooter>
       </DialogContent>
+      <Confirm
+        open={dismiss}
+        title="Dismiss this proposal?"
+        description="The suggested changes for this section are discarded. Ask the assistant in chat for a new proposal."
+        action="Dismiss proposal"
+        onClose={() => setDismiss(false)}
+        onConfirm={() => decide("reject")}
+      />
     </Dialog>
   )
 }
