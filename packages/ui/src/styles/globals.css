@@ -1,5 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Self-hosted skin fonts. Browsers only download a face when a skin uses it. */
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/b612/400.css";
+@import "@fontsource/b612/700.css";
+@import "@fontsource/b612-mono/400.css";
+@import "@fontsource/b612-mono/700.css";
 
 @source "../**/*.{ts,tsx}";
 @source "../../../../apps/**/*.{ts,tsx}";
@@ -10,6 +22,13 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
+  --color-commanded: var(--commanded);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-series-6: var(--series-6);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -36,17 +55,39 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  /* Multiplied, not offset, so a 0 radius skin stays square at every size. */
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) * 1.5);
 }
 
+/*
+ * Two independent axes on <html>:
+ *   class="dark"           light or dark colours (next-themes)
+ *   data-skin="console | instrument | flight-deck"   fonts, shape, density, label case;
+ *                          dark colours for flight deck. Set before paint by index.html.
+ * Tailwind reads --font-sans and --font-mono directly (font-sans, font-mono, preflight).
+ */
 :root {
   color-scheme: light;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 4px;
+  --panel-gap: 12px;
+  --row-h: 36px;
+  --label-transform: none;
+  --label-tracking: 0;
   --success: oklch(0.43 0.11 155);
   --warning: oklch(0.46 0.12 65);
   --info: oklch(0.49 0.2 260);
+  --commanded: #7c3aed;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #9085e9;
   --json-key: oklch(0.43 0.17 260);
   --json-string: oklch(0.4 0.1 160);
   --json-number: oklch(0.45 0.12 60);
@@ -65,7 +106,7 @@
   --muted-foreground: oklch(0.48 0.015 260);
   --accent: oklch(0.94 0.025 260);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: oklch(0.51 0.2 27.3); /* darker than stock so destructive button text passes AA on its tinted background */
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.56 0.2 260);
@@ -77,44 +118,111 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
 }
 
 .dark {
   color-scheme: dark;
-  --success: oklch(0.77 0.13 155);
-  --warning: oklch(0.8 0.14 75);
-  --info: oklch(0.75 0.13 255);
+  --success: #0ca30c;
+  --warning: #fab219;
+  --info: #7fb0ff;
+  --destructive: #ff5c5c;
+  --commanded: #c792ff;
   --json-key: oklch(0.76 0.12 255);
   --json-string: oklch(0.8 0.12 155);
   --json-number: oklch(0.82 0.13 70);
   --json-keyword: oklch(0.8 0.13 310);
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.75 0.13 255);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.75 0.13 255);
-  --sidebar-primary-foreground: oklch(0.205 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #000;
+  --foreground: #fff;
+  --card: #050505;
+  --card-foreground: #fff;
+  --popover: #0a0a0a;
+  --popover-foreground: #fff;
+  --primary: #7fb0ff;
+  --primary-foreground: #000;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #fff;
+  --muted: #111;
+  --muted-foreground: #9a9a9a;
+  --accent: #161616;
+  --accent-foreground: #fff;
+  --border: #1c1c1c;
+  --input: #2a2a2a;
+  --ring: #7fb0ff;
+  --sidebar: #000;
+  --sidebar-foreground: #fff;
+  --sidebar-primary: #7fb0ff;
+  --sidebar-primary-foreground: #000;
+  --sidebar-accent: #111;
+  --sidebar-accent-foreground: #fff;
+  --sidebar-border: #1c1c1c;
+  --sidebar-ring: #7fb0ff;
+}
+
+[data-skin="instrument"] {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 0px;
+  --panel-gap: 0px;
+  --row-h: 32px;
+  --label-transform: uppercase;
+  --label-tracking: 0.06em;
+}
+
+[data-skin="flight-deck"] {
+  --font-sans: "B612", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "B612 Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 0px;
+  --panel-gap: 0px;
+  --row-h: 34px;
+  --label-transform: uppercase;
+  --label-tracking: 0.12em;
+}
+
+/* Light flight deck: darker cyan that keeps 4.5:1 on white. */
+[data-skin="flight-deck"]:not(.dark) {
+  --primary: #00708a;
+  --ring: #00708a;
+  --sidebar-primary: #00708a;
+}
+
+.dark[data-skin="flight-deck"] {
+  --success: #2bd96b;
+  --warning: #ffb020;
+  --info: #3fd8ff;
+  --destructive: #ff4040;
+  --commanded: #ff4fd8;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #9085e9;
+  --series-4: #199e70;
+  --series-5: #c98500;
+  --series-6: #d55181;
+  --card: rgb(0 0 0 / 72%);
+  --popover: #070a0c;
+  --secondary: #141a20;
+  --muted: #0e1317;
+  --muted-foreground: #a9b4bf;
+  --accent: #141a20;
+  --border: #192026;
+  --input: #27303a;
+  --primary: #3fd8ff;
+  --ring: #3fd8ff;
+  --sidebar-primary: #3fd8ff;
+  --sidebar-accent: #0e1317;
+  --sidebar-border: #192026;
+  --sidebar-ring: #3fd8ff;
+}
+
+/* Static dot grid behind the flight deck; panels are translucent so it shows through. */
+.dark[data-skin="flight-deck"] :is(body, [data-slot="sidebar-inset"]) {
+  background-image: radial-gradient(circle, #0e1317 1px, transparent 1.2px);
+  background-size: 16px 16px;
+}
+
+/* Small section and panel labels: "skin-label" follows the skin's letter case. */
+@utility skin-label {
+  text-transform: var(--label-transform);
+  letter-spacing: var(--label-tracking);
 }
 
 @layer base {
@@ -124,7 +232,8 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
   }
 }
 

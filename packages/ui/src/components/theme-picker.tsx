@@ -8,9 +8,49 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@iot-os/ui/components/dropdown-menu"
-export function ThemePicker() {
+import { isSkin, skins, useSkin } from "@iot-os/ui/components/skin"
+
+const themes = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
+]
+
+/** Theme and skin radio groups, for use inside any DropdownMenuContent (user menu, ThemePicker). */
+export function AppearanceMenuItems() {
   const { theme = "system", setTheme } = useTheme()
+  const { skin, setSkin } = useSkin()
+  return (
+    <>
+      <DropdownMenuLabel>Theme</DropdownMenuLabel>
+      <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+        {themes.map((item) => (
+          <DropdownMenuRadioItem value={item.value} key={item.value}>
+            {item.label}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel>Skin</DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        value={skin}
+        onValueChange={(value) => {
+          if (isSkin(value)) setSkin(value)
+        }}
+      >
+        {skins.map((item) => (
+          <DropdownMenuRadioItem value={item.value} key={item.value}>
+            {item.label}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+    </>
+  )
+}
+
+export function ThemePicker() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -18,15 +58,8 @@ export function ThemePicker() {
           <SunMoonIcon />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Appearance</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
-          {["light", "dark", "system"].map((value) => (
-            <DropdownMenuRadioItem value={value} key={value}>
-              {value[0].toUpperCase() + value.slice(1)}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+      <DropdownMenuContent align="end" className="w-48">
+        <AppearanceMenuItems />
       </DropdownMenuContent>
     </DropdownMenu>
   )

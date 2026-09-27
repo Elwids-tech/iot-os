@@ -20,6 +20,13 @@ export type StatusWidgetConfig = {
   sources: DashboardSource[];
   workflow_uuid?: string;
   columns?: DashboardControlColumns;
+  /** Gauge scale; required for gauge panels, min < max. */
+  min?: number;
+  max?: number;
+  /** Text panel body, plain text up to 4000 characters; rendered as text, never HTML. */
+  text?: string;
+  /** Device health panel devices, up to 50; device_name is set by the server. */
+  devices?: { device_uuid: string; device_name?: string }[];
 };
 export type DashboardWidget = {
   id: string;
@@ -31,7 +38,11 @@ export type DashboardWidget = {
     | "state_history"
     | "color_history"
     | "location"
-    | "alerts";
+    | "alerts"
+    | "gauge"
+    | "table"
+    | "text"
+    | "device_health";
   title: string;
   description: string;
   config: StatusWidgetConfig;
@@ -57,13 +68,34 @@ export type Dashboard = {
   layouts: DashboardLayout;
   defaults: DashboardView;
   revision: number;
+  /** Up to 10 tags, 1 to 32 characters each. */
+  tags: string[];
+  folder: string | null;
+  /** Per-user preference; toggled with starDashboard. */
+  starred: boolean;
+  /** Per-user; recorded by the server when the dashboard is opened. */
+  last_viewed_at: string | null;
+  created_by: number | null;
+  created_by_name: string | null;
+  updated_by_name: string | null;
   created_at: string;
   updated_at: string;
 };
+/** tags and folder are optional on update; omitted values keep what is stored. */
 export type DashboardInput = Pick<
   Dashboard,
   "name" | "widgets" | "layouts" | "defaults"
->;
+> &
+  Partial<Pick<Dashboard, "tags" | "folder">>;
+export type DashboardRevisionSummary = {
+  revision: number;
+  name: string;
+  widget_count: number;
+  updated_by_name: string | null;
+  created_at: string;
+};
+export type DashboardRevision = DashboardRevisionSummary &
+  Pick<Dashboard, "widgets" | "layouts" | "defaults" | "tags" | "folder">;
 
 export interface WorkflowLocationOverview {
   workflow_uuid: string;

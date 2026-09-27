@@ -1,10 +1,26 @@
 import { test, expect, type Page } from "@playwright/test"
 
 const organization = "08b842d4-dbe9-44b7-a82f-8409bf31401a"
+const northstar = "5d0c1f9e-7a44-4f7e-9d6b-0c1f2a3b4c5d"
 const dashboardsPath = `/organizations/${organization}/dashboards`
+const acme = {
+  uuid: organization,
+  name: "Acme",
+  slug: "acme",
+  capabilities: { devices: { view: true, manage: true, command: true } },
+}
 
-async function setup(page: Page) {
+async function setup(
+  page: Page,
+  options: {
+    organizations?: (typeof acme)[]
+    platformAdministration?: boolean
+    unacknowledgedAlerts?: number
+  } = {},
+) {
   const errors: string[] = []
+  const alertQueries: string[] = []
+  let signedIn = true
   page.on("pageerror", (error) => errors.push(error.message))
   page.on("console", (message) => {
     if (
@@ -14,41 +30,41 @@ async function setup(page: Page) {
       errors.push(message.text())
   })
   await page.route("**/api/**", async (route) => {
-    const path = new URL(route.request().url()).pathname
-    const json = (data: unknown) =>
+    const url = new URL(route.request().url())
+    const path = url.pathname
+    const json = (data: unknown, status = 200) =>
       route.fulfill({
+        status,
         contentType: "application/json",
         body: JSON.stringify(data),
       })
+    if (path === "/api/v1/auth/logout") {
+      signedIn = false
+      return json({})
+    }
     if (path === "/api/v1/me")
-      return json({
-        data: {
-          id: 1,
-          name: "Operator",
-          email: "operator@example.test",
-          email_verified_at: "2026-01-01",
-          capabilities: { platform_administration: false },
-          organizations: [
-            {
-              uuid: organization,
-              name: "Acme",
-              slug: "acme",
+      return signedIn
+        ? json({
+            data: {
+              id: 1,
+              name: "Operator",
+              email: "operator@example.test",
+              email_verified_at: "2026-01-01",
               capabilities: {
-                devices: { view: true, manage: true, command: true },
+                platform_administration: options.platformAdministration ?? false,
               },
+              organizations: options.organizations ?? [acme],
             },
-          ],
-        },
-      })
-    if (path.endsWith("/context"))
+          })
+        : json({ message: "Unauthenticated." }, 401)
+    if (path.endsWith("/context")) return json({ data: acme })
+    if (path.endsWith("/alerts")) {
+      alertQueries.push(url.search)
       return json({
-        data: {
-          uuid: organization,
-          name: "Acme",
-          slug: "acme",
-          capabilities: { devices: { view: true, manage: true, command: true } },
-        },
+        data: [],
+        meta: { current_page: 1, last_page: 1, total: options.unacknowledgedAlerts ?? 0 },
       })
+    }
     if (path.endsWith("/dashboards")) return json({ data: [] })
     if (path.endsWith("/devices"))
       return json({
@@ -57,23 +73,27 @@ async function setup(page: Page) {
       })
     return json({ data: [] })
   })
-  return errors
+  return { errors, alertQueries }
 }
 
 test("desktop navigation collapses to icon tooltips", async ({ page }) => {
-  const errors = await setup(page)
+  const { errors } = await setup(page)
   await page.goto(dashboardsPath)
-  await page.locator('[data-sidebar="trigger"]').click()
+  await page.locator('[data-sidebar="rail"]').click()
   const sidebar = page.locator('[data-slot="sidebar"][data-state]')
   await expect(sidebar).toHaveAttribute("data-state", "collapsed")
-  for (const label of await sidebar.locator('[data-sidebar="menu-button"] > span').all()) {
+  const labels = sidebar
+    .getByRole("navigation", { name: "Workspace" })
+    .locator('[data-sidebar="menu-button"] > span')
+  await expect(labels).toHaveCount(7)
+  for (const label of await labels.all()) {
     await expect(label).toHaveCSS("position", "absolute")
     await expect(label).toHaveCSS("width", "1px")
     await expect(label).toHaveCSS("clip-path", "inset(50%)")
   }
-  const brand = sidebar.getByRole("link", { name: "IoT OS Tenant portal" })
-  await expect(brand).toHaveCSS("padding", "8px")
-  await expect(sidebar.getByRole("button", { name: "Organization", exact: true }).locator("svg:visible")).toHaveCount(1)
+  const switcher = sidebar.getByRole("button", { name: "Organization: Acme" })
+  await expect(switcher).toHaveCSS("width", "32px")
+  await expect(switcher.locator("svg:visible")).toHaveCount(0)
   await page.getByRole("link", { name: "Devices" }).hover()
   await expect(page.getByRole("tooltip", { name: "Devices" })).toBeVisible()
   expect(errors).toEqual([])
@@ -81,7 +101,7 @@ test("desktop navigation collapses to icon tooltips", async ({ page }) => {
 
 for (const theme of ["light", "dark"]) {
   test(`${theme} navigation highlights only the current route and restores labels`, async ({ page }) => {
-    const errors = await setup(page)
+    const { errors } = await setup(page)
     await page.addInitScript((value) => localStorage.setItem("theme", value), theme)
     await page.goto(dashboardsPath)
     const sidebar = page.locator('[data-slot="sidebar"][data-state]')
@@ -91,7 +111,7 @@ for (const theme of ["light", "dark"]) {
     await expect(dashboard).toHaveAttribute("data-active", "true")
     const background = await sidebar.locator('[data-slot="sidebar-inner"]').evaluate(el => getComputedStyle(el).backgroundColor)
     expect(background).not.toBe("rgba(0, 0, 0, 0)")
-    await page.locator('[data-sidebar="trigger"]').click()
+    await page.locator('[data-sidebar="rail"]').click()
     const devices = sidebar.getByRole("link", { name: "Devices", exact: true })
     await devices.click()
     await expect(page).toHaveURL(`/organizations/${organization}/devices`)
@@ -104,7 +124,7 @@ for (const theme of ["light", "dark"]) {
     expect(await devices.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)")
     await page.goBack()
     await expect(dashboard).toHaveAttribute("data-active", "true")
-    await page.locator('[data-sidebar="trigger"]').click()
+    await page.locator('[data-sidebar="rail"]').click()
     await expect(dashboard.locator("span")).toHaveCSS("position", "static")
     await expect(sidebar).toHaveAttribute("data-state", "expanded")
     expect(errors).toEqual([])
@@ -112,7 +132,7 @@ for (const theme of ["light", "dark"]) {
 }
 
 test("mobile navigation opens, changes section, and closes", async ({ page }) => {
-  const errors = await setup(page)
+  const { errors } = await setup(page)
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(dashboardsPath)
   await page.getByRole("button", { name: "Toggle Sidebar" }).click()
@@ -128,5 +148,100 @@ test("mobile navigation opens, changes section, and closes", async ({ page }) =>
         document.documentElement.clientWidth,
     ),
   ).toBe(true)
+  expect(errors).toEqual([])
+})
+
+test("mobile page header opens the sidebar to choose an organization", async ({ page }) => {
+  const { errors } = await setup(page, {
+    organizations: [acme, { ...acme, uuid: northstar, name: "Northstar", slug: "northstar" }],
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto("/")
+  await expect(page.getByRole("heading", { name: "Choose an organization", level: 1 })).toBeVisible()
+  await expect(page).toHaveTitle("Choose an organization · IoT OS")
+  await expect(page.getByRole("link", { name: /Northstar/ })).toHaveAttribute("href", `/organizations/${northstar}/dashboards`)
+  await page.getByRole("button", { name: "Toggle Sidebar" }).click()
+  await page.getByRole("button", { name: "Choose organization" }).click()
+  await page.getByRole("menuitemradio", { name: "Northstar" }).click()
+  await expect(page).toHaveURL(`/organizations/${northstar}/dashboards`)
+  expect(errors).toEqual([])
+})
+
+test("organization switcher keeps the section and marks the current organization", async ({ page }) => {
+  const { errors } = await setup(page, {
+    organizations: [acme, { ...acme, uuid: northstar, name: "Northstar", slug: "northstar" }],
+  })
+  await page.goto(`/organizations/${organization}/devices`)
+  await page.getByRole("button", { name: "Organization: Acme" }).click()
+  await expect(page.getByRole("menuitemradio", { name: "Acme" })).toHaveAttribute("aria-checked", "true")
+  await expect(page.getByRole("menuitemradio", { name: "Northstar" })).toHaveAttribute("aria-checked", "false")
+  await page.getByRole("menuitemradio", { name: "Northstar" }).click()
+  await expect(page).toHaveURL(`/organizations/${northstar}/devices`)
+  await expect(page.getByRole("button", { name: "Organization: Northstar" })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("sign-in lands on dashboards and an unknown workspace lists organizations", async ({ page }) => {
+  const { errors } = await setup(page)
+  await page.goto("/")
+  await expect(page).toHaveURL(dashboardsPath)
+  await page.goto("/organizations/unknown/devices")
+  await expect(page.getByRole("heading", { name: "Workspace unavailable", level: 1 })).toBeVisible()
+  await page.getByRole("link", { name: /Acme/ }).click()
+  await expect(page).toHaveURL(dashboardsPath)
+  expect(errors).toEqual([])
+})
+
+test("alert count, integrations and administration follow the session", async ({ page }) => {
+  const { errors, alertQueries } = await setup(page, {
+    organizations: [{ ...acme, capabilities: { devices: { view: true, manage: false, command: false } } }],
+    platformAdministration: true,
+    unacknowledgedAlerts: 3,
+  })
+  await page.goto(dashboardsPath)
+  await expect(page.getByRole("link", { name: "Alerts 3 unacknowledged" })).toBeVisible()
+  expect(Object.fromEntries(new URLSearchParams(alertQueries[0]))).toEqual({
+    condition: "active",
+    acknowledged: "0",
+    per_page: "1",
+  })
+  await expect(page.getByRole("link", { name: "Integrations" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Operator" }).click()
+  await expect(page.getByRole("menuitem", { name: "Administration" })).toHaveAttribute("href", /^http/)
+  expect(errors).toEqual([])
+})
+
+test("user menu changes theme and skin, then signs out", async ({ page }) => {
+  const { errors } = await setup(page)
+  await page.goto(dashboardsPath)
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "console")
+  await page.getByRole("button", { name: "Operator" }).click()
+  await expect(page.getByRole("menuitem", { name: "Administration" })).toHaveCount(0)
+  await page.getByRole("menuitemradio", { name: "Dark" }).click()
+  await expect(page.locator("html")).toHaveClass(/dark/)
+  await page.getByRole("button", { name: "Operator" }).click()
+  await page.getByRole("menuitemradio", { name: "Flight deck" }).click()
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "flight-deck")
+  expect(await page.evaluate(() => localStorage.getItem("iot-skin"))).toBe("flight-deck")
+  await page.reload()
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "flight-deck")
+  expect(
+    await page.evaluate(() => getComputedStyle(document.body).fontFamily),
+  ).toContain("B612")
+  await page.getByRole("button", { name: "Operator" }).click()
+  await page.getByRole("menuitem", { name: "Sign out" }).click()
+  await expect(page.getByRole("heading", { name: "Welcome to your workspace" })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("session recovery offers sign out", async ({ page }) => {
+  const { errors } = await setup(page)
+  await page.goto(dashboardsPath)
+  await expect(page.getByRole("link", { name: "Dashboards", exact: true })).toBeVisible()
+  await page.evaluate(() => window.dispatchEvent(new Event("iot-session-expired")))
+  const dialog = page.getByRole("dialog", { name: "Restore your session" })
+  await dialog.getByRole("button", { name: "Sign out" }).click()
+  await expect(page.getByRole("heading", { name: "Welcome to your workspace" })).toBeVisible()
+  await expect(dialog).toHaveCount(0)
   expect(errors).toEqual([])
 })

@@ -59,6 +59,8 @@ export type AssistantProposal = {
     blocking?: boolean
   }[]
   result: AssistantSaved | null
+  /** Orders proposal cards between messages; cards without it go last. */
+  created_at?: string
 }
 export type AssistantRun = {
   id: string

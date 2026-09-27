@@ -134,6 +134,8 @@ export type Device = {
   diagnostic: string | null
   last_seen_at: string | null
   candidate: DiscoveryCandidate | null
+  /** Profile of the applied configuration, else of the last one the runtime confirmed. */
+  profile: { uuid: string; name: string; revision: number } | null
 }
 export type DeviceDetail = Device & {
   retention: RetentionSetting

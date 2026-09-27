@@ -170,8 +170,14 @@ export function AcceptInvitationPage({
             </CardTitle>
             <CardDescription>
               This invitation is invalid, expired, revoked, or already accepted.
+              Ask your administrator to send a new one.
             </CardDescription>
           </CardHeader>
+          <CardFooter>
+            <Button asChild variant="outline">
+              <a href={portalUrl}>Open tenant portal</a>
+            </Button>
+          </CardFooter>
         </Card>
       </main>
     )

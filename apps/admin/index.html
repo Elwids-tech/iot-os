@@ -4,7 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" />
-    <title>IoT OS Administration</title>
+    <title>IoT OS Admin</title>
+    <script>
+      // Skin before first paint; SkinProvider (packages/ui skin.tsx) takes over after load.
+      try {
+        var skin = localStorage.getItem("iot-skin")
+        document.documentElement.dataset.skin =
+          skin === "instrument" || skin === "flight-deck" ? skin : "console"
+      } catch (error) {
+        document.documentElement.dataset.skin = "console"
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

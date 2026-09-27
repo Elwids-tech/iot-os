@@ -16,7 +16,7 @@ import type {
   RetentionSetting,
 } from "./devices"
 
-import type { Dashboard, DashboardInput } from "./dashboards"
+import type { Dashboard, DashboardInput, DashboardRevision, DashboardRevisionSummary } from "./dashboards"
 export * from "./dashboards"
 export * from "./devices"
 export * from "./alerts"
@@ -74,6 +74,13 @@ export type OrganizationRoleDetail = Omit<
 export type InvitationRole = {
   id: number
   display_name: string
+}
+
+export type OrganizationMember = {
+  id: number
+  name: string
+  email: string
+  roles: Pick<OrganizationRole, "id" | "key" | "display_name" | "is_default">[]
 }
 
 export type OrganizationInvitation = {
@@ -204,6 +211,8 @@ export type CompiledDeviceProfileDefinition = {
 
 export type DeviceProfile = {
   parameters_count?: number
+  /** List only; omitted when the user lacks Device.view. */
+  devices_count?: number
   uuid: string
   code: string
   name: string
@@ -763,6 +772,53 @@ export class ApiClient {
     )
   }
 
+  async createAdminOrganization(values: {
+    name: string
+    slug: string
+  }): Promise<Organization> {
+    return this.request<ApiResponse<Organization>>("/api/v1/admin/organizations", {
+      method: "POST",
+      body: JSON.stringify(values),
+    }).then((response) => response.data)
+  }
+
+  async updateAdminOrganization(
+    organizationUuid: string,
+    values: { name: string; slug: string },
+  ): Promise<Organization> {
+    return this.request<ApiResponse<Organization>>(
+      `/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}`,
+      { method: "PATCH", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  async organizationMembers(
+    organizationUuid: string,
+    page = 1,
+  ): Promise<PaginatedResponse<OrganizationMember>> {
+    return this.request<PaginatedResponse<OrganizationMember>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/members?per_page=100&page=${page}`,
+    )
+  }
+
+  async syncOrganizationMemberRoles(
+    organizationUuid: string,
+    userId: number,
+    roleIds: number[],
+  ): Promise<OrganizationMember> {
+    return this.request<ApiResponse<OrganizationMember>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/members/${userId}`,
+      { method: "PUT", body: JSON.stringify({ role_ids: roleIds }) },
+    ).then((response) => response.data)
+  }
+
+  async removeOrganizationMember(organizationUuid: string, userId: number): Promise<void> {
+    await this.request(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/members/${userId}`,
+      { method: "DELETE" },
+    )
+  }
+
   async adminUsers(
     query: DirectoryQuery = {},
   ): Promise<PaginatedResponse<PlatformUser>> {
@@ -862,6 +918,8 @@ export class ApiClient {
     await this.request("/api/v1/auth/logout", { method: "POST" })
   }
 
+  /** Base URL of the machine API that application tokens call. */
+  integrationApiUrl() { return `${this.baseUrl}/api/integration/v1` }
   private applicationPath(org: string, id = "") {
     return `/api/v1/organizations/${encodeURIComponent(org)}/applications${id ? "/" + encodeURIComponent(id) : ""}`
   }
@@ -893,7 +951,12 @@ export class ApiClient {
   }
   async devices(
     org: string,
-    query: { search?: string; lifecycle?: string; page?: number } = {},
+    query: {
+      search?: string
+      lifecycle?: string
+      page?: number
+      per_page?: number
+    } = {},
   ) {
     const search = new URLSearchParams(
       Object.entries(query)
@@ -922,8 +985,8 @@ export class ApiClient {
       })
     ).data
   }
-  device(org: string, id: string) {
-    return this.data<DeviceDetail>(this.devicePath(org, id))
+  device(org: string, id: string, signal?: AbortSignal) {
+    return this.data<DeviceDetail>(this.devicePath(org, id), "GET", undefined, signal)
   }
   createDevice(org: string, values: DeviceInput) {
     return this.data<DeviceDetail>(this.devicePath(org), "POST", values)
@@ -1008,6 +1071,27 @@ export class ApiClient {
   deleteDashboard(org: string, dashboard: string) {
     return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}`, { method: "DELETE" })
   }
+
+  starDashboard(org: string, dashboard: string, starred: boolean) {
+    return this.data<Dashboard>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}/star`, "PUT", { starred })
+  }
+
+  duplicateDashboard(org: string, dashboard: string, name: string) {
+    return this.data<Dashboard>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}/duplicate`, "POST", { name })
+  }
+
+  dashboardRevisions(org: string, dashboard: string) {
+    return this.data<DashboardRevisionSummary[]>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}/revisions`)
+  }
+
+  dashboardRevision(org: string, dashboard: string, revision: number) {
+    return this.data<DashboardRevision>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}/revisions/${revision}`)
+  }
+
+  /** Writes a stored snapshot as a new revision; 409 when `current` is stale. */
+  restoreDashboardRevision(org: string, dashboard: string, revision: number, current: number) {
+    return this.data<Dashboard>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}/revisions/${revision}/restore`, "POST", { revision: current })
+  }
   deviceHistory(
     org: string,
     id: string,
@@ -1069,8 +1153,8 @@ export class ApiClient {
       "GET", undefined, signal,
     )
   }
-  deviceCommands(org: string, id: string) {
-    return this.data<DeviceCommand[]>(this.devicePath(org, id) + "/commands")
+  deviceCommands(org: string, id: string, signal?: AbortSignal) {
+    return this.data<DeviceCommand[]>(this.devicePath(org, id) + "/commands", "GET", undefined, signal)
   }
   prepareDeviceCommand(
     org: string,
@@ -1369,14 +1453,18 @@ export class ApiClient {
     return `${this.baseUrl}${this.assistantPath(org, id, `/sources/${encodeURIComponent(source)}`)}`
   }
 
-  alerts(org: string, query: string) {
-    return this.request<import("./alerts").AlertPage<import("./alerts").WorkflowAlert>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts?${query}`)
+  alerts(org: string, query: string, signal?: AbortSignal) {
+    return this.request<import("./alerts").AlertPage<import("./alerts").WorkflowAlert>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts?${query}`, { signal })
   }
   alert(org: string, id: string) {
     return this.data<import("./alerts").WorkflowAlert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}`)
   }
   acknowledgeAlert(org: string, id: string) {
     return this.data<import("./alerts").WorkflowAlert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/acknowledge`, "POST", {})
+  }
+  /** `null` unassigns. The user must be an organization member (integer user id). */
+  assignAlert(org: string, id: string, userId: number | null) {
+    return this.data<import("./alerts").WorkflowAlert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/assignee`, "PUT", { user_id: userId })
   }
   alertComments(org: string, id: string, page: number) {
     return this.request<import("./alerts").AlertPage<import("./alerts").AlertComment>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/comments?page=${page}`)
@@ -1398,7 +1486,17 @@ export class ApiClient {
     return this.data<import("./dashboards").WorkflowAlertOverview>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/alert-overview`, "GET", undefined, signal)
   }
   notificationWorkflows(org: string, page: number) {
-    return this.request<import("./alerts").AlertPage<{ uuid: string; name: string }>>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?page=${page}`)
+    return this.request<import("./alerts").AlertPage<import("./alerts").AutomationWorkflow>>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?page=${page}`)
+  }
+  workflow(org: string, id: string) {
+    return this.data<import("./alerts").AutomationWorkflow>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}`)
+  }
+  /** Activate or disable; 202 is a request, poll workflowDeployment until the operation settles. */
+  deployWorkflow(org: string, id: string, input: import("./alerts").WorkflowDeploymentInput) {
+    return this.request<{ data: import("./alerts").AutomationWorkflow; deployment: import("./alerts").WorkflowDeployment }>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/deployments`, { method: "POST", body: JSON.stringify(input) })
+  }
+  workflowDeployment(org: string, id: string, operation: string) {
+    return this.request<{ data: import("./alerts").AutomationWorkflow; deployment: import("./alerts").WorkflowDeployment }>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/deployments/${encodeURIComponent(operation)}`)
   }
   workflowNotifications(org: string, workflow: string) {
     return this.data<import("./alerts").NotificationSettings>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(workflow)}/notifications`)
