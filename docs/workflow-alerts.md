@@ -18,6 +18,10 @@ Condition state and human acknowledgement are independent:
 - Acknowledgement records the first actor and timestamp and is idempotent. It
   does not clear the condition or suppress notification delivery.
 - Comments are append-only and accept a client-generated UUID for safe retries.
+- An alert has at most one assignee, who must be a member of the organization.
+  Assigning replaces the previous assignee and `null` clears it. Assignment is
+  recorded in the device audit log only; it does not add a comment, send email
+  or change acknowledgement.
 - Disable, replacement and suspension preserve the last condition; the detail
   page displays the execution's stop reason. No false recovery is generated.
 - Clear-before-activation delivery fills a cleared historical episode; the later
@@ -80,9 +84,10 @@ Base `/api/v1/organizations/{organization_uuid}`:
 
 | Method/path | Purpose |
 | --- | --- |
-| GET `/alerts` | Paginated list; `condition=active\|cleared`, `acknowledged=0\|1`, `per_page` 1–100 |
-| GET `/alerts/{uuid}` | Episode, acknowledgement and execution stop reason |
+| GET `/alerts` | Paginated list; `condition=active\|cleared`, `acknowledged=0\|1`, `device={device_uuid}`, `workflow={workflow_uuid}`, `per_page` 1–100 |
+| GET `/alerts/{uuid}` | Episode, device, acknowledgement, assignee and execution stop reason |
 | POST `/alerts/{uuid}/acknowledge` | Idempotent first acknowledgement |
+| PUT `/alerts/{uuid}/assignee` | `{user_id}` of an organization member, or `null` to unassign |
 | GET `/alerts/{uuid}/comments` | Comments, 50 per page |
 | POST `/alerts/{uuid}/comments` | `{uuid, body}`; max 5000 characters |
 | GET `/alerts/{uuid}/deliveries` | Delivery states, retry generation and attempt history |
@@ -102,10 +107,16 @@ Notification update example:
 }
 ```
 
+List and detail items include `device_uuid`, `device_name` (null when the
+device record is not found), `acknowledged_by_name`, `assignee` (`{id, name}` or
+null) and `assigned_at`. The `device` and `workflow` filters only match alerts in
+the requested organization.
+
 Settings use the notification revision, independently of the workflow draft.
 Stale updates return 409. Invalid or out-of-organization recipients return 422.
-Alert/comment reads require `Device.view`; acknowledgement, comment creation,
-delivery details and notification settings require `Device.manage`. Organization
+Alert/comment reads require `Device.view`; acknowledgement, assignment, comment
+creation, delivery details and notification settings require `Device.manage`.
+An assignee outside the organization returns 422. Organization
 membership and resource ownership are enforced separately. The portal provides a paginated workflow directory, recipient search and pagination inside the picker, selected-recipient removal, opt-in and recovery switches, saved feedback and unsaved-navigation protection. A 409 preserves the local draft; reloading saved preferences requires an explicit discard confirmation.
 
 ## Verification

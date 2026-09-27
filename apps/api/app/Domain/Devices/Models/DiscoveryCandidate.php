@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Devices\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class DiscoveryCandidate extends DeviceModel
 {
@@ -18,5 +19,10 @@ final class DiscoveryCandidate extends DeviceModel
     public function gateway(): BelongsTo
     {
         return $this->belongsTo(SparkplugGateway::class, 'sparkplug_gateway_id');
+    }
+
+    public function assignedDevice(): HasOne
+    {
+        return $this->hasOne(Device::class, 'reserved_source_uuid', 'uuid');
     }
 }

@@ -59,7 +59,7 @@ final class DiscoveryController
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
 
-        return $this->directory($request, SparkplugGateway::where('organization_id', $organization->id)->with('connection')->orderBy('name'), fn ($g) => DeviceView::gateway($g), ['name', 'edge_node_id']);
+        return $this->directory($request, SparkplugGateway::where('organization_id', $organization->id)->with('connection')->withCount('candidates')->orderBy('name'), fn ($g) => DeviceView::gateway($g), ['name', 'edge_node_id']);
     }
 
     public function storeGateway(Request $request, Organization $organization)
@@ -81,7 +81,7 @@ final class DiscoveryController
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
 
-        return $this->directory($request, DiscoveryCandidate::where('organization_id', $organization->id)->with('gateway.connection')->orderBy('id'), fn ($c) => DeviceView::candidate($c), ['source_device_id'], true);
+        return $this->directory($request, DiscoveryCandidate::where('organization_id', $organization->id)->with(['gateway' => fn ($q) => $q->withCount('candidates'), 'gateway.connection', 'assignedDevice'])->orderBy('id'), fn ($c) => DeviceView::candidate($c), ['source_device_id'], true);
     }
 
     public function provisionGateway(Request $request, Organization $organization, SparkplugGateway $gateway): array

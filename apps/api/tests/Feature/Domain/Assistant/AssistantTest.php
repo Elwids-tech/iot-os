@@ -124,7 +124,7 @@ final class AssistantTest extends TestCase
         $this->postJson($path, $input)->assertUnprocessable();
         unset($input['changes'][0]['values']['status']);
         $input['evidence'] = [['field' => 'name', 'origin' => 'unresolved', 'note' => 'Confirm the model']];
-        $id = $this->postJson($path, $input)->assertCreated()->assertJsonPath('data.status', 'pending')->json('data.id');
+        $id = $this->postJson($path, $input)->assertCreated()->assertJsonPath('data.status', 'pending')->assertJsonStructure(['data' => ['created_at']])->json('data.id');
         $this->approve($conversation, AssistantProposal::findOrFail($id))->assertUnprocessable();
     }
 

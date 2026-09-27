@@ -32,10 +32,12 @@ final class DeviceView
         $data['presence'] = $presence;
         $data['state_revision'] = (int) $device->state_revision;
         $data['last_applied_configuration_uuid'] = $device->last_applied_configuration_uuid;
-        $operation = DeviceOperation::where('device_id', $device->id)->orderByDesc('generation')->first();
-        $data['operation'] = $operation ? self::operation($operation) : null;
+        $data['operation'] = $device->latestOperation ? self::operation($device->latestOperation) : null;
 
         $data['candidate'] = $device->candidate ? self::candidate($device->candidate) : null;
+        // Same rule as telemetry reads: the applied configuration, else the last one the runtime confirmed.
+        $artifact = ($device->appliedConfiguration ?? $device->lastAppliedConfiguration)?->artifact;
+        $data['profile'] = $artifact?->profile ? ['uuid' => $artifact->profile->uuid, 'name' => $artifact->profile->name, 'revision' => $artifact->revision] : null;
         if ($detail) {
             $data['retention'] = app(RetentionService::class)->effective($device->organization);
             $data['draft'] = $device->draft;
@@ -65,13 +67,13 @@ final class DeviceView
         return [...$gateway->only(['uuid', 'name', 'edge_node_id', 'presence', 'last_seen_at']),
             'presence' => $gateway->presence === 'online' && (! $gateway->runtime_seen_at || $gateway->runtime_seen_at->lt(now()->subSeconds(20))) ? 'unknown' : $gateway->presence,
             'connection_uuid' => $gateway->connection->uuid, 'group_id' => $gateway->connection->group_id,
-            'sources_count' => $gateway->candidates()->count()];
+            'sources_count' => $gateway->candidates_count ?? $gateway->candidates()->count()];
     }
 
     public static function candidate(DiscoveryCandidate $candidate): array
     {
         return [...$candidate->only(['uuid', 'source_device_id', 'status', 'presence', 'session_id', 'birth_revision', 'metrics', 'last_seen_at']),
-            'assigned_device_uuid' => Device::where('reserved_source_uuid', $candidate->uuid)->value('uuid'),
+            'assigned_device_uuid' => $candidate->assignedDevice?->uuid,
             'gateway' => self::gateway($candidate->gateway)];
     }
 
