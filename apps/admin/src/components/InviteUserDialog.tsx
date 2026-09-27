@@ -22,7 +22,9 @@ import {
   SelectValue,
 } from "@iot-os/ui/components/select"
 import { AlertCircleIcon, SendIcon } from "lucide-react"
+import { toast } from "sonner"
 import { apiClient } from "../lib/api-client"
+import { errorMessage, fieldMessages, validationErrors } from "../lib/errors"
 
 type FormErrors = {
   email?: string[]
@@ -125,11 +127,19 @@ export function InviteUserDialog({
     setIsSubmitting(true)
 
     try {
-      await apiClient.inviteUser(organizationUuid, email, [...selectedRoleIds])
+      const invitation = await apiClient.inviteUser(organizationUuid, email, [...selectedRoleIds])
+      toast.success(`Invitation sent to ${invitation.email}`)
       handleOpenChange(false)
       onInvited()
-    } catch {
-      setErrors({ form: "Could not send this invitation. Review the details and try again." })
+    } catch (error) {
+      const fields = validationErrors(error)
+      const emailErrors = fieldMessages(fields, "email")
+      const roleErrors = fieldMessages(fields, "role_ids")
+      setErrors({
+        email: emailErrors,
+        role_ids: roleErrors,
+        form: emailErrors || roleErrors ? undefined : errorMessage(error),
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -140,9 +150,7 @@ export function InviteUserDialog({
       <DialogContent showCloseButton={!isSubmitting}>
         <DialogHeader>
           <DialogTitle>Invite user</DialogTitle>
-          <DialogDescription>
-            Invite one user to one organization. They will select a password when they accept.
-          </DialogDescription>
+          <DialogDescription>They choose a password when they accept.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
           <FieldGroup>
@@ -176,8 +184,8 @@ export function InviteUserDialog({
                 </SelectContent>
               </Select>
             </Field>
-            <FieldSet>
-              <FieldLegend>Roles</FieldLegend>
+            <FieldSet data-invalid={Boolean(errors.role_ids?.length)}>
+              <FieldLegend variant="label">Roles</FieldLegend>
               {!organizationUuid ? (
                 <p className="text-sm text-muted-foreground">Select an organization to load its roles.</p>
               ) : isLoadingRoles ? (

@@ -160,6 +160,16 @@ async function mockApi(
 ) {
   let signedIn = options.initiallyAuthenticated ?? true
   const user = options.user ?? superAdmin
+  const orgs = organizations.map((organization) => ({ ...organization }))
+  const users = directoryUsers.map((item) => ({ ...item, organizations: [...item.organizations] }))
+  const memberRoles = new Map<string, number[]>([
+    [`${organizations[0].uuid}:3`, [1]],
+    [`${organizations[0].uuid}:4`, [2]],
+    [`${organizations[1].uuid}:3`, [3]],
+    [`${organizations[1].uuid}:5`, [3]],
+  ])
+  const unprocessable = (route: Route, field: string, message: string) =>
+    fulfillJson(route, { message, errors: { [field]: [message] } }, 422)
   const rolePermissions = new Map<number, Set<string>>([
     [1, new Set(tenantPermissions.map((permission) => permission.name))],
     [2, new Set(["Organization.view", "User.view-any"])],
@@ -232,7 +242,7 @@ async function mockApi(
 
     if (request.method() === "GET" && url.pathname === "/api/v1/admin/organizations") {
       const search = url.searchParams.get("search")?.toLocaleLowerCase() ?? ""
-      const results = organizations.filter(
+      const results = orgs.filter(
         (organization) =>
           organization.name.toLocaleLowerCase().includes(search) ||
           organization.slug.toLocaleLowerCase().includes(search),
@@ -242,10 +252,99 @@ async function mockApi(
       return
     }
 
+    if (request.method() === "POST" && url.pathname === "/api/v1/admin/organizations") {
+      const payload = request.postDataJSON() as { name: string; slug: string }
+
+      if (orgs.some((item) => item.slug === payload.slug)) {
+        await unprocessable(route, "slug", "The slug has already been taken.")
+        return
+      }
+
+      const organization = {
+        uuid: "33333333-3333-4333-8333-333333333333",
+        name: payload.name,
+        slug: payload.slug,
+        users_count: 0,
+      }
+      orgs.push(organization)
+      orgs.sort((left, right) => left.name.localeCompare(right.name))
+      await fulfillJson(route, { data: organization }, 201)
+      return
+    }
+
+    const organizationMatch = url.pathname.match(/^\/api\/v1\/admin\/organizations\/([^/]+)$/)
+
+    if (request.method() === "PATCH" && organizationMatch) {
+      const payload = request.postDataJSON() as { name: string; slug: string }
+      const organization = orgs.find((item) => item.uuid === organizationMatch[1])
+
+      if (!organization) {
+        await fulfillJson(route, { message: "Not found." }, 404)
+        return
+      }
+
+      if (orgs.some((item) => item !== organization && item.slug === payload.slug)) {
+        await unprocessable(route, "slug", "The slug has already been taken.")
+        return
+      }
+
+      Object.assign(organization, payload)
+      await fulfillJson(route, { data: organization })
+      return
+    }
+
+    const membersMatch = url.pathname.match(/^\/api\/v1\/organizations\/([^/]+)\/members$/)
+
+    if (request.method() === "GET" && membersMatch) {
+      const organizationUuid = membersMatch[1]
+      const members = users
+        .filter((item) => item.organizations.some((organization) => organization.uuid === organizationUuid))
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          email: item.email,
+          roles: directoryRoles
+            .filter((role) => memberRoles.get(`${organizationUuid}:${item.id}`)?.includes(role.id))
+            .map(({ id, key, display_name, is_default }) => ({ id, key, display_name, is_default })),
+        }))
+
+      await fulfillJson(route, paginated(members, url))
+      return
+    }
+
+    const memberMatch = url.pathname.match(/^\/api\/v1\/organizations\/([^/]+)\/members\/(\d+)$/)
+
+    if (memberMatch && ["PUT", "DELETE"].includes(request.method())) {
+      const [, organizationUuid, userId] = memberMatch
+      const key = `${organizationUuid}:${userId}`
+      const member = users.find((item) => item.id === Number(userId))
+
+      if (request.method() === "PUT") {
+        const payload = request.postDataJSON() as { role_ids: number[] }
+        memberRoles.set(key, payload.role_ids)
+        await fulfillJson(route, { data: { id: member?.id, name: member?.name, email: member?.email, roles: [] } })
+        return
+      }
+
+      const otherAdministrator = [...memberRoles.entries()].some(
+        ([otherKey, roleIds]) => otherKey.startsWith(`${organizationUuid}:`) && otherKey !== key && roleIds.includes(1),
+      )
+
+      if (memberRoles.get(key)?.includes(1) && !otherAdministrator) {
+        await unprocessable(route, "member", "An organization must retain at least one Organization Admin.")
+        return
+      }
+
+      memberRoles.delete(key)
+      if (member) member.organizations = member.organizations.filter((item) => item.uuid !== organizationUuid)
+      await route.fulfill({ status: 204 })
+      return
+    }
+
     if (request.method() === "GET" && url.pathname === "/api/v1/admin/users") {
       const search = url.searchParams.get("search")?.toLocaleLowerCase() ?? ""
       const organization = url.searchParams.get("organization")
-      const results = directoryUsers.filter(
+      const results = users.filter(
         (directoryUser) =>
           (directoryUser.name.toLocaleLowerCase().includes(search) ||
             directoryUser.email.toLocaleLowerCase().includes(search)) &&
@@ -291,6 +390,25 @@ async function mockApi(
     if (request.method() === "POST" && createInvitationMatch) {
       const organization = organizations.find((item) => item.uuid === createInvitationMatch[1])
       const payload = request.postDataJSON() as { email?: string; role_ids?: number[] }
+
+      if (
+        users.some(
+          (item) =>
+            item.email === payload.email &&
+            item.organizations.some((member) => member.uuid === organization?.uuid),
+        )
+      ) {
+        await unprocessable(route, "email", "This user already belongs to the organization.")
+        return
+      }
+
+      for (const earlier of invitations) {
+        if (earlier.email === payload.email && earlier.organization.uuid === organization?.uuid && earlier.status === "pending") {
+          earlier.status = "revoked"
+          earlier.revoked_at = "2026-08-24T12:00:00.000000Z"
+        }
+      }
+
       const roles = invitationRoles.filter((role) => payload.role_ids?.includes(role.id))
       const invitation = {
         uuid: `invite-${invitations.length + 1}`,
@@ -516,17 +634,37 @@ test("manages role permissions by group and preserves changes until saving", asy
 
   await expect(page).toHaveURL(/group=User/)
   await expect(page).toHaveURL(/search=view-any/)
-  await expect(page.getByText("User.view-any")).toBeVisible()
-  await expect(page.getByText("Organization.view")).toHaveCount(0)
+  await expect(page.getByText("List users")).toBeVisible()
+  await expect(page.getByText("View organization")).toHaveCount(0)
 
-  await page.getByRole("combobox", { name: "Select role" }).click()
-  await page.getByRole("option", { name: "Member · Northstar Utilities" }).click()
+  await page.getByRole("button", { name: "Moderator" }).click()
+  await page.getByRole("option", { name: /Member.*Northstar Utilities/ }).click()
 
   await expect(page).toHaveURL(/\/roles\/3$/)
   await expect(page.getByRole("heading", { name: "Member" })).toBeVisible()
-  await expect(
-    page.getByText("Northstar Utilities · 1 of 5 tenant permissions selected"),
-  ).toBeVisible()
+  await expect(page.getByText("Northstar Utilities · Default role · 1 of 5 selected")).toBeVisible()
+})
+
+test("asks before discarding unsaved permission changes", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/roles/2")
+
+  await page.getByRole("checkbox", { name: "Select all Organization permissions" }).click()
+  await expect(page.getByText("Unsaved permission changes")).toBeVisible()
+
+  await page.getByRole("button", { name: "Moderator" }).click()
+  await page.getByRole("option", { name: /Member.*Northstar Utilities/ }).click()
+  const guard = page.getByRole("alertdialog", { name: "Discard unsaved permission changes?" })
+  await expect(guard).toContainText("1 added and 0 removed")
+  await guard.getByRole("button", { name: "Keep editing" }).click()
+  await expect(guard).toBeHidden()
+  await expect(page).toHaveURL(/\/roles\/2$/)
+  await expect(page.getByText("Unsaved permission changes")).toBeVisible()
+
+  await page.getByRole("link", { name: "Back to Roles" }).click()
+  await guard.getByRole("button", { name: "Discard changes" }).click()
+  await expect(page).toHaveURL(/\/roles$/)
+  await expect(page.getByRole("heading", { name: "Roles" })).toBeVisible()
 })
 
 test("shows Organization Admin permissions as protected", async ({ page }) => {
@@ -551,7 +689,9 @@ test("shows an error when the role permission catalog cannot be loaded", async (
   await expect(page.getByRole("alert")).toContainText("Could not load this role")
   await expect(page.getByRole("link", { name: "Back to Roles" })).toBeVisible()
 
-  expect(consoleMessages).toHaveLength(2)
+  // Development StrictMode may request twice; the served production build requests once.
+  expect(consoleMessages.length).toBeGreaterThanOrEqual(1)
+  expect(consoleMessages.length).toBeLessThanOrEqual(2)
   expect(
     consoleMessages.every((message) =>
       message.includes("Failed to load resource: the server responded with a status of 500 (Internal Server Error)"),
@@ -560,22 +700,158 @@ test("shows an error when the role permission catalog cannot be loaded", async (
   consoleMessages.length = 0
 })
 
-test("invites a user and revokes the pending invitation", async ({ page }) => {
+test("invites a user and revokes the pending invitation", async ({ page, consoleMessages }) => {
   await mockApi(page)
   await page.goto("/users")
 
   await page.getByRole("button", { name: "Invite user" }).click()
-  await page.getByRole("textbox", { name: "Email" }).fill("invitee@example.test")
+  await page.getByRole("textbox", { name: "Email" }).fill("northstar.member@example.test")
   await page.getByRole("combobox", { name: "Organization" }).click()
   await page.getByRole("option", { name: "Northstar Utilities" }).click()
   await page.getByRole("checkbox", { name: "Member" }).check()
   await page.getByRole("button", { name: "Send invitation" }).click()
+  await expect(page.getByText("This user already belongs to the organization.")).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "Email" })).toHaveAttribute("aria-invalid", "true")
 
+  await page.getByRole("textbox", { name: "Email" }).fill("invitee@example.test")
+  await page.getByRole("button", { name: "Send invitation" }).click()
+
+  await expect(page.getByText("Invitation sent to invitee@example.test")).toBeVisible()
   await expect(page.getByRole("cell", { name: "invitee@example.test" })).toBeVisible()
 
   await page.getByRole("button", { name: "Revoke" }).first().click()
   await page.getByRole("button", { name: "Revoke invitation" }).click()
+  await expect(page.getByRole("alertdialog")).toBeHidden()
   await expect(page.getByText("revoked").first()).toBeVisible()
+
+  await page.getByRole("button", { name: "Resend" }).first().click()
+  await page.getByRole("button", { name: "Resend invitation" }).click()
+  await expect(page.getByText("Invitation sent to pending@example.test")).toBeVisible()
+
+  expect(consoleMessages).toHaveLength(1)
+  expect(consoleMessages[0]).toContain("status of 422")
+  consoleMessages.length = 0
+})
+
+test("creates and edits an organization", async ({ page, consoleMessages }) => {
+  await mockApi(page)
+  await page.goto("/organizations")
+
+  await page.getByRole("button", { name: "New organization" }).click()
+  await page.getByRole("textbox", { name: "Name" }).fill("Harbor Logistics")
+  await expect(page.getByRole("textbox", { name: "Slug" })).toHaveValue("harbor-logistics")
+  await page.getByRole("button", { name: "Create organization" }).click()
+
+  await expect(page.getByText("Harbor Logistics created")).toBeVisible()
+  await expect(page.getByRole("row", { name: /Harbor Logistics/ })).toBeVisible()
+
+  await page.getByRole("button", { name: "Edit Harbor Logistics" }).click()
+  await page.getByRole("textbox", { name: "Slug" }).fill("acme-manufacturing")
+  await page.getByRole("button", { name: "Save organization" }).click()
+  await expect(page.getByText("The slug has already been taken.")).toBeVisible()
+
+  await page.getByRole("textbox", { name: "Name" }).fill("Harbor Freight")
+  await page.getByRole("textbox", { name: "Slug" }).fill("harbor-freight")
+  await page.getByRole("button", { name: "Save organization" }).click()
+  await expect(page.getByText("Harbor Freight saved")).toBeVisible()
+  await expect(page.getByRole("row", { name: /Harbor Freight harbor-freight/ })).toBeVisible()
+
+  expect(consoleMessages).toHaveLength(1)
+  expect(consoleMessages[0]).toContain("status of 422")
+  consoleMessages.length = 0
+})
+
+test("changes a member's roles and removes members", async ({ page, consoleMessages }) => {
+  await mockApi(page)
+  await page.goto("/users")
+
+  await page.getByRole("button", { name: "Actions for Shared Operations Admin" }).click()
+  await page.getByRole("menuitem", { name: "Remove member" }).click()
+  const removeDialog = page.getByRole("alertdialog", { name: "Remove Shared Operations Admin?" })
+  await expect(removeDialog.getByRole("combobox", { name: "Organization" })).toHaveText("Acme Manufacturing")
+  await removeDialog.getByRole("button", { name: "Remove member" }).click()
+  await expect(removeDialog).toContainText("An organization must retain at least one Organization Admin.")
+
+  await removeDialog.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Northstar Utilities" }).click()
+  await removeDialog.getByRole("button", { name: "Remove member" }).click()
+  await expect(page.getByText("Shared Operations Admin removed from Northstar Utilities")).toBeVisible()
+  await expect(page.getByRole("row", { name: /Shared Operations Admin/ })).not.toContainText("Northstar Utilities")
+
+  await page.getByRole("button", { name: "Actions for Acme Member" }).click()
+  await page.getByRole("menuitem", { name: "Change roles" }).click()
+  const rolesDialog = page.getByRole("dialog", { name: "Change roles for Acme Member" })
+  await expect(rolesDialog.getByRole("checkbox", { name: "Moderator" })).toBeChecked()
+  await rolesDialog.getByRole("checkbox", { name: "Organization Admin" }).check()
+  const update = page.waitForRequest((request) => request.method() === "PUT")
+  await rolesDialog.getByRole("button", { name: "Save roles" }).click()
+  expect((await update).postDataJSON()).toEqual({ role_ids: [2, 1] })
+  await expect(page.getByText("Roles updated for Acme Member in Acme Manufacturing")).toBeVisible()
+
+  expect(consoleMessages).toHaveLength(1)
+  expect(consoleMessages[0]).toContain("status of 422")
+  consoleMessages.length = 0
+})
+
+test("asks before discarding organization and member role edits", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/users")
+  await page.getByRole("link", { name: "Organizations", exact: true }).click()
+
+  await page.getByRole("button", { name: "New organization" }).click()
+  const dialog = page.getByRole("dialog", { name: "New organization" })
+  const guard = page.getByRole("alertdialog", { name: "Discard organization changes?" })
+  await dialog.getByRole("textbox", { name: "Name" }).fill("Harbor Logistics")
+
+  await page.keyboard.press("Escape")
+  await guard.getByRole("button", { name: "Keep editing" }).click()
+  await expect(guard).toBeHidden()
+  await expect(dialog.getByRole("textbox", { name: "Name" })).toHaveValue("Harbor Logistics")
+
+  await page.goBack()
+  await guard.getByRole("button", { name: "Keep editing" }).click()
+  await expect(guard).toBeHidden()
+  await expect(page).toHaveURL(/\/organizations$/)
+  await expect(dialog).toBeVisible()
+
+  await dialog.getByRole("button", { name: "Cancel" }).click()
+  await guard.getByRole("button", { name: "Discard changes" }).click()
+  await expect(dialog).toBeHidden()
+
+  await page.getByRole("button", { name: "Edit Acme Manufacturing" }).click()
+  await expect(page.getByRole("dialog", { name: "Edit organization" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog", { name: "Edit organization" })).toBeHidden()
+  await expect(guard).toHaveCount(0)
+
+  await page.getByRole("link", { name: "Users", exact: true }).click()
+  await page.getByRole("button", { name: "Actions for Shared Operations Admin" }).click()
+  await page.getByRole("menuitem", { name: "Change roles" }).click()
+  const rolesDialog = page.getByRole("dialog", { name: "Change roles for Shared Operations Admin" })
+  const roleGuard = page.getByRole("alertdialog", { name: "Discard role changes?" })
+  await expect(rolesDialog.getByRole("checkbox", { name: "Organization Admin" })).toBeChecked()
+  await rolesDialog.getByRole("checkbox", { name: "Moderator" }).check()
+
+  await rolesDialog.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Northstar Utilities" }).click()
+  await roleGuard.getByRole("button", { name: "Keep editing" }).click()
+  await expect(roleGuard).toBeHidden()
+  await expect(rolesDialog.getByRole("combobox", { name: "Organization" })).toHaveText("Acme Manufacturing")
+  await expect(rolesDialog.getByRole("checkbox", { name: "Moderator" })).toBeChecked()
+
+  await rolesDialog.getByRole("button", { name: "Close" }).click()
+  await roleGuard.getByRole("button", { name: "Discard changes" }).click()
+  await expect(rolesDialog).toBeHidden()
+})
+
+test("distinguishes an empty directory from a filtered one", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/organizations?search=nothing-matches")
+
+  await expect(page.getByText("No matching organizations")).toBeVisible()
+  await page.getByRole("button", { name: "Clear filters" }).click()
+  await expect(page).toHaveURL(/\/organizations$/)
+  await expect(page.getByRole("row", { name: /Acme Manufacturing/ })).toBeVisible()
 })
 
 test("creates a new account from an invitation", async ({ page }) => {

@@ -14,11 +14,13 @@ use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\DeviceProfiles\Permissions\DeviceProfilePermission;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthoring;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization;
+use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use LogicException;
 
@@ -28,6 +30,7 @@ final class DeviceProfileController
         private readonly DeviceProfileAuthorization $authorization,
         private readonly CreateDeviceProfile $create,
         private readonly UpdateDeviceProfile $update,
+        private readonly DeviceAuthorization $devices,
     ) {}
 
     public function index(Request $request, Organization $organization): AnonymousResourceCollection
@@ -42,16 +45,31 @@ final class DeviceProfileController
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
 
-        return DeviceProfileResource::collection(
-            DeviceProfile::query()
-                ->where('organization_id', $organization->getKey())
-                ->withCount('parameters')
-                ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($search).'%'])->orWhereRaw('LOWER(code) LIKE ?', ['%'.mb_strtolower($search).'%'])))
-                ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
-                ->when($filters['category'] ?? null, fn ($query, $category) => $query->where('category', $category))
-                ->orderBy('name')
-                ->paginate((int) $request->integer('per_page', 25)),
-        );
+        $page = DeviceProfile::query()
+            ->where('organization_id', $organization->getKey())
+            ->withCount('parameters')
+            ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($search).'%'])->orWhereRaw('LOWER(code) LIKE ?', ['%'.mb_strtolower($search).'%'])))
+            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['category'] ?? null, fn ($query, $category) => $query->where('category', $category))
+            ->orderBy('name')
+            ->paginate((int) $request->integer('per_page', 25));
+        // devices_count is omitted for users without Device.view in this organization.
+        if (! $this->devices->capabilities($request->user(), $organization)['view']) {
+            return DeviceProfileResource::collection($page);
+        }
+        // Non-archived devices whose applied (else last confirmed) configuration uses any revision of the profile.
+        $counts = DB::table('devices')
+            ->join('device_configurations', 'device_configurations.uuid', '=', DB::raw('COALESCE(devices.applied_configuration_uuid, devices.last_applied_configuration_uuid)'))
+            ->join('device_profile_artifacts', 'device_profile_artifacts.id', '=', 'device_configurations.device_profile_artifact_id')
+            ->where('devices.organization_id', $organization->getKey())
+            ->where('devices.lifecycle', '!=', 'archived')
+            ->whereIn('device_profile_artifacts.device_profile_id', $page->getCollection()->modelKeys())
+            ->groupBy('device_profile_artifacts.device_profile_id')
+            ->selectRaw('device_profile_artifacts.device_profile_id, count(*) as devices_count')
+            ->pluck('devices_count', 'device_profile_id');
+        $page->getCollection()->each(fn (DeviceProfile $profile) => $profile->setAttribute('devices_count', (int) ($counts[$profile->id] ?? 0)));
+
+        return DeviceProfileResource::collection($page);
     }
 
     public function store(StoreDeviceProfileRequest $request, Organization $organization): JsonResponse

@@ -11,6 +11,7 @@ use App\Domain\Automation\Models\AlertDelivery;
 use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Services\WorkflowDeploymentService;
+use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -245,6 +246,77 @@ final class AlertTest extends TestCase
         Mail::assertNothingSent();
         $this->actingAs($this->recipient, 'sanctum');
         $this->postJson($this->base.$suffix, ['retry_generation' => 1])->assertForbidden();
+    }
+
+    public function test_list_and_detail_name_device_acknowledger_and_assignee_and_filter_by_device_and_workflow(): void
+    {
+        $deviceUuid = $this->deployment->definition['binding']['device_uuid'];
+        Device::create(['uuid' => $deviceUuid, 'organization_id' => $this->org->id, 'code' => 'tractor-7', 'name' => 'Tractor 7']);
+        $this->transition('activated');
+        $alert = Alert::firstOrFail();
+        $this->postJson($this->base.'/alerts/'.$alert->uuid.'/acknowledge')->assertOk();
+        $otherWorkflow = Workflow::create(['organization_id' => $this->org->id, 'name' => 'South gate', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('b', 64), 'updated_by' => $this->workflow->updated_by]);
+        $otherDeployment = Deployment::create(['automation_workflow_id' => $otherWorkflow->id, 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'succeeded', 'definition' => ['binding' => ['device_uuid' => (string) Str::uuid()]], 'created_by' => $this->workflow->updated_by, 'created_at' => now()]);
+        $unnamed = Alert::create(['organization_id' => $this->org->id, 'automation_workflow_id' => $otherWorkflow->id, 'automation_deployment_id' => $otherDeployment->id, 'episode' => 1, 'activated_at' => now()]);
+        $northstar = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $foreignWorkflow = Workflow::create(['organization_id' => $northstar->id, 'name' => 'Foreign', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('c', 64), 'updated_by' => $this->workflow->updated_by]);
+        $foreignDeployment = Deployment::create(['automation_workflow_id' => $foreignWorkflow->id, 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'succeeded', 'definition' => ['binding' => ['device_uuid' => $deviceUuid]], 'created_by' => $this->workflow->updated_by, 'created_at' => now()]);
+        Alert::create(['organization_id' => $northstar->id, 'automation_workflow_id' => $foreignWorkflow->id, 'automation_deployment_id' => $foreignDeployment->id, 'episode' => 1, 'activated_at' => now()]);
+
+        $this->getJson($this->base.'/alerts')->assertOk()->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('data.0.uuid', $unnamed->uuid)->assertJsonPath('data.0.device_name', null)->assertJsonPath('data.0.acknowledged_by_name', null)
+            ->assertJsonPath('data.1.device_uuid', $deviceUuid)->assertJsonPath('data.1.device_name', 'Tractor 7')
+            ->assertJsonPath('data.1.acknowledged_by_name', 'Platform Super Admin')->assertJsonPath('data.1.assignee', null);
+        $this->getJson($this->base.'/alerts/'.$alert->uuid)->assertJsonPath('data.device_name', 'Tractor 7')->assertJsonPath('data.acknowledged_by_name', 'Platform Super Admin');
+        $this->getJson($this->base.'/alerts?device='.$deviceUuid)->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $alert->uuid);
+        $this->getJson($this->base.'/alerts?workflow='.$otherWorkflow->uuid)->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $unnamed->uuid);
+        $this->getJson($this->base.'/alerts?workflow='.$foreignWorkflow->uuid)->assertJsonPath('meta.total', 0);
+        $this->getJson($this->base.'/alerts?device='.Str::uuid())->assertJsonPath('meta.total', 0);
+        $this->getJson($this->base.'/alerts?device=tractor-7')->assertUnprocessable()->assertJsonValidationErrors('device');
+        $this->getJson($this->base.'/alerts?workflow=1')->assertUnprocessable()->assertJsonValidationErrors('workflow');
+    }
+
+    public function test_assignment_requires_manage_and_an_organization_member(): void
+    {
+        $this->transition('activated');
+        $alert = Alert::firstOrFail();
+        $url = $this->base.'/alerts/'.$alert->uuid.'/assignee';
+        $this->putJson($url, ['user_id' => $this->recipient->id])->assertOk()
+            ->assertJsonPath('data.assignee', ['id' => $this->recipient->id, 'name' => $this->recipient->name]);
+        $this->assertNotNull($alert->fresh()->assigned_at);
+        $this->assertDatabaseHas('device_audit_events', ['action' => 'alert.assigned', 'resource_uuid' => $alert->uuid]);
+        $this->getJson($this->base.'/alerts')->assertJsonPath('data.0.assignee.name', $this->recipient->name);
+        $this->getJson($this->base.'/alerts?assignee='.$this->recipient->id)->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $alert->uuid);
+        $this->getJson($this->base.'/alerts?assignee='.($this->recipient->id + 1000))->assertJsonPath('meta.total', 0);
+        $this->getJson($this->base.'/alerts?assignee=me')->assertUnprocessable()->assertJsonValidationErrors('assignee');
+        $outsider = User::where('email', 'northstar.member@example.test')->firstOrFail();
+        $this->putJson($url, ['user_id' => $outsider->id])->assertUnprocessable()->assertJsonValidationErrors('user_id');
+        $this->putJson($url, [])->assertUnprocessable()->assertJsonValidationErrors('user_id');
+        $this->assertSame($this->recipient->id, (int) $alert->fresh()->assigned_to);
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $this->putJson('/api/v1/organizations/'.$other->uuid.'/alerts/'.$alert->uuid.'/assignee', ['user_id' => null])->assertNotFound();
+        $this->putJson($url, ['user_id' => null])->assertOk()->assertJsonPath('data.assignee', null)->assertJsonPath('data.assigned_at', null);
+        $this->actingAs($this->recipient, 'sanctum');
+        $this->putJson($url, ['user_id' => $this->recipient->id])->assertForbidden();
+        $this->assertNull($alert->fresh()->assigned_to);
+    }
+
+    public function test_assignment_rejects_deleted_and_platform_only_users_and_clears_when_the_assignee_is_deleted(): void
+    {
+        $this->transition('activated');
+        $alert = Alert::firstOrFail();
+        $url = $this->base.'/alerts/'.$alert->uuid.'/assignee';
+        $platformAdmin = User::where('email', 'super-admin@example.test')->firstOrFail();
+        $this->assertFalse($platformAdmin->organizations()->whereKey($this->org->id)->exists());
+        $this->putJson($url, ['user_id' => $platformAdmin->id])->assertUnprocessable()->assertJsonValidationErrors('user_id');
+        $leaver = User::factory()->create();
+        $leaver->organizations()->attach($this->org->id);
+        $this->putJson($url, ['user_id' => $leaver->id])->assertOk()->assertJsonPath('data.assignee.id', $leaver->id);
+
+        $leaver->delete();
+        $this->assertNull($alert->fresh()->assigned_to);
+        $this->getJson($this->base.'/alerts/'.$alert->uuid)->assertJsonPath('data.assignee', null);
+        $this->putJson($url, ['user_id' => $leaver->id])->assertUnprocessable()->assertJsonValidationErrors('user_id');
     }
 
     public function test_settings_return_selected_names_and_reject_stale_edits(): void

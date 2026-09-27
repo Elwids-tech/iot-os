@@ -42,6 +42,17 @@ const panel = (
   config: { sources: [structuredClone(source)] },
 })
 
+// Library and per-user fields the list and show endpoints return.
+const libraryFields = {
+  tags: [] as string[],
+  folder: null as string | null,
+  starred: false,
+  last_viewed_at: null as string | null,
+  created_by: 1,
+  created_by_name: "Dashboard operator",
+  updated_by_name: null,
+}
+
 async function setup(
   page: Page,
   manage = true,
@@ -67,6 +78,7 @@ async function setup(
         refresh: 0,
       },
       revision: 1,
+      ...libraryFields,
       created_at: "2026-09-01T00:00:00Z",
       updated_at: "2026-09-01T00:00:00Z",
     },
@@ -81,6 +93,7 @@ async function setup(
         refresh: 0,
       },
       revision: 1,
+      ...libraryFields,
       created_at: "2026-09-01T00:00:00Z",
       updated_at: "2026-09-01T00:00:00Z",
     },
@@ -130,6 +143,7 @@ async function setup(
       if (method === "POST") {
         calls.writes++
         const created = {
+          ...libraryFields,
           ...route.request().postDataJSON(),
           uuid: `created-${dashboards.length}`,
           revision: 1,
@@ -325,69 +339,41 @@ async function menu(page: Page, title = "Current temperature") {
     .click()
 }
 
-test("dashboard fullscreen preserves drafts and long canvases can grow below the viewport", async ({ page }) => {
+test("GPS panels use the full-page editor and long canvas drafts survive kiosk mode", async ({ page }) => {
   const { dashboards, calls, errors } = await setup(page)
-  dashboards[0].layouts.lg = [
-    { i: "status", x: 0, y: 0, w: 6, h: 6 },
-    { i: "chart", x: 6, y: 18, w: 6, h: 6 },
-  ]
+  dashboards[0].layouts.lg![1].y = 24
+  await page.route("**/location-bindings", route => route.fulfill({ json: { data: [{ device_uuid: deviceId, device_name: "Field tracker" }] } }))
+  await page.route("**/geofences?**", route => route.fulfill({ json: { data: [{ uuid: parameterId, name: "Pasture" }] } }))
+  await page.route("**/location-map/query", route => route.fulfill({ json: { data: { devices: [], geofence: null, trail_window: "24h" } } }))
   await page.goto(basePath + "/first")
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
-  await page.getByRole("button", { name: "Dashboard settings", exact: true }).click()
-  await page.getByLabel("Dashboard name", { exact: true }).fill("Long dashboard draft")
-  await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click()
-  await page.getByRole("button", { name: "Fullscreen dashboard", exact: true }).click()
-  const workspace = page.locator('[data-dashboard-fullscreen="true"]')
-  await expect(workspace).toHaveCSS("position", "fixed")
-  expect(await page.getByRole("navigation", { name: "Workspace" }).evaluate(el => Boolean(el.closest("[inert]")))).toBe(true)
-  await expect(page.getByRole("button", { name: "Last 6 hours", exact: true })).toHaveCount(0)
-  expect(await workspace.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true)
+  await page.getByRole("button", { name: "Add panel below", exact: true }).click()
+  await page.getByRole("button", { name: "Add GPS map", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Edit GPS map panel", exact: true })).toBeVisible()
+  await page.getByRole("combobox", { name: "GPS devices", exact: true }).click()
+  await page.getByRole("option", { name: "Field tracker", exact: true }).click()
   await page.keyboard.press("Escape")
-  await expect(page.getByRole("button", { name: "Fullscreen dashboard", exact: true })).toBeVisible()
-  await expect(page.getByRole("heading", { name: "Long dashboard draft" })).toBeVisible()
-  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible()
-
-  const below = page.getByRole("button", { name: "Add widget below", exact: true })
-  await below.scrollIntoViewIfNeeded()
-  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(1000)
-  await below.click()
-  await page.getByRole("button", { name: "Add Status", exact: true }).click()
-  await page.getByRole("combobox", { name: "Device", exact: true }).click()
-  await page.getByRole("button", { name: "Next device options", exact: true }).click()
-  await page.getByRole("option", { name: "Boiler room", exact: true }).click()
-  await page.getByRole("combobox", { name: "Parameter", exact: true }).click()
-  await page.getByRole("option", { name: /Temperature/ }).click()
-  await page.getByRole("button", { name: "Add parameter", exact: true }).click()
-  await page.getByRole("tab", { name: "Panel", exact: true }).click()
-  await page.getByLabel("Panel title", { exact: true }).fill("Bottom status")
+  await page.getByRole("combobox", { name: "Geofence overlay", exact: true }).click()
+  await page.getByRole("option", { name: "Pasture", exact: true }).click()
   await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
-  await expect(page.getByText("Bottom status", { exact: true })).toBeInViewport()
+  await expect(page.getByRole("button", { name: "Panel menu: GPS map", exact: true })).toBeInViewport()
   expect(calls.writes).toBe(0)
+  await page.getByRole("button", { name: "Kiosk", exact: true }).click()
+  await expect(page.locator("[data-kiosk]")).toBeFocused()
+  await expect(page.locator("#root")).toHaveAttribute("inert", "")
+  expect(await page.locator("[data-kiosk]").evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true)
+  await page.keyboard.press("Escape")
+  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible()
+  await expect(page.locator("[data-slot=page-header]")).toHaveCSS("position", "sticky")
   await page.getByRole("button", { name: "Save dashboard", exact: true }).click()
   await expect.poll(() => calls.writes).toBe(1)
   const added = dashboards[0].widgets.at(-1)!
-  expect(dashboards[0].layouts.lg?.find(item => item.i === added.id)?.y).toBeGreaterThanOrEqual(24)
+  expect(added.config.location_device_uuids).toEqual([deviceId])
+  expect(added.config.geofence_uuid).toBe(parameterId)
+  expect(dashboards[0].layouts.lg?.find(item => item.i === added.id)?.y).toBeGreaterThanOrEqual(30)
   await page.reload()
-  await page.getByText("Bottom status", { exact: true }).scrollIntoViewIfNeeded()
-  await expect(page.getByText("Bottom status", { exact: true })).toBeInViewport()
-  expect(errors).toEqual([])
-})
-
-test("time controls live in the sticky header and remain usable on narrow screens", async ({ page }) => {
-  const { errors } = await setup(page)
-  await page.goto(basePath + "/first")
-  const headerControls = page.locator('header [aria-label="Dashboard time controls"]')
-  await expect(headerControls).toBeVisible()
-  await headerControls.getByRole("button", { name: "Last 6 hours", exact: true }).click()
-  await expect(page.getByText("Quick ranges", { exact: true })).toBeVisible()
-  await page.keyboard.press("Escape")
-
-  await page.setViewportSize({ width: 900, height: 800 })
-  await expect(headerControls).toBeHidden()
-  const narrowControls = page.locator('[aria-label="Dashboard time controls"]:visible')
-  await expect(narrowControls).toBeVisible()
-  await narrowControls.getByRole("button", { name: "Last 6 hours", exact: true }).click()
-  await expect(page.getByText("Quick ranges", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "Panel menu: GPS map", exact: true }).scrollIntoViewIfNeeded()
+  await expect(page.getByRole("button", { name: "Panel menu: GPS map", exact: true })).toBeInViewport()
   expect(errors).toEqual([])
 })
 
@@ -398,9 +384,7 @@ test("multiple dashboards, explicit apply/save, and save before switching", asyn
   await page.goto(basePath)
   await expect(page.getByText("Plant overview", { exact: true })).toBeVisible()
   await expect(page.getByText("Utilities", { exact: true })).toBeVisible()
-  await page
-    .getByRole("button", { name: "Create dashboard", exact: true })
-    .click()
+  await page.getByRole("button", { name: "New dashboard", exact: true }).click()
   await page.getByLabel("Dashboard name", { exact: true }).fill("Cooling plant")
   await page
     .getByRole("dialog")
@@ -417,27 +401,15 @@ test("multiple dashboards, explicit apply/save, and save before switching", asyn
   await menu(page)
   await page.getByRole("menuitem", { name: "Edit panel", exact: true }).click()
   await page.getByLabel("Panel title", { exact: true }).fill("Cooling status")
-  await page.getByRole("tab", { name: "Thresholds", exact: true }).click()
   await page.getByRole("button", { name: "Add threshold", exact: true }).click()
   await page.getByLabel("From", { exact: true }).nth(3).fill("50")
   await page
     .getByRole("button", { name: "Apply to dashboard", exact: true })
     .click()
   expect(calls.writes).toBe(before)
-  await page.getByRole("combobox", { name: "Dashboard", exact: true }).click()
+  await page.getByRole("button", { name: "Plant overview", exact: true }).click()
   await page.getByRole("option", { name: "Utilities", exact: true }).click()
-  const leaveDialog = page.getByRole("alertdialog")
-  await expect(leaveDialog).toBeVisible()
-  const dialogBox = await leaveDialog.boundingBox()
-  const footerBox = await leaveDialog
-    .locator('[data-slot="alert-dialog-footer"]')
-    .boundingBox()
-  expect(dialogBox).not.toBeNull()
-  expect(footerBox).not.toBeNull()
-  expect(footerBox!.x).toBeGreaterThanOrEqual(dialogBox!.x)
-  expect(footerBox!.x + footerBox!.width).toBeLessThanOrEqual(
-    dialogBox!.x + dialogBox!.width,
-  )
+  await expect(page.getByRole("alertdialog")).toBeVisible()
   await page
     .getByRole("button", { name: "Save and leave", exact: true })
     .click()
@@ -461,11 +433,10 @@ test("time travel changes chart queries, never latest values or saved defaults",
   await expect(page.locator(".recharts-line-curve").first()).toBeVisible()
   await expect(page.getByText("Latest", { exact: true })).toHaveCount(0)
   await expect(page.getByText("Time range", { exact: true })).toHaveCount(0)
-  await expect(page.getByText(/Last valid value received:/)).toBeVisible()
+  await expect(page.getByText(/Last valid value received/)).toBeVisible()
   const defaults = structuredClone(dashboards[0].defaults),
     latest = calls.latest
-  await page.getByRole("button", { name: "Last 6 hours", exact: true }).click()
-  await page.getByRole("tab", { name: "Absolute range", exact: true }).click()
+  await page.getByRole("button", { name: "Custom", exact: true }).click()
   await page.getByLabel("From", { exact: true }).fill("2026-09-01T00:00")
   await page.getByLabel("To", { exact: true }).fill("2026-09-02T00:00")
   await page
@@ -478,13 +449,13 @@ test("time travel changes chart queries, never latest values or saved defaults",
   expect(calls.latest).toBe(latest)
   expect(calls.writes).toBe(0)
   expect(dashboards[0].defaults).toEqual(defaults)
-  await expect(page.getByText(/Last valid value received:/)).toContainText(
-    "12:00",
-  )
+  await expect(
+    page.getByText(/Last valid value received/).locator("time"),
+  ).toHaveAttribute("title", /12:00/)
   await page.goBack()
   await expect(
-    page.getByRole("button", { name: "Last 6 hours", exact: true }),
-  ).toBeVisible()
+    page.getByRole("radio", { name: "Last 6 hours", exact: true }),
+  ).toHaveAttribute("aria-checked", "true")
   await page.setViewportSize({ width: 390, height: 844 })
   await expect
     .poll(() =>
@@ -560,7 +531,6 @@ test("paginated selectors, no-reading parameters, per-source copying, and panel 
     .click()
   await menu(page)
   await page.getByRole("menuitem", { name: "Edit panel", exact: true }).click()
-  await page.getByRole("tab", { name: "Data", exact: true }).click()
   await page.getByRole("combobox", { name: "Device", exact: true }).click()
   await page
     .getByRole("button", { name: "Next device options", exact: true })
@@ -572,7 +542,6 @@ test("paginated selectors, no-reading parameters, per-source copying, and panel 
   await expect(
     page.getByText("Waiting for a reading", { exact: true }),
   ).toBeVisible()
-  await page.getByRole("tab", { name: "Thresholds", exact: true }).click()
   await page
     .getByRole("combobox", { name: "Configure parameter", exact: true })
     .click()
@@ -616,7 +585,7 @@ test("state and colour history panels select only compatible parameters", async 
     type: "State history" | "Colour history",
     parameter: RegExp,
   ) {
-    await page.getByRole("button", { name: "Add widget", exact: true }).click()
+    await page.getByRole("button", { name: "Add panel", exact: true }).click()
     await page.getByRole("button", { name: `Add ${type}`, exact: true }).click()
     await page.getByRole("combobox", { name: "Device", exact: true }).click()
     await page
@@ -655,9 +624,11 @@ test("viewers can explore dashboards but cannot create or edit", async ({
   await page.goto(basePath)
   await expect(page.getByText("Plant overview", { exact: true })).toBeVisible()
   await expect(
-    page.getByRole("button", { name: "Create dashboard", exact: true }),
+    page.getByRole("button", { name: "New dashboard", exact: true }),
   ).toHaveCount(0)
-  await page.goto(basePath + "/first")
+  await page.goto(basePath + "/first?edit-panel=status")
+  await expect(page).not.toHaveURL(/edit-panel/)
+  await expect(page.getByLabel("Panel title", { exact: true })).toHaveCount(0)
   await expect(
     page.getByRole("button", { name: "Edit dashboard", exact: true }),
   ).toHaveCount(0)
@@ -680,7 +651,7 @@ test("control panels group devices and persist responsive card columns", async (
   await page
     .getByRole("button", { name: "Edit dashboard", exact: true })
     .click()
-  await page.getByRole("button", { name: "Add widget", exact: true }).click()
+  await page.getByRole("button", { name: "Add panel", exact: true }).click()
   await page
     .getByRole("button", { name: "Add Controls", exact: true })
     .click()
@@ -699,7 +670,6 @@ test("control panels group devices and persist responsive card columns", async (
       .getByRole("button", { name: "Add parameter", exact: true })
       .click()
   }
-  await page.getByRole("tab", { name: "Display", exact: true }).click()
   const columns = page.locator('[aria-label="Cards per row"]')
   await expect(columns.locator('[data-state="on"]')).toHaveText("Auto")
   await columns.getByText("3", { exact: true }).click()
@@ -852,10 +822,8 @@ test("browser timezone rejects nonexistent daylight-saving input", async ({
   const page = await context.newPage()
   await setup(page)
   await page.goto(basePath + "/first")
-  await page.getByRole("button", { name: "Last 6 hours", exact: true }).click()
-  await page.getByRole("combobox", { name: "Timezone", exact: true }).click()
-  await page.getByRole("option", { name: /Browser time/ }).click()
-  await page.getByRole("tab", { name: "Absolute range", exact: true }).click()
+  await page.getByRole("radio", { name: "Browser", exact: true }).click()
+  await page.getByRole("button", { name: "Custom", exact: true }).click()
   await page.getByLabel("From", { exact: true }).fill("2026-03-08T02:30")
   await page.getByLabel("To", { exact: true }).fill("2026-03-08T04:00")
   await page
@@ -898,12 +866,12 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   await page.goto(basePath + "/first")
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
   for (const type of ["Alerts"]) {
-    await page.getByRole("button", { name: "Add widget", exact: true }).click()
+    await page.getByRole("button", { name: "Add panel", exact: true }).click()
     await page.getByRole("button", { name: `Add ${type}`, exact: true }).click()
     await expect(page.getByRole("button", { name: "Apply to dashboard", exact: true })).toBeDisabled()
     await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
     await page.getByRole("option", { name: "Pasture boundary", exact: true }).click()
-    await expect(page.getByRole("dialog").getByText("1 active", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 active", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
   }
   expect(calls.writes).toBe(0)
@@ -930,12 +898,12 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
-  await page.getByRole("button", { name: "Add widget", exact: true }).click()
+  await page.getByRole("button", { name: "Add panel", exact: true }).click()
   await page.getByRole("button", { name: "Add Alerts", exact: true }).click()
   await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
   await page.keyboard.press("ArrowDown")
   await page.keyboard.press("Enter")
-  await expect(page.getByRole("dialog").getByText("1 active", { exact: true })).toBeVisible()
+  await expect(page.getByText("1 active", { exact: true })).toBeVisible()
   const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
   expect(audit.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
@@ -1009,6 +977,503 @@ test("enabling a primary button restores full contrast immediately", async ({pag
   await page.getByLabel("Dashboard name", {exact: true}).fill("Changed name")
   await expect.poll(() => page.evaluate(() => (window as any).__enabledOpacity)).not.toBeNull()
   expect(await page.evaluate(() => (window as any).__enabledOpacity)).toBe("1")
+})
+
+test("editor links open saved panels and drop unknown ones", async ({
+  page,
+}) => {
+  const { calls, errors } = await setup(page)
+  await page.goto(basePath + "/first?edit-panel=chart")
+  await expect(
+    page.getByRole("heading", { name: "Edit Time series panel", level: 1 }),
+  ).toBeVisible()
+  await expect(page.getByLabel("Panel title", { exact: true })).toHaveValue(
+    "Temperature history",
+  )
+  await page.getByRole("button", { name: "Cancel", exact: true }).click()
+  await expect(page).not.toHaveURL(/edit-panel/)
+  await expect(
+    page.getByRole("button", { name: "Save dashboard", exact: true }),
+  ).toBeVisible()
+  await page.goto(basePath + "/first?edit-panel=missing")
+  await expect(page).not.toHaveURL(/edit-panel/)
+  await expect(
+    page.getByRole("button", { name: "Edit dashboard", exact: true }),
+  ).toBeVisible()
+  expect(calls.writes).toBe(0)
+  expect(errors).toEqual([])
+})
+
+test("panel exports, kiosk, new panel types, editor back and undo", async ({
+  page,
+}) => {
+  const { dashboards, calls, errors } = await setup(page)
+  await page.goto(basePath + "/first")
+  await expect(page.locator(".recharts-line-curve").first()).toBeVisible()
+  const download = page.waitForEvent("download")
+  await menu(page, "Temperature history")
+  await page.getByRole("menuitem", { name: "Download CSV", exact: true }).click()
+  expect((await download).suggestedFilename()).toBe("temperature-history.csv")
+  await menu(page)
+  await page.getByRole("menuitemradio", { name: "Table", exact: true }).click()
+  await expect(page.getByRole("columnheader", { name: "Band" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Kiosk", exact: true }).click()
+  await expect(page).toHaveURL(/kiosk=1/)
+  // Focus moves into kiosk and the shell behind it is inert.
+  await expect(page.locator("[data-kiosk]")).toBeFocused()
+  await expect(page.locator("#root")).toHaveAttribute("inert", "")
+  await expect(page.getByRole("button", { name: "Exit kiosk" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page).not.toHaveURL(/kiosk=1/)
+  await expect(page.getByRole("button", { name: "Kiosk", exact: true })).toBeFocused()
+  await expect(page.locator("#root")).not.toHaveAttribute("inert")
+
+  await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
+  await page.getByRole("button", { name: "Add panel", exact: true }).click()
+  await page.getByRole("button", { name: "Add Text", exact: true }).click()
+  await page.getByLabel("Text", { exact: true }).fill("<b>Call Ext 4410</b>")
+  await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
+  // Stored as plain text and rendered as text, never as HTML.
+  await expect(page.getByText("<b>Call Ext 4410</b>", { exact: true })).toBeVisible()
+  await expect(page.locator("b", { hasText: "Call Ext 4410" })).toHaveCount(0)
+
+  await page.getByRole("button", { name: "Add panel", exact: true }).click()
+  await page.getByRole("button", { name: "Add Gauge", exact: true }).click()
+  await page.getByRole("combobox", { name: "Device", exact: true }).click()
+  await page.getByRole("button", { name: "Next device options", exact: true }).click()
+  await page.getByRole("option", { name: "Boiler room", exact: true }).click()
+  await page.getByRole("combobox", { name: "Parameter", exact: true }).click()
+  await page.getByRole("option", { name: /^Temperature/ }).click()
+  await page.getByRole("button", { name: "Add parameter", exact: true }).click()
+  await page.getByLabel("Maximum", { exact: true }).fill("40")
+  await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
+  await expect(page.getByRole("meter", { name: "Temperature" })).toHaveAttribute(
+    "aria-valuenow",
+    "23.5",
+  )
+
+  // The editor is a page of its own; Back returns to edit mode with the draft.
+  await menu(page)
+  await page.getByRole("menuitem", { name: "Edit panel", exact: true }).click()
+  await expect(page).toHaveURL(/edit-panel=status/)
+  await page.getByRole("link", { name: "Back to Plant overview", exact: true }).click()
+  await expect(page).not.toHaveURL(/edit-panel/)
+  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible()
+
+  await menu(page, "Text")
+  await page.getByRole("menuitem", { name: "Remove panel", exact: true }).click()
+  await expect(page.getByText("<b>Call Ext 4410</b>", { exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "Undo", exact: true }).click()
+  await expect(page.getByText("<b>Call Ext 4410</b>", { exact: true })).toBeVisible()
+
+  expect(calls.writes).toBe(0)
+  await page.getByRole("button", { name: "Save dashboard", exact: true }).click()
+  await expect.poll(() => calls.writes).toBe(1)
+  const widgets = dashboards[0].widgets
+  expect(widgets.find((w) => w.type === "text")?.config).toEqual({
+    sources: [],
+    text: "<b>Call Ext 4410</b>",
+  })
+  expect(widgets.find((w) => w.type === "gauge")?.config).toMatchObject({
+    min: 0,
+    max: 40,
+  })
+  expect(errors).toEqual([])
+})
+
+// Library: setup() plus star, duplicate, delete, device list and profile groups.
+async function library(page: Page, manage = true) {
+  const state = await setup(page, manage)
+  const { dashboards } = state
+  Object.assign(dashboards[0], {
+    tags: ["energy", "boiler"],
+    folder: "Plant floor",
+    starred: true,
+    last_viewed_at: new Date(Date.now() - 60000).toISOString(),
+  })
+  Object.assign(dashboards[1], {
+    created_by: 2,
+    created_by_name: "Someone else",
+    updated_at: "2026-09-05T00:00:00Z",
+  })
+  const writes: { method: string; path: string; body: Record<string, unknown> }[] = []
+  await page.route("**/api/**", async (route) => {
+    const request = route.request(),
+      method = request.method(),
+      path = new URL(request.url()).pathname
+    const json = (data: unknown, status = 200) =>
+      route.fulfill({ status, json: data })
+    const body = request.postDataJSON()
+    if (method !== "GET") writes.push({ method, path, body })
+    const match = /\/dashboards\/([^/]+)(?:\/(star|duplicate))?$/.exec(path)
+    const index = match ? dashboards.findIndex((d) => d.uuid === match[1]) : -1
+    if (match?.[2] === "star") {
+      dashboards[index].starred = body.starred === true
+      return json({ data: dashboards[index] })
+    }
+    if (match?.[2] === "duplicate") {
+      const copy = {
+        ...structuredClone(dashboards[index]),
+        uuid: `copy-${dashboards.length}`,
+        name: String(body.name),
+        starred: false,
+        last_viewed_at: null,
+      }
+      dashboards.push(copy)
+      return json({ data: copy }, 201)
+    }
+    if (match && method === "DELETE") {
+      dashboards.splice(index, 1)
+      return route.fulfill({ status: 204 })
+    }
+    if (path.endsWith("/dashboards") && method === "POST" && body.name === "Rejected import")
+      return json(
+        {
+          message: "The given data was invalid.",
+          errors: {
+            "widgets.0.config.sources.0.device_uuid": [
+              "Choose a device in this organization.",
+            ],
+          },
+        },
+        422,
+      )
+    if (path.endsWith("/devices"))
+      return json({
+        data: [
+          {
+            uuid: deviceId,
+            name: "Boiler room",
+            code: "boiler-1",
+            profile: { uuid: "profile-1", name: "Boiler profile", revision: 2 },
+          },
+          { uuid: "other", name: "Other device", code: "other-1", profile: null },
+        ],
+        meta: { current_page: 1, last_page: 1, total: 2 },
+      })
+    if (path.endsWith("/device-profiles/profile-1"))
+      return json({
+        data: {
+          uuid: "profile-1",
+          parameter_groups: [{ uuid: "g1", label: "Temperatures" }],
+          parameters: [parameterId, secondParameter].map((uuid) => ({
+            uuid,
+            parameter_group_uuid: "g1",
+          })),
+        },
+      })
+    return route.fallback()
+  })
+  return { ...state, writes }
+}
+
+async function downloaded(page: Page, click: () => Promise<void>) {
+  const { readFile } = await import("node:fs/promises")
+  const event = page.waitForEvent("download")
+  await click()
+  const file = await event
+  return {
+    name: file.suggestedFilename(),
+    data: JSON.parse(await readFile(await file.path(), "utf8")),
+  }
+}
+
+test("library views, filters, stars and row actions", async ({ page }) => {
+  const { dashboards, writes, calls, errors } = await library(page)
+  await page.goto(basePath)
+  const views = page.getByRole("navigation", { name: "Dashboard views" })
+  const plant = page.getByRole("link", { name: "Plant overview", exact: true })
+  const utilities = page.getByRole("link", { name: "Utilities", exact: true })
+  await expect(plant).toBeVisible()
+  await expect(utilities).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Dashboards", level: 1 })).toBeVisible()
+  const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
+  expect(scan.violations).toEqual([])
+
+  await views.getByRole("link", { name: /^Starred/ }).click()
+  await expect(page).toHaveURL(/view=starred/)
+  await expect(utilities).toHaveCount(0)
+  await views.getByRole("link", { name: /^Created by me/ }).click()
+  await expect(plant).toBeVisible()
+  await expect(utilities).toHaveCount(0)
+  await views.getByRole("link", { name: /^Unfiled/ }).click()
+  await expect(plant).toHaveCount(0)
+  await expect(utilities).toBeVisible()
+  await views.getByRole("link", { name: /^All dashboards/ }).click()
+
+  const search = page.getByRole("searchbox", { name: "Search dashboards" })
+  await search.fill("boiler room")
+  await expect(utilities).toHaveCount(0)
+  await search.fill("nothing like this")
+  await expect(page.getByText("No matching dashboards")).toBeVisible()
+  await page.getByRole("button", { name: "Clear filters" }).click()
+  await expect(utilities).toBeVisible()
+  await page.getByRole("button", { name: /^Tags/ }).click()
+  await page.getByRole("option", { name: "energy" }).click()
+  await page.keyboard.press("Escape")
+  await expect(page).toHaveURL(/tag=energy/)
+  await expect(utilities).toHaveCount(0)
+  await page.goto(basePath + "?sort=name")
+
+  await page.getByRole("button", { name: "Star Utilities" }).click()
+  await expect(page.getByRole("button", { name: "Star Utilities" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  )
+  expect(dashboards[1].starred).toBe(true)
+
+  await page.getByRole("button", { name: "Actions for Utilities" }).click()
+  await page.getByRole("menuitem", { name: "Settings" }).click()
+  const dialog = page.getByRole("dialog")
+  await dialog.getByLabel("Dashboard name").fill("Utilities east")
+  await dialog.getByLabel("Tags").fill("water, Water, power")
+  await dialog.getByLabel("Folder").fill("Plant floor")
+  calls.conflict = true
+  await dialog.getByRole("button", { name: "Save settings" }).click()
+  await expect(dialog.getByText("This dashboard changed since the list loaded.")).toBeVisible()
+  calls.conflict = false
+  await dialog.getByRole("button", { name: "Reload dashboards" }).click()
+  await expect(dialog.getByLabel("Tags")).toHaveValue("water, Water, power")
+  await dialog.getByRole("button", { name: "Save settings" }).click()
+  await expect(page.getByRole("link", { name: "Utilities east", exact: true })).toBeVisible()
+  expect(writes.at(-1)).toMatchObject({
+    method: "PUT",
+    path: expect.stringMatching(/dashboards\/second$/),
+    body: { revision: 1, tags: ["water", "power"], folder: "Plant floor", name: "Utilities east" },
+  })
+
+  await page.getByRole("button", { name: "Actions for Plant overview" }).click()
+  await page.getByRole("menuitem", { name: "Move to folder" }).click()
+  await dialog.getByLabel("Folder").fill("Energy")
+  await dialog.getByRole("button", { name: "Move" }).click()
+  await expect(views.getByRole("link", { name: /^Energy/ })).toBeVisible()
+
+  await page.getByRole("button", { name: "Actions for Plant overview" }).click()
+  await page.getByRole("menuitem", { name: "Duplicate" }).click()
+  await dialog.getByRole("button", { name: "Duplicate" }).click()
+  await expect(page.getByRole("link", { name: "Plant overview copy", exact: true })).toBeVisible()
+  expect(dashboards).toHaveLength(3)
+
+  const single = await downloaded(page, async () => {
+    await page.getByRole("button", { name: "Actions for Plant overview", exact: true }).click()
+    await page.getByRole("menuitem", { name: "Export JSON" }).click()
+  })
+  expect(single.name).toBe("plant-overview.json")
+  expect(Object.keys(single.data).sort()).toEqual(
+    ["defaults", "folder", "layouts", "name", "tags", "widgets"],
+  )
+  expect(single.data.widgets).toHaveLength(2)
+
+  await page.getByRole("checkbox", { name: "Select all dashboards" }).click()
+  await expect(page.getByText("3 selected")).toBeVisible()
+  const bulk = await downloaded(page, () =>
+    page.getByRole("button", { name: "Export JSON" }).click(),
+  )
+  expect(bulk.name).toBe("dashboards.json")
+  expect(bulk.data).toHaveLength(3)
+  await page.getByRole("button", { name: "Delete", exact: true }).click()
+  await expect(page.getByRole("alertdialog")).toContainText("Delete 3 dashboards?")
+  await page.getByRole("button", { name: "Delete dashboards" }).click()
+  await expect(page.getByText("No dashboards yet")).toBeVisible()
+  expect(dashboards).toHaveLength(0)
+  await expect(page.getByRole("button", { name: "Browse templates" })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Browse templates" })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("new dashboards from a device profile, a template and imported JSON", async ({ page }) => {
+  const { dashboards, writes, errors } = await library(page)
+  await page.goto(basePath)
+  const more = page.getByRole("button", { name: "More ways to create a dashboard" })
+  await more.click()
+  await page.getByRole("menuitem", { name: "From device profile" }).click()
+  const dialog = page.getByRole("dialog")
+  await dialog.getByRole("combobox", { name: "Device profile" }).click()
+  await page.getByRole("option", { name: "Boiler profile" }).click()
+  await expect(dialog.getByRole("checkbox", { name: /Boiler room/ })).toBeChecked()
+  const panels = dialog.getByRole("list", { name: "Generated panels" })
+  await expect(panels.getByRole("listitem")).toHaveCount(4)
+  await dialog.getByRole("checkbox", { name: /Latest values/ }).click()
+  await expect(dialog.getByLabel("Dashboard name")).toHaveValue("Boiler profile overview")
+  const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
+  expect(scan.violations).toEqual([])
+  await dialog.getByRole("button", { name: "Create dashboard" }).click()
+  await expect(page).toHaveURL(/dashboards\/created-2$/)
+  const fromProfile = dashboards[2]
+  expect(fromProfile.widgets.map((w) => [w.type, w.title, w.config.sources.length])).toEqual([
+    ["status", "Temperatures", 2],
+    ["timeseries", "Temperatures (C)", 2],
+    ["controls", "Controls", 2],
+  ])
+  expect(fromProfile.layouts.lg?.map((l) => l.i)).toEqual(fromProfile.widgets.map((w) => w.id))
+
+  await page.goto(basePath + "?view=templates")
+  await page.getByRole("button", { name: "Use template RGB light controls" }).click()
+  await expect(dialog.getByRole("list", { name: "Generated panels" })).toHaveCount(0)
+  await dialog.getByRole("checkbox", { name: /Boiler room/ }).click()
+  await expect(dialog.getByRole("list", { name: "Generated panels" }).getByRole("listitem")).toHaveCount(3)
+  await dialog.getByLabel("Folder").fill("Lighting")
+  await dialog.getByRole("button", { name: "Create dashboard" }).click()
+  await expect(page).toHaveURL(/dashboards\/created-3$/)
+  expect(dashboards[3]).toMatchObject({ name: "RGB light controls", folder: "Lighting" })
+  expect(dashboards[3].widgets.map((w) => w.type)).toEqual([
+    "controls",
+    "state_history",
+    "color_history",
+  ])
+
+  await page.goto(basePath)
+  await more.click()
+  await page.getByRole("menuitem", { name: "Import JSON" }).click()
+  const file = dialog.getByLabel("JSON file")
+  const upload = (name: string, data: unknown) =>
+    file.setInputFiles({
+      name,
+      mimeType: "application/json",
+      buffer: Buffer.from(typeof data === "string" ? data : JSON.stringify(data)),
+    })
+  await file.setInputFiles({
+    name: "huge.json",
+    mimeType: "application/json",
+    buffer: Buffer.alloc(2 * 1024 * 1024 + 1, " "),
+  })
+  await expect(dialog.getByRole("alert")).toContainText("Choose a file of 2 MB or less.")
+  await upload("bad.json", { name: "", widgets: {} })
+  await expect(dialog.getByRole("alert")).toContainText("name must be text of 1 to 120 characters.")
+  await upload("nested.json", {
+    name: "Nested",
+    widgets: [{ id: "t", schema_version: 2, type: "text", title: "Notes", config: { sources: [], text: { html: "<b>" } } }],
+  })
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Panel 1 (Notes) · config.text must be text of 1 to 4000 characters.",
+  )
+  await expect(dialog.getByRole("button", { name: "Import" })).toBeDisabled()
+  const exported = {
+    name: "Rejected import",
+    widgets: [structuredClone(dashboards[0].widgets[0])],
+    layouts: {},
+    defaults: dashboards[0].defaults,
+    tags: [],
+    folder: null,
+  }
+  await upload("rejected.json", exported)
+  await dialog.getByRole("button", { name: "Import" }).click()
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Panel 1 (Current temperature) · config.sources.0.device_uuid: Choose a device in this organization.",
+  )
+  const before = dashboards.length
+  await upload("two.json", [
+    { ...exported, name: "Imported A" },
+    { ...exported, name: "Imported B" },
+  ])
+  await dialog.getByRole("button", { name: "Import 2 dashboards" }).click()
+  await expect(page.getByRole("link", { name: "Imported B", exact: true })).toBeVisible()
+  expect(dashboards.length).toBe(before + 2)
+  expect(writes.filter((w) => w.method === "POST").map((w) => w.body?.name)).toEqual([
+    "Boiler profile overview",
+    "RGB light controls",
+    "Rejected import",
+    "Imported A",
+    "Imported B",
+  ])
+  expect(errors).toEqual([])
+})
+
+test("viewers browse the library without create or manage actions", async ({ page }, info) => {
+  const { dashboards, errors } = await library(page, false)
+  await page.goto(basePath + "?view=templates")
+  await expect(page.getByRole("link", { name: "Plant overview", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "New dashboard" })).toHaveCount(0)
+  await expect(
+    page.getByRole("navigation", { name: "Dashboard views" }).getByRole("link", { name: /^Templates/ }),
+  ).toHaveCount(0)
+  await page.getByRole("button", { name: "Actions for Utilities" }).click()
+  await expect(page.getByRole("menuitem")).toHaveText(["Open", "Export JSON"])
+  await page.keyboard.press("Escape")
+  await page.getByRole("button", { name: "Star Utilities" }).click()
+  await expect.poll(() => dashboards[1].starred).toBe(true)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
+    .toBe(true)
+  await page.screenshot({ path: info.outputPath("library-mobile.png") })
+  dashboards.splice(0)
+  await page.reload()
+  await expect(page.getByText("No dashboards yet")).toBeVisible()
+  await expect(
+    page.getByText("People who manage devices can create dashboards for this organization."),
+  ).toBeVisible()
+  await expect(page.getByRole("button", { name: "New dashboard" })).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test("version history previews a revision and restores after a conflict reload", async ({ page }) => {
+  const { dashboards, errors } = await setup(page)
+  dashboards[0].revision = 3
+  const bodies: unknown[] = []
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname
+    const snapshot = (revision: number) => ({
+      revision,
+      name: "Plant overview",
+      widget_count: revision === 1 ? 1 : 2,
+      updated_by_name: "Dashboard operator",
+      created_at: "2026-09-01T00:00:00Z",
+    })
+    if (path.endsWith("/dashboards/first/revisions"))
+      return route.fulfill({ json: { data: [3, 2, 1].map(snapshot) } })
+    if (path.endsWith("/dashboards/first/revisions/1"))
+      return route.fulfill({
+        json: {
+          data: {
+            ...snapshot(1),
+            widgets: [dashboards[0].widgets[0]],
+            layouts: {},
+            defaults: dashboards[0].defaults,
+            tags: [],
+            folder: null,
+          },
+        },
+      })
+    if (path.endsWith("/dashboards/first/revisions/1/restore")) {
+      bodies.push(route.request().postDataJSON())
+      if (bodies.length === 1) {
+        dashboards[0].revision = 4
+        return route.fulfill({ status: 409, json: { message: "Changed in another session." } })
+      }
+      dashboards[0] = { ...dashboards[0], widgets: [dashboards[0].widgets[0]], revision: 5 }
+      return route.fulfill({ json: { data: dashboards[0] } })
+    }
+    return route.fallback()
+  })
+  await page.goto(basePath + "/first")
+  const open = async () => {
+    await page.getByRole("button", { name: "More dashboard actions" }).click()
+    await page.getByRole("menuitem", { name: "Version history" }).click()
+  }
+  const sheet = page.getByRole("dialog", { name: "Version history" })
+  const restore = async () => {
+    await sheet.getByRole("button", { name: "Restore version 1" }).click()
+    await page.getByRole("alertdialog").getByRole("button", { name: "Restore version" }).click()
+  }
+  await open()
+  await expect(sheet.getByRole("button", { name: /^v3/ })).toContainText("Current")
+  await expect(sheet.getByRole("button", { name: "Restore version 3" })).toHaveCount(0)
+  await sheet.getByRole("button", { name: /^v1/ }).click()
+  await expect(sheet.getByRole("list", { name: "Panels in version 1" })).toContainText(
+    "Current temperature",
+  )
+  await restore()
+  await expect(sheet.getByText("This dashboard changed since you opened it.")).toBeVisible()
+  await sheet.getByRole("button", { name: "Reload dashboard" }).click()
+  await expect(sheet).toHaveCount(0)
+  await open()
+  await restore()
+  await expect(sheet).toHaveCount(0)
+  expect(bodies).toEqual([{ revision: 3 }, { revision: 4 }])
+  expect(errors).toEqual([])
 })
 
 

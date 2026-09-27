@@ -29,6 +29,38 @@ Legacy Status documents normalize on read without database writes. Existing IDs,
 
 No legacy GridStack migration, other legacy widget types, alarm-engine changes, or telemetry editing are included.
 
+## Library and history
+
+All routes sit under `v1/organizations/{org}/dashboards`. Reads need `Device.view`; writes need `Device.manage`. A dashboard from another organization returns 404.
+
+- List and show return `tags` (up to 10, 1 to 32 characters, trimmed, case-insensitive duplicates dropped), `folder` (up to 60 characters, empty becomes `null`), `created_by_name`, `updated_by_name`, and the current user's `starred` and `last_viewed_at`.
+- `PUT {id}` accepts optional `tags` and `folder`; omitted values stay unchanged.
+- `PUT {id}/star` `{starred}` stores the current user's star. `Device.view` is enough, and the revision does not change.
+- `GET {id}` records `last_viewed_at` for the current user. It never changes the dashboard's revision or `updated_at`.
+- Create, update, duplicate, and restore store a snapshot. The latest 50 per dashboard are kept. `GET {id}/revisions` lists `{revision, name, widget_count, updated_by_name, created_at}`, newest first. `GET {id}/revisions/{n}` returns the full snapshot.
+- `POST {id}/revisions/{n}/restore` `{revision}` writes the snapshot as a new revision. It uses the current `revision` check (409 when stale) and the update validation, so sources that no longer belong to the organization are rejected.
+- `POST {id}/duplicate` `{name}` copies widgets, layouts, defaults, tags, and folder into a new dashboard at revision 1.
+
+## Panel types
+
+| Type | Config |
+|---|---|
+| `gauge` | `min` below `max`, 1 to 4 numeric `sources` |
+| `table` | 1 to 100 `sources` of any data type |
+| `text` | `text` up to 4000 characters, `sources: []`. Stored as plain text, so render it as text, not HTML |
+| `device_health` | `devices: [{device_uuid, device_name}]`, 1 to 50 devices in the organization, `sources: []`. The server sets `device_name` |
+
+Each type accepts only its own config keys. Existing types keep `sources`, `columns`, and `workflow_uuid`.
+
+## Portal view
+
+- The library at `/dashboards` keeps its view, folder, search, tag, device and sort filters in the URL. "Created by me" matches `created_by` against the signed-in user's id.
+- The panel editor opens at `?edit-panel=<panel id>` on the dashboard URL. Back returns to edit mode with the draft kept.
+- Kiosk hides the shell and enlarges values; Esc exits. It is client-only and writes nothing.
+- The context rail (active alerts, recent commands, device presence) is closed by default and remembered per browser. It polls every 30 s. Acknowledge in the rail is an explicit action that needs `Device.manage`; opening the rail writes nothing.
+- A status panel's Cells or Table view is a per-browser preference, not part of the dashboard definition.
+- Time-series charts draw alert episodes and device commands for the range, and Compare adds the previous period as ghost lines. Download CSV exports the loaded data; text cells that start with `=`, `+`, `-` or `@` are neutralized.
+
 ## Verification
 
 Run the dashboard API feature tests with disposable SQLite (`php artisan test --filter=DashboardTest`), portal Vitest tests, and runtime Go tests. `apps/portal/e2e/dashboards.spec.ts` tests the real UI with isolated network fixtures; it does not alter production telemetry or dashboard records. Run it against the served portal with `STUDIO_BASE_URL=http://localhost:5173` after rebuilding affected containers, then separately verify the connected application using real device data.

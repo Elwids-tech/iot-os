@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Devices;
 
+use App\Domain\Authorization\Enums\OrganizationRoleName;
+use App\Domain\Authorization\Models\Role;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\DeviceProfiles\Models\ProfileParameter;
@@ -14,6 +16,7 @@ use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
+use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceConfigurationService;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -260,6 +263,65 @@ final class DeviceDomainTest extends TestCase
             ->assertJsonPath('data.configurations.0.profile_uuid', $configuration->artifact->profile->uuid)
             ->assertJsonPath('data.configurations.0.profile_name', $configuration->artifact->profile->name)
             ->assertJsonPath('data.configurations.0.profile_revision', $configuration->artifact->revision);
+    }
+
+    public function test_device_list_names_profile_and_gateway_and_profile_list_counts_devices(): void
+    {
+        $device = $this->active($this->configured('rgb-light'));
+        $artifact = $device->configurations()->with('artifact.profile')->firstOrFail()->artifact;
+        $draftOnly = $this->configured('three-phase-energy-meter', 'second');
+        $unconfigured = $this->registered('third');
+        $devices = fn () => collect($this->getJson($this->prefix.'/devices')->assertOk()->json('data'))->keyBy('uuid');
+        $profiles = fn () => collect($this->getJson($this->prefix.'/device-profiles?per_page=100')->assertOk()->json('data'))->keyBy('uuid');
+
+        $listed = $devices();
+        $this->assertSame(['uuid' => $artifact->profile->uuid, 'name' => $artifact->profile->name, 'revision' => $artifact->revision], $listed[$device->uuid]['profile']);
+        $this->assertSame('Gateway', $listed[$device->uuid]['candidate']['gateway']['name']);
+        $this->assertNull($listed[$draftOnly->uuid]['profile']);
+        $this->assertNull($listed[$unconfigured->uuid]['profile']);
+        $this->getJson($this->prefix.'/devices/'.$device->uuid)->assertJsonPath('data.profile.uuid', $artifact->profile->uuid);
+        $this->assertSame(1, $profiles()[$artifact->profile->uuid]['devices_count']);
+        $this->assertSame(0, $profiles()[DeviceProfile::where('code', 'second-profile')->value('uuid')]['devices_count']);
+
+        $device->forceFill(['applied_configuration_uuid' => null, 'lifecycle' => 'deactivated'])->save();
+        $this->assertSame($artifact->profile->uuid, $devices()[$device->uuid]['profile']['uuid']);
+        $this->assertSame(1, $profiles()[$artifact->profile->uuid]['devices_count']);
+        $device->forceFill(['lifecycle' => 'archived'])->save();
+        $this->assertSame(0, $profiles()[$artifact->profile->uuid]['devices_count']);
+    }
+
+    public function test_profile_list_omits_device_counts_without_device_view(): void
+    {
+        $device = $this->active($this->configured('rgb-light'));
+        $profile = $device->configurations()->with('artifact.profile')->firstOrFail()->artifact->profile;
+        $member = User::where('email', 'acme.member@example.test')->firstOrFail();
+        $listed = fn () => collect($this->actingAs($member, 'sanctum')->getJson($this->prefix.'/device-profiles?per_page=100')->assertOk()->json('data'))->firstWhere('uuid', $profile->uuid);
+        $this->assertSame(1, $listed()['devices_count']);
+
+        Role::where('organization_id', $this->organization->id)->where('name', OrganizationRoleName::MEMBER->value)->firstOrFail()->revokePermissionTo(DevicePermission::VIEW->value);
+        $this->getJson($this->prefix.'/devices')->assertForbidden();
+        $this->assertArrayNotHasKey('devices_count', $listed());
+    }
+
+    public function test_device_list_query_count_does_not_grow_with_the_page(): void
+    {
+        $queries = function (): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $this->getJson($this->prefix.'/devices')->assertOk();
+            DB::disableQueryLog();
+
+            return count(DB::getQueryLog());
+        };
+        $this->active($this->configured('rgb-light', 'first'));
+        $small = $queries();
+        $this->active($this->configured('rgb-light', 'second'));
+        $this->active($this->configured('three-phase-energy-meter', 'third'));
+        $this->configured('three-phase-energy-meter', 'fourth');
+        $this->registered('fifth');
+
+        $this->assertSame($small, $queries());
+        $this->assertGreaterThanOrEqual(5, $this->getJson($this->prefix.'/devices')->json('meta.total'));
     }
 
     public function test_history_record_and_state_endpoints_proxy_bounded_contracts(): void

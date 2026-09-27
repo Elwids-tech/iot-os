@@ -4,19 +4,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import type { DeviceProfile } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import { Badge } from "@iot-os/ui/components/badge"
+import { Input } from "@iot-os/ui/components/input"
+import { Label } from "@iot-os/ui/components/label"
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@iot-os/ui/components/card"
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@iot-os/ui/components/select"
 import {
   Empty,
   EmptyHeader,
-  EmptyMedia,
   EmptyTitle,
   EmptyDescription,
   EmptyContent,
@@ -31,40 +30,41 @@ import {
   TableCell,
 } from "@iot-os/ui/components/table"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { PlusIcon, CpuIcon, Trash2Icon, ArrowRightIcon } from "lucide-react"
+import { PageHeader } from "@iot-os/ui/components/page-header"
+import { StatusMark } from "@iot-os/ui/components/status-mark"
+import { formatAge, formatDateTime } from "@iot-os/ui/lib/format"
+import { PlusIcon, Trash2Icon } from "lucide-react"
 import { api } from "../lib/api"
 import { useUnsaved, useDirtyContext } from "../lib/unsaved"
 import {
-  Choice,
   TextField,
   EditorSheet,
   SaveBar,
   Confirm,
+  Pager,
   RequestError,
   fieldError,
 } from "../components/forms"
 import { useOrganization } from "./use-studio"
 export function ProfileStatus({ profile }: { profile: DeviceProfile }) {
-  return (
-    <Badge
-      variant={
-        profile.status === "published"
-          ? "success"
-          : profile.revision > 0 && profile.status === "draft"
-            ? "warning"
-            : "secondary"
-      }
-    >
-      {profile.status === "published"
-        ? "Published"
-        : profile.status === "archived"
-          ? "Archived"
-          : profile.revision > 0
-            ? "Unpublished changes"
-            : "Draft"}
-    </Badge>
+  return profile.status === "published" ? (
+    <StatusMark tone="good">Published v{profile.revision}</StatusMark>
+  ) : profile.status === "archived" ? (
+    <StatusMark tone="muted">Archived</StatusMark>
+  ) : profile.revision > 0 ? (
+    <StatusMark tone="warning">Unpublished changes</StatusMark>
+  ) : (
+    <StatusMark tone="muted">Draft</StatusMark>
   )
 }
+export const plural = (count: number, noun: string) =>
+  `${count} ${noun}${count === 1 ? "" : "s"}`
+const statuses = [
+  { value: "all", label: "All statuses" },
+  { value: "draft", label: "Draft / unpublished changes" },
+  { value: "published", label: "Published" },
+  { value: "archived", label: "Archived" },
+]
 export function ProfileDirectory() {
   const { setDirty } = useDirtyContext()
   const organization = useOrganization()
@@ -104,203 +104,199 @@ export function ProfileDirectory() {
   }
   const base =
     "/organizations/" + organization.organizationUuid + "/device-profiles"
+  const rows = query.data?.data ?? []
+  // The API omits devices_count when the user can't view devices.
+  const usedBy = rows.some((profile) => profile.devices_count !== undefined)
+  const filtered = Boolean(search || status || category)
   return (
-    <section className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-primary">
-            Device profile studio
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Device profiles
-          </h1>
-          <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            Define what your devices measure, report, and accept. Save a draft,
-            then publish when it is ready.
-          </p>
-        </div>
-        {organization.capabilities.create && (
-          <Button onClick={() => setCreating(true)}>
-            <PlusIcon data-icon="inline-start" />
-            New profile
-          </Button>
-        )}
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Your organization's profiles</CardTitle>
-          <CardDescription>
-            Reusable definitions, independent of connection protocols.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-5">
-          <FieldGroup className="grid gap-4 sm:grid-cols-3">
-            <TextField
-              label="Search profiles"
-              type="search"
-              placeholder="Name or code…"
-              value={search}
-              onChange={(event) => filter("search", event.target.value)}
-            />
-            <Choice
-              label="Status"
-              value={status}
-              options={[
-                { value: "", label: "All statuses" },
-                { value: "draft", label: "Draft / unpublished changes" },
-                { value: "published", label: "Published" },
-                { value: "archived", label: "Archived" },
-              ]}
-              onChange={(value) => filter("status", value)}
-            />
-            <TextField
-              label="Category"
+    <>
+      <PageHeader
+        title="Device profiles"
+        actions={
+          organization.capabilities.create && (
+            <Button onClick={() => setCreating(true)}>
+              <PlusIcon data-icon="inline-start" />
+              New profile
+            </Button>
+          )
+        }
+      />
+      <div className="flex flex-col gap-3 p-4 md:p-6">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Label htmlFor="profile-search" className="sr-only">
+            Search profiles
+          </Label>
+          <Input
+            id="profile-search"
+            type="search"
+            placeholder="Name or code"
+            className="w-full sm:w-64"
+            value={search}
+            onChange={(event) => filter("search", event.target.value)}
+          />
+          <div className="flex items-center gap-2">
+            <Label htmlFor="profile-status" className="font-normal text-muted-foreground">
+              Status
+            </Label>
+            <Select
+              value={status || "all"}
+              onValueChange={(value) =>
+                filter("status", value === "all" ? "" : value)
+              }
+            >
+              <SelectTrigger id="profile-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {statuses.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="profile-category" className="font-normal text-muted-foreground">
+              Category
+            </Label>
+            <Input
+              id="profile-category"
               placeholder="All categories"
+              className="w-40"
               value={category}
               onChange={(event) => filter("category", event.target.value)}
             />
-          </FieldGroup>
-          {organization.error || query.error ? (
-            <RequestError error={organization.error ?? query.error}>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  void organization.refetch()
-                  void query.refetch()
-                }}
-              >
-                Retry
-              </Button>
-            </RequestError>
-          ) : organization.isPending ||
-            (organization.capabilities.view_any && query.isPending) ? (
-            <Skeleton className="h-52 w-full" />
-          ) : !organization.capabilities.view_any ? (
-            <p>You do not have permission to list device profiles.</p>
-          ) : !query.data?.data.length ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <CpuIcon />
-                </EmptyMedia>
-                <EmptyTitle>
-                  {search || status || category
-                    ? "No matching profiles"
-                    : "Your first profile starts here"}
-                </EmptyTitle>
-                <EmptyDescription>
-                  {search || status || category
-                    ? "Try a different search or clear the filters."
-                    : "Start with the device's name, then add its parameters. You can build it in small, saved steps."}
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                {organization.capabilities.create && (
-                  <Button variant="outline" onClick={() => setCreating(true)}>
-                    Create a device profile
-                  </Button>
-                )}
-              </EmptyContent>
-            </Empty>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Profile</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Parameters</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {query.data.data.map((profile) => (
-                    <TableRow key={profile.uuid}>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Link
-                            className="font-medium text-primary hover:underline"
-                            to={base + "/" + profile.uuid + "/overview"}
-                          >
-                            {profile.name}
-                          </Link>
-                          <span className="text-xs text-muted-foreground">
-                            {profile.category ?? profile.code}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <ProfileStatus profile={profile} />
-                      </TableCell>
-                      <TableCell>{profile.parameters_count ?? 0}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {new Date(profile.updated_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-1">
-                          <Button asChild size="sm" variant="ghost">
-                            <Link to={base + "/" + profile.uuid + "/overview"}>
-                              Open
-                              <ArrowRightIcon data-icon="inline-end" />
-                            </Link>
-                          </Button>
-                          {organization.capabilities.delete_draft &&
-                            profile.status === "draft" &&
-                            profile.revision === 0 && (
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={"Delete " + profile.name}
-                                onClick={() => setDeleting(profile)}
-                              >
-                                <Trash2Icon />
-                              </Button>
-                            )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex flex-wrap justify-between gap-3">
-          <span className="text-xs text-muted-foreground">
-            {query.data?.meta.total ?? 0} profiles · Organization-scoped
-          </span>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => {
-                const next = new URLSearchParams(params)
-                next.set("page", String(page - 1))
-                setParams(next)
-              }}
-            >
-              Previous
-            </Button>
-            <span className="text-xs">
-              Page {page} of {query.data?.meta.last_page ?? 1}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!query.data || page >= query.data.meta.last_page}
-              onClick={() => {
-                const next = new URLSearchParams(params)
-                next.set("page", String(page + 1))
-                setParams(next)
-              }}
-            >
-              Next
-            </Button>
           </div>
-        </CardFooter>
-      </Card>
+          {query.data && (
+            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+              {plural(query.data.meta.total, "profile")}
+            </span>
+          )}
+        </div>
+        {organization.error || query.error ? (
+          <RequestError error={organization.error ?? query.error}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void organization.refetch()
+                void query.refetch()
+              }}
+            >
+              Retry
+            </Button>
+          </RequestError>
+        ) : organization.isPending ||
+          (organization.capabilities.view_any && query.isPending) ? (
+          <Skeleton className="h-52 w-full" />
+        ) : !organization.capabilities.view_any ? (
+          <p className="text-sm text-muted-foreground">
+            You don't have permission to list device profiles.
+          </p>
+        ) : !rows.length ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>
+                {filtered ? "No matching profiles" : "No device profiles yet"}
+              </EmptyTitle>
+              <EmptyDescription>
+                {filtered
+                  ? "Try a different search or clear the filters."
+                  : "A profile describes what a device measures, reports and accepts."}
+              </EmptyDescription>
+            </EmptyHeader>
+            {!filtered && organization.capabilities.create && (
+              <EmptyContent>
+                <Button variant="outline" onClick={() => setCreating(true)}>
+                  Create a device profile
+                </Button>
+              </EmptyContent>
+            )}
+          </Empty>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Profile</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Parameters</TableHead>
+                {usedBy && <TableHead>Used by</TableHead>}
+                <TableHead className="text-right">Updated</TableHead>
+                <TableHead>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((profile) => (
+                <TableRow key={profile.uuid}>
+                  <TableCell className="max-w-96 truncate">
+                    <Link
+                      className="font-medium text-primary hover:underline"
+                      to={base + "/" + profile.uuid + "/overview"}
+                    >
+                      {profile.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {profile.category ?? profile.code}
+                  </TableCell>
+                  <TableCell>
+                    <ProfileStatus profile={profile} />
+                  </TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">
+                    {profile.parameters_count ?? 0}
+                  </TableCell>
+                  {usedBy && (
+                    <TableCell className="text-muted-foreground tabular-nums">
+                      {plural(profile.devices_count ?? 0, "device")}
+                    </TableCell>
+                  )}
+                  <TableCell
+                    className="text-right text-muted-foreground tabular-nums"
+                    title={formatDateTime(profile.updated_at)}
+                  >
+                    {formatAge(profile.updated_at)} ago
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Button asChild size="sm" variant="ghost">
+                        <Link to={base + "/" + profile.uuid + "/overview"}>
+                          Open
+                        </Link>
+                      </Button>
+                      {organization.capabilities.delete_draft &&
+                        profile.status === "draft" &&
+                        profile.revision === 0 && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={"Delete " + profile.name}
+                            onClick={() => setDeleting(profile)}
+                          >
+                            <Trash2Icon />
+                          </Button>
+                        )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        {query.data && query.data.meta.last_page > 1 && (
+          <Pager
+            page={page}
+            pages={query.data.meta.last_page}
+            onPage={(next) => {
+              const values = new URLSearchParams(params)
+              values.set("page", String(next))
+              setParams(values)
+            }}
+          />
+        )}
+      </div>
       {creating && (
         <CreateProfile
           onClose={() => setCreating(false)}
@@ -334,7 +330,7 @@ export function ProfileDirectory() {
           await query.refetch()
         }}
       />
-    </section>
+    </>
   )
 }
 function CreateProfile({
@@ -356,8 +352,8 @@ function CreateProfile({
   useUnsaved(form.formState.isDirty)
   return (
     <EditorSheet
-      title="Create a device profile"
-      description="Start with the essentials. Add parameters and behavior after creating your draft."
+      title="New device profile"
+      description="Add parameters after you create the draft."
       dirty={form.formState.isDirty}
       busy={form.formState.isSubmitting}
       onClose={onClose}
@@ -398,7 +394,7 @@ function CreateProfile({
               error={fieldError(error, "code")}
               required
               pattern="[a-z0-9][a-z0-9.\-]*"
-              help="A unique identifier within this organization."
+              help="Unique in this organization."
               {...form.register("code")}
             />
             <TextField
@@ -408,7 +404,6 @@ function CreateProfile({
             />
             <TextField
               label="Description"
-              placeholder="What does this profile describe?"
               {...form.register("description")}
             />
             <RequestError error={error} />

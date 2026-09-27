@@ -170,7 +170,7 @@ async function create(page: Page) {
     "Device details",
     "Telemetry and location",
     "Alerts",
-    "Alert event feed",
+    "Alert and geofence event feed",
   ])
     await page.getByRole("checkbox", { name, exact: true }).check();
   await page.getByRole("combobox", { name: "Add a device" }).click();
@@ -208,7 +208,8 @@ test("manager creates grants, handles secrets, webhook retries, conflicts and re
   await expect(page.getByLabel("Application token value")).toHaveValue(
     "fixture-secret-token",
   );
-  await page.getByRole("link", { name: "All applications" }).click();
+  // The list sits beside the detail at this width, so leave through the sidebar.
+  await page.getByRole("link", { name: "Dashboards", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toContainText(
     "Leave without saving?",
   );
@@ -281,7 +282,7 @@ test("mobile forms preserve edits and fit viewport", async ({ page }) => {
   await setup(page);
   await create(page);
   await page.getByLabel("Application name").fill("Unsaved mobile edit");
-  await page.getByRole("link", { name: "All applications" }).click();
+  await page.getByRole("link", { name: "Back to Integrations" }).click();
   await page.getByRole("button", { name: "Keep editing" }).click();
   await expect(page.getByLabel("Application name")).toHaveValue(
     "Unsaved mobile edit",
@@ -296,6 +297,28 @@ test("mobile forms preserve edits and fit viewport", async ({ page }) => {
     fullPage: true,
   });
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+test("a one-time secret survives crossing the 1280px layout breakpoint", async ({
+  page,
+}) => {
+  const { errors } = await setup(page);
+  await create(page);
+  await page.getByRole("button", { name: "Issue new token" }).click();
+  await confirm(page, "Issue token");
+  await page.getByRole("button", { name: "Reveal secret" }).click();
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Field application" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Application token value")).toHaveValue(
+    "fixture-secret-token",
+  );
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(page.getByRole("list", { name: "Applications" })).toBeVisible();
+  await expect(page.getByLabel("Application token value")).toHaveValue(
+    "fixture-secret-token",
+  );
+  expect(errors).toEqual([]);
 });
 test("viewer cannot open management tools", async ({ page }) => {
   await setup(page, false);

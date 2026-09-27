@@ -1,4 +1,6 @@
 import {
+  createContext,
+  useContext,
   useEffect,
   useId,
   useRef,
@@ -117,7 +119,9 @@ export function TextField({
         id={id}
         aria-invalid={Boolean(error)}
         aria-describedby={
-          error ? id + "-error" : help ? id + "-help" : undefined
+          [help && id + "-help", error && id + "-error"]
+            .filter(Boolean)
+            .join(" ") || undefined
         }
       />
       {help && <FieldDescription id={id + "-help"}>{help}</FieldDescription>}
@@ -132,6 +136,7 @@ export function Choice({
   onChange,
   disabled,
   help,
+  error,
 }: {
   label: string
   value: string
@@ -139,17 +144,27 @@ export function Choice({
   onChange: (value: string) => void
   disabled?: boolean
   help?: string
+  error?: string
 }) {
   const id = useId()
   return (
-    <Field>
+    <Field data-invalid={Boolean(error)}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <Select
         value={value || "__none"}
         onValueChange={(next) => onChange(next === "__none" ? "" : next)}
         disabled={disabled}
       >
-        <SelectTrigger id={id} className="w-full">
+        <SelectTrigger
+          id={id}
+          className="w-full"
+          aria-invalid={Boolean(error)}
+          aria-describedby={
+            [help && id + "-help", error && id + "-error"]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -162,10 +177,13 @@ export function Choice({
           </SelectGroup>
         </SelectContent>
       </Select>
-      {help && <FieldDescription>{help}</FieldDescription>}
+      {help && <FieldDescription id={id + "-help"}>{help}</FieldDescription>}
+      {error && <FieldError id={id + "-error"}>{error}</FieldError>}
     </Field>
   )
 }
+/** Set by EditorSheet: asks "Discard unsaved changes?" before running `close`. */
+const SheetDiscard = createContext<((close: () => void) => void) | null>(null)
 export function SaveBar({
   dirty,
   busy,
@@ -179,6 +197,8 @@ export function SaveBar({
   onCancel: () => void
   label?: string
 }) {
+  // Inside an EditorSheet, Cancel uses the same discard guard as closing the sheet (N7).
+  const discard = useContext(SheetDiscard)
   return (
     <div className="sticky bottom-0 flex w-full flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4">
       <span className="text-xs text-muted-foreground" role="status">
@@ -188,7 +208,7 @@ export function SaveBar({
         <Button
           type="button"
           variant="outline"
-          onClick={onCancel}
+          onClick={() => (dirty && discard ? discard(onCancel) : onCancel())}
           disabled={busy}
         >
           Cancel
@@ -314,16 +334,16 @@ export function EditorSheet({
   onClose: () => void
   children: ReactNode
 }) {
-  const [discard, setDiscard] = useState(false)
+  const [discard, setDiscard] = useState<(() => void) | null>(null)
   useEffect(() => {
     toast.dismiss()
   }, [])
   return (
-    <>
+    <SheetDiscard.Provider value={(close) => setDiscard(() => close)}>
       <Sheet
         open
         onOpenChange={(open) => {
-          if (!open && !busy) dirty ? setDiscard(true) : onClose()
+          if (!open && !busy) dirty ? setDiscard(() => onClose) : onClose()
         }}
       >
         <SheetContent className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-3xl">
@@ -335,14 +355,50 @@ export function EditorSheet({
         </SheetContent>
       </Sheet>
       <Confirm
-        open={discard}
+        open={Boolean(discard)}
         title="Discard unsaved changes?"
         description="Your saved draft will not change."
         action="Discard changes"
-        onClose={() => setDiscard(false)}
-        onConfirm={onClose}
+        onClose={() => setDiscard(null)}
+        onConfirm={() => discard?.()}
       />
-    </>
+    </SheetDiscard.Provider>
+  )
+}
+/** "Page N of M" with Previous and Next; the one pager for directory and detail tables (P6). */
+export function Pager({
+  page,
+  pages,
+  onPage,
+}: {
+  page: number
+  pages: number
+  onPage: (page: number) => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      <span className="mr-auto tabular-nums">
+        Page {page} of {Math.max(1, pages)}
+      </span>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={page <= 1}
+        onClick={() => onPage(page - 1)}
+      >
+        Previous
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={page >= pages}
+        onClick={() => onPage(page + 1)}
+      >
+        Next
+      </Button>
+    </div>
   )
 }
 export function parseObject(value: string, nullable = true) {

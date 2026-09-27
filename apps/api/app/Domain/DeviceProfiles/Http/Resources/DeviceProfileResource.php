@@ -24,6 +24,7 @@ final class DeviceProfileResource extends JsonResource
             'published_at' => $this->published_at?->toIso8601String(),
             'extensions' => $this->extensions,
             'parameters_count' => $this->whenCounted('parameters'),
+            'devices_count' => $this->whenHas('devices_count'),
             'updated_at' => $this->updated_at?->toIso8601String(),
             'parameter_groups' => ProfileParameterGroupResource::collection($this->whenLoaded('parameterGroups')),
             'parameters' => ProfileParameterResource::collection($this->whenLoaded('parameters')),

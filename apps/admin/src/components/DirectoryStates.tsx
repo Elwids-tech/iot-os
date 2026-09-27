@@ -1,7 +1,10 @@
-import { AlertCircleIcon, SearchXIcon } from "lucide-react"
+import type { ReactNode } from "react"
+import { AlertCircleIcon, InboxIcon, SearchXIcon } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
+import { Button } from "@iot-os/ui/components/button"
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -16,10 +19,11 @@ import {
   TableHeader,
   TableRow,
 } from "@iot-os/ui/components/table"
+import { useSearchParams } from "react-router-dom"
 
 export function DirectoryError() {
   return (
-    <Alert variant="destructive" className="m-6">
+    <Alert variant="destructive">
       <AlertCircleIcon />
       <AlertTitle>Could not load this directory</AlertTitle>
       <AlertDescription>Refresh the page to try again.</AlertDescription>
@@ -27,23 +31,43 @@ export function DirectoryError() {
   )
 }
 
-export function DirectoryEmpty({ description }: { description: string }) {
+/** "No matching …" with Clear filters when filtered, otherwise "No … yet" with an optional next step. */
+export function DirectoryEmpty({
+  noun,
+  filtered,
+  hint,
+  action,
+}: {
+  noun: string
+  filtered: boolean
+  hint: string
+  action?: ReactNode
+}) {
+  const [, setSearchParams] = useSearchParams()
+
   return (
-    <Empty className="min-h-72 border-0">
+    <Empty className="min-h-64 border-0">
       <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <SearchXIcon />
-        </EmptyMedia>
-        <EmptyTitle>No results found</EmptyTitle>
-        <EmptyDescription>{description}</EmptyDescription>
+        <EmptyMedia variant="icon">{filtered ? <SearchXIcon /> : <InboxIcon />}</EmptyMedia>
+        <EmptyTitle>{filtered ? `No matching ${noun}` : `No ${noun} yet`}</EmptyTitle>
+        {filtered ? <EmptyDescription>{hint}</EmptyDescription> : null}
       </EmptyHeader>
+      {filtered ? (
+        <EmptyContent>
+          <Button variant="outline" size="sm" onClick={() => setSearchParams(new URLSearchParams())}>
+            Clear filters
+          </Button>
+        </EmptyContent>
+      ) : action ? (
+        <EmptyContent>{action}</EmptyContent>
+      ) : null}
     </Empty>
   )
 }
 
 export function DirectoryLoading({ headings }: { headings: string[] }) {
   return (
-    <Table>
+    <Table aria-busy="true">
       <TableHeader>
         <TableRow>
           {headings.map((heading) => (
@@ -64,4 +88,8 @@ export function DirectoryLoading({ headings }: { headings: string[] }) {
       </TableBody>
     </Table>
   )
+}
+
+export function countLabel(total: number, singular: string, plural: string): string {
+  return `${total.toLocaleString()} ${total === 1 ? singular : plural}`
 }

@@ -7,6 +7,7 @@ namespace App\Domain\Devices\Models;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class Device extends DeviceModel
 {
@@ -30,6 +31,21 @@ final class Device extends DeviceModel
     public function configurations(): HasMany
     {
         return $this->hasMany(DeviceConfiguration::class);
+    }
+
+    public function appliedConfiguration(): BelongsTo
+    {
+        return $this->belongsTo(DeviceConfiguration::class, 'applied_configuration_uuid', 'uuid');
+    }
+
+    public function lastAppliedConfiguration(): BelongsTo
+    {
+        return $this->belongsTo(DeviceConfiguration::class, 'last_applied_configuration_uuid', 'uuid');
+    }
+
+    public function latestOperation(): HasOne
+    {
+        return $this->hasOne(DeviceOperation::class)->latestOfMany('generation');
     }
 
     public function commands(): HasMany

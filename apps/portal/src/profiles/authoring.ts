@@ -1,9 +1,9 @@
 import type {
-  AuthoringParameter,
   CompiledDeviceProfileDefinition,
   JsonObject,
   JsonValue,
 } from "@iot-os/api-client"
+export const kindLabel = (kind: string) => kind[0].toUpperCase() + kind.slice(1)
 export const jsonText = (value: unknown) =>
   JSON.stringify(value ?? null, null, 2)
 export function objectValue(text: string): JsonObject | null {
@@ -199,26 +199,6 @@ export function isArithmetic(node: JsonValue, depth = 0): boolean {
     operands.every((operand) => isArithmetic(operand, depth + 1))
   )
 }
-export function parameterToArtifact(parameter: AuthoringParameter) {
-  const {
-    description: _description,
-    parameter_group_uuid: _group,
-    sort_order: _order,
-    calculation: _calculation,
-    validation_logic,
-    display_config,
-    reporting_config,
-    counter_config,
-    ...shared
-  } = parameter
-  return {
-    ...shared,
-    validation: validation_logic,
-    display: display_config,
-    reporting: reporting_config,
-    counter: counter_config,
-  }
-}
 export type ArtifactChange = {
   area: string
   label: string
@@ -306,8 +286,126 @@ export function artifactChanges(
       area: "Parameters",
       label: "Parameter order",
       change: "Updated",
-      before: previous.parameters.map((parameter) => parameter.label),
-      after: next.parameters.map((parameter) => parameter.label),
+      before: { order: previous.parameters.map((parameter) => parameter.label) },
+      after: { order: next.parameters.map((parameter) => parameter.label) },
     })
   return changes
+}
+/** Short rule for tables: "Between 0 and 480", "3 allowed values", "Custom rule". */
+export function ruleLabel(value: GuidedValidation): string {
+  if (value.mode === "none") return "None"
+  if (value.mode === "custom") return "Custom rule"
+  if (value.mode === "range")
+    return value.min !== undefined && value.max !== undefined
+      ? `Between ${value.min} and ${value.max}`
+      : value.min !== undefined
+        ? `At least ${value.min}`
+        : `At most ${value.max}`
+  const count =
+    value.mode === "options" ? value.options.length : value.conditions.length
+  const noun = value.mode === "options" ? "allowed value" : "condition"
+  return `${count} ${noun}${count === 1 ? "" : "s"}`
+}
+const symbols: Record<string, string> = { "+": "+", "-": "-", "*": "×", "/": "/" }
+function formula(node: JsonValue, nested: boolean): string {
+  if (typeof node === "number") return String(node)
+  const object = node as JsonObject
+  if (typeof object.var === "string") return object.var
+  const operator = Object.keys(object)[0]
+  const text = (object[operator] as JsonValue[])
+    .map((operand) => formula(operand, true))
+    .join(` ${symbols[operator]} `)
+  return nested ? `(${text})` : text
+}
+/** Arithmetic formula as text, "(l1 + l2) / 2"; null for expressions the builder can't show. */
+export const formulaText = (node: JsonValue) =>
+  isArithmetic(node) ? formula(node, false) : null
+const fieldLabels: Record<string, string> = {
+  name: "Name",
+  code: "Code",
+  category: "Category",
+  key: "Key",
+  label: "Label",
+  kind: "Kind",
+  data_type: "Data type",
+  format: "Display format",
+  unit: "Stored unit",
+  reports_state: "Reports state",
+  accepts_command: "Accepts commands",
+  ingress_conversion: "Incoming conversion",
+  validation: "Validation rule",
+  "validation.rule": "Value constraints",
+  "validation.message": "Message",
+  "validation.diagnostic_code": "Issue code",
+  display: "Display settings",
+  "display.widget": "Control",
+  "display.precision": "Decimals",
+  "display.step": "Input step",
+  reporting: "Reporting settings",
+  "reporting.stale_after_seconds": "Stale after (seconds)",
+  counter: "Counter settings",
+  "counter.monotonic": "Counter normally increases",
+  "counter.reset_behavior": "When the counter resets",
+  expression: "Formula",
+  inputs: "Inputs",
+  trigger: "Runs",
+  failure_policy: "On failure",
+  type: "Type",
+  severity: "Suggested severity",
+  enabled_by_default: "On by default",
+  condition: "Condition",
+  "condition.max_age_seconds": "Maximum age (seconds)",
+  parameters: "Parameters",
+  order: "Order",
+}
+export type FieldChange = {
+  area: string
+  item: string
+  field: string
+  /** Technical key, shown on hover. */
+  path: string
+  before: string
+  after: string
+}
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+const shown = (value: unknown) =>
+  value === undefined || value === null
+    ? "None"
+    : typeof value === "string"
+      ? value
+      : JSON.stringify(value)
+/** One row per changed field; nested settings objects go one level deeper (display.precision). */
+export function fieldChanges(changes: ArtifactChange[]): FieldChange[] {
+  return changes.flatMap((change) => {
+    const row = (path: string, before: unknown, after: unknown) => ({
+      area: change.area,
+      item: change.label,
+      field: fieldLabels[path] ?? path,
+      path,
+      before: shown(before),
+      after: shown(after),
+    })
+    if (!isObject(change.before) || !isObject(change.after))
+      return [{ ...row("", undefined, undefined), field: change.change, before: "", after: "" }]
+    const differs = (a: unknown, b: unknown) =>
+      JSON.stringify(a) !== JSON.stringify(b)
+    const keys = (a: Record<string, unknown>, b: Record<string, unknown>) =>
+      [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(
+        (key) => key !== "uuid" && differs(a[key], b[key]),
+      )
+    const { before, after } = change
+    return keys(before, after).flatMap((key) => {
+      const old = before[key],
+        fresh = after[key]
+      if ((isObject(old) || old == null) && (isObject(fresh) || fresh == null)) {
+        const a = isObject(old) ? old : {},
+          b = isObject(fresh) ? fresh : {}
+        const nested = keys(a, b)
+        if (nested.length)
+          return nested.map((inner) => row(key + "." + inner, a[inner], b[inner]))
+      }
+      return [row(key, old, fresh)]
+    })
+  })
 }

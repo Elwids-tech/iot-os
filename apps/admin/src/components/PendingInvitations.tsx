@@ -2,47 +2,56 @@ import { useEffect, useState } from "react"
 import type { OrganizationInvitation, PaginatedResponse } from "@iot-os/api-client"
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@iot-os/ui/components/alert-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
-import { Badge } from "@iot-os/ui/components/badge"
 import { Button } from "@iot-os/ui/components/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@iot-os/ui/components/card"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@iot-os/ui/components/empty"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
+import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@iot-os/ui/components/table"
-import { AlertCircleIcon, MailIcon } from "lucide-react"
+import { formatDateTime } from "@iot-os/ui/lib/format"
+import { AlertCircleIcon } from "lucide-react"
+import { toast } from "sonner"
 import { apiClient } from "../lib/api-client"
+import { errorMessage, fieldMessages, validationErrors } from "../lib/errors"
+import { countLabel } from "./DirectoryStates"
+import { PaginationControls } from "./PaginationControls"
 
-const dateTime = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-  timeStyle: "short",
-})
+const statuses: Record<OrganizationInvitation["status"], { tone: StatusTone; label: string }> = {
+  pending: { tone: "info", label: "Pending" },
+  accepted: { tone: "good", label: "Accepted" },
+  revoked: { tone: "muted", label: "Revoked" },
+  expired: { tone: "warning", label: "Expired" },
+}
 
 type InvitationState = {
   data?: PaginatedResponse<OrganizationInvitation>
   error: boolean
 }
 
+type Confirming = { action: "resend" | "revoke"; invitation: OrganizationInvitation }
+
 export function PendingInvitations({ refreshKey }: { refreshKey: number }) {
   const [state, setState] = useState<InvitationState>({ error: false })
-  const [revokingUuid, setRevokingUuid] = useState<string | null>(null)
-  const [revokeError, setRevokeError] = useState(false)
+  const [page, setPage] = useState(1)
+  const [version, setVersion] = useState(0)
+  const [confirming, setConfirming] = useState<Confirming | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => setPage(1), [refreshKey])
 
   useEffect(() => {
     let active = true
-    setState({ error: false })
-    setRevokeError(false)
+    setState((current) => ({ data: current.data, error: false }))
 
     apiClient
-      .adminInvitations({ perPage: 100 })
+      .adminInvitations({ page, perPage: 25 })
       .then((data) => {
         if (active) setState({ data, error: false })
       })
@@ -53,134 +62,174 @@ export function PendingInvitations({ refreshKey }: { refreshKey: number }) {
     return () => {
       active = false
     }
-  }, [refreshKey])
+  }, [page, refreshKey, version])
 
-  async function revoke(invitationUuid: string) {
-    setRevokingUuid(invitationUuid)
-    setRevokeError(false)
+  // Resend re-invites with the same roles; the API revokes the earlier pending link and emails a new one.
+  async function confirm() {
+    if (!confirming) return
+    const { action, invitation } = confirming
+    setBusy(true)
+    setActionError(null)
 
     try {
-      await apiClient.revokeAdminInvitation(invitationUuid)
-      setState((current) =>
-        current.data
-          ? {
-              ...current,
-              data: {
-                ...current.data,
-                data: current.data.data.map((invitation) =>
-                  invitation.uuid === invitationUuid
-                    ? { ...invitation, revoked_at: new Date().toISOString(), status: "revoked" }
-                    : invitation,
-                ),
-              },
-            }
-          : current,
+      if (action === "revoke") {
+        await apiClient.revokeAdminInvitation(invitation.uuid)
+        toast.success(`Invitation for ${invitation.email} revoked`)
+      } else {
+        await apiClient.inviteUser(invitation.organization.uuid, invitation.email, invitation.role_ids)
+        toast.success(`Invitation sent to ${invitation.email}`)
+        setPage(1)
+      }
+      setConfirming(null)
+      setVersion((current) => current + 1)
+    } catch (error) {
+      const fields = validationErrors(error)
+      setActionError(
+        fieldMessages(fields, "email")?.[0] ?? fieldMessages(fields, "role_ids")?.[0] ?? errorMessage(error),
       )
-    } catch {
-      setRevokeError(true)
     } finally {
-      setRevokingUuid(null)
+      setBusy(false)
     }
   }
 
+  const invitations = state.data?.data
+
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>Invitations</CardTitle>
-        <CardDescription>Track pending, accepted, revoked, and expired organization invitations.</CardDescription>
-      </CardHeader>
-      <CardContent className="overflow-x-auto px-0">
-        {revokeError ? (
-          <div className="px-4 pb-4">
-            <Alert variant="destructive">
-              <AlertCircleIcon />
-              <AlertTitle>Could not revoke invitation</AlertTitle>
-              <AlertDescription>Try again before sending a replacement invitation.</AlertDescription>
-            </Alert>
-          </div>
+    <section aria-labelledby="invitations-heading" className="min-w-0">
+      <div className="mb-2 flex items-center gap-3">
+        <h2 id="invitations-heading" className="text-sm font-semibold">
+          Invitations
+        </h2>
+        {state.data ? (
+          <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+            {countLabel(state.data.meta.total, "invitation", "invitations")}
+          </span>
         ) : null}
-        {state.error ? (
-          <div className="px-4 pb-4">
-            <Alert variant="destructive">
-              <AlertCircleIcon />
-              <AlertTitle>Could not load invitations</AlertTitle>
-              <AlertDescription>Refresh the page and try again.</AlertDescription>
-            </Alert>
-          </div>
-        ) : !state.data ? (
-          <div className="flex flex-col gap-3 px-4 pb-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : state.data.data.length === 0 ? (
-          <Empty className="min-h-48 border-0">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <MailIcon />
-              </EmptyMedia>
-              <EmptyTitle>No invitations yet</EmptyTitle>
-              <EmptyDescription>Invite a user to grant organization access.</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Organization</TableHead>
-                <TableHead>Roles</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead><span className="sr-only">Actions</span></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {state.data.data.map((invitation) => (
+      </div>
+      {state.error ? (
+        <Alert variant="destructive">
+          <AlertCircleIcon />
+          <AlertTitle>Could not load invitations</AlertTitle>
+          <AlertDescription>Refresh the page and try again.</AlertDescription>
+        </Alert>
+      ) : !invitations ? (
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+      ) : invitations.length === 0 ? (
+        <p className="border-t py-4 text-sm text-muted-foreground">No invitations yet.</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Email</TableHead>
+              <TableHead>Organization</TableHead>
+              <TableHead>Roles</TableHead>
+              <TableHead>Expires</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {invitations.map((invitation) => {
+              const status = statuses[invitation.status]
+              const canResend = invitation.status === "pending" || invitation.status === "expired"
+
+              return (
                 <TableRow key={invitation.uuid}>
-                  <TableCell className="break-words font-medium">{invitation.email}</TableCell>
+                  <TableCell className="font-medium">{invitation.email}</TableCell>
                   <TableCell>{invitation.organization.name}</TableCell>
+                  <TableCell className="min-w-40 whitespace-normal">
+                    {invitation.roles.map((role) => role.display_name).join(", ")}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground tabular-nums">
+                    {formatDateTime(invitation.expires_at)}
+                  </TableCell>
                   <TableCell>
-                    <div className="flex min-w-40 flex-wrap gap-1">
-                      {invitation.roles.map((role) => (
-                        <Badge key={role.id} variant="outline">{role.display_name}</Badge>
-                      ))}
+                    <StatusMark tone={status.tone}>{status.label}</StatusMark>
+                  </TableCell>
+                  <TableCell className="w-0 text-right">
+                    <div className="flex justify-end gap-1">
+                      {canResend ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setActionError(null)
+                            setConfirming({ action: "resend", invitation })
+                          }}
+                        >
+                          Resend
+                        </Button>
+                      ) : null}
+                      {invitation.status === "pending" ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setActionError(null)
+                            setConfirming({ action: "revoke", invitation })
+                          }}
+                        >
+                          Revoke
+                        </Button>
+                      ) : null}
                     </div>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {dateTime.format(new Date(invitation.expires_at))}
-                  </TableCell>
-                  <TableCell><Badge variant={invitation.status === "pending" ? "secondary" : "outline"}>{invitation.status}</Badge></TableCell>
-                  <TableCell>
-                    {invitation.status === "pending" ? (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm" disabled={revokingUuid === invitation.uuid}>
-                            Revoke
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Revoke invitation?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {invitation.email} will no longer be able to accept this invitation.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction variant="destructive" onClick={() => void revoke(invitation.uuid)}>
-                              Revoke invitation
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    ) : null}
-                  </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+              )
+            })}
+          </TableBody>
+        </Table>
+      )}
+      {state.data ? (
+        <PaginationControls meta={state.data.meta} label="Invitations pages" onPage={setPage} />
+      ) : null}
+      <AlertDialog
+        open={confirming !== null}
+        onOpenChange={(open) => {
+          if (!open && !busy) setConfirming(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirming?.action === "revoke" ? "Revoke invitation?" : "Resend invitation?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirming?.action === "revoke"
+                ? `${confirming.invitation.email} will no longer be able to accept this invitation.`
+                : `${confirming?.invitation.email} gets a new link. Any earlier link stops working.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {actionError ? (
+            <Alert variant="destructive">
+              <AlertCircleIcon />
+              <AlertDescription>{actionError}</AlertDescription>
+            </Alert>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <Button
+              variant={confirming?.action === "revoke" ? "destructive" : "default"}
+              disabled={busy}
+              onClick={() => void confirm()}
+            >
+              {confirming?.action === "revoke"
+                ? busy
+                  ? "Revoking…"
+                  : "Revoke invitation"
+                : busy
+                  ? "Sending…"
+                  : "Resend invitation"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
   )
 }

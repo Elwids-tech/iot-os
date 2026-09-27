@@ -2,11 +2,12 @@ import { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type {
   DashboardControlColumns,
-  DeviceDetail,
   DeviceCommand,
   Measurement,
 } from "@iot-os/api-client"
 import { api } from "../lib/api"
+import { telemetryRequest } from "../dashboards/requests"
+import { useDevices } from "../dashboards/panelData"
 import { useUnsavedContribution } from "../lib/unsaved"
 import { RequestError } from "../components/forms"
 import { formatValue } from "../devices/shared"
@@ -19,7 +20,6 @@ import {
 } from "./model"
 
 type Snapshot = {
-  device: DeviceDetail
   commands: DeviceCommand[]
   latest: {
     data: Measurement[]
@@ -47,21 +47,28 @@ export function DeviceControls({
     key = ["device-controls", org, deviceUuid]
   const [dirty, setDirty] = useState<Record<string, boolean>>({})
   useUnsavedContribution(Object.values(dirty).some(Boolean))
+  // Device metadata (profile, lifecycle, deployment) changes slowly and is
+  // shared with dashboard panels; commands and reported state poll every
+  // second. Each request takes its own slot in the shared queue.
+  const deviceQuery = useDevices(org, [deviceUuid], 5000)(deviceUuid)
   const query = useQuery({
     queryKey: key,
     queryFn: async ({ signal }): Promise<Snapshot> => {
-      const [device, commands, latest] = await Promise.all([
-        api.device(org, deviceUuid),
-        api.deviceCommands(org, deviceUuid),
-        api.deviceLatest(org, deviceUuid, signal),
+      const [commands, latest] = await Promise.all([
+        telemetryRequest(signal, () =>
+          api.deviceCommands(org, deviceUuid, signal),
+        ),
+        telemetryRequest(signal, () =>
+          api.deviceLatest(org, deviceUuid, signal),
+        ),
       ])
-      return { device, commands, latest }
+      return { commands, latest }
     },
     refetchInterval: 1000,
     refetchIntervalInBackground: false,
   })
   const snapshot = query.data,
-    device = snapshot?.device
+    device = deviceQuery?.data
   useEffect(() => {
     setDirty({})
   }, [device?.applied_configuration_uuid])
@@ -70,13 +77,14 @@ export function DeviceControls({
     sources ??
     parameters.map((p) => ({ parameter_uuid: p.uuid, label: p.label }))
   const resolvedColumns = columns ?? (sources ? 1 : "auto")
+  // Presence comes from the 1 s runtime read; the device record lags it.
   const ready =
     allowed &&
     !preview &&
     !query.isError &&
+    !deviceQuery?.isError &&
     device?.lifecycle === "active" &&
     ["applied", "failed"].includes(device.deployment_status) &&
-    device.presence === "online" &&
     snapshot?.latest.presence === "online" &&
     snapshot?.latest.configuration_uuid === device.applied_configuration_uuid
   async function send(parameter: string, value: ControlValue) {
@@ -115,8 +123,10 @@ export function DeviceControls({
   }
   return (
     <div className="flex flex-col gap-4">
-      <RequestError error={query.error} />
-      {query.isPending && <p role="status">Loading controls…</p>}
+      <RequestError error={query.error ?? deviceQuery?.error} />
+      {(query.isPending || deviceQuery?.isPending) && (
+        <p role="status">Loading controls…</p>
+      )}
       {preview && (
         <p className="text-sm text-muted-foreground">
           Preview only. Controls are available after leaving dashboard editing.

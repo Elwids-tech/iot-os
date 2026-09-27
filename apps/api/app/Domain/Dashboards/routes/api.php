@@ -12,4 +12,9 @@ Route::prefix('v1/organizations/{organization}')->middleware(['auth:sanctum', Re
     Route::get('dashboards/{dashboard}', [DashboardController::class, 'show']);
     Route::put('dashboards/{dashboard}', [DashboardController::class, 'update']);
     Route::delete('dashboards/{dashboard}', [DashboardController::class, 'destroy']);
+    Route::put('dashboards/{dashboard}/star', [DashboardController::class, 'star']);
+    Route::post('dashboards/{dashboard}/duplicate', [DashboardController::class, 'duplicate']);
+    Route::get('dashboards/{dashboard}/revisions', [DashboardController::class, 'revisions']);
+    Route::get('dashboards/{dashboard}/revisions/{number}', [DashboardController::class, 'revision'])->where('number', '[0-9]{1,9}');
+    Route::post('dashboards/{dashboard}/revisions/{number}/restore', [DashboardController::class, 'restore'])->where('number', '[0-9]{1,9}');
 });

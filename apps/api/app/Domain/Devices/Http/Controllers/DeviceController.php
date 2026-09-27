@@ -28,7 +28,7 @@ final class DeviceController
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'lifecycle' => ['nullable', Rule::in(['registered', 'active', 'deactivated', 'archived'])], 'page' => ['integer', 'min:1'], 'per_page' => ['integer', 'min:1', 'max:100']]);
-        $result = Device::query()->where('organization_id', $organization->id)->with('candidate.gateway.connection')
+        $result = Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile'])
             ->when($filters['search'] ?? null, fn ($q, $s) => $q->where(fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($s).'%'])->orWhereRaw('LOWER(code) LIKE ?', ['%'.mb_strtolower($s).'%'])))
             ->when($filters['lifecycle'] ?? null, fn ($q, $s) => $q->where('lifecycle', $s))->orderBy('name')->paginate($request->integer('per_page', 25));
 

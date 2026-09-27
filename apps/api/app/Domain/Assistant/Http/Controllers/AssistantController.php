@@ -275,6 +275,6 @@ final class AssistantController
 
     private function proposalData(AssistantProposal $proposal): array
     {
-        return $proposal->only(['id', 'section', 'summary', 'status', 'draft_revision', 'content_hash', 'changes', 'before', 'evidence', 'diagnostics', 'result']);
+        return $proposal->only(['id', 'section', 'summary', 'status', 'draft_revision', 'content_hash', 'changes', 'before', 'evidence', 'diagnostics', 'result', 'created_at']);
     }
 }

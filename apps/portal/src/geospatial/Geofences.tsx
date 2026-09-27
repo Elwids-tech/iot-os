@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import type { GeofenceInput, GeofencePolicy } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
+import { PageHeader } from "@iot-os/ui/components/page-header"
 import { Badge } from "@iot-os/ui/components/badge"
 import { Button } from "@iot-os/ui/components/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@iot-os/ui/components/card"
@@ -11,7 +12,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@iot-os/ui/comp
 import { Input } from "@iot-os/ui/components/input"
 import { SearchableMultiSelect } from "@iot-os/ui/components/searchable-select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { ArrowLeftIcon, PlusIcon, Redo2Icon, SaveIcon, Trash2Icon, Undo2Icon } from "lucide-react"
+import { PlusIcon, Redo2Icon, SaveIcon, Trash2Icon, Undo2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
@@ -29,7 +30,7 @@ function GeofenceDirectory() {
   const query = useQuery({ queryKey: ["geofences", organizationUuid], queryFn: () => api.geofences(organizationUuid) })
   if (query.isPending) return <Skeleton className="h-80 w-full" />
   return <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Geofences</h1><p className="text-muted-foreground">Reusable polygons with independent device rule assignments.</p></div><Button asChild><Link to="new"><PlusIcon data-icon="inline-start" />New geofence</Link></Button></div>
+    <PageHeader title="Geofences" actions={<Button asChild><Link to="new"><PlusIcon data-icon="inline-start" />New geofence</Link></Button>} />
     <RequestError error={query.error} />
     {!query.data?.data.length ? <Empty><EmptyHeader><EmptyTitle>No geofences</EmptyTitle><EmptyDescription>Draw a polygon and assign GPS devices to start monitoring boundary events.</EmptyDescription></EmptyHeader></Empty> :
       <div className="grid gap-4 md:grid-cols-2">{query.data.data.map((fence) => <Card key={fence.uuid}><CardHeader><CardTitle>{fence.name}</CardTitle><CardDescription>Revision {fence.revision} · {fence.assignments.length} assigned devices</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2">{fence.assignments.map((assignment) => <Badge key={assignment.uuid} variant={assignment.status === "active" ? "secondary" : "outline"}>{assignment.device.name} · {assignment.status}</Badge>)}</CardContent><CardFooter><Button asChild variant="outline"><Link to={fence.uuid}>Open editor</Link></Button></CardFooter></Card>)}</div>}
@@ -77,7 +78,7 @@ function GeofenceEditor() {
     onSuccess: (result) => cache.setQueryData(["geofence-activation", organizationUuid, geofenceUuid, activationUuid], result) })
   if (existing.isPending && geofenceUuid) return <Skeleton className="h-96 w-full" />
   return <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-    <div className="flex flex-wrap items-center gap-3"><Button asChild size="sm" variant="ghost"><Link to=".."><ArrowLeftIcon data-icon="inline-start" />Geofences</Link></Button><div className="mr-auto"><h1 className="text-2xl font-semibold">{existing.data ? `Edit ${existing.data.name}` : "New geofence"}</h1><p className="text-muted-foreground">Right-click the map to add a point. Drag points to move them; right-click a point to delete it.</p></div>{existing.data && <Badge variant="outline">Revision {existing.data.revision}</Badge>}</div>
+    <PageHeader title={existing.data ? `Edit ${existing.data.name}` : "New geofence"} back={{ to: `/organizations/${organizationUuid}/geofences`, label: "Geofences" }} meta={existing.data && <Badge variant="outline">Revision {existing.data.revision}</Badge>}><p className="text-sm text-muted-foreground">Right-click the map to add a point. Drag points to move them; right-click a point to delete it.</p></PageHeader>
     <RequestError error={existing.error ?? bindings.error ?? activation.error ?? events.error ?? save.error ?? retry.error} />
     <div className="grid min-h-[42rem] gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <Suspense fallback={<Skeleton className="h-full w-full" />}><LocationMap devices={[]} editable vertices={vertices} selectedVertex={selectedVertex} onSelectedVertex={setSelectedVertex} onVerticesChange={changeVertices} /></Suspense>

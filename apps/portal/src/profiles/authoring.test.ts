@@ -7,6 +7,9 @@ import {
   rangeRule,
   isArithmetic,
   validationSummary,
+  ruleLabel,
+  formulaText,
+  fieldChanges,
 } from "./authoring"
 describe("lossless guided authoring", () => {
   it("summarizes guided rules without changing them", () => {
@@ -91,5 +94,36 @@ describe("lossless guided authoring", () => {
     ).toBe(true)
     expect(isArithmetic({ and: [true, false] })).toBe(false)
     expect(isArithmetic({ var: ["a", 0] })).toBe(false)
+  })
+})
+describe("review and table labels", () => {
+  it("shortens rules and formulas", () => {
+    expect(ruleLabel({ mode: "range", min: 0, max: 480 })).toBe(
+      "Between 0 and 480",
+    )
+    expect(ruleLabel({ mode: "options", options: ["a"] })).toBe(
+      "1 allowed value",
+    )
+    expect(
+      formulaText({ "/": [{ "+": [{ var: "l1" }, { var: "l2" }] }, 2] }),
+    ).toBe("(l1 + l2) / 2")
+    expect(formulaText({ max: [1, 2] })).toBeNull()
+  })
+  it("lists changed fields, one level into settings objects", () => {
+    const rows = fieldChanges([
+      {
+        area: "parameters",
+        label: "Voltage",
+        change: "Updated",
+        before: { uuid: "p", unit: "V", display: { precision: 1, widget: "number" } },
+        after: { uuid: "p", unit: "kV", display: { precision: 2, widget: "number" } },
+      },
+      { area: "parameters", label: "Current", change: "Added", after: { uuid: "c" } },
+    ])
+    expect(rows.map((row) => [row.item, row.field, row.before, row.after])).toEqual([
+      ["Voltage", "Stored unit", "V", "kV"],
+      ["Voltage", "Decimals", "1", "2"],
+      ["Current", "Added", "", ""],
+    ])
   })
 })

@@ -50,19 +50,26 @@ final class DashboardDefinition
             'widgets.*' => ['array:id,schema_version,type,title,description,config'],
             'widgets.*.id' => ['required', 'string', 'max:100', 'distinct:strict'],
             'widgets.*.schema_version' => ['required', 'integer', 'in:2'],
-            'widgets.*.type' => ['required', 'in:status,timeseries,controls,state_history,color_history,location,alerts'],
+            'widgets.*.type' => ['required', 'in:status,timeseries,controls,state_history,color_history,location,alerts,gauge,table,text,device_health'],
             'widgets.*.title' => ['required', 'string', 'max:120'],
             'widgets.*.description' => ['nullable', 'string', 'max:1000'],
-            'widgets.*.config' => ['required', 'array:sources,columns,workflow_uuid,location_device_uuids,geofence_uuid,show_trails,show_labels,trail_window'],
+            'widgets.*.config' => ['required', 'array:sources,columns,workflow_uuid,min,max,text,devices,location_device_uuids,geofence_uuid,show_trails,show_labels,trail_window'],
             'widgets.*.config.sources' => ['present', 'array', 'max:100'],
             'widgets.*.config.workflow_uuid' => ['sometimes', 'uuid'],
             'widgets.*.config.location_device_uuids' => ['sometimes', 'array', 'max:100'],
-            'widgets.*.config.location_device_uuids.*' => ['required', 'uuid', 'distinct'],
+            'widgets.*.config.location_device_uuids.*' => ['required', 'uuid'],
             'widgets.*.config.geofence_uuid' => ['sometimes', 'uuid'],
             'widgets.*.config.show_trails' => ['sometimes', 'boolean'],
             'widgets.*.config.show_labels' => ['sometimes', 'boolean'],
             'widgets.*.config.trail_window' => ['sometimes', Rule::in(['1h', '6h', '24h', '7d'])],
             'widgets.*.config.columns' => ['sometimes', Rule::in(['auto', 1, 2, 3, 4])],
+            'widgets.*.config.min' => ['required_if:widgets.*.type,gauge', 'numeric'],
+            'widgets.*.config.max' => ['required_if:widgets.*.type,gauge', 'numeric'],
+            'widgets.*.config.text' => ['required_if:widgets.*.type,text', 'string', 'max:4000'],
+            'widgets.*.config.devices' => ['required_if:widgets.*.type,device_health', 'array', 'min:1', 'max:50'],
+            'widgets.*.config.devices.*' => ['array:device_uuid,device_name'],
+            'widgets.*.config.devices.*.device_uuid' => ['required', 'uuid'],
+            'widgets.*.config.devices.*.device_name' => ['sometimes', 'string', 'max:255'],
             'widgets.*.config.sources.*' => ['array:device_uuid,parameter_uuid,device_name,label,unit,data_type,format,display_widget,precision,color,base,thresholds'],
             'widgets.*.config.sources.*.device_uuid' => ['required', 'uuid'],
             'widgets.*.config.sources.*.parameter_uuid' => ['required', 'uuid'],
@@ -90,6 +97,9 @@ final class DashboardDefinition
             'layouts.*.*.y' => ['required', 'integer', 'between:0,100000'],
             'layouts.*.*.w' => ['required', 'integer', 'between:1,12'],
             'layouts.*.*.h' => ['required', 'integer', 'between:1,100'],
+            'tags' => ['sometimes', 'array', 'max:10'],
+            'tags.*' => ['required', 'string', 'max:32'],
+            'folder' => ['sometimes', 'nullable', 'string', 'max:60'],
             'defaults' => ['required', 'array:range,timezone,refresh'],
             'defaults.timezone' => ['required', 'in:browser,utc'],
             'defaults.refresh' => ['required', 'integer', 'in:0,5,10,30,60'],
@@ -106,7 +116,22 @@ final class DashboardDefinition
         if ($data['name'] === '') {
             $this->fail('name', 'Enter a dashboard name.');
         }
-        $deviceIds = collect($data['widgets'])->flatMap(fn ($w) => array_column($w['config']['sources'], 'device_uuid'))->unique();
+        if (isset($data['tags'])) {
+            $tags = [];
+            foreach ($data['tags'] as $ti => $tag) {
+                $tag = trim($tag);
+                if ($tag === '') {
+                    $this->fail("tags.$ti", 'Enter a tag of 1 to 32 characters.');
+                }
+                $tags[mb_strtolower($tag)] ??= $tag;
+            }
+            $data['tags'] = array_values($tags);
+        }
+        if (array_key_exists('folder', $data)) {
+            $folder = trim((string) $data['folder']);
+            $data['folder'] = $folder === '' ? null : $folder;
+        }
+        $deviceIds = collect($data['widgets'])->flatMap(fn ($w) => [...array_column($w['config']['sources'], 'device_uuid'), ...array_column($w['config']['devices'] ?? [], 'device_uuid')])->unique();
         $devices = Device::where('organization_id', $organization->id)->whereIn('uuid', $deviceIds)->get()->keyBy('uuid');
         $configurationIds = $devices->map(fn ($d) => $d->applied_configuration_uuid ?? $d->last_applied_configuration_uuid)->filter();
         $configs = DeviceConfiguration::whereIn('uuid', $configurationIds)->get()->keyBy('uuid');
@@ -116,11 +141,53 @@ final class DashboardDefinition
             if ($widget['title'] === '') {
                 $this->fail("widgets.$wi.title", 'Enter a panel title.');
             }
+            $settings = ['location' => ['sources', 'workflow_uuid', 'location_device_uuids', 'geofence_uuid', 'show_trails', 'show_labels', 'trail_window'], 'gauge' => ['sources', 'min', 'max'], 'table' => ['sources'], 'text' => ['sources', 'text'], 'device_health' => ['sources', 'devices']][$widget['type']] ?? ['sources', 'columns', 'workflow_uuid'];
+            if (array_diff(array_keys($widget['config']), $settings)) {
+                $this->fail("widgets.$wi.config", 'This panel type does not accept these settings.');
+            }
+            if ($widget['type'] === 'text') {
+                if ($widget['config']['sources'] !== []) {
+                    $this->fail("widgets.$wi.config", 'Text panels accept no parameter sources.');
+                }
+                if (trim($widget['config']['text']) === '') {
+                    $this->fail("widgets.$wi.config.text", 'Enter the panel text.');
+                }
+                continue;
+            }
+            if ($widget['type'] === 'device_health') {
+                if ($widget['config']['sources'] !== []) {
+                    $this->fail("widgets.$wi.config", 'Device health panels accept devices and no parameter sources.');
+                }
+                $seen = [];
+                foreach ($widget['config']['devices'] as $di => &$entry) {
+                    $device = $devices->get($entry['device_uuid']);
+                    if (! $device || isset($seen[$device->id])) {
+                        $this->fail("widgets.$wi.config.devices.$di", 'Choose each device once from this organization.');
+                    }
+                    $seen[$device->id] = true;
+                    $entry['device_name'] = $device->name;
+                }
+                unset($entry);
+                continue;
+            }
+            if ($widget['type'] === 'gauge') {
+                $widget['config']['min'] = (float) $widget['config']['min'];
+                $widget['config']['max'] = (float) $widget['config']['max'];
+                if (! is_finite($widget['config']['min']) || ! is_finite($widget['config']['max']) || $widget['config']['min'] >= $widget['config']['max']) {
+                    $this->fail("widgets.$wi.config.max", 'Enter a maximum greater than the minimum.');
+                }
+                if (count($widget['config']['sources']) > 4) {
+                    $this->fail("widgets.$wi.config.sources", 'A gauge shows up to 4 parameters.');
+                }
+            }
             if ($widget['type'] === 'location') {
                 if ($widget['config']['sources'] !== [] || isset($widget['config']['columns'])) {
                     $this->fail("widgets.$wi.config", 'GPS map panels accept devices and no parameter sources.');
                 }
                 $locationDevices = $widget['config']['location_device_uuids'] ?? [];
+                if (count(array_unique($locationDevices)) !== count($locationDevices)) {
+                    $this->fail("widgets.$wi.config.location_device_uuids", 'Choose each GPS device once per panel.');
+                }
                 $legacyWorkflow = $widget['config']['workflow_uuid'] ?? null;
                 if (! $locationDevices && ! $legacyWorkflow) {
                     $this->fail("widgets.$wi.config.location_device_uuids", 'Choose at least one GPS device.');
@@ -189,6 +256,9 @@ final class DashboardDefinition
                 $source['device_name'] = $device->name;
                 $source['label'] = trim($source['label'] ?? '') ?: $parameter['label'];
                 $numeric = in_array($source['data_type'], ['number', 'integer'], true);
+                if ($widget['type'] === 'gauge' && ! $numeric) {
+                    $this->fail($path, 'Gauges require a numeric parameter.');
+                }
                 if ($widget['type'] === 'state_history' && ! in_array($source['data_type'], ['boolean', 'enum'], true)) {
                     $this->fail($path, 'State history requires a boolean or enum parameter.');
                 }

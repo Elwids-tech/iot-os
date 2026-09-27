@@ -480,14 +480,20 @@ export default function AssistantPanel({
     if (result.notice) toast.info(result.notice)
     await refresh()
   }
+  const scope = `Creates and edits device profiles · Private to you · ${organizationName}`
   const pending =
     detail?.proposals.filter((proposal) => proposal.status === "pending") ?? []
   const saved =
     detail?.proposals.filter((proposal) => proposal.status === "applied") ?? []
-  const messages: { id: string; content: ReactNode }[] = []
+  // Runs and proposal cards interleave by time; the open questions card stays last.
+  const messages: { id: string; at: number; content: ReactNode }[] = []
+  const proposalTime = (proposal: AssistantProposal) =>
+    proposal.created_at ? Date.parse(proposal.created_at) : Infinity
   for (const run of detail?.runs ?? []) {
+    const at = Date.parse(run.created_at)
     messages.push({
       id: run.id + "-user",
+      at,
       content: (
         <Message align="end">
           <MessageContent>
@@ -517,6 +523,7 @@ export default function AssistantPanel({
     })
     messages.push({
       id: run.id + "-assistant",
+      at,
       content: (
         <Message>
           <MessageContent>
@@ -563,6 +570,7 @@ export default function AssistantPanel({
   for (const proposal of saved)
     messages.push({
       id: proposal.id,
+      at: proposalTime(proposal),
       content: (
         <Marker>
           <MarkerContent>
@@ -574,31 +582,10 @@ export default function AssistantPanel({
         </Marker>
       ),
     })
-  if (!active && detail?.onboarding_state?.questions?.length)
-    messages.push({
-      id: "questions-" + JSON.stringify(detail.onboarding_state.questions),
-      content: (
-        <Questions
-          key={JSON.stringify(detail.onboarding_state.questions)}
-          questions={detail.onboarding_state.questions}
-          busy={locked || !available}
-          onAnswer={(answers) =>
-            send(
-              answers
-                .map(
-                  (answer) =>
-                    `${detail.onboarding_state!.questions!.find((q) => q.id === answer.id)?.prompt}\n${answer.answer}`,
-                )
-                .join("\n\n"),
-              answers,
-            )
-          }
-        />
-      ),
-    })
   for (const proposal of pending)
     messages.push({
       id: proposal.id,
+      at: proposalTime(proposal),
       content: (
         <Card>
           <CardHeader>
@@ -620,6 +607,30 @@ export default function AssistantPanel({
         </Card>
       ),
     })
+  messages.sort((a, b) => a.at - b.at)
+  if (!active && detail?.onboarding_state?.questions?.length)
+    messages.push({
+      id: "questions-" + JSON.stringify(detail.onboarding_state.questions),
+      at: Infinity,
+      content: (
+        <Questions
+          key={JSON.stringify(detail.onboarding_state.questions)}
+          questions={detail.onboarding_state.questions}
+          busy={locked || !available}
+          onAnswer={(answers) =>
+            send(
+              answers
+                .map(
+                  (answer) =>
+                    `${detail.onboarding_state!.questions!.find((q) => q.id === answer.id)?.prompt}\n${answer.answer}`,
+                )
+                .join("\n\n"),
+              answers,
+            )
+          }
+        />
+      ),
+    })
   const content = (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-col gap-3 border-b p-4">
@@ -631,14 +642,12 @@ export default function AssistantPanel({
                 className="flex items-center gap-2 font-semibold"
               >
                 <SparklesIcon className="size-4" />
-                Assistant
+                Profile assistant
               </h2>
-              <p className="text-xs text-muted-foreground">
-                Private to you · {organizationName}
-              </p>
+              <p className="text-xs text-muted-foreground">{scope}</p>
             </div>
             <Button
-              aria-label="Close assistant"
+              aria-label="Close profile assistant"
               size="icon"
               variant="ghost"
               onClick={onClose}
@@ -965,10 +974,8 @@ export default function AssistantPanel({
         >
           <SheetContent className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-full">
             <SheetHeader className="border-b p-4">
-              <SheetTitle>Assistant</SheetTitle>
-              <SheetDescription>
-                Private to you · {organizationName}
-              </SheetDescription>
+              <SheetTitle>Profile assistant</SheetTitle>
+              <SheetDescription>{scope}</SheetDescription>
             </SheetHeader>
             <div className="min-h-0 flex-1">{content}</div>
           </SheetContent>
@@ -977,7 +984,7 @@ export default function AssistantPanel({
         <aside
           hidden={!open}
           aria-labelledby="assistant-title"
-          className="fixed inset-y-0 right-0 top-14 w-[440px] border-l bg-background shadow-lg"
+          className="fixed inset-y-0 right-0 z-20 w-[440px] max-w-full border-l bg-background shadow-lg xl:shadow-none"
         >
           {content}
         </aside>

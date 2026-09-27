@@ -1,5 +1,10 @@
+import { runtimeConfig } from "@iot-os/api-client"
 import { lazy, Suspense, useEffect, useState } from "react"
-import { ApiError, type Organization } from "@iot-os/api-client"
+import {
+  ApiError,
+  type AuthenticatedUser,
+  type Organization,
+} from "@iot-os/api-client"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Routes,
@@ -25,12 +30,19 @@ import {
 } from "@iot-os/ui/components/card"
 import { FieldGroup } from "@iot-os/ui/components/field"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { ThemePicker } from "@iot-os/ui/components/theme-picker"
-import { Separator } from "@iot-os/ui/components/separator"
+import {
+  AppearanceMenuItems,
+  ThemePicker,
+} from "@iot-os/ui/components/theme-picker"
+import { PageHeader } from "@iot-os/ui/components/page-header"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@iot-os/ui/components/dropdown-menu"
 import {
@@ -39,7 +51,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -47,7 +58,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
-  SidebarTrigger,
+  SidebarSeparator,
   useSidebar,
 } from "@iot-os/ui/components/sidebar"
 import { TooltipProvider } from "@iot-os/ui/components/tooltip"
@@ -59,31 +70,31 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@iot-os/ui/components/dialog"
+import { cn } from "@iot-os/ui/lib/utils"
 import {
-  CpuIcon,
-  PlugIcon,
-  BellRingIcon,
-  LogOutIcon,
-  ArrowRightIcon,
-  Building2Icon,
+  BellIcon,
+  ChevronRightIcon,
   ChevronsUpDownIcon,
-  FileCogIcon,
-  HardDriveIcon,
-  LayoutDashboardIcon,
+  CpuIcon,
+  LayersIcon,
   MapPinnedIcon,
-  RadarIcon,
+  LayoutGridIcon,
+  LogOutIcon,
+  MessageSquareIcon,
+  PlugIcon,
   RouterIcon,
-  SparklesIcon,
+  ScanSearchIcon,
+  ShieldIcon,
 } from "lucide-react"
 import { api } from "./lib/api"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
 import { TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
 const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
+const GeofenceRoutes = lazy(() => import("./geospatial/Geofences"))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
 const IntegrationRoutes = lazy(() => import("./integrations/Integrations"))
 const AlertRoutes = lazy(() => import("./alerts/Alerts"))
-const GeofenceRoutes = lazy(() => import("./geospatial/Geofences"))
 const AssistantPanel = lazy(() => import("./assistant/AssistantPanel"))
 const ProfileWorkspace = lazy(() =>
   import("./profiles/ProfileWorkspace").then((module) => ({
@@ -121,7 +132,7 @@ function Login({ recovered = false }: { recovered?: boolean }) {
           <CardDescription>
             {recovered
               ? "Your session expired. Sign in to reopen this workspace."
-              : "Sign in to build and manage your organization's device profiles."}
+              : "Sign in to monitor devices, dashboards and alerts."}
           </CardDescription>
         </CardHeader>
         <form
@@ -168,13 +179,14 @@ function Login({ recovered = false }: { recovered?: boolean }) {
   )
 }
 function Session() {
-  const cache = useQueryClient()
   const [expired, setExpired] = useState(false)
+  const signedOut = useSignedOut()
   useEffect(() => {
     const expire = () => setExpired(true)
     window.addEventListener("iot-session-expired", expire)
     return () => window.removeEventListener("iot-session-expired", expire)
   }, [])
+  const cache = useQueryClient()
   const query = useQuery({
     queryKey: ["session"],
     queryFn: () => api.me(),
@@ -205,18 +217,14 @@ function Session() {
   return (
     <>
       <Routes>
-        <Route
-          element={
-            <PortalShell organizations={user.organizations} name={user.name} />
-          }
-        >
-          <Route path="organizations/:organizationUuid/devices/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes /></Suspense>} />
-          <Route path="organizations/:organizationUuid/integrations/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><IntegrationRoutes /></Suspense>} />
-          <Route path="organizations/:organizationUuid/alerts/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><AlertRoutes /></Suspense>} />
-          <Route path="organizations/:organizationUuid/geofences/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><GeofenceRoutes /></Suspense>} />
-          <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes page="discovery" /></Suspense>} />
-          <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes page="gateways" /></Suspense>} />
+        <Route element={<PortalShell user={user} />}>
+          <Route path="organizations/:organizationUuid/devices/*" element={<Suspense fallback={<PageFallback />}><DeviceRoutes /></Suspense>} />
+          <Route path="organizations/:organizationUuid/integrations/*" element={<Suspense fallback={<PageFallback />}><IntegrationRoutes /></Suspense>} />
+          <Route path="organizations/:organizationUuid/alerts/*" element={<Suspense fallback={<PageFallback />}><AlertRoutes /></Suspense>} />
+          <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="discovery" /></Suspense>} />
+          <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="gateways" /></Suspense>} />
           <Route path="organizations/:organizationUuid/dashboards/:dashboardUuid?" element={<DashboardRoute />} />
+          <Route path="organizations/:organizationUuid/geofences/*" element={<Suspense fallback={<PageFallback />}><GeofenceRoutes /></Suspense>} />
           <Route
             path="organizations/:organizationUuid/device-profiles"
             element={<ProfileDirectory />}
@@ -224,7 +232,7 @@ function Session() {
           <Route
             path="organizations/:organizationUuid/device-profiles/:profileUuid/:section?"
             element={
-              <Suspense fallback={<Skeleton className="h-80 w-full" />}>
+              <Suspense fallback={<PageFallback />}>
                 <ProfileWorkspace />
               </Suspense>
             }
@@ -246,11 +254,46 @@ function Session() {
             await cache.invalidateQueries({ queryKey: ["profile"] })
             await cache.invalidateQueries({ predicate: query => String(query.queryKey[0]).startsWith("device") || ["discovery", "gateways", "connections"].includes(String(query.queryKey[0])) })
           }}
+          onSignOut={async () => {
+            // The session is already gone; logout only clears what the server still holds.
+            await api.logout().catch(() => {})
+            setExpired(false)
+            await signedOut()
+          }}
         />
       )}
     </>
   )
 }
+
+/** Placeholder while a lazily loaded page's code arrives; pages add their own padding under PageHeader. */
+function PageFallback() {
+  return (
+    <div className="p-4 md:p-6">
+      <Skeleton className="h-80 w-full" />
+    </div>
+  )
+}
+
+/** Clears client state after the server session ends and returns to sign in. */
+function useSignedOut() {
+  const cache = useQueryClient()
+  const navigate = useNavigate()
+  const { setDirty } = useDirtyContext()
+  return async () => {
+    api.setSelectedOrganizationUuid(null)
+    setDirty(false)
+    cache.removeQueries({
+      predicate: (query) => query.queryKey[0] !== "session",
+    })
+    await cache.resetQueries({ queryKey: ["session"] })
+    navigate("/", { replace: true })
+  }
+}
+
+const sectionPath = (uuid: string, section = "dashboards") =>
+  `/organizations/${encodeURIComponent(uuid)}/${section}`
+
 function OrganizationLanding({
   organizations,
 }: {
@@ -260,191 +303,319 @@ function OrganizationLanding({
     organizations.find(
       (item) => item.uuid === api.getSelectedOrganizationUuid(),
     ) ?? (organizations.length === 1 ? organizations[0] : null)
-  if (selected)
-    return <Navigate to={profileDirectoryPath(selected.uuid)} replace />
+  if (selected) return <Navigate to={sectionPath(selected.uuid)} replace />
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 py-8">
-      <h1 className="text-2xl font-semibold">Choose your organization</h1>
-      <p className="text-muted-foreground">
-        {organizations.length
-          ? "Device profiles belong to an organization. Choose where you want to work."
-          : "You do not belong to an organization yet. Ask your organization administrator for an invitation."}
-      </p>
-      {organizations.map((org) => (
-        <Card key={org.uuid}>
-          <CardHeader>
-            <CardTitle>{org.name}</CardTitle>
-            <CardDescription>{org.slug}</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button asChild>
-              <Link to={profileDirectoryPath(org.uuid)}>
-                Open workspace
-                <ArrowRightIcon data-icon="inline-end" />
-              </Link>
-            </Button>
-          </CardFooter>
-        </Card>
-      ))}
-    </div>
+    <>
+      <PageHeader title="Choose an organization" />
+      <div className="p-4 md:p-6">
+        <OrganizationLinks organizations={organizations} />
+      </div>
+    </>
   )
+}
+
+function WorkspaceUnavailable({
+  organizations,
+}: {
+  organizations: Organization[]
+}) {
+  return (
+    <>
+      <PageHeader title="Workspace unavailable" />
+      <div className="flex flex-col gap-4 p-4 md:p-6">
+        <p className="text-muted-foreground">
+          You don't have access to this organization.
+        </p>
+        <OrganizationLinks organizations={organizations} />
+      </div>
+    </>
+  )
+}
+
+function OrganizationLinks({
+  organizations,
+}: {
+  organizations: Organization[]
+}) {
+  if (!organizations.length)
+    return (
+      <p className="text-muted-foreground">
+        You don't belong to an organization yet. Ask your organization
+        administrator for an invitation.
+      </p>
+    )
+  return (
+    <ul className="max-w-xl divide-y rounded-lg border bg-card">
+      {organizations.map((org) => (
+        <li key={org.uuid}>
+          <Link
+            to={sectionPath(org.uuid)}
+            className="flex h-12 items-center gap-3 px-4 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Mark text={initials(org.name, 1)} className="bg-foreground text-background" />
+            <span className="truncate font-medium">{org.name}</span>
+            <span className="truncate text-sm text-muted-foreground">{org.slug}</span>
+            <ChevronRightIcon className="ml-auto size-4 shrink-0 text-muted-foreground" />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** Square initials used for the organization and the signed-in user. */
+function Mark({ text, className }: { text: string; className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "grid size-5 shrink-0 place-items-center rounded-sm text-[10px] font-semibold",
+        className,
+      )}
+    >
+      {text}
+    </span>
+  )
+}
+
+const initials = (name: string, count = 2) => {
+  const words = name.trim().split(/\s+/)
+  return (count === 1 || words.length === 1
+    ? words[0].slice(0, 1)
+    : words[0].slice(0, 1) + words[words.length - 1].slice(0, 1)
+  ).toUpperCase()
 }
 
 function DashboardRoute() {
   const { organizationUuid, dashboardUuid } = useParams()
-  return organizationUuid ? <Suspense fallback={<Skeleton className="h-80 w-full" />}><DashboardPage org={organizationUuid} id={dashboardUuid} /></Suspense> : null
+  return organizationUuid ? <Suspense fallback={<PageFallback />}><DashboardPage org={organizationUuid} id={dashboardUuid} /></Suspense> : null
 }
-export const profileDirectoryPath = (uuid: string) =>
-  "/organizations/" + encodeURIComponent(uuid) + "/device-profiles"
 
-const portalNavigation = [
-  { path: "dashboards", label: "Dashboards", icon: LayoutDashboardIcon },
-  { path: "devices", label: "Devices", icon: HardDriveIcon },
-  { path: "integrations", label: "Integrations", icon: PlugIcon },
-  { path: "alerts", label: "Alerts", icon: BellRingIcon },
-  { path: "geofences", label: "Geofences", icon: MapPinnedIcon },
-  { path: "discovery", label: "Discovery", icon: RadarIcon },
-  { path: "gateways", label: "Gateways", icon: RouterIcon },
-  { path: "device-profiles", label: "Device profiles", icon: FileCogIcon },
+const navigationGroups = [
+  [
+    { path: "dashboards", label: "Dashboards", icon: LayoutGridIcon },
+    { path: "alerts", label: "Alerts", icon: BellIcon },
+  ],
+  [
+    { path: "devices", label: "Devices", icon: CpuIcon },
+    { path: "gateways", label: "Gateways", icon: RouterIcon },
+    { path: "geofences", label: "Geofences", icon: MapPinnedIcon },
+    { path: "discovery", label: "Discovery", icon: ScanSearchIcon },
+  ],
+  [
+    { path: "device-profiles", label: "Device profiles", icon: LayersIcon },
+    { path: "integrations", label: "Integrations", icon: PlugIcon },
+  ],
 ]
 
+const adminUrl =
+  runtimeConfig("VITE_ADMIN_URL", import.meta.env.VITE_ADMIN_URL) ||
+  `${window.location.protocol}//${window.location.hostname}:5174`
+
 function PortalSidebar({
-  organizations,
+  user,
   organization,
   onOrganization,
+  assistantOpen,
+  onAssistant,
+  onSignOut,
 }: {
-  organizations: Organization[]
+  user: AuthenticatedUser
   organization?: Organization
   onOrganization: (uuid: string) => void
+  assistantOpen: boolean
+  onAssistant: () => void
+  onSignOut: () => void
 }) {
   const location = useLocation()
   const { setOpenMobile } = useSidebar()
   const closeMobile = () => setOpenMobile(false)
+  const devices = organization?.capabilities?.devices
+  const alerts = useQuery({
+    queryKey: ["alerts", organization?.uuid, "unacknowledged-count"],
+    queryFn: () =>
+      api.alerts(
+        organization?.uuid ?? "",
+        "condition=active&acknowledged=0&per_page=1",
+      ),
+    enabled: Boolean(organization) && devices?.view !== false,
+    refetchInterval: 30000,
+    select: (page) => page.meta?.total ?? 0,
+  })
+  // Integrations need device view and manage (I5); older payloads without capabilities keep the link.
+  const hidden = (path: string) =>
+    path === "integrations" && devices !== undefined && !(devices.view && devices.manage)
 
   return (
     <Sidebar collapsible="icon">
-      <nav aria-label="Workspace" className="flex h-full flex-col">
-        <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                size="lg"
-                asChild
-                tooltip="IoT OS Tenant portal"
-              >
-                <Link
-                  to={
-                    organization ? profileDirectoryPath(organization.uuid) : "/"
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  tooltip={organization?.name ?? "Choose organization"}
+                  aria-label={
+                    organization
+                      ? `Organization: ${organization.name}`
+                      : "Choose organization"
                   }
-                  onClick={closeMobile}
+                  className="font-medium group-data-[collapsible=icon]:p-1.5!"
                 >
-                  <CpuIcon />
-                  <span className="flex min-w-0 flex-col group-data-[collapsible=icon]:sr-only">
-                    <span className="truncate font-semibold">IoT OS</span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      Tenant portal
-                    </span>
+                  <Mark
+                    text={organization ? initials(organization.name, 1) : "?"}
+                    className="bg-foreground text-[11px] text-background"
+                  />
+                  <span className="truncate group-data-[collapsible=icon]:sr-only">
+                    {organization?.name ?? "Choose organization"}
                   </span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton
-                    size="lg"
-                    tooltip="Change organization"
-                    aria-label="Organization"
+                  <ChevronsUpDownIcon className="ml-auto text-muted-foreground group-data-[collapsible=icon]:hidden" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-56">
+                {user.organizations.length ? (
+                  <DropdownMenuRadioGroup
+                    value={organization?.uuid ?? ""}
+                    onValueChange={(uuid) => {
+                      onOrganization(uuid)
+                      closeMobile()
+                    }}
                   >
-                    <Building2Icon />
-                    <span className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:sr-only">
-                      <span className="truncate text-xs text-muted-foreground">
-                        Organization
-                      </span>
-                      <span className="truncate font-medium">
-                        {organization?.name ?? "Choose organization"}
-                      </span>
-                    </span>
-                    <ChevronsUpDownIcon className="ml-auto group-data-[collapsible=icon]:hidden" />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="right"
-                  align="start"
-                  className="w-64"
-                >
-                  {organizations.map((item) => (
-                    <DropdownMenuItem
-                      key={item.uuid}
-                      onSelect={() => {
-                        onOrganization(item.uuid)
-                        closeMobile()
-                      }}
-                    >
-                      <Building2Icon />
-                      <span className="truncate">{item.name}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarHeader>
-        <SidebarContent>
-          {organization && (
+                    {user.organizations.map((item) => (
+                      <DropdownMenuRadioItem key={item.uuid} value={item.uuid}>
+                        <span className="truncate">{item.name}</span>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                ) : (
+                  <DropdownMenuItem disabled>No organizations</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        {organization && (
+          <nav aria-label="Workspace">
             <SidebarGroup>
-              <SidebarGroupLabel>Workspace</SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu>
-                  {portalNavigation.map((item) => {
-                    const to = `/organizations/${organization.uuid}/${item.path}`
-                    return (
-                      <SidebarMenuItem key={item.path}>
-                        <SidebarMenuButton
-                          asChild
-                          tooltip={item.label}
-                          isActive={location.pathname === to || location.pathname.startsWith(`${to}/`)}
-                        >
-                          <NavLink to={to} onClick={closeMobile}>
-                            <item.icon />
-                            <span className="group-data-[collapsible=icon]:sr-only">{item.label}</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )
-                  })}
-                </SidebarMenu>
+                {navigationGroups.map((group, index) => (
+                  <div key={group[0].path}>
+                    {index > 0 && <SidebarSeparator className="mx-0 my-2" />}
+                    <SidebarMenu>
+                      {group
+                        .filter((item) => !hidden(item.path))
+                        .map((item) => {
+                          const to = sectionPath(organization.uuid, item.path)
+                          const count =
+                            item.path === "alerts" ? alerts.data : undefined
+                          return (
+                            <SidebarMenuItem key={item.path}>
+                              <SidebarMenuButton
+                                asChild
+                                tooltip={item.label}
+                                isActive={
+                                  location.pathname === to ||
+                                  location.pathname.startsWith(`${to}/`)
+                                }
+                                className="text-muted-foreground hover:text-foreground data-active:text-foreground"
+                              >
+                                <NavLink to={to} onClick={closeMobile}>
+                                  <item.icon />
+                                  <span className="group-data-[collapsible=icon]:sr-only">
+                                    {item.label}
+                                  </span>
+                                  {count ? (
+                                    <span className="ml-auto font-mono text-xs group-data-[collapsible=icon]:sr-only">
+                                      {count}
+                                      <span className="sr-only"> unacknowledged</span>
+                                    </span>
+                                  ) : null}
+                                </NavLink>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          )
+                        })}
+                    </SidebarMenu>
+                  </div>
+                ))}
               </SidebarGroupContent>
             </SidebarGroup>
+          </nav>
+        )}
+      </SidebarContent>
+      <SidebarFooter className="border-t border-sidebar-border">
+        <SidebarMenu>
+          {organization && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Profile assistant"
+                aria-expanded={assistantOpen}
+                onClick={() => {
+                  onAssistant()
+                  closeMobile()
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <MessageSquareIcon />
+                <span className="group-data-[collapsible=icon]:sr-only">
+                  Profile assistant
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           )}
-        </SidebarContent>
-        <SidebarFooter>
-          <div className="flex items-center gap-2 px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-            <Building2Icon className="size-4 shrink-0" />
-            <p>Define once. Connect through any protocol.</p>
-          </div>
-        </SidebarFooter>
-        <SidebarRail />
-      </nav>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  tooltip={user.name}
+                  className="group-data-[collapsible=icon]:p-1.5!"
+                >
+                  <Mark text={initials(user.name)} className="bg-muted text-foreground" />
+                  <span className="truncate group-data-[collapsible=icon]:sr-only">
+                    {user.name}
+                  </span>
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="min-w-56">
+                <DropdownMenuLabel className="truncate font-normal">
+                  {user.email}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <AppearanceMenuItems />
+                <DropdownMenuSeparator />
+                {user.capabilities.platform_administration && (
+                  <DropdownMenuItem asChild>
+                    <a href={adminUrl}>
+                      <ShieldIcon />
+                      Administration
+                    </a>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={onSignOut}>
+                  <LogOutIcon />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   )
 }
 
-function PortalShell({
-  organizations,
-  name,
-}: {
-  organizations: Organization[]
-  name: string
-}) {
+function PortalShell({ user }: { user: AuthenticatedUser }) {
   const params = useParams()
-  const org = organizations.find(
+  const org = user.organizations.find(
     (item) => item.uuid === params.organizationUuid,
   )
   const navigate = useNavigate()
   const location = useLocation()
-  const cache = useQueryClient()
-  const { dirty, setDirty } = useDirtyContext()
+  const signedOut = useSignedOut()
+  const { dirty } = useDirtyContext()
   const [logoutConfirm, setLogoutConfirm] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [assistantLoaded, setAssistantLoaded] = useState(false)
@@ -458,89 +629,47 @@ function PortalShell({
         throw error
       }
     }
-    api.setSelectedOrganizationUuid(null)
-    setDirty(false)
-    cache.removeQueries({
-      predicate: (query) => query.queryKey[0] !== "session",
-    })
-    await cache.resetQueries({ queryKey: ["session"] })
-    navigate("/", { replace: true })
+    await signedOut()
   }
   useEffect(() => {
     if (org) api.setSelectedOrganizationUuid(org.uuid)
   }, [org?.uuid])
-  const currentSection =
-    portalNavigation.find((item) => location.pathname.includes(`/${item.path}`))
-      ?.label ?? "Tenant portal"
+  // "/organizations/{org}/{section}/..." keeps its section when switching organization (N1).
+  const section = location.pathname.split("/")[3] || "dashboards"
 
   return (
     <TooltipProvider>
       <SidebarProvider>
         <PortalSidebar
-          organizations={organizations}
+          user={user}
           organization={org}
-          onOrganization={(uuid) => navigate(profileDirectoryPath(uuid))}
+          onOrganization={(uuid) => navigate(sectionPath(uuid, section))}
+          assistantOpen={assistantOpen}
+          onAssistant={() => {
+            setAssistantLoaded(true)
+            setAssistantOpen((current) => !current)
+          }}
+          onSignOut={() =>
+            dirty ? setLogoutConfirm(true) : void logout().catch(() => {})
+          }
         />
         <SidebarInset
-          className={assistantOpen && org ? "md:pr-[440px]" : undefined}
+          className={cn(
+            "min-w-0",
+            // Below xl the assistant overlays the page; from xl it docks beside it.
+            assistantOpen && org && "xl:pr-[440px]",
+          )}
         >
-          <header className="sticky top-0 z-10 flex h-11 shrink-0 items-center gap-2 border-b bg-card px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <span className="truncate text-sm font-medium">
-              {currentSection}
-            </span>
-            <div
-              id="dashboard-header-time-controls"
-              className="ml-auto hidden min-w-0 items-center xl:flex"
-            />
-            <div className="ml-auto flex items-center gap-2">
-              <span className="hidden text-sm text-muted-foreground sm:inline">
-                {name}
-              </span>
-              <ThemePicker />
-              {org && (
-                <Button
-                  variant="outline"
-                  aria-label="Assistant"
-                  aria-expanded={assistantOpen}
-                  onClick={() => {
-                    setAssistantLoaded(true)
-                    setAssistantOpen((current) => !current)
-                  }}
-                >
-                  <SparklesIcon data-icon="inline-start" />
-                  <span className="hidden sm:inline">Assistant</span>
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Sign out"
-                onClick={() =>
-                  dirty ? setLogoutConfirm(true) : void logout().catch(() => {})
-                }
-              >
-                <LogOutIcon />
-              </Button>
+          {logoutError ? (
+            <div className="p-4 md:px-6">
+              <RequestError error={logoutError} />
             </div>
-          </header>
-          <div className="w-full min-w-0 flex-1 p-4 md:p-8">
-            <RequestError error={logoutError} />
-            {params.organizationUuid && !org ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Workspace unavailable</CardTitle>
-                  <CardDescription>
-                    You do not have access to this organization. Choose one of
-                    your workspaces.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            ) : (
-              <Outlet />
-            )}
-          </div>
+          ) : null}
+          {params.organizationUuid && !org ? (
+            <WorkspaceUnavailable organizations={user.organizations} />
+          ) : (
+            <Outlet />
+          )}
         </SidebarInset>
         {org && assistantLoaded && (
           <Suspense fallback={null}>
@@ -570,13 +699,18 @@ function PortalShell({
 function SessionRecovery({
   email,
   onRecovered,
+  onSignOut,
 }: {
   email: string
   onRecovered: () => Promise<void>
+  onSignOut: () => Promise<void>
 }) {
   const [password, setPassword] = useState(""),
     [error, setError] = useState<unknown>(null),
-    [busy, setBusy] = useState(false)
+    [busy, setBusy] = useState(false),
+    [signingOut, setSigningOut] = useState(false),
+    [confirmDiscard, setConfirmDiscard] = useState(false)
+  const { dirty } = useDirtyContext()
   return (
     <Dialog open>
       <DialogContent
@@ -615,9 +749,36 @@ function SessionRecovery({
               onChange={(event) => setPassword(event.target.value)}
             />
             <RequestError error={error} />
+            {confirmDiscard && (
+              <p className="text-sm" role="alert">
+                Signing out discards your unsaved changes.
+              </p>
+            )}
           </FieldGroup>
           <DialogFooter className="mt-5">
-            <Button disabled={busy}>
+            {confirmDiscard && (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={signingOut}
+                onClick={() => setConfirmDiscard(false)}
+              >
+                Keep editing
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant={confirmDiscard ? "destructive" : "outline"}
+              disabled={busy || signingOut}
+              onClick={() => {
+                if (dirty && !confirmDiscard) return setConfirmDiscard(true)
+                setSigningOut(true)
+                void onSignOut()
+              }}
+            >
+              {confirmDiscard ? "Discard and sign out" : "Sign out"}
+            </Button>
+            <Button disabled={busy || signingOut}>
               {busy ? "Signing in…" : "Restore session"}
             </Button>
           </DialogFooter>

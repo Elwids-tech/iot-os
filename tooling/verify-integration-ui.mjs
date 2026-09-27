@@ -33,7 +33,7 @@ try{
  await page.getByRole('button',{name:"I've stored it"}).click()
  const acknowledged=await fetch(origin+'/api/v1/organizations/'+fixture.organization+'/alerts/'+fixture.alert+'/acknowledge',{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json',Authorization:'Bearer '+fixture.adminToken},body:'{}'})
  assert.equal(acknowledged.status,200)
- await expect(page.getByText('delivered',{exact:true})).toBeVisible({timeout:45000})
+ await expect(page.getByText(/^delivered$/i)).toBeVisible({timeout:45000})
  await page.getByText('Attempt history',{exact:true}).click()
  await expect(page.getByText(/HTTP 503/)).toBeVisible();await expect(page.getByText(/HTTP 204/)).toBeVisible()
  await page.evaluate(()=>window.scrollTo(0,0))

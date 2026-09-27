@@ -15,14 +15,15 @@
   },
   "dependencies": {
     "@iot-os/api-client": "workspace:*",
+    "@iot-os/auth": "workspace:*",
     "@iot-os/ui": "workspace:*",
     "@vitejs/plugin-react": "^5.1.1",
     "lucide-react": "^0.468.0",
+    "next-themes": "^0.4.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.18.2",
-    "@iot-os/auth": "workspace:*",
-    "next-themes": "^0.4.6"
+    "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

@@ -4,12 +4,17 @@ export type WorkflowAlert = {
   workflow_name: string;
   operation_uuid: string;
   device_uuid: string;
+  /** Null when the device record is gone. */
+  device_name: string | null;
   episode: number;
   condition: "active" | "cleared";
   activated_at: string | null;
   cleared_at: string | null;
   acknowledged_at: string | null;
   acknowledged_by: number | null;
+  acknowledged_by_name: string | null;
+  assignee: { id: number; name: string } | null;
+  assigned_at: string | null;
   execution_stopped_reason: string | null;
 };
 export type AlertComment = {
@@ -48,4 +53,39 @@ export type NotificationSettings = {
   notify_on_clear: boolean;
   recipient_ids: number[];
   recipients: NotificationRecipient[];
+};
+
+export type WorkflowDeploymentStatus =
+  | "inactive"
+  | "pending"
+  | "applied"
+  | "failed"
+  | "suspended";
+/** Fields of GET workflows and workflows/{uuid} used for activate and disable. */
+export type AutomationWorkflow = {
+  uuid: string;
+  name: string;
+  draft_revision: number;
+  deployment_generation: number;
+  deployment_status: WorkflowDeploymentStatus;
+  applied_deployment_uuid: string | null;
+  pending_operation_uuid: string | null;
+};
+export type WorkflowDeployment = {
+  uuid: string;
+  generation: number;
+  draft_revision: number;
+  target: "active" | "inactive";
+  status: "pending" | "succeeded" | "failed";
+  stopped_reason: string | null;
+  diagnostic: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+export type WorkflowDeploymentInput = {
+  /** Reuse the same UUID when retrying the same request. */
+  operation_uuid: string;
+  target_state: "active" | "inactive";
+  draft_revision: number;
+  expected_generation: number;
 };

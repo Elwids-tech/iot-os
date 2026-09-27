@@ -1,9 +1,17 @@
-@import "@fontsource/ibm-plex-sans/latin-400.css";
-@import "@fontsource/ibm-plex-sans/latin-500.css";
-@import "@fontsource/ibm-plex-sans/latin-600.css";
-@import "@fontsource/jetbrains-mono/latin-400.css";
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Self-hosted skin fonts. Browsers only download a face when a skin uses it. */
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/b612/400.css";
+@import "@fontsource/b612/700.css";
+@import "@fontsource/b612-mono/400.css";
+@import "@fontsource/b612-mono/700.css";
 
 @source "../**/*.{ts,tsx}";
 @source "../../../../apps/**/*.{ts,tsx}";
@@ -14,6 +22,13 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
+  --color-commanded: var(--commanded);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-series-6: var(--series-6);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -40,126 +55,182 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --text-xs: 0.6875rem;
-  --text-sm: 0.75rem;
-  --text-base: 0.8125rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.375rem;
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 4px;
-  --radius-xl: 6px;
-  --radius-2xl: 8px;
-  --color-scrim: var(--scrim);
-  --color-surface-input: var(--surface-input);
-  --color-border-strong: var(--border-strong);
-  --color-selection: var(--selection);
-  --color-selection-foreground: var(--selection-foreground);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
+  /* Multiplied, not offset, so a 0 radius skin stays square at every size. */
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
 }
 
-/* Twin Studio's visual language: flat surfaces, quiet normal states,
-   monochrome actions, and cyan reserved for selection / focus. */
+/*
+ * Two independent axes on <html>:
+ *   class="dark"           light or dark colours (next-themes)
+ *   data-skin="console | instrument | flight-deck"   fonts, shape, density, label case;
+ *                          dark colours for flight deck. Set before paint by index.html.
+ * Tailwind reads --font-sans and --font-mono directly (font-sans, font-mono, preflight).
+ */
 :root {
   color-scheme: light;
-  --scrim: rgb(15 23 32 / 40%);
-  --background: #ffffff;
-  --foreground: #161b20;
-  --card: #ffffff;
-  --card-foreground: #161b20;
-  --popover: #f7f8fa;
-  --popover-foreground: #161b20;
-  --primary: #0b0f13;
-  --primary-foreground: #ffffff;
-  --secondary: #f2f4f6;
-  --secondary-foreground: #2c343c;
-  --muted: #f0f2f4;
-  --muted-foreground: #5b6670;
-  --accent: #e3f6fa;
-  --accent-foreground: #096b81;
-  --selection: #e3f6fa;
-  --selection-foreground: #0b7c95;
-  --surface-input: #ffffff;
-  --border: #d8dee4;
-  --border-strong: #b8c2cc;
-  --input: #b8c2cc;
-  --ring: #0b7c95;
-  --success: #5b6670;
-  --warning: #9a4b0a;
-  --info: #0b7c95;
-  --destructive: #dc2626;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #2c343c;
-  --sidebar-primary: #0b0f13;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e3f6fa;
-  --sidebar-accent-foreground: #096b81;
-  --sidebar-border: #d8dee4;
-  --sidebar-ring: #0b7c95;
-  --json-key: #0b7c95;
-  --json-string: #15803d;
-  --json-number: #9a4b0a;
-  --json-keyword: #7c3aed;
-  --chart-1: #0b7c95;
-  --chart-2: #7c3aed;
-  --chart-3: #c2410c;
-  --chart-4: #0f766e;
-  --chart-5: #5b6670;
-  --radius: 0.375rem;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 4px;
+  --panel-gap: 12px;
+  --row-h: 36px;
+  --label-transform: none;
+  --label-tracking: 0;
+  --success: oklch(0.43 0.11 155);
+  --warning: oklch(0.46 0.12 65);
+  --info: oklch(0.49 0.2 260);
+  --commanded: #7c3aed;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #9085e9;
+  --json-key: oklch(0.43 0.17 260);
+  --json-string: oklch(0.4 0.1 160);
+  --json-number: oklch(0.45 0.12 60);
+  --json-keyword: oklch(0.45 0.16 310);
+  --background: oklch(0.981 0.004 250);
+  --foreground: oklch(0.23 0.03 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.49 0.2 260);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.48 0.015 260);
+  --accent: oklch(0.94 0.025 260);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.51 0.2 27.3); /* darker than stock so destructive button text passes AA on its tinted background */
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.56 0.2 260);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.49 0.2 260);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
   color-scheme: dark;
-  --scrim: rgb(0 0 0 / 72%);
-  --background: #000000;
-  --foreground: #f2f4f6;
-  --card: #000000;
-  --card-foreground: #f2f4f6;
-  --popover: #0a0d10;
-  --popover-foreground: #f2f4f6;
-  --primary: #ffffff;
-  --primary-foreground: #000000;
-  --secondary: #070a0d;
-  --secondary-foreground: #d5dbe0;
-  --muted: #0e1216;
-  --muted-foreground: #8a939b;
-  --accent: #071a21;
-  --accent-foreground: #22d3ee;
-  --selection: #071a21;
-  --selection-foreground: #22d3ee;
-  --surface-input: #050709;
-  --border: #1e262d;
-  --border-strong: #2f3a44;
-  --input: #2f3a44;
-  --ring: #22d3ee;
-  --success: #8a939b;
-  --warning: #fbbf24;
-  --info: #22d3ee;
-  --destructive: #f87171;
-  --sidebar: #000000;
-  --sidebar-foreground: #d5dbe0;
-  --sidebar-primary: #ffffff;
-  --sidebar-primary-foreground: #000000;
-  --sidebar-accent: #071a21;
-  --sidebar-accent-foreground: #22d3ee;
-  --sidebar-border: #1e262d;
-  --sidebar-ring: #22d3ee;
-  --json-key: #22d3ee;
-  --json-string: #4ade80;
-  --json-number: #fbbf24;
-  --json-keyword: #c4b5fd;
-  --chart-1: #22d3ee;
-  --chart-2: #c4b5fd;
-  --chart-3: #fb923c;
-  --chart-4: #2dd4bf;
-  --chart-5: #8a939b;
+  --success: #0ca30c;
+  --warning: #fab219;
+  --info: #7fb0ff;
+  --destructive: #ff5c5c;
+  --commanded: #c792ff;
+  --json-key: oklch(0.76 0.12 255);
+  --json-string: oklch(0.8 0.12 155);
+  --json-number: oklch(0.82 0.13 70);
+  --json-keyword: oklch(0.8 0.13 310);
+  --background: #000;
+  --foreground: #fff;
+  --card: #050505;
+  --card-foreground: #fff;
+  --popover: #0a0a0a;
+  --popover-foreground: #fff;
+  --primary: #7fb0ff;
+  --primary-foreground: #000;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #fff;
+  --muted: #111;
+  --muted-foreground: #9a9a9a;
+  --accent: #161616;
+  --accent-foreground: #fff;
+  --border: #1c1c1c;
+  --input: #2a2a2a;
+  --ring: #7fb0ff;
+  --sidebar: #000;
+  --sidebar-foreground: #fff;
+  --sidebar-primary: #7fb0ff;
+  --sidebar-primary-foreground: #000;
+  --sidebar-accent: #111;
+  --sidebar-accent-foreground: #fff;
+  --sidebar-border: #1c1c1c;
+  --sidebar-ring: #7fb0ff;
+}
+
+[data-skin="instrument"] {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 0px;
+  --panel-gap: 0px;
+  --row-h: 32px;
+  --label-transform: uppercase;
+  --label-tracking: 0.06em;
+}
+
+[data-skin="flight-deck"] {
+  --font-sans: "B612", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "B612 Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 0px;
+  --panel-gap: 0px;
+  --row-h: 34px;
+  --label-transform: uppercase;
+  --label-tracking: 0.12em;
+}
+
+/* Light flight deck: darker cyan that keeps 4.5:1 on white. */
+[data-skin="flight-deck"]:not(.dark) {
+  --primary: #00708a;
+  --ring: #00708a;
+  --sidebar-primary: #00708a;
+}
+
+.dark[data-skin="flight-deck"] {
+  --success: #2bd96b;
+  --warning: #ffb020;
+  --info: #3fd8ff;
+  --destructive: #ff4040;
+  --commanded: #ff4fd8;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #9085e9;
+  --series-4: #199e70;
+  --series-5: #c98500;
+  --series-6: #d55181;
+  --card: rgb(0 0 0 / 72%);
+  --popover: #070a0c;
+  --secondary: #141a20;
+  --muted: #0e1317;
+  --muted-foreground: #a9b4bf;
+  --accent: #141a20;
+  --border: #192026;
+  --input: #27303a;
+  --primary: #3fd8ff;
+  --ring: #3fd8ff;
+  --sidebar-primary: #3fd8ff;
+  --sidebar-accent: #0e1317;
+  --sidebar-border: #192026;
+  --sidebar-ring: #3fd8ff;
+}
+
+/* Static dot grid behind the flight deck; panels are translucent so it shows through. */
+.dark[data-skin="flight-deck"] :is(body, [data-slot="sidebar-inset"]) {
+  background-image: radial-gradient(circle, #0e1317 1px, transparent 1.2px);
+  background-size: 16px 16px;
+}
+
+/* Small section and panel labels: "skin-label" follows the skin's letter case. */
+@utility skin-label {
+  text-transform: var(--label-transform);
+  letter-spacing: var(--label-tracking);
+}
+
+/* Horizontal tab and filter strips scroll by touch or wheel without showing a bar. Keep bars on tables. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @layer base {
@@ -170,25 +241,7 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
-    font-size: var(--text-base);
-    line-height: 1.45;
     font-variant-numeric: tabular-nums;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  :focus-visible {
-    outline: 1px solid var(--ring);
-    outline-offset: 2px;
-  }
-
-  ::selection {
-    background: var(--selection);
-    color: var(--selection-foreground);
-  }
-
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-strong) transparent;
   }
 }
 
@@ -269,35 +322,4 @@
     rgb(255 255 255 / 35%) 5px,
     rgb(255 255 255 / 35%) 9px
   );
-}
-
-/* Compact desktop controls keep a usable touch target and avoid input zoom. */
-@media (pointer: coarse) {
-  [data-slot="button"],
-  [data-slot="select-trigger"],
-  [data-slot="sidebar-menu-button"],
-  [data-slot="tabs-trigger"],
-  [data-slot="toggle"] {
-    min-height: 2.25rem;
-  }
-
-  [data-slot="button"][data-size^="icon"] {
-    min-width: 2.25rem;
-  }
-
-  [data-slot="input"],
-  [data-slot="textarea"],
-  [data-slot="input-group-control"] {
-    min-height: 2.25rem;
-    font-size: 1rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
 }

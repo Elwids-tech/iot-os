@@ -3,6 +3,7 @@ import type {
   AssistantEvent,
   AssistantProposal,
   AssistantChange,
+  AssistantValue,
 } from "@iot-os/api-client"
 
 export function applyTextEvents(
@@ -48,4 +49,27 @@ export function editedEvidence(
     }),
   )
   return [...evidence, ...added]
+}
+
+function flatten(
+  value: AssistantValue,
+  path = "",
+  out: Record<string, AssistantValue> = {},
+) {
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value)
+    if (!entries.length && path) out[path] = value
+    for (const [key, child] of entries)
+      flatten(child, path ? `${path}.${key}` : key, out)
+  } else if (path) out[path] = value
+  return out
+}
+
+/** Leaf fields (dotted paths) whose value differs between before and after. */
+export function fieldDiff(before: AssistantValue, after: AssistantValue) {
+  const left = flatten(before)
+  const right = flatten(after)
+  return [...new Set([...Object.keys(left), ...Object.keys(right)])]
+    .filter((field) => JSON.stringify(left[field]) !== JSON.stringify(right[field]))
+    .map((field) => ({ field, before: left[field], after: right[field] }))
 }

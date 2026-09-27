@@ -7,13 +7,6 @@ import {
   type DeviceProfileParameter,
 } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@iot-os/ui/components/card"
 import { FieldGroup } from "@iot-os/ui/components/field"
 import {
   Table,
@@ -31,7 +24,13 @@ import {
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
 import { Choice, TextField, RequestError, Confirm } from "../components/forms"
-import { DeviceEmpty, DeviceStatus, formatTime, formatValue } from "./shared"
+import {
+  Age,
+  DeviceEmpty,
+  DeviceStatus,
+  formatValue,
+  Section,
+} from "./shared"
 import type { DeviceOperation } from "./DeviceWorkspace"
 
 const outstanding = (c: DeviceCommand) =>
@@ -75,7 +74,8 @@ export function CommandsSection({
     [parameterUuid, setParameter] = useState(""),
     [value, setValue] = useState(""),
     [error, setError] = useState<unknown>(null),
-    [review, setReview] = useState<DeviceCommand | null>(null)
+    [review, setReview] = useState<DeviceCommand | null>(null),
+    [cancel, setCancel] = useState<DeviceCommand | null>(null)
   const request = useRef<{ signature: string; key: string } | null>(null)
   const configuration = device.configurations.find(
     (c) => c.uuid === device.applied_configuration_uuid,
@@ -115,17 +115,10 @@ export function CommandsSection({
     return command
   }
   return (
-    <div className="flex flex-col gap-6 pt-4">
+    <div className="flex flex-col gap-8">
       <RequestError error={error ?? query.error} />
-      <Card>
-        <CardHeader>
-          <CardTitle>Set device state</CardTitle>
-          <CardDescription>
-            Review the proposed value and confirm before dispatch. Completion
-            requires a subsequent live reading from this device.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-5">
+      <Section title="Set device state">
+        <div className="flex flex-col gap-5">
           {!parameters.length ? (
             <DeviceEmpty
               title="No controls configured"
@@ -248,17 +241,12 @@ export function CommandsSection({
               </form>
             </>
           )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Command history</CardTitle>
-          <CardDescription>
-            One outstanding request per parameter. Uncertain delivery is never
-            automatically retried.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        </div>
+      </Section>
+      <Section
+        title="Command history"
+        meta="One outstanding request per parameter. Uncertain delivery is never retried."
+      >
           {query.isPending ? (
             <p role="status">Loading commands…</p>
           ) : !query.data?.length ? (
@@ -290,7 +278,7 @@ export function CommandsSection({
                   return (
                     <TableRow key={c.uuid}>
                       <TableCell>
-                        {formatTime(c.created_at)}
+                        <Age value={c.created_at} />
                         <p className="text-xs text-muted-foreground">
                           {c.actor_name}
                         </p>
@@ -307,15 +295,15 @@ export function CommandsSection({
                       <TableCell>
                         <DeviceStatus value={c.status} />
                         {c.diagnostic && (
-                          <p className="mt-2 max-w-md text-xs text-muted-foreground">
+                          <p className="max-w-md text-xs whitespace-normal text-muted-foreground">
                             {c.diagnostic}
                           </p>
                         )}
                       </TableCell>
                       <TableCell>
-                        {formatTime(c.confirmed_at)}
+                        <Age value={c.confirmed_at} never="Not confirmed" />
                         <p className="text-xs text-muted-foreground">
-                          {formatTime(c.completed_at)}
+                          <Age value={c.completed_at} never="Not completed" />
                         </p>
                       </TableCell>
                       <TableCell>
@@ -333,23 +321,7 @@ export function CommandsSection({
                               variant="ghost"
                               size="sm"
                               disabled={busy}
-                              onClick={async () => {
-                                try {
-                                  await remember(
-                                    await run(() =>
-                                      api.cancelDeviceCommand(
-                                        org,
-                                        device.uuid,
-                                        c.uuid,
-                                      ),
-                                    ),
-                                  )
-                                  request.current = null
-                                  setValue("")
-                                } catch (reason) {
-                                  setError(reason)
-                                }
-                              }}
+                              onClick={() => setCancel(c)}
                             >
                               Cancel request
                             </Button>
@@ -362,8 +334,7 @@ export function CommandsSection({
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+      </Section>
       <Confirm
         open={Boolean(review)}
         title="Confirm device state change?"
@@ -377,6 +348,22 @@ export function CommandsSection({
             await run(() =>
               api.confirmDeviceCommand(org, device.uuid, review.uuid),
             ),
+          )
+          request.current = null
+          setValue("")
+        }}
+      />
+      <Confirm
+        open={Boolean(cancel)}
+        title="Cancel this request?"
+        description="The prepared command is withdrawn and never sent. You can prepare a new one afterwards."
+        action="Cancel request"
+        destructive={false}
+        onClose={() => setCancel(null)}
+        onConfirm={async () => {
+          if (!cancel) return
+          await remember(
+            await run(() => api.cancelDeviceCommand(org, device.uuid, cancel.uuid)),
           )
           request.current = null
           setValue("")

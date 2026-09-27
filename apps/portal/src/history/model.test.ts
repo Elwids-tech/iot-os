@@ -8,6 +8,7 @@ import type {
 import {
   booleanValue,
   buildHistoryCsv,
+  csvCell,
   configurationMeta,
   formatDuration,
   isColorParameter,
@@ -139,5 +140,38 @@ describe("history CSV", () => {
     expect(rows[2]).toContain(",0,boolean,")
     expect(rows[2]).toContain("RGB profile,profile,2,artifact")
     expect(records[0].event_uuid).toBe("event-new")
+  })
+  it("neutralizes formula text but keeps negative numbers numeric", () => {
+    for (const text of ["=1+1", "+1", "-cmd", "@SUM(A1)", "\tx", "\rx"])
+      expect(csvCell(text).replace(/^"|"$/g, "")).toMatch(/^'/)
+    expect(csvCell(-114.012333)).toBe("-114.012333")
+    expect(csvCell("Pump 1")).toBe("Pump 1")
+    const csv = buildHistoryCsv(
+      [
+        {
+          event_uuid: "event",
+          configuration_uuid: "configuration",
+          parameter_uuid: "parameter",
+          received_at: "2026-09-12T12:00:00.000Z",
+          observed_at: "2026-09-12T12:00:00.000Z",
+          data_type: "number",
+          unit: "deg",
+          value: -114.012333,
+          quality: "good",
+        },
+      ] as HistoryRecord[],
+      {
+        deviceUuid: "device",
+        deviceName: "=HYPERLINK(\"x\")",
+        parameterUuid: "parameter",
+        parameterKey: "lon",
+        parameterLabel: "@lon",
+        configurations: [],
+      },
+    )
+    const row = csv.split("\r\n")[1]
+    expect(row).toContain(",-114.012333,number,")
+    expect(row).toContain('"\'=HYPERLINK(""x"")"')
+    expect(row).toContain(",'@lon,")
   })
 })
