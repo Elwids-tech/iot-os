@@ -102,11 +102,17 @@ function csvValue(value: unknown, dataType: string) {
     if (boolean !== null) return boolean ? "1" : "0"
   }
   if (value === null || value === undefined) return ""
+  if (typeof value === "number") return value
   return typeof value === "object" ? JSON.stringify(value) : String(value)
 }
 
-function csvCell(value: unknown) {
-  const text = value === null || value === undefined ? "" : String(value)
+/**
+ * One CSV cell. Text a spreadsheet would run as a formula (=, +, -, @, tab or
+ * CR first) gets a leading quote; numbers stay numeric, negatives included.
+ */
+export function csvCell(value: unknown) {
+  let text = value === null || value === undefined ? "" : String(value)
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(value)) text = "'" + text
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 

@@ -9,7 +9,7 @@ import type {
   Measurement,
 } from "@iot-os/api-client"
 import { configurationProfile } from "@iot-os/api-client"
-import { isColorSource } from "../history/model"
+import { csvCell, isColorSource } from "../history/model"
 
 export const DEFAULT_VIEW: DashboardView = {
   range: { mode: "relative", preset: "6h" },
@@ -32,7 +32,17 @@ export const PRESET_LABELS = {
   "7d": "Last 7 days",
   "30d": "Last 30 days",
 }
+// Saved colours must be hex. The defaults match Console's --series-1..6 and
+// render through those variables, so panels follow the skin.
 export const COLORS = [
+  "#3987e5",
+  "#d95926",
+  "#199e70",
+  "#c98500",
+  "#d55181",
+  "#9085e9",
+]
+const LEGACY_COLORS = [
   "#2563eb",
   "#16a34a",
   "#d97706",
@@ -40,7 +50,29 @@ export const COLORS = [
   "#dc2626",
   "#0891b2",
 ]
+/** A default palette colour as its skin variable; a custom colour stays as chosen. */
+export function seriesColor(color: string) {
+  const value = color.toLowerCase()
+  const index = Math.max(COLORS.indexOf(value), LEGACY_COLORS.indexOf(value))
+  return index < 0 ? color : `var(--series-${index + 1})`
+}
 export const NEUTRAL: DashboardBand = { label: "Current", color: "#64748b" }
+/** Neutral bands read as muted text colour in every skin. */
+export const bandColor = (color: string) =>
+  color === NEUTRAL.color ? "var(--muted-foreground)" : color
+export const PANEL_LABELS: Record<DashboardWidget["type"], string> = {
+  status: "Status",
+  timeseries: "Time series",
+  gauge: "Gauge",
+  table: "Table",
+  controls: "Controls",
+  device_health: "Device health",
+  state_history: "State history",
+  color_history: "Colour history",
+  location: "Location",
+  alerts: "Alerts",
+  text: "Text",
+}
 export const numeric = (source: Pick<DashboardSource, "data_type">) =>
   ["number", "integer"].includes(source.data_type)
 export const sourceKey = (
@@ -53,20 +85,29 @@ export function newWidget(type: DashboardWidget["type"]): DashboardWidget {
     id: crypto.randomUUID(),
     schema_version: 2,
     type,
-    title:
-      type === "location" ? "Location" : type === "alerts" ? "Alerts" : type === "status"
-        ? "Status"
-        : type === "controls"
-          ? "Controls"
-          : type === "timeseries"
-            ? "Time series"
-            : type === "state_history"
-              ? "State history"
-              : "Colour history",
+    title: PANEL_LABELS[type],
     description: "",
     config:
-      type === "controls" ? { sources: [], columns: "auto" } : { sources: [] },
+      type === "controls"
+        ? { sources: [], columns: "auto" }
+        : type === "gauge"
+          ? { sources: [], min: 0, max: 100 }
+          : type === "text"
+            ? { sources: [], text: "" }
+            : type === "device_health"
+              ? { sources: [], devices: [] }
+              : { sources: [] },
   }
+}
+/** Profile display.precision for a source's parameter, used when the panel sets none. */
+export function profilePrecision(
+  device: DeviceDetail | undefined,
+  parameterUuid: string,
+): number | undefined {
+  const precision = appliedParameters(device).find(
+    (parameter) => parameter.uuid === parameterUuid,
+  )?.display?.precision
+  return typeof precision === "number" ? precision : undefined
 }
 export function appliedParameters(device?: DeviceDetail) {
   const id =
@@ -91,6 +132,16 @@ export function thresholdError(source: DashboardSource): string | null {
 export function widgetError(widget: DashboardWidget): string | null {
   if (!widget.title.trim()) return "Enter a panel title."
   if (widget.type === "location" || widget.type === "alerts") return widget.config.workflow_uuid ? null : "Choose a workflow."
+  if (widget.type === "text")
+    return widget.config.text?.trim() ? null : "Enter the panel text."
+  if (widget.type === "device_health") {
+    const count = widget.config.devices?.length ?? 0
+    return !count
+      ? "Add at least one device."
+      : count > 50
+        ? "Add up to 50 devices."
+        : null
+  }
   if (!widget.config.sources.length) return "Add at least one parameter."
   for (const source of widget.config.sources) {
     if (
@@ -102,6 +153,15 @@ export function widgetError(widget: DashboardWidget): string | null {
       return "Precision must be a whole number from 0 to 10."
     const error = thresholdError(source)
     if (error) return `${source.label}: ${error}`
+  }
+  if (widget.type === "gauge") {
+    const { min, max } = widget.config
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min! >= max!)
+      return "Enter a maximum greater than the minimum."
+    if (widget.config.sources.length > 4)
+      return "A gauge shows up to 4 parameters."
+    if (widget.config.sources.some((s) => !numeric(s)))
+      return "Gauges require numeric parameters."
   }
   if (widget.type === "timeseries") {
     if (widget.config.sources.some((s) => !numeric(s)))
@@ -139,6 +199,26 @@ export function bandFor(
       .filter((t) => value >= t.value)
       .at(-1) ?? source.base
   )
+}
+/** Coloured band segments of a gauge scale, as percentages of min..max. */
+export function gaugeSegments(source: DashboardSource, min: number, max: number) {
+  const span = max - min
+  const bands = [
+    { value: -Infinity, ...source.base },
+    ...[...source.thresholds].sort((a, b) => a.value - b.value),
+  ]
+  return bands
+    .map((band, index) => {
+      const from = Math.max(min, band.value)
+      const to = Math.min(max, bands[index + 1]?.value ?? Infinity)
+      return {
+        label: band.label,
+        color: band.color,
+        from: ((from - min) / span) * 100,
+        to: ((to - min) / span) * 100,
+      }
+    })
+    .filter((segment) => segment.to > segment.from)
 }
 export function resolveRange(range: DashboardRange, now = Date.now()) {
   return range.mode === "relative"
@@ -221,6 +301,63 @@ export function inputDate(value: string, timezone: DashboardView["timezone"]) {
     ? date.toISOString()
     : ""
 }
+/** Axis ticks sized to the range: time of day, weekday and time, or date. */
+export function tickFormatter(span: number, timezone: DashboardView["timezone"]) {
+  const format = new Intl.DateTimeFormat(undefined, {
+    ...(span <= PRESETS["24h"]
+      ? { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
+      : span <= PRESETS["7d"]
+        ? { weekday: "short", hour: "2-digit", hourCycle: "h23" }
+        : { month: "short", day: "numeric" }),
+    ...(timezone === "utc" ? { timeZone: "UTC" } : {}),
+  })
+  return (value: number) => format.format(value)
+}
+/** Min, average, max and last of the non-empty values, in time order. */
+export function seriesStats(values: Array<number | null>) {
+  const known = values.filter((value): value is number => value !== null)
+  if (!known.length) return null
+  return {
+    min: Math.min(...known),
+    avg: known.reduce((sum, value) => sum + value, 0) / known.length,
+    max: Math.max(...known),
+    last: known[known.length - 1],
+  }
+}
+export function toCsv(rows: unknown[][]) {
+  return (
+    rows
+      .map((row) =>
+        row
+          .map((cell) =>
+            csvCell(
+              typeof cell === "object" && cell !== null
+                ? JSON.stringify(cell)
+                : cell,
+            ),
+          )
+          .join(","),
+      )
+      .join("\r\n") + "\r\n"
+  )
+}
+/** Save text as a file through a temporary link. */
+export function saveFile(name: string, content: string, type: string) {
+  const href = URL.createObjectURL(new Blob([content], { type }))
+  const link = document.createElement("a")
+  link.href = href
+  link.download = name
+  document.body.append(link)
+  link.click()
+  link.remove()
+  globalThis.setTimeout(() => URL.revokeObjectURL(href), 0)
+}
+export const fileName = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "dashboard"
 export function timeLabel(value: string, timezone: DashboardView["timezone"]) {
   return new Date(value).toLocaleString(undefined, {
     ...(timezone === "utc" ? { timeZone: "UTC" } : {}),

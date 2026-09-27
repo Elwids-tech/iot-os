@@ -198,9 +198,9 @@ test("direct controls preserve actual state, deduplicate edits, and receive loca
   await expect(
     page.getByText("Target state observed", { exact: true }),
   ).toHaveCount(0)
-  await expect(page.getByText("online", { exact: true })).toHaveAttribute(
-    "data-variant",
-    "success",
+  await expect(page.getByText("Online", { exact: true })).toHaveAttribute(
+    "data-tone",
+    "good",
   )
   expect(controls.sendCount).toBe(1)
   controls.state.power = false
@@ -274,9 +274,9 @@ test("direct controls preserve actual state, deduplicate edits, and receive loca
 
   controls.online = false
   await page.reload()
-  await expect(page.getByText("offline", { exact: true })).toHaveAttribute(
-    "data-variant",
-    "destructive",
+  await expect(page.getByText("Offline", { exact: true })).toHaveAttribute(
+    "data-tone",
+    "critical",
   )
 })
 test("dashboard controls disable offline and editing, without losing pending outcomes", async ({
@@ -306,7 +306,9 @@ test("dashboard controls disable offline and editing, without losing pending out
   await page
     .getByRole("button", { name: "Apply to dashboard", exact: true })
     .click()
-  await page.getByRole("link", { name: "All dashboards", exact: true }).click()
+  await page
+    .getByRole("link", { name: "Back to Dashboards", exact: true })
+    .click()
   await expect(page.getByRole("alertdialog")).toBeVisible()
   expect(controls.sendCount).toBe(2)
   expect(controls.errors).toEqual([])

@@ -21,6 +21,14 @@ function segmentColor(segment: StateHistorySegment, colour: boolean) {
   return stateColor(segment.value, segment.known, segment.data_type)
 }
 
+function segmentLabel(segment: StateHistorySegment, colour: boolean) {
+  if (!colour) return stateLabel(segment.value, segment.known, segment.data_type)
+  if (!segment.known) return "Unknown"
+  return validHexColor(segment.value)
+    ? String(segment.value)
+    : `Invalid colour: ${String(segment.value)}`
+}
+
 function timeLabel(value: string, timezone: "browser" | "utc") {
   return new Date(value).toLocaleString(undefined, {
     ...(timezone === "utc" ? { timeZone: "UTC" } : {}),
@@ -69,7 +77,7 @@ export function StateHistoryVisualization({
         <div className="flex flex-col gap-3">
           <div
             className="flex h-4 overflow-hidden rounded-full border bg-muted"
-            aria-label="Reported duration by state"
+            aria-hidden="true"
           >
             {history.durations.map((duration, index) => (
               <span
@@ -123,29 +131,34 @@ export function StateHistoryVisualization({
         </div>
       )}
       <div className="flex flex-col gap-2">
+        {/* One label summarizes the strip; segments keep hover titles only. */}
         <div
           className="flex h-12 min-w-0 overflow-hidden rounded-md border bg-muted"
-          aria-label={
-            colour ? "Colour history timeline" : "State history timeline"
-          }
+          role="img"
+          aria-label={`${colour ? "Colour" : "State"} history timeline, ${timeLabel(history.from, timezone)} to ${timeLabel(history.to, timezone)}: ${[
+            ...history.timeline
+              .reduce((totals, segment) => {
+                const label = segmentLabel(segment, colour)
+                return totals.set(
+                  label,
+                  (totals.get(label) ?? 0) +
+                    Date.parse(segment.to) -
+                    Date.parse(segment.from),
+                )
+              }, new Map<string, number>())
+              .entries(),
+          ]
+            .map(([label, ms]) => `${label} ${formatDuration(ms)}`)
+            .join(", ")}`}
         >
           {history.timeline.map((segment, index) => {
             const configuration = segment.configuration_uuid
               ? configurationMeta(configurations, segment.configuration_uuid)
               : null
-            const label = colour
-              ? segment.known
-                ? validHexColor(segment.value)
-                  ? String(segment.value)
-                  : `Invalid colour: ${String(segment.value)}`
-                : "Unknown"
-              : stateLabel(segment.value, segment.known, segment.data_type)
-            const description = `${label} · ${timeLabel(segment.from, timezone)} to ${timeLabel(segment.to, timezone)}${configuration ? ` · ${configuration.configurationLabel} · ${configuration.profileLabel}` : ""}`
+            const description = `${segmentLabel(segment, colour)} · ${timeLabel(segment.from, timezone)} to ${timeLabel(segment.to, timezone)}${configuration ? ` · ${configuration.configurationLabel} · ${configuration.profileLabel}` : ""}`
             return (
               <span
                 key={`${segment.from}:${index}`}
-                role="img"
-                aria-label={description}
                 className={cn(
                   "min-w-px border-r border-black/10 last:border-r-0",
                   (!segment.known ||
@@ -161,6 +174,18 @@ export function StateHistoryVisualization({
             )
           })}
         </div>
+        {/* The image label summarizes; this list gives screen readers every
+            segment in order. One text node per item keeps text matches exact. */}
+        <ol
+          className="sr-only"
+          aria-label={`${colour ? "Colour" : "State"} history segments in order`}
+        >
+          {history.timeline.map((segment, index) => (
+            <li key={`${segment.from}:${index}`}>
+              {`${segmentLabel(segment, colour)}, ${timeLabel(segment.from, timezone)} to ${timeLabel(segment.to, timezone)}, ${formatDuration(Date.parse(segment.to) - Date.parse(segment.from))}`}
+            </li>
+          ))}
+        </ol>
         <div className="flex justify-between gap-3 text-xs text-muted-foreground">
           <span>{timeLabel(history.from, timezone)}</span>
           <span>{timeLabel(history.to, timezone)}</span>
@@ -174,7 +199,7 @@ export function StateHistoryVisualization({
         </p>
       </div>
       {colour && (observedColours.length > 0 || hasInvalidColours) && (
-        <div className="flex flex-wrap gap-2" aria-label="Colours observed">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Colours observed">
           {observedColours.slice(0, 20).map((value) => (
             <Badge key={value} variant="outline" className="gap-1.5 font-mono">
               <span

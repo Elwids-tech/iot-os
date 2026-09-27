@@ -250,6 +250,13 @@ test("history summarizes states and exports every selected cursor page", async (
   await expect(
     page.getByRole("img", { name: /Invalid colour: not-a-colour/ }),
   ).toBeVisible()
+  // The image label summarizes; screen readers also get each segment in order.
+  const segments = page
+    .getByRole("list", { name: "Colour history segments in order" })
+    .getByRole("listitem")
+  await expect(segments).toHaveCount(2)
+  await expect(segments.first()).toContainText(/^#FF0000, .+ to .+, \S+/)
+  await expect(segments.nth(1)).toContainText(/^Invalid colour: not-a-colour, /)
   await expect(page.getByText(/visual timeline is sampled/)).toBeVisible()
 
   const accessibility = await new AxeBuilder({ page }).analyze()

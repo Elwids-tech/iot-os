@@ -12,8 +12,14 @@ import {
   cleanLayouts,
   dateInput,
   DEFAULT_VIEW,
+  gaugeSegments,
   inputDate,
   newWidget,
+  profilePrecision,
+  seriesColor,
+  seriesStats,
+  tickFormatter,
+  toCsv,
   readView,
   resolveRange,
   responsiveLayouts,
@@ -269,4 +275,73 @@ it("requires a workflow for location and alert panels", () => {
     widget.config.workflow_uuid = "workflow";
     expect(widgetError(widget)).toBeNull();
   }
+});
+
+describe("new panel types", () => {
+  it("validates gauge scale, text and device health settings", () => {
+    const gauge = newWidget("gauge");
+    gauge.config.sources = [source];
+    expect(widgetError(gauge)).toBeNull();
+    gauge.config.max = 0;
+    expect(widgetError(gauge)).toMatch(/maximum/);
+    gauge.config.max = 100;
+    gauge.config.sources = [1, 2, 3, 4, 5].map((n) => ({ ...source, parameter_uuid: String(n) }));
+    expect(widgetError(gauge)).toMatch(/up to 4/);
+    const text = newWidget("text");
+    expect(widgetError(text)).toMatch(/text/);
+    text.config.text = "<b>Call the site</b>";
+    expect(widgetError(text)).toBeNull();
+    const health = newWidget("device_health");
+    expect(widgetError(health)).toMatch(/device/);
+    health.config.devices = [{ device_uuid: "device" }];
+    expect(widgetError(health)).toBeNull();
+  });
+  it("splits a gauge scale into band segments clipped to min and max", () => {
+    const segments = gaugeSegments(
+      { ...source, thresholds: [{ value: 225, label: "Normal", color: "#00ff00" }, { value: 300, label: "High", color: "#ff0000" }] },
+      220,
+      240,
+    );
+    expect(segments.map((s) => [s.label, s.from, s.to])).toEqual([
+      ["Below range", 0, 25],
+      ["Normal", 25, 100],
+    ]);
+  });
+  it("uses the profile precision when the panel sets none", () => {
+    const device = {
+      applied_configuration_uuid: "c",
+      configurations: [
+        {
+          uuid: "c",
+          definition: {
+            profile_canonical_json: JSON.stringify({
+              parameters: [{ uuid: "parameter", display: { precision: 2 } }],
+            }),
+          },
+        },
+      ],
+    } as unknown as DeviceDetail;
+    expect(profilePrecision(device, "parameter")).toBe(2);
+    expect(profilePrecision(device, "other")).toBeUndefined();
+  });
+});
+describe("chart helpers", () => {
+  it("maps default colours to skin variables and keeps custom ones", () => {
+    expect(seriesColor("#3987E5")).toBe("var(--series-1)");
+    expect(seriesColor("#16a34a")).toBe("var(--series-2)");
+    expect(seriesColor("#123456")).toBe("#123456");
+  });
+  it("sizes axis ticks to the range", () => {
+    const at = Date.parse("2026-09-09T12:30:00Z");
+    expect(tickFormatter(3600000, "utc")(at)).toMatch(/12:30/);
+    expect(tickFormatter(30 * 86400000, "utc")(at)).not.toMatch(/12:30/);
+  });
+  it("summarizes known values and escapes CSV cells", () => {
+    expect(seriesStats([null, 2, 4, null])).toEqual({ min: 2, avg: 3, max: 4, last: 4 });
+    expect(seriesStats([null])).toBeNull();
+    expect(toCsv([["a", 'say "hi", ok'], [null, { v: 1 }]])).toBe(
+      'a,"say ""hi"", ok"\r\n,"{""v"":1}"\r\n',
+    );
+    expect(toCsv([["=cmd()", -2.5]])).toBe("'=cmd(),-2.5\r\n");
+  });
 });
