@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Domain\Dashboards;
 
 use App\Domain\Dashboards\Models\Dashboard;
+use App\Domain\Dashboards\Models\DashboardRevision;
 use App\Domain\Dashboards\Services\DashboardDefinition;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
@@ -44,6 +45,25 @@ final class DashboardTest extends TestCase
     private function emptyDashboard(string $name = 'Operations'): array
     {
         return ['name' => $name, 'widgets' => [], 'layouts' => [], 'defaults' => DashboardDefinition::defaults()];
+    }
+
+    public function test_gps_and_overhaul_panels_share_library_revision_history(): void
+    {
+        $source = $this->source();
+        $gauge = $this->panel($source, 'gauge');
+        $gauge['config'] += ['min' => 0, 'max' => 100];
+        $gps = ['id' => 'gps', 'schema_version' => 2, 'type' => 'location', 'title' => 'GPS', 'description' => '', 'config' => ['sources' => [], 'location_device_uuids' => [$source['device_uuid']], 'show_trails' => true, 'trail_window' => '24h']];
+        $input = [...$this->emptyDashboard(), 'tags' => ['field'], 'folder' => 'Operations', 'widgets' => [$gps, $gauge, [...$gps, 'id' => 'gps-copy']]];
+        $response = $this->postJson($this->url, $input)->assertOk()->assertJsonPath('data.widgets.0.config.location_device_uuids.0', $source['device_uuid']);
+        $dashboard = Dashboard::where('uuid', $response->json('data.uuid'))->firstOrFail();
+        $revision = DashboardRevision::where('dashboard_id', $dashboard->id)->firstOrFail();
+        $this->assertSame($gps['config'], $revision->widgets[0]['config']);
+        $this->assertSame(['field'], $revision->tags);
+        $input['widgets'][1]['config']['location_device_uuids'] = [$source['device_uuid']];
+        $this->postJson($this->url, $input)->assertUnprocessable()->assertJsonValidationErrors('widgets.1.config');
+        unset($input['widgets'][1]['config']['location_device_uuids']);
+        $input['widgets'][0]['config']['location_device_uuids'][] = $source['device_uuid'];
+        $this->postJson($this->url, $input)->assertUnprocessable()->assertJsonValidationErrors('widgets.0.config.location_device_uuids');
     }
 
     private function source(string $unit = 'C', string $dataType = 'number', bool $writable = false, ?string $format = null, ?string $displayWidget = null): array

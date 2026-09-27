@@ -169,3 +169,61 @@ func TestSingleObservationAndGapCannotSatisfyDuration(t *testing.T) {
 		t.Fatal("compiled snapshot was mutated")
 	}
 }
+
+func TestMembershipTransitionsRequireTwoKnownSides(t *testing.T) {
+	f := fixture(t)
+	c := compiled(t, f.Definition)
+
+	inside, err := c.Step(c.Initial(), f.Steps[0].Event, f.Steps[0].At)
+	if err != nil || inside.State.Condition != "inside" || inside.MembershipTransition != nil {
+		t.Fatalf("initial membership emitted a crossing: %+v %v", inside, err)
+	}
+
+	exited, err := c.Step(inside.State, f.Steps[1].Event, f.Steps[1].At)
+	if err != nil || exited.MembershipTransition == nil || exited.MembershipTransition.Type != "exited" {
+		t.Fatalf("known inside to outside did not exit: %+v %v", exited, err)
+	}
+
+	insideEvent := *f.Steps[0].Event
+	insideEvent.EventID = "00000000-0000-4000-8000-000000000997"
+	insideEvent.TelemetryID = insideEvent.EventID
+	insideEvent.Readings = append([]devices.CommittedReading(nil), insideEvent.Readings...)
+	insideAt := f.Steps[1].At.Add(10 * time.Second)
+	for index := range insideEvent.Readings {
+		insideEvent.Readings[index].ObservedAt = insideAt.Add(-2 * time.Second)
+		insideEvent.Readings[index].ReceivedAt = insideAt.Add(-time.Second)
+	}
+	entered, err := c.Step(exited.State, &insideEvent, insideAt)
+	if err != nil || entered.MembershipTransition == nil || entered.MembershipTransition.Type != "entered" {
+		t.Fatalf("known outside to inside did not enter: %+v %v", entered, err)
+	}
+
+	invalid := insideEvent
+	invalid.EventID = "00000000-0000-4000-8000-000000000999"
+	invalid.TelemetryID = invalid.EventID
+	invalid.Readings = append([]devices.CommittedReading(nil), invalid.Readings...)
+	invalid.Readings[0].Quality = "invalid"
+	invalidAt := insideAt.Add(5 * time.Second)
+	for index := range invalid.Readings {
+		invalid.Readings[index].ObservedAt = invalidAt.Add(-2 * time.Second)
+		invalid.Readings[index].ReceivedAt = invalidAt.Add(-time.Second)
+	}
+	unknown, err := c.Step(entered.State, &invalid, invalidAt)
+	if err != nil || unknown.State.Condition != "unknown" || unknown.MembershipTransition != nil {
+		t.Fatalf("invalid evidence did not remain unknown: %+v %v", unknown, err)
+	}
+
+	afterUnknown := *f.Steps[9].Event
+	afterUnknown.EventID = "00000000-0000-4000-8000-000000000998"
+	afterUnknown.TelemetryID = afterUnknown.EventID
+	afterUnknown.Readings = append([]devices.CommittedReading(nil), afterUnknown.Readings...)
+	afterUnknownAt := invalidAt.Add(5 * time.Second)
+	for index := range afterUnknown.Readings {
+		afterUnknown.Readings[index].ObservedAt = afterUnknownAt.Add(-2 * time.Second)
+		afterUnknown.Readings[index].ReceivedAt = afterUnknownAt.Add(-time.Second)
+	}
+	afterUnknownResult, err := c.Step(unknown.State, &afterUnknown, afterUnknownAt)
+	if err != nil || afterUnknownResult.State.Condition != "outside" || afterUnknownResult.MembershipTransition != nil {
+		t.Fatalf("unknown evidence invented a crossing: %+v %v", afterUnknownResult, err)
+	}
+}

@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""Single-node operations. Secrets are read from private files, never logged.
+
+All commands use argument arrays (no shell sourcing/eval). Backup, deployment,
+certificate reload and bootstrap share one host lock. Restore remains quarantined.
+"""
+import argparse
+import contextlib
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+RELEASE = ROOT / "deploy/release"
+IMAGES = ("API_IMAGE", "API_WEB_IMAGE", "PORTAL_IMAGE", "ADMIN_IMAGE", "RUNTIME_IMAGE", "SIMULATOR_IMAGE")
+WRITERS = ("api", "default-worker", "alerts-worker", "assistant-worker", "webhooks-worker", "scheduler", "runtime")
+SECRET_KEYS = ("API_DB_PASSWORD", "RUNTIME_DB_PASSWORD", "POSTGRES_PASSWORD", "DEVICE_RUNTIME_TOKEN", "DEVICE_EMQX_API_SECRET", "NATS_PASSWORD", "EMQX_COOKIE", "EMQX_DASHBOARD_PASSWORD", "GRAFANA_PASSWORD", "IOT_METRICS_TOKEN")
+
+
+def read_env(path):
+    values = {}
+    for line in Path(path).read_text().splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        key, sep, value = line.partition("=")
+        if not sep or not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
+            raise ValueError("Invalid environment file entry")
+        # Values are literal; quote with JSON syntax when whitespace is needed.
+        values[key] = json.loads(value) if value.startswith('"') else value
+    return values
+
+
+def private_write(path, value, mode=0o600):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=path.parent)
+    try:
+        os.fchmod(fd, mode)
+        with os.fdopen(fd, "w") as stream:
+            stream.write(value)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def run(args, **kwargs):
+    # Never echo commands: some tool errors can include credentials.
+    if kwargs.pop("capture_output", False):
+        kwargs["stdout"] = subprocess.PIPE
+    result = subprocess.run([str(x) for x in args], stderr=subprocess.PIPE, **kwargs)
+    if result.returncode:
+        raise RuntimeError(f"{Path(str(args[0])).name} failed (exit {result.returncode}); inspect private service logs locally")
+    return result
+
+
+class Deployment:
+    def __init__(self, env_path, manifest):
+        self.env_path = Path(env_path).resolve()
+        self.env = read_env(self.env_path)
+        self.manifest = Path(manifest).resolve() if manifest else None
+        if self.manifest:
+            self.release_text = self.manifest.read_text()
+            self.images = json.loads(self.release_text)
+            self.env.update(self.images["images"])
+        self.state = Path(self.env["STATE_DIR"])
+        self.config = Path(self.env["CONFIG_DIR"])
+
+    def compose(self, *args, **kwargs):
+        # Clear accidental shell overrides; compose interpolation uses the exact private configuration.
+        env = {**os.environ, **self.env}
+        profiles = ["--profile", "demo", "--profile", "tools"] if args and args[0] in ("stop", "start", "restart", "ps", "down") else []
+        return run(["docker", "compose", "--project-directory", RELEASE, "--env-file", self.env_path,
+                    "-f", RELEASE / "compose.yml", *profiles, *args], env=env, **kwargs)
+
+    @contextlib.contextmanager
+    def lock(self):
+        self.config.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with (self.config / "operation.lock").open("w") as stream:
+            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            yield
+
+    def validate(self):
+        if self.env_path.stat().st_mode & 0o077:
+            raise ValueError("Environment file must have mode 0600")
+        if self.env.get("DEPLOY_ENVIRONMENT") not in ("staging", "production"):
+            raise ValueError("Environment must be staging or production")
+        if self.env["DEPLOY_ENVIRONMENT"] == "production" and self.env.get("IOT_STAGING_DEMO_ENABLED") != "false":
+            raise ValueError("Production must disable demo data")
+        if not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)+", self.env["DOMAIN"]):
+            raise ValueError("Invalid domain")
+        if not re.fullmatch(r"[a-z][a-z0-9-]+", self.env["COMPOSE_PROJECT_NAME"]):
+            raise ValueError("Invalid Compose project name")
+        for path in (self.state, self.config):
+            if not path.is_absolute() or str(path) in ("/", "/srv", "/var", "/home"):
+                raise ValueError("State/config must be dedicated absolute directories")
+        for key in (*SECRET_KEYS, "APP_KEY", "DEVICE_EMQX_API_KEY", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM_ADDRESS", "ACME_EMAIL", "ALERT_EMAIL"):
+            if not self.env.get(key):
+                raise ValueError(f"Missing private input: {key}")
+        for key in SECRET_KEYS:
+            if not re.fullmatch(r"[a-f0-9]{64}", self.env[key]):
+                raise ValueError(f"{key} must be generated, URL-safe 256-bit secret")
+        if self.env.get("IOT_ASSISTANT_ENABLED") == "true" and not self.env.get("OPENAI_API_KEY"):
+            raise ValueError("Assistant enabled without provider credentials")
+        if not self.manifest:
+            raise ValueError("A release manifest is required")
+        if set(self.images["images"]) != set(IMAGES):
+            raise ValueError("Release manifest must contain exactly the six application images")
+        for key in IMAGES:
+            if not re.fullmatch(r"[a-z0-9./_-]+@sha256:[a-f0-9]{64}", self.env[key]):
+                raise ValueError(f"{key} is not an immutable image digest")
+        self.compose("config", "--quiet", stdout=subprocess.DEVNULL)
+
+    def render(self):
+        self.config.mkdir(parents=True, exist_ok=True, mode=0o700)
+        private_write(self.config / "nats.conf", 'jetstream { store_dir: "/data", max_file_store: 2GB, max_memory_store: 64MB }\nhttp_port: 8222\nauthorization { users: [{user: "runtime", password: "'+self.env['NATS_PASSWORD']+'"}] }\n', 0o644)
+        private_write(self.config / "emqx-api-keys", self.env["DEVICE_EMQX_API_KEY"]+":"+self.env["DEVICE_EMQX_API_SECRET"]+":administrator\n", 0o644)
+        sql = (RELEASE / "init-db.sql").read_text()
+        for key in ("API_DB_PASSWORD", "RUNTIME_DB_PASSWORD"):
+            if not re.fullmatch(r"[a-f0-9]{64}", self.env[key]): raise ValueError("Unsafe generated database credential")
+            sql = sql.replace("__"+key+"__", self.env[key])
+        private_write(self.config / "init-db.sql", sql, 0o644)
+        domain = self.env["DOMAIN"]
+        scrape = [
+            {"job_name": "api", "metrics_path": "/internal/ops/metrics", "authorization": {"credentials": self.env["IOT_METRICS_TOKEN"]}, "static_configs": [{"targets": ["api-web:80"]}]},
+            {"job_name": "host", "static_configs": [{"targets": ["node-exporter:9100"]}]},
+            {"job_name": "prometheus", "static_configs": [{"targets": ["localhost:9090"]}]},
+        ]
+        for name, module, targets in [("health", "http_ok", ["http://api-web/health/ready", "http://runtime:8081/health/ready", "https://app."+domain, "https://api."+domain+"/up"]), ("mqtt", "mqtt_tls", ["mqtt."+domain+":8883"])]:
+            scrape.append({"job_name": name, "metrics_path": "/probe", "params": {"module": [module]}, "static_configs": [{"targets": targets}], "relabel_configs": [{"source_labels": ["__address__"], "target_label": "__param_target"}, {"source_labels": ["__param_target"], "target_label": "instance"}, {"target_label": "__address__", "replacement": "blackbox:9115"}]})
+        private_write(self.config / "prometheus.yml", yaml.safe_dump({"global": {"scrape_interval": "30s", "evaluation_interval": "30s"}, "rule_files": ["/etc/prometheus/alerts.yml"], "alerting": {"alertmanagers": [{"static_configs": [{"targets": ["alertmanager:9093"]}]}]}, "scrape_configs": scrape}), 0o644)
+        private_write(self.config / "alertmanager.yml", yaml.safe_dump({"global": {"smtp_smarthost": "smtp-relay.brevo.com:587", "smtp_from": self.env["MAIL_FROM_ADDRESS"], "smtp_auth_username": self.env["MAIL_USERNAME"], "smtp_auth_password": self.env["MAIL_PASSWORD"], "smtp_require_tls": True}, "route": {"receiver": "operator", "group_by": ["alertname"], "group_wait": "30s", "repeat_interval": "4h"}, "receivers": [{"name": "operator", "email_configs": [{"to": self.env["ALERT_EMAIL"], "send_resolved": True}]}]}), 0o644)
+
+    def layout(self):
+        owners = {"app": (33, 33), "emqx": (1000, 1000), "prometheus": (65534, 65534), "alertmanager": (65534, 65534), "grafana": (472, 0), "loki": (10001, 10001)}
+        for name in ("postgres", "app", "nats", "emqx", "mqtt-certs", "caddy", "prometheus", "alertmanager", "grafana", "loki", "alloy", "metrics", "simulators", "simulator-config"):
+            path = self.state / name
+            path.mkdir(parents=True, exist_ok=True)
+            path.chmod(0o755)
+            if name in owners:
+                os.chown(path, *owners[name])
+        for name in ("app", "framework", "app/private", "app/public", "framework/cache", "framework/sessions", "framework/views", "logs"):
+            path = self.state / "app" / name
+            path.mkdir(parents=True, exist_ok=True)
+            os.chown(path, 33, 33)
+            path.chmod(0o755)
+
+    def running(self):
+        return self.compose("ps", "--services", "--status", "running", stdout=subprocess.PIPE, text=True).stdout.split()
+
+    def wait(self, url, timeout=120):
+        deadline = time.monotonic()+timeout
+        while time.monotonic() < deadline:
+            try:
+                # In-container requests work before public DNS/certificates are ready.
+                self.compose("exec", "-T", "api", "curl", "--fail", "--silent", "--max-time", "5", url, stdout=subprocess.DEVNULL)
+                return
+            except RuntimeError:
+                time.sleep(2)
+        raise RuntimeError("Service readiness timed out")
+
+    def deploy(self, backup_env):
+        self.validate()
+        if (self.config / "DEPLOYMENT_INCOMPLETE").exists():
+            raise ValueError("Previous deployment did not complete; follow the recovery runbook before retrying")
+        self.render()
+        self.layout()
+        if not (self.state / "mqtt-certs/fullchain.pem").is_file():
+            raise ValueError("Issue MQTT certificates before deployment")
+        if backup_env:
+            self.restic(backup_env, "snapshots", "--json", stdout=subprocess.DEVNULL)
+        else:
+            raise ValueError("Configure off-host backup access before deployment")
+        self.compose("pull", stdout=subprocess.DEVNULL)
+        old_manifest = self.config / "current-release.json"
+        if old_manifest.exists():
+            # Back up with the currently running release, not new images.
+            current = Deployment(self.env_path, old_manifest)
+            current.backup(backup_env)
+            shutil.copy2(old_manifest, self.config / "previous-release.json")
+        private_write(self.config / "DEPLOYMENT_INCOMPLETE", self.release_text)
+        # Quiesce before migrations and guarantee one runtime across release changes.
+        self.compose("stop", "caddy", "simulator", "gps-simulator", *WRITERS, stdout=subprocess.DEVNULL)
+        self.compose("up", "-d", "--wait", "timescaledb", "nats", "emqx", stdout=subprocess.DEVNULL)
+        self.compose("run", "--rm", "migrate", stdout=subprocess.DEVNULL)
+        self.compose("run", "--rm", "runtime-migrate", stdout=subprocess.DEVNULL)
+        self.compose("run", "--rm", "migrate", "php", "artisan", "db:seed", "--class=PermissionSeeder", "--force", stdout=subprocess.DEVNULL)
+        self.compose("up", "-d", stdout=subprocess.DEVNULL)
+        self.wait("http://api-web/health/ready")
+        if self.env.get("DEPLOY_ENVIRONMENT") == "staging" and self.env.get("IOT_STAGING_DEMO_ENABLED") == "true" and all((self.state / "simulator-config" / (name+".json")).is_file() for name in ("meter", "gps")):
+            self.compose("--profile", "demo", "up", "-d", "simulator", "gps-simulator", stdout=subprocess.DEVNULL)
+        self.smoke()
+        private_write(old_manifest, self.release_text)
+        (self.config / "DEPLOYMENT_INCOMPLETE").unlink()
+
+    def restic(self, backup_env, *args, **kwargs):
+        if not backup_env:
+            raise ValueError("--backup-env is required")
+        path = Path(backup_env)
+        if path.stat().st_mode & 0o077:
+            raise ValueError("Backup environment must have mode 0600")
+        env = read_env(path)
+        repository = env.get("RESTIC_REPOSITORY", "")
+        if not repository.startswith(("s3:https://", "sftp:")):
+            raise ValueError("Use an off-host encrypted S3 or SFTP repository")
+        return run(["restic", *args], env={**os.environ, **env}, **kwargs)
+
+    def backup(self, backup_env):
+        if (self.config / "DEPLOYMENT_INCOMPLETE").exists():
+            raise ValueError("An incomplete deployment must be reconciled before creating a recovery checkpoint")
+        # Preflight remote access before any downtime; do not initialize repositories implicitly.
+        self.restic(backup_env, "snapshots", "--json", stdout=subprocess.DEVNULL)
+        running = self.running()
+        checkpoint = Path(tempfile.mkdtemp(prefix="checkpoint-", dir=self.config))
+        try:
+            self.compose("stop", "caddy", "simulator", "gps-simulator", "emqx", stdout=subprocess.DEVNULL)
+            # Expire command deadlines while the runtime can still reconcile outcomes.
+            time.sleep(45)
+            self.compose("stop", *WRITERS, "nats", stdout=subprocess.DEVNULL)
+            with (checkpoint / "database.dump").open("wb") as stream:
+                self.compose("exec", "-T", "timescaledb", "pg_dump", "-U", "postgres", "-d", "iot", "-Fc", stdout=stream)
+            # Broker and JetStream files are copied only while their owners are stopped.
+            run(["tar", "-C", self.state, "-czf", checkpoint / "state.tar.gz", "app", "nats", "emqx", "simulators", "simulator-config", "mqtt-certs", "caddy"], stdout=subprocess.DEVNULL)
+            shutil.copy2(self.env_path, checkpoint / "environment")
+            private_write(checkpoint / "release.json", self.release_text)
+            private_write(checkpoint / "checkpoint.json", json.dumps({"format": 1, "created_at": time.time(), "project": self.env["COMPOSE_PROJECT_NAME"], "quiesced": True}))
+            self.restic(backup_env, "backup", checkpoint, "--tag", self.env["COMPOSE_PROJECT_NAME"], "--tag", "iot-checkpoint-v1", stdout=subprocess.DEVNULL)
+            self.restic(backup_env, "forget", "--tag", self.env["COMPOSE_PROJECT_NAME"], "--group-by", "tags", "--keep-daily", "7", "--keep-weekly", "4", "--prune", stdout=subprocess.DEVNULL)
+            private_write(self.state / "metrics/backup.prom", f"iot_backup_success_timestamp_seconds {int(time.time())}\n", 0o644)
+        finally:
+            # Restart only services that were running before the maintenance window.
+            if running:
+                self.compose("start", *running, stdout=subprocess.DEVNULL)
+            shutil.rmtree(checkpoint)
+
+    def restore(self, backup_env, snapshot, destination):
+        if self.state.exists() and any(self.state.iterdir()):
+            raise ValueError("Restore requires an empty dedicated state directory on an isolated host")
+        if not destination or Path(destination).exists():
+            raise ValueError("--restore-dir must be a new private absolute directory")
+        target = Path(destination)
+        if not target.is_absolute():
+            raise ValueError("Restore directory must be absolute")
+        target.mkdir(mode=0o700, parents=True)
+        self.restic(backup_env, "restore", snapshot, "--target", target, stdout=subprocess.DEVNULL)
+        checkpoints = list(target.rglob("checkpoint.json"))
+        if len(checkpoints) != 1 or not json.loads(checkpoints[0].read_text()).get("quiesced"):
+            raise ValueError("Expected exactly one quiesced recovery checkpoint")
+        source = checkpoints[0].parent
+        backup_images = json.loads((source / "release.json").read_text())["images"]
+        if backup_images != self.images["images"]:
+            raise ValueError("Restore must use the exact backed-up release manifest")
+        original = read_env(source / "environment")
+        if any(original.get(k) != self.env.get(k) for k in (*SECRET_KEYS, "APP_KEY", "DEVICE_EMQX_API_KEY")):
+            raise ValueError("Restore requires the backed-up encryption and service credentials")
+        self.validate()
+        self.layout()
+        self.render()
+        # Prevent archive path traversal; archives come from our backup writer.
+        import tarfile
+        with tarfile.open(source / "state.tar.gz") as archive:
+            archive.extractall(self.state, filter="data")
+        self.layout()
+        self.compose("up", "-d", "--wait", "timescaledb", stdout=subprocess.DEVNULL)
+        for sql in ["DROP DATABASE iot WITH (FORCE)", "CREATE DATABASE iot"]:
+            self.compose("exec", "-T", "timescaledb", "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-c", sql, stdout=subprocess.DEVNULL)
+        self.compose("exec", "-T", "timescaledb", "psql", "-U", "postgres", "-d", "iot", "-v", "ON_ERROR_STOP=1", "-c", "CREATE EXTENSION IF NOT EXISTS timescaledb; SELECT timescaledb_pre_restore();", stdout=subprocess.DEVNULL)
+        with (source / "database.dump").open("rb") as stream:
+            self.compose("exec", "-T", "timescaledb", "pg_restore", "--exit-on-error", "-U", "postgres", "-d", "iot", stdin=stream, stdout=subprocess.DEVNULL)
+        self.compose("exec", "-T", "timescaledb", "psql", "-U", "postgres", "-d", "iot", "-v", "ON_ERROR_STOP=1", "-c", "SELECT timescaledb_post_restore();", stdout=subprocess.DEVNULL)
+        self.compose("run", "--rm", "-e", "IOT_RECOVERY_MODE=true", "-e", "DB_USERNAME=postgres", "-e", "DB_PASSWORD="+self.env["POSTGRES_PASSWORD"], "migrate", "php", "artisan", "deployment:quarantine-restore", stdout=subprocess.DEVNULL)
+        # Restore archive extraction deliberately discards ownership; restore container UIDs.
+        for name, owner in (("app", (33, 33)), ("emqx", (1000, 1000)), ("mqtt-certs", (1000, 1000))):
+            for path in [self.state/name, *(self.state/name).rglob("*")]:
+                if not path.is_symlink(): os.chown(path, *owner)
+        # No runtime, broker, workers, scheduler or public ingress starts after restore.
+        private_write(self.config / "RESTORE_QUARANTINE", "Review pending commands, queues and webhook deliveries before resuming.\n")
+        print("Database and durable state restored in quarantine. No commands or notifications can execute. Follow the restore runbook.")
+
+    def certificates(self, cloudflare_file):
+        if not cloudflare_file or not Path(cloudflare_file).is_file():
+            raise ValueError("Provide a private Certbot Cloudflare credential file")
+        if Path(cloudflare_file).stat().st_mode & 0o077:
+            raise ValueError("Cloudflare credentials must have mode 0600")
+        domain = "mqtt."+self.env["DOMAIN"]
+        run(["certbot", "certonly", "--non-interactive", "--agree-tos", "--dns-cloudflare", "--dns-cloudflare-credentials", cloudflare_file, "--dns-cloudflare-propagation-seconds", "60", "--email", self.env["ACME_EMAIL"], "-d", domain, "--keep-until-expiring"], stdout=subprocess.DEVNULL)
+        target = self.state / "mqtt-certs"
+        target.mkdir(parents=True, exist_ok=True)
+        changed = False
+        for filename in ("fullchain.pem", "privkey.pem"):
+            content = (Path("/etc/letsencrypt/live") / domain / filename).read_text()
+            changed = changed or not (target / filename).exists() or (target / filename).read_text() != content
+            private_write(target / filename, content, 0o640)
+            os.chown(target / filename, 1000, 1000)
+        if changed and "emqx" in self.running():
+            # Restart reopens certificates even if their path did not change.
+            self.compose("restart", "emqx", stdout=subprocess.DEVNULL)
+
+    def staging(self):
+        if self.env.get("DEPLOY_ENVIRONMENT") != "staging" or self.env.get("IOT_STAGING_DEMO_ENABLED") != "true":
+            raise ValueError("Demo bootstrap is staging-only")
+        private = self.state / "app/app/private"
+        filename = "staging-accounts-"+str(int(time.time()))+".json"
+        self.compose("exec", "-T", "api", "php", "artisan", "deployment:staging", "--output=/var/www/html/storage/app/private/"+filename, stdout=subprocess.DEVNULL)
+        for name, flag in (("meter", []), ("gps", ["--gps"])):
+            self.compose("exec", "-T", "api", "php", "artisan", "devices:prepare-simulator", *flag, "--broker=ssl://mqtt."+self.env["DOMAIN"]+":8883", "--ca=/etc/ssl/certs/ca-certificates.crt", "--output=/var/www/html/storage/app/private/"+name+".json", stdout=subprocess.DEVNULL)
+            shutil.copy2(private / (name+".json"), self.state / "simulator-config" / (name+".json"))
+        self.compose("--profile", "demo", "up", "-d", "simulator", "gps-simulator", stdout=subprocess.DEVNULL)
+        time.sleep(10)
+        self.compose("exec", "-T", "api", "php", "artisan", "deployment:activate-staging", stdout=subprocess.DEVNULL)
+        print("Staging fixtures prepared; new account credentials: "+str(private / filename))
+
+    def metrics(self):
+        ids = self.compose("ps", "-aq", stdout=subprocess.PIPE, text=True).stdout.split()
+        lines = [f"iot_collector_timestamp_seconds {int(time.time())}"]
+        for cid in ids:
+            item = json.loads(run(["docker", "inspect", cid], stdout=subprocess.PIPE, text=True).stdout)[0]
+            service = item["Config"]["Labels"]["com.docker.compose.service"]
+            if service in ("migrate", "runtime-migrate"):
+                continue
+            for name, value in [("running", item["State"]["Running"]), ("oom", item["State"]["OOMKilled"]), ("restarts_total", item["RestartCount"])]:
+                lines.append(f'iot_container_{name}{{service="{service}"}} {int(value)}')
+        private_write(self.state / "metrics/containers.prom", "\n".join(lines)+"\n", 0o644)
+
+    def smoke(self):
+        for host, path in [("app", "/"), ("admin", "/"), ("api", "/up"), ("api", "/health/ready")]:
+            with urllib.request.urlopen("https://"+host+"."+self.env["DOMAIN"]+path, timeout=15) as response:
+                if response.status != 200:
+                    raise RuntimeError("Public HTTPS smoke check failed")
+        print("Public HTTPS and dependency readiness checks passed.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=["init", "validate", "render", "deploy", "backup", "restore", "certificates", "staging", "metrics", "smoke"])
+    parser.add_argument("--env", required=True)
+    parser.add_argument("--manifest")
+    parser.add_argument("--backup-env")
+    parser.add_argument("--cloudflare-file")
+    parser.add_argument("--snapshot")
+    parser.add_argument("--restore-dir")
+    args = parser.parse_args()
+    os.umask(0o077)
+    if args.command == "init":
+        path = Path(args.env)
+        if path.exists():
+            raise ValueError("Environment already exists; refusing to replace keys")
+        import base64
+        values = read_env(RELEASE / "environment.example")
+        values.update({key: secrets.token_hex(32) for key in SECRET_KEYS})
+        values["APP_KEY"] = "base64:"+base64.b64encode(secrets.token_bytes(32)).decode()
+        values["DEVICE_EMQX_API_KEY"] = secrets.token_hex(12)
+        private_write(path, "".join(k+"="+json.dumps(v)+"\n" for k, v in values.items()))
+        print("Private environment created. Fill provider inputs without changing generated keys.")
+        return
+    deployment = Deployment(args.env, args.manifest)
+    if args.command == "validate":
+        deployment.validate()
+        print("Release configuration validated.")
+        return
+    with deployment.lock():
+        if args.command in ("deploy", "staging") and (deployment.config / "RESTORE_QUARANTINE").exists():
+            raise ValueError("Restored state is quarantined; follow recovery review before activation")
+        if args.command == "deploy": deployment.deploy(args.backup_env)
+        elif args.command == "backup": deployment.backup(args.backup_env)
+        elif args.command == "restore":
+            if not args.snapshot: raise ValueError("An explicit snapshot ID is required")
+            deployment.restore(args.backup_env, args.snapshot, args.restore_dir)
+        elif args.command == "certificates": deployment.certificates(args.cloudflare_file)
+        else: getattr(deployment, args.command)()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (ValueError, RuntimeError, BlockingIOError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)

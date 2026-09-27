@@ -94,6 +94,8 @@ function devicesOf(dashboard: Dashboard) {
       devices.set(s.device_uuid, s.device_name ?? s.device_uuid)
     for (const d of widget.config.devices ?? [])
       devices.set(d.device_uuid, d.device_name ?? d.device_uuid)
+    for (const id of widget.config.location_device_uuids ?? [])
+      if (!devices.has(id)) devices.set(id, id)
   }
   return devices
 }

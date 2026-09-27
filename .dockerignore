@@ -20,3 +20,5 @@ apps/api/storage/framework/cache/*
 apps/api/storage/framework/views/*
 apps/api/bootstrap/cache/*.php
 *.log
+
+apps/api/storage/app/public/**

@@ -339,6 +339,44 @@ async function menu(page: Page, title = "Current temperature") {
     .click()
 }
 
+test("GPS panels use the full-page editor and long canvas drafts survive kiosk mode", async ({ page }) => {
+  const { dashboards, calls, errors } = await setup(page)
+  dashboards[0].layouts.lg![1].y = 24
+  await page.route("**/location-bindings", route => route.fulfill({ json: { data: [{ device_uuid: deviceId, device_name: "Field tracker" }] } }))
+  await page.route("**/geofences?**", route => route.fulfill({ json: { data: [{ uuid: parameterId, name: "Pasture" }] } }))
+  await page.route("**/location-map/query", route => route.fulfill({ json: { data: { devices: [], geofence: null, trail_window: "24h" } } }))
+  await page.goto(basePath + "/first")
+  await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
+  await page.getByRole("button", { name: "Add panel below", exact: true }).click()
+  await page.getByRole("button", { name: "Add GPS map", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Edit GPS map panel", exact: true })).toBeVisible()
+  await page.getByRole("combobox", { name: "GPS devices", exact: true }).click()
+  await page.getByRole("option", { name: "Field tracker", exact: true }).click()
+  await page.keyboard.press("Escape")
+  await page.getByRole("combobox", { name: "Geofence overlay", exact: true }).click()
+  await page.getByRole("option", { name: "Pasture", exact: true }).click()
+  await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Panel menu: GPS map", exact: true })).toBeInViewport()
+  expect(calls.writes).toBe(0)
+  await page.getByRole("button", { name: "Kiosk", exact: true }).click()
+  await expect(page.locator("[data-kiosk]")).toBeFocused()
+  await expect(page.locator("#root")).toHaveAttribute("inert", "")
+  expect(await page.locator("[data-kiosk]").evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true)
+  await page.keyboard.press("Escape")
+  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible()
+  await expect(page.locator("[data-slot=page-header]")).toHaveCSS("position", "sticky")
+  await page.getByRole("button", { name: "Save dashboard", exact: true }).click()
+  await expect.poll(() => calls.writes).toBe(1)
+  const added = dashboards[0].widgets.at(-1)!
+  expect(added.config.location_device_uuids).toEqual([deviceId])
+  expect(added.config.geofence_uuid).toBe(parameterId)
+  expect(dashboards[0].layouts.lg?.find(item => item.i === added.id)?.y).toBeGreaterThanOrEqual(30)
+  await page.reload()
+  await page.getByRole("button", { name: "Panel menu: GPS map", exact: true }).scrollIntoViewIfNeeded()
+  await expect(page.getByRole("button", { name: "Panel menu: GPS map", exact: true })).toBeInViewport()
+  expect(errors).toEqual([])
+})
+
 test("multiple dashboards, explicit apply/save, and save before switching", async ({
   page,
 }, info) => {
@@ -803,6 +841,9 @@ test("browser timezone rejects nonexistent daylight-saving input", async ({
 
 test("workflow panels preview, persist, refresh failures and remain usable on mobile", async ({ page }, info) => {
   const { dashboards, calls, errors } = await setup(page)
+  // Saved workflow location panels remain readable; new location panels use GPS maps.
+  dashboards[0].widgets.push({ id: "legacy-location", type: "location", schema_version: 2, title: "Legacy location", description: "", config: { sources: [], workflow_uuid: "workflow-one" } })
+  dashboards[0].layouts.lg.push({ i: "legacy-location", x: 0, y: 12, w: 6, h: 6 })
   let unavailable = false
   let locationReads = 0
   await page.route("**/workflows**", async route => {
@@ -824,14 +865,13 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   })
   await page.goto(basePath + "/first")
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
-  for (const type of ["Location", "Alerts"]) {
+  for (const type of ["Alerts"]) {
     await page.getByRole("button", { name: "Add panel", exact: true }).click()
     await page.getByRole("button", { name: `Add ${type}`, exact: true }).click()
     await expect(page.getByRole("button", { name: "Apply to dashboard", exact: true })).toBeDisabled()
     await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
     await page.getByRole("option", { name: "Pasture boundary", exact: true }).click()
-    if (type === "Location") await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
-    else await expect(page.getByText("1 active", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 active", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
   }
   expect(calls.writes).toBe(0)
@@ -859,11 +899,11 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
   await page.getByRole("button", { name: "Add panel", exact: true }).click()
-  await page.getByRole("button", { name: "Add Location", exact: true }).click()
+  await page.getByRole("button", { name: "Add Alerts", exact: true }).click()
   await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
   await page.keyboard.press("ArrowDown")
   await page.keyboard.press("Enter")
-  await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
+  await expect(page.getByText("1 active", { exact: true })).toBeVisible()
   const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
   expect(audit.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
@@ -1433,5 +1473,49 @@ test("version history previews a revision and restores after a conflict reload",
   await restore()
   await expect(sheet).toHaveCount(0)
   expect(bodies).toEqual([{ revision: 3 }, { revision: 4 }])
+  expect(errors).toEqual([])
+})
+
+
+test("GPS map loads its worker, colours membership, and queries selectable dashed trails", async ({ page }, info) => {
+  const { dashboards, errors } = await setup(page)
+  const ids = [deviceId, "11111111-1111-4111-8111-111111111112", "11111111-1111-4111-8111-111111111113"]
+  dashboards[0].widgets = [{ id: "gps", schema_version: 2, type: "location", title: "GPS monitoring", description: "", config: {
+    sources: [], location_device_uuids: ids, geofence_uuid: "fence", show_trails: true, trail_window: "24h"
+  } }]
+  dashboards[0].layouts = { lg: [{ i: "gps", x: 0, y: 0, w: 12, h: 14 }] }
+  const requests: { trail_window: string; include_trails: boolean }[] = []
+  await page.route("**/location-map/query", route => {
+    const input = route.request().postDataJSON()
+    requests.push(input)
+    return route.fulfill({ json: { data: {
+      schema_version: "location-map.v1", trail_window: input.trail_window,
+      geofence: { uuid: "fence", name: "Demo boundary", revision: 1, geometry: { type: "Polygon", coordinates: [[[-114.01,50.99],[-113.99,50.99],[-113.99,51.01],[-114.01,51.01],[-114.01,50.99]]] } },
+      devices: ids.map((id, index) => ({ device_uuid: id, device_name: `Tracker ${index + 1}`, binding_uuid: id,
+        condition: ["inside", "outside", "unknown"][index], wandering: false, active_alert: null, deployment_status: "applied",
+        latest: { point: { longitude: -114 + index * 0.012, latitude: 51, accuracy_metres: 5 }, live_eligible: index < 2,
+          received_at: new Date().toISOString(), observed_at: new Date().toISOString(), reason: index < 2 ? "eligible" : "stale" },
+        trail: { sampled: false, segments: input.include_trails ? [[{ point: { longitude: -114, latitude: 50.996 } }, { point: { longitude: -114 + index * 0.012, latitude: 51 } }]] : [] }
+      }))
+    } } })
+  })
+  const workerResponse = page.waitForResponse(response => /maplibre-gl-worker.*\.js/.test(response.url()))
+  await page.goto(basePath + "/first")
+  expect((await workerResponse).ok()).toBe(true)
+  await expect(page.getByRole("button", { name: "Tracker 1: inside", exact: true })).toHaveCSS("background-color", "rgb(22, 163, 74)")
+  await expect(page.getByRole("button", { name: "Tracker 2: outside", exact: true })).toHaveCSS("background-color", "rgb(220, 38, 38)")
+  await expect(page.getByRole("button", { name: "Tracker 3: unknown", exact: true })).toHaveCSS("background-color", "rgb(100, 116, 139)")
+  await page.getByRole("radio", { name: "Last 1h of movement", exact: true }).click()
+  await expect.poll(() => requests.at(-1)?.trail_window).toBe("1h")
+  await page.getByRole("switch", { name: "Movement trails", exact: true }).click()
+  await expect.poll(() => requests.at(-1)?.include_trails).toBe(false)
+  await page.getByRole("switch", { name: "Movement trails", exact: true }).click()
+  await expect(page.getByRole("switch", { name: "Movement trails", exact: true })).toBeChecked()
+  await expect(page.getByRole("region", { name: "GPS monitoring map", exact: true }).getByText("Off", { exact: true })).toHaveCount(0)
+  await page.screenshot({ path: info.outputPath("gps-trails-desktop.png") })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByRole("switch", { name: "Movement trails", exact: true })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
+  await page.screenshot({ path: info.outputPath("gps-trails-mobile.png"), fullPage: true })
   expect(errors).toEqual([])
 })

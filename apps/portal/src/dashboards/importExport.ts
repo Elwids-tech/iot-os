@@ -42,6 +42,7 @@ const TYPES = [
 ] as const
 // Config keys per panel type, as the server accepts them.
 const CONFIG_KEYS: Partial<Record<DashboardWidget["type"], string[]>> = {
+  location: ["sources", "workflow_uuid", "location_device_uuids", "geofence_uuid", "show_trails", "show_labels", "trail_window"],
   gauge: ["sources", "min", "max"],
   table: ["sources"],
   text: ["sources", "text"],
@@ -169,6 +170,20 @@ function readWidget(value: unknown, path: string): DashboardWidget {
   if (c.workflow_uuid !== undefined)
     config.workflow_uuid = pattern(c.workflow_uuid, `${at}.workflow_uuid`, UUID, "a UUID")
   if (c.columns !== undefined) config.columns = oneOf(c.columns, `${at}.columns`, ["auto", 1, 2, 3, 4] as const)
+  if (type === "location") {
+    if (c.location_device_uuids !== undefined) {
+      config.location_device_uuids = list(c.location_device_uuids, `${at}.location_device_uuids`, 100).map((id, i) => pattern(id, `${at}.location_device_uuids.${i}`, UUID, "a UUID"))
+      if (new Set(config.location_device_uuids).size !== config.location_device_uuids.length) fail(`${at}.location_device_uuids`, "must contain distinct devices.")
+    }
+    if (c.geofence_uuid !== undefined) config.geofence_uuid = pattern(c.geofence_uuid, `${at}.geofence_uuid`, UUID, "a UUID")
+    if (c.trail_window !== undefined) config.trail_window = oneOf(c.trail_window, `${at}.trail_window`, ["1h", "6h", "24h", "7d"] as const)
+    for (const key of ["show_trails", "show_labels"] as const) {
+      if (c[key] !== undefined) {
+        if (typeof c[key] !== "boolean") fail(`${at}.${key}`, "must be a boolean.")
+        config[key] = c[key]
+      }
+    }
+  }
   if (type === "gauge") {
     config.min = number(c.min, `${at}.min`)
     config.max = number(c.max, `${at}.max`)

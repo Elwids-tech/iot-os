@@ -60,6 +60,7 @@ import { PanelBody, widgetRegistry } from "./registry"
 import { writableParameters, controlSpec } from "../controls/model"
 import { isColorParameter } from "../history/model"
 import { WorkflowPicker } from "./WorkflowPanelEditor"
+import { LocationSettings } from "./LocationPanelEditor"
 
 type Widget = DashboardWidget
 type SetWidget = (update: (current: Widget) => Widget) => void
@@ -335,7 +336,8 @@ export function PanelEditor({
                   <FieldDescription>Plain text, up to 4000 characters.</FieldDescription>
                 </Field>
               )}
-              {definition.editor === "workflow-panel" && (
+              {widget.type === "location" && <LocationSettings org={org} widget={widget} onChange={setWidget} />}
+              {(definition.editor === "workflow-panel" || (widget.type === "location" && Boolean(widget.config.workflow_uuid))) && (
                 <WorkflowPicker
                   org={org}
                   widget={widget}

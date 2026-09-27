@@ -141,7 +141,7 @@ function Workspace() {
             {profile.revision > 0 && (
               <span>
                 based on{" "}
-                <Link className="text-primary hover:underline" to={base + "/review"}>
+                <Link className="text-primary underline underline-offset-2" to={base + "/review"}>
                   v{profile.revision}
                 </Link>
               </span>

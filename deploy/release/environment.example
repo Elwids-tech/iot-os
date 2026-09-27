@@ -1,0 +1,18 @@
+# Copy privately; tooling/release/manage.py init generates secrets once.
+DOMAIN=elwids.xyz
+DEPLOY_ENVIRONMENT=staging
+COMPOSE_PROJECT_NAME=iot-staging
+STATE_DIR=/srv/iot/state
+CONFIG_DIR=/srv/iot/private
+VPN_CIDR=100.64.0.0/10
+ACME_EMAIL=
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_FROM_ADDRESS=no-reply@elwids.xyz
+ALERT_EMAIL=
+IOT_STAGING_DEMO_ENABLED=true
+IOT_ASSISTANT_ENABLED=false
+OPENAI_API_KEY=
+PUBLIC_MAP_STYLE_URL=
+# Images are provided by the digest-pinned release manifest, never mutable tags.
+# Brevo SMTP credentials, OpenAI project key and backup credentials are private inputs.

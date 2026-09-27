@@ -69,7 +69,7 @@ export function UnsavedProvider({ children }: { children: ReactNode }) {
     >
       {children}
       <AlertDialog open={blocker.state === "blocked"}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100%-2rem)] sm:max-w-md!">
           <AlertDialogHeader>
             <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
             <AlertDialogDescription>

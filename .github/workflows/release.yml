@@ -1,0 +1,107 @@
+name: Release single-node images
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, pdo_pgsql, pcntl
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: apps/api
+      - run: php artisan test --compact
+        working-directory: apps/api
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @iot-os/portal --filter @iot-os/admin --filter @iot-os/api-client typecheck
+      - run: pip install PyYAML
+      - run: python3 -m unittest discover -s tooling/release -p 'test_*.py'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/runtime/go.mod
+          cache-dependency-path: services/runtime/go.sum
+      - run: go test ./...
+        working-directory: services/runtime
+  images:
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: api, key: API_IMAGE, file: deploy/docker/api/Dockerfile.release, target: api}
+          - {name: api-web, key: API_WEB_IMAGE, file: deploy/docker/api/Dockerfile.release, target: api-web}
+          - {name: portal, key: PORTAL_IMAGE, file: deploy/docker/portal/Dockerfile, target: ''}
+          - {name: admin, key: ADMIN_IMAGE, file: deploy/docker/admin/Dockerfile, target: ''}
+          - {name: runtime, key: RUNTIME_IMAGE, file: deploy/docker/runtime/Dockerfile, target: ''}
+          - {name: simulator, key: SIMULATOR_IMAGE, file: deploy/docker/simulator/Dockerfile, target: ''}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+      - name: Record digest
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+          KEY: ${{ matrix.key }}
+        run: python3 -c 'import os,json;open("image.json","w").write(json.dumps({os.environ["KEY"]:os.environ["IMAGE"]}))'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.name }}
+          path: image.json
+  manifest:
+    needs: images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: image-*
+          path: images
+      - name: Assemble manifest
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          images = {}
+          for path in pathlib.Path('images').glob('*/image.json'):
+              images.update(json.loads(path.read_text()))
+          assert len(images) == 6
+          pathlib.Path('release.json').write_text(json.dumps({'format': 1, 'commit': os.environ['GITHUB_SHA'], 'images': images}, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: single-node-release
+          path: |
+            release.json
+            deploy/release/
+            deploy/ansible/
+            tooling/release/

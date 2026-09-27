@@ -1,4 +1,8 @@
-CREATE SCHEMA IF NOT EXISTS device_runtime;
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'device_runtime') THEN
+  CREATE SCHEMA device_runtime;
+ END IF;
+END $$;
 CREATE TABLE IF NOT EXISTS device_runtime.rule_heads (
  rule_uuid uuid PRIMARY KEY, organization_uuid uuid NOT NULL, generation bigint NOT NULL DEFAULT 0,
  operation_uuid uuid, outcome jsonb

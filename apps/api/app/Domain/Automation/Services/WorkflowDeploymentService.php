@@ -9,12 +9,13 @@ use App\Domain\Automation\Models\Workflow;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\RuntimeClient;
+use App\Domain\Geospatial\Services\GeofenceEventJournal;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Support\Facades\DB;
 
 final class WorkflowDeploymentService
 {
-    public function request(Workflow $workflow, array $input, int $actor): Deployment
+    public function request(Workflow $workflow, array $input, ?int $actor): Deployment
     {
         return DB::transaction(function () use ($workflow, $input, $actor): Deployment {
             $workflow = Workflow::whereKey($workflow->id)->lockForUpdate()->firstOrFail();
@@ -62,12 +63,28 @@ final class WorkflowDeploymentService
         $org = Organization::where('uuid', $payload['organization_uuid'])->firstOrFail();
         $workflow = Workflow::where('organization_id', $org->id)->where('uuid', $payload['rule_uuid'])->lockForUpdate()->firstOrFail();
         $deployment = Deployment::where('automation_workflow_id', $workflow->id)->where('uuid', $payload['operation_uuid'])->lockForUpdate()->firstOrFail();
+        if ($type === 'workflow.membership.v1') {
+            validator($payload, ['transition' => 'required|array', 'transition.id' => 'required|string|size:64',
+                'transition.type' => 'required|in:entered,exited', 'transition.definition_hash' => 'required|string|size:64',
+                'transition.episode' => 'required|integer|min:0', 'transition.occurred_at' => 'required|date'])->validate();
+            $transition = $payload['transition'];
+            abort_unless($deployment->target === 'active' && ($transition['rule_uuid'] ?? null) === $workflow->uuid
+                && ($transition['version_uuid'] ?? null) === $deployment->uuid && ($transition['organization_uuid'] ?? null) === $org->uuid
+                && ($transition['device_uuid'] ?? null) === $deployment->definition['binding']['device_uuid']
+                && $transition['definition_hash'] === $deployment->definition_hash, 422, 'Transition does not match execution snapshot.');
+            DB::table('automation_transitions')->insertOrIgnore(['id' => $transition['id'], 'automation_deployment_id' => $deployment->id,
+                'transition' => json_encode($transition, JSON_THROW_ON_ERROR), 'received_at' => now()]);
+            GeofenceEventJournal::record($deployment, $transition, $transition['type']);
+
+            return;
+        }
         if ($type === 'workflow.transition.v1') {
             validator($payload, ['transition' => 'required|array', 'transition.id' => 'required|string|size:64', 'transition.type' => 'required|in:activated,cleared', 'transition.definition_hash' => 'required|string|size:64', 'transition.episode' => 'required|integer|min:1', 'transition.occurred_at' => 'required|date'])->validate();
             $transition = $payload['transition'];
             abort_unless($deployment->target === 'active' && ($transition['rule_uuid'] ?? null) === $workflow->uuid && ($transition['version_uuid'] ?? null) === $deployment->uuid && ($transition['organization_uuid'] ?? null) === $org->uuid && ($transition['device_uuid'] ?? null) === $deployment->definition['binding']['device_uuid'] && $transition['definition_hash'] === $deployment->definition_hash, 422, 'Transition does not match the execution snapshot.');
             DB::table('automation_transitions')->insertOrIgnore(['id' => $transition['id'], 'automation_deployment_id' => $deployment->id, 'transition' => json_encode($transition, JSON_THROW_ON_ERROR), 'received_at' => now()]);
             app(AlertProjector::class)->project($workflow, $deployment, $transition);
+            GeofenceEventJournal::record($deployment, $transition, $transition['type'] === 'activated' ? 'wandering_started' : 'wandering_resolved');
 
             return;
         }

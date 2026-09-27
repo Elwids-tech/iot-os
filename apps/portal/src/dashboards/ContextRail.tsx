@@ -41,6 +41,7 @@ export const dashboardDevices = (dashboard: Dashboard) => [
     dashboard.widgets.flatMap((w) => [
       ...w.config.sources.map((s) => s.device_uuid),
       ...(w.config.devices ?? []).map((d) => d.device_uuid),
+      ...(w.config.location_device_uuids ?? []),
     ]),
   ),
 ]

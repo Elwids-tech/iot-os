@@ -55,3 +55,7 @@ The [Devices v1 guide](docs/devices-v1.md) covers registration, Sparkplug B on E
 ```
 
 Development credentials in `.env.example` are intentionally non-production values. Production packaging will generate unique secrets and must never reuse them.
+
+## Staging and single-node releases
+
+See [the release runbook](deploy/release/README.md) for immutable images, Hetzner host setup, `elwids.xyz`/Brevo configuration, staging fixtures, monitoring, backup/recovery, and launch gates. This profile is separate from the local development stack.

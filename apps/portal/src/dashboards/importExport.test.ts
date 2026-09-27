@@ -48,6 +48,17 @@ describe("export", () => {
 })
 
 describe("import", () => {
+  it("round trips GPS configuration and rejects malformed map settings", () => {
+    const config = { sources: [], location_device_uuids: [device], geofence_uuid: parameter, show_trails: false, show_labels: true, trail_window: "7d" }
+    const gps = { id: "gps", schema_version: 2, type: "location", title: "GPS", description: "", config }
+    const result = parse(withWidget(gps))
+    expect(result.errors).toEqual([])
+    expect(result.definitions[0].widgets[0].config).toEqual(config)
+    for (const patch of [{ show_trails: "false" }, { trail_window: "30d" }, { location_device_uuids: [device, device] }, { geofence_uuid: "bad" }]) {
+      expect(parse(withWidget({ ...gps, config: { ...config, ...patch } })).errors).not.toEqual([])
+    }
+    expect(parse(withWidget({ ...gps, config: { sources: [], workflow_uuid: device } })).errors).toEqual([])
+  })
   it("accepts an exported dashboard, a list, and a raw API response", () => {
     const { definitions, errors } = parse(exported)
     expect(errors).toEqual([])

@@ -31,6 +31,14 @@ an explicit new state/activation boundary; the evaluator refuses to reuse old st
 
 ## Polygon semantics
 
+The portal renders monitoring and editing maps with MapLibre. Set
+`IOT_MAP_STYLE_URL` for Docker deployments, or `VITE_MAP_STYLE_URL` when running
+the portal directly, to use a licensed satellite or vector style. If the style
+provider requires a browser token, put only a publishable token restricted to
+the portal's production origins in that style URL. When no style URL is set,
+development uses the OpenStreetMap raster fallback and retains the required
+OpenStreetMap attribution.
+
 Geometry uses GeoJSON `[longitude, latitude]` order and one closed simple ring with
 3–256 unique vertices. Winding direction is immaterial. Reject holes, repeated
 vertices, self-intersections, overlapping adjacent edges, edges shorter than one

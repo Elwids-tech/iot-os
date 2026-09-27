@@ -1,3 +1,4 @@
+import { runtimeConfig } from "@iot-os/api-client"
 import { lazy, Suspense, useEffect, useState } from "react"
 import {
   ApiError,
@@ -76,6 +77,7 @@ import {
   ChevronsUpDownIcon,
   CpuIcon,
   LayersIcon,
+  MapPinnedIcon,
   LayoutGridIcon,
   LogOutIcon,
   MessageSquareIcon,
@@ -89,6 +91,7 @@ import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
 import { TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
 const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
+const GeofenceRoutes = lazy(() => import("./geospatial/Geofences"))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
 const IntegrationRoutes = lazy(() => import("./integrations/Integrations"))
 const AlertRoutes = lazy(() => import("./alerts/Alerts"))
@@ -221,6 +224,7 @@ function Session() {
           <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="discovery" /></Suspense>} />
           <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="gateways" /></Suspense>} />
           <Route path="organizations/:organizationUuid/dashboards/:dashboardUuid?" element={<DashboardRoute />} />
+          <Route path="organizations/:organizationUuid/geofences/*" element={<Suspense fallback={<PageFallback />}><GeofenceRoutes /></Suspense>} />
           <Route
             path="organizations/:organizationUuid/device-profiles"
             element={<ProfileDirectory />}
@@ -395,6 +399,7 @@ const navigationGroups = [
   [
     { path: "devices", label: "Devices", icon: CpuIcon },
     { path: "gateways", label: "Gateways", icon: RouterIcon },
+    { path: "geofences", label: "Geofences", icon: MapPinnedIcon },
     { path: "discovery", label: "Discovery", icon: ScanSearchIcon },
   ],
   [
@@ -404,7 +409,7 @@ const navigationGroups = [
 ]
 
 const adminUrl =
-  import.meta.env.VITE_ADMIN_URL ||
+  runtimeConfig("VITE_ADMIN_URL", import.meta.env.VITE_ADMIN_URL) ||
   `${window.location.protocol}//${window.location.hostname}:5174`
 
 function PortalSidebar({

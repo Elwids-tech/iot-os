@@ -204,6 +204,8 @@ export function DashboardWorkspace({
   const [editorDirty, setEditorDirty] = useState(false)
   const [editorDiscard, setEditorDiscard] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const addPlacement = useRef<"available" | "bottom">("available")
+  const [revealWidget, setRevealWidget] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [dialog, setDialog] = useState<
     "settings" | "duplicate" | "history" | "delete" | null
@@ -220,6 +222,14 @@ export function DashboardWorkspace({
   >(() => readStorage(DISPLAY_KEY, {}))
   const layoutAction = useRef(false)
   const panelContent = useRef(new Map<string, HTMLDivElement>())
+  useEffect(() => {
+    if (!revealWidget || editor) return
+    const frame = requestAnimationFrame(() => {
+      panelContent.current.get(revealWidget)?.scrollIntoView({ block: "center" })
+      setRevealWidget(null)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [revealWidget, editor])
   const { setDirty } = useDirtyContext()
   const draftDirty = Boolean(
     draft && JSON.stringify(draft) !== JSON.stringify(base),
@@ -330,10 +340,16 @@ export function DashboardWorkspace({
   useEffect(() => {
     if (kiosk) {
       const root = document.getElementById("root")
+      const wasInert = root?.inert ?? false
+      const overflow = document.body.style.overflow
+      document.body.style.overflow = "hidden"
       root?.setAttribute("inert", "")
       kioskView.current?.focus()
       wasKiosk.current = true
-      return () => root?.removeAttribute("inert")
+      return () => {
+        if (root) root.inert = wasInert
+        document.body.style.overflow = overflow
+      }
     }
     // Back from kiosk: return focus to the button that opened it.
     if (wasKiosk.current) kioskButton.current?.focus()
@@ -379,7 +395,12 @@ export function DashboardWorkspace({
     setError(null)
     setInvalidPanel(null)
   }
+  function openAdd(placement: "available" | "bottom" = "available") {
+    addPlacement.current = placement
+    setAddOpen(true)
+  }
   function applyWidget(widget: DashboardWidget) {
+    const isNew = !draft?.widgets.some((item) => item.id === widget.id)
     setDraft((current) => {
       if (!current) return current
       const existing = current.widgets.some((w) => w.id === widget.id)
@@ -390,12 +411,13 @@ export function DashboardWorkspace({
           : [...current.widgets, widget],
         layouts: existing
           ? current.layouts
-          : appendLayout(current.layouts, widget.id),
+          : appendLayout(current.layouts, widget.id, addPlacement.current),
       }
     })
     if (invalidPanel === widget.id) setInvalidPanel(null)
     // Duplicate panel applies without an open editor.
     if (editor) closeEditor()
+    if (isNew) setRevealWidget(widget.id)
   }
   function removePanel(widget: DashboardWidget) {
     if (!draft) return
@@ -674,7 +696,7 @@ export function DashboardWorkspace({
         <Button
           onClick={() => {
             if (!draft) startEditing()
-            setAddOpen(true)
+            openAdd()
           }}
         >
           <PlusIcon data-icon="inline-start" />
@@ -686,14 +708,18 @@ export function DashboardWorkspace({
     <div className={cn(!gap && "border-t border-l")}>
       <Grid
         className="dashboard-grid"
+        autoSize
+        isBounded={false}
+        compactType={null}
+        style={draft ? { minHeight: (Math.max(0, ...(gridLayouts[breakpoint] ?? []).map((item) => item.y + item.h)) + 6) * (ROW_HEIGHT + gap) } : undefined}
         layouts={gridLayouts as ResponsiveLayouts}
         breakpoints={BREAKPOINTS}
         cols={COLS}
         rowHeight={ROW_HEIGHT}
         margin={[gap, gap]}
         containerPadding={[0, 0]}
-        isDraggable={Boolean(draft) && !saving}
-        isResizable={Boolean(draft) && !saving}
+        isDraggable={Boolean(draft) && !saving && !kiosk}
+        isResizable={Boolean(draft) && !saving && !kiosk}
         resizeHandles={["s", "e", "se"]}
         draggableHandle=".dashboard-drag-handle"
         onBreakpointChange={setBreakpoint}
@@ -952,6 +978,7 @@ export function DashboardWorkspace({
   return (
     <>
       <PageHeader
+        className="sticky top-0 z-20 bg-background"
         title={dashboard.name}
         heading={
           <DashboardSwitcher
@@ -989,7 +1016,8 @@ export function DashboardWorkspace({
         actions={
           draft ? (
             <>
-              <Button variant="outline" disabled={saving} onClick={() => setAddOpen(true)}>
+              <Button ref={kioskButton} variant="outline" onClick={() => setParam("kiosk", "1")}><MonitorIcon data-icon="inline-start" /><span className="max-sm:sr-only">Kiosk</span></Button>
+              <Button variant="outline" disabled={saving} onClick={() => openAdd()}>
                 <PlusIcon data-icon="inline-start" />
                 <span className="max-sm:sr-only">Add panel</span>
               </Button>
@@ -1104,6 +1132,7 @@ export function DashboardWorkspace({
               "dashboard-state-history",
               "dashboard-workflow-location",
               "dashboard-workflow-alerts",
+              "dashboard-location-map",
             ])
               void cache.invalidateQueries({ queryKey: [key, org] })
           }}
@@ -1128,6 +1157,11 @@ export function DashboardWorkspace({
             </Button>
           )}
           {grid}
+          {draft && dashboard.widgets.length > 0 && (
+            <Button variant="outline" disabled={saving} onClick={() => openAdd("bottom")}>
+              <PlusIcon data-icon="inline-start" />Add panel below
+            </Button>
+          )}
         </div>
         {railOpen && !draft && (
           <div className="border-t lg:w-72 lg:shrink-0 lg:border-t-0 lg:border-l">

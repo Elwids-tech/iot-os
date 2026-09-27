@@ -69,7 +69,7 @@ export const PANEL_LABELS: Record<DashboardWidget["type"], string> = {
   device_health: "Device health",
   state_history: "State history",
   color_history: "Colour history",
-  location: "Location",
+  location: "GPS map",
   alerts: "Alerts",
   text: "Text",
 }
@@ -90,6 +90,8 @@ export function newWidget(type: DashboardWidget["type"]): DashboardWidget {
     config:
       type === "controls"
         ? { sources: [], columns: "auto" }
+        : type === "location"
+          ? { sources: [], location_device_uuids: [], show_trails: true, show_labels: true, trail_window: "24h" }
         : type === "gauge"
           ? { sources: [], min: 0, max: 100 }
           : type === "text"
@@ -131,7 +133,9 @@ export function thresholdError(source: DashboardSource): string | null {
 }
 export function widgetError(widget: DashboardWidget): string | null {
   if (!widget.title.trim()) return "Enter a panel title."
-  if (widget.type === "location" || widget.type === "alerts") return widget.config.workflow_uuid ? null : "Choose a workflow."
+  if (widget.type === "location")
+    return widget.config.location_device_uuids?.length || widget.config.workflow_uuid ? null : "Choose at least one GPS device."
+  if (widget.type === "alerts") return widget.config.workflow_uuid ? null : "Choose a workflow."
   if (widget.type === "text")
     return widget.config.text?.trim() ? null : "Enter the panel text."
   if (widget.type === "device_health") {
@@ -410,6 +414,7 @@ export function responsiveLayouts(layouts: DashboardLayout): DashboardLayout {
 export function appendLayout(
   layouts: DashboardLayout,
   id: string,
+  placement: "available" | "bottom" = "available",
 ): DashboardLayout {
   const entries = Object.keys(layouts).length
     ? Object.entries(layouts)
@@ -423,6 +428,10 @@ export function appendLayout(
         ] ?? 12
       const w = Math.max(1, Math.floor(cols / 2)),
         h = 6
+      if (placement === "bottom") {
+        const y = Math.max(0, ...existing.map((item) => item.y + item.h))
+        return [key, [...existing, { i: id, x: 0, y, w, h }]]
+      }
       const rows = [
         ...new Set([0, ...existing.map((item) => item.y + item.h)]),
       ].sort((a, b) => a - b)

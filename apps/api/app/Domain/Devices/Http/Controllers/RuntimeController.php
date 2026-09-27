@@ -71,7 +71,7 @@ final class RuntimeController
     public function event(Request $request): array
     {
         $event = $request->validate(['uuid' => ['required', 'uuid'], 'type' => ['required', Rule::in([
-            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1', 'workflow.deployment.v1', 'workflow.suspended.v1', 'workflow.transition.v1',
+            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1', 'workflow.deployment.v1', 'workflow.suspended.v1', 'workflow.transition.v1', 'workflow.membership.v1',
         ])], 'payload' => ['required', 'array']]);
 
         return DB::transaction(function () use ($event): array {

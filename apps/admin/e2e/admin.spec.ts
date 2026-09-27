@@ -689,7 +689,9 @@ test("shows an error when the role permission catalog cannot be loaded", async (
   await expect(page.getByRole("alert")).toContainText("Could not load this role")
   await expect(page.getByRole("link", { name: "Back to Roles" })).toBeVisible()
 
-  expect(consoleMessages).toHaveLength(2)
+  // Development StrictMode may request twice; the served production build requests once.
+  expect(consoleMessages.length).toBeGreaterThanOrEqual(1)
+  expect(consoleMessages.length).toBeLessThanOrEqual(2)
   expect(
     consoleMessages.every((message) =>
       message.includes("Failed to load resource: the server responded with a status of 500 (Internal Server Error)"),

@@ -122,9 +122,10 @@ type Transition struct {
 	OccurredAt       time.Time `json:"occurred_at"`
 }
 type Result struct {
-	State      State       `json:"state"`
-	Reason     string      `json:"reason"`
-	Transition *Transition `json:"transition"`
+	State                State       `json:"state"`
+	Reason               string      `json:"reason"`
+	Transition           *Transition `json:"transition"`
+	MembershipTransition *Transition `json:"membership_transition,omitempty"`
 }
 
 func (c *Compiled) Initial() State {
@@ -150,6 +151,7 @@ func (c *Compiled) Step(previous State, event *devices.CommittedTelemetry, at ti
 		return Result{}, fmt.Errorf("invalid serialized rule state")
 	}
 	s := previous
+	previousCondition := previous.Condition
 	s.EvaluatedAt = at
 	result := Result{State: s, Reason: "timer"}
 	p := c.definition.Policy
@@ -223,6 +225,11 @@ func (c *Compiled) Step(previous State, event *devices.CommittedTelemetry, at ti
 			s.Samples++
 			result.Reason = "outside_pending"
 		}
+		if previousCondition == "inside" && s.Condition == "outside" {
+			result.MembershipTransition = c.membershipTransition(s, "exited", at)
+		} else if previousCondition == "outside" && s.Condition == "inside" {
+			result.MembershipTransition = c.membershipTransition(s, "entered", at)
+		}
 	}
 	if s.Condition == "outside" && !s.Active && s.OutsideSince != nil && s.Samples >= p.MinimumSamples && s.ExpiresAt != nil && !at.After(*s.ExpiresAt) {
 		due := s.OutsideSince.Add(time.Duration(p.OutsideForSeconds) * time.Second)
@@ -238,6 +245,13 @@ func (c *Compiled) Step(previous State, event *devices.CommittedTelemetry, at ti
 	}
 	result.State = s
 	return result, nil
+}
+func (c *Compiled) membershipTransition(s State, kind string, at time.Time) *Transition {
+	d := c.definition
+	return &Transition{SchemaVersion: "geofence-transition.v1", ID: hash([]byte(fmt.Sprintf("%s:%s:%s", c.Hash, s.LastEventID, kind))), Type: kind,
+		RuleUUID: d.UUID, VersionUUID: d.VersionUUID, DefinitionHash: c.Hash, OrganizationUUID: d.Binding.OrganizationUUID,
+		DeviceUUID: d.Binding.DeviceUUID, BindingUUID: d.Binding.UUID, BindingRevision: d.Binding.Revision,
+		Episode: s.Episode, EventID: s.LastEventID, OccurredAt: at}
 }
 func (c *Compiled) transition(s State, kind string, at time.Time) *Transition {
 	d := c.definition

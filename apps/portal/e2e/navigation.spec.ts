@@ -85,7 +85,7 @@ test("desktop navigation collapses to icon tooltips", async ({ page }) => {
   const labels = sidebar
     .getByRole("navigation", { name: "Workspace" })
     .locator('[data-sidebar="menu-button"] > span')
-  await expect(labels).toHaveCount(7)
+  await expect(labels).toHaveCount(8)
   for (const label of await labels.all()) {
     await expect(label).toHaveCSS("position", "absolute")
     await expect(label).toHaveCSS("width", "1px")

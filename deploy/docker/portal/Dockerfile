@@ -23,9 +23,13 @@ ARG VITE_API_URL=http://localhost:8001
 ENV VITE_API_URL=${VITE_API_URL}
 ARG VITE_ADMIN_URL=http://localhost:5174
 ENV VITE_ADMIN_URL=${VITE_ADMIN_URL}
+ARG VITE_MAP_STYLE_URL
+ENV VITE_MAP_STYLE_URL=${VITE_MAP_STYLE_URL}
 RUN pnpm --filter @iot-os/portal build
 
 FROM nginx:1.29-alpine
+RUN apk add --no-cache jq
+COPY --chmod=755 deploy/docker/web/runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
 
 COPY deploy/docker/admin/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /workspace/apps/portal/dist /usr/share/nginx/html

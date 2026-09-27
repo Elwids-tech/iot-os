@@ -11,6 +11,7 @@ use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Devices\Services\BrokerProvisioner;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
+use App\Support\DemoEnvironment;
 use Database\Seeders\GpsUseCaseSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -24,8 +25,8 @@ final class PrepareDeviceSimulator extends Command
 
     public function handle(): int
     {
-        if (! app()->environment(['local', 'testing'])) {
-            $this->error('Simulator setup is restricted to local and testing environments.');
+        if (! DemoEnvironment::allowed()) {
+            $this->error('Simulator setup is restricted to local/testing or explicitly enabled staging environments.');
 
             return self::FAILURE;
         }

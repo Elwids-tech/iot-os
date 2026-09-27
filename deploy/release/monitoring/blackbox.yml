@@ -1,0 +1,12 @@
+modules:
+  http_ok:
+    prober: http
+    timeout: 5s
+    http:
+      preferred_ip_protocol: ip4
+  mqtt_tls:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      tls: true
+      preferred_ip_protocol: ip4

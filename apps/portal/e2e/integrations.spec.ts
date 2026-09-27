@@ -170,7 +170,7 @@ async function create(page: Page) {
     "Device details",
     "Telemetry and location",
     "Alerts",
-    "Alert event feed",
+    "Alert and geofence event feed",
   ])
     await page.getByRole("checkbox", { name, exact: true }).check();
   await page.getByRole("combobox", { name: "Add a device" }).click();

@@ -182,6 +182,16 @@ describe("configuration and layout", () => {
     expect(original.lg).toHaveLength(1);
     expect(cleanLayouts(next)).toEqual(next);
   });
+  it("adds below all panels at every breakpoint even when earlier gaps exist", () => {
+    const layouts = {
+      lg: [{ i: "one", x: 0, y: 20, w: 6, h: 6 }],
+      xs: [{ i: "one", x: 0, y: 40, w: 1, h: 8 }],
+    };
+    const result = appendLayout(layouts, "two", "bottom");
+    expect(result.lg?.[1]).toEqual({ i: "two", x: 0, y: 26, w: 6, h: 6 });
+    expect(result.xs?.[1]).toEqual({ i: "two", x: 0, y: 48, w: 1, h: 6 });
+    expect(layouts.lg).toHaveLength(1);
+  });
 });
 it("bounds concurrent requests and removes aborted queued work", async () => {
   const run = createRequestQueue(1),
@@ -268,13 +278,15 @@ it("expires location while refresh is paused and preserves unknown accuracy", ()
   stopped.snapshot!.execution.enabled = false;
   expect(locationPresentation(stopped, now).point).toBeNull();
 });
-it("requires a workflow for location and alert panels", () => {
-  for (const type of ["location", "alerts"] as const) {
-    const widget = newWidget(type);
-    expect(widgetError(widget)).toBe("Choose a workflow.");
-    widget.config.workflow_uuid = "workflow";
-    expect(widgetError(widget)).toBeNull();
-  }
+it("requires GPS devices for maps and a workflow for alert panels", () => {
+  const location = newWidget("location");
+  expect(widgetError(location)).toBe("Choose at least one GPS device.");
+  location.config.location_device_uuids = ["device"];
+  expect(widgetError(location)).toBeNull();
+  const alerts = newWidget("alerts");
+  expect(widgetError(alerts)).toBe("Choose a workflow.");
+  alerts.config.workflow_uuid = "workflow";
+  expect(widgetError(alerts)).toBeNull();
 });
 
 describe("new panel types", () => {
