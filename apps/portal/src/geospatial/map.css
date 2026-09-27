@@ -3,6 +3,6 @@
 .location-map-marker[data-selected="true"]{outline:3px solid color-mix(in srgb,var(--marker-color),transparent 45%);outline-offset:2px}
 .location-map-marker[data-label]::after{content:attr(data-label);position:absolute;left:1.1rem;top:-.35rem;white-space:nowrap;border-radius:.25rem;background:rgb(0 0 0/75%);color:white;padding:.125rem .375rem;font-size:.75rem}
 .geofence-vertex{position:absolute;width:.9rem;height:.9rem;border-radius:9999px;background:#16a34a;cursor:pointer}
-.geofence-vertex::before{position:absolute;top:50%;left:50%;width:1.65rem;height:1.65rem;transform:translate(-50%,-50%);border:2px solid #2563eb;border-radius:9999px;background:rgb(37 99 235/12%);content:"";opacity:0;pointer-events:none;transition:opacity 120ms ease}
+.geofence-vertex::before{position:absolute;top:50%;left:50%;width:1.65rem;height:1.65rem;transform:translate(-50%,-50%);border:2px solid var(--ring);border-radius:9999px;background:color-mix(in srgb,var(--ring) 12%,transparent);content:"";opacity:0;pointer-events:none;transition:opacity 120ms ease}
 .geofence-vertex:hover::before,.geofence-vertex[data-selected="true"]::before{opacity:1}
-.geofence-vertex[data-selected="true"]{z-index:1;background:#2563eb;outline:2px solid white;outline-offset:1px}
+.geofence-vertex[data-selected="true"]{z-index:1;background:var(--ring);outline:2px solid white;outline-offset:1px}
