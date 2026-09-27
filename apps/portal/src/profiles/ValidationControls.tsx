@@ -21,7 +21,6 @@ import {
 import { JsonEditor } from "@iot-os/ui/components/json-editor"
 import { Choice, TextField, RequestError, Confirm } from "../components/forms"
 import {
-  jsonText,
   objectValue,
   rangeRule,
   readValidation,
@@ -129,10 +128,7 @@ export function ValidationControls({
                 { value: "options", label: "Allowed values (required)" },
                 ...(inferred.mode === "custom"
                   ? [
-                      {
-                        value: "custom",
-                        label: "Advanced JSON Logic",
-                      },
+                      { value: "custom", label: "Custom rule" },
                     ]
                   : []),
               ]
@@ -142,8 +138,8 @@ export function ValidationControls({
                   ? [{ value: "range", label: "Number range" }]
                   : []),
                 { value: "options", label: "Allowed values" },
-                { value: "conditions", label: "All / any conditions" },
-                { value: "custom", label: "Advanced JSON Logic" },
+                { value: "conditions", label: "All or any conditions" },
+                { value: "custom", label: "Custom rule" },
               ]
         }
         onChange={(next) =>
@@ -296,12 +292,12 @@ export function ValidationControls({
           <Alert>
             <AlertTitle>Custom validation is preserved</AlertTitle>
             <AlertDescription>
-              This expression is outside the guided builder. Edit its JSON
-              directly, or explicitly replace it with a guided constraint.
+              The guided options can't show this rule. Edit its JSON, or choose
+              another option to replace it.
             </AlertDescription>
           </Alert>
           <JsonEditor
-            label="Validation JSON Logic"
+            label="Custom rule (JSON Logic)"
             value={text}
             onChange={onChange}
             readOnly={disabled}
@@ -311,7 +307,9 @@ export function ValidationControls({
       {mode !== "none" && inferred.mode !== "custom" && (
         <>
           <TextField
-            label="Diagnostic code"
+            title="diagnostic_code"
+            label="Issue code"
+            className="font-mono"
             value={String(metadata.diagnostic_code ?? "")}
             disabled={disabled}
             onChange={(event) =>
@@ -321,13 +319,14 @@ export function ValidationControls({
             }
           />
           <TextField
-            label="Validation message"
+            title="message"
+            label="Message"
             value={String(metadata.message ?? "")}
             disabled={disabled}
             onChange={(event) =>
               onChange(updateConfig(text, "message", event.target.value))
             }
-            help="Explain the acceptable value in plain language."
+            help="Shown when a value is rejected."
           />
         </>
       )}

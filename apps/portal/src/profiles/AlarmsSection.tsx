@@ -2,21 +2,16 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import type { AuthoringAlarm } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import { Badge } from "@iot-os/ui/components/badge"
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@iot-os/ui/components/card"
+  Table,
+  TableHeader,
+  TableHead,
+  TableRow,
+  TableBody,
+  TableCell,
+} from "@iot-os/ui/components/table"
 import { FieldGroup, Field, FieldLabel } from "@iot-os/ui/components/field"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
-import {
-  Alert,
-  AlertTitle,
-  AlertDescription,
-} from "@iot-os/ui/components/alert"
 import {
   Accordion,
   AccordionItem,
@@ -24,7 +19,7 @@ import {
   AccordionContent,
 } from "@iot-os/ui/components/accordion"
 import { JsonEditor } from "@iot-os/ui/components/json-editor"
-import { PlusIcon, Trash2Icon, PencilIcon } from "lucide-react"
+import { PlusIcon, Trash2Icon } from "lucide-react"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
 import {
@@ -37,7 +32,8 @@ import {
   Confirm,
   parseObject,
 } from "../components/forms"
-import { jsonText, objectValue, updateConfig } from "./authoring"
+import { jsonText, kindLabel, objectValue, updateConfig } from "./authoring"
+import { plural } from "./ProfileDirectory"
 import { useStudio } from "./use-studio"
 import { ConflictReview } from "./ConflictReview"
 export function AlarmsSection() {
@@ -51,80 +47,112 @@ export function AlarmsSection() {
     studio.capabilities.update &&
     studio.profile.status !== "archived" &&
     !studio.blocked
+  const labels = new Map(
+    studio.profile.parameters.map((item) => [item.uuid, item.label]),
+  )
+  const templates = studio.profile.alarm_templates
   return (
-    <div className="flex flex-col gap-5">
-      <Alert>
-        <AlertTitle>Reusable suggestions, not live alarms</AlertTitle>
-        <AlertDescription>
-          Templates describe suggested alarm behavior. They do not activate
-          rules, thresholds, or notifications on devices.
-        </AlertDescription>
-      </Alert>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle>Alarm templates</CardTitle>
-              <CardDescription>
-                Optional suggestions that travel with a published profile.
-              </CardDescription>
-            </div>
-            {canEdit && (
-              <Button disabled={studio.busy} onClick={() => setEditing("new")}>
-                <PlusIcon data-icon="inline-start" />
-                Add alarm template
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {!studio.profile.alarm_templates.length && (
-            <p className="text-sm text-muted-foreground">
-              No alarm templates yet. A profile can be published without any.
-            </p>
-          )}
-          {studio.profile.alarm_templates.map((alarm) => (
-            <div
-              key={alarm.uuid}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
-            >
-              <div className="flex flex-col gap-2">
-                <p className="font-medium">{alarm.name}</p>
-                <div className="flex gap-2">
-                  <Badge variant="secondary">{alarm.type}</Badge>
-                  <Badge variant="outline">{alarm.severity}</Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {alarm.parameter_references.length} parameter references ·{" "}
-                  {alarm.enabled_by_default
-                    ? "Suggested by default"
-                    : "Optional suggestion"}
-                </p>
-              </div>
-              <div className="flex gap-1">
-                <Button variant="outline" onClick={() => setEditing(alarm)}>
-                  <PencilIcon data-icon="inline-start" />
-                  {canEdit ? "Edit" : "Inspect"}
-                </Button>
-                {canEdit && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label={"Delete " + alarm.name}
-                    disabled={studio.busy}
-                    onClick={() => {
-                      setDeletionRevision(studio.profile.draft_revision)
-                      setDeleting(alarm)
-                    }}
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {plural(templates.length, "template")}
+        </span>
+        {canEdit && (
+          <Button
+            className="ml-auto"
+            disabled={studio.busy}
+            onClick={() => setEditing("new")}
+          >
+            <PlusIcon data-icon="inline-start" />
+            Add alarm template
+          </Button>
+        )}
+      </div>
+      {!templates.length ? (
+        <p className="text-sm text-muted-foreground">
+          No alarm templates yet. A profile can be published without any.
+        </p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Template</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Subject</TableHead>
+              <TableHead>Condition</TableHead>
+              <TableHead>Suggested severity</TableHead>
+              <TableHead>On by default</TableHead>
+              <TableHead>
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {templates.map((alarm) => {
+              const age = alarm.condition_config.max_age_seconds
+              const condition =
+                alarm.type === "staleness" && typeof age === "number"
+                  ? "Older than " + age + " s"
+                  : JSON.stringify(alarm.condition_config)
+              return (
+                <TableRow key={alarm.uuid}>
+                  <TableCell className="max-w-72 truncate">{alarm.name}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {kindLabel(alarm.type)}
+                  </TableCell>
+                  <TableCell className="max-w-60 truncate text-muted-foreground">
+                    {alarm.parameter_references
+                      .map((item) => labels.get(item.parameter_uuid) ?? "Missing parameter")
+                      .join(", ")}
+                  </TableCell>
+                  <TableCell
+                    className="max-w-60 truncate font-mono text-xs text-muted-foreground"
+                    title={condition}
                   >
-                    <Trash2Icon />
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+                    {condition}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {alarm.severity}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {alarm.enabled_by_default ? "Yes" : "No"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditing(alarm)}
+                      >
+                        {canEdit ? "Edit" : "Inspect"}
+                      </Button>
+                      {canEdit && (
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={"Delete " + alarm.name}
+                          disabled={studio.busy}
+                          onClick={() => {
+                            setDeletionRevision(studio.profile.draft_revision)
+                            setDeleting(alarm)
+                          }}
+                        >
+                          <Trash2Icon />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Templates are suggestions that travel with the profile. They don't
+        create workflow alerts, and workflow alerts don't use suggested
+        severity.
+      </p>
       {editing && (
         <AlarmEditor
           alarm={editing === "new" ? null : editing}
@@ -134,7 +162,7 @@ export function AlarmsSection() {
       <Confirm
         open={Boolean(deleting)}
         title="Delete this alarm template?"
-        description="The suggestion will be removed from your draft. Published revisions remain unchanged."
+        description="It's removed from the draft. Published revisions don't change."
         onClose={() => setDeleting(null)}
         onRefresh={studio.reload}
         onConfirm={async () => {
@@ -188,7 +216,7 @@ function AlarmEditor({
   return (
     <EditorSheet
       title={alarm ? "Edit alarm template" : "Add alarm template"}
-      description="Define a reusable suggestion. No live rule or notification will be created."
+      description="A suggestion saved with the profile. It doesn't create alerts."
       dirty={form.formState.isDirty}
       busy={form.formState.isSubmitting}
       onClose={onClose}
@@ -237,7 +265,7 @@ function AlarmEditor({
               label="Template type"
               required
               disabled={disabled}
-              help="Staleness has a guided duration field. Other template types retain their custom condition JSON."
+              help="Staleness has a duration field. Other types keep their condition JSON."
               {...form.register("type")}
             />
             <Choice

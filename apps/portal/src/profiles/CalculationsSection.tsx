@@ -8,13 +8,14 @@ import type {
 } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@iot-os/ui/components/card"
-import { Badge } from "@iot-os/ui/components/badge"
+  Table,
+  TableHeader,
+  TableHead,
+  TableRow,
+  TableBody,
+  TableCell,
+} from "@iot-os/ui/components/table"
+import { cn } from "@iot-os/ui/lib/utils"
 import { FieldGroup, FieldDescription } from "@iot-os/ui/components/field"
 import {
   Alert,
@@ -34,7 +35,7 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from "@iot-os/ui/components/empty"
-import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react"
+import { PlusIcon, Trash2Icon } from "lucide-react"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
 import {
@@ -46,7 +47,8 @@ import {
   Confirm,
   parseObject,
 } from "../components/forms"
-import { isArithmetic, jsonText } from "./authoring"
+import { formulaText, isArithmetic, jsonText } from "./authoring"
+import { plural } from "./ProfileDirectory"
 import { useStudio } from "./use-studio"
 import { ConflictReview } from "./ConflictReview"
 export function CalculationsSection() {
@@ -63,135 +65,158 @@ export function CalculationsSection() {
     studio.capabilities.update &&
     studio.profile.status !== "archived" &&
     !studio.blocked
+  const labels = new Map(
+    studio.profile.parameters.map((item) => [item.uuid, item.label]),
+  )
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle>Derived calculations</CardTitle>
-            <CardDescription>
-              To change the units of an incoming measurement, configure its
-              incoming conversion. To create another value, add a calculation.
-            </CardDescription>
-          </div>
-          {canEdit && (
-            <Button disabled={studio.busy} onClick={() => setEditing("new")}>
-              <PlusIcon data-icon="inline-start" />
-              Add calculation
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {!derived.length && (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>Create a calculated output</EmptyTitle>
-              <EmptyDescription>
-                Add calculation creates an output and its formula together.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        )}
-        {derived.map((parameter) => (
-          <div
-            key={parameter.uuid}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {plural(derived.length, "derived parameter")}
+        </span>
+        {canEdit && (
+          <Button
+            className="ml-auto"
+            disabled={studio.busy}
+            onClick={() => setEditing("new")}
           >
-            <div className="flex flex-col gap-2">
-              <p className="font-medium">{parameter.label}</p>
-              <p className="text-sm text-muted-foreground">
-                {parameter.calculation
-                  ? parameter.calculation.inputs
-                      .map(
-                        (input) =>
-                          input.alias +
-                          " ← " +
-                          (studio.profile.parameters.find(
-                            (item) => item.uuid === input.parameter_uuid,
-                          )?.label ?? "Missing parameter"),
-                      )
-                      .join(" · ")
-                  : "No calculation configured yet"}
-              </p>
-              <Badge variant="secondary">
-                {parameter.calculation
-                  ? "On input change · mark invalid on failure"
-                  : "Needs a formula"}
-              </Badge>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                disabled={studio.busy}
-                onClick={() => setEditing(parameter)}
-              >
-                <PencilIcon data-icon="inline-start" />
-                {canEdit
-                  ? parameter.calculation
-                    ? "Edit"
-                    : "Configure"
-                  : "Inspect"}
-              </Button>
-              {parameter.calculation && canEdit && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={"Delete calculation for " + parameter.label}
-                  disabled={studio.busy}
-                  onClick={() => {
-                    setDeletionRevision(studio.profile.draft_revision)
-                    setDeleting(parameter)
-                  }}
-                >
-                  <Trash2Icon />
-                </Button>
-              )}
-            </div>
-          </div>
-        ))}
-        {editing && (
-          <CalculationEditor
-            target={editing === "new" ? null : editing}
-            onClose={() => setEditing(null)}
-          />
+            <PlusIcon data-icon="inline-start" />
+            Add calculation
+          </Button>
         )}
-        <Confirm
-          open={Boolean(deleting)}
-          title="Delete this calculation?"
-          description="The derived parameter stays in your draft. It will need another formula before publishing."
-          onClose={() => setDeleting(null)}
-          onRefresh={studio.reload}
-          onConfirm={async () => {
-            if (deleting)
-              await studio.perform(() =>
-                api.deleteProfileCalculation(
-                  studio.org,
-                  studio.profile.uuid,
-                  deleting.uuid,
-                  deletionRevision,
-                ),
+      </div>
+      {!derived.length ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>No calculations yet</EmptyTitle>
+            <EmptyDescription>
+              A calculation creates a derived parameter from other parameters.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Result parameter</TableHead>
+              <TableHead>Formula</TableHead>
+              <TableHead>Inputs</TableHead>
+              <TableHead>Runs</TableHead>
+              <TableHead>On failure</TableHead>
+              <TableHead>
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {derived.map((parameter) => {
+              const calculation = parameter.calculation
+              return (
+                <TableRow key={parameter.uuid}>
+                  <TableCell>{parameter.label}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "max-w-80 truncate",
+                      calculation ? "font-mono text-xs" : "text-muted-foreground",
+                    )}
+                  >
+                    {calculation
+                      ? (formulaText(calculation.expression) ?? "Custom formula")
+                      : "No calculation configured yet"}
+                  </TableCell>
+                  <TableCell
+                    className="max-w-80 truncate text-muted-foreground"
+                    title={calculation?.inputs
+                      .map((input) => input.alias + " = " + (labels.get(input.parameter_uuid) ?? "Missing parameter"))
+                      .join(", ")}
+                  >
+                    {calculation?.inputs
+                      .map((input) => labels.get(input.parameter_uuid) ?? "Missing parameter")
+                      .join(", ")}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {calculation && "On input change"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {calculation && "Mark invalid"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={studio.busy}
+                        aria-label={
+                          (canEdit ? (calculation ? "Edit" : "Configure") : "Inspect") +
+                          " calculation for " +
+                          parameter.label
+                        }
+                        onClick={() => setEditing(parameter)}
+                      >
+                        {canEdit ? (calculation ? "Edit" : "Configure") : "Inspect"}
+                      </Button>
+                      {calculation && canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={"Delete calculation for " + parameter.label}
+                          disabled={studio.busy}
+                          onClick={() => {
+                            setDeletionRevision(studio.profile.draft_revision)
+                            setDeleting(parameter)
+                          }}
+                        >
+                          <Trash2Icon />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
               )
-          }}
+            })}
+          </TableBody>
+        </Table>
+      )}
+      {editing && (
+        <CalculationEditor
+          target={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
         />
-      </CardContent>
-    </Card>
+      )}
+      <Confirm
+        open={Boolean(deleting)}
+        title="Delete this calculation?"
+        description="The derived parameter stays in the draft. It needs a new formula before you publish."
+        onClose={() => setDeleting(null)}
+        onRefresh={studio.reload}
+        onConfirm={async () => {
+          if (deleting)
+            await studio.perform(() =>
+              api.deleteProfileCalculation(
+                studio.org,
+                studio.profile.uuid,
+                deleting.uuid,
+                deletionRevision,
+              ),
+            )
+        }}
+      />
+    </div>
   )
 }
+/** Operand names follow their position: "Operand 1", then "Operand 1.2" inside it (P8). */
 function ArithmeticNode({
   value,
   aliases,
   onChange,
   disabled,
-  depth = 0,
-  root = false,
+  path = [],
 }: {
   value: JsonValue
   aliases: string[]
   onChange: (value: JsonValue) => void
   disabled: boolean
-  depth?: number
-  root?: boolean
+  path?: number[]
 }) {
   const kind =
     typeof value === "number"
@@ -205,12 +230,14 @@ function ArithmeticNode({
   const node = value as JsonObject,
     operator = kind === "operation" ? Object.keys(node)[0] : "+"
   const operands = kind === "operation" ? (node[operator] as JsonValue[]) : []
+  const root = !path.length,
+    name = root ? "Formula" : "Operand " + path.map((index) => index + 1).join(".")
   return (
-    <FieldGroup className="rounded-lg border p-3">
+    <FieldGroup className={cn("gap-4", !root && "border-l pl-3")}>
       <Choice
-        label={root ? "Formula output" : "Operand type"}
+        label={name}
         value={kind}
-        disabled={disabled || depth > 15}
+        disabled={disabled || path.length > 15}
         options={[
           { value: "input", label: "Parameter input" },
           ...(!root ? [{ value: "constant", label: "Constant number" }] : []),
@@ -228,7 +255,7 @@ function ArithmeticNode({
       />
       {kind === "constant" ? (
         <TextField
-          label="Constant value"
+          label={name + " value"}
           type="number"
           step="any"
           value={value as number}
@@ -237,7 +264,7 @@ function ArithmeticNode({
         />
       ) : kind === "input" ? (
         <Choice
-          label="Named input"
+          label={name + " input"}
           value={String(node.var)}
           disabled={disabled}
           options={Array.from(new Set([...aliases, String(node.var)])).map(
@@ -253,7 +280,7 @@ function ArithmeticNode({
       ) : (
         <>
           <Choice
-            label="Operation"
+            label={root ? "Operation" : name + " operation"}
             value={operator}
             disabled={disabled}
             options={[
@@ -270,7 +297,7 @@ function ArithmeticNode({
                 value={operand}
                 aliases={aliases}
                 disabled={disabled}
-                depth={depth + 1}
+                path={[...path, index]}
                 onChange={(next) =>
                   onChange({
                     [operator]: operands.map((item, i) =>
@@ -283,6 +310,7 @@ function ArithmeticNode({
                 <Button
                   type="button"
                   variant="ghost"
+                  className="self-start"
                   disabled={disabled}
                   onClick={() =>
                     onChange({
@@ -290,7 +318,7 @@ function ArithmeticNode({
                     })
                   }
                 >
-                  Remove operand {index + 1}
+                  Remove operand {[...path, index].map((i) => i + 1).join(".")}
                 </Button>
               )}
             </div>
@@ -299,10 +327,11 @@ function ArithmeticNode({
             <Button
               type="button"
               variant="outline"
+              className="self-start"
               disabled={disabled || operands.length >= 100}
               onClick={() => onChange({ [operator]: [...operands, 0] })}
             >
-              Add operand
+              {root ? "Add operand" : "Add operand to " + name.toLowerCase()}
             </Button>
           )}
         </>
@@ -373,7 +402,7 @@ function CalculationEditor({
   return (
     <EditorSheet
       title={target?.calculation ? "Edit calculation" : "Configure calculation"}
-      description="Create an output or choose an existing derived parameter, then define its inputs and formula. Published revisions remain unchanged."
+      description="Choose the result, name its inputs, then build the formula."
       dirty={dirty}
       busy={form.formState.isSubmitting}
       onClose={onClose}
@@ -514,7 +543,10 @@ function CalculationEditor({
               />
             )}
             {values.inputs.map((input, index) => (
-              <FieldGroup key={index} className="rounded-lg border p-3">
+              <FieldGroup
+                key={index}
+                className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_10rem_auto]"
+              >
                 <Choice
                   label={"Source parameter " + (index + 1)}
                   value={input.parameter_uuid}
@@ -544,8 +576,8 @@ function CalculationEditor({
                   label={"Input alias " + (index + 1)}
                   required
                   value={input.alias}
+                  className="font-mono"
                   disabled={disabled}
-                  help="Use this exact name in the formula. Renaming an alias does not rewrite custom expressions."
                   onChange={(event) =>
                     setInputs(
                       values.inputs.map((item, i) =>
@@ -558,19 +590,27 @@ function CalculationEditor({
                 />
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
+                  aria-label={"Remove input " + (index + 1)}
                   disabled={disabled}
                   onClick={() =>
                     setInputs(values.inputs.filter((_, i) => i !== index))
                   }
                 >
-                  Remove input
+                  Remove
                 </Button>
               </FieldGroup>
             ))}
+            {values.inputs.length > 0 && (
+              <FieldDescription>
+                Use each alias as a name in the formula. Renaming an alias
+                doesn't change custom formulas.
+              </FieldDescription>
+            )}
             <Button
               type="button"
               variant="outline"
+              className="self-start"
               disabled={disabled || values.inputs.length >= 100}
               onClick={() =>
                 setInputs([
@@ -594,7 +634,6 @@ function CalculationEditor({
               <TabsContent value="builder">
                 {supported && (
                   <ArithmeticNode
-                    root
                     value={expression}
                     aliases={values.inputs.map((item) => item.alias)}
                     disabled={disabled}
@@ -632,8 +671,7 @@ function CalculationEditor({
               </TabsContent>
             </Tabs>
             <FieldDescription>
-              Test with sample inputs before saving. Samples are never persisted
-              and do not query devices.
+              Samples are only used for this test. They aren't saved.
             </FieldDescription>
             {values.inputs.map((input, index) => (
               <TextField

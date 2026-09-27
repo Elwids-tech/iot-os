@@ -7,16 +7,34 @@ async function choose(page: Page, label: string, option: string) {
   await page.getByRole("combobox", { name: label, exact: true }).click()
   await page.getByRole("option", { name: option, exact: true }).click()
 }
+async function openProfiles(page: Page) {
+  await page
+    .getByRole("navigation", { name: "Workspace" })
+    .getByRole("link", { name: "Device profiles", exact: true })
+    .click()
+  await expect(
+    page.getByRole("heading", { name: "Device profiles", exact: true }),
+  ).toBeVisible()
+}
+async function switchOrganization(page: Page, name: string) {
+  await page.getByRole("button", { name: /^Organization: / }).click()
+  await page.getByRole("menuitemradio", { name, exact: true }).click()
+}
+async function userMenu(page: Page, user: string) {
+  await page.getByRole("button", { name: user }).click()
+}
+async function signOut(page: Page, user: string) {
+  await userMenu(page, user)
+  await page.getByRole("menuitem", { name: "Sign out", exact: true }).click()
+}
 async function login(page: Page) {
   await page.goto("/")
   await expect(page).toHaveTitle(/IoT/i)
   await page.getByLabel("Email address").fill("shared.operator@example.test")
   await page.getByLabel("Password", { exact: true }).fill("password")
   await page.getByRole("button", { name: "Sign in", exact: true }).click()
-  await choose(page, "Organization", "Acme Manufacturing")
-  await expect(
-    page.getByRole("heading", { name: "Device profiles", exact: true }),
-  ).toBeVisible()
+  await page.getByRole("link", { name: /Acme Manufacturing/ }).click()
+  await openProfiles(page)
 }
 function resource(page: Page) {
   const match = new URL(page.url()).pathname.match(
@@ -65,9 +83,9 @@ async function addParameter(
   kind = "Measurement",
 ) {
   await page.getByRole("button", { name: "Add parameter", exact: true }).click()
-  await page.getByLabel("Parameter label", { exact: true }).fill(label)
-  await page.getByLabel("Stable key").fill(key)
-  if (kind !== "Measurement") await choose(page, "Parameter kind", kind)
+  await page.getByLabel("Label", { exact: true }).fill(label)
+  await page.getByLabel("Key", { exact: true }).fill(key)
+  if (kind !== "Measurement") await choose(page, "Kind", kind)
 }
 async function saveParameter(page: Page, existing = false) {
   await page
@@ -81,8 +99,8 @@ async function saveParameter(page: Page, existing = false) {
 }
 async function section(page: Page, name: string) {
   await page
-    .getByRole("navigation", { name: "Profile sections" })
-    .getByRole("link", { name, exact: true })
+    .getByRole("tablist", { name: "Profile sections" })
+    .getByRole("tab", { name, exact: true })
     .click()
 }
 async function screenshot(page: Page, info: TestInfo, name: string) {
@@ -155,7 +173,7 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
   await saved(page)
   await addParameter(page, "Voltage", "voltage")
   await choose(page, "Group", "Electrical")
-  await page.getByLabel("Engineering unit").fill("V")
+  await page.getByLabel("Stored unit").fill("V")
   await page.getByRole("tab", { name: "Validation", exact: true }).click()
   await choose(page, "Value constraints", "Number range")
   await page.getByLabel("Maximum (inclusive)").fill("480")
@@ -169,18 +187,13 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
   await saveParameter(page)
   await section(page, "Calculations")
   await page.getByRole("button", { name: "Add calculation" }).click()
+  await choose(page, "Output", "Use existing derived parameter")
   await page.getByRole("button", { name: "Add named input" }).click()
   await choose(page, "Source parameter 1", "Voltage · voltage")
   await page.getByLabel("Input alias 1", { exact: true }).fill("voltage")
   await choose(page, "Operation", "Multiply")
-  await page
-    .getByRole("combobox", { name: "Operand type", exact: true })
-    .first()
-    .click()
-  await page
-    .getByRole("option", { name: "Parameter input", exact: true })
-    .click()
-  await page.getByLabel("Constant value", { exact: true }).fill("2")
+  await choose(page, "Operand 1", "Parameter input")
+  await page.getByLabel("Operand 2 value", { exact: true }).fill("2")
   await page.getByLabel("Sample voltage (JSON)").fill("230")
   await page.getByRole("button", { name: "Test formula" }).click()
   await expect(
@@ -211,7 +224,7 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
       (item: { key: string }) => item.key === "voltage.double",
     ).calculation.inputs[0].alias,
   ).toBe("voltage")
-  await section(page, "Review & publish")
+  await section(page, "Review and publish")
   await page
     .getByRole("button", { name: "Validate draft", exact: true })
     .click()
@@ -221,17 +234,13 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
   await expect(
     page.getByRole("button", { name: "Publish revision 1", exact: true }),
   ).toBeEnabled()
-  await page
-    .getByRole("button", { name: "Inspect change", exact: true })
-    .first()
-    .click()
   await expect(
-    page.getByRole("textbox", { name: "Saved draft change", exact: true }),
+    page.getByRole("cell", { name: "Energy meter studio", exact: true }),
+  ).toBeVisible()
+  await page.getByRole("tab", { name: "JSON", exact: true }).click()
+  await expect(
+    page.getByRole("textbox", { name: "Changes as JSON", exact: true }),
   ).toContainText("Energy meter studio")
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Close", exact: true })
-    .click()
   await healthy(page)
   await screenshot(page, info, "review-before-publish")
   await page
@@ -263,7 +272,7 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
     (await (await request(page, "GET", path + "/artifacts/1")).json()).data
       .definition,
   ).toEqual(first.definition)
-  await section(page, "Review & publish")
+  await section(page, "Review and publish")
   await page
     .getByRole("button", { name: "Validate draft", exact: true })
     .click()
@@ -332,7 +341,7 @@ test("cancel, navigation protection, duplicate keys, failed saves and session re
   await page
     .getByRole("button", { name: "Edit Temperature", exact: true })
     .click()
-  await page.getByLabel("Parameter label").fill("Not saved")
+  await page.getByLabel("Label", { exact: true }).fill("Not saved")
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Close", exact: true })
@@ -344,10 +353,20 @@ test("cancel, navigation protection, duplicate keys, failed saves and session re
     .getByRole("alertdialog")
     .getByRole("button", { name: "Cancel", exact: true })
     .click()
-  await expect(page.getByLabel("Parameter label")).toHaveValue("Not saved")
+  await expect(page.getByLabel("Label", { exact: true })).toHaveValue(
+    "Not saved",
+  )
+  // Cancel asks the same question as closing the sheet (N7).
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Cancel", exact: true })
+    .click()
+  await expect(page.getByRole("alertdialog")).toContainText(
+    "Discard unsaved changes?",
+  )
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Discard changes", exact: true })
     .click()
   await expect(
     page.getByRole("button", { name: "Temperature", exact: true }),
@@ -357,15 +376,19 @@ test("cancel, navigation protection, duplicate keys, failed saves and session re
     .getByRole("dialog")
     .getByRole("button", { name: "Add parameter", exact: true })
     .click()
-  await expect(page.getByLabel("Stable key")).toHaveAttribute(
+  await expect(page.getByLabel("Key", { exact: true })).toHaveAttribute(
     "aria-invalid",
     "true",
   )
-  await expect(page.getByLabel("Stable key")).toBeFocused()
+  await expect(page.getByLabel("Key", { exact: true })).toBeFocused()
   await screenshot(page, info, "duplicate-key-error")
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Cancel", exact: true })
+    .click()
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Discard changes", exact: true })
     .click()
   await section(page, "Overview")
   await page.getByLabel("Profile name").fill("Keep this local edit")
@@ -377,12 +400,12 @@ test("cancel, navigation protection, duplicate keys, failed saves and session re
   await expect(page.getByLabel("Profile name")).toHaveValue(
     "Keep this local edit",
   )
-  await choose(page, "Organization", "Northstar Utilities")
+  await switchOrganization(page, "Northstar Utilities")
   await expect(page.getByRole("alertdialog")).toBeVisible()
   await page.getByRole("button", { name: "Keep editing", exact: true }).click()
   await expect(
-    page.getByRole("combobox", { name: "Organization" }),
-  ).toContainText("Acme Manufacturing")
+    page.getByRole("button", { name: "Organization: Acme Manufacturing" }),
+  ).toBeVisible()
   const path = resource(page)
   await page.route("**" + path, async (route) =>
     route.request().method() === "PATCH"
@@ -643,10 +666,10 @@ test("guided values and advanced JSON preserve custom configuration", async ({
   ).toBeVisible()
   await page.getByRole("tab", { name: "Advanced", exact: true }).click()
   await expect(
-    page.getByRole("textbox", { name: "validation logic", exact: true }),
+    page.getByRole("textbox", { name: "Validation rule", exact: true }),
   ).toContainText("vendor_metadata")
   await page
-    .getByRole("textbox", { name: "display config", exact: true })
+    .getByRole("textbox", { name: "Display settings", exact: true })
     .fill(JSON.stringify({ ...display, custom: { version: 2 } }))
   await page.getByRole("tab", { name: "Basics", exact: true }).click()
   await page
@@ -681,10 +704,10 @@ test("large profiles, light/dark/mobile layouts and tenant read-only permissions
   await expect(
     page.getByRole("button", { name: "Sensor 0499", exact: true }),
   ).toBeVisible()
-  await expect(page.getByText("1 parameters", { exact: true })).toBeVisible()
+  await expect(page.getByText("1 parameter", { exact: true })).toBeVisible()
   await healthy(page)
   await screenshot(page, info, "desktop-light")
-  await page.getByRole("button", { name: /theme/i }).click()
+  await userMenu(page, "Shared Operations Admin")
   await page.getByRole("menuitemradio", { name: "Dark", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(/dark/)
   await healthy(page)
@@ -701,7 +724,8 @@ test("large profiles, light/dark/mobile layouts and tenant read-only permissions
     .getByRole("dialog")
     .getByRole("button", { name: "Cancel", exact: true })
     .click()
-  await choose(page, "Organization", "Northstar Utilities")
+  await page.getByRole("button", { name: "Toggle Sidebar" }).click()
+  await switchOrganization(page, "Northstar Utilities")
   await expect(
     page.getByRole("heading", { name: "Device profiles", exact: true }),
   ).toBeVisible()
@@ -717,15 +741,16 @@ test("large profiles, light/dark/mobile layouts and tenant read-only permissions
     ).status(),
   ).toBe(403)
   await page.reload()
+  await page.getByRole("button", { name: "Toggle Sidebar" }).click()
   await expect(
-    page.getByRole("combobox", { name: "Organization", exact: true }),
-  ).toContainText("Northstar Utilities")
+    page.getByRole("button", { name: "Organization: Northstar Utilities" }),
+  ).toBeVisible()
 })
 
 test("tenant invitation acceptance for new and existing accounts", async ({
   page,
 }) => {
-  await page.getByRole("button", { name: "Sign out", exact: true }).click()
+  await signOut(page, "Shared Operations Admin")
   await expect(
     page.getByRole("button", { name: "Sign in", exact: true }),
   ).toBeVisible()
@@ -743,10 +768,11 @@ test("tenant invitation acceptance for new and existing accounts", async ({
     page.getByRole("heading", { name: "Account ready" }),
   ).toBeVisible()
   await page.getByRole("link", { name: "Open tenant portal" }).click()
+  await openProfiles(page)
   await expect(
     page.getByRole("button", { name: "New profile", exact: true }),
   ).toBeVisible()
-  await page.getByRole("button", { name: "Sign out", exact: true }).click()
+  await signOut(page, "Studio author")
   await expect(
     page.getByRole("button", { name: "Sign in", exact: true }),
   ).toBeVisible()
@@ -764,10 +790,8 @@ test("tenant invitation acceptance for new and existing accounts", async ({
     page.getByRole("heading", { name: "Account ready" }),
   ).toBeVisible()
   await page.getByRole("link", { name: "Open tenant portal" }).click()
-  await choose(page, "Organization", "Northstar Utilities")
-  await expect(
-    page.getByRole("heading", { name: "Device profiles", exact: true }),
-  ).toBeVisible()
+  await page.getByRole("link", { name: /Northstar Utilities/ }).click()
+  await openProfiles(page)
   await expect(
     page.getByRole("button", { name: "New profile", exact: true }),
   ).toHaveCount(0)
@@ -783,7 +807,7 @@ test("directory filters and safe deletion persist after reload", async ({
     page.getByRole("button", { name: "Save changes", exact: true }),
   ).toBeDisabled()
   await page
-    .getByRole("link", { name: "All device profiles", exact: true })
+    .getByRole("link", { name: "Back to Device profiles", exact: true })
     .click()
   await page.getByLabel("Search profiles").fill("Disposable")
   await page.getByLabel("Category", { exact: true }).fill("Testing")

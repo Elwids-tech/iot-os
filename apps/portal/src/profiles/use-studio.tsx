@@ -7,6 +7,7 @@ import {
 } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useParams } from "react-router-dom"
+import { PageHeader } from "@iot-os/ui/components/page-header"
 import { toast } from "sonner"
 import type {
   DeviceProfileCapabilities,
@@ -96,42 +97,53 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       setBusy(false)
     }
   }
+  const unavailable = (body: ReactNode) => (
+    <>
+      <PageHeader
+        title="Device profile"
+        back={{
+          to: "/organizations/" + organization.organizationUuid + "/device-profiles",
+          label: "Device profiles",
+        }}
+      />
+      <div className="flex flex-col gap-4 p-4 md:p-6">{body}</div>
+    </>
+  )
   if (organization.error)
-    return (
+    return unavailable(
       <RequestError error={organization.error}>
         <Button variant="outline" onClick={() => organization.refetch()}>
           Retry organization access
         </Button>
-      </RequestError>
+      </RequestError>,
     )
   if (
     organization.isPending ||
     (organization.capabilities.view && query.isPending)
   )
-    return (
+    return unavailable(
       <div className="flex flex-col gap-4" aria-label="Loading profile">
         <Skeleton className="h-12 w-72" />
         <Skeleton className="h-80 w-full" />
-      </div>
+      </div>,
     )
   if (!organization.capabilities.view)
-    return (
+    return unavailable(
       <RequestError
         error={
           new Error(
             "You do not have permission to view device profiles in this organization.",
           )
         }
-      />
+      />,
     )
   if (!query.data)
-    return (
-      <div className="flex flex-col gap-4">
-        <RequestError error={query.error} />
+    return unavailable(
+      <RequestError error={query.error}>
         <Button onClick={() => query.refetch()} variant="outline">
           Retry
         </Button>
-      </div>
+      </RequestError>,
     )
   return (
     <StudioContext.Provider
@@ -146,20 +158,22 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       }}
     >
       {Boolean(refreshError) && (
-        <RequestError
-          error={
-            new Error(
-              "Your change was saved, but the updated draft could not be loaded. Refresh before editing again.",
-            )
-          }
-        >
-          <Button
-            variant="outline"
-            onClick={() => reload().catch(setRefreshError)}
+        <div className="p-4 md:px-6">
+          <RequestError
+            error={
+              new Error(
+                "Your change was saved, but the updated draft could not be loaded. Refresh before editing again.",
+              )
+            }
           >
-            Refresh saved draft
-          </Button>
-        </RequestError>
+            <Button
+              variant="outline"
+              onClick={() => reload().catch(setRefreshError)}
+            >
+              Refresh saved draft
+            </Button>
+          </RequestError>
+        </div>
       )}
       {children}
     </StudioContext.Provider>
@@ -169,4 +183,71 @@ export function useStudio() {
   const studio = useContext(StudioContext)
   if (!studio) throw new Error("Studio provider is required.")
   return studio
+}
+/**
+ * Validation and compiled draft for the current saved draft revision. Kept in the query
+ * cache per draft revision, so switching tabs keeps it and any save makes it outdated.
+ */
+export function useProfileValidation() {
+  const { org, profile } = useStudio()
+  const cache = useQueryClient()
+  const key = [
+    "profile-validation",
+    org,
+    profile.uuid,
+    profile.draft_revision,
+  ]
+  const query = useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const validation = await api.validateDeviceProfile(
+        org,
+        profile.uuid,
+        profile.draft_revision,
+      )
+      return {
+        validation,
+        compiled: validation.valid
+          ? await api.compileDeviceProfile(
+              org,
+              profile.uuid,
+              profile.draft_revision,
+            )
+          : null,
+      }
+    },
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: 30 * 60_000,
+  })
+  return {
+    ...query,
+    ready: Boolean(
+      query.data?.compiled && profile.status === "draft",
+    ),
+    validate: () => query.refetch(),
+    clear: () => cache.removeQueries({ queryKey: key }),
+  }
+}
+/** Why Publish is unavailable, or null when it can run. */
+export function publishBlocker(
+  studio: ReturnType<typeof useStudio>,
+  check: ReturnType<typeof useProfileValidation>,
+) {
+  const { profile } = studio
+  if (!studio.capabilities.publish) return "Your role can't publish profiles"
+  if (profile.status === "archived") return "Archived profiles can't be published"
+  if (profile.status === "published") return "No unpublished changes"
+  if (studio.busy || check.isFetching) return "Wait for the current action"
+  if (studio.blocked) return "Refresh the saved draft first"
+  if (!check.data) return "Validate the saved draft first"
+  if (!check.ready)
+    return (
+      "Resolve " +
+      check.data.validation.diagnostics.length +
+      " issue" +
+      (check.data.validation.diagnostics.length === 1 ? "" : "s") +
+      " and validate again"
+    )
+  return null
 }

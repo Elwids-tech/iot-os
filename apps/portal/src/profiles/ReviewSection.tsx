@@ -1,30 +1,12 @@
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import type {
-  CompiledDraft,
-  DeviceProfileValidationResult,
   DeviceProfileArtifact,
+  DeviceProfileDetail,
+  DeviceProfileDiagnostic,
 } from "@iot-os/api-client"
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@iot-os/ui/components/card"
 import { Button } from "@iot-os/ui/components/button"
-import {
-  Alert,
-  AlertTitle,
-  AlertDescription,
-} from "@iot-os/ui/components/alert"
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "@iot-os/ui/components/accordion"
 import {
   Table,
   TableHeader,
@@ -34,6 +16,12 @@ import {
   TableCell,
 } from "@iot-os/ui/components/table"
 import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@iot-os/ui/components/tabs"
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -41,376 +29,313 @@ import {
   DialogDescription,
 } from "@iot-os/ui/components/dialog"
 import { JsonEditor } from "@iot-os/ui/components/json-editor"
-import { CheckCircle2Icon, UploadIcon } from "lucide-react"
+import { StatusMark } from "@iot-os/ui/components/status-mark"
+import { formatAge, formatDateTime } from "@iot-os/ui/lib/format"
 import { api } from "../lib/api"
-import { RequestError, Confirm } from "../components/forms"
-import { useStudio } from "./use-studio"
-import { artifactChanges, jsonText, type ArtifactChange } from "./authoring"
+import { Pager, RequestError } from "../components/forms"
+import { useStudio, useProfileValidation, publishBlocker } from "./use-studio"
+import { plural } from "./ProfileDirectory"
+import {
+  artifactChanges,
+  fieldChanges,
+  jsonText,
+  kindLabel,
+} from "./authoring"
+const areas = [
+  { key: "overview", label: "Profile" },
+  { key: "parameters", label: "Parameters" },
+  { key: "calculations", label: "Calculations" },
+  { key: "alarms", label: "Alarm templates" },
+] as const
+/** Section and item name for a diagnostic pointer such as /parameters/{uuid}/rule. */
+function locate(diagnostic: DeviceProfileDiagnostic, profile: DeviceProfileDetail) {
+  const [, area, id] = diagnostic.pointer.split("/")
+  if (area === "parameters")
+    return {
+      section: "parameters",
+      item: profile.parameters.find((item) => item.uuid === id)?.label,
+    }
+  if (area === "calculations")
+    return {
+      section: "calculations",
+      item: profile.parameters.find((item) => item.calculation?.uuid === id)
+        ?.label,
+    }
+  if (area === "alarm_templates")
+    return {
+      section: "alarms",
+      item: profile.alarm_templates.find((item) => item.uuid === id)?.name,
+    }
+  return { section: "overview", item: profile.name }
+}
 export function ReviewSection() {
   const studio = useStudio(),
     { profile } = studio
-  const [validation, setValidation] =
-      useState<DeviceProfileValidationResult | null>(null),
-    [compiled, setCompiled] = useState<CompiledDraft | null>(null)
-  const [error, setError] = useState<unknown>(null),
-    [busy, setBusy] = useState(false),
-    [confirm, setConfirm] = useState(false)
+  const check = useProfileValidation()
+  const [error, setError] = useState<unknown>(null)
   const [page, setPage] = useState(1),
     [artifact, setArtifact] = useState<DeviceProfileArtifact | null>(null)
-  const [selectedChange, setSelectedChange] = useState<ArtifactChange | null>(
-    null,
-  )
   const history = useQuery({
     queryKey: ["artifacts", studio.org, profile.uuid, page],
     queryFn: () => api.profileArtifacts(studio.org, profile.uuid, page),
   })
-  const current =
-    validation?.draft_revision === profile.draft_revision &&
-    compiled?.draft_revision === profile.draft_revision
-  const ready = Boolean(
-    current && validation?.valid && profile.status === "draft",
-  )
-  const changes =
-    compiled && current
-      ? artifactChanges(
-          profile.active_artifact?.definition ?? null,
-          compiled.definition,
-        )
-      : []
-  async function validate() {
-    setBusy(true)
-    setError(null)
-    setCompiled(null)
-    try {
-      const result = await api.validateDeviceProfile(
-        studio.org,
-        profile.uuid,
-        profile.draft_revision,
+  const result = check.data
+  const changes = result?.compiled
+    ? artifactChanges(
+        profile.active_artifact?.definition ?? null,
+        result.compiled.definition,
       )
-      setValidation(result)
-      if (result.valid)
-        setCompiled(
-          await api.compileDeviceProfile(
-            studio.org,
-            profile.uuid,
-            profile.draft_revision,
-          ),
-        )
-    } catch (reason) {
-      setError(reason)
-    } finally {
-      setBusy(false)
-    }
-  }
+    : []
+  const fields = fieldChanges(changes)
+  const diagnostics = (result?.validation.diagnostics ?? []).map(
+    (diagnostic) => ({ ...diagnostic, ...locate(diagnostic, profile) }),
+  )
   const base =
     "/organizations/" + studio.org + "/device-profiles/" + profile.uuid
+  const blocker = publishBlocker(studio, check)
   return (
-    <div className="flex flex-col gap-5">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle>Review saved changes</CardTitle>
-              <CardDescription>
-                Validate the exact saved draft, inspect its compiled changes,
-                then publish an immutable revision.
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                disabled={
-                  busy ||
-                  studio.busy ||
-                  studio.blocked ||
-                  !studio.capabilities.validate
-                }
-                onClick={validate}
-              >
-                <CheckCircle2Icon data-icon="inline-start" />
-                {busy ? "Checking…" : "Validate draft"}
-              </Button>
-              <Button
-                disabled={
-                  !ready ||
-                  busy ||
-                  studio.busy ||
-                  studio.blocked ||
-                  !studio.capabilities.publish
-                }
-                onClick={() => setConfirm(true)}
-              >
-                <UploadIcon data-icon="inline-start" />
-                Publish revision {profile.revision + 1}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {!studio.capabilities.validate && (
+    <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="flex min-w-0 flex-col gap-8">
+        <section aria-labelledby="review-validation" className="flex flex-col gap-3">
+          <h2 id="review-validation" className="text-sm font-semibold">
+            Validation
+            {result && (
+              <span className="ml-2 font-normal text-muted-foreground">
+                Draft {result.validation.draft_revision}
+              </span>
+            )}
+          </h2>
+          <RequestError error={check.error} />
+          {!studio.capabilities.validate ? (
             <p className="text-sm text-muted-foreground">
-              Your role can inspect this profile but cannot validate it.
+              Your role can view this profile but can't validate it.
             </p>
-          )}
-          {profile.status === "published" && (
-            <Alert>
-              <AlertTitle>Published revision {profile.revision}</AlertTitle>
-              <AlertDescription>
-                There are no pending saved changes. Publication does not confirm
-                activation on devices.
-              </AlertDescription>
-            </Alert>
-          )}
-          {validation && (
-            <Alert variant={validation.valid ? "default" : "destructive"}>
-              <AlertTitle>
-                {validation.draft_revision !== profile.draft_revision
-                  ? "Validation is outdated"
-                  : validation.valid
-                    ? "Saved draft passed validation"
-                    : "Resolve these issues before publishing"}
-              </AlertTitle>
-              <AlertDescription>
-                {validation.draft_revision !== profile.draft_revision ? (
-                  "Run validation again for the latest draft."
-                ) : validation.valid ? (
-                  "Parameters, expressions, and references passed the server checks."
-                ) : (
-                  <ul className="list-disc pl-4">
-                    {validation.diagnostics.map((diagnostic, index) => (
-                      <li key={index}>
-                        <Link
-                          className="underline"
-                          to={
-                            base +
-                            (diagnostic.pointer.includes("alarm")
-                              ? "/alarms"
-                              : diagnostic.pointer.includes("calculation")
-                                ? "/calculations"
-                                : "/parameters")
-                          }
-                        >
-                          {diagnostic.message}
-                        </Link>
-                        <span className="block text-xs">{diagnostic.code}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-          {compiled && current && (
+          ) : !result ? (
+            <p className="text-sm text-muted-foreground">
+              Validate the saved draft to check it and list its changes.
+            </p>
+          ) : result.validation.valid ? (
+            <StatusMark tone="good">Saved draft passed validation</StatusMark>
+          ) : (
             <>
-              <h3 className="text-sm font-semibold">
-                Compiled changes since{" "}
-                {profile.revision ? "revision " + profile.revision : "creation"}
-              </h3>
-              {changes.length ? (
-                <div className="overflow-x-auto">
+              <StatusMark tone="critical">
+                Resolve {plural(diagnostics.length, "issue")} before publishing
+              </StatusMark>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Issue</TableHead>
+                    <TableHead>Code</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {areas.map((area) => {
+                    const rows = diagnostics.filter(
+                      (item) => item.section === area.key,
+                    )
+                    if (!rows.length) return null
+                    return (
+                      <Fragment key={area.key}>
+                        <TableRow className="bg-muted/40 hover:bg-muted/40">
+                          <TableCell colSpan={3} className="font-medium">
+                            <Link
+                              className="text-primary hover:underline"
+                              to={base + "/" + area.key}
+                            >
+                              {area.label}
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                        {rows.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{item.item ?? area.label}</TableCell>
+                            <TableCell className="whitespace-normal">
+                              {item.message}
+                            </TableCell>
+                            <TableCell
+                              className="font-mono text-xs text-muted-foreground"
+                              title={item.pointer}
+                            >
+                              {item.code}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </Fragment>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </>
+          )}
+        </section>
+        {result?.compiled && (
+          <section aria-labelledby="review-changes">
+            <Tabs defaultValue="fields" className="gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 id="review-changes" className="text-sm font-semibold">
+                  Changes since{" "}
+                  {profile.revision ? "v" + profile.revision : "creation"}
+                  <span className="ml-2 font-normal text-muted-foreground">
+                    {plural(fields.length, "change")}
+                  </span>
+                </h2>
+                <TabsList aria-label="Change view">
+                  <TabsTrigger value="fields">Fields</TabsTrigger>
+                  <TabsTrigger value="json">JSON</TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent value="fields">
+                {fields.length ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Area</TableHead>
                         <TableHead>Item</TableHead>
-                        <TableHead>Change</TableHead>
-                        <TableHead className="text-right">Details</TableHead>
+                        <TableHead>Field</TableHead>
+                        <TableHead>Before</TableHead>
+                        <TableHead>After</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {changes.map((change, index) => (
+                      {fields.map((row, index) => (
                         <TableRow key={index}>
-                          <TableCell>{change.area}</TableCell>
-                          <TableCell>{change.label}</TableCell>
-                          <TableCell>{change.change}</TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedChange(change)}
-                            >
-                              Inspect change
-                            </Button>
+                          <TableCell className="text-muted-foreground">
+                            {kindLabel(row.area)}
+                          </TableCell>
+                          <TableCell>{row.item}</TableCell>
+                          <TableCell title={row.path || undefined}>
+                            {row.field}
+                          </TableCell>
+                          <TableCell
+                            className="max-w-64 truncate font-mono text-xs text-muted-foreground"
+                            title={row.before}
+                          >
+                            {row.before}
+                          </TableCell>
+                          <TableCell
+                            className="max-w-64 truncate font-mono text-xs"
+                            title={row.after}
+                          >
+                            {row.after}
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No compiled behavior changes. The draft may contain
-                  authoring-only metadata changes.
-                </p>
-              )}
-              <Accordion type="single" collapsible>
-                <AccordionItem value="compiled">
-                  <AccordionTrigger>
-                    Inspect compiled JSON (read only)
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <JsonEditor
-                      label="Compiled draft definition"
-                      readOnly
-                      value={jsonText(compiled.definition)}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            </>
-          )}
-          {!validation && (
-            <p className="text-sm text-muted-foreground">
-              Run validation to get a checklist and a reviewable change summary.
-            </p>
-          )}
-          <RequestError error={error} />
-          <p className="text-xs text-muted-foreground">
-            Publishing stores a platform definition. Device activation and live
-            alarms are not part of this action.
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No published behaviour changes. The draft only changes
+                    authoring details.
+                  </p>
+                )}
+              </TabsContent>
+              <TabsContent value="json">
+                <JsonEditor
+                  label="Changes as JSON"
+                  readOnly
+                  value={jsonText(changes)}
+                />
+              </TabsContent>
+            </Tabs>
+          </section>
+        )}
+      </div>
+      <aside aria-label="Publishing" className="flex min-w-0 flex-col gap-8">
+        <section aria-labelledby="review-publish" className="flex flex-col gap-1 text-sm">
+          <h2 id="review-publish" className="mb-1 font-semibold">
+            Publish
+          </h2>
+          <p>{blocker ?? "Ready to publish revision " + (profile.revision + 1)}</p>
+          <p className="text-muted-foreground">
+            Publishing doesn't change devices. Activation is separate.
           </p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Published revision history</CardTitle>
-          <CardDescription>
-            Previous definitions are immutable and remain available for
-            inspection.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <RequestError error={history.error}>
+        </section>
+        <section aria-labelledby="review-revisions" className="flex flex-col gap-2">
+          <h2 id="review-revisions" className="text-sm font-semibold">
+            Revisions
+            {history.data && (
+              <span className="ml-2 font-normal text-muted-foreground">
+                {history.data.meta.total}
+              </span>
+            )}
+          </h2>
+          <RequestError error={history.error ?? error}>
             <Button variant="outline" onClick={() => history.refetch()}>
               Retry revision history
             </Button>
           </RequestError>
           {history.isPending ? (
-            <p role="status">Loading history…</p>
+            <p role="status" className="text-sm text-muted-foreground">
+              Loading revisions…
+            </p>
           ) : !history.data?.data.length ? (
             <p className="text-sm text-muted-foreground">
               No published revisions yet.
             </p>
           ) : (
-            history.data.data.map((item) => (
-              <div
-                key={item.uuid}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
-              >
-                <div>
-                  <p className="text-sm font-medium">
-                    Revision {item.revision}
-                    {item.revision === profile.revision
-                      ? " · Current published definition"
-                      : ""}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(item.compiled_at).toLocaleString()} ·{" "}
-                    {item.definition_hash.slice(0, 12)}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      setError(null)
-                      setArtifact(
-                        await api.profileArtifact(
-                          studio.org,
-                          profile.uuid,
-                          item.revision,
-                        ),
-                      )
-                    } catch (reason) {
-                      setError(reason)
-                    }
-                  }}
-                >
-                  Inspect revision {item.revision}
-                </Button>
-              </div>
-            ))
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Revision</TableHead>
+                  <TableHead>Published</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.data.data.map((item) => (
+                  <TableRow key={item.uuid}>
+                    <TableCell title={item.definition_hash.slice(0, 12)}>
+                      v{item.revision}
+                      {item.revision === profile.revision && (
+                        <span className="text-muted-foreground"> · current</span>
+                      )}
+                    </TableCell>
+                    <TableCell
+                      className="text-muted-foreground tabular-nums"
+                      title={formatDateTime(item.compiled_at)}
+                    >
+                      {formatAge(item.compiled_at)} ago
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={"Inspect revision " + item.revision}
+                        onClick={async () => {
+                          try {
+                            setError(null)
+                            setArtifact(
+                              await api.profileArtifact(
+                                studio.org,
+                                profile.uuid,
+                                item.revision,
+                              ),
+                            )
+                          } catch (reason) {
+                            setError(reason)
+                          }
+                        }}
+                      >
+                        Inspect
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              Previous revisions
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!history.data || page >= history.data.meta.last_page}
-              onClick={() => setPage(page + 1)}
-            >
-              Older revisions
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      <Confirm
-        open={confirm}
-        title={"Publish revision " + (profile.revision + 1) + "?"}
-        description={
-          "This publishes saved draft " +
-          profile.draft_revision +
-          ". Future edits become pending changes; previous published revisions remain unchanged. This does not confirm device activation."
-        }
-        action="Publish revision"
-        destructive={false}
-        onClose={() => setConfirm(false)}
-        onConfirm={async () => {
-          if (!ready)
-            throw new Error(
-              "Validate the latest saved draft before publishing.",
-            )
-          await studio.perform(() =>
-            api.publishDeviceProfile(
-              studio.org,
-              profile.uuid,
-              profile.draft_revision,
-            ),
-          )
-          setCompiled(null)
-          setValidation(null)
-        }}
-      />
-      <Dialog
-        open={Boolean(selectedChange)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedChange(null)
-        }}
-      >
-        <DialogContent className="flex max-h-[90svh] flex-col overflow-y-auto sm:max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedChange?.label} — {selectedChange?.change}
-            </DialogTitle>
-            <DialogDescription>
-              Compare the previously published value with the saved draft. No
-              edits are made in this view.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedChange && (
-            <div className="grid min-w-0 gap-4 md:grid-cols-2">
-              <JsonEditor
-                label="Previously published"
-                value={jsonText(selectedChange.before)}
-                readOnly
-              />
-              <JsonEditor
-                label="Saved draft change"
-                value={jsonText(selectedChange.after)}
-                readOnly
-              />
-            </div>
+          {history.data && history.data.meta.last_page > 1 && (
+            <Pager
+              page={page}
+              pages={history.data.meta.last_page}
+              onPage={setPage}
+            />
           )}
-        </DialogContent>
-      </Dialog>
+        </section>
+      </aside>
       <Dialog
         open={Boolean(artifact)}
         onOpenChange={(open) => {
@@ -421,7 +346,7 @@ export function ReviewSection() {
           <DialogHeader>
             <DialogTitle>Published revision {artifact?.revision}</DialogTitle>
             <DialogDescription>
-              Immutable published definition. This view cannot edit the draft.
+              Published definitions can't be edited.
             </DialogDescription>
           </DialogHeader>
           {artifact && (

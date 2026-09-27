@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { useForm, type PathValue } from "react-hook-form"
+import { Link } from "react-router-dom"
 import type { AuthoringParameter, JsonValue } from "@iot-os/api-client"
 import {
   FieldGroup,
@@ -28,7 +29,13 @@ import {
 import { useUnsaved } from "../lib/unsaved"
 import { api } from "../lib/api"
 import { useStudio } from "./use-studio"
-import { jsonText, objectValue, readValidation, updateConfig } from "./authoring"
+import {
+  jsonText,
+  kindLabel,
+  objectValue,
+  readValidation,
+  updateConfig,
+} from "./authoring"
 import { ValidationControls, ParameterPreview } from "./ValidationControls"
 import {
   IncomingConversionFields,
@@ -87,7 +94,7 @@ function widgetHelp(type: AuthoringParameter["data_type"], widget: string) {
   if (widget === "slider")
     return "Minimum and maximum come from Number range on the Validation tab."
   if (widget === "color")
-    return "Uses a colour picker and sets the semantic format to hex_color."
+    return "Uses a colour picker and sets Display format to hex_color."
   if (!widget && type === "enum")
     return "Uses choice buttons for a short list and a searchable select for a longer list."
   if (!widget && ["timestamp", "bytes"].includes(type))
@@ -203,7 +210,7 @@ export function ParameterEditor({
   return (
     <EditorSheet
       title={parameter ? "Edit " + parameter.label : "Add parameter"}
-      description="Define one parameter at a time. Advanced fields are optional; existing custom fields are preserved."
+      description="Advanced fields are optional. Custom settings are kept."
       dirty={dirty}
       busy={busy}
       onClose={onClose}
@@ -255,22 +262,25 @@ export function ParameterEditor({
             <TabsContent value="basics">
               <FieldGroup>
                 <TextField
-                  label="Parameter label"
+                  label="Label"
                   error={fieldError(error, "label")}
                   required
                   disabled={disabled}
                   placeholder="Voltage L1"
                   {...form.register("label")}
                 />
-                <TextField
-                  label="Stable key"
-                  error={fieldError(error, "key")}
-                  required
-                  disabled={disabled}
-                  pattern="[a-zA-Z][a-zA-Z0-9._\-]*"
-                  help="Unique within this profile, for example voltage.l1."
-                  {...form.register("key")}
-                />
+                <div title="key" className="contents">
+                  <TextField
+                    label="Key"
+                    className="font-mono"
+                    error={fieldError(error, "key")}
+                    required
+                    disabled={disabled}
+                    pattern="[a-zA-Z][a-zA-Z0-9._\-]*"
+                    help="Unique in this profile, for example voltage.l1."
+                    {...form.register("key")}
+                  />
+                </div>
                 <TextField
                   label="Description"
                   disabled={disabled}
@@ -290,59 +300,79 @@ export function ParameterEditor({
                   onChange={(value) => set("parameter_group_uuid", value)}
                 />
                 <FieldGroup className="grid gap-4 sm:grid-cols-2">
-                  <Choice
-                    label="Parameter kind"
-                    value={values.kind}
-                    disabled={disabled}
-                    options={[
-                      "state",
-                      "measurement",
-                      "counter",
-                      "event",
-                      "derived",
-                    ].map((value) => ({
-                      value,
-                      label: value[0].toUpperCase() + value.slice(1),
-                    }))}
-                    onChange={(value) => {
-                      set("kind", value as typeof values.kind)
-                      if (value === "derived") set("accepts_command", false)
-                    }}
-                  />
-                  <Choice
-                    label="Data type"
-                    value={values.data_type}
-                    disabled={disabled}
-                    options={[
-                      "boolean",
-                      "integer",
-                      "number",
-                      "enum",
-                      "string",
-                      "timestamp",
-                      "bytes",
-                    ].map((value) => ({ value, label: value }))}
-                    onChange={(value) => {
-                      const type = value as typeof values.data_type
-                      set("data_type", type)
-                      if (
-                        currentWidget &&
-                        !controlWidgetChoices(type, "").some(
-                          (choice) => choice.value === currentWidget,
+                  <div title="kind" className="contents">
+                    <Choice
+                      label="Kind"
+                      value={values.kind}
+                      disabled={disabled}
+                      options={[
+                        "state",
+                        "measurement",
+                        "counter",
+                        "event",
+                        "derived",
+                      ].map((value) => ({ value, label: kindLabel(value) }))}
+                      onChange={(value) => {
+                        set("kind", value as typeof values.kind)
+                        if (value === "derived") set("accepts_command", false)
+                      }}
+                    />
+                  </div>
+                  <div title="data_type" className="contents">
+                    <Choice
+                      label="Data type"
+                      value={values.data_type}
+                      disabled={disabled}
+                      options={[
+                        "boolean",
+                        "integer",
+                        "number",
+                        "enum",
+                        "string",
+                        "timestamp",
+                        "bytes",
+                      ].map((value) => ({ value, label: value }))}
+                      onChange={(value) => {
+                        const type = value as typeof values.data_type
+                        set("data_type", type)
+                        if (
+                          currentWidget &&
+                          !controlWidgetChoices(type, "").some(
+                            (choice) => choice.value === currentWidget,
+                          )
                         )
-                      )
-                        configuration("display_config", "widget", undefined)
-                      if (type !== "string" && values.format === "hex_color")
-                        set("format", "")
-                    }}
-                  />
+                          configuration("display_config", "widget", undefined)
+                        if (type !== "string" && values.format === "hex_color")
+                          set("format", "")
+                      }}
+                    />
+                  </div>
                 </FieldGroup>
-                <TextField
-                  label="Stored unit"
-                  placeholder="V, °C, kWh…"
-                  disabled={disabled}
-                  {...form.register("unit")}
-                />
+                {values.kind === "derived" && (
+                  <FieldDescription>
+                    Set its formula in{" "}
+                    <Link
+                      to={
+                        "/organizations/" +
+                        studio.org +
+                        "/device-profiles/" +
+                        profile.uuid +
+                        "/calculations"
+                      }
+                    >
+                      Calculations
+                    </Link>
+                    .
+                  </FieldDescription>
+                )}
+                <div title="unit" className="contents">
+                  <TextField
+                    label="Stored unit"
+                    placeholder="V, °C, kWh…"
+                    disabled={disabled}
+                    {...form.register("unit")}
+                  />
+                </div>
                 {(conversionEligible(values) || values.ingress_conversion) && (
                   <IncomingConversionFields
                     value={values.ingress_conversion}
@@ -372,25 +402,25 @@ export function ParameterEditor({
                     }
                   />
                 )}
-                <TextField
-                  label="Semantic format"
-                  placeholder="Optional, e.g. hex_color"
-                  disabled={disabled}
-                  {...form.register("format")}
-                />
+                <div title="format" className="contents">
+                  <TextField
+                    label="Display format"
+                    placeholder="Optional"
+                    disabled={disabled}
+                    {...form.register("format")}
+                  />
+                </div>
                 {parameter && (
-                  <Field>
+                  <Field title="uuid">
                     <FieldLabel htmlFor="parameter-identity">
-                      Immutable identity
+                      Parameter ID
                     </FieldLabel>
                     <Input
                       id="parameter-identity"
+                      className="font-mono"
                       readOnly
                       value={parameter.uuid}
                     />
-                    <FieldDescription>
-                      This UUID is never changed when you edit the parameter.
-                    </FieldDescription>
                   </Field>
                 )}
               </FieldGroup>
@@ -421,27 +451,28 @@ export function ParameterEditor({
                     Accepts commands
                   </FieldLabel>
                 </Field>
-                <FieldDescription>
-                  Derived parameters are always read-only. These settings
-                  describe capabilities, not actual device commands.
-                </FieldDescription>
+                {values.kind === "derived" && (
+                  <FieldDescription>Derived parameters are read-only.</FieldDescription>
+                )}
                 <Separator />
-                <Choice
-                  label="Control UI component"
-                  disabled={disabled}
-                  value={currentWidget}
-                  options={widgetChoices}
-                  help={widgetHelp(values.data_type, currentWidget)}
-                  onChange={(value) => {
-                    configuration(
-                      "display_config",
-                      "widget",
-                      value || undefined,
-                    )
-                    if (value === "color" && values.format !== "hex_color")
-                      set("format", "hex_color")
-                  }}
-                />
+                <div title="display_config.widget" className="contents">
+                  <Choice
+                    label="Control"
+                    disabled={disabled}
+                    value={currentWidget}
+                    options={widgetChoices}
+                    help={widgetHelp(values.data_type, currentWidget)}
+                    onChange={(value) => {
+                      configuration(
+                        "display_config",
+                        "widget",
+                        value || undefined,
+                      )
+                      if (value === "color" && values.format !== "hex_color")
+                        set("format", "hex_color")
+                    }}
+                  />
+                </div>
                 {["toggle_group", "searchable_select", "select"].includes(
                   currentWidget,
                 ) && guidedValidation.mode !== "options" && (
@@ -467,7 +498,8 @@ export function ParameterEditor({
                 {["number", "integer"].includes(values.data_type) && (
                   <FieldGroup className="grid gap-4 sm:grid-cols-2">
                     <TextField
-                      label="Decimal places"
+                      title="display_config.precision"
+                      label="Decimals"
                       type="number"
                       min="0"
                       max="15"
@@ -488,6 +520,7 @@ export function ParameterEditor({
                       }
                     />
                     <TextField
+                      title="display_config.step"
                       label="Input step"
                       type="number"
                       min="0.000000001"
@@ -509,11 +542,12 @@ export function ParameterEditor({
                   </FieldGroup>
                 )}
                 <TextField
+                  title="reporting_config.stale_after_seconds"
                   label="Stale after (seconds)"
                   type="number"
                   min="1"
                   disabled={disabled}
-                  help="Optional reporting hint, not an active alarm."
+                  help="Reporting hint, not an alarm."
                   value={
                     typeof reporting.stale_after_seconds === "number"
                       ? reporting.stale_after_seconds
@@ -532,7 +566,7 @@ export function ParameterEditor({
                 {values.kind === "counter" && (
                   <>
                     <Separator />
-                    <Field orientation="horizontal">
+                    <Field orientation="horizontal" title="counter_config.monotonic">
                       <Checkbox
                         id="counter-monotonic"
                         disabled={disabled}
@@ -550,9 +584,10 @@ export function ParameterEditor({
                       </FieldLabel>
                     </Field>
                     <TextField
-                      label="Reset behavior"
+                      title="counter_config.reset_behavior"
+                      label="When the counter resets"
                       disabled={disabled}
-                      placeholder="diagnose"
+                      placeholder="For example diagnose"
                       value={String(counter.reset_behavior ?? "")}
                       onChange={(event) =>
                         configuration(
@@ -568,9 +603,9 @@ export function ParameterEditor({
             </TabsContent>
             <TabsContent value="validation">
               <FieldGroup>
-                  <ValidationControls
-                    key={values.data_type}
-                    text={values.validation_logic}
+                <ValidationControls
+                  key={values.data_type}
+                  text={values.validation_logic}
                   onChange={(value) => set("validation_logic", value)}
                   type={values.data_type}
                   disabled={disabled}
@@ -589,24 +624,25 @@ export function ParameterEditor({
             <TabsContent value="advanced">
               <FieldGroup>
                 <FieldDescription>
-                  Edit individual configuration objects. Unknown keys survive
-                  normal form edits; invalid JSON cannot be saved.
+                  Other tabs keep keys they don't know. Invalid JSON can't be
+                  saved.
                 </FieldDescription>
                 {(
                   [
-                    "validation_logic",
-                    "display_config",
-                    "reporting_config",
-                    "counter_config",
+                    ["validation_logic", "Validation rule"],
+                    ["display_config", "Display settings"],
+                    ["reporting_config", "Reporting settings"],
+                    ["counter_config", "Counter settings"],
                   ] as const
-                ).map((key) => (
-                  <JsonEditor
-                    key={key}
-                    label={key.replaceAll("_", " ")}
-                    value={values[key]}
-                    readOnly={disabled}
-                    onChange={(value) => set(key, value)}
-                  />
+                ).map(([key, label]) => (
+                  <div key={key} title={key}>
+                    <JsonEditor
+                      label={label}
+                      value={values[key]}
+                      readOnly={disabled}
+                      onChange={(value) => set(key, value)}
+                    />
+                  </div>
                 ))}
               </FieldGroup>
             </TabsContent>
