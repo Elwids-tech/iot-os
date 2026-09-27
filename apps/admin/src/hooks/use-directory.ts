@@ -12,6 +12,10 @@ type DirectoryState<T> = {
   error: boolean
 }
 
+export function isFiltered(query: DirectoryQuery): boolean {
+  return Boolean(query.search || query.organization || (query.page ?? 1) > 1)
+}
+
 export function useDirectoryParameters(): DirectoryQuery {
   const [searchParams] = useSearchParams()
   const parsedPage = Number.parseInt(searchParams.get("page") ?? "1", 10)
@@ -27,8 +31,9 @@ export function useDirectoryParameters(): DirectoryQuery {
 export function useDirectory<T>(
   load: (query: DirectoryQuery) => Promise<PaginatedResponse<T>>,
   query: DirectoryQuery,
-): DirectoryState<T> {
+): DirectoryState<T> & { reload: () => void } {
   const [state, setState] = useState<DirectoryState<T>>({ error: false })
+  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -45,9 +50,9 @@ export function useDirectory<T>(
     return () => {
       active = false
     }
-  }, [load, query.organization, query.page, query.perPage, query.search])
+  }, [load, query.organization, query.page, query.perPage, query.search, version])
 
-  return state
+  return { ...state, reload: () => setVersion((current) => current + 1) }
 }
 
 export function useOrganizationOptions(): Organization[] {

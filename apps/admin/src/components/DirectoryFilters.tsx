@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useState } from "react"
 import type { Organization } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import { Field, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
+import { Label } from "@iot-os/ui/components/label"
 import {
   Select,
   SelectContent,
@@ -64,53 +64,50 @@ export function DirectoryFilters({
   }
 
   return (
-    <form onSubmit={submit} role="search">
-      <FieldGroup className="flex flex-col gap-3 md:flex-row md:items-end">
-        <Field className="min-w-0 flex-1">
-          <FieldLabel className="sr-only" htmlFor="directory-search">
-            Search
-          </FieldLabel>
-          <Input
-            id="directory-search"
-            name="search"
-            type="search"
-            autoComplete="off"
-            placeholder={searchPlaceholder}
-            value={draftSearch}
-            onChange={(event) => setDraftSearch(event.target.value)}
-          />
-        </Field>
-        {organizations ? (
-          <Field className="md:w-64">
-            <FieldLabel className="sr-only" htmlFor="organization-filter">
-              Filter by organization
-            </FieldLabel>
-            <Select value={organization || "all"} onValueChange={selectOrganization}>
-              <SelectTrigger id="organization-filter">
-                <SelectValue placeholder="All organizations" />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                <SelectGroup>
-                  <SelectItem value="all">All organizations</SelectItem>
-                  {organizations.map((item) => (
-                    <SelectItem key={item.uuid} value={item.uuid}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
-        ) : null}
-        <div className="flex gap-2">
-          <Button type="submit">Search</Button>
-          {search || organization ? (
-            <Button type="button" variant="outline" onClick={clear}>
-              Clear
-            </Button>
-          ) : null}
-        </div>
-      </FieldGroup>
+    <form onSubmit={submit} role="search" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+      <Label className="sr-only" htmlFor="directory-search">
+        Search
+      </Label>
+      <Input
+        id="directory-search"
+        name="search"
+        type="search"
+        autoComplete="off"
+        placeholder={searchPlaceholder}
+        value={draftSearch}
+        onChange={(event) => setDraftSearch(event.target.value)}
+        className="h-7 w-full min-w-0 sm:w-64"
+      />
+      {organizations ? (
+        <>
+          <Label className="sr-only" htmlFor="organization-filter">
+            Filter by organization
+          </Label>
+          <Select value={organization || "all"} onValueChange={selectOrganization}>
+            <SelectTrigger id="organization-filter" size="sm" className="min-w-0 flex-1 sm:w-56 sm:flex-none">
+              <SelectValue placeholder="All organizations" />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              <SelectGroup>
+                <SelectItem value="all">All organizations</SelectItem>
+                {organizations.map((item) => (
+                  <SelectItem key={item.uuid} value={item.uuid}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </>
+      ) : null}
+      <Button type="submit" size="sm" variant="outline">
+        Search
+      </Button>
+      {search || organization ? (
+        <Button type="button" size="sm" variant="ghost" onClick={clear}>
+          Clear
+        </Button>
+      ) : null}
     </form>
   )
 }

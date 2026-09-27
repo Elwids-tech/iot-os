@@ -1,53 +1,43 @@
 import type { PaginationMeta } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import { useSearchParams } from "react-router-dom"
 
-const number = new Intl.NumberFormat()
-
-export function PaginationControls({ meta }: { meta: PaginationMeta }) {
-  const [searchParams, setSearchParams] = useSearchParams()
-
-  function changePage(page: number) {
-    const next = new URLSearchParams(searchParams)
-
-    if (page <= 1) {
-      next.delete("page")
-    } else {
-      next.set("page", page.toString())
-    }
-
-    setSearchParams(next)
-  }
+/** Previous / Page N of M / Next, like the portal directories. Hidden on a single page. */
+export function PaginationControls({
+  meta,
+  label,
+  onPage,
+  disabled = false,
+}: {
+  meta: PaginationMeta
+  label: string
+  onPage: (page: number) => void
+  disabled?: boolean
+}) {
+  if (meta.last_page < 2) return null
 
   return (
-    <div className="flex w-full flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-      <p>
-        {meta.from === null || meta.to === null
-          ? "No results"
-          : `${number.format(meta.from)}–${number.format(meta.to)} of ${number.format(meta.total)}`}
-      </p>
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={meta.current_page <= 1}
-          aria-label="Go to previous page"
-          onClick={() => changePage(meta.current_page - 1)}
-        >
-          Previous
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={meta.current_page >= meta.last_page}
-          aria-label="Go to next page"
-          onClick={() => changePage(meta.current_page + 1)}
-        >
-          Next
-        </Button>
-      </div>
-    </div>
+    <nav aria-label={label} className="mt-4 flex items-center justify-between gap-3">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled || meta.current_page <= 1}
+        onClick={() => onPage(meta.current_page - 1)}
+      >
+        Previous
+      </Button>
+      <span className="text-sm text-muted-foreground tabular-nums">
+        Page {meta.current_page} of {meta.last_page}
+      </span>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled || meta.current_page >= meta.last_page}
+        onClick={() => onPage(meta.current_page + 1)}
+      >
+        Next
+      </Button>
+    </nav>
   )
 }

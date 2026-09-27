@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert
 import { Button } from "@iot-os/ui/components/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@iot-os/ui/components/card"
 import { ShieldAlertIcon } from "lucide-react"
+import { portalUrl } from "../lib/portal"
 
 export function AccessDeniedPage({
   user,
@@ -37,7 +38,10 @@ export function AccessDeniedPage({
             </AlertDescription>
           </Alert>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="gap-2">
+          <Button asChild>
+            <a href={portalUrl}>Open tenant portal</a>
+          </Button>
           <Button variant="outline" disabled={isSigningOut} onClick={signOut}>
             {isSigningOut ? "Signing out…" : "Sign out"}
           </Button>

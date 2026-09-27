@@ -20,21 +20,18 @@ import {
 } from "@iot-os/ui/components/alert-dialog"
 import { Button } from "@iot-os/ui/components/button"
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@iot-os/ui/components/card"
-import {
   Field,
   FieldLabel,
   FieldDescription,
   FieldGroup,
 } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
+import { PageHeader } from "@iot-os/ui/components/page-header"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Switch } from "@iot-os/ui/components/switch"
+import { formatDateTime } from "@iot-os/ui/lib/format"
+import { toast } from "sonner"
+import { useDiscardGuard } from "../hooks/use-discard-guard"
 import { apiClient } from "../lib/api-client"
 
 function message(error: unknown) {
@@ -59,10 +56,8 @@ export function RetentionPage() {
     [inherited, setInherited] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<unknown>(null),
-    [confirmation, setConfirmation] = useState(false),
-    [saved, setSaved] = useState(false)
-  const [leave, setLeave] = useState<(() => void) | null>(null),
-    id = useId()
+    [confirmation, setConfirmation] = useState(false)
+  const id = useId()
   const proposed = inherited ? null : Number(days),
     effective =
       proposed ?? (org === "platform" ? 90 : (setting?.platform_days ?? 90))
@@ -71,6 +66,10 @@ export function RetentionPage() {
     (inherited !== (setting.override_days === null) ||
       (!inherited && days !== String(setting.override_days))),
   )
+  const { guard, dialog: discardDialog } = useDiscardGuard(dirty, {
+    title: "Discard unsaved retention changes?",
+    description: "The saved setting will remain unchanged.",
+  })
   function apply(value: RetentionSetting) {
     setSetting(value)
     setDays(String(value.override_days ?? value.days))
@@ -104,7 +103,6 @@ export function RetentionPage() {
     let current = true
     setSetting(null)
     setError(null)
-    setSaved(false)
     apiClient
       .retention(org === "platform" ? undefined : org)
       .then((value) => {
@@ -117,36 +115,10 @@ export function RetentionPage() {
       current = false
     }
   }, [org])
-  useEffect(() => {
-    if (!dirty) return
-    const unload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ""
-    }
-    const click = (event: MouseEvent) => {
-      const anchor = (event.target as Element).closest?.(
-        "a[href]",
-      ) as HTMLAnchorElement | null
-      if (!anchor || event.defaultPrevented || event.metaKey || event.ctrlKey)
-        return
-      event.preventDefault()
-      event.stopPropagation()
-      setLeave(() => () => {
-        window.location.href = anchor.href
-      })
-    }
-    window.addEventListener("beforeunload", unload)
-    document.addEventListener("click", click, true)
-    return () => {
-      window.removeEventListener("beforeunload", unload)
-      document.removeEventListener("click", click, true)
-    }
-  }, [dirty])
   async function save(confirmed: boolean) {
     if (!setting || busy) return
     setBusy(true)
     setError(null)
-    setSaved(false)
     try {
       apply(
         await apiClient.updateRetention(
@@ -159,7 +131,7 @@ export function RetentionPage() {
         ),
       )
       setConfirmation(false)
-      setSaved(true)
+      toast.success("Retention settings saved")
     } catch (reason) {
       setError(reason)
     } finally {
@@ -167,97 +139,77 @@ export function RetentionPage() {
     }
   }
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Measurement retention</h1>
-        <p className="mt-2 text-muted-foreground">
-          Manage how long organizations retain measurement history.
-        </p>
-      </div>
-      {Boolean(error) && (
-        <Alert variant="destructive">
-          <AlertTitle>Settings need attention</AlertTitle>
-          <AlertDescription>
-            {message(error)}
-            {error instanceof ApiError && error.status === 409 && (
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={async () => {
-                  try {
-                    apply(
-                      await apiClient.retention(
-                        org === "platform" ? undefined : org,
-                      ),
-                    )
-                    setError(null)
-                  } catch (reason) {
-                    setError(reason)
-                  }
-                }}
-              >
-                Load saved settings
-              </Button>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Choose a setting</CardTitle>
-          <CardDescription>
-            Organization overrides take precedence over the saved platform
-            default. The fallback is 90 days.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup className="grid gap-4 sm:grid-cols-2">
-            <SearchableSelect
-              label="Settings for"
-              value={org}
-              disabled={busy}
-              search={search}
-              onSearchChange={(value) => {
-                setSearch(value)
-                setPage(1)
-              }}
-              loading={organizationsLoading}
-              page={page}
-              hasNextPage={more}
-              onPageChange={setPage}
-              onChange={(value) => {
-                if (value === org) return
-                if (dirty) setLeave(() => () => setOrg(value))
-                else setOrg(value)
-              }}
-              options={[
-                ...(!search || "platform default".includes(search.toLowerCase())
-                  ? [{ value: "platform", label: "Platform default" }]
-                  : []),
-                ...organizations.map((o) => ({ value: o.uuid, label: o.name })),
-              ]}
-            />
-          </FieldGroup>
-        </CardContent>
-      </Card>
-      {setting && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {org === "platform"
-                ? "Platform default"
-                : "Organization override"}
-            </CardTitle>
-            <CardDescription>
-              Effective retention: {setting.days} days · Source:{" "}
-              {setting.source === "default"
-                ? "90-day fallback"
-                : setting.source === "platform"
-                  ? "saved platform default"
-                  : "organization override"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+    <>
+      <PageHeader title="Retention" />
+      <div className="flex w-full max-w-3xl flex-col gap-8 p-4 md:p-6">
+        {Boolean(error) && (
+          <Alert variant="destructive">
+            <AlertTitle>Settings need attention</AlertTitle>
+            <AlertDescription>
+              {message(error)}
+              {error instanceof ApiError && error.status === 409 && (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={async () => {
+                    try {
+                      apply(
+                        await apiClient.retention(
+                          org === "platform" ? undefined : org,
+                        ),
+                      )
+                      setError(null)
+                    } catch (reason) {
+                      setError(reason)
+                    }
+                  }}
+                >
+                  Load saved settings
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+        <FieldGroup className="max-w-sm">
+          <SearchableSelect
+            label="Settings for"
+            value={org}
+            disabled={busy}
+            search={search}
+            onSearchChange={(value) => {
+              setSearch(value)
+              setPage(1)
+            }}
+            loading={organizationsLoading}
+            page={page}
+            hasNextPage={more}
+            onPageChange={setPage}
+            onChange={(value) => {
+              if (value !== org) guard(() => setOrg(value))
+            }}
+            options={[
+              ...(!search || "platform default".includes(search.toLowerCase())
+                ? [{ value: "platform", label: "Platform default" }]
+                : []),
+              ...organizations.map((o) => ({ value: o.uuid, label: o.name })),
+            ]}
+          />
+        </FieldGroup>
+        {setting && (
+          <section aria-labelledby={id + "-setting"} className="flex flex-col gap-4 border-t pt-6">
+            <div>
+              <h2 id={id + "-setting"} className="font-semibold">
+                {org === "platform" ? "Platform default" : "Organization override"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Effective retention: {setting.days} days · Source:{" "}
+                {setting.source === "default"
+                  ? "90-day fallback"
+                  : setting.source === "platform"
+                    ? "saved platform default"
+                    : "organization override"}
+              </p>
+            </div>
             <form
               className="flex flex-col gap-5"
               onSubmit={(e) => {
@@ -281,9 +233,7 @@ export function RetentionPage() {
                   </FieldLabel>
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor={id + "-days"}>
-                    Retention in days
-                  </FieldLabel>
+                  <FieldLabel htmlFor={id + "-days"}>Retention in days</FieldLabel>
                   <Input
                     id={id + "-days"}
                     type="number"
@@ -294,10 +244,10 @@ export function RetentionPage() {
                     value={inherited ? effective : days}
                     disabled={inherited || busy}
                     onChange={(e) => setDays(e.target.value)}
+                    className="max-w-48 tabular-nums"
                   />
                   <FieldDescription>
-                    Positive whole days. Removing an override restores
-                    inheritance.
+                    Positive whole days. Removing an override restores inheritance.
                   </FieldDescription>
                 </Field>
               </FieldGroup>
@@ -306,11 +256,6 @@ export function RetentionPage() {
                 Configuration and command audit records are retained. Increasing
                 retention cannot recover deleted measurements.
               </p>
-              {saved && (
-                <p role="status" className="text-sm">
-                  Retention settings saved.
-                </p>
-              )}
               <div className="flex gap-3">
                 <Button disabled={!dirty || busy}>
                   {busy ? "Saving…" : "Save retention"}
@@ -325,20 +270,20 @@ export function RetentionPage() {
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
-      )}
-      {setting && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Cleanup status</CardTitle>
-            <CardDescription>
-              {setting.cleanup
-                ? `Latest recorded run: ${new Date(setting.cleanup.at).toLocaleString()} · ${setting.cleanup.status}`
-                : "The first daily cleanup has not been recorded yet."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          </section>
+        )}
+        {setting && (
+          <section aria-labelledby={id + "-cleanup"} className="flex flex-col gap-3 border-t pt-6">
+            <div>
+              <h2 id={id + "-cleanup"} className="font-semibold">
+                Cleanup
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {setting.cleanup
+                  ? `Latest run ${formatDateTime(setting.cleanup.at)} · ${setting.cleanup.status}`
+                  : "No daily cleanup recorded yet."}
+              </p>
+            </div>
             {Boolean(setting.cleanup_failures) && (
               <Alert variant="destructive">
                 <AlertTitle>Cleanup needs attention</AlertTitle>
@@ -349,16 +294,20 @@ export function RetentionPage() {
               </Alert>
             )}
             {setting.cleanup && (
-              <p className="text-sm text-muted-foreground">
-                {setting.cleanup.deleted_rows} measurement and diagnostic rows
-                removed in the latest recorded run. Pending or failed cleanup is
-                retried by the runtime.
+              <p className="text-sm">
+                <span className="tabular-nums">{setting.cleanup.deleted_rows.toLocaleString()}</span>{" "}
+                measurement and diagnostic rows removed in the latest run. The runtime retries
+                pending or failed cleanup.
               </p>
             )}
-          </CardContent>
-        </Card>
-      )}
-      {!setting && !error && <p role="status">Loading retention settings…</p>}
+          </section>
+        )}
+        {!setting && !error && (
+          <p role="status" className="text-sm text-muted-foreground">
+            Loading retention settings…
+          </p>
+        )}
+      </div>
       <AlertDialog
         open={confirmation}
         onOpenChange={(value) => {
@@ -371,7 +320,7 @@ export function RetentionPage() {
             <AlertDialogDescription>
               Reduce from {setting?.days} to {effective} days. At the next daily
               cleanup, measurements received before{" "}
-              {new Date(Date.now() - effective * 86400000).toLocaleString()}{" "}
+              {formatDateTime(new Date(Date.now() - effective * 86400000).toISOString())}{" "}
               will be eligible for permanent deletion.{" "}
               {org === "platform"
                 ? "This affects organizations inheriting the platform default."
@@ -391,36 +340,7 @@ export function RetentionPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <AlertDialog
-        open={Boolean(leave)}
-        onOpenChange={(v) => {
-          if (!v) setLeave(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Discard unsaved retention changes?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              The saved setting will remain unchanged.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                const action = leave
-                setLeave(null)
-                action?.()
-              }}
-            >
-              Discard changes
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </main>
+      {discardDialog}
+    </>
   )
 }

@@ -1,31 +1,43 @@
 import { useEffect, useState } from "react"
 import type { AuthenticatedUser } from "@iot-os/api-client"
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { Toaster } from "@iot-os/ui/components/sonner"
+import { Navigate, Route, RouterProvider, Routes, createBrowserRouter } from "react-router-dom"
 import { AcceptInvitationPage } from "./auth/AcceptInvitationPage"
 import { AccessDeniedPage } from "./auth/AccessDeniedPage"
 import { LoginPage } from "./auth/LoginPage"
 import { AdminLayout } from "./layout/AdminLayout"
 import { apiClient } from "./lib/api-client"
+import { portalUrl } from "./lib/portal"
 import { OrganizationsPage } from "./pages/OrganizationsPage"
 import { RolePermissionsPage } from "./pages/RolePermissionsPage"
 import { RolesPage } from "./pages/RolesPage"
 import { UsersPage } from "./pages/UsersPage"
 import { RetentionPage } from "./pages/RetentionPage"
 
-
 type ScreenState =
   | { status: "loading" }
   | { status: "signed-out" }
   | { status: "signed-in"; user: AuthenticatedUser }
 
-export function App() {
-  return (
-    <BrowserRouter>
+// A data router so pages can block navigation with useBlocker.
+const router = createBrowserRouter([
+  {
+    path: "*",
+    element: (
       <Routes>
         <Route path="accept-invitation" element={<AcceptInvitationPage />} />
         <Route path="*" element={<PlatformAdministrationApp />} />
       </Routes>
-    </BrowserRouter>
+    ),
+  },
+])
+
+export function App() {
+  return (
+    <>
+      <RouterProvider router={router} />
+      <Toaster position="top-center" closeButton duration={2500} />
+    </>
   )
 }
 
@@ -91,7 +103,9 @@ function PlatformAdministrationApp() {
         <Route path="roles" element={<RolesPage />} />
         <Route path="roles/:roleId" element={<RolePermissionsPage />} />
         <Route path="device-profiles" element={<TenantPortalRedirect />} />
-        <Route path="settings/retention" element={screen.user.capabilities.manage_retention ? <RetentionPage /> : <AccessDeniedPage user={screen.user} onSignOut={signOut} />} />
+        {screen.user.capabilities.manage_retention ? (
+          <Route path="settings/retention" element={<RetentionPage />} />
+        ) : null}
         <Route path="*" element={<Navigate to="/organizations" replace />} />
       </Route>
     </Routes>
@@ -99,6 +113,6 @@ function PlatformAdministrationApp() {
 }
 
 function TenantPortalRedirect() {
-  useEffect(() => { window.location.replace(import.meta.env.VITE_PORTAL_URL || `${window.location.protocol}//${window.location.hostname}:5173`) }, [])
+  useEffect(() => window.location.replace(portalUrl), [])
   return <p>Opening tenant portal…</p>
 }
