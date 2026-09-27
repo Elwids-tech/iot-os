@@ -325,6 +325,72 @@ async function menu(page: Page, title = "Current temperature") {
     .click()
 }
 
+test("dashboard fullscreen preserves drafts and long canvases can grow below the viewport", async ({ page }) => {
+  const { dashboards, calls, errors } = await setup(page)
+  dashboards[0].layouts.lg = [
+    { i: "status", x: 0, y: 0, w: 6, h: 6 },
+    { i: "chart", x: 6, y: 18, w: 6, h: 6 },
+  ]
+  await page.goto(basePath + "/first")
+  await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
+  await page.getByRole("button", { name: "Dashboard settings", exact: true }).click()
+  await page.getByLabel("Dashboard name", { exact: true }).fill("Long dashboard draft")
+  await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click()
+  await page.getByRole("button", { name: "Fullscreen dashboard", exact: true }).click()
+  const workspace = page.locator('[data-dashboard-fullscreen="true"]')
+  await expect(workspace).toHaveCSS("position", "fixed")
+  expect(await page.getByRole("navigation", { name: "Workspace" }).evaluate(el => Boolean(el.closest("[inert]")))).toBe(true)
+  await expect(page.getByRole("button", { name: "Last 6 hours", exact: true })).toHaveCount(0)
+  expect(await workspace.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true)
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("button", { name: "Fullscreen dashboard", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Long dashboard draft" })).toBeVisible()
+  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible()
+
+  const below = page.getByRole("button", { name: "Add widget below", exact: true })
+  await below.scrollIntoViewIfNeeded()
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(1000)
+  await below.click()
+  await page.getByRole("button", { name: "Add Status", exact: true }).click()
+  await page.getByRole("combobox", { name: "Device", exact: true }).click()
+  await page.getByRole("button", { name: "Next device options", exact: true }).click()
+  await page.getByRole("option", { name: "Boiler room", exact: true }).click()
+  await page.getByRole("combobox", { name: "Parameter", exact: true }).click()
+  await page.getByRole("option", { name: /Temperature/ }).click()
+  await page.getByRole("button", { name: "Add parameter", exact: true }).click()
+  await page.getByRole("tab", { name: "Panel", exact: true }).click()
+  await page.getByLabel("Panel title", { exact: true }).fill("Bottom status")
+  await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
+  await expect(page.getByText("Bottom status", { exact: true })).toBeInViewport()
+  expect(calls.writes).toBe(0)
+  await page.getByRole("button", { name: "Save dashboard", exact: true }).click()
+  await expect.poll(() => calls.writes).toBe(1)
+  const added = dashboards[0].widgets.at(-1)!
+  expect(dashboards[0].layouts.lg?.find(item => item.i === added.id)?.y).toBeGreaterThanOrEqual(24)
+  await page.reload()
+  await page.getByText("Bottom status", { exact: true }).scrollIntoViewIfNeeded()
+  await expect(page.getByText("Bottom status", { exact: true })).toBeInViewport()
+  expect(errors).toEqual([])
+})
+
+test("time controls live in the sticky header and remain usable on narrow screens", async ({ page }) => {
+  const { errors } = await setup(page)
+  await page.goto(basePath + "/first")
+  const headerControls = page.locator('header [aria-label="Dashboard time controls"]')
+  await expect(headerControls).toBeVisible()
+  await headerControls.getByRole("button", { name: "Last 6 hours", exact: true }).click()
+  await expect(page.getByText("Quick ranges", { exact: true })).toBeVisible()
+  await page.keyboard.press("Escape")
+
+  await page.setViewportSize({ width: 900, height: 800 })
+  await expect(headerControls).toBeHidden()
+  const narrowControls = page.locator('[aria-label="Dashboard time controls"]:visible')
+  await expect(narrowControls).toBeVisible()
+  await narrowControls.getByRole("button", { name: "Last 6 hours", exact: true }).click()
+  await expect(page.getByText("Quick ranges", { exact: true })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
 test("multiple dashboards, explicit apply/save, and save before switching", async ({
   page,
 }, info) => {
@@ -807,6 +873,9 @@ test("browser timezone rejects nonexistent daylight-saving input", async ({
 
 test("workflow panels preview, persist, refresh failures and remain usable on mobile", async ({ page }, info) => {
   const { dashboards, calls, errors } = await setup(page)
+  // Saved workflow location panels remain readable; new location panels use GPS maps.
+  dashboards[0].widgets.push({ id: "legacy-location", type: "location", schema_version: 2, title: "Legacy location", description: "", config: { sources: [], workflow_uuid: "workflow-one" } })
+  dashboards[0].layouts.lg.push({ i: "legacy-location", x: 0, y: 12, w: 6, h: 6 })
   let unavailable = false
   let locationReads = 0
   await page.route("**/workflows**", async route => {
@@ -828,14 +897,13 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   })
   await page.goto(basePath + "/first")
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
-  for (const type of ["Location", "Alerts"]) {
+  for (const type of ["Alerts"]) {
     await page.getByRole("button", { name: "Add widget", exact: true }).click()
     await page.getByRole("button", { name: `Add ${type}`, exact: true }).click()
     await expect(page.getByRole("button", { name: "Apply to dashboard", exact: true })).toBeDisabled()
     await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
     await page.getByRole("option", { name: "Pasture boundary", exact: true }).click()
-    if (type === "Location") await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
-    else await expect(page.getByText("1 active", { exact: true })).toBeVisible()
+    await expect(page.getByRole("dialog").getByText("1 active", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
   }
   expect(calls.writes).toBe(0)
@@ -863,11 +931,11 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
   await page.getByRole("button", { name: "Add widget", exact: true }).click()
-  await page.getByRole("button", { name: "Add Location", exact: true }).click()
+  await page.getByRole("button", { name: "Add Alerts", exact: true }).click()
   await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
   await page.keyboard.press("ArrowDown")
   await page.keyboard.press("Enter")
-  await expect(page.getByRole("dialog").getByText("No applied workflow", { exact: true })).toBeVisible()
+  await expect(page.getByRole("dialog").getByText("1 active", { exact: true })).toBeVisible()
   const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
   expect(audit.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)

@@ -45,10 +45,12 @@ export function TimeControls({
   view,
   onChange,
   onRefresh,
+  compact = false,
 }: {
   view: DashboardView
   onChange: (view: DashboardView) => void
   onRefresh: () => void
+  compact?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(view)
@@ -90,7 +92,9 @@ export function TimeControls({
       : `${timeLabel(view.range.from, view.timezone)} – ${timeLabel(view.range.to, view.timezone)}`
   return (
     <div
-      className="flex flex-wrap items-end gap-2"
+      className={compact
+        ? "flex min-w-0 flex-nowrap items-center gap-2"
+        : "flex flex-wrap items-end gap-2"}
       aria-label="Dashboard time controls"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-1">
@@ -104,7 +108,7 @@ export function TimeControls({
         </Button>
         <Popover open={open} onOpenChange={begin}>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="max-w-full" title={label}>
+            <Button variant="outline" className={compact ? "max-w-44" : "max-w-full"} title={label}>
               <CalendarClockIcon data-icon="inline-start" />
               <span className="truncate">{label}</span>
             </Button>
@@ -287,7 +291,7 @@ export function TimeControls({
           </Button>
         )}
       </div>
-      <div className="min-w-28">
+      <div className={compact ? "min-w-28 [&_[data-slot=field-label]]:sr-only" : "min-w-28"}>
         <Choice
           label="Auto refresh"
           value={String(view.refresh)}

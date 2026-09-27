@@ -176,6 +176,16 @@ describe("configuration and layout", () => {
     expect(original.lg).toHaveLength(1);
     expect(cleanLayouts(next)).toEqual(next);
   });
+  it("adds below all panels at every breakpoint even when earlier gaps exist", () => {
+    const layouts = {
+      lg: [{ i: "one", x: 0, y: 20, w: 6, h: 6 }],
+      xs: [{ i: "one", x: 0, y: 40, w: 1, h: 8 }],
+    };
+    const result = appendLayout(layouts, "two", "bottom");
+    expect(result.lg?.[1]).toEqual({ i: "two", x: 0, y: 26, w: 6, h: 6 });
+    expect(result.xs?.[1]).toEqual({ i: "two", x: 0, y: 48, w: 1, h: 6 });
+    expect(layouts.lg).toHaveLength(1);
+  });
 });
 it("bounds concurrent requests and removes aborted queued work", async () => {
   const run = createRequestQueue(1),

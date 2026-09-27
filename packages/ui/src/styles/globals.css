@@ -83,7 +83,7 @@
   --muted: #f0f2f4;
   --muted-foreground: #5b6670;
   --accent: #e3f6fa;
-  --accent-foreground: #0b7c95;
+  --accent-foreground: #096b81;
   --selection: #e3f6fa;
   --selection-foreground: #0b7c95;
   --surface-input: #ffffff;
@@ -100,7 +100,7 @@
   --sidebar-primary: #0b0f13;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e3f6fa;
-  --sidebar-accent-foreground: #0b7c95;
+  --sidebar-accent-foreground: #096b81;
   --sidebar-border: #d8dee4;
   --sidebar-ring: #0b7c95;
   --json-key: #0b7c95;

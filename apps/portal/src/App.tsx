@@ -490,6 +490,10 @@ function PortalShell({
             <span className="truncate text-sm font-medium">
               {currentSection}
             </span>
+            <div
+              id="dashboard-header-time-controls"
+              className="ml-auto hidden min-w-0 items-center xl:flex"
+            />
             <div className="ml-auto flex items-center gap-2">
               <span className="hidden text-sm text-muted-foreground sm:inline">
                 {name}
