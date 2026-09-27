@@ -1,13 +1,6 @@
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { configurationProfile, type DeviceDetail } from "@iot-os/api-client"
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@iot-os/ui/components/card"
 import { FieldGroup } from "@iot-os/ui/components/field"
 import { Button } from "@iot-os/ui/components/button"
 import {
@@ -27,7 +20,7 @@ import { Choice, TextField, RequestError } from "../components/forms"
 import { HistoryRecordsTable } from "../history/HistoryRecordsTable"
 import { StateHistoryVisualization } from "../history/StateHistoryVisualization"
 import { configurationMeta, isColorParameter } from "../history/model"
-import { DeviceEmpty, formatTime } from "./shared"
+import { DeviceEmpty, formatTime, Section } from "./shared"
 
 function range(hours: number) {
   const to = new Date()
@@ -106,23 +99,17 @@ export default function HistorySection({
     : Boolean(stateQuery.data?.timeline.length)
 
   return (
-    <div className="flex flex-col gap-6 pt-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Measurement history</CardTitle>
-          <CardDescription>
-            Available retention: {device.retention.days} days (
-            {device.retention.source === "organization"
-              ? "organization override"
-              : device.retention.source === "platform"
-                ? "platform default"
-                : "90-day fallback"}
-            ). Profile publications are not applied automatically. Each device
-            activation creates an immutable device configuration, and only
-            configurations with records in this range appear below.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-5">
+    <Section
+      title="Measurement history"
+      meta={`Kept for ${device.retention.days} days (${
+        device.retention.source === "organization"
+          ? "organization setting"
+          : device.retention.source === "platform"
+            ? "platform default"
+            : "default"
+      })`}
+    >
+        <div className="flex flex-col gap-5">
           <FieldGroup className="grid gap-4 sm:grid-cols-3">
             <Choice
               label="Parameter"
@@ -232,7 +219,7 @@ export default function HistorySection({
                   config={{
                     value: {
                       label: selected?.label ?? "Value",
-                      color: "var(--primary)",
+                      color: "var(--series-1)",
                     },
                   }}
                 >
@@ -248,11 +235,15 @@ export default function HistorySection({
                       dataKey="time"
                       type="number"
                       domain={["dataMin", "dataMax"]}
+                      minTickGap={48}
                       tickFormatter={(value) =>
-                        new Date(value).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
+                        new Date(value).toLocaleString(
+                          [],
+                          Date.parse(window.to) - Date.parse(window.from) >
+                            36 * 3600000
+                            ? { month: "short", day: "numeric" }
+                            : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" },
+                        )
                       }
                     />
                     <YAxis domain={["auto", "auto"]} />
@@ -320,8 +311,7 @@ export default function HistorySection({
               </CollapsibleContent>
             </Collapsible>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+    </Section>
   )
 }

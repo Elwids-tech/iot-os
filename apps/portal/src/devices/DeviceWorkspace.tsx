@@ -1,55 +1,58 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { useForm } from "react-hook-form"
-import type { DeviceDetail, DeviceInput } from "@iot-os/api-client"
+import type { DeviceDetail } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@iot-os/ui/components/card"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@iot-os/ui/components/dropdown-menu"
+import { PageHeader } from "@iot-os/ui/components/page-header"
+import { StatusMark } from "@iot-os/ui/components/status-mark"
 import {
   Tabs,
   TabsList,
   TabsTrigger,
   TabsContent,
 } from "@iot-os/ui/components/tabs"
-import { FieldGroup } from "@iot-os/ui/components/field"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import {
   Alert,
   AlertTitle,
   AlertDescription,
 } from "@iot-os/ui/components/alert"
+import { EllipsisIcon, PlusIcon } from "lucide-react"
 import { api } from "../lib/api"
-import { useUnsaved } from "../lib/unsaved"
-import { RequestError, TextField, SaveBar, Confirm } from "../components/forms"
+import { RequestError, Confirm } from "../components/forms"
 import {
+  Age,
+  configurationRevision,
   DeviceStatus,
   devicePath,
-  formatTime,
+  deviceStatus,
   useDeviceOrganization,
 } from "./shared"
-import { DeviceLifecycleAction } from "./DeviceLifecycleAction"
+import { useDeviceLifecycle } from "./DeviceLifecycleAction"
 import { lifecycleStorageKey, newerDevice, reconcileDevice } from "./lifecycle"
 import { ConfigurationSection } from "./ConfigurationSection"
 import { MeasurementsSection } from "./MeasurementsSection"
 import { CommandsSection } from "./CommandsSection"
+import { DeviceOverview } from "./DeviceOverview"
+import { AddToDashboard, EditDetails } from "./DeviceActions"
 import { DeviceControls } from "../controls/DeviceControls"
 
 const HistorySection = lazy(() => import("./HistorySection"))
-const sections = [
-  "overview",
-  "measurements",
-  "history",
-  "configuration",
-  "controls",
-  "commands",
-] as const
+const sections = {
+  overview: "Overview",
+  measurements: "Measurements",
+  history: "History",
+  configuration: "Configuration",
+  controls: "Controls",
+  commands: "Command log",
+} as const
 export type DeviceOperation = <T>(operation: () => Promise<T>) => Promise<T>
 export function DeviceWorkspace() {
   const { org, capabilities } = useDeviceOrganization(),
@@ -150,69 +153,166 @@ export function DeviceWorkspace() {
     },
     [org, deviceUuid, cache, unconfirmed],
   )
-  if (query.isPending) return <Skeleton className="h-80 w-full" />
-  if (!query.data) return <RequestError error={query.error} />
-  const device = query.data,
-    activeSection = sections.includes(section as (typeof sections)[number])
-      ? section
-      : "overview"
+  const back = { to: devicePath(org), label: "Devices" }
+  if (query.isPending)
+    return (
+      <>
+        <PageHeader title="Device" back={back} />
+        <div className="p-4 md:p-6">
+          <Skeleton className="h-80 w-full" />
+        </div>
+      </>
+    )
+  if (!query.data)
+    return (
+      <>
+        <PageHeader title="Device" back={back} />
+        <div className="flex flex-col items-start gap-3 p-4 md:p-6">
+          <RequestError error={query.error} />
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => void query.refetch()}>
+              Try again
+            </Button>
+            <Button asChild variant="ghost">
+              <Link to={back.to}>Back to devices</Link>
+            </Button>
+          </div>
+        </div>
+      </>
+    )
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-        to={devicePath(org)}
-      >
-        Devices / {device.code}
-      </Link>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">{device.name}</h1>
-          <p className="text-muted-foreground">
-            {device.description || "Device workspace"}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <DeviceStatus value={device.lifecycle} />
-          {device.lifecycle !== "deactivated" && (
-            <DeviceStatus value={device.presence} />
-          )}
-          {device.lifecycle !== "deactivated" ||
-          device.deployment_status === "pending" ? (
-            <DeviceStatus value={device.deployment_status} />
-          ) : null}
-        </div>
-      </div>
-      <RequestError error={error ?? query.error} />
-      {device.diagnostic && (
-        <Alert>
-          <AlertTitle>Device needs attention</AlertTitle>
-          <AlertDescription>{device.diagnostic}</AlertDescription>
-        </Alert>
-      )}
-      <Tabs
-        value={activeSection}
-        onValueChange={(value) =>
-          navigate(devicePath(org, deviceUuid) + "/" + value)
+    <Workspace
+      org={org}
+      device={query.data}
+      section={section in sections ? section : "overview"}
+      onSection={(value) => navigate(devicePath(org, deviceUuid) + "/" + value)}
+      capabilities={capabilities}
+      run={run}
+      busy={busy}
+      unconfirmed={unconfirmed}
+      onUnconfirmed={setUnconfirmed}
+      error={error ?? query.error}
+    />
+  )
+}
+
+function Workspace({
+  org,
+  device,
+  section,
+  onSection,
+  capabilities,
+  run,
+  busy,
+  unconfirmed,
+  onUnconfirmed,
+  error,
+}: {
+  org: string
+  device: DeviceDetail
+  section: string
+  onSection: (value: string) => void
+  capabilities: ReturnType<typeof useDeviceOrganization>["capabilities"]
+  run: DeviceOperation
+  busy: boolean
+  unconfirmed: boolean
+  onUnconfirmed: (value: boolean) => void
+  error: unknown
+}) {
+  const locked = busy || unconfirmed || device.deployment_status === "pending"
+  const lifecycle = useDeviceLifecycle({
+    org,
+    device,
+    disabled: locked,
+    onUnconfirmed,
+  })
+  const [dialog, setDialog] = useState<"details" | "dashboard" | "archive" | null>(
+    null,
+  )
+  const archived = device.lifecycle === "archived"
+  const archiveReason = locked
+    ? "Wait for the current request to finish."
+    : device.applied_configuration_uuid || device.desired_configuration_uuid
+      ? "Deactivate the device and wait for the runtime to confirm first."
+      : undefined
+  const menu = [
+    capabilities.manage && !archived,
+    capabilities.activate && lifecycle.action,
+  ].some(Boolean)
+  return (
+    <Tabs value={section} onValueChange={onSection} className="gap-0">
+      <PageHeader
+        title={device.name}
+        back={{ to: devicePath(org), label: "Devices" }}
+        meta={<span className="font-mono">{device.code}</span>}
+        actions={
+          <>
+            {capabilities.manage && !archived && (
+              <Button variant="outline" size="sm" onClick={() => setDialog("dashboard")}>
+                <PlusIcon data-icon="inline-start" />
+                <span className="max-sm:sr-only">Add to dashboard</span>
+              </Button>
+            )}
+            {menu && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon-sm" aria-label="Device actions">
+                    <EllipsisIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  {capabilities.manage && !archived && (
+                    <DropdownMenuItem onSelect={() => setDialog("details")}>
+                      Edit details
+                    </DropdownMenuItem>
+                  )}
+                  {capabilities.activate && lifecycle.action && (
+                    <MenuAction
+                      label={lifecycle.action.label}
+                      reason={lifecycle.action.reason}
+                      destructive={lifecycle.action.destructive}
+                      onSelect={lifecycle.action.open}
+                    />
+                  )}
+                  {capabilities.manage && !archived && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <MenuAction
+                        label="Archive device"
+                        reason={archiveReason}
+                        destructive
+                        onSelect={() => setDialog("archive")}
+                      />
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>
         }
       >
-        <TabsList className="w-full flex-wrap gap-1 group-data-[orientation=horizontal]/tabs:h-auto sm:w-fit">
-          {sections.map((s) => (
-            <TabsTrigger key={s} value={s} className="h-9">
-              {s[0].toUpperCase() + s.slice(1)}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <StateLine device={device} />
+        <div className="-mx-1 w-full overflow-x-auto [scrollbar-width:none]">
+          <TabsList variant="line" className="justify-start px-1">
+            {Object.entries(sections).map(([value, label]) => (
+              <TabsTrigger key={value} value={value} className="flex-none">
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+      </PageHeader>
+      <div className="flex flex-col gap-4 p-4 md:p-6">
+        <RequestError error={error} />
+        {device.diagnostic && (
+          <Alert>
+            <AlertTitle>Device needs attention</AlertTitle>
+            <AlertDescription>{device.diagnostic}</AlertDescription>
+          </Alert>
+        )}
+        {lifecycle.status}
         <TabsContent value="overview">
-          <DeviceOverview
-            key={deviceUuid}
-            org={org}
-            device={device}
-            editable={capabilities.manage}
-            canActivate={capabilities.activate}
-            onUnconfirmed={setUnconfirmed}
-            run={run}
-            busy={busy || unconfirmed || device.deployment_status === "pending"}
-          />
+          <DeviceOverview org={org} device={device} editable={capabilities.manage} />
         </TabsContent>
         <TabsContent value="measurements">
           <MeasurementsSection org={org} device={device} />
@@ -229,7 +329,7 @@ export function DeviceWorkspace() {
             editable={capabilities.manage}
             canActivate={capabilities.activate}
             run={run}
-            busy={busy || unconfirmed || device.deployment_status === "pending"}
+            busy={locked}
           />
         </TabsContent>
         <TabsContent value="controls">
@@ -245,243 +345,99 @@ export function DeviceWorkspace() {
             device={device}
             allowed={capabilities.command && !unconfirmed}
             run={run}
-            busy={busy || unconfirmed || device.deployment_status === "pending"}
+            busy={locked}
           />
         </TabsContent>
-      </Tabs>
-    </div>
+      </div>
+      {lifecycle.dialog}
+      {dialog === "details" && (
+        <EditDetails
+          org={org}
+          device={device}
+          run={run}
+          busy={locked}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === "dashboard" && (
+        <AddToDashboard org={org} device={device} onClose={() => setDialog(null)} />
+      )}
+      <Confirm
+        open={dialog === "archive"}
+        title="Archive this device?"
+        description="The record becomes read-only. Configuration and command history remain available."
+        action="Archive device"
+        onClose={() => setDialog(null)}
+        onConfirm={async () => {
+          await run(() =>
+            api.deviceAction(org, device.uuid, "archive", device.draft_revision),
+          )
+        }}
+      />
+    </Tabs>
   )
 }
 
-function DeviceOverview({
-  org,
-  device,
-  editable,
-  canActivate,
-  onUnconfirmed,
-  run,
-  busy,
+/** A menu item that stays visible when unavailable and says why. */
+function MenuAction({
+  label,
+  reason,
+  destructive,
+  onSelect,
 }: {
-  org: string
-  device: DeviceDetail
-  editable: boolean
-  canActivate: boolean
-  onUnconfirmed: (value: boolean) => void
-  run: DeviceOperation
-  busy: boolean
+  label: string
+  reason?: string
+  destructive?: boolean
+  onSelect: () => void
 }) {
-  const savedValues = (d: DeviceDetail): DeviceInput => ({
-    name: d.name,
-    code: d.code,
-    serial_number: d.serial_number ?? "",
-    description: d.description ?? "",
-  })
-  const form = useForm<DeviceInput>({ defaultValues: savedValues(device) }),
-    [revision, setRevision] = useState(device.draft_revision),
-    [action, setAction] = useState<{
-      kind: "archive"
-      revision: number
-      description: string
-    } | null>(null)
-  const dirty = form.formState.isDirty
-  function reviewAction(kind: "archive") {
-    setAction({
-      kind,
-      revision: device.draft_revision,
-      description:
-        "The record becomes read-only. Configuration and command history remain available.",
-    })
-  }
-  useUnsaved(dirty)
-  useEffect(() => {
-    if (!dirty) {
-      form.reset(savedValues(device))
-      setRevision(device.draft_revision)
-    }
-  }, [device.draft_revision, dirty, form])
   return (
-    <div className="grid items-start gap-6 pt-4 xl:grid-cols-[1.4fr_1fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Device identity</CardTitle>
-          <CardDescription>
-            Its identity stays the same when source sessions or profile
-            revisions change.
-          </CardDescription>
-        </CardHeader>
-        <form
-          onSubmit={form.handleSubmit(async (values) => {
-            try {
-              const result = await run(() =>
-                api.updateDevice(org, device.uuid, {
-                  ...values,
-                  draft_revision: revision,
-                }),
-              )
-              form.reset(savedValues(result))
-              setRevision(result.draft_revision)
-            } catch {}
-          })}
-        >
-          <CardContent>
-            <FieldGroup>
-              <TextField
-                label="Device name"
-                required
-                disabled={!editable || device.lifecycle === "archived"}
-                {...form.register("name")}
-              />
-              <TextField
-                label="Device code"
-                required
-                disabled={!editable || device.lifecycle === "archived"}
-                {...form.register("code")}
-              />
-              <TextField
-                label="Serial number"
-                disabled={!editable || device.lifecycle === "archived"}
-                {...form.register("serial_number")}
-              />
-              <TextField
-                label="Description"
-                disabled={!editable || device.lifecycle === "archived"}
-                {...form.register("description")}
-              />
-              {dirty && device.draft_revision !== revision && (
-                <Alert>
-                  <AlertTitle>Newer saved values are available</AlertTitle>
-                  <AlertDescription>
-                    The saved name is “{device.name}” and code is “{device.code}
-                    ”. Your form is retained.
-                    <Button
-                      variant="outline"
-                      type="button"
-                      onClick={() => {
-                        form.reset(savedValues(device))
-                        setRevision(device.draft_revision)
-                      }}
-                    >
-                      Use saved values
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-              )}
-            </FieldGroup>
-          </CardContent>
-          {editable && device.lifecycle !== "archived" && (
-            <CardFooter className="mt-5 p-0">
-              <SaveBar
-                dirty={dirty}
-                busy={busy}
-                onCancel={() => {
-                  form.reset(savedValues(device))
-                  setRevision(device.draft_revision)
-                }}
-              />
-            </CardFooter>
-          )}
-        </form>
-      </Card>
-      <div className="flex flex-col gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Connection and configuration</CardTitle>
-            <CardDescription>
-              Registration, connectivity, and runtime application are tracked
-              separately.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-[auto_1fr] gap-3 text-sm">
-              <dt>Gateway</dt>
-              <dd>{device.candidate?.gateway.name ?? "Not assigned"}</dd>
-              <dt>Source connection</dt>
-              <dd>
-                <DeviceStatus value={device.candidate?.presence ?? "unseen"} />
-              </dd>
-              <dt>Source</dt>
-              <dd>
-                {device.candidate
-                  ? device.candidate.source_device_id ||
-                    "Edge Node measurements"
-                  : "Not assigned"}
-              </dd>
-              <dt>Last seen</dt>
-              <dd>{formatTime(device.last_seen_at)}</dd>
-              <dt>Last working revision</dt>
-              <dd>
-                {device.configurations.find(
-                  (c) => c.uuid === device.last_applied_configuration_uuid,
-                )?.revision ?? "None"}
-              </dd>
-              <dt>Applied revision</dt>
-              <dd>
-                {device.configurations.find(
-                  (c) => c.uuid === device.applied_configuration_uuid,
-                )?.revision ?? "None"}
-              </dd>
-              <dt>Requested revision</dt>
-              <dd>
-                {device.configurations.find(
-                  (c) => c.uuid === device.desired_configuration_uuid,
-                )?.revision ?? "None"}
-              </dd>
-            </dl>
-          </CardContent>
-        </Card>
-        {device.lifecycle !== "archived" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Lifecycle actions</CardTitle>
-              <CardDescription>
-                Activate a deactivated device using its saved configuration.
-                Deactivating stops runtime processing. Archiving preserves
-                configuration and command history.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              {canActivate && (
-                <DeviceLifecycleAction
-                  org={org}
-                  device={device}
-                  disabled={busy}
-                  onUnconfirmed={onUnconfirmed}
-                />
-              )}
-              {editable && (
-                <Button
-                  variant="outline"
-                  disabled={
-                    busy ||
-                    dirty ||
-                    Boolean(
-                      device.applied_configuration_uuid ||
-                      device.desired_configuration_uuid,
-                    ) ||
-                    device.deployment_status === "pending"
-                  }
-                  onClick={() => reviewAction("archive")}
-                >
-                  Archive device
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-      <Confirm
-        open={Boolean(action)}
-        title="Archive this device?"
-        description={action?.description ?? ""}
-        action="Archive device"
-        onClose={() => setAction(null)}
-        onConfirm={async () => {
-          if (action)
-            await run(() =>
-              api.deviceAction(org, device.uuid, action.kind, action.revision),
-            )
-        }}
-      />
-    </div>
+    <DropdownMenuItem
+      disabled={Boolean(reason)}
+      variant={destructive ? "destructive" : "default"}
+      className="flex-col items-start gap-0"
+      onSelect={onSelect}
+    >
+      {label}
+      {reason && <span className="text-xs text-muted-foreground">{reason}</span>}
+    </DropdownMenuItem>
+  )
+}
+
+function StateLine({ device }: { device: DeviceDetail }) {
+  const applied = configurationRevision(device, device.applied_configuration_uuid),
+    desired = configurationRevision(device, device.desired_configuration_uuid),
+    working = configurationRevision(device, device.last_applied_configuration_uuid)
+  const [tone] = deviceStatus(device.deployment_status)
+  const configuration =
+    device.deployment_status === "applied"
+      ? `Configuration applied rev ${applied ?? ""}`
+      : device.deployment_status === "pending"
+        ? `Configuration rev ${desired ?? ""} pending`
+        : device.deployment_status === "failed"
+          ? "Configuration failed"
+          : working !== undefined
+            ? `Last working configuration rev ${working}`
+            : "Not configured"
+  const dot = (
+    <span aria-hidden="true" className="text-muted-foreground">
+      ·
+    </span>
+  )
+  return (
+    <p className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 py-1 text-sm">
+      <DeviceStatus value={device.lifecycle} />
+      {device.lifecycle !== "deactivated" && device.lifecycle !== "archived" && (
+        <>
+          {dot}
+          <DeviceStatus value={device.presence} />
+        </>
+      )}
+      {dot}
+      <StatusMark tone={tone}>{configuration}</StatusMark>
+      {dot}
+      <span className="text-muted-foreground">
+        Last seen <Age value={device.last_seen_at} never="never" />
+      </span>
+    </p>
   )
 }
