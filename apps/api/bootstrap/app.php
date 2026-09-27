@@ -2,9 +2,13 @@
 
 use App\Domain\DeviceProfiles\Exceptions\ProfileDraftConflictException;
 use App\Domain\DeviceProfiles\Exceptions\ProfileValidationException;
+use App\Domain\Integrations\Console\WebhookWorker;
+use App\Http\Middleware\OperationRequestLog;
+use App\Http\Middleware\TrustDeploymentProxies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -14,9 +18,11 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withCommands([\App\Domain\Integrations\Console\WebhookWorker::class])
+    ->withCommands([WebhookWorker::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        $middleware->replace(TrustProxies::class, TrustDeploymentProxies::class);
+        $middleware->append(OperationRequestLog::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ProfileValidationException $exception, Request $request) {

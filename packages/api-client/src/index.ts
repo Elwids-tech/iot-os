@@ -20,6 +20,7 @@ import type { Dashboard, DashboardInput } from "./dashboards"
 export * from "./dashboards"
 export * from "./devices"
 export * from "./alerts"
+export * from "./geospatial"
 
 export type Organization = {
   uuid: string
@@ -407,7 +408,7 @@ function directoryQuery(query: DirectoryQuery = {}): string {
 }
 
 export type * from "./assistant"
-export type IntegrationAbility = "devices:read" | "alerts:read" | "events:read" | "telemetry:read"
+export type IntegrationAbility = "devices:read" | "alerts:read" | "events:read" | "telemetry:read" | "locations:read" | "geofences:read" | "geofences:manage" | "geofences:activate"
 export interface IntegrationApplication {
   uuid: string; name: string; abilities: IntegrationAbility[]; device_uuids: string[];
   revision: number; grant_revision: number; revoked_at: string | null;
@@ -1397,6 +1398,35 @@ export class ApiClient {
   workflowAlertOverview(org: string, id: string, signal?: AbortSignal) {
     return this.data<import("./dashboards").WorkflowAlertOverview>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/alert-overview`, "GET", undefined, signal)
   }
+  locationBindings(org: string) {
+    return this.request<{ data: import("./geospatial").LocationBinding[] }>(`/api/v1/organizations/${encodeURIComponent(org)}/location-bindings`)
+  }
+  locationMap(org: string, input: { device_uuids: string[]; trail_window: import("./geospatial").TrailWindow; include_trails: boolean; geofence_uuid?: string | null }, signal?: AbortSignal) {
+    return this.data<import("./geospatial").LocationMapSnapshot>(`/api/v1/organizations/${encodeURIComponent(org)}/location-map/query`, "POST", input, signal)
+  }
+  geofences(org: string, search = "", page = 1) {
+    const query = new URLSearchParams({ page: String(page) })
+    if (search.trim()) query.set("search", search.trim())
+    return this.request<{ data: import("./geospatial").Geofence[]; meta: { current_page: number; last_page: number; total: number } }>(`/api/v1/organizations/${encodeURIComponent(org)}/geofences?${query}`)
+  }
+  geofence(org: string, id: string) {
+    return this.data<import("./geospatial").Geofence>(`/api/v1/organizations/${encodeURIComponent(org)}/geofences/${encodeURIComponent(id)}`)
+  }
+  createGeofence(org: string, input: import("./geospatial").GeofenceInput) {
+    return this.request<{ data: import("./geospatial").Geofence; activation: import("./geospatial").GeofenceActivationBatch }>(`/api/v1/organizations/${encodeURIComponent(org)}/geofences`, { method: "POST", body: JSON.stringify(input), headers: { "Content-Type": "application/json" } })
+  }
+  updateGeofence(org: string, id: string, input: import("./geospatial").GeofenceInput) {
+    return this.request<{ data: import("./geospatial").Geofence; activation: import("./geospatial").GeofenceActivationBatch }>(`/api/v1/organizations/${encodeURIComponent(org)}/geofences/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input), headers: { "Content-Type": "application/json" } })
+  }
+  geofenceActivation(org: string, fence: string, batch: string) {
+    return this.data<import("./geospatial").GeofenceActivationBatch>(`/api/v1/organizations/${encodeURIComponent(org)}/geofences/${encodeURIComponent(fence)}/activations/${encodeURIComponent(batch)}`)
+  }
+  geofenceEvents(org: string, fence: string, page = 1) {
+    return this.request<{ data: import("./geospatial").GeofenceEvent[]; meta: { current_page: number; last_page: number; total: number } }>(`/api/v1/organizations/${encodeURIComponent(org)}/geofences/${encodeURIComponent(fence)}/events?page=${page}`)
+  }
+  retryGeofenceActivation(org: string, fence: string, batch: string, item: number) {
+    return this.data<import("./geospatial").GeofenceActivationBatch>(`/api/v1/organizations/${encodeURIComponent(org)}/geofences/${encodeURIComponent(fence)}/activations/${encodeURIComponent(batch)}/items/${item}/retry`, "POST", {})
+  }
   notificationWorkflows(org: string, page: number) {
     return this.request<import("./alerts").AlertPage<{ uuid: string; name: string }>>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?page=${page}`)
   }
@@ -1458,3 +1488,5 @@ export class ApiClient {
 }
 
 export const apiClient = new ApiClient()
+
+export { runtimeConfig, type RuntimeConfig } from "./runtime-config"

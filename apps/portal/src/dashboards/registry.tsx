@@ -10,7 +10,7 @@ const StateHistoryPanel = lazy(() => import("./StateHistoryPanel"))
 const ColorHistoryPanel = lazy(() => import("./ColorHistoryPanel"))
 
 export const widgetRegistry = {
-  location: {label: "Location", mode: "latest", description: "Paired location, geofence outline and workflow condition.", editor: "workflow-panel", version: 2, renderer: LocationPanel},
+  location: {label: "GPS map", mode: "latest", description: "Monitor up to 100 paired GPS devices, movement trails, and an optional geofence.", editor: "location-panel", version: 2, renderer: LocationPanel},
   alerts: {label: "Alerts", mode: "latest", description: "Active conditions, acknowledgements and recent workflow episodes.", editor: "workflow-panel", version: 2, renderer: AlertsPanel},
   controls: {
     label: "Controls",

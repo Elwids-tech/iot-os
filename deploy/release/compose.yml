@@ -1,0 +1,292 @@
+name: ${COMPOSE_PROJECT_NAME:-iot-staging}
+
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+  networks: [private]
+
+x-api-env: &api-env
+  APP_NAME: "IoT OS"
+  APP_ENV: ${DEPLOY_ENVIRONMENT:?}
+  APP_DEBUG: "false"
+  APP_KEY: ${APP_KEY:?}
+  APP_URL: https://api.${DOMAIN:?}
+  FRONTEND_URL: https://app.${DOMAIN}
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: info
+  LOG_STDERR_FORMATTER: Monolog\Formatter\JsonFormatter
+  DB_CONNECTION: pgsql
+  DB_HOST: timescaledb
+  DB_PORT: "5432"
+  DB_DATABASE: iot
+  DB_USERNAME: iot_api
+  DB_PASSWORD: ${API_DB_PASSWORD:?}
+  SESSION_DRIVER: database
+  CACHE_STORE: database
+  QUEUE_CONNECTION: database
+  SESSION_DOMAIN: .${DOMAIN}
+  SESSION_SECURE_COOKIE: "true"
+  SESSION_SAME_SITE: lax
+  SANCTUM_STATEFUL_DOMAINS: app.${DOMAIN},admin.${DOMAIN}
+  CORS_ALLOWED_ORIGINS: https://app.${DOMAIN},https://admin.${DOMAIN}
+  TRUSTED_PROXIES: 172.30.80.0/24
+  DEVICE_RUNTIME_URL: http://runtime:8081
+  DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN:?}
+  DEVICE_MQTT_URL: ssl://mqtt.${DOMAIN}:8883
+  DEVICE_MQTT_PUBLIC_URL: ssl://mqtt.${DOMAIN}:8883
+  DEVICE_EMQX_API_URL: http://emqx:18083/api/v5
+  DEVICE_EMQX_API_KEY: ${DEVICE_EMQX_API_KEY:?}
+  DEVICE_EMQX_API_SECRET: ${DEVICE_EMQX_API_SECRET:?}
+  IOT_STAGING_DEMO_ENABLED: ${IOT_STAGING_DEMO_ENABLED:-false}
+  IOT_OPS_ENABLED: "true"
+  IOT_METRICS_TOKEN: ${IOT_METRICS_TOKEN:?}
+  IOT_ASSISTANT_ENABLED: ${IOT_ASSISTANT_ENABLED:-false}
+  IOT_ASSISTANT_DAILY_BUDGET_USD: "0.10"
+  IOT_ASSISTANT_RUN_BUDGET_USD: "0.04"
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_STORE: "false"
+  MAIL_MAILER: smtp
+  MAIL_HOST: smtp-relay.brevo.com
+  MAIL_PORT: "587"
+  MAIL_SCHEME: smtp
+  MAIL_USERNAME: ${MAIL_USERNAME:?}
+  MAIL_PASSWORD: ${MAIL_PASSWORD:?}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:?}
+  MAIL_FROM_NAME: "IoT OS"
+
+x-api: &api
+  <<: *service
+  image: ${API_IMAGE:?}
+  environment: *api-env
+  volumes:
+    - ${STATE_DIR:?}/app:/var/www/html/storage
+  mem_limit: 384m
+  stop_grace_period: 150s
+
+services:
+  caddy:
+    <<: *service
+    image: caddy:2.10.2-alpine
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+      VPN_CIDR: ${VPN_CIDR:?}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${STATE_DIR}/caddy:/data
+    mem_limit: 128m
+    networks: [private, edge]
+  api:
+    <<: *api
+  api-web:
+    <<: *service
+    image: ${API_WEB_IMAGE:?}
+    mem_limit: 48m
+    depends_on: [api]
+  portal:
+    <<: *service
+    image: ${PORTAL_IMAGE:?}
+    environment: &web-env
+      PUBLIC_API_URL: https://api.${DOMAIN}
+      PUBLIC_PORTAL_URL: https://app.${DOMAIN}
+      PUBLIC_ADMIN_URL: https://admin.${DOMAIN}
+      PUBLIC_MAP_STYLE_URL: ${PUBLIC_MAP_STYLE_URL:-}
+      DEPLOY_ENVIRONMENT: ${DEPLOY_ENVIRONMENT}
+    mem_limit: 48m
+  admin:
+    <<: *service
+    image: ${ADMIN_IMAGE:?}
+    environment: *web-env
+    mem_limit: 48m
+  migrate:
+    <<: *api
+    profiles: [tools]
+    restart: "no"
+    command: ["php", "artisan", "migrate", "--force"]
+  default-worker:
+    <<: *api
+    stop_signal: SIGTERM
+    environment: {<<: *api-env, IOT_WORKER_NAME: default}
+    command: ["php", "artisan", "queue:work", "database", "--queue=default", "--sleep=2", "--timeout=60", "--max-time=3600"]
+    mem_limit: 160m
+  alerts-worker:
+    <<: *api
+    stop_signal: SIGTERM
+    environment: {<<: *api-env, IOT_WORKER_NAME: alerts}
+    command: ["php", "artisan", "queue:work", "alerts", "--queue=alerts", "--sleep=2", "--timeout=30", "--max-time=3600"]
+    mem_limit: 128m
+  assistant-worker:
+    <<: *api
+    stop_signal: SIGTERM
+    environment: {<<: *api-env, IOT_WORKER_NAME: assistant}
+    command: ["php", "artisan", "queue:work", "assistant", "--queue=assistant", "--sleep=2", "--tries=1", "--timeout=120", "--max-time=3600"]
+    mem_limit: 256m
+  webhooks-worker:
+    <<: *api
+    stop_signal: SIGTERM
+    environment: {<<: *api-env, IOT_WORKER_NAME: webhooks}
+    command: ["php", "artisan", "integrations:webhooks-work", "--max-time=3600"]
+    mem_limit: 128m
+  scheduler:
+    <<: *api
+    stop_signal: SIGTERM
+    environment: {<<: *api-env, IOT_WORKER_NAME: scheduler}
+    command: ["php", "artisan", "schedule:work"]
+    mem_limit: 128m
+  runtime:
+    <<: *service
+    image: ${RUNTIME_IMAGE:?}
+    environment:
+      DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN}
+      DEVICE_CONTROL_URL: http://api-web/api/internal/devices
+      IOT_RUNTIME_AUTO_MIGRATE: "false"
+      DEVICE_DATABASE_URL: postgres://iot_runtime:${RUNTIME_DB_PASSWORD:?}@timescaledb:5432/iot?sslmode=disable
+      DEVICE_MQTT_CA_FILE: /etc/ssl/certs/ca-certificates.crt
+      NATS_URL: nats://runtime:${NATS_PASSWORD:?}@nats:4222
+    mem_limit: 256m
+    stop_grace_period: 40s
+  runtime-migrate:
+    <<: *service
+    image: ${RUNTIME_IMAGE:?}
+    profiles: [tools]
+    restart: "no"
+    command: ["--migrate"]
+    environment:
+      DEVICE_DATABASE_URL: postgres://iot_runtime:${RUNTIME_DB_PASSWORD:?}@timescaledb:5432/iot?sslmode=disable
+  timescaledb:
+    <<: *service
+    image: timescale/timescaledb:2.29.2-pg17
+    environment:
+      POSTGRES_DB: iot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      NO_TS_TUNE: "true"
+    volumes:
+      - ${STATE_DIR}/postgres:/var/lib/postgresql/data
+      - ${CONFIG_DIR}/init-db.sql:/docker-entrypoint-initdb.d/010-roles.sql:ro
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=60", "-c", "work_mem=4MB", "-c", "maintenance_work_mem=64MB", "-c", "max_parallel_workers_per_gather=1"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d iot"]
+      interval: 5s
+      retries: 30
+    mem_limit: 768m
+  nats:
+    <<: *service
+    image: nats:2.14.5-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    volumes:
+      - ${STATE_DIR}/nats:/data
+      - ${CONFIG_DIR:?}/nats.conf:/etc/nats/nats.conf:ro
+    mem_limit: 192m
+  emqx:
+    <<: *service
+    image: emqx/emqx:5.9.3
+    hostname: emqx
+    ports: ["8883:8883"]
+    environment:
+      EMQX_NODE__NAME: emqx@emqx
+      EMQX_NODE__COOKIE: ${EMQX_COOKIE:?}
+      EMQX_DASHBOARD__DEFAULT_USERNAME: operator
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: ${EMQX_DASHBOARD_PASSWORD:?}
+    volumes:
+      - ./emqx.conf:/opt/emqx/etc/emqx.conf:ro
+      - ${CONFIG_DIR}/emqx-api-keys:/opt/emqx/etc/api-keys:ro
+      - ${STATE_DIR}/mqtt-certs:/opt/emqx/etc/certs/live:ro
+      - ${STATE_DIR}/emqx:/opt/emqx/data
+    networks:
+      private:
+        aliases: ["mqtt.${DOMAIN}"]
+    mem_limit: 640m
+  simulator:
+    <<: *service
+    stop_signal: SIGINT
+    profiles: [demo]
+    image: ${SIMULATOR_IMAGE:?}
+    command: ["--config=/config/meter.json", "--state-file=/state/meter"]
+    volumes:
+      - ${STATE_DIR}/simulator-config:/config:ro
+      - ${STATE_DIR}/simulators:/state
+    mem_limit: 64m
+  gps-simulator:
+    <<: *service
+    stop_signal: SIGINT
+    profiles: [demo]
+    image: ${SIMULATOR_IMAGE:?}
+    command: ["--gps", "--config=/config/gps.json", "--state-file=/state/gps"]
+    volumes:
+      - ${STATE_DIR}/simulator-config:/config:ro
+      - ${STATE_DIR}/simulators:/state
+    mem_limit: 64m
+  prometheus:
+    <<: *service
+    image: prom/prometheus:v3.7.3
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--storage.tsdb.retention.size=1GB"]
+    volumes:
+      - ${CONFIG_DIR}/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ${STATE_DIR}/prometheus:/prometheus
+    mem_limit: 256m
+  alertmanager:
+    <<: *service
+    image: prom/alertmanager:v0.28.1
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    volumes:
+      - ${CONFIG_DIR}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ${STATE_DIR}/alertmanager:/alertmanager
+    mem_limit: 64m
+  grafana:
+    <<: *service
+    image: grafana/grafana:12.2.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SERVER_ROOT_URL: https://ops.${DOMAIN}
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ${STATE_DIR}/grafana:/var/lib/grafana
+    mem_limit: 192m
+  loki:
+    <<: *service
+    image: grafana/loki:3.5.5
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./monitoring/loki.yml:/etc/loki/config.yml:ro
+      - ${STATE_DIR}/loki:/loki
+    mem_limit: 256m
+  alloy:
+    <<: *service
+    image: grafana/alloy:v1.11.2
+    command: ["run", "--storage.path=/var/lib/alloy", "/etc/alloy/config.alloy"]
+    user: root
+    volumes:
+      - ./monitoring/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ${STATE_DIR}/alloy:/var/lib/alloy
+    mem_limit: 128m
+  node-exporter:
+    <<: *service
+    image: prom/node-exporter:v1.9.1
+    command: ["--path.rootfs=/host", "--collector.textfile.directory=/textfile"]
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+      - ${STATE_DIR}/metrics:/textfile:ro
+    mem_limit: 48m
+  blackbox:
+    <<: *service
+    image: prom/blackbox-exporter:v0.27.0
+    volumes: ["./monitoring/blackbox.yml:/etc/blackbox_exporter/config.yml:ro"]
+    mem_limit: 48m
+
+networks:
+  private:
+    ipam:
+      config: [{subnet: 172.30.80.0/24}]
+  edge: {}

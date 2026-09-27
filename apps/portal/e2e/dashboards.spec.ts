@@ -325,6 +325,72 @@ async function menu(page: Page, title = "Current temperature") {
     .click()
 }
 
+test("dashboard fullscreen preserves drafts and long canvases can grow below the viewport", async ({ page }) => {
+  const { dashboards, calls, errors } = await setup(page)
+  dashboards[0].layouts.lg = [
+    { i: "status", x: 0, y: 0, w: 6, h: 6 },
+    { i: "chart", x: 6, y: 18, w: 6, h: 6 },
+  ]
+  await page.goto(basePath + "/first")
+  await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
+  await page.getByRole("button", { name: "Dashboard settings", exact: true }).click()
+  await page.getByLabel("Dashboard name", { exact: true }).fill("Long dashboard draft")
+  await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click()
+  await page.getByRole("button", { name: "Fullscreen dashboard", exact: true }).click()
+  const workspace = page.locator('[data-dashboard-fullscreen="true"]')
+  await expect(workspace).toHaveCSS("position", "fixed")
+  expect(await page.getByRole("navigation", { name: "Workspace" }).evaluate(el => Boolean(el.closest("[inert]")))).toBe(true)
+  await expect(page.getByRole("button", { name: "Last 6 hours", exact: true })).toHaveCount(0)
+  expect(await workspace.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true)
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("button", { name: "Fullscreen dashboard", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Long dashboard draft" })).toBeVisible()
+  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible()
+
+  const below = page.getByRole("button", { name: "Add widget below", exact: true })
+  await below.scrollIntoViewIfNeeded()
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(1000)
+  await below.click()
+  await page.getByRole("button", { name: "Add Status", exact: true }).click()
+  await page.getByRole("combobox", { name: "Device", exact: true }).click()
+  await page.getByRole("button", { name: "Next device options", exact: true }).click()
+  await page.getByRole("option", { name: "Boiler room", exact: true }).click()
+  await page.getByRole("combobox", { name: "Parameter", exact: true }).click()
+  await page.getByRole("option", { name: /Temperature/ }).click()
+  await page.getByRole("button", { name: "Add parameter", exact: true }).click()
+  await page.getByRole("tab", { name: "Panel", exact: true }).click()
+  await page.getByLabel("Panel title", { exact: true }).fill("Bottom status")
+  await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
+  await expect(page.getByText("Bottom status", { exact: true })).toBeInViewport()
+  expect(calls.writes).toBe(0)
+  await page.getByRole("button", { name: "Save dashboard", exact: true }).click()
+  await expect.poll(() => calls.writes).toBe(1)
+  const added = dashboards[0].widgets.at(-1)!
+  expect(dashboards[0].layouts.lg?.find(item => item.i === added.id)?.y).toBeGreaterThanOrEqual(24)
+  await page.reload()
+  await page.getByText("Bottom status", { exact: true }).scrollIntoViewIfNeeded()
+  await expect(page.getByText("Bottom status", { exact: true })).toBeInViewport()
+  expect(errors).toEqual([])
+})
+
+test("time controls live in the sticky header and remain usable on narrow screens", async ({ page }) => {
+  const { errors } = await setup(page)
+  await page.goto(basePath + "/first")
+  const headerControls = page.locator('header [aria-label="Dashboard time controls"]')
+  await expect(headerControls).toBeVisible()
+  await headerControls.getByRole("button", { name: "Last 6 hours", exact: true }).click()
+  await expect(page.getByText("Quick ranges", { exact: true })).toBeVisible()
+  await page.keyboard.press("Escape")
+
+  await page.setViewportSize({ width: 900, height: 800 })
+  await expect(headerControls).toBeHidden()
+  const narrowControls = page.locator('[aria-label="Dashboard time controls"]:visible')
+  await expect(narrowControls).toBeVisible()
+  await narrowControls.getByRole("button", { name: "Last 6 hours", exact: true }).click()
+  await expect(page.getByText("Quick ranges", { exact: true })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
 test("multiple dashboards, explicit apply/save, and save before switching", async ({
   page,
 }, info) => {
@@ -360,7 +426,18 @@ test("multiple dashboards, explicit apply/save, and save before switching", asyn
   expect(calls.writes).toBe(before)
   await page.getByRole("combobox", { name: "Dashboard", exact: true }).click()
   await page.getByRole("option", { name: "Utilities", exact: true }).click()
-  await expect(page.getByRole("alertdialog")).toBeVisible()
+  const leaveDialog = page.getByRole("alertdialog")
+  await expect(leaveDialog).toBeVisible()
+  const dialogBox = await leaveDialog.boundingBox()
+  const footerBox = await leaveDialog
+    .locator('[data-slot="alert-dialog-footer"]')
+    .boundingBox()
+  expect(dialogBox).not.toBeNull()
+  expect(footerBox).not.toBeNull()
+  expect(footerBox!.x).toBeGreaterThanOrEqual(dialogBox!.x)
+  expect(footerBox!.x + footerBox!.width).toBeLessThanOrEqual(
+    dialogBox!.x + dialogBox!.width,
+  )
   await page
     .getByRole("button", { name: "Save and leave", exact: true })
     .click()
@@ -796,6 +873,9 @@ test("browser timezone rejects nonexistent daylight-saving input", async ({
 
 test("workflow panels preview, persist, refresh failures and remain usable on mobile", async ({ page }, info) => {
   const { dashboards, calls, errors } = await setup(page)
+  // Saved workflow location panels remain readable; new location panels use GPS maps.
+  dashboards[0].widgets.push({ id: "legacy-location", type: "location", schema_version: 2, title: "Legacy location", description: "", config: { sources: [], workflow_uuid: "workflow-one" } })
+  dashboards[0].layouts.lg.push({ i: "legacy-location", x: 0, y: 12, w: 6, h: 6 })
   let unavailable = false
   let locationReads = 0
   await page.route("**/workflows**", async route => {
@@ -817,14 +897,13 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   })
   await page.goto(basePath + "/first")
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
-  for (const type of ["Location", "Alerts"]) {
+  for (const type of ["Alerts"]) {
     await page.getByRole("button", { name: "Add widget", exact: true }).click()
     await page.getByRole("button", { name: `Add ${type}`, exact: true }).click()
     await expect(page.getByRole("button", { name: "Apply to dashboard", exact: true })).toBeDisabled()
     await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
     await page.getByRole("option", { name: "Pasture boundary", exact: true }).click()
-    if (type === "Location") await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
-    else await expect(page.getByText("1 active", { exact: true })).toBeVisible()
+    await expect(page.getByRole("dialog").getByText("1 active", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
   }
   expect(calls.writes).toBe(0)
@@ -852,11 +931,11 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
   await page.getByRole("button", { name: "Add widget", exact: true }).click()
-  await page.getByRole("button", { name: "Add Location", exact: true }).click()
+  await page.getByRole("button", { name: "Add Alerts", exact: true }).click()
   await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
   await page.keyboard.press("ArrowDown")
   await page.keyboard.press("Enter")
-  await expect(page.getByRole("dialog").getByText("No applied workflow", { exact: true })).toBeVisible()
+  await expect(page.getByRole("dialog").getByText("1 active", { exact: true })).toBeVisible()
   const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
   expect(audit.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
@@ -930,4 +1009,48 @@ test("enabling a primary button restores full contrast immediately", async ({pag
   await page.getByLabel("Dashboard name", {exact: true}).fill("Changed name")
   await expect.poll(() => page.evaluate(() => (window as any).__enabledOpacity)).not.toBeNull()
   expect(await page.evaluate(() => (window as any).__enabledOpacity)).toBe("1")
+})
+
+
+test("GPS map loads its worker, colours membership, and queries selectable dashed trails", async ({ page }, info) => {
+  const { dashboards, errors } = await setup(page)
+  const ids = [deviceId, "11111111-1111-4111-8111-111111111112", "11111111-1111-4111-8111-111111111113"]
+  dashboards[0].widgets = [{ id: "gps", schema_version: 2, type: "location", title: "GPS monitoring", description: "", config: {
+    sources: [], location_device_uuids: ids, geofence_uuid: "fence", show_trails: true, trail_window: "24h"
+  } }]
+  dashboards[0].layouts = { lg: [{ i: "gps", x: 0, y: 0, w: 12, h: 14 }] }
+  const requests: { trail_window: string; include_trails: boolean }[] = []
+  await page.route("**/location-map/query", route => {
+    const input = route.request().postDataJSON()
+    requests.push(input)
+    return route.fulfill({ json: { data: {
+      schema_version: "location-map.v1", trail_window: input.trail_window,
+      geofence: { uuid: "fence", name: "Demo boundary", revision: 1, geometry: { type: "Polygon", coordinates: [[[-114.01,50.99],[-113.99,50.99],[-113.99,51.01],[-114.01,51.01],[-114.01,50.99]]] } },
+      devices: ids.map((id, index) => ({ device_uuid: id, device_name: `Tracker ${index + 1}`, binding_uuid: id,
+        condition: ["inside", "outside", "unknown"][index], wandering: false, active_alert: null, deployment_status: "applied",
+        latest: { point: { longitude: -114 + index * 0.012, latitude: 51, accuracy_metres: 5 }, live_eligible: index < 2,
+          received_at: new Date().toISOString(), observed_at: new Date().toISOString(), reason: index < 2 ? "eligible" : "stale" },
+        trail: { sampled: false, segments: input.include_trails ? [[{ point: { longitude: -114, latitude: 50.996 } }, { point: { longitude: -114 + index * 0.012, latitude: 51 } }]] : [] }
+      }))
+    } } })
+  })
+  const workerResponse = page.waitForResponse(response => /maplibre-gl-worker.*\.js/.test(response.url()))
+  await page.goto(basePath + "/first")
+  expect((await workerResponse).ok()).toBe(true)
+  await expect(page.getByRole("button", { name: "Tracker 1: inside", exact: true })).toHaveCSS("background-color", "rgb(22, 163, 74)")
+  await expect(page.getByRole("button", { name: "Tracker 2: outside", exact: true })).toHaveCSS("background-color", "rgb(220, 38, 38)")
+  await expect(page.getByRole("button", { name: "Tracker 3: unknown", exact: true })).toHaveCSS("background-color", "rgb(100, 116, 139)")
+  await page.getByRole("radio", { name: "Last 1h of movement", exact: true }).click()
+  await expect.poll(() => requests.at(-1)?.trail_window).toBe("1h")
+  await page.getByRole("switch", { name: "Movement trails", exact: true }).click()
+  await expect.poll(() => requests.at(-1)?.include_trails).toBe(false)
+  await page.getByRole("switch", { name: "Movement trails", exact: true }).click()
+  await expect(page.getByRole("switch", { name: "Movement trails", exact: true })).toBeChecked()
+  await expect(page.getByRole("region", { name: "GPS monitoring map", exact: true }).getByText("Off", { exact: true })).toHaveCount(0)
+  await page.screenshot({ path: info.outputPath("gps-trails-desktop.png") })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByRole("switch", { name: "Movement trails", exact: true })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
+  await page.screenshot({ path: info.outputPath("gps-trails-mobile.png"), fullPage: true })
+  expect(errors).toEqual([])
 })

@@ -53,7 +53,11 @@ const permissions: { value: IntegrationAbility; label: string }[] = [
   { value: "devices:read", label: "Device details" },
   { value: "telemetry:read", label: "Telemetry and location" },
   { value: "alerts:read", label: "Alerts" },
-  { value: "events:read", label: "Alert event feed" },
+  { value: "events:read", label: "Alert and geofence event feed" },
+  { value: "locations:read", label: "GPS locations and trails" },
+  { value: "geofences:read", label: "Geofences" },
+  { value: "geofences:manage", label: "Manage geofences" },
+  { value: "geofences:activate", label: "Activate geofence assignments" },
 ];
 const blank = (): IntegrationGrants => ({
   name: "",

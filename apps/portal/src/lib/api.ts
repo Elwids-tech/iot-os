@@ -1,6 +1,7 @@
+import { runtimeConfig } from "@iot-os/api-client"
 import { ApiClient } from "@iot-os/api-client"
 const configured = new URL(
-  import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8001",
+  runtimeConfig("VITE_API_URL", import.meta.env.VITE_API_URL) ?? "http://127.0.0.1:8001",
 )
 if (
   ["localhost", "127.0.0.1"].includes(configured.hostname) &&

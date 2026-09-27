@@ -1,5 +1,6 @@
+import { runtimeConfig } from "@iot-os/api-client"
 import { AcceptInvitationPage as SharedInvitationPage } from "@iot-os/auth/AcceptInvitationPage"
 import { apiClient } from "../lib/api-client"
 export function AcceptInvitationPage() {
-  return <SharedInvitationPage apiClient={apiClient} portalUrl={import.meta.env.VITE_PORTAL_URL || `${window.location.protocol}//${window.location.hostname}:5173`} />
+  return <SharedInvitationPage apiClient={apiClient} portalUrl={runtimeConfig("VITE_PORTAL_URL", import.meta.env.VITE_PORTAL_URL) || `${window.location.protocol}//${window.location.hostname}:5173`} />
 }

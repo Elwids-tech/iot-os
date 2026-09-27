@@ -103,3 +103,24 @@ test('location fixes preserve unknown and reject invented valid coordinates', as
     await assert.rejects(make(async()=>Response.json({version_uuid:id,data:invalid})).locationFix(id,id,id),IotContractError)
   }
 })
+
+test('geospatial management uses bounded device queries and idempotent operation bodies', async () => {
+  const requests=[]
+  const fence={uuid:id,name:'North pasture',geometry:{type:'Polygon',coordinates:[[[0,0],[0.01,0],[0,0.01],[0,0]]]},revision:1,assignments:[],created_at:'2026-09-26T00:00:00Z',updated_at:'2026-09-26T00:00:00Z'}
+  const activation={uuid:id,geofence_revision:1,status:'pending',items:[],created_at:'2026-09-26T00:00:00Z',updated_at:'2026-09-26T00:00:00Z'}
+  const client=make(async(url,options)=>{requests.push({url,options});return Response.json(url.endsWith('/location-map/query')?{data:{schema_version:'location-map.v1',trail_window:'24h',geofence:null,devices:[]}}:{data:fence,activation})})
+  await client.locationMap({deviceUuids:[id]})
+  const input={operation_uuid:id,expected_revision:0,name:fence.name,geometry:fence.geometry,assignments:[{device_uuid:id,policy:{outside_for_seconds:60,max_gap_seconds:45,minimum_samples:2,uncertainty_metres:2}}]}
+  assert.equal((await client.createGeofence(input)).activation.uuid,id)
+  assert.deepEqual(JSON.parse(requests[0].options.body),{device_uuids:[id],trail_window:'24h',include_trails:true})
+  assert.deepEqual(JSON.parse(requests[1].options.body),input)
+  assert.equal(requests[1].options.method,'POST')
+  await assert.rejects(client.locationMap({deviceUuids:[]}),TypeError)
+  await assert.rejects(client.locationMap({deviceUuids:Array.from({length:101},()=>id)}),TypeError)
+})
+
+test('geofence events are accepted by the shared event stream contract', async()=>{
+  const event={id,schema_version:'integration-event.v1',type:'geofence.exited.v1',occurred_at:'2026-09-26T00:00:00Z',recorded_at:'2026-09-26T00:00:01Z',data:{uuid:id,geofence_uuid:id,geofence_name:'North pasture',assignment_uuid:id,device_uuid:id,type:'exited',source_event_uuid:id,occurred_at:'2026-09-26T00:00:00Z'}}
+  const page=await make(async()=>Response.json({data:[event],next_cursor:'next',has_more:false})).events()
+  assert.equal(page.data[0].type,'geofence.exited.v1')
+})

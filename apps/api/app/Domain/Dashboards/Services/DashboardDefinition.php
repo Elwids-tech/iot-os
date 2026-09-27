@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Domain\Dashboards\Services;
 
+use App\Domain\Automation\Models\Workflow;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
+use App\Domain\Geospatial\Models\Geofence;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -51,9 +53,15 @@ final class DashboardDefinition
             'widgets.*.type' => ['required', 'in:status,timeseries,controls,state_history,color_history,location,alerts'],
             'widgets.*.title' => ['required', 'string', 'max:120'],
             'widgets.*.description' => ['nullable', 'string', 'max:1000'],
-            'widgets.*.config' => ['required', 'array:sources,columns,workflow_uuid'],
+            'widgets.*.config' => ['required', 'array:sources,columns,workflow_uuid,location_device_uuids,geofence_uuid,show_trails,show_labels,trail_window'],
             'widgets.*.config.sources' => ['present', 'array', 'max:100'],
             'widgets.*.config.workflow_uuid' => ['sometimes', 'uuid'],
+            'widgets.*.config.location_device_uuids' => ['sometimes', 'array', 'max:100'],
+            'widgets.*.config.location_device_uuids.*' => ['required', 'uuid', 'distinct'],
+            'widgets.*.config.geofence_uuid' => ['sometimes', 'uuid'],
+            'widgets.*.config.show_trails' => ['sometimes', 'boolean'],
+            'widgets.*.config.show_labels' => ['sometimes', 'boolean'],
+            'widgets.*.config.trail_window' => ['sometimes', Rule::in(['1h', '6h', '24h', '7d'])],
             'widgets.*.config.columns' => ['sometimes', Rule::in(['auto', 1, 2, 3, 4])],
             'widgets.*.config.sources.*' => ['array:device_uuid,parameter_uuid,device_name,label,unit,data_type,format,display_widget,precision,color,base,thresholds'],
             'widgets.*.config.sources.*.device_uuid' => ['required', 'uuid'],
@@ -108,14 +116,36 @@ final class DashboardDefinition
             if ($widget['title'] === '') {
                 $this->fail("widgets.$wi.title", 'Enter a panel title.');
             }
-            if (in_array($widget['type'], ['location', 'alerts'], true)) {
+            if ($widget['type'] === 'location') {
+                if ($widget['config']['sources'] !== [] || isset($widget['config']['columns'])) {
+                    $this->fail("widgets.$wi.config", 'GPS map panels accept devices and no parameter sources.');
+                }
+                $locationDevices = $widget['config']['location_device_uuids'] ?? [];
+                $legacyWorkflow = $widget['config']['workflow_uuid'] ?? null;
+                if (! $locationDevices && ! $legacyWorkflow) {
+                    $this->fail("widgets.$wi.config.location_device_uuids", 'Choose at least one GPS device.');
+                }
+                if ($locationDevices && Device::where('organization_id', $organization->id)->whereIn('uuid', $locationDevices)->count() !== count($locationDevices)) {
+                    $this->fail("widgets.$wi.config.location_device_uuids", 'Every GPS device must belong to this organization.');
+                }
+                if (($fence = $widget['config']['geofence_uuid'] ?? null) && ! Geofence::where('organization_id', $organization->id)->where('uuid', $fence)->exists()) {
+                    $this->fail("widgets.$wi.config.geofence_uuid", 'Choose a geofence in this organization.');
+                }
+                if ($legacyWorkflow && ! Workflow::where('organization_id', $organization->id)->where('uuid', $legacyWorkflow)->exists()) {
+                    $this->fail("widgets.$wi.config.workflow_uuid", 'Choose a workflow in this organization.');
+                }
+
+                continue;
+            }
+            if ($widget['type'] === 'alerts') {
                 if ($widget['config']['sources'] !== [] || isset($widget['config']['columns'])) {
                     $this->fail("widgets.$wi.config", 'Workflow panels accept one workflow and no parameter sources.');
                 }
                 $workflowId = $widget['config']['workflow_uuid'] ?? null;
-                if (! $workflowId || ! \App\Domain\Automation\Models\Workflow::where('organization_id', $organization->id)->where('uuid', $workflowId)->exists()) {
+                if (! $workflowId || ! Workflow::where('organization_id', $organization->id)->where('uuid', $workflowId)->exists()) {
                     $this->fail("widgets.$wi.config.workflow_uuid", 'Choose a workflow in this organization.');
                 }
+
                 continue;
             }
             if (isset($widget['config']['workflow_uuid']) || count($widget['config']['sources']) < 1) {

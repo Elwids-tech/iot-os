@@ -25,7 +25,11 @@ final class AuthenticateApplication
         abort_unless($organization instanceof Organization && $organization->id === $application->organization_id, 404);
         abort_unless(in_array($ability, $application->abilities, true) && in_array($ability, $token->abilities, true), 403, 'Application ability is not granted.');
         if ($ability === 'events:read') {
-            abort_unless(in_array('alerts:read', $application->abilities, true) && in_array('alerts:read', $token->abilities, true), 403, 'Alert read access is required for the event feed.');
+            $canReadEvents = collect(['alerts:read', 'geofences:read'])->contains(fn ($required) => in_array($required, $application->abilities, true) && in_array($required, $token->abilities, true));
+            abort_unless($canReadEvents, 403, 'Alert or geofence read access is required for the event feed.');
+        }
+        if ($ability === 'geofences:activate') {
+            abort_unless(in_array('geofences:manage', $application->abilities, true) && in_array('geofences:manage', $token->abilities, true), 403, 'Geofence management access is required for activation.');
         }
         $key = 'integration-application:'.$application->uuid;
         if (! RateLimiter::attempt($key, 60, fn () => true, 60)) {
@@ -33,6 +37,7 @@ final class AuthenticateApplication
         }
         $request->attributes->set('integration_application', $application);
         $token->forceFill(['last_used_at' => now()])->save();
+
         return $next($request)->header('Cache-Control', 'no-store');
     }
 }

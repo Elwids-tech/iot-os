@@ -19,6 +19,11 @@ export type DashboardControlColumns = "auto" | 1 | 2 | 3 | 4;
 export type StatusWidgetConfig = {
   sources: DashboardSource[];
   workflow_uuid?: string;
+  location_device_uuids?: string[];
+  geofence_uuid?: string;
+  show_trails?: boolean;
+  show_labels?: boolean;
+  trail_window?: import("./geospatial").TrailWindow;
   columns?: DashboardControlColumns;
 };
 export type DashboardWidget = {

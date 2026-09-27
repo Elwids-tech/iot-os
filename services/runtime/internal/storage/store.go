@@ -24,6 +24,11 @@ var schema string
 type Store struct{ Pool *pgxpool.Pool }
 
 func Open(ctx context.Context, url string) (*Store, error) {
+	return OpenWithSchema(ctx, url, true)
+}
+
+// OpenWithSchema lets release deployments migrate explicitly before starting writers.
+func OpenWithSchema(ctx context.Context, url string, migrate bool) (*Store, error) {
 	config, e := pgxpool.ParseConfig(url)
 	if e != nil {
 		return nil, e
@@ -38,9 +43,11 @@ func Open(ctx context.Context, url string) (*Store, error) {
 		pool.Close()
 		return nil, e
 	}
-	if _, e = pool.Exec(ctx, schema); e != nil {
-		pool.Close()
-		return nil, e
+	if migrate {
+		if _, e = pool.Exec(ctx, schema); e != nil {
+			pool.Close()
+			return nil, e
+		}
 	}
 	return &Store{Pool: pool}, nil
 }

@@ -70,6 +70,7 @@ import {
   FileCogIcon,
   HardDriveIcon,
   LayoutDashboardIcon,
+  MapPinnedIcon,
   RadarIcon,
   RouterIcon,
   SparklesIcon,
@@ -82,6 +83,7 @@ const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(modul
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
 const IntegrationRoutes = lazy(() => import("./integrations/Integrations"))
 const AlertRoutes = lazy(() => import("./alerts/Alerts"))
+const GeofenceRoutes = lazy(() => import("./geospatial/Geofences"))
 const AssistantPanel = lazy(() => import("./assistant/AssistantPanel"))
 const ProfileWorkspace = lazy(() =>
   import("./profiles/ProfileWorkspace").then((module) => ({
@@ -211,6 +213,7 @@ function Session() {
           <Route path="organizations/:organizationUuid/devices/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/integrations/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><IntegrationRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/alerts/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><AlertRoutes /></Suspense>} />
+          <Route path="organizations/:organizationUuid/geofences/*" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><GeofenceRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes page="discovery" /></Suspense>} />
           <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<Skeleton className="h-80 w-full" />}><DeviceRoutes page="gateways" /></Suspense>} />
           <Route path="organizations/:organizationUuid/dashboards/:dashboardUuid?" element={<DashboardRoute />} />
@@ -299,6 +302,7 @@ const portalNavigation = [
   { path: "devices", label: "Devices", icon: HardDriveIcon },
   { path: "integrations", label: "Integrations", icon: PlugIcon },
   { path: "alerts", label: "Alerts", icon: BellRingIcon },
+  { path: "geofences", label: "Geofences", icon: MapPinnedIcon },
   { path: "discovery", label: "Discovery", icon: RadarIcon },
   { path: "gateways", label: "Gateways", icon: RouterIcon },
   { path: "device-profiles", label: "Device profiles", icon: FileCogIcon },
@@ -480,12 +484,16 @@ function PortalShell({
         <SidebarInset
           className={assistantOpen && org ? "md:pr-[440px]" : undefined}
         >
-          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-card px-4">
+          <header className="sticky top-0 z-10 flex h-11 shrink-0 items-center gap-2 border-b bg-card px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <span className="truncate text-sm font-medium">
               {currentSection}
             </span>
+            <div
+              id="dashboard-header-time-controls"
+              className="ml-auto hidden min-w-0 items-center xl:flex"
+            />
             <div className="ml-auto flex items-center gap-2">
               <span className="hidden text-sm text-muted-foreground sm:inline">
                 {name}

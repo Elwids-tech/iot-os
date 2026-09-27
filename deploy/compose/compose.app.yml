@@ -122,6 +122,7 @@ services:
       args:
         VITE_API_URL: ${IOT_API_URL:-http://127.0.0.1:8001}
         VITE_ADMIN_URL: ${IOT_ADMIN_URL:-http://127.0.0.1:5174}
+        VITE_MAP_STYLE_URL: ${IOT_MAP_STYLE_URL:-}
     ports:
       - "${IOT_PORTAL_PORT:-5173}:80"
     depends_on:

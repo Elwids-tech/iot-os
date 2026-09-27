@@ -266,6 +266,18 @@ func evaluateRules(ctx context.Context, tx pgx.Tx, input *devices.CommittedTelem
 				}
 			}
 		}
+		if result.MembershipTransition != nil {
+			raw, _ := json.Marshal(result.MembershipTransition)
+			insert, err := tx.Exec(ctx, `INSERT INTO device_runtime.rule_transitions(id,operation_uuid,transition,created_at) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, result.MembershipTransition.ID, x.operation, raw, evaluatedAt)
+			if err != nil {
+				return err
+			}
+			if insert.RowsAffected() > 0 {
+				if err = event(ctx, tx, "workflow.membership.v1", map[string]any{"operation_uuid": x.operation, "rule_uuid": x.definition.UUID, "organization_uuid": x.definition.Binding.OrganizationUUID, "transition": result.MembershipTransition}); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	return nil
 }

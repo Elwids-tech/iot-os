@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useId, useState } from "react"
-import { ChevronsUpDownIcon } from "lucide-react"
+import { CheckIcon, ChevronsUpDownIcon } from "lucide-react"
 import { Button } from "@iot-os/ui/components/button"
 import {
   Command,
@@ -184,6 +184,83 @@ export function SearchableSelect({
               </Button>
             </div>
           )}
+        </PopoverContent>
+      </Popover>
+      {help && <FieldDescription id={id + "-help"}>{help}</FieldDescription>}
+    </Field>
+  )
+}
+
+/** A bounded multi-picker with search inside the selector. */
+export function SearchableMultiSelect({
+  label,
+  values,
+  options,
+  onChange,
+  maximum = 100,
+  help,
+  disabled,
+  placeholder = "Choose options",
+}: {
+  label: string
+  values: string[]
+  options: Option[]
+  onChange: (values: string[]) => void
+  maximum?: number
+  help?: string
+  disabled?: boolean
+  placeholder?: string
+}) {
+  const id = useId()
+  const [open, setOpen] = useState(false)
+  const selected = new Set(values)
+  const display = values.length
+    ? `${values.length} selected`
+    : placeholder
+  return (
+    <Field data-disabled={disabled}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Popover open={open && !disabled} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open && !disabled}
+            aria-describedby={help ? id + "-help" : undefined}
+            disabled={disabled}
+            className="w-full min-w-0 justify-between"
+          >
+            <span className="truncate">{display}</span>
+            <ChevronsUpDownIcon data-icon="inline-end" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 p-0" aria-label={label}>
+          <Command>
+            <CommandInput aria-label={`Search ${label.toLowerCase()}`} placeholder={`Search ${label.toLowerCase()}…`} />
+            <CommandList aria-label={label}>
+              <CommandGroup>
+                {options.map((option) => {
+                  const checked = selected.has(option.value)
+                  const blocked = !checked && values.length >= maximum
+                  return (
+                    <CommandItem
+                      key={option.value}
+                      value={`${option.label} ${option.value}`}
+                      disabled={blocked}
+                      data-checked={checked}
+                      onSelect={() => onChange(checked ? values.filter((value) => value !== option.value) : [...values, option.value])}
+                    >
+                      <CheckIcon className={checked ? "opacity-100" : "opacity-0"} />
+                      <span className="min-w-0 break-words">{option.label}</span>
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+          <div className="border-t p-2 text-xs text-muted-foreground">{values.length} of {maximum} selected</div>
         </PopoverContent>
       </Popover>
       {help && <FieldDescription id={id + "-help"}>{help}</FieldDescription>}

@@ -9,6 +9,8 @@ use App\Domain\Dashboards\Models\Dashboard;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DiscoveryCandidate;
+use App\Domain\Geospatial\Models\Geofence;
+use App\Domain\Geospatial\Models\GeofenceAssignment;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\GpsUseCaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -43,11 +45,23 @@ final class GpsUseCaseSeederTest extends TestCase
         $dashboard = Dashboard::where('uuid', GpsUseCaseSeeder::DASHBOARD_UUID)->firstOrFail();
         $this->assertSame(['status', 'status', 'timeseries', 'location', 'alerts'], collect($dashboard->widgets)->pluck('type')->all());
         $this->assertSame($workflow->uuid, $dashboard->widgets[3]['config']['workflow_uuid']);
+        $this->assertSame(GpsUseCaseSeeder::deviceUuids(), $dashboard->widgets[3]['config']['location_device_uuids']);
+        $this->assertSame($workflow->uuid, $dashboard->widgets[3]['config']['geofence_uuid']);
 
-        $dashboard->update(['name' => 'My GPS operations view']);
+        $this->assertSame(3, Device::whereIn('uuid', GpsUseCaseSeeder::deviceUuids())->count());
+        $this->assertSame(3, GeofenceAssignment::count());
+        $fence = Geofence::firstOrFail();
+        $fence->update(['name' => 'Edited boundary', 'revision' => 3]);
+
+        $legacyWidgets = $dashboard->widgets;
+        $legacyWidgets[3]['config'] = ['sources' => [], 'workflow_uuid' => $workflow->uuid];
+        $dashboard->update(['name' => 'My GPS operations view', 'widgets' => $legacyWidgets]);
         $this->seed(GpsUseCaseSeeder::class);
 
+        $this->assertSame('Edited boundary', $fence->fresh()->name);
+        $this->assertSame(3, $fence->fresh()->revision);
         $this->assertSame('My GPS operations view', $dashboard->fresh()->name);
+        $this->assertSame(GpsUseCaseSeeder::deviceUuids(), $dashboard->fresh()->widgets[3]['config']['location_device_uuids']);
         $this->assertSame(1, Device::where('code', GpsUseCaseSeeder::DEVICE_CODE)->count());
         $this->assertSame(1, DiscoveryCandidate::where('source_device_id', 'gps-tracker')->count());
         $this->assertSame(1, Workflow::where('uuid', GpsUseCaseSeeder::WORKFLOW_UUID)->count());

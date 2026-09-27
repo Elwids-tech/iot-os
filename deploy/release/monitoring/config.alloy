@@ -1,0 +1,26 @@
+local.file_match "containers" {
+  path_targets = [{"__path__" = "/var/lib/docker/containers/*/*-json.log", "job" = "containers"}]
+  sync_period = "15s"
+}
+loki.source.file "containers" {
+  targets = local.file_match.containers.targets
+  forward_to = [loki.process.containers.receiver]
+}
+loki.process "containers" {
+  stage.docker {}
+  stage.json {
+    expressions = { service = "service || context.service", level = "level" }
+  }
+  stage.labels {
+    values = { service = "", level = "" }
+  }
+  // Never promote request IDs, device IDs or tenant IDs into index labels.
+  stage.replace {
+    expression = "(?i)(?:authorization|password|api_key|token)[\\\" :=]+([^\\\"\\n,}]+)"
+    replace = "[REDACTED]"
+  }
+  forward_to = [loki.write.local.receiver]
+}
+loki.write "local" {
+  endpoint { url = "http://loki:3100/loki/api/v1/push" }
+}

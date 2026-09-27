@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Link,
@@ -75,6 +76,7 @@ import {
   ChevronsUpDownIcon,
   GripVerticalIcon,
   MaximizeIcon,
+  MinimizeIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
@@ -136,6 +138,11 @@ export function DashboardWorkspace({
   const [addOpen, setAddOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [fullscreen, setFullscreen] = useState<string | null>(null)
+  const [dashboardFullscreen, setDashboardFullscreen] = useState(false)
+  const [headerControls, setHeaderControls] = useState<HTMLElement | null>(null)
+  const workspace = useRef<HTMLDivElement>(null)
+  const addPlacement = useRef<"available" | "bottom">("available")
+  const [revealWidget, setRevealWidget] = useState<string | null>(null)
   const [discard, setDiscard] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -143,6 +150,45 @@ export function DashboardWorkspace({
   const [breakpoint, setBreakpoint] = useState("lg")
   const layoutAction = useRef(false)
   const panelContent = useRef(new Map<string, HTMLDivElement>())
+  useEffect(() => {
+    setHeaderControls(document.getElementById("dashboard-header-time-controls"))
+  }, [])
+  useEffect(() => {
+    if (!revealWidget || editor) return
+    // Let the panel dialog restore focus before scrolling to the new panel.
+    const frame = requestAnimationFrame(() => {
+      panelContent.current.get(revealWidget)?.scrollIntoView({ block: "center" })
+      setRevealWidget(null)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [revealWidget, editor])
+  useEffect(() => {
+    if (!dashboardFullscreen) return
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const siblings: { element: HTMLElement; inert: boolean }[] = []
+    let current: HTMLElement | null = workspace.current
+    while (current?.parentElement && current !== document.body) {
+      for (const sibling of current.parentElement.children) {
+        if (sibling !== current && sibling instanceof HTMLElement) {
+          siblings.push({ element: sibling, inert: sibling.inert })
+          sibling.inert = true
+        }
+      }
+      current = current.parentElement
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        setDashboardFullscreen(false)
+      }
+    }
+    document.addEventListener("keydown", escape)
+    return () => {
+      document.body.style.overflow = overflow
+      siblings.forEach(({ element, inert }) => { element.inert = inert })
+      document.removeEventListener("keydown", escape)
+    }
+  }, [dashboardFullscreen])
   const { setDirty } = useDirtyContext()
   const dirty =
     Boolean(draft && JSON.stringify(draft) !== JSON.stringify(base)) ||
@@ -210,6 +256,7 @@ export function DashboardWorkspace({
     setParams(writeView(params, next))
   }
   function applyWidget(widget: DashboardWidget) {
+    const isNew = !draft?.widgets.some((item) => item.id === widget.id)
     setDraft((current) => {
       if (!current) return current
       const existing = current.widgets.some((w) => w.id === widget.id)
@@ -220,11 +267,16 @@ export function DashboardWorkspace({
           : [...current.widgets, widget],
         layouts: existing
           ? current.layouts
-          : appendLayout(current.layouts, widget.id),
+          : appendLayout(current.layouts, widget.id, addPlacement.current),
       }
     })
     setEditor(null)
     setEditorDirty(false)
+    if (isNew) setRevealWidget(widget.id)
+  }
+  function openAdd(placement: "available" | "bottom" = "available") {
+    addPlacement.current = placement
+    setAddOpen(true)
   }
   function cancelEditing() {
     if (dirty) setDiscard(true)
@@ -255,6 +307,13 @@ export function DashboardWorkspace({
     window,
     onZoom: (from: string, to: string) =>
       updateView({ ...view, range: { mode: "absolute", from, to } }),
+  }
+  const refreshDashboard = () => {
+    void cache.invalidateQueries({ queryKey: ["dashboard-latest", org] })
+    void cache.invalidateQueries({ queryKey: ["dashboard-history", org] })
+    void cache.invalidateQueries({ queryKey: ["dashboard-workflow-location", org] })
+    void cache.invalidateQueries({ queryKey: ["dashboard-workflow-alerts", org] })
+    void cache.invalidateQueries({ queryKey: ["dashboard-state-history", org] })
   }
   function fitPanelHeight(widgetId: string) {
     const content = panelContent.current.get(widgetId)
@@ -305,9 +364,15 @@ export function DashboardWorkspace({
     })
   }
   return (
-    <div className="flex min-w-0 flex-col gap-5">
+    <div
+      ref={workspace}
+      data-dashboard-fullscreen={dashboardFullscreen}
+      className={dashboardFullscreen
+        ? "fixed inset-0 z-30 flex min-w-0 flex-col gap-3 overflow-y-auto bg-background p-3"
+        : "flex min-w-0 flex-col gap-5"}
+    >
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-end gap-3">
+        <div className={dashboardFullscreen ? "hidden" : "flex min-w-0 flex-1 items-end gap-3"}>
           <Button asChild variant="outline" size="icon">
             <Link to={dashboardPath(org)} aria-label="All dashboards">
               <ArrowLeftIcon />
@@ -329,14 +394,23 @@ export function DashboardWorkspace({
             />
           </div>
         </div>
-        {canManage && (
+        {dashboardFullscreen && <h1 className="text-sm font-semibold">{dashboard.name}</h1>}
+        <Button
+          variant="outline"
+          onClick={() => setDashboardFullscreen((current) => !current)}
+          aria-pressed={dashboardFullscreen}
+        >
+          {dashboardFullscreen ? <MinimizeIcon data-icon="inline-start" /> : <MaximizeIcon data-icon="inline-start" />}
+          {dashboardFullscreen ? "Exit fullscreen" : "Fullscreen dashboard"}
+        </Button>
+        {canManage && !dashboardFullscreen && (
           <div className="flex flex-wrap gap-2">
             {draft ? (
               <>
                 <Button
                   variant="outline"
                   disabled={saving}
-                  onClick={() => setAddOpen(true)}
+                  onClick={() => openAdd()}
                 >
                   <PlusIcon data-icon="inline-start" />
                   Add widget
@@ -377,7 +451,7 @@ export function DashboardWorkspace({
           </div>
         )}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className={dashboardFullscreen ? "hidden" : "flex flex-wrap items-center justify-between gap-4"}>
         <div>
           <h1 className="text-2xl font-semibold">{dashboard.name}</h1>
           <p className="text-sm text-muted-foreground">
@@ -391,19 +465,24 @@ export function DashboardWorkspace({
           </Badge>
         )}
       </div>
-      <TimeControls
-        view={view}
-        onChange={updateView}
-        onRefresh={() => {
-          void cache.invalidateQueries({ queryKey: ["dashboard-latest", org] })
-          void cache.invalidateQueries({ queryKey: ["dashboard-history", org] })
-          void cache.invalidateQueries({ queryKey: ["dashboard-workflow-location", org] })
-          void cache.invalidateQueries({ queryKey: ["dashboard-workflow-alerts", org] })
-          void cache.invalidateQueries({
-            queryKey: ["dashboard-state-history", org],
-          })
-        }}
-      />
+      {!dashboardFullscreen && headerControls && createPortal(
+        <TimeControls
+          compact
+          view={view}
+          onChange={updateView}
+          onRefresh={refreshDashboard}
+        />,
+        headerControls,
+      )}
+      {!dashboardFullscreen && (
+        <div className="xl:hidden">
+          <TimeControls
+            view={view}
+            onChange={updateView}
+            onRefresh={refreshDashboard}
+          />
+        </div>
+      )}
       {absoluteIssue && (
         <Alert>
           <AlertDescription>
@@ -488,7 +567,7 @@ export function DashboardWorkspace({
             </EmptyDescription>
           </EmptyHeader>
           {draft && (
-            <Button onClick={() => setAddOpen(true)}>
+            <Button onClick={() => openAdd()}>
               <PlusIcon data-icon="inline-start" />
               Add widget
             </Button>
@@ -496,7 +575,13 @@ export function DashboardWorkspace({
         </Empty>
       ) : (
         <Grid
-          className="dashboard-grid"
+          className="dashboard-grid shrink-0"
+          autoSize
+          isBounded={false}
+          compactType={null}
+          style={draft ? {
+            minHeight: (Math.max(0, ...(gridLayouts[breakpoint] ?? []).map((item) => item.y + item.h)) + 6) * (ROW_HEIGHT + GRID_MARGIN),
+          } : undefined}
           layouts={gridLayouts as ResponsiveLayouts}
           breakpoints={BREAKPOINTS}
           cols={COLS}
@@ -527,7 +612,7 @@ export function DashboardWorkspace({
             // Chart dimensions must settle with the grid, not animate through
             // intermediate sizes that trigger synchronous measurement updates.
             <div key={widget.id} style={{ transition: "none" }}>
-              <Card className="h-full overflow-hidden">
+              <Card className="flex h-full min-h-0 flex-col overflow-hidden">
                 <CardHeader className="flex flex-row items-start justify-between gap-2 pb-3">
                   <div className="min-w-0">
                     <CardTitle>
@@ -624,7 +709,11 @@ export function DashboardWorkspace({
                     if (node) panelContent.current.set(widget.id, node)
                     else panelContent.current.delete(widget.id)
                   }}
-                  className="min-h-0 flex-1 overflow-auto"
+                  className={
+                    widget.type === "location"
+                      ? "min-h-0 flex-1 overflow-hidden"
+                      : "min-h-0 flex-1 overflow-auto"
+                  }
                 >
                   <PanelBody {...bodyProps} widget={widget} />
                 </CardContent>
@@ -632,6 +721,12 @@ export function DashboardWorkspace({
             </div>
           ))}
         </Grid>
+      )}
+      {draft && !dashboardFullscreen && dashboard.widgets.length > 0 && (
+        <Button variant="outline" disabled={saving} onClick={() => openAdd("bottom")}>
+          <PlusIcon data-icon="inline-start" />
+          Add widget below
+        </Button>
       )}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-h-[90svh] overflow-y-auto">

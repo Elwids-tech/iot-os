@@ -19,17 +19,22 @@ import (
 const defaultHTTPAddress = ":8081"
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "runtime")
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	migrateOnly := len(os.Args) == 2 && os.Args[1] == "--migrate"
 	var handler http.Handler = health.Routes()
 	if databaseURL := os.Getenv("DEVICE_DATABASE_URL"); databaseURL != "" {
-		store, err := storage.Open(shutdownContext, databaseURL)
+		store, err := storage.OpenWithSchema(shutdownContext, databaseURL, migrateOnly || os.Getenv("IOT_RUNTIME_AUTO_MIGRATE") != "false")
 		if err != nil {
 			logger.Error("device storage startup failed", "error", err)
 			os.Exit(1)
 		}
 		defer store.Pool.Close()
+		if migrateOnly {
+			logger.Info("runtime schema migrated")
+			return
+		}
 		runtime, err := app.New(shutdownContext, store, logger)
 		if err != nil {
 			logger.Error("device runtime startup failed", "error", err)
@@ -37,6 +42,9 @@ func main() {
 		}
 		defer runtime.Close()
 		handler = runtime.Handler()
+	} else if migrateOnly {
+		logger.Error("migration requires DEVICE_DATABASE_URL")
+		os.Exit(1)
 	}
 	httpAddress := os.Getenv("IOT_RUNTIME_HTTP_ADDRESS")
 	if httpAddress == "" {

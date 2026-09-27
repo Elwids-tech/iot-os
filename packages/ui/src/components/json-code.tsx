@@ -20,7 +20,7 @@ const theme = EditorView.theme({
     height: "100%",
     fontSize: "13px",
   },
-  ".cm-scroller": { overflow: "auto", fontFamily: "ui-monospace, monospace" },
+  ".cm-scroller": { overflow: "auto", fontFamily: "var(--font-mono)" },
   ".cm-gutters": {
     backgroundColor: "var(--muted)",
     color: "var(--muted-foreground)",
@@ -41,7 +41,7 @@ const theme = EditorView.theme({
     backgroundColor: "var(--background)",
     color: "var(--foreground)",
     border: "1px solid var(--input)",
-    borderRadius: "6px",
+    borderRadius: "4px",
     padding: "5px 8px",
   },
   ".cm-button": {
@@ -49,7 +49,7 @@ const theme = EditorView.theme({
     backgroundColor: "var(--secondary)",
     color: "var(--secondary-foreground)",
     border: "1px solid var(--input)",
-    borderRadius: "6px",
+    borderRadius: "4px",
     padding: "4px 8px",
   },
   ".cm-search label": {
@@ -59,7 +59,7 @@ const theme = EditorView.theme({
     whiteSpace: "nowrap",
   },
   ".cm-textfield:focus-visible, .cm-button:focus-visible": {
-    outline: "2px solid var(--ring)",
+    outline: "1px solid var(--ring)",
     outlineOffset: "2px",
   },
   ".cm-panels": { backgroundColor: "var(--card)", color: "var(--foreground)" },

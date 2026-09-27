@@ -1,3 +1,4 @@
+import { runtimeConfig } from "@iot-os/api-client"
 import { useEffect, useState } from "react"
 import type { AuthenticatedUser } from "@iot-os/api-client"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
@@ -99,6 +100,6 @@ function PlatformAdministrationApp() {
 }
 
 function TenantPortalRedirect() {
-  useEffect(() => { window.location.replace(import.meta.env.VITE_PORTAL_URL || `${window.location.protocol}//${window.location.hostname}:5173`) }, [])
+  useEffect(() => { window.location.replace(runtimeConfig("VITE_PORTAL_URL", import.meta.env.VITE_PORTAL_URL) || `${window.location.protocol}//${window.location.hostname}:5173`) }, [])
   return <p>Opening tenant portal…</p>
 }
