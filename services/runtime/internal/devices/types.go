@@ -134,6 +134,7 @@ type ControlState struct {
 	Retention   []Retention   `json:"retention"`
 }
 type Telemetry struct {
+	CaptureID  string     `json:"capture_id,omitempty"`
 	Generation int        `json:"generation"`
 	UUID       string     `json:"uuid"`
 	Definition Definition `json:"definition"`

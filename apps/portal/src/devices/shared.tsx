@@ -29,6 +29,13 @@ const denied: DeviceCapabilities = {
 
 /** One status map for devices, sources, connections, readings and commands: [tone, label]. */
 const statuses: Record<string, [StatusTone, string]> = {
+  stored: ["good", "Stored"],
+  decoded: ["muted", "Decoded"],
+  suspended: ["warning", "Suspended"],
+  storage_retry: ["warning", "Storage retry"],
+  handoff_failed: ["critical", "Handoff failed"],
+  discarded: ["muted", "Discarded"],
+  duplicate: ["muted", "Duplicate"],
   online: ["good", "Online"],
   offline: ["critical", "Offline"],
   unseen: ["muted", "Not seen yet"],

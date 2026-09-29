@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/sparkplug"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/sparkplug/pb"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/storage"
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/telemetry"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/nats-io/nats.go"
 	"google.golang.org/protobuf/proto"
@@ -37,6 +39,7 @@ type broker struct {
 }
 type rebirthRequest struct{ Connection, Group, Edge string }
 type Application struct {
+	captures          *telemetry.Manager
 	committedFailures atomic.Uint64
 	rulesHealthy      atomic.Bool
 	fences            sync.Map
@@ -272,7 +275,47 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 	if e != nil || parsed.Group != c.GroupID {
 		return
 	}
+	captures := a.captureManager()
+	captureID := ""
+	if captures.Watching(c.OrganizationUUID, c.UUID, parsed.Edge, parsed.Device) {
+		captureID = storage.UUID()
+		sample := telemetry.Sample{ID: captureID, Topic: topic, Kind: parsed.Kind, SourceDevice: parsed.Device, Received: received, Size: len(raw), Status: "received", Metrics: []devices.Metric{}, Outcomes: []telemetry.Outcome{}}
+		if len(raw) <= 32<<10 {
+			sample.Wire = base64.StdEncoding.EncodeToString(raw)
+		} else {
+			sample.Diagnostic = "Wire payload omitted: exceeds 32 KiB capture limit."
+		}
+		var payload pb.Payload
+		if len(raw) <= 32<<10 && proto.Unmarshal(raw, &payload) == nil {
+			sample.Seq = payload.Seq
+			for _, metric := range payload.Metrics {
+				if metric.GetName() == "bdSeq" {
+					value := metric.GetLongValue()
+					if metric.GetDatatype() == uint32(pb.DataType_UInt32) {
+						value = uint64(metric.GetIntValue())
+					}
+					sample.BdSeq = &value
+				}
+			}
+		}
+		captures.Record(c.OrganizationUUID, c.UUID, parsed.Edge, sample)
+	}
 	p, e := a.Engine.Accept(c.UUID, topic, raw, received)
+	if captureID != "" {
+		captures.Update(captureID, func(s *telemetry.Sample) {
+			if e != nil {
+				s.Status = "rejected"
+				s.Diagnostic = e.Error()
+				if errors.Is(e, sparkplug.ErrDuplicate) {
+					s.Status = "duplicate"
+				}
+			} else {
+				s.Status = "decoded"
+				s.Metrics = p.Metrics
+				s.Session = p.Session
+			}
+		})
+	}
 	if e != nil {
 		if errors.Is(e, sparkplug.ErrDuplicate) {
 			return
@@ -346,6 +389,7 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 				if e := a.Store.RequireReview(a.ctx, d); e != nil {
 					a.Logger.Warn("configuration review persistence deferred", "error", e)
 				}
+				captures.Outcome(captureID, telemetry.Outcome{Device: d.DeviceUUID, Configuration: d.ConfigurationUUID, Status: "rejected", Diagnostic: compatibleError.Error()})
 				a.devicePresence(d, "online", "Source changed: "+compatibleError.Error(), p.Received, true)
 				return
 			}
@@ -353,18 +397,28 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 			if e != nil {
 				return
 			}
+			suspended := captures.Suspended(d.OrganizationUUID, d.DeviceUUID)
 			a.mu.Lock()
-			if a.sessions[d.DeviceUUID] != session {
-				a.latest[d.DeviceUUID] = map[string]devices.Reading{}
-				a.sessions[d.DeviceUUID] = session
-			}
-			a.compatible[d.DeviceUUID] = !a.reviewRequired[d.DeviceUUID]
 			latest := a.latest[d.DeviceUUID]
-			if latest == nil {
+			if latest == nil || a.sessions[d.DeviceUUID] != session {
 				latest = map[string]devices.Reading{}
-				a.latest[d.DeviceUUID] = latest
 			}
-			readings := devices.Readings(d, profile, p.Metrics, latest, p.Received)
+			if !suspended {
+				a.latest[d.DeviceUUID] = latest
+				a.sessions[d.DeviceUUID] = session
+				a.compatible[d.DeviceUUID] = !a.reviewRequired[d.DeviceUUID]
+			}
+			var stages []devices.ReadingTrace
+			var trace *[]devices.ReadingTrace
+			if captureID != "" {
+				trace = &stages
+			}
+			readings := devices.ReadingsTraced(d, profile, p.Metrics, latest, p.Received, trace)
+			if suspended {
+				a.mu.Unlock()
+				captures.Outcome(captureID, telemetry.Outcome{Device: d.DeviceUUID, Configuration: d.ConfigurationUUID, Status: "suspended", Diagnostic: "Production ingestion suspended for this device; these samples will not be replayed.", Stages: stages, Readings: readings})
+				return
+			}
 			for _, r := range readings {
 				if !r.Historical {
 					if r.Quality != "good" {
@@ -380,7 +434,8 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 			}
 			a.mu.Unlock()
 			if len(readings) > 0 {
-				telemetry := devices.Telemetry{UUID: storage.UUID(), Definition: d, Generation: generation, SessionID: session, Readings: readings}
+				captures.Outcome(captureID, telemetry.Outcome{Device: d.DeviceUUID, Configuration: d.ConfigurationUUID, Status: "pending", Stages: stages, Readings: readings})
+				telemetry := devices.Telemetry{CaptureID: captureID, UUID: storage.UUID(), Definition: d, Generation: generation, SessionID: session, Readings: readings}
 				data, e := json.Marshal(telemetry)
 				if e == nil {
 					message := nats.NewMsg("iot.telemetry.device")
@@ -389,6 +444,7 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 					_, e = a.JS.PublishMsg(message)
 				}
 				if e != nil {
+					captures.Stored(captureID, d.DeviceUUID, "handoff_failed", e.Error())
 					a.Logger.Error("telemetry durable handoff failed", "device", d.DeviceUUID, "error", e)
 					a.mu.Lock()
 					a.compatible[d.DeviceUUID] = false

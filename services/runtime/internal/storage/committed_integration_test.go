@@ -53,8 +53,16 @@ func TestCommittedTelemetryAtomicityAndIdentity(t *testing.T) {
 		must(s.Pool.QueryRow(ctx, "SELECT count(*) FROM device_runtime."+table+" WHERE "+column+"=$1", id).Scan(&n))
 		return n
 	}
-	must(s.Persist(ctx, packet))
-	must(s.Persist(ctx, packet))
+	stored, err := s.PersistResult(ctx, packet)
+	must(err)
+	if !stored {
+		t.Fatal("accepted transaction reported as discarded")
+	}
+	stored, err = s.PersistResult(ctx, packet)
+	must(err)
+	if !stored {
+		t.Fatal("committed duplicate lost storage evidence")
+	}
 	if count("telemetry_outbox", packet.UUID) != 1 || count("observations", packet.UUID) != 1 {
 		t.Fatal("duplicate committed input")
 	}
@@ -89,7 +97,11 @@ func TestCommittedTelemetryAtomicityAndIdentity(t *testing.T) {
 		case "empty":
 			p.Readings = nil
 		}
-		must(s.Persist(ctx, p))
+		accepted, err := s.PersistResult(ctx, p)
+		must(err)
+		if accepted {
+			t.Fatal("no-op claimed stored", kind)
+		}
 		if count("telemetry_outbox", p.UUID) != 0 {
 			t.Fatal("no-op emitted event", kind)
 		}

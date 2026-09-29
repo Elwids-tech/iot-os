@@ -168,10 +168,18 @@ func (a *Application) subscribe() error {
 			generation := a.generations[telemetry.Definition.DeviceUUID]
 			a.mu.Unlock()
 			if !enabled || telemetry.Generation != generation || definition.ConfigurationUUID != telemetry.Definition.ConfigurationUUID {
+				a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "discarded", "Configuration changed before persistence.")
 				return nil
 			}
-			if e := a.Store.Persist(a.ctx, telemetry); e != nil {
+			stored, e := a.Store.PersistResult(a.ctx, telemetry)
+			if e != nil {
+				a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "storage_retry", "Storage failed; durable delivery will retry.")
 				return e
+			}
+			if stored {
+				a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "stored", "")
+			} else {
+				a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "discarded", "Storage did not accept this generation or an empty reading batch.")
 			}
 			a.observe(telemetry)
 			return nil

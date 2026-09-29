@@ -19,6 +19,7 @@ import type {
 import type { Dashboard, DashboardInput, DashboardRevision, DashboardRevisionSummary } from "./dashboards"
 export * from "./dashboards"
 export * from "./devices"
+export * from "./telemetry"
 export * from "./alerts"
 export * from "./geospatial"
 
@@ -968,6 +969,21 @@ export class ApiClient {
       data: Device[]
       meta: { current_page: number; last_page: number; total: number }
     }>(`/api/v1/organizations/${encodeURIComponent(org)}/devices?${search}`)
+  }
+  telemetryCaptures(org: string) {
+    return this.data<import("./telemetry").TelemetryCapture[]>(`/api/v1/organizations/${encodeURIComponent(org)}/telemetry-captures`)
+  }
+  startTelemetryCapture(org: string, input: { gateway_uuid: string; device_uuid?: string; duration_seconds: number }) {
+    return this.data<import("./telemetry").TelemetryCapture>(`/api/v1/organizations/${encodeURIComponent(org)}/telemetry-captures`, "POST", input)
+  }
+  telemetryCapture(org: string, id: string) {
+    return this.data<import("./telemetry").TelemetryCapture>(`/api/v1/organizations/${encodeURIComponent(org)}/telemetry-captures/${encodeURIComponent(id)}`)
+  }
+  changeTelemetryCapture(org: string, id: string, action: "stop" | "delete" | "suspend" | "resume", confirm?: boolean) {
+    return this.request<{ok: boolean}>(`/api/v1/organizations/${encodeURIComponent(org)}/telemetry-captures/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify({action, ...(confirm ? {confirm} : {})}) })
+  }
+  diagnoseTelemetry(org: string, id: string, question: string, sample_ids: string[]) {
+    return this.data<import("./telemetry").TelemetryDiagnosis>(`/api/v1/organizations/${encodeURIComponent(org)}/telemetry-captures/${encodeURIComponent(id)}/diagnose`, "POST", {question, sample_ids})
   }
   private devicePath(org: string, id = "") {
     return `/api/v1/organizations/${encodeURIComponent(org)}/devices${id ? "/" + encodeURIComponent(id) : ""}`

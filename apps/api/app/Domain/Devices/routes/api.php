@@ -13,6 +13,11 @@ use App\Domain\Devices\Http\Middleware\AuthenticateDeviceRuntime;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/organizations/{organization}')->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
+    Route::get('telemetry-captures', [\App\Domain\Devices\Http\Controllers\TelemetryCaptureController::class, 'index']);
+    Route::post('telemetry-captures', [\App\Domain\Devices\Http\Controllers\TelemetryCaptureController::class, 'store'])->middleware('throttle:20,1');
+    Route::get('telemetry-captures/{capture}', [\App\Domain\Devices\Http\Controllers\TelemetryCaptureController::class, 'show'])->whereUuid('capture');
+    Route::post('telemetry-captures/{capture}', [\App\Domain\Devices\Http\Controllers\TelemetryCaptureController::class, 'update'])->whereUuid('capture');
+    Route::post('telemetry-captures/{capture}/diagnose', [\App\Domain\Devices\Http\Controllers\TelemetryCaptureController::class, 'diagnose'])->whereUuid('capture')->middleware('throttle:6,1');
     Route::get('devices', [DeviceController::class, 'index']);
     Route::post('devices', [DeviceController::class, 'store']);
     Route::get('devices/{device}', [DeviceController::class, 'show']);

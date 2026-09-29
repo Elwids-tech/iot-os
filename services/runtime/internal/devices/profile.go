@@ -111,7 +111,22 @@ func Preview(d Definition, metrics []Metric) ([]Reading, error) {
 	return Readings(d, p, metrics, map[string]Reading{}, time.Now().UTC()), nil
 }
 
+type ReadingTrace struct {
+	ParameterUUID string      `json:"parameter_uuid"`
+	Metric        string      `json:"metric"`
+	Key           string      `json:"key"`
+	Raw           any         `json:"raw"`
+	Converted     any         `json:"converted"`
+	Conversion    *Conversion `json:"conversion"`
+	Unit          *string     `json:"unit"`
+	Quality       string      `json:"quality"`
+	Diagnostic    string      `json:"diagnostic,omitempty"`
+}
+
 func Readings(d Definition, p Profile, metrics []Metric, latest map[string]Reading, received time.Time) []Reading {
+	return ReadingsTraced(d, p, metrics, latest, received, nil)
+}
+func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string]Reading, received time.Time, trace *[]ReadingTrace) []Reading {
 	params := map[string]Parameter{}
 	for _, parameter := range p.Parameters {
 		params[parameter.UUID] = parameter
@@ -141,6 +156,7 @@ func Readings(d Definition, p Profile, metrics []Metric, latest map[string]Readi
 			r.TimestampSource = "corrected_future"
 			r.Diagnostic = "source clock is ahead; receipt time used"
 		}
+		var converted any
 		var err error
 		if metric.IsNull || metric.Value == nil {
 			err = errors.New("source reported null value")
@@ -150,6 +166,9 @@ func Readings(d Definition, p Profile, metrics []Metric, latest map[string]Readi
 			err = errors.New("source datatype changed; review mapping")
 		} else {
 			r.Value, err = Convert(parameter, mapping.IngressConversion, metric.Value)
+			if err == nil {
+				converted = r.Value
+			}
 			if err == nil {
 				err = ValidateValue(parameter, r.Value)
 			}
@@ -177,6 +196,9 @@ func Readings(d Definition, p Profile, metrics []Metric, latest map[string]Readi
 			r.Value = nil
 			r.Quality = "invalid"
 			r.Diagnostic = err.Error()
+		}
+		if trace != nil {
+			*trace = append(*trace, ReadingTrace{ParameterUUID: parameter.UUID, Metric: mapping.Metric, Key: parameter.Key, Raw: metric.Value, Converted: converted, Conversion: mapping.IngressConversion, Unit: parameter.Unit, Quality: r.Quality, Diagnostic: r.Diagnostic})
 		}
 		updates[parameter.UUID] = r
 	}

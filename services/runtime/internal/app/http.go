@@ -29,6 +29,10 @@ func (a *Application) Handler() http.Handler {
 		respond(w, 200, map[string]bool{"ok": true})
 	})
 	internal := http.NewServeMux()
+	internal.HandleFunc("GET /internal/telemetry/captures", a.listCaptures)
+	internal.HandleFunc("POST /internal/telemetry/captures", a.startCapture)
+	internal.HandleFunc("GET /internal/telemetry/captures/{capture}", a.getCapture)
+	internal.HandleFunc("POST /internal/telemetry/captures/{capture}", a.changeCapture)
 	internal.HandleFunc("POST /internal/validate", func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
 			Definition devices.Definition `json:"definition"`

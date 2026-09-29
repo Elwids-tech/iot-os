@@ -72,6 +72,7 @@ import {
 } from "@iot-os/ui/components/dialog"
 import { cn } from "@iot-os/ui/lib/utils"
 import {
+  ActivityIcon,
   BellIcon,
   ChevronRightIcon,
   ChevronsUpDownIcon,
@@ -92,6 +93,7 @@ import { TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
 const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
 const GeofenceRoutes = lazy(() => import("./geospatial/Geofences"))
+const TelemetryViewer = lazy(() => import("./telemetry/TelemetryViewer"))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
 const IntegrationRoutes = lazy(() => import("./integrations/Integrations"))
 const AlertRoutes = lazy(() => import("./alerts/Alerts"))
@@ -222,7 +224,8 @@ function Session() {
           <Route path="organizations/:organizationUuid/integrations/*" element={<Suspense fallback={<PageFallback />}><IntegrationRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/alerts/*" element={<Suspense fallback={<PageFallback />}><AlertRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="discovery" /></Suspense>} />
-          <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="gateways" /></Suspense>} />
+          <Route path="organizations/:organizationUuid/telemetry" element={<Suspense fallback={<PageFallback />}><TelemetryViewer /></Suspense>} />
+                  <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="gateways" /></Suspense>} />
           <Route path="organizations/:organizationUuid/dashboards/:dashboardUuid?" element={<DashboardRoute />} />
           <Route path="organizations/:organizationUuid/geofences/*" element={<Suspense fallback={<PageFallback />}><GeofenceRoutes /></Suspense>} />
           <Route
@@ -399,6 +402,7 @@ const navigationGroups = [
   [
     { path: "devices", label: "Devices", icon: CpuIcon },
     { path: "gateways", label: "Gateways", icon: RouterIcon },
+    { path: "telemetry", label: "Telemetry viewer", icon: ActivityIcon },
     { path: "geofences", label: "Geofences", icon: MapPinnedIcon },
     { path: "discovery", label: "Discovery", icon: ScanSearchIcon },
   ],
@@ -444,7 +448,7 @@ function PortalSidebar({
   })
   // Integrations need device view and manage (I5); older payloads without capabilities keep the link.
   const hidden = (path: string) =>
-    path === "integrations" && devices !== undefined && !(devices.view && devices.manage)
+    ["integrations", "telemetry"].includes(path) && devices !== undefined && !(devices.view && devices.manage)
 
   return (
     <Sidebar collapsible="icon">

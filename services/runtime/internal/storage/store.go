@@ -186,41 +186,48 @@ func (s *Store) Apply(ctx context.Context, d devices.Definition, generation int,
 
 	return tx.Commit(ctx)
 }
+
+// Persist preserves the production API; PersistResult also exposes transaction acceptance.
 func (s *Store) Persist(ctx context.Context, t devices.Telemetry) error {
+	_, err := s.PersistResult(ctx, t)
+	return err
+}
+func (s *Store) PersistResult(ctx context.Context, t devices.Telemetry) (bool, error) {
 	tx, e := s.Pool.Begin(ctx)
 	if e != nil {
-		return e
+		return false, e
 	}
 	defer tx.Rollback(ctx)
 	var allowed bool
 	if e = tx.QueryRow(ctx, "SELECT true FROM device_runtime.devices WHERE device_uuid=$1 AND generation=$2 AND definition->>'configuration_uuid'=$3 AND organization_uuid=$4 FOR SHARE", t.Definition.DeviceUUID, t.Generation, t.Definition.ConfigurationUUID, t.Definition.OrganizationUUID).Scan(&allowed); errors.Is(e, pgx.ErrNoRows) {
-		return tx.Commit(ctx)
+		return false, tx.Commit(ctx)
 	} else if e != nil {
-		return e
+		return false, e
 	}
 	if !allowed {
-		return tx.Commit(ctx)
+		return false, tx.Commit(ctx)
 	}
 	if len(t.Readings) == 0 {
-		return tx.Commit(ctx)
+		return false, tx.Commit(ctx)
 	}
 	// The ledger and telemetry commit together. Do not infer acceptance from a
 	// nil error: stale generations and duplicate deliveries are intentional no-ops.
 	committed, e := json.Marshal(devices.ProjectCommitted(t))
 	if e != nil {
-		return e
+		return false, e
 	}
 	inserted, e := tx.Exec(ctx, "INSERT INTO device_runtime.telemetry_outbox(telemetry_uuid,organization_uuid,event) VALUES($1,$2,$3) ON CONFLICT(telemetry_uuid) DO NOTHING", t.UUID, t.Definition.OrganizationUUID, committed)
 	if e != nil {
-		return e
+		return false, e
 	}
 	if inserted.RowsAffected() == 0 {
-		return tx.Commit(ctx)
+		err := tx.Commit(ctx)
+		return err == nil, err
 	}
 	for _, reading := range t.Readings {
 		raw, e := json.Marshal(reading)
 		if e != nil {
-			return e
+			return false, e
 		}
 		if reading.Quality == "good" {
 			_, e = tx.Exec(ctx, `INSERT INTO device_runtime.observations(event_uuid,organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,observed_at,reading) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, reading.ObservedAt, raw)
@@ -228,7 +235,7 @@ func (s *Store) Persist(ctx context.Context, t devices.Telemetry) error {
 			_, e = tx.Exec(ctx, `INSERT INTO device_runtime.diagnostics(event_uuid,organization_uuid,device_uuid,parameter_uuid,received_at,reading) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
 		}
 		if e != nil {
-			return e
+			return false, e
 		}
 		if reading.Historical {
 			continue
@@ -238,10 +245,11 @@ func (s *Store) Persist(ctx context.Context, t devices.Telemetry) error {
    reading=CASE WHEN excluded.reading->>'quality'='good' THEN excluded.reading ELSE excluded.reading || jsonb_build_object('value',device_runtime.latest.reading->'value','observed_at',device_runtime.latest.reading->'observed_at','last_valid_received_at',COALESCE(device_runtime.latest.reading->'last_valid_received_at',device_runtime.latest.reading->'received_at')) END
    WHERE device_runtime.latest.received_at<excluded.received_at`, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
 		if e != nil {
-			return e
+			return false, e
 		}
 	}
-	return tx.Commit(ctx)
+	err := tx.Commit(ctx)
+	return err == nil, err
 }
 func (s *Store) Latest(ctx context.Context, org, device, configuration string) ([]devices.Reading, error) {
 	rows, e := s.Pool.Query(ctx, "SELECT reading FROM device_runtime.latest WHERE organization_uuid=$1 AND device_uuid=$2 AND configuration_uuid=$3 ORDER BY parameter_uuid", org, device, configuration)
