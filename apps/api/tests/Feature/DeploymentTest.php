@@ -6,6 +6,7 @@ use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use App\Http\Middleware\OperationRequestLog;
 use App\Support\DemoEnvironment;
+use App\Support\Operations;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,45 @@ use Tests\TestCase;
 final class DeploymentTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_stream_capacity_metrics_use_each_limit_and_only_fixed_stream_labels(): void
+    {
+        Http::fake(['*' => Http::response(['storage' => 99, 'account_details' => [['stream_detail' => [
+            ['name' => 'IOT_DEVICE_TELEMETRY', 'state' => ['bytes' => 95], 'config' => ['max_bytes' => 100]],
+            ['name' => 'untrusted-tenant-stream', 'state' => ['bytes' => 123], 'config' => ['max_bytes' => 456]],
+        ]]]])]);
+        $metrics = app(Operations::class)->metrics();
+        $this->assertStringContainsString('iot_nats_stream_bytes{stream="IOT_DEVICE_TELEMETRY"} 95', $metrics);
+        $this->assertStringContainsString('iot_nats_stream_limit_bytes{stream="IOT_DEVICE_TELEMETRY"} 100', $metrics);
+        $this->assertStringNotContainsString('untrusted-tenant-stream', $metrics);
+    }
+
+    public function test_retired_consumers_do_not_mask_live_processing_health(): void
+    {
+        Http::fake(['*' => Http::response(['storage' => 99, 'config' => ['max_storage' => 1000], 'account_details' => [['stream_detail' => [
+            ['name' => 'IOT_COMMITTED_TELEMETRY', 'consumer_detail' => [
+                ['name' => 'workflow-evaluator-v1', 'num_pending' => 2, 'num_ack_pending' => 1],
+                ['name' => 'retired-verification', 'num_pending' => 9000],
+            ]],
+        ]]]])]);
+        $metrics = app(Operations::class)->metrics();
+        $this->assertStringContainsString("iot_nats_consumer_pending 3\n", $metrics);
+        $this->assertStringContainsString("iot_nats_unmanaged_consumer_pending 9000\n", $metrics);
+        $this->assertStringContainsString("iot_nats_store_limit_bytes 1000\n", $metrics);
+        $this->assertStringNotContainsString('retired-verification', $metrics);
+    }
+
+    public function test_expected_workers_report_never_started_and_recovered_heartbeats(): void
+    {
+        config(['deployment.expected_workers' => ['alerts', 'automation']]);
+        Http::fake(['*' => Http::response(['storage' => 0])]);
+        $metrics = app(Operations::class)->metrics();
+        $this->assertStringContainsString('iot_worker_heartbeat_timestamp_seconds{worker="automation"} 0', $metrics);
+        $this->assertStringNotContainsString('worker="scheduler"', $metrics);
+        $this->assertStringContainsString('iot_automation_oldest_pending_seconds 0', $metrics);
+        DB::table('operation_heartbeats')->insert(['name' => 'automation', 'seen_at' => 1700000000]);
+        $this->assertStringContainsString('iot_worker_heartbeat_timestamp_seconds{worker="automation"} 1700000000', app(Operations::class)->metrics());
+    }
 
     public function test_http_metrics_aggregate_status_and_skip_health_checks(): void
     {

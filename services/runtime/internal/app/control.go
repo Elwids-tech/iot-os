@@ -53,13 +53,16 @@ func (c *ControlClient) request(ctx context.Context, method, path string, input,
 	return nil
 }
 func (a *Application) relay(ctx context.Context) {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTimer(0)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// Idle/error polling remains bounded. A full acknowledged batch can
+			// resume promptly, without imposing a 100-events/second recovery cap.
+			ticker.Reset(time.Second)
 			var batch struct {
 				Data []devices.Event `json:"data"`
 			}
@@ -88,6 +91,7 @@ func (a *Application) relay(ctx context.Context) {
 				a.Logger.Warn("runtime outbox unavailable", "error", e)
 				continue
 			}
+			published := 0
 			for _, ev := range events {
 				var identity struct {
 					DeviceUUID string `json:"device_uuid"`
@@ -106,7 +110,12 @@ func (a *Application) relay(ctx context.Context) {
 				unlock()
 				if e = a.Store.Ack(ctx, ev.UUID); e != nil {
 					a.Logger.Warn("runtime outbox acknowledgement failed", "error", e)
+				} else {
+					published++
 				}
+			}
+			if published == 100 {
+				ticker.Reset(10 * time.Millisecond)
 			}
 		}
 	}
@@ -121,21 +130,16 @@ func (a *Application) subscribe() error {
 		return err
 	}
 	for _, stream := range []struct {
-		Name, Subject string
-		Bytes         int64
-	}{{"IOT_DEVICE_CONTROL", "iot.control.>", 64 << 20}, {"IOT_DEVICE_EVENTS", "iot.runtime.>", 256 << 20}, {"IOT_DEVICE_TELEMETRY", "iot.telemetry.>", 768 << 20}} {
-		cfg := &nats.StreamConfig{Name: stream.Name, Subjects: []string{stream.Subject}, Storage: nats.FileStorage, Retention: nats.LimitsPolicy, MaxAge: 7 * 24 * time.Hour, MaxBytes: stream.Bytes, Discard: nats.DiscardNew}
-		if existing, e := a.JS.StreamInfo(stream.Name); e == nats.ErrStreamNotFound {
-			if _, e = a.JS.AddStream(cfg); e != nil {
-				return e
-			}
-		} else if e != nil {
-			return e
-		} else if existing.Config.MaxBytes != cfg.MaxBytes {
-			existing.Config.MaxBytes = cfg.MaxBytes
-			if _, e = a.JS.UpdateStream(&existing.Config); e != nil {
-				return e
-			}
+		Name, Subject, CapacityEnv string
+		Bytes                      int64
+	}{{"IOT_DEVICE_CONTROL", "iot.control.>", "IOT_NATS_CONTROL_MAX_BYTES", 64 << 20}, {"IOT_DEVICE_EVENTS", "iot.runtime.>", "IOT_NATS_EVENTS_MAX_BYTES", 256 << 20}, {"IOT_DEVICE_TELEMETRY", "iot.telemetry.>", "IOT_NATS_TELEMETRY_MAX_BYTES", 768 << 20}} {
+		capacity, err := streamCapacity(stream.CapacityEnv, stream.Bytes)
+		if err != nil {
+			return err
+		}
+		cfg := &nats.StreamConfig{Name: stream.Name, Subjects: []string{stream.Subject}, Storage: nats.FileStorage, Retention: nats.LimitsPolicy, MaxAge: 7 * 24 * time.Hour, MaxBytes: capacity, Discard: nats.DiscardNew}
+		if err = a.ensureStream(cfg); err != nil {
+			return err
 		}
 	}
 	handlers := []struct {

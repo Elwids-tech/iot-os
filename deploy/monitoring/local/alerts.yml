@@ -1,0 +1,288 @@
+groups:
+- name: local-platform
+  rules:
+  - alert: ScrapeFailed
+    expr: up == 0
+    for: 30s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: Monitoring cannot scrape {{ $labels.job }}
+      description: Check service state, logs and scrape errors.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: ProbeFailed
+    expr: probe_success == 0
+    for: 15s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: 'Service probe failed: {{ $labels.instance }}'
+      description: Check the affected dependency; verify fresh readiness after recovery.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: WorkerStalled
+    expr: (time() - iot_worker_heartbeat_timestamp_seconds > 45) and on() (up{job="api"}
+      == 1)
+    for: 15s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: 'Worker heartbeat stale: {{ $labels.worker }}'
+      description: Heartbeat age {{ $value }}s. Missing initial heartbeat is also
+        unhealthy.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: ContainerFailure
+    expr: iot_container_running == 0 or iot_container_oom > 0 or increase(iot_container_restarts_total[15m])
+      > 2
+    for: 30s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: 'Container unavailable/OOM/restarting: {{ $labels.service }}'
+      description: Inspect logs and the failed dependency before restarting.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: CollectorUnavailable
+    expr: iot_container_collector_up == 0 or absent(iot_container_collector_up)
+    for: 30s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: Container inventory unavailable
+      description: Docker inspection failed; container health is unknown.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: QueueBacklog
+    expr: iot_queue_oldest_seconds > 120 or iot_device_outbox_pending > 100 or iot_runtime_outbox_pending
+      > 100
+    for: 1m
+    labels:
+      severity: warning
+      environment: local
+    annotations:
+      summary: Durable processing falling behind
+      description: Inspect queue age, failed jobs and consumers; do not blindly replay
+        side effects.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: FailedJobs
+    expr: iot_failed_jobs > 0
+    for: 1m
+    labels:
+      severity: warning
+      environment: local
+    annotations:
+      summary: Failed application jobs need review
+      description: Inspect the failure before deciding whether it is safe to retry.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: AutomationActionStalled
+    expr: iot_automation_oldest_pending_seconds > 120
+    for: 1m
+    labels:
+      severity: warning
+      environment: local
+    annotations:
+      summary: Automation actions are not completing
+      description: Oldest pending action age {{ $value }}s. Inspect worker, target
+        and authority.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: AutomationCommandUncertain
+    expr: iot_automation_uncertain_targets > 0
+    for: 15s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: Automated command requires reconciliation
+      description: Never replay an uncertain command. Inspect a fresh target observation
+        and reconcile explicitly.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: AutomationFailures
+    expr: delta(iot_automation_actions{status=~"failed|expired"}[5m]) > 0
+    for: 15s
+    labels:
+      severity: warning
+      environment: local
+    annotations:
+      summary: New failed or expired automation action
+      description: Inspect action history and diagnostics; accepted does not mean
+        physical success.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: DagSuspended
+    expr: iot_dag_suspended > 0
+    for: 30s
+    labels:
+      severity: warning
+      environment: local
+    annotations:
+      summary: A current DAG execution is suspended
+      description: Inspect the workflow trace and stopped reason before reactivation.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: DagConsumerUnhealthy
+    expr: iot_dag_consumer_healthy == 0
+    for: 30s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: Workflow telemetry consumer unhealthy
+      description: Check JetStream, runtime readiness and durable checkpoint continuity.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: DagTimerBacklog
+    expr: iot_dag_oldest_timer_seconds > 60
+    for: 30s
+    labels:
+      severity: warning
+      environment: local
+    annotations:
+      summary: DAG timer processing is behind
+      description: Inspect pending committed telemetry and the workflow consumer.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: TelemetryStalled
+    expr: ((time() - iot_simulator_oldest_observation_timestamp_seconds > 120) and
+      on() (iot_simulator_active_devices > 0)) or (iot_simulator_active_devices <
+      iot_simulator_expected_devices)
+    for: 30s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: Expected simulator telemetry is missing or stale
+      description: Inspect persisted observations, applied generations, MQTT and runtime;
+        do not show stale values as current.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: MessagingUnhealthy
+    expr: iot_nats_monitor_up == 0 or iot_nats_consumer_pending > 1000 or iot_nats_store_bytes / iot_nats_store_limit_bytes > 0.9
+    for: 30s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: JetStream unavailable or consumers behind
+      description: Check NATS health and durable consumer backlog.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: MemoryHeadroomLow
+    expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.15
+    for: 5m
+    labels:
+      severity: warning
+      environment: local
+    annotations:
+      summary: Docker VM memory headroom below 15%
+      description: Local host metrics describe the Docker Linux VM, not macOS.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: DiskSpaceLow
+    expr: min by (instance, device) ((node_filesystem_avail_bytes{fstype=~"ext4|xfs|btrfs|zfs"} /
+      node_filesystem_size_bytes) and (node_filesystem_readonly == 0)) < 0.15
+    for: 5m
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: Less than 15% filesystem free
+      description: Preserve database files; inspect logs, volume usage and retention.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: ApiErrors
+    expr: sum(iot_http_requests_window{status_class="5xx"}) / clamp_min(sum(iot_http_requests_window),1)
+      > 0.05 and sum(iot_http_requests_window) >= 20
+    for: 1m
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: API server errors exceed 5%
+      description: Inspect correlated errors; low-volume errors are also covered by
+        Loki.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: MonitoringNotificationsFailed
+    expr: increase(alertmanager_notifications_failed_total[5m]) > 0
+    for: 30s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: Alertmanager notification delivery failed
+      description: Check Mailpit and SMTP errors. This same-host route cannot notify
+        during a whole-host outage.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: RuleEvaluationFailed
+    expr: increase(prometheus_rule_evaluation_failures_total[5m]) > 0 or increase(loki_prometheus_rule_evaluation_failures_total[5m])
+      > 0
+    for: 30s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: Monitoring rule evaluation failed
+      description: Inspect Prometheus/Loki rules; an empty alert list is not proof
+        of health.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: LogDeliveryFailed
+    expr: increase(loki_write_dropped_entries_total[5m]) > 0
+    for: 30s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: Log delivery is dropping entries
+      description: Inspect Alloy and Loki ingestion errors and disk usage.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: CpuPressure
+    expr: 1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) > 0.9
+    for: 5m
+    labels:
+      environment: local
+      severity: warning
+    annotations:
+      summary: Docker VM CPU usage above 90%
+      description: Check runtime/DB load and Docker VM capacity.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: ApiSlow
+    expr: sum(iot_http_duration_window_seconds) / clamp_min(sum(iot_http_requests_window),1)
+      > 2 and sum(iot_http_requests_window) >= 20
+    for: 1m
+    labels:
+      environment: local
+      severity: warning
+    annotations:
+      summary: Average API latency exceeds two seconds
+      description: Inspect downstream dependencies; this is mean latency, not p95.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: StreamCapacityLow
+    expr: (iot_nats_stream_bytes / iot_nats_stream_limit_bytes > 0.9) and (iot_nats_stream_limit_bytes
+      > 0)
+    for: 30s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: 'JetStream stream is above 90% capacity: {{ $labels.stream }}'
+      description: At its limit, discard-new streams reject new telemetry/events even
+        when consumers have caught up. Inspect retention and capacity; never purge
+        without an explicit recovery decision.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook

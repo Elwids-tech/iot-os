@@ -1,0 +1,22 @@
+global:
+  resolve_timeout: 1m
+  smtp_smarthost: mailpit:1025
+  smtp_from: alerts@elwids.local.test
+  smtp_require_tls: false
+route:
+  receiver: local-mailpit
+  group_by: [environment, alertname, service, worker, instance]
+  group_wait: 5s
+  group_interval: 15s
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="critical"']
+      repeat_interval: 30m
+receivers:
+  - name: local-mailpit
+    email_configs:
+      - to: operator@example.test
+        send_resolved: true
+        headers:
+          Subject: '[LOCAL][{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+        html: '{{ range .Alerts }}<h2>{{ .Labels.alertname }} — {{ .Status }}</h2><p>{{ .Annotations.summary }}</p><p>{{ .Annotations.description }}</p><p>Started: {{ .StartsAt }}</p><p><a href="{{ .Annotations.dashboard_url }}">Grafana</a> · <a href="{{ .Annotations.runbook_url }}">Runbook</a></p>{{ end }}'

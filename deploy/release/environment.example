@@ -1,16 +1,32 @@
 # Copy privately; tooling/release/manage.py init generates secrets once.
-DOMAIN=elwids.xyz
+DOMAIN=staging.elwids.xyz
 DEPLOY_ENVIRONMENT=staging
 COMPOSE_PROJECT_NAME=iot-staging
 STATE_DIR=/srv/iot/state
 CONFIG_DIR=/srv/iot/private
 VPN_CIDR=100.64.0.0/10
 ACME_EMAIL=
+MQTT_ACME_CHALLENGE=webroot
 MAIL_USERNAME=
 MAIL_PASSWORD=
 MAIL_FROM_ADDRESS=no-reply@elwids.xyz
 ALERT_EMAIL=
+ALERT_FROM_ADDRESS=alerts@elwids.xyz
+# Leave credentials empty to share the application SMTP key.
+ALERT_SMTP_USERNAME=
+ALERT_SMTP_PASSWORD=
+# Secret URLs from the external monitoring provider. No heartbeat is sent by default.
+MONITORING_HEARTBEAT_URL=
+BACKUP_HEARTBEAT_URL=
+# Seven-day retention: budget for sustained demo traffic, not just startup.
+IOT_NATS_STORE_MAX_BYTES=25769803776
+IOT_NATS_CONTROL_MAX_BYTES=67108864
+IOT_NATS_EVENTS_MAX_BYTES=4294967296
+IOT_NATS_TELEMETRY_MAX_BYTES=12884901888
+IOT_NATS_COMMITTED_MAX_BYTES=4294967296
 IOT_STAGING_DEMO_ENABLED=true
+# Staging bootstrap creates five demo devices; use 0 or an explicit count elsewhere.
+IOT_OPS_EXPECTED_SIMULATORS=5
 IOT_ASSISTANT_ENABLED=false
 OPENAI_API_KEY=
 PUBLIC_MAP_STYLE_URL=

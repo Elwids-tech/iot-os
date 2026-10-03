@@ -1,0 +1,77 @@
+rule_files:
+- alerts.yml
+evaluation_interval: 15s
+tests:
+- name: never-started worker with API 1
+  interval: 15s
+  input_series:
+  - series: iot_worker_heartbeat_timestamp_seconds{worker="automation"}
+    values: 0+0x8
+  - series: up{job="api"}
+    values: 1+0x8
+  alert_rule_test:
+  - eval_time: 90s
+    alertname: WorkerStalled
+    exp_alerts:
+    - exp_labels:
+        worker: automation
+        environment: local
+        severity: critical
+      exp_annotations:
+        summary: 'Worker heartbeat stale: automation'
+        description: Heartbeat age 90s. Missing initial heartbeat is also unhealthy.
+        dashboard_url: http://localhost:3000/d/iot-local/local-operations
+        runbook_url: http://localhost:9101/runbook
+- name: never-started worker with API 0
+  interval: 15s
+  input_series:
+  - series: iot_worker_heartbeat_timestamp_seconds{worker="automation"}
+    values: 0+0x8
+  - series: up{job="api"}
+    values: 0+0x8
+  alert_rule_test:
+  - eval_time: 90s
+    alertname: WorkerStalled
+    exp_alerts: []
+
+- name: disk alerts deduplicate mounts and ignore read-only or shared filesystems
+  interval: 15s
+  input_series:
+  - series: node_filesystem_avail_bytes{instance="host",device="disk",mountpoint="/var/lib",fstype="ext4"}
+    values: 10+0x24
+  - series: node_filesystem_size_bytes{instance="host",device="disk",mountpoint="/var/lib",fstype="ext4"}
+    values: 100+0x24
+  - series: node_filesystem_readonly{instance="host",device="disk",mountpoint="/var/lib",fstype="ext4"}
+    values: 0+0x24
+  - series: node_filesystem_avail_bytes{instance="host",device="disk",mountpoint="/var/lib/docker",fstype="ext4"}
+    values: 10+0x24
+  - series: node_filesystem_size_bytes{instance="host",device="disk",mountpoint="/var/lib/docker",fstype="ext4"}
+    values: 100+0x24
+  - series: node_filesystem_readonly{instance="host",device="disk",mountpoint="/var/lib/docker",fstype="ext4"}
+    values: 0+0x24
+  - series: node_filesystem_avail_bytes{instance="host",device="readonly",mountpoint="/root",fstype="ext4"}
+    values: 10+0x24
+  - series: node_filesystem_size_bytes{instance="host",device="readonly",mountpoint="/root",fstype="ext4"}
+    values: 100+0x24
+  - series: node_filesystem_readonly{instance="host",device="readonly",mountpoint="/root",fstype="ext4"}
+    values: 1+0x24
+  - series: node_filesystem_avail_bytes{instance="host",device="shared",mountpoint="/Users",fstype="virtiofs"}
+    values: 10+0x24
+  - series: node_filesystem_size_bytes{instance="host",device="shared",mountpoint="/Users",fstype="virtiofs"}
+    values: 100+0x24
+  - series: node_filesystem_readonly{instance="host",device="shared",mountpoint="/Users",fstype="virtiofs"}
+    values: 0+0x24
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: DiskSpaceLow
+    exp_alerts:
+    - exp_labels:
+        instance: host
+        device: disk
+        environment: local
+        severity: critical
+      exp_annotations:
+        summary: Less than 15% filesystem free
+        description: Preserve database files; inspect logs, volume usage and retention.
+        dashboard_url: http://localhost:3000/d/iot-local/local-operations
+        runbook_url: http://localhost:9101/runbook

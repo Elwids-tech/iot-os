@@ -1,6 +1,7 @@
 {
     email {$ACME_EMAIL}
 }
+import /etc/caddy/Acme.Caddyfile
 app.{$DOMAIN} {
     encode gzip
     reverse_proxy portal:80
@@ -17,6 +18,12 @@ api.{$DOMAIN} {
 ops.{$DOMAIN} {
     @vpn remote_ip {$VPN_CIDR}
     handle @vpn {
+        handle /runbook {
+            reverse_proxy container-metrics:9101
+        }
+        handle_path /alertmanager/* {
+            reverse_proxy alertmanager:9093
+        }
         reverse_proxy grafana:3000
     }
     respond 403

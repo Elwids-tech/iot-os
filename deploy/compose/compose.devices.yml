@@ -1,6 +1,11 @@
 services:
   nats:
     ports: !reset []
+    command: ["--config=/etc/nats/devices.conf"]
+    environment:
+      IOT_NATS_STORE_MAX_BYTES: ${IOT_NATS_STORE_MAX_BYTES:-25769803776}
+    volumes:
+      - ./nats.devices.conf:/etc/nats/devices.conf:ro
   emqx:
     ports: !override
       - "${IOT_MQTTS_PORT:-8883}:8883"
@@ -34,6 +39,10 @@ services:
       DEVICE_DATABASE_URL: postgres://${IOT_POSTGRES_USER}:${IOT_POSTGRES_PASSWORD}@timescaledb:5432/${IOT_POSTGRES_DATABASE}?sslmode=disable
       DEVICE_MQTT_CA_FILE: /certs/ca.crt
       NATS_URL: nats://nats:4222
+      IOT_NATS_CONTROL_MAX_BYTES: ${IOT_NATS_CONTROL_MAX_BYTES:-67108864}
+      IOT_NATS_EVENTS_MAX_BYTES: ${IOT_NATS_EVENTS_MAX_BYTES:-4294967296}
+      IOT_NATS_TELEMETRY_MAX_BYTES: ${IOT_NATS_TELEMETRY_MAX_BYTES:-12884901888}
+      IOT_NATS_COMMITTED_MAX_BYTES: ${IOT_NATS_COMMITTED_MAX_BYTES:-4294967296}
     volumes:
       - ${DEVICE_CERT_DIR}/ca.crt:/certs/ca.crt:ro
     depends_on:

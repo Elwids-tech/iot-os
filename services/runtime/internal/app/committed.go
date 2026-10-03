@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -21,20 +20,12 @@ func committedStreamConfig() *nats.StreamConfig {
 
 func (a *Application) ensureCommittedStream() error {
 	cfg := committedStreamConfig()
-	existing, err := a.JS.StreamInfo(cfg.Name)
-	if err == nats.ErrStreamNotFound {
-		_, err = a.JS.AddStream(cfg)
-		return err
-	}
+	capacity, err := streamCapacity("IOT_NATS_COMMITTED_MAX_BYTES", cfg.MaxBytes)
 	if err != nil {
 		return err
 	}
-	// Fail explicitly rather than silently using an incompatible pre-existing stream.
-	c := existing.Config
-	if len(c.Subjects) != 1 || c.Subjects[0] != cfg.Subjects[0] || c.Storage != cfg.Storage || c.Retention != cfg.Retention || c.Discard != cfg.Discard || c.MaxAge != cfg.MaxAge || c.MaxBytes != cfg.MaxBytes {
-		return fmt.Errorf("incompatible %s stream configuration", cfg.Name)
-	}
-	return nil
+	cfg.MaxBytes = capacity
+	return a.ensureStream(cfg)
 }
 
 // Independent of the control-plane relay and device fences: a full stream or a

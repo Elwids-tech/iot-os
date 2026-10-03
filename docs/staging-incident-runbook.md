@@ -4,6 +4,10 @@ Status: operator procedure prepared 2026-10-02; deployment URLs, contacts and dr
 must be filled and tested during [staging acceptance](../plan/tasks/staging-monitoring-readiness.md).
 Monitoring changes in that plan are not yet implemented by this document.
 
+The [domain and email setup plan](staging-monitoring-email-setup.md) defines the
+proposed `*.staging.elwids.xyz` endpoints, Brevo senders, external notification
+provider and delivery tests. Populate the handoff below after they are verified.
+
 ## Operator handoff
 
 Maintain the following in the private operations record, with a non-secret copy

@@ -47,7 +47,7 @@ def main():
     private_write(envfile, ''.join(key+'='+json.dumps(value)+'\n' for key, value in env.items()))
     config = directory/'private'
     config.mkdir()
-    private_write(config/'nats.conf', 'jetstream { store_dir: "/data" }\nhttp_port: 8222\nauthorization { users: [{user: "runtime", password: "'+env['NATS_PASSWORD']+'"}] }\n', 0o644)
+    private_write(config/'nats.conf', 'jetstream { store_dir: "/data", max_file_store: 25769803776, max_memory_store: 67108864 }\nhttp_port: 8222\nauthorization { users: [{user: "runtime", password: "'+env['NATS_PASSWORD']+'"}] }\n', 0o644)
     private_write(config/'emqx-api-keys', env['DEVICE_EMQX_API_KEY']+':'+env['DEVICE_EMQX_API_SECRET']+':administrator\n', 0o644)
     sql = (RELEASE/'init-db.sql').read_text()
     for key in ('API_DB_PASSWORD', 'RUNTIME_DB_PASSWORD'):
@@ -58,7 +58,7 @@ def main():
     subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=mqtt.release.test', '-addext', 'subjectAltName=DNS:mqtt.release.test', '-keyout', str(certs/'privkey.pem'), '-out', str(certs/'fullchain.pem')], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.chmod(certs/'privkey.pem', 0o644)
     compose = yaml.safe_load((RELEASE/'compose.yml').read_text())
-    selected = ['api','api-web','portal','admin','migrate','default-worker','alerts-worker','assistant-worker','webhooks-worker','scheduler','timescaledb','nats','emqx','runtime','runtime-migrate','simulator','gps-simulator']
+    selected = ['api','api-web','portal','admin','migrate','default-worker','alerts-worker','assistant-worker','webhooks-worker','automation-worker','scheduler','timescaledb','nats','emqx','runtime','runtime-migrate','simulator','gps-simulator']
     compose['services'] = {key:value for key,value in compose['services'].items() if key in selected}
     compose['volumes'] = {}
     for name, service in compose['services'].items():
@@ -126,7 +126,7 @@ def main():
         call('run','--rm','migrate')
         call('run','--rm','runtime-migrate')
         call('run','--rm','migrate','php','artisan','db:seed','--class=PermissionSeeder','--force')
-        call('up','-d','api','api-web','portal','admin','default-worker','alerts-worker','assistant-worker','webhooks-worker','scheduler','runtime')
+        call('up','-d','api','api-web','portal','admin','default-worker','alerts-worker','assistant-worker','webhooks-worker','automation-worker','scheduler','runtime')
         wait('http://api-web/health/ready')
         print('Release API/PHP-FPM/runtime readiness passed.', flush=True)
         call('exec','-T','api','php','artisan','deployment:staging','--output=/var/www/html/storage/app/private/accounts.json')
@@ -144,7 +144,7 @@ def main():
         private_write(directory/'metrics.txt',response)
         print('Bootstrap rerun and protected metrics passed.', flush=True)
         # Exercise the same Timescale pre/post restore sequence as manage.py.
-        call('stop', 'simulator', 'gps-simulator', 'emqx', 'runtime', 'api', 'default-worker', 'alerts-worker', 'assistant-worker', 'webhooks-worker', 'scheduler', 'nats')
+        call('stop', 'simulator', 'gps-simulator', 'emqx', 'runtime', 'api', 'default-worker', 'alerts-worker', 'assistant-worker', 'webhooks-worker', 'automation-worker', 'scheduler', 'nats')
         with (directory/'database.dump').open('wb') as stream:
             result = subprocess.run(command+['exec','-T','timescaledb','pg_dump','-U','postgres','-d','iot','-Fc'], stdout=stream, stderr=subprocess.PIPE)
             if result.returncode: raise RuntimeError('Isolated backup dump failed')
@@ -163,7 +163,7 @@ def main():
         assert counts[0] == '7' and counts[1] == '5' and int(counts[2]) > 0 and counts[3] == '0', counts
         print('Independent Timescale restore and side-effect quarantine passed; accounts/devices/history preserved.', flush=True)
         call('stop','restore-db')
-        call('start','nats','emqx','api','runtime','default-worker','alerts-worker','assistant-worker','webhooks-worker','scheduler','simulator','gps-simulator')
+        call('start','nats','emqx','api','runtime','default-worker','alerts-worker','assistant-worker','webhooks-worker','automation-worker','scheduler','simulator','gps-simulator')
         wait('http://api-web/health/ready')
         private_write(directory/'result.json',json.dumps({'passed':True,'project':project,'at':time.time()}))
     finally:

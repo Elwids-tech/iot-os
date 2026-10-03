@@ -58,6 +58,12 @@ Development credentials in `.env.example` are intentionally non-production value
 
 ## Staging and single-node releases
 
+For the running local Grafana/Prometheus/Loki stack and Mailpit alert drills, see
+[local service monitoring](docs/local-monitoring.md). Start or update it with
+`rtk proxy python3 tooling/monitoring/local.py up`.
+
 The [Sunday staging readiness plan](plan/tasks/staging-monitoring-readiness.md) records monitoring, Grafana logs/alerts, deployment gaps and October 5 client onboarding gates. The [incident runbook](docs/staging-incident-runbook.md) covers operator response and recovery. These are planning documents; target-environment acceptance remains outstanding.
+
+The [monitoring, domain and email setup plan](docs/staging-monitoring-email-setup.md) covers the confirmed `elwids.xyz` domain, staging DNS, Brevo email, alert recipients and independent external monitoring.
 
 See [the release runbook](deploy/release/README.md) for immutable images, Hetzner host setup, `elwids.xyz`/Brevo configuration, staging fixtures, monitoring, backup/recovery, and launch gates. This profile is separate from the local development stack.

@@ -1,12 +1,34 @@
 # Staging monitoring and client onboarding readiness
 
-Status: proposed delivery plan; source reviewed on 2026-10-02. This document does
-not record a deployed staging environment or working notification delivery.
+Status: local implementation and release rehearsal verified on 2026-10-02;
+target-host acceptance remains pending. This does not record a deployed staging
+environment or real-inbox delivery.
 
 Target: staging ready Sunday, **October 4, 2026**, for client onboarding Monday,
 **October 5, 2026**. Scheduling uses America/Edmonton (MDT); incident timestamps
 and stored telemetry use UTC. Proposed Sunday handoff: 18:00 MDT, subject to the
 existing 48-hour soak gate and the inputs below.
+
+The owner has confirmed purchasing **elwids.xyz** for the platform, using
+**GoDaddy DNS**, and having an existing unconfigured **Brevo account**. The
+[monitoring, domain and email setup plan](../../docs/staging-monitoring-email-setup.md)
+recommends `DOMAIN=staging.elwids.xyz`, Brevo delivery, an external operator inbox
+and independent Better Stack uptime/heartbeat checks. These remain setup proposals;
+DNS account access, provider plan capabilities and delivery still need verification.
+Public DNS confirms GoDaddy nameservers and an existing DMARC quarantine policy.
+The setup preserves GoDaddy. HTTP-01 challenge serving, renewal dry-run controls
+and timer support are implemented and locally tested; public issuance requires
+the selected VM. OVHcloud and Hetzner are under consideration; no VM exists yet.
+
+Implementation update: release rendering now provisions 30 metric rules, two
+Loki rules, Docker service discovery, an expected-container inventory, dashboards,
+separate alert SMTP settings and fail-closed external heartbeat jobs. Local
+Mailpit firing/resolved drills and a fresh isolated database restore rehearsal
+passed. Capacity recovery, preserved-data safeguards and current verification
+are documented in [local monitoring](../../docs/local-monitoring.md). The initial
+review table below is historical; do not interpret its missing-code findings as
+current. Live DNS/TLS, Brevo inbox delivery, external notifications, off-host cold
+broker restoration and the complete soak remain launch gates.
 
 ## Outcome and scope
 
@@ -23,6 +45,16 @@ after onboarding; they are not weekend prerequisites.
 
 ## What exists, and what is missing
 
+Local implementation update: the [local monitoring overlay](../../docs/local-monitoring.md)
+now packages Grafana, Prometheus, Loki/Alloy, Alertmanager → Mailpit, service/container
+probes and metrics for automation, DAG health and per-stream JetStream capacity.
+The release Compose worker and backup writer list now include automation. The
+local Loki ruler evaluates log alerts and forwards to the common Alertmanager;
+Grafana displays these rules rather than evaluating them itself. These changes
+do not establish target-host acceptance or external email delivery. The initial
+gap inventory below records the starting point; close remaining staging work
+against the current source and acceptance evidence.
+
 | Area | Source evidence | Work needed before claiming readiness |
 | --- | --- | --- |
 | Release | `deploy/release/compose.yml`, digest manifest workflow, `tooling/release/manage.py` | Publish the chosen revision, deploy on the selected host, verify migrations and runtime roles |
@@ -34,7 +66,7 @@ after onboarding; they are not weekend prerequisites.
 | Recovery | Backup/restore tooling, deployment lock and restore quarantine | Real encrypted off-host archive roundtrip, cold broker/JetStream restore, measured recovery |
 | Acceptance | `deploy/release/VERIFICATION.md` records historical local rehearsal | Fresh target-host evidence, public TLS/firewall, SMTP, failure drills and 48-hour soak |
 
-Specific integration gaps found during this review:
+Specific integration gaps found during the initial review (before local implementation):
 
 - `automation-worker` is absent from release Compose and `manage.py`'s `WRITERS`.
   Add it to shutdown, backup, restart, restore and deployment verification paths;
@@ -65,8 +97,8 @@ Specific integration gaps found during this review:
 | Operator interface | Grafana behind VPN | Provision dashboards, log queries and alert view; operator-only access |
 | Metric notification routing | Existing Prometheus → Alertmanager → Brevo | Firing and resolved notifications, grouping and expiring silences |
 | Log-based alert evaluation | Provision Grafana Alerting rules over Loki | Route to the same Alertmanager after validating integration; no duplicate email routes |
-| Whole-host outage detection | Externally hosted HTTPS monitor, e.g. UptimeRobot or Better Stack | Must run outside this VM and deliver through an independent provider/channel |
-| Monitoring dead-man check | External heartbeat service | Expect a periodic monitoring heartbeat; alert externally when it stops |
+| Whole-host outage detection | Better Stack Uptime proposed; subscription capabilities/cost to confirm | Must run outside this VM and deliver through an independent provider/channel |
+| Monitoring dead-man check | Same external provider's heartbeat checks, subject to plan verification | Expect a periodic monitoring heartbeat; alert externally when it stops |
 
 Grafana shows both logs and alert status. Existing metric rules stay in
 Prometheus; explicitly configure its Alertmanager as a Grafana data source and
@@ -180,8 +212,10 @@ live environment is unavailable; never present it as a functioning live system.
 - [ ] Confirm provider/region, VM sizing, monthly total, SSH/VPN access. The current
   runbook still names US Hetzner; prior Canadian-hosting research is not a current
   provider selection. Update the canonical runbook after selection.
-- [ ] Confirm domain/DNS and certificate access; `elwids.xyz` remains a repository
-  example until confirmed for this staging environment.
+- [x] Platform domain ownership confirmed by the owner: `elwids.xyz`.
+- [x] GoDaddy DNS and existing Brevo account confirmed; Brevo is not configured.
+- [ ] Confirm DNS/certificate access and configure the proposed staging base
+  `staging.elwids.xyz`; ownership does not verify records or certificate issuance.
 - [ ] Confirm alert mailbox, independent urgent channel, backup contact and coverage.
 - [ ] Supply Brevo configuration and off-host Restic credentials through private
   secret storage; verify delivery and restore. Do not put secrets in this plan.

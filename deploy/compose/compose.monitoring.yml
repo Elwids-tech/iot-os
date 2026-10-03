@@ -1,0 +1,111 @@
+# Opt in with tooling/monitoring/local.py up; preserves Devices credentials/volumes.
+x-ops: &ops
+  IOT_OPS_ENABLED: "true"
+  IOT_METRICS_TOKEN: ${IOT_METRICS_TOKEN:?Run tooling/monitoring/local.py init}
+  IOT_OPS_WORKERS: alerts,assistant,webhooks,automation
+  IOT_OPS_EXPECTED_SIMULATORS: ${IOT_OPS_EXPECTED_SIMULATORS:-0}
+  LOG_STDERR_FORMATTER: Monolog\Formatter\JsonFormatter
+
+x-monitor: &monitor
+  restart: unless-stopped
+  networks: [internal]
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+
+services:
+  portal:
+    networks: [internal]
+  api:
+    environment: *ops
+  alerts-worker:
+    environment: {<<: *ops, IOT_WORKER_NAME: alerts}
+  assistant-worker:
+    environment: {<<: *ops, IOT_WORKER_NAME: assistant}
+  webhooks-worker:
+    environment: {<<: *ops, IOT_WORKER_NAME: webhooks}
+  automation-worker:
+    environment: {<<: *ops, IOT_WORKER_NAME: automation}
+  prometheus:
+    <<: *monitor
+    image: prom/prometheus:v3.7.3
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--storage.tsdb.retention.size=1GB"]
+    volumes:
+      - ../monitoring/local/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/local/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ${IOT_MONITORING_PRIVATE_DIR:?}/metrics-token:/etc/prometheus/metrics-token:ro
+      - monitoring-prometheus:/prometheus
+    ports: ["127.0.0.1:${IOT_PROMETHEUS_PORT:-9090}:9090"]
+  alertmanager:
+    <<: *monitor
+    image: prom/alertmanager:v0.28.1
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager", "--web.external-url=http://localhost:${IOT_ALERTMANAGER_PORT:-9093}"]
+    volumes:
+      - ../monitoring/local/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - monitoring-alertmanager:/alertmanager
+    ports: ["127.0.0.1:${IOT_ALERTMANAGER_PORT:-9093}:9093"]
+  grafana:
+    <<: *monitor
+    image: grafana/grafana:12.2.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${IOT_GRAFANA_PASSWORD:?}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SERVER_ROOT_URL: http://localhost:${IOT_GRAFANA_PORT:-3000}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ../monitoring/local/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/local/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - monitoring-grafana:/var/lib/grafana
+    ports: ["127.0.0.1:${IOT_GRAFANA_PORT:-3000}:3000"]
+  loki:
+    <<: *monitor
+    image: grafana/loki:3.5.5
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ../monitoring/local/loki.yml:/etc/loki/config.yml:ro
+      - ../monitoring/local/rules:/etc/loki/rules:ro
+      - monitoring-loki:/loki
+    ports: ["127.0.0.1:${IOT_LOKI_PORT:-3100}:3100"]
+  alloy:
+    <<: *monitor
+    image: grafana/alloy:v1.11.2
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy", "/etc/alloy/config.alloy"]
+    user: root
+    environment:
+      COMPOSE_PROJECT: ${IOT_COMPOSE_PROJECT_NAME:-iot-os-dev}
+    volumes:
+      - ../monitoring/local/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - monitoring-alloy:/var/lib/alloy
+  node-exporter:
+    <<: *monitor
+    image: prom/node-exporter:v1.9.1
+    command: ["--path.rootfs=/host"]
+    pid: host
+    volumes: ["/:/host:ro"]
+  blackbox:
+    <<: *monitor
+    image: prom/blackbox-exporter:v0.27.0
+    volumes: ["../monitoring/local/blackbox.yml:/etc/blackbox_exporter/config.yml:ro"]
+  container-metrics:
+    <<: *monitor
+    image: python:3.13-alpine
+    command: ["python", "-u", "/app/collector.py"]
+    environment:
+      COMPOSE_PROJECT: ${IOT_COMPOSE_PROJECT_NAME:-iot-os-dev}
+      EXPECTED_SERVICES: api,portal,admin,runtime,alerts-worker,assistant-worker,webhooks-worker,automation-worker,timescaledb,nats,emqx,mailpit,prometheus,alertmanager,grafana,loki,alloy,node-exporter,blackbox,container-metrics
+    volumes:
+      - ../monitoring/local/collector.py:/app/collector.py:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../../docs/local-monitoring.md:/app/runbook.md:ro
+    ports: ["127.0.0.1:9101:9101"]
+
+volumes:
+  monitoring-prometheus:
+  monitoring-alertmanager:
+  monitoring-grafana:
+  monitoring-loki:
+  monitoring-alloy:

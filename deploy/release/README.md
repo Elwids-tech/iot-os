@@ -1,22 +1,37 @@
 # Single-node staging and recoverable production pilot
 
 This is the deployable release profile, separate from local development. The first
-target is a US Hetzner x86 Ubuntu LTS VM (2 vCPU, 4 GB, 80 GB SSD), with
-`elwids.xyz` and Brevo SMTP. No cloud resources are created by checking out this
-repository. Budget CAD $40/month including off-host backups and a small AI
-allowance, excluding domain registration; confirm the actual provider quote first.
+target is an Ubuntu LTS VM with `elwids.xyz` and Brevo SMTP. OVHcloud and Hetzner
+are under consideration; no server has been selected or provisioned. Start with
+at least 4 vCPU, 8 GB RAM and 100 GB storage for the complete staging stack, then
+verify memory headroom and seven-day disk runway under measured traffic. Budget
+CAD $40/month including off-host backups and a small AI allowance, excluding
+domain registration; confirm the actual provider quote and location first.
+
+Planning update (2026-10-02): the owner has purchased `elwids.xyz`. The new
+[domain, monitoring and email setup plan](../../docs/staging-monitoring-email-setup.md)
+recommends `DOMAIN=staging.elwids.xyz` to isolate staging URLs and cookies. With
+that setting, substitute `app.staging.elwids.xyz`, `api.staging.elwids.xyz`,
+`admin.staging.elwids.xyz`, `mqtt.staging.elwids.xyz` and `ops.staging.elwids.xyz`
+for the base-domain examples below. Host/provider selection remains unconfirmed;
+provider examples are templates, not newly provisioned hosts.
+GoDaddy DNS and an existing unconfigured Brevo account are now confirmed. The
+default MQTT certificate flow now uses HTTP-01 through Caddy and works with
+GoDaddy DNS. The local challenge endpoint was tested; public issuance, renewal
+and broker reconnect acceptance still require the real server.
 
 ## Required private inputs
 
-- Hetzner VM address, SSH key and operator VPN. Install/join Tailscale on the host
+- VM address, SSH key and operator VPN. Install/join Tailscale on the host
   first; use its `100.x` address for Ansible. Verify VPN SSH before firewall changes.
 - DNS access for `elwids.xyz`. Create DNS-only A records for `app`, `admin`, `api`,
   `mqtt` and `ops` to the VM. Only publish AAAA records after verifying IPv6 rules.
   Override `ops` to the VPN address in private DNS or the operator hosts file;
   public requests to that hostname receive 403.
-- Cloudflare API token limited to DNS edits on this zone, in a root-only file
-  containing `dns_cloudflare_api_token = ...` for Certbot. If the zone is hosted
-  elsewhere, use its Certbot DNS plugin before issuing the broker certificate.
+- MQTT DNS must point at the server and public port 80 must reach Caddy for
+  `MQTT_ACME_CHALLENGE=webroot`. No GoDaddy API credential is required. Existing
+  Cloudflare installations can retain `--cloudflare-file` or configure
+  `MQTT_ACME_CHALLENGE=cloudflare` and `CLOUDFLARE_CREDENTIALS_FILE` privately.
 - Brevo SMTP login/key, verified `no-reply@elwids.xyz`, and operator alert mailbox.
   Add the SPF/DKIM/DMARC records supplied by Brevo; test delivery to a real inbox.
 - A separate OpenAI project key. The assistant is disabled until explicitly
@@ -56,9 +71,16 @@ Run commands from the release's repository checkout. Examples use the project's
 
    ```sh
    rtk proxy python3 tooling/release/manage.py validate --env /srv/iot/private/environment --manifest /srv/iot/private/release.json
-   rtk proxy python3 tooling/release/manage.py certificates --env /srv/iot/private/environment --manifest /srv/iot/private/release.json --cloudflare-file /srv/iot/private/cloudflare.ini
+   rtk proxy python3 tooling/release/manage.py certificates --env /srv/iot/private/environment --manifest /srv/iot/private/release.json
    rtk proxy python3 tooling/release/manage.py deploy --env /srv/iot/private/environment --manifest /srv/iot/private/release.json --backup-env /srv/iot/private/backup.env
    ```
+
+   Initial issuance starts a temporary HTTP-only challenge server if Caddy is
+   not running and removes it even on failure. Subsequent renewal uses running
+   Caddy. Run the same `certificates` command with `--dry-run` to test renewal;
+   it never installs a staging-CA certificate or restarts the broker. A real
+   renewed certificate is copied with restricted permissions and EMQX restarts
+   only when certificate contents changed. Verify device reconnects afterward.
 
 6. Explicitly initialize staging (never part of ordinary deploy/startup):
 
@@ -86,9 +108,12 @@ The postgres superuser is limited to initialization, backup and recovery jobs.
 
 For the October 4 staging target and October 5 onboarding, follow the
 [monitoring readiness plan](../../plan/tasks/staging-monitoring-readiness.md)
-and [incident runbook](../../docs/staging-incident-runbook.md). The plan identifies
-release integration gaps for the new DAG automation worker and requires current
-target-host evidence before enabling that feature for clients.
+and [incident runbook](../../docs/staging-incident-runbook.md). The DAG automation
+worker is included in this release profile and coordinated writer lifecycle.
+Release rendering reuses the exercised [local monitoring](../../docs/local-monitoring.md)
+dashboards, inventory collector and Loki rules, with staging labels, URLs and
+longer evaluation windows. Thirty metric rules and two log rules are provisioned.
+Current target-host delivery and failure-drill evidence is still required.
 
 Grafana is at `https://ops.elwids.xyz`, VPN-only, using the generated password.
 Prometheus keeps seven days/1 GB of metrics; Loki keeps three days of logs.
@@ -97,19 +122,46 @@ Container logs rotate at 3 x 10 MB per container. Reserve a **4 GB filesystem** 
 creates this bounded filesystem. Treat a full log filesystem as an incident,
 never allow it to consume the database disk. Alertmanager uses Brevo.
 
-The dashboard shows host resources, workers, durable queues, PostgreSQL size,
-simulator persistence, workflow executions, AI spend and logs. `/up` is basic
+The dashboard shows host resources, workers, durable queues, stream capacity,
+simulator persistence, workflow executions and logs. `/up` is basic
 liveness; `/health/ready` checks database/runtime readiness. `/internal/ops/metrics`
 requires a dedicated bearer token and is blocked at public ingress. The host
-collector exports container OOM/restart/stopped status. Metrics use fixed labels;
+collector exports container OOM/restart/stopped status, including containers that
+never started. Alloy discovers only this Compose project using a read-only Docker
+socket mount; that mount still grants powerful daemon API access. Keep both
+collectors trusted/private. Metrics use fixed labels;
 do not add tenant or device IDs as labels.
 
 Create an external HTTPS monitor for `https://api.elwids.xyz/health/ready` and
 `https://app.elwids.xyz` (e.g. a free uptime service) with notifications to the
 operator. Verify by stopping ingress in a planned maintenance window. Same-host
 Grafana cannot notify when the VM or its network is dead. Also configure an
-external backup heartbeat if available. Credentials and account creation for
-these services remain operator inputs.
+external backup heartbeat. Store the two provider URLs privately as
+`MONITORING_HEARTBEAT_URL` and `BACKUP_HEARTBEAT_URL`. The monitoring timer runs
+every minute and withholds its heartbeat if probes, scrapes, inventory, rule
+evaluation, recent SMTP failures or the log canary are unhealthy/unknown. It does
+not prove inbox delivery. The backup heartbeat is sent only after off-host upload,
+retention and service restart succeed. Set provider deadlines to five minutes and
+26 hours respectively, and test missed-heartbeat notifications. Accounts, URLs
+and real delivery remain operator inputs.
+
+Application SMTP uses `MAIL_*`. Alertmanager uses optional `ALERT_FROM_ADDRESS`,
+`ALERT_SMTP_USERNAME` and `ALERT_SMTP_PASSWORD`, falling back to application values.
+Set both alert credentials together and authenticate both senders in Brevo.
+Critical incidents repeat every 30 minutes; warnings repeat every four hours.
+Both send recovery notifications. Prometheus and Loki own rule evaluation;
+Grafana displays rules and logs without a duplicate notification path.
+
+JetStream retains seven days with discard-new semantics. Defaults reserve 12 GiB
+for ingress telemetry, 4 GiB each for runtime events and committed telemetry, and
+64 MiB for control, within a 24 GiB broker budget. These are upper bounds, not
+preallocated disk. Size `IOT_NATS_*_MAX_BYTES` against measured traffic and
+headroom; rendering rejects budgets without 10% spare capacity. Startup may grow
+finite stream limits but never shrink them, alter retention, or purge messages.
+The live metrics report actual retained limits, including larger existing limits.
+Review those actual limits before reducing the broker's store budget. Retired
+test consumers remain visible as unmanaged pending work, separate from live
+platform consumers; do not remove them to disguise a capacity incident.
 
 Before launch, record evidence for:
 

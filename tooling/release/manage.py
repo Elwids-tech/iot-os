@@ -19,13 +19,14 @@ import sys
 import tempfile
 import time
 import urllib.request
+import urllib.parse
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 RELEASE = ROOT / "deploy/release"
 IMAGES = ("API_IMAGE", "API_WEB_IMAGE", "PORTAL_IMAGE", "ADMIN_IMAGE", "RUNTIME_IMAGE", "SIMULATOR_IMAGE")
-WRITERS = ("api", "default-worker", "alerts-worker", "assistant-worker", "webhooks-worker", "scheduler", "runtime")
+WRITERS = ("api", "default-worker", "alerts-worker", "assistant-worker", "webhooks-worker", "automation-worker", "scheduler", "runtime")
 SECRET_KEYS = ("API_DB_PASSWORD", "RUNTIME_DB_PASSWORD", "POSTGRES_PASSWORD", "DEVICE_RUNTIME_TOKEN", "DEVICE_EMQX_API_SECRET", "NATS_PASSWORD", "EMQX_COOKIE", "EMQX_DASHBOARD_PASSWORD", "GRAFANA_PASSWORD", "IOT_METRICS_TOKEN")
 
 
@@ -116,6 +117,9 @@ class Deployment:
                 raise ValueError(f"{key} must be generated, URL-safe 256-bit secret")
         if self.env.get("IOT_ASSISTANT_ENABLED") == "true" and not self.env.get("OPENAI_API_KEY"):
             raise ValueError("Assistant enabled without provider credentials")
+        self.nats_capacity()
+        if bool(self.env.get("ALERT_SMTP_USERNAME")) != bool(self.env.get("ALERT_SMTP_PASSWORD")):
+            raise ValueError("Separate alert SMTP username and password must both be set")
         if not self.manifest:
             raise ValueError("A release manifest is required")
         if set(self.images["images"]) != set(IMAGES):
@@ -126,8 +130,11 @@ class Deployment:
         self.compose("config", "--quiet", stdout=subprocess.DEVNULL)
 
     def render(self):
+        from monitoring import render as render_monitoring
         self.config.mkdir(parents=True, exist_ok=True, mode=0o700)
-        private_write(self.config / "nats.conf", 'jetstream { store_dir: "/data", max_file_store: 2GB, max_memory_store: 64MB }\nhttp_port: 8222\nauthorization { users: [{user: "runtime", password: "'+self.env['NATS_PASSWORD']+'"}] }\n', 0o644)
+        render_monitoring(ROOT, self.config, self.env['DEPLOY_ENVIRONMENT'], self.env['DOMAIN'], private_write)
+        capacity = self.nats_capacity()
+        private_write(self.config / "nats.conf", 'jetstream { store_dir: "/data", max_file_store: '+str(capacity)+', max_memory_store: 64MB }\nhttp_port: 8222\nauthorization { users: [{user: "runtime", password: "'+self.env['NATS_PASSWORD']+'"}] }\n', 0o644)
         private_write(self.config / "emqx-api-keys", self.env["DEVICE_EMQX_API_KEY"]+":"+self.env["DEVICE_EMQX_API_SECRET"]+":administrator\n", 0o644)
         sql = (RELEASE / "init-db.sql").read_text()
         for key in ("API_DB_PASSWORD", "RUNTIME_DB_PASSWORD"):
@@ -140,10 +147,25 @@ class Deployment:
             {"job_name": "host", "static_configs": [{"targets": ["node-exporter:9100"]}]},
             {"job_name": "prometheus", "static_configs": [{"targets": ["localhost:9090"]}]},
         ]
+        for job, target in [('containers', 'container-metrics:9101'), ('alertmanager', 'alertmanager:9093'), ('loki', 'loki:3100'), ('alloy', 'alloy:12345'), ('blackbox', 'blackbox:9115')]:
+            scrape.append({'job_name': job, 'static_configs': [{'targets': [target]}]})
         for name, module, targets in [("health", "http_ok", ["http://api-web/health/ready", "http://runtime:8081/health/ready", "https://app."+domain, "https://api."+domain+"/up"]), ("mqtt", "mqtt_tls", ["mqtt."+domain+":8883"])]:
             scrape.append({"job_name": name, "metrics_path": "/probe", "params": {"module": [module]}, "static_configs": [{"targets": targets}], "relabel_configs": [{"source_labels": ["__address__"], "target_label": "__param_target"}, {"source_labels": ["__param_target"], "target_label": "instance"}, {"target_label": "__address__", "replacement": "blackbox:9115"}]})
         private_write(self.config / "prometheus.yml", yaml.safe_dump({"global": {"scrape_interval": "30s", "evaluation_interval": "30s"}, "rule_files": ["/etc/prometheus/alerts.yml"], "alerting": {"alertmanagers": [{"static_configs": [{"targets": ["alertmanager:9093"]}]}]}, "scrape_configs": scrape}), 0o644)
-        private_write(self.config / "alertmanager.yml", yaml.safe_dump({"global": {"smtp_smarthost": "smtp-relay.brevo.com:587", "smtp_from": self.env["MAIL_FROM_ADDRESS"], "smtp_auth_username": self.env["MAIL_USERNAME"], "smtp_auth_password": self.env["MAIL_PASSWORD"], "smtp_require_tls": True}, "route": {"receiver": "operator", "group_by": ["alertname"], "group_wait": "30s", "repeat_interval": "4h"}, "receivers": [{"name": "operator", "email_configs": [{"to": self.env["ALERT_EMAIL"], "send_resolved": True}]}]}), 0o644)
+        private_write(self.config / "alertmanager.yml", yaml.safe_dump({"global": {"smtp_smarthost": "smtp-relay.brevo.com:587", "smtp_from": self.env.get("ALERT_FROM_ADDRESS") or self.env["MAIL_FROM_ADDRESS"], "smtp_auth_username": self.env.get("ALERT_SMTP_USERNAME") or self.env["MAIL_USERNAME"], "smtp_auth_password": self.env.get("ALERT_SMTP_PASSWORD") or self.env["MAIL_PASSWORD"], "smtp_require_tls": True}, "route": {"receiver": "operator", "group_by": ["alertname", "service"], "group_wait": "30s", "repeat_interval": "4h", "routes": [{"matchers": ['severity="critical"'], "receiver": "operator", "repeat_interval": "30m"}]}, "receivers": [{"name": "operator", "email_configs": [{"to": self.env["ALERT_EMAIL"], "send_resolved": True}]}]}), 0o644)
+
+    def nats_capacity(self):
+        defaults = {"STORE": 24<<30, "CONTROL": 64<<20, "EVENTS": 4<<30, "TELEMETRY": 12<<30, "COMMITTED": 4<<30}
+        limits = {}
+        for name, default in defaults.items():
+            key = "IOT_NATS_"+name+"_MAX_BYTES"
+            raw = str(self.env.get(key) or default)
+            if not raw.isdecimal() or not 1<<20 <= int(raw) <= 1<<40:
+                raise ValueError(key+" must be bytes between 1 MiB and 1 TiB")
+            limits[name] = int(raw)
+        if sum(v for k, v in limits.items() if k != "STORE") > limits["STORE"] * 0.9:
+            raise ValueError("JetStream store requires at least 10% capacity outside configured streams")
+        return limits["STORE"]
 
     def layout(self):
         owners = {"app": (33, 33), "emqx": (1000, 1000), "prometheus": (65534, 65534), "alertmanager": (65534, 65534), "grafana": (472, 0), "loki": (10001, 10001)}
@@ -195,11 +217,16 @@ class Deployment:
         private_write(self.config / "DEPLOYMENT_INCOMPLETE", self.release_text)
         # Quiesce before migrations and guarantee one runtime across release changes.
         self.compose("stop", "caddy", "simulator", "gps-simulator", *WRITERS, stdout=subprocess.DEVNULL)
-        self.compose("up", "-d", "--wait", "timescaledb", "nats", "emqx", stdout=subprocess.DEVNULL)
+        self.compose("up", "-d", "--wait", "timescaledb", stdout=subprocess.DEVNULL)
+        # Generated files are atomically replaced. Recreate their bind mounts so
+        # Docker cannot retain the previous config inode after a release.
+        self.compose("up", "-d", "--force-recreate", "--wait", "nats", "emqx", stdout=subprocess.DEVNULL)
         self.compose("run", "--rm", "migrate", stdout=subprocess.DEVNULL)
         self.compose("run", "--rm", "runtime-migrate", stdout=subprocess.DEVNULL)
         self.compose("run", "--rm", "migrate", "php", "artisan", "db:seed", "--class=PermissionSeeder", "--force", stdout=subprocess.DEVNULL)
-        self.compose("up", "-d", stdout=subprocess.DEVNULL)
+        services = yaml.safe_load((RELEASE / "compose.yml").read_text())["services"]
+        applications = [name for name, service in services.items() if not service.get("profiles") and name not in ("timescaledb", "nats", "emqx")]
+        self.compose("up", "-d", "--force-recreate", "--no-deps", *applications, stdout=subprocess.DEVNULL)
         self.wait("http://api-web/health/ready")
         if self.env.get("DEPLOY_ENVIRONMENT") == "staging" and self.env.get("IOT_STAGING_DEMO_ENABLED") == "true" and all((self.state / "simulator-config" / (name+".json")).is_file() for name in ("meter", "gps")):
             self.compose("--profile", "demo", "up", "-d", "simulator", "gps-simulator", stdout=subprocess.DEVNULL)
@@ -246,6 +273,7 @@ class Deployment:
             if running:
                 self.compose("start", *running, stdout=subprocess.DEVNULL)
             shutil.rmtree(checkpoint)
+        self.ping_heartbeat("BACKUP_HEARTBEAT_URL")
 
     def restore(self, backup_env, snapshot, destination):
         if self.state.exists() and any(self.state.iterdir()):
@@ -291,13 +319,39 @@ class Deployment:
         private_write(self.config / "RESTORE_QUARANTINE", "Review pending commands, queues and webhook deliveries before resuming.\n")
         print("Database and durable state restored in quarantine. No commands or notifications can execute. Follow the restore runbook.")
 
-    def certificates(self, cloudflare_file):
-        if not cloudflare_file or not Path(cloudflare_file).is_file():
-            raise ValueError("Provide a private Certbot Cloudflare credential file")
-        if Path(cloudflare_file).stat().st_mode & 0o077:
-            raise ValueError("Cloudflare credentials must have mode 0600")
+    def certificates(self, cloudflare_file=None, dry_run=False):
+        mode = "cloudflare" if cloudflare_file else self.env.get("MQTT_ACME_CHALLENGE", "webroot")
+        if mode not in ("cloudflare", "webroot"):
+            raise ValueError("MQTT_ACME_CHALLENGE must be webroot or cloudflare")
         domain = "mqtt."+self.env["DOMAIN"]
-        run(["certbot", "certonly", "--non-interactive", "--agree-tos", "--dns-cloudflare", "--dns-cloudflare-credentials", cloudflare_file, "--dns-cloudflare-propagation-seconds", "60", "--email", self.env["ACME_EMAIL"], "-d", domain, "--keep-until-expiring"], stdout=subprocess.DEVNULL)
+        args = ["certbot", "certonly", "--non-interactive", "--agree-tos", "--email", self.env["ACME_EMAIL"], "-d", domain, "--keep-until-expiring"]
+        bootstrap = None
+        if mode == "cloudflare":
+            cloudflare_file = cloudflare_file or self.env.get("CLOUDFLARE_CREDENTIALS_FILE")
+            if not cloudflare_file or not Path(cloudflare_file).is_file():
+                raise ValueError("Provide a private Certbot Cloudflare credential file")
+            if Path(cloudflare_file).stat().st_mode & 0o077:
+                raise ValueError("Cloudflare credentials must have mode 0600")
+            args += ["--dns-cloudflare", "--dns-cloudflare-credentials", cloudflare_file, "--dns-cloudflare-propagation-seconds", "60"]
+        else:
+            webroot = self.state / "acme-webroot"
+            webroot.mkdir(parents=True, exist_ok=True, mode=0o755)
+            webroot.chmod(0o755)
+            args += ["--webroot", "--webroot-path", str(webroot)]
+        if dry_run:
+            args += ["--dry-run"]
+        try:
+            if mode == "webroot" and "caddy" not in self.running():
+                # Initial issuance must work before the broker has certificates.
+                bootstrap = self.compose("run", "--rm", "-d", "--no-deps", "--service-ports", "caddy", "caddy", "run", "--config", "/etc/caddy/Acme.Caddyfile", "--adapter", "caddyfile", stdout=subprocess.PIPE, text=True).stdout.strip()
+                if not re.fullmatch(r"[a-f0-9]{12,64}", bootstrap):
+                    raise RuntimeError("Could not identify temporary ACME container")
+            run(args, stdout=subprocess.DEVNULL)
+        finally:
+            if bootstrap and re.fullmatch(r"[a-f0-9]{12,64}", bootstrap):
+                run(["docker", "stop", bootstrap], stdout=subprocess.DEVNULL)
+        if dry_run:
+            return # Never deploy a staging-CA certificate or restart the broker.
         target = self.state / "mqtt-certs"
         target.mkdir(parents=True, exist_ok=True)
         changed = False
@@ -325,16 +379,34 @@ class Deployment:
         print("Staging fixtures prepared; new account credentials: "+str(private / filename))
 
     def metrics(self):
-        ids = self.compose("ps", "-aq", stdout=subprocess.PIPE, text=True).stdout.split()
         lines = [f"iot_collector_timestamp_seconds {int(time.time())}"]
-        for cid in ids:
-            item = json.loads(run(["docker", "inspect", cid], stdout=subprocess.PIPE, text=True).stdout)[0]
-            service = item["Config"]["Labels"]["com.docker.compose.service"]
-            if service in ("migrate", "runtime-migrate"):
-                continue
-            for name, value in [("running", item["State"]["Running"]), ("oom", item["State"]["OOMKilled"]), ("restarts_total", item["RestartCount"])]:
-                lines.append(f'iot_container_{name}{{service="{service}"}} {int(value)}')
+        # Container inventory comes from the continuously scraped collector,
+        # including absent expected containers; avoid duplicate host series.
         private_write(self.state / "metrics/containers.prom", "\n".join(lines)+"\n", 0o644)
+
+    def ping_heartbeat(self, key):
+        url = self.env.get(key)
+        if not url:
+            return False
+        parts = urllib.parse.urlsplit(url)
+        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password or parts.fragment:
+            raise ValueError(key+" must be an HTTPS heartbeat URL")
+        try:
+            with urllib.request.urlopen(url, timeout=10) as response:
+                if response.status != 200:
+                    raise RuntimeError("Heartbeat delivery failed")
+        except Exception:
+            raise RuntimeError(key+" delivery failed; inspect provider status") from None
+        return True
+
+    def monitoring_heartbeat(self):
+        if not self.env.get("MONITORING_HEARTBEAT_URL"):
+            raise ValueError("MONITORING_HEARTBEAT_URL is not configured")
+        # Probe from the private network. Do not leak the provider URL into Docker
+        # commands, logs or metrics; send only after every health check succeeds.
+        script = (ROOT/'tooling/release/monitoring_health.py').read_text()
+        self.compose("exec", "-T", "container-metrics", "python", "-", input=script, text=True, stdout=subprocess.DEVNULL)
+        self.ping_heartbeat("MONITORING_HEARTBEAT_URL")
 
     def smoke(self):
         for host, path in [("app", "/"), ("admin", "/"), ("api", "/up"), ("api", "/health/ready")]:
@@ -346,11 +418,12 @@ class Deployment:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["init", "validate", "render", "deploy", "backup", "restore", "certificates", "staging", "metrics", "smoke"])
+    parser.add_argument("command", choices=["init", "validate", "render", "deploy", "backup", "restore", "certificates", "staging", "metrics", "monitoring_heartbeat", "smoke"])
     parser.add_argument("--env", required=True)
     parser.add_argument("--manifest")
     parser.add_argument("--backup-env")
     parser.add_argument("--cloudflare-file")
+    parser.add_argument("--dry-run", action="store_true", help="Test MQTT ACME renewal without deploying a certificate")
     parser.add_argument("--snapshot")
     parser.add_argument("--restore-dir")
     args = parser.parse_args()
@@ -380,7 +453,7 @@ def main():
         elif args.command == "restore":
             if not args.snapshot: raise ValueError("An explicit snapshot ID is required")
             deployment.restore(args.backup_env, args.snapshot, args.restore_dir)
-        elif args.command == "certificates": deployment.certificates(args.cloudflare_file)
+        elif args.command == "certificates": deployment.certificates(args.cloudflare_file, args.dry_run)
         else: getattr(deployment, args.command)()
 
 

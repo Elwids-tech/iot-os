@@ -1,0 +1,739 @@
+{
+  "uid": "iot-local",
+  "title": "Local operations",
+  "schemaVersion": 39,
+  "refresh": "15s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "tags": [
+    "local",
+    "operations"
+  ],
+  "links": [
+    {
+      "title": "Incident runbook",
+      "url": "http://localhost:9101/runbook",
+      "targetBlank": true
+    },
+    {
+      "title": "Mailpit inbox",
+      "url": "http://localhost:8026",
+      "targetBlank": true
+    },
+    {
+      "title": "Alertmanager",
+      "url": "http://localhost:9093",
+      "targetBlank": true
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service probes",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "probe_success",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Scrape health",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "up",
+          "refId": "A",
+          "legendFormat": "{{job}} \u00b7 {{instance}}"
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Firing metric alerts now",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Container running",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_container_running",
+          "refId": "A",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Heartbeat age \u2014 started workers (seconds)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "(time() - iot_worker_heartbeat_timestamp_seconds) and (iot_worker_heartbeat_timestamp_seconds > 0)",
+          "refId": "A",
+          "legendFormat": "{{worker}}"
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 6,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "Container restarts",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_container_restarts_total",
+          "refId": "A",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 6,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "Queue oldest age (seconds)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_queue_oldest_seconds",
+          "refId": "A",
+          "legendFormat": "{{queue}}"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "Pending automation age (seconds)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_automation_oldest_pending_seconds",
+          "refId": "A",
+          "legendFormat": "Pending automation age (seconds)"
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 12,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "Uncertain targets",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_automation_uncertain_targets",
+          "refId": "A",
+          "legendFormat": "Uncertain targets"
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 12,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "title": "DAG consumer health",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_dag_consumer_healthy",
+          "refId": "A",
+          "legendFormat": "DAG consumer health"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "DAG timer age (seconds)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_dag_oldest_timer_seconds",
+          "refId": "A",
+          "legendFormat": "DAG timer age (seconds)"
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 18,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "title": "Current suspended DAGs",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_dag_suspended",
+          "refId": "A",
+          "legendFormat": "Current suspended DAGs"
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 18,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "title": "Simulator freshness (seconds)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "(time() - iot_simulator_oldest_observation_timestamp_seconds) and on() (iot_simulator_active_devices > 0)",
+          "refId": "A",
+          "legendFormat": "Simulator freshness (seconds)"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "title": "NATS consumer pending",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_nats_consumer_pending",
+          "refId": "A",
+          "legendFormat": "Live platform consumers"
+        },
+        {
+          "expr": "iot_nats_unmanaged_consumer_pending",
+          "refId": "B",
+          "legendFormat": "Unmanaged consumers (review separately)"
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 24,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 15,
+      "title": "Runtime durable outbox",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_runtime_outbox_pending",
+          "refId": "A",
+          "legendFormat": "{{stream}}"
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 24,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 16,
+      "title": "Docker VM memory available (%)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "100 * node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes",
+          "refId": "A",
+          "legendFormat": "Docker VM memory available (%)"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "percent",
+          "max": 100
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 17,
+      "title": "Docker VM CPU busy (%)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "100 * (1-avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "Docker VM CPU busy (%)"
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 30,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "percent",
+          "max": 100
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 18,
+      "title": "Filesystem free (%)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "100 * min by (instance, device) ((node_filesystem_avail_bytes{fstype=~\"ext4|xfs|btrfs|zfs\"} / node_filesystem_size_bytes) and (node_filesystem_readonly == 0))",
+          "refId": "A",
+          "legendFormat": "{{device}}"
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 30,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "percent",
+          "max": 100
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 19,
+      "title": "API 5xx ratio",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(iot_http_requests_window{status_class=\"5xx\"}) / clamp_min(sum(iot_http_requests_window),1)",
+          "refId": "A",
+          "legendFormat": "API 5xx ratio"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 20,
+      "title": "API mean latency (seconds)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(iot_http_duration_window_seconds) / clamp_min(sum(iot_http_requests_window),1)",
+          "refId": "A",
+          "legendFormat": "API mean latency (seconds)"
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 36,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 21,
+      "title": "Failed jobs",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "iot_failed_jobs",
+          "refId": "A",
+          "legendFormat": "Failed jobs"
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 36,
+        "w": 8,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 50,
+      "title": "Service logs \u2014 select a service, then open Explore for correlation",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "{environment=\"local\", service=~\"$service\"}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 12
+      }
+    },
+    {
+      "id": 51,
+      "title": "JetStream stream capacity used (%)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "100 * iot_nats_stream_bytes / iot_nats_stream_limit_bytes",
+          "refId": "A",
+          "legendFormat": "{{stream}}"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 54,
+        "w": 24,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "percent",
+          "max": 100
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "query": "label_values({environment=\"local\"}, service)",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  }
+}

@@ -129,7 +129,8 @@
       loop:
         - {name: backup, command: backup, extra: '--backup-env /srv/iot/private/backup.env'}
         - {name: metrics, command: metrics, extra: ''}
-        - {name: certificates, command: certificates, extra: '--cloudflare-file /srv/iot/private/cloudflare.ini'}
+        - {name: certificates, command: certificates, extra: ''}
+        - {name: monitoring, command: monitoring_heartbeat, extra: ''}
     - name: Install operations timers
       ansible.builtin.copy:
         dest: '/etc/systemd/system/iot-{{ item.name }}.timer'
@@ -147,13 +148,14 @@
         - {name: backup, schedule: '*-*-* 08:00:00 UTC', jitter: 300}
         - {name: metrics, schedule: '*-*-* *:*:00', jitter: 0}
         - {name: certificates, schedule: '*-*-* 09,21:00:00 UTC', jitter: 300}
+        - {name: monitoring, schedule: '*-*-* *:*:00', jitter: 0}
     - name: Enable operations timers
       ansible.builtin.systemd:
         name: 'iot-{{ item }}.timer'
         daemon_reload: true
         enabled: true
         state: started
-      loop: [backup, metrics, certificates]
+      loop: [backup, metrics, certificates, monitoring]
   handlers:
     - name: Reload SSH
       ansible.builtin.systemd:

@@ -42,6 +42,7 @@ x-api-env: &api-env
   IOT_STAGING_DEMO_ENABLED: ${IOT_STAGING_DEMO_ENABLED:-false}
   IOT_OPS_ENABLED: "true"
   IOT_METRICS_TOKEN: ${IOT_METRICS_TOKEN:?}
+  IOT_OPS_EXPECTED_SIMULATORS: ${IOT_OPS_EXPECTED_SIMULATORS:-0}
   IOT_ASSISTANT_ENABLED: ${IOT_ASSISTANT_ENABLED:-false}
   IOT_ASSISTANT_DAILY_BUDGET_USD: "0.10"
   IOT_ASSISTANT_RUN_BUDGET_USD: "0.04"
@@ -76,6 +77,8 @@ services:
       VPN_CIDR: ${VPN_CIDR:?}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Acme.Caddyfile:/etc/caddy/Acme.Caddyfile:ro
+      - ${STATE_DIR}/acme-webroot:/var/www/acme:ro
       - ${STATE_DIR}/caddy:/data
     mem_limit: 128m
     networks: [private, edge]
@@ -130,6 +133,12 @@ services:
     environment: {<<: *api-env, IOT_WORKER_NAME: webhooks}
     command: ["php", "artisan", "integrations:webhooks-work", "--max-time=3600"]
     mem_limit: 128m
+  automation-worker:
+    <<: *api
+    stop_signal: SIGTERM
+    environment: {<<: *api-env, IOT_WORKER_NAME: automation}
+    command: ["php", "artisan", "automation:work", "--max-time=3600"]
+    mem_limit: 160m
   scheduler:
     <<: *api
     stop_signal: SIGTERM
@@ -146,6 +155,10 @@ services:
       DEVICE_DATABASE_URL: postgres://iot_runtime:${RUNTIME_DB_PASSWORD:?}@timescaledb:5432/iot?sslmode=disable
       DEVICE_MQTT_CA_FILE: /etc/ssl/certs/ca-certificates.crt
       NATS_URL: nats://runtime:${NATS_PASSWORD:?}@nats:4222
+      IOT_NATS_CONTROL_MAX_BYTES: ${IOT_NATS_CONTROL_MAX_BYTES:-67108864}
+      IOT_NATS_EVENTS_MAX_BYTES: ${IOT_NATS_EVENTS_MAX_BYTES:-4294967296}
+      IOT_NATS_TELEMETRY_MAX_BYTES: ${IOT_NATS_TELEMETRY_MAX_BYTES:-12884901888}
+      IOT_NATS_COMMITTED_MAX_BYTES: ${IOT_NATS_COMMITTED_MAX_BYTES:-4294967296}
     mem_limit: 256m
     stop_grace_period: 40s
   runtime-migrate:
@@ -180,7 +193,7 @@ services:
     volumes:
       - ${STATE_DIR}/nats:/data
       - ${CONFIG_DIR:?}/nats.conf:/etc/nats/nats.conf:ro
-    mem_limit: 192m
+    mem_limit: 512m
   emqx:
     <<: *service
     image: emqx/emqx:5.9.3
@@ -226,13 +239,13 @@ services:
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--storage.tsdb.retention.size=1GB"]
     volumes:
       - ${CONFIG_DIR}/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ${CONFIG_DIR}/alerts.yml:/etc/prometheus/alerts.yml:ro
       - ${STATE_DIR}/prometheus:/prometheus
     mem_limit: 256m
   alertmanager:
     <<: *service
     image: prom/alertmanager:v0.28.1
-    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager", "--web.external-url=https://ops.${DOMAIN}/alertmanager/", "--web.route-prefix=/"]
     volumes:
       - ${CONFIG_DIR}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ${STATE_DIR}/alertmanager:/alertmanager
@@ -248,8 +261,8 @@ services:
       GF_SECURITY_COOKIE_SECURE: "true"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
     volumes:
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ../monitoring/local/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ${CONFIG_DIR}/dashboards:/var/lib/grafana/dashboards:ro
       - ${STATE_DIR}/grafana:/var/lib/grafana
     mem_limit: 192m
   loki:
@@ -257,17 +270,20 @@ services:
     image: grafana/loki:3.5.5
     command: ["-config.file=/etc/loki/config.yml"]
     volumes:
-      - ./monitoring/loki.yml:/etc/loki/config.yml:ro
+      - ../monitoring/local/loki.yml:/etc/loki/config.yml:ro
+      - ${CONFIG_DIR}/loki-rules:/etc/loki/rules:ro
       - ${STATE_DIR}/loki:/loki
     mem_limit: 256m
   alloy:
     <<: *service
     image: grafana/alloy:v1.11.2
-    command: ["run", "--storage.path=/var/lib/alloy", "/etc/alloy/config.alloy"]
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy", "/etc/alloy/config.alloy"]
     user: root
+    environment:
+      COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME}
     volumes:
-      - ./monitoring/config.alloy:/etc/alloy/config.alloy:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ${CONFIG_DIR}/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ${STATE_DIR}/alloy:/var/lib/alloy
     mem_limit: 128m
   node-exporter:
@@ -284,6 +300,18 @@ services:
     image: prom/blackbox-exporter:v0.27.0
     volumes: ["./monitoring/blackbox.yml:/etc/blackbox_exporter/config.yml:ro"]
     mem_limit: 48m
+  container-metrics:
+    <<: *service
+    image: python:3.13-alpine
+    command: ["python", "-u", "/app/collector.py"]
+    environment:
+      COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME}
+      EXPECTED_SERVICES: caddy,api,api-web,portal,admin,runtime,default-worker,alerts-worker,assistant-worker,webhooks-worker,automation-worker,scheduler,timescaledb,nats,emqx,prometheus,alertmanager,grafana,loki,alloy,node-exporter,blackbox,container-metrics
+    volumes:
+      - ../monitoring/local/collector.py:/app/collector.py:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../../docs/staging-incident-runbook.md:/app/runbook.md:ro
+    mem_limit: 64m
 
 networks:
   private:

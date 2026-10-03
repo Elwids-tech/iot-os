@@ -1,0 +1,9 @@
+http://mqtt.{$DOMAIN} {
+    handle /.well-known/acme-challenge/* {
+        root * /var/www/acme
+        file_server
+    }
+    handle {
+        respond 404
+    }
+}

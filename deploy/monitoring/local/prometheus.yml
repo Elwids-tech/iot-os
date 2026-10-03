@@ -1,0 +1,44 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels: {environment: local}
+rule_files: [/etc/prometheus/alerts.yml]
+alerting:
+  alertmanagers:
+    - static_configs: [{targets: ["alertmanager:9093"]}]
+scrape_configs:
+  - job_name: api
+    metrics_path: /internal/ops/metrics
+    authorization: {credentials_file: /etc/prometheus/metrics-token}
+    static_configs: [{targets: ["api:8000"]}]
+  - job_name: host
+    static_configs: [{targets: ["node-exporter:9100"]}]
+  - job_name: containers
+    static_configs: [{targets: ["container-metrics:9101"]}]
+  - job_name: prometheus
+    static_configs: [{targets: ["prometheus:9090"]}]
+  - job_name: alertmanager
+    static_configs: [{targets: ["alertmanager:9093"]}]
+  - job_name: loki
+    static_configs: [{targets: ["loki:3100"]}]
+  - job_name: alloy
+    static_configs: [{targets: ["alloy:12345"]}]
+  - job_name: blackbox
+    static_configs: [{targets: ["blackbox:9115"]}]
+  - job_name: health
+    metrics_path: /probe
+    params: {module: [http_ok]}
+    static_configs:
+      - targets: ["http://api:8000/health/ready", "http://runtime:8081/health/ready", "http://portal/", "http://admin/", "http://mailpit:8025/", "http://grafana:3000/api/health", "http://loki:3100/ready", "http://alloy:12345/-/ready", "http://nats:8222/healthz"]
+    relabel_configs:
+      - {source_labels: [__address__], target_label: __param_target}
+      - {source_labels: [__param_target], target_label: instance}
+      - {target_label: __address__, replacement: "blackbox:9115"}
+  - job_name: tcp
+    metrics_path: /probe
+    params: {module: [tcp_connect]}
+    static_configs: [{targets: ["timescaledb:5432", "emqx:8883"]}]
+    relabel_configs:
+      - {source_labels: [__address__], target_label: __param_target}
+      - {source_labels: [__param_target], target_label: instance}
+      - {target_label: __address__, replacement: "blackbox:9115"}

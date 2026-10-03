@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 import yaml
 
@@ -13,6 +14,103 @@ spec.loader.exec_module(release)
 
 
 class ReleaseTests(unittest.TestCase):
+    def deployment(self, root):
+        root = Path(root)
+        values = release.read_env(release.RELEASE/'environment.example')
+        values.update({key: 'a'*64 for key in release.SECRET_KEYS})
+        values['DEVICE_EMQX_API_KEY'] = 'a'*24
+        values.update(STATE_DIR=str(root/'state'), CONFIG_DIR=str(root/'private'), DOMAIN='staging.example.test', ACME_EMAIL='operator@example.test', MAIL_FROM_ADDRESS='app@example.test', MAIL_USERNAME='application', MAIL_PASSWORD='application-password', ALERT_EMAIL='operator@example.test')
+        path = root/'environment'
+        release.private_write(path, ''.join(k+'='+v+'\n' for k,v in values.items()))
+        return release.Deployment(path, None)
+
+    def test_stream_budget_requires_headroom(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            self.assertEqual(deployment.nats_capacity(), 24<<30)
+            deployment.env['IOT_NATS_STORE_MAX_BYTES'] = str(20<<30)
+            with self.assertRaisesRegex(ValueError, '10%'):
+                deployment.nats_capacity()
+            deployment.env['IOT_NATS_STORE_MAX_BYTES'] = '-1'
+            with self.assertRaisesRegex(ValueError, 'between'):
+                deployment.nats_capacity()
+
+    def test_release_monitoring_uses_staging_routes_and_separate_smtp(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.env.update(ALERT_SMTP_USERNAME='alert-key', ALERT_SMTP_PASSWORD='alert-password')
+            deployment.render()
+            alert = yaml.safe_load((deployment.config/'alertmanager.yml').read_text())
+            self.assertEqual(alert['global']['smtp_auth_username'], 'alert-key')
+            self.assertEqual(alert['global']['smtp_auth_password'], 'alert-password')
+            self.assertTrue(alert['global']['smtp_require_tls'])
+            self.assertEqual(alert['route']['routes'][0]['repeat_interval'], '30m')
+            rules = yaml.safe_load((deployment.config/'alerts.yml').read_text())
+            names = {r['alert'] for g in rules['groups'] for r in g['rules']}
+            self.assertTrue({'BackupOverdue', 'StreamCapacityLow', 'WorkerStalled', 'RestoreDrillOverdue'} <= names)
+            self.assertNotIn('localhost', (deployment.config/'alerts.yml').read_text())
+            self.assertNotIn('environment="local"', (deployment.config/'loki-rules/fake/errors.yml').read_text())
+            dashboard = json.loads((deployment.config/'dashboards/platform.json').read_text())
+            self.assertEqual(dashboard['uid'], 'iot-platform')
+            self.assertNotIn('Mailpit', json.dumps(dashboard))
+            self.assertEqual((deployment.config/'dashboards').stat().st_mode & 0o777, 0o755)
+            deployment.env.update(ALERT_SMTP_USERNAME='', ALERT_SMTP_PASSWORD='', ALERT_FROM_ADDRESS='')
+            deployment.render()
+            alert = yaml.safe_load((deployment.config/'alertmanager.yml').read_text())
+            self.assertEqual(alert['global']['smtp_auth_username'], 'application')
+            self.assertEqual(alert['global']['smtp_from'], 'app@example.test')
+
+    def test_webroot_dry_run_cleans_bootstrap_and_never_restarts_broker(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            with patch.object(deployment, 'running', return_value=[]), patch.object(deployment, 'compose', return_value=SimpleNamespace(stdout='a'*64)) as compose, patch.object(release, 'run') as run:
+                deployment.certificates(dry_run=True)
+            args = run.call_args_list[0].args[0]
+            self.assertIn('--webroot', args)
+            self.assertIn('--dry-run', args)
+            self.assertNotIn('--dns-cloudflare', args)
+            self.assertEqual(run.call_args_list[-1].args[0], ['docker', 'stop', 'a'*64])
+            self.assertEqual(compose.call_count, 1)
+            self.assertFalse((deployment.state/'mqtt-certs').exists())
+
+    def test_webroot_failure_always_cleans_temporary_server(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            with patch.object(deployment, 'running', return_value=[]), patch.object(deployment, 'compose', return_value=SimpleNamespace(stdout='b'*64)), patch.object(release, 'run', side_effect=[RuntimeError('issuance failed'), None]) as run:
+                with self.assertRaisesRegex(RuntimeError, 'issuance failed'):
+                    deployment.certificates()
+            self.assertEqual(run.call_args_list[-1].args[0], ['docker', 'stop', 'b'*64])
+
+    def test_monitoring_failure_withholds_external_heartbeat(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.env['MONITORING_HEARTBEAT_URL'] = 'https://heartbeat.example.test/private'
+            with patch.object(deployment, 'compose', side_effect=RuntimeError('unhealthy')), patch.object(deployment, 'ping_heartbeat') as ping:
+                with self.assertRaises(RuntimeError): deployment.monitoring_heartbeat()
+                ping.assert_not_called()
+
+    def test_automation_worker_is_stopped_and_resumed_during_backup(self):
+        compose = yaml.safe_load((release.RELEASE/'compose.yml').read_text())
+        worker = compose['services']['automation-worker']
+        self.assertEqual(worker['environment']['IOT_WORKER_NAME'], 'automation')
+        self.assertIn('automation-worker', release.WRITERS)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root/'private').mkdir()
+            path = root/'env'
+            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\n')
+            deployment = release.Deployment(path, None)
+            calls = []
+            def fail_dump(*args, **kwargs):
+                calls.append(args)
+                if args[0] == 'exec':
+                    raise RuntimeError('dump failed')
+            with patch.object(deployment, 'restic'), patch.object(deployment, 'running', return_value=['api', 'automation-worker', 'nats']), patch.object(deployment, 'compose', side_effect=fail_dump), patch.object(release.time, 'sleep'):
+                with self.assertRaisesRegex(RuntimeError, 'dump failed'):
+                    deployment.backup('private-env')
+            self.assertTrue(any(call[0] == 'stop' and 'automation-worker' in call for call in calls))
+            self.assertEqual(calls[-1], ('start', 'api', 'automation-worker', 'nats'))
+
     def test_environment_is_literal_not_shell_code(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/"env"

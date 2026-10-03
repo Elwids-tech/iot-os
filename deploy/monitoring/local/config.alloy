@@ -1,0 +1,59 @@
+discovery.docker "project" {
+  host = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+  filter {
+    name = "label"
+    values = ["com.docker.compose.project=" + sys.env("COMPOSE_PROJECT")]
+  }
+}
+discovery.relabel "containers" {
+  targets = discovery.docker.project.targets
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label = "service"
+  }
+  rule {
+    target_label = "environment"
+    replacement = "local"
+  }
+  rule {
+    target_label = "job"
+    replacement = "containers"
+  }
+}
+loki.source.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+  targets = discovery.relabel.containers.output
+  forward_to = [loki.process.containers.receiver]
+  refresh_interval = "15s"
+}
+loki.process "containers" {
+  // Existing dev containers can have days of logs. Avoid flooding a new local
+  // collector with old history; persisted positions still survive restarts.
+  stage.drop {
+    older_than = "1h"
+    drop_counter_reason = "historical_startup_logs"
+  }
+  stage.logfmt {
+    mapping = { level = "level" }
+  }
+  stage.json {
+    expressions = { level = "level_name || level" }
+  }
+  stage.template {
+    source = "level"
+    template = "{{ ToLower .Value }}"
+  }
+  stage.labels {
+    values = { level = "" }
+  }
+  // Do not index request, tenant or device IDs. Never log secrets at the producer.
+  stage.replace {
+    expression = "(?i)(?:authorization|password|api_key|token)[\\\" :=]+([^\\\"\\n,}]+)"
+    replace = "[REDACTED]"
+  }
+  forward_to = [loki.write.local.receiver]
+}
+loki.write "local" {
+  endpoint { url = "http://loki:3100/loki/api/v1/push" }
+}

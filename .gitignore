@@ -2,6 +2,7 @@
 .env
 .tools/
 .local/devices/
+.local/monitoring/
 __pycache__/
 
 node_modules/

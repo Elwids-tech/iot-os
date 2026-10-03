@@ -124,8 +124,12 @@ services:
 
   mailpit:
     image: ${IOT_MAILPIT_IMAGE:-axllent/mailpit:v1.27.7}
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    volumes:
+      - mailpit-data:/data
     ports:
-      - "${IOT_MAILPIT_UI_PORT:-8025}:8025"
+      - "127.0.0.1:${IOT_MAILPIT_UI_PORT:-8025}:8025"
     restart: unless-stopped
     networks:
       - internal
@@ -143,3 +147,4 @@ volumes:
   emqx-log:
   node-red-data:
   minio-data:
+  mailpit-data:

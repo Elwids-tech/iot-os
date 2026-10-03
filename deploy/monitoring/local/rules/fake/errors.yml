@@ -1,0 +1,30 @@
+groups:
+- name: local-logs
+  interval: 15s
+  rules:
+  - alert: ServiceErrorLogs
+    expr: sum by (service) (count_over_time({environment="local", level=~"error|critical|alert|emergency|fatal"}[2m]))
+      > 0
+    for: 15s
+    labels:
+      severity: critical
+      environment: local
+    annotations:
+      summary: Error logs from {{ $labels.service }}
+      description: 'Errors in the last two minutes: {{ $value }}. Open matching service
+        logs; do not retry commands blindly.'
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
+  - alert: LogPipelineSilent
+    expr: absent_over_time({environment="local",service="container-metrics"} |= "monitoring_canary"
+      [2m])
+    for: 30s
+    labels:
+      environment: local
+      severity: critical
+    annotations:
+      summary: No end-to-end log canary observed
+      description: Collector, Docker log discovery or Loki ingestion is failing. Check
+        the independent scrape and container alerts.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
