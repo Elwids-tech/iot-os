@@ -56,6 +56,7 @@ The current [`docs/c4-architecture.md`](../docs/c4-architecture.md) is an earlie
 
 ### Current Work
 
+- [Sunday staging monitoring and onboarding readiness](tasks/staging-monitoring-readiness.md) — proposed October 4 staging / October 5 onboarding plan, monitoring gaps, alerts, recovery drills and acceptance gates.
 - [Core platform priorities for vertical applications](roadmap/core-for-vertical-applications.md) — current planning priority: durable telemetry events, rules with geofencing, alerts, then external application access. Detailed contracts remain draft; this is not an implementation completion claim.
 - [First delivery slice: committed telemetry events](tasks/committed-telemetry-events.md) — implemented and verified locally.
 - [Location contracts and fixtures](tasks/location-contracts-and-fixtures.md) — implemented and verified locally.

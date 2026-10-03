@@ -84,6 +84,12 @@ The postgres superuser is limited to initialization, backup and recovery jobs.
 
 ## Monitoring and launch acceptance
 
+For the October 4 staging target and October 5 onboarding, follow the
+[monitoring readiness plan](../../plan/tasks/staging-monitoring-readiness.md)
+and [incident runbook](../../docs/staging-incident-runbook.md). The plan identifies
+release integration gaps for the new DAG automation worker and requires current
+target-host evidence before enabling that feature for clients.
+
 Grafana is at `https://ops.elwids.xyz`, VPN-only, using the generated password.
 Prometheus keeps seven days/1 GB of metrics; Loki keeps three days of logs.
 Container logs rotate at 3 x 10 MB per container. Reserve a **4 GB filesystem** for

@@ -58,4 +58,6 @@ Development credentials in `.env.example` are intentionally non-production value
 
 ## Staging and single-node releases
 
+The [Sunday staging readiness plan](plan/tasks/staging-monitoring-readiness.md) records monitoring, Grafana logs/alerts, deployment gaps and October 5 client onboarding gates. The [incident runbook](docs/staging-incident-runbook.md) covers operator response and recovery. These are planning documents; target-environment acceptance remains outstanding.
+
 See [the release runbook](deploy/release/README.md) for immutable images, Hetzner host setup, `elwids.xyz`/Brevo configuration, staging fixtures, monitoring, backup/recovery, and launch gates. This profile is separate from the local development stack.
