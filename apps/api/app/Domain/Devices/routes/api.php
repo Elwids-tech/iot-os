@@ -61,5 +61,6 @@ Route::prefix('internal/devices')->middleware(AuthenticateDeviceRuntime::class)-
     Route::get('state', [RuntimeController::class, 'state']);
     Route::post('outbox/claim', [RuntimeController::class, 'claim']);
     Route::post('outbox/{event}/ack', [RuntimeController::class, 'ack']);
+    Route::post('automation-command-check', [RuntimeController::class, 'automationCommandCheck']);
     Route::post('events', [RuntimeController::class, 'event']);
 });

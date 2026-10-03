@@ -19,6 +19,11 @@ services:
       DEVICE_EMQX_API_URL: http://emqx:18083/api/v5
       DEVICE_EMQX_API_KEY: ${DEVICE_EMQX_API_KEY:?Generate a broker API key}
       DEVICE_EMQX_API_SECRET: ${DEVICE_EMQX_API_SECRET:?Generate a broker API secret}
+  automation-worker:
+    environment:
+      DEVICE_RUNTIME_URL: http://runtime:8081
+      DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN}
+
   runtime:
     build:
       context: ../..

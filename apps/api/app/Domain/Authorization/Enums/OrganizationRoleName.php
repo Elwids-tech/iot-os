@@ -37,9 +37,11 @@ enum OrganizationRoleName: string
                 ...array_map(static fn ($permission): string => $permission->value, RolePermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, DeviceProfilePermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, DevicePermission::cases()),
+                ...array_map(static fn ($permission): string => $permission->value, \App\Domain\Automation\Permissions\WorkflowPermission::cases()),
             ],
             self::MODERATOR => [
                 DevicePermission::VIEW->value,
+                \App\Domain\Automation\Permissions\WorkflowPermission::VIEW->value,
                 OrganizationPermission::VIEW->value,
                 UserPermission::VIEW_ANY->value,
                 UserPermission::VIEW->value,
@@ -49,6 +51,7 @@ enum OrganizationRoleName: string
             ],
             self::MEMBER => [
                 DevicePermission::VIEW->value,
+                \App\Domain\Automation\Permissions\WorkflowPermission::VIEW->value,
                 OrganizationPermission::VIEW->value,
                 DeviceProfilePermission::VIEW_ANY->value,
                 DeviceProfilePermission::VIEW->value,

@@ -1534,6 +1534,9 @@ export class ApiClient {
   notificationWorkflows(org: string, page: number) {
     return this.request<import("./alerts").AlertPage<import("./alerts").AutomationWorkflow>>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?page=${page}`)
   }
+  automation<T>(org: string, path: string, method = "GET", input?: unknown) {
+    return this.request<T>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows${path}`, { method, ...(input === undefined ? {} : { body: JSON.stringify(input) }) })
+  }
   workflow(org: string, id: string) {
     return this.data<import("./alerts").AutomationWorkflow>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}`)
   }

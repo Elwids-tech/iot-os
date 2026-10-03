@@ -68,10 +68,16 @@ final class RuntimeController
         return ['ok' => true];
     }
 
+    public function automationCommandCheck(Request $request): array
+    {
+        $v=$request->validate(['action_id'=>'required|string|size:64','command_uuid'=>'required|uuid']);
+        return ['allowed'=>app(\App\Domain\Automation\Services\DagActions::class)->authorizeDispatch($v['action_id'],$v['command_uuid'])];
+    }
+
     public function event(Request $request): array
     {
         $event = $request->validate(['uuid' => ['required', 'uuid'], 'type' => ['required', Rule::in([
-            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1', 'workflow.deployment.v1', 'workflow.suspended.v1', 'workflow.transition.v1', 'workflow.membership.v1',
+            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1', 'workflow.deployment.v1', 'workflow.suspended.v1', 'workflow.transition.v1', 'workflow.membership.v1', 'automation.intent.v1',
         ])], 'payload' => ['required', 'array']]);
 
         return DB::transaction(function () use ($event): array {
@@ -79,6 +85,7 @@ final class RuntimeController
                 return ['ok' => true, 'duplicate' => true];
             }
             $p = $event['payload'];
+            if ($event['type'] === 'automation.intent.v1') { app(\App\Domain\Automation\Services\DagActions::class)->accept($p); return ['ok'=>true]; }
             if (str_starts_with($event['type'], 'workflow.')) {
                 app(WorkflowDeploymentService::class)->event($event['type'], $p);
 

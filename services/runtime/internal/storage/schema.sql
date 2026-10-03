@@ -75,3 +75,20 @@ CREATE TABLE IF NOT EXISTS device_runtime.telemetry_outbox (
 );
 CREATE INDEX IF NOT EXISTS telemetry_outbox_pending ON device_runtime.telemetry_outbox(sequence) WHERE published_at IS NULL;
 CREATE INDEX IF NOT EXISTS telemetry_outbox_device_latest ON device_runtime.telemetry_outbox(organization_uuid, (event->>'device_uuid'), sequence DESC);
+
+-- V2 DAG state is isolated from the original geofence evaluator.
+CREATE TABLE IF NOT EXISTS device_runtime.dag_executions (
+ operation_uuid uuid PRIMARY KEY, workflow_uuid uuid NOT NULL, organization_uuid uuid NOT NULL,
+ definition jsonb NOT NULL, definition_hash text NOT NULL, state jsonb NOT NULL,
+ enabled boolean NOT NULL DEFAULT true, stopped_reason text, started_at timestamptz NOT NULL,
+ updated_at timestamptz NOT NULL, next_timer timestamptz, last_trace jsonb NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS dag_due ON device_runtime.dag_executions(next_timer) WHERE enabled;
+CREATE INDEX IF NOT EXISTS dag_org ON device_runtime.dag_executions(organization_uuid) WHERE enabled;
+CREATE TABLE IF NOT EXISTS device_runtime.dag_intents (
+ id text PRIMARY KEY, operation_uuid uuid NOT NULL REFERENCES device_runtime.dag_executions,
+ payload jsonb NOT NULL, created_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS device_runtime.dag_clock (
+ singleton boolean PRIMARY KEY CHECK(singleton), cutoff bigint NOT NULL, due_at timestamptz NOT NULL
+);

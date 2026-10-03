@@ -91,6 +91,7 @@ import { api } from "./lib/api"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
 import { TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
+const AutomationRoutes = lazy(() => import("./automation/Automation"))
 const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
 const GeofenceRoutes = lazy(() => import("./geospatial/Geofences"))
 const TelemetryViewer = lazy(() => import("./telemetry/TelemetryViewer"))
@@ -222,6 +223,7 @@ function Session() {
         <Route element={<PortalShell user={user} />}>
           <Route path="organizations/:organizationUuid/devices/*" element={<Suspense fallback={<PageFallback />}><DeviceRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/integrations/*" element={<Suspense fallback={<PageFallback />}><IntegrationRoutes /></Suspense>} />
+          <Route path="organizations/:organizationUuid/automation/*" element={<Suspense fallback={<PageFallback />}><AutomationRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/alerts/*" element={<Suspense fallback={<PageFallback />}><AlertRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="discovery" /></Suspense>} />
           <Route path="organizations/:organizationUuid/telemetry" element={<Suspense fallback={<PageFallback />}><TelemetryViewer /></Suspense>} />
@@ -409,6 +411,7 @@ const navigationGroups = [
   [
     { path: "device-profiles", label: "Device profiles", icon: LayersIcon },
     { path: "integrations", label: "Integrations", icon: PlugIcon },
+    { path: "automation", label: "Automations", icon: LayersIcon },
   ],
 ]
 

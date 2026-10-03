@@ -214,6 +214,7 @@ try {
     { cwd: apiDirectory, env: apiEnv },
   )
   await waitFor(`http://127.0.0.1:${ports.api}/up`)
+  background("automation-worker", "php", ["artisan", "automation:work", "--max-time=3600"], { cwd: apiDirectory, env: apiEnv })
   console.log("Checking protocol, storage, retention, and recovery contracts…")
   const runtimeTest = await run("go", ["test", "-race", "-p", "1", "./..."], {
     cwd: join(root, "services/runtime"),
@@ -310,7 +311,8 @@ try {
       ["tooling/verify-devices.mjs", join(directory, "environment.json")],
       { stdio: "inherit" },
     )
-    await run(
+    await run(process.execPath, ["tooling/verify-automation.mjs", join(directory, "environment.json")], { stdio: "inherit" })
+    if (!process.argv.includes("--automation-only")) await run(
       process.execPath,
       [
         "tooling/verify-devices-browser.mjs",
@@ -318,7 +320,7 @@ try {
       ],
       { stdio: "inherit" },
     )
-    await run(
+    if (!process.argv.includes("--automation-only")) await run(
       process.execPath,
       [
         "tooling/verify-devices-recovery.mjs",

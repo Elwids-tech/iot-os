@@ -22,6 +22,16 @@ final class DeviceCommandService
         });
     }
 
+    /** Only the durable automation dispatcher calls this after checking its immutable grant. */
+    public function sendAutomation(Device $device, array $values, int $actor, \Carbon\CarbonInterface $deadline, string $actionId): DeviceCommand
+    {
+        abort_unless($deadline->isFuture(), 409, 'Automation action expired.');
+        return DB::transaction(function () use ($device, $values, $actor, $deadline, $actionId) {
+            $command = $this->prepare($device, $values, $actor);
+            return $this->confirm($device, $command, $actor, $deadline, $actionId);
+        });
+    }
+
     public function expire(Device $device): void
     {
         // Execution stops at 30 seconds in the runtime. Allow its durable outcome to arrive
@@ -71,9 +81,9 @@ final class DeviceCommandService
         });
     }
 
-    public function confirm(Device $device, DeviceCommand $command, int $actor): DeviceCommand
+    public function confirm(Device $device, DeviceCommand $command, int $actor, ?\Carbon\CarbonInterface $deadline = null, ?string $actionId = null): DeviceCommand
     {
-        return DB::transaction(function () use ($device, $command, $actor) {
+        return DB::transaction(function () use ($device, $command, $actor, $deadline, $actionId) {
             $locked = Device::whereKey($device->id)->lockForUpdate()->firstOrFail();
             $this->expire($locked);
             $command = $locked->commands()->whereKey($command->id)->lockForUpdate()->firstOrFail();
@@ -85,13 +95,13 @@ final class DeviceCommandService
             $configuration = $this->configuration($locked, $command->configuration->uuid, $command->parameter_uuid, $command->value);
             $check = $this->runtime->request('POST', '/internal/command-check', ['organization_uuid' => $locked->organization->uuid, 'device_uuid' => $locked->uuid, 'configuration_uuid' => $configuration->uuid, 'parameter_uuid' => $command->parameter_uuid, 'value' => $command->value]);
             $already = $check['already_at_target'] ?? false;
-            $command->update(['status' => $already ? 'already_at_target' : 'pending', 'confirmed_at' => now(), 'expires_at' => now()->addSeconds(30),
+            $command->update(['status' => $already ? 'already_at_target' : 'pending', 'confirmed_at' => now(), 'expires_at' => $deadline ? now()->addSeconds(30)->min($deadline) : now()->addSeconds(30),
                 'completed_at' => $already ? now() : null, 'outstanding_key' => $already ? null : $command->outstanding_key]);
             if (! $already) {
                 DeviceAudit::enqueue('device.command.v1', ['command_uuid' => $command->uuid, 'generation' => $locked->deployment_generation, 'organization_uuid' => $locked->organization->uuid,
                     'device_uuid' => $locked->uuid, 'configuration_uuid' => $configuration->uuid, 'parameter_uuid' => $command->parameter_uuid,
                     'value' => $command->value, 'confirmed_at' => $command->confirmed_at->toIso8601String(), 'expires_at' => $command->expires_at->toIso8601String(),
-                    'session_id' => $check['session_id'] ?? null]);
+                    'session_id' => $check['session_id'] ?? null, ...($actionId ? ['automation_action_id'=>$actionId] : [])]);
             }
             DeviceAudit::record('command.confirmed', $locked->organization_id, $actor, $command->uuid, ['status' => $command->status]);
 

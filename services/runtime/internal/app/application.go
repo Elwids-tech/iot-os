@@ -594,6 +594,12 @@ func (a *Application) deactivate(device, org string, generation int, operation .
 }
 func (a *Application) handleControl(ev devices.Event) error {
 	switch ev.Type {
+	case "workflow.deploy.v2":
+		var request storage.DAGDeployment
+		if err := storage.Decode(ev.Payload, &request); err != nil {
+			return err
+		}
+		return a.Store.DeployDAG(a.ctx, request, time.Now().UTC())
 	case "workflow.deploy.v1":
 		var request rules.Deployment
 		if err := storage.Decode(ev.Payload, &request); err != nil {

@@ -111,7 +111,7 @@ func TestRuleConsumerPersistsBeforeAckAndResumes(t *testing.T) {
 		deadline := time.Now().Add(40 * time.Second)
 		for time.Now().Before(deadline) {
 			var n int
-			err = store.Pool.QueryRow(context.Background(), `SELECT count(*) FROM device_runtime.rule_transitions WHERE operation_uuid=$1`, d.VersionUUID).Scan(&n)
+			err = store.Pool.QueryRow(context.Background(), `SELECT count(*) FROM device_runtime.rule_transitions WHERE operation_uuid=$1 AND transition->>'type' IN ('activated','cleared')`, d.VersionUUID).Scan(&n)
 			must(err)
 			consumer, e := a.JS.ConsumerInfo(devices.CommittedTelemetryStream, "workflow-evaluator-v1")
 			if e == nil && n == transitions && consumer.AckFloor.Stream >= sequence {

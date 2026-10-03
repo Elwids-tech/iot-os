@@ -53,6 +53,18 @@ services:
     networks:
       - internal
 
+  automation-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/api/Dockerfile
+    environment: *api-environment
+    command: ["php", "artisan", "automation:work", "--max-time=3600"]
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [internal]
+    restart: unless-stopped
+
   webhooks-worker:
     build:
       context: ../..

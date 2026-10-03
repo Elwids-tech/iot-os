@@ -7,8 +7,18 @@ use App\Domain\Automation\Http\Controllers\AlertController;
 use App\Domain\Automation\Http\Controllers\NotificationSettingsController;
 use App\Domain\Automation\Http\Controllers\WorkflowController;
 use Illuminate\Support\Facades\Route;
+use App\Domain\Automation\Http\Controllers\DagController;
 
 Route::prefix('v1/organizations/{organization}/workflows')->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
+    Route::get('dag/node-types', [DagController::class, 'registry']);
+    Route::post('dag/commands/{command}/reconcile', [DagController::class, 'reconcile']);
+    Route::get('dag/resources', [DagController::class, 'resources']);
+    Route::get('dag/health', [DagController::class, 'health']);
+    Route::get('dag', [DagController::class, 'index']);
+    Route::post('dag/validate', [DagController::class, 'validateGraph']);
+    Route::match(['GET','PUT'], 'dag/settings', [DagController::class, 'settings']);
+    Route::put('{workflow}/layout', [DagController::class, 'layout']);
+    Route::get('{workflow}/actions', [DagController::class, 'history']);
     Route::get('node-types', [WorkflowController::class, 'nodeTypes']);
     Route::get('', [WorkflowController::class, 'index']);
     Route::post('', [WorkflowController::class, 'store']);

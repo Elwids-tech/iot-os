@@ -39,6 +39,16 @@ func (a *Application) startRuleConsumer(ctx context.Context) error {
 	a.rulesHealthy.Store(true)
 	go func() {
 		for ctx.Err() == nil {
+			cutoffAt := time.Now().UTC()
+			if stream, e := a.JS.StreamInfo(devices.CommittedTelemetryStream); e == nil {
+				if _, e = a.Store.PrepareRuleConsumer(ctx, stream.Created, stream.State.FirstSeq, stream.State.LastSeq); e == nil {
+					e = a.Store.TickDAGs(ctx, cutoffAt, stream.State.LastSeq)
+				}
+				if e != nil {
+					a.rulesHealthy.Store(false)
+					a.Logger.Warn("DAG timers deferred", "error", e)
+				}
+			}
 			messages, err := sub.Fetch(1, nats.MaxWait(time.Second))
 			if errors.Is(err, nats.ErrTimeout) {
 				// No pending input is overtaken by a timer activation. Re-check

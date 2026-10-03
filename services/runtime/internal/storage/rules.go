@@ -143,6 +143,9 @@ func (s *Store) ConsumeRuleTelemetry(ctx context.Context, sequence uint64, input
 		if err = evaluateRules(ctx, tx, &input, at); err != nil {
 			return err
 		}
+		if err = evaluateDAGs(ctx, tx, &input, at, at); err != nil {
+			return err
+		}
 	}
 	if _, err = tx.Exec(ctx, `UPDATE device_runtime.rule_checkpoint SET sequence=$1 WHERE singleton`, sequence); err != nil {
 		return err

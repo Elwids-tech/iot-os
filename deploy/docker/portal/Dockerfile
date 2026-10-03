@@ -10,11 +10,13 @@ COPY apps/admin/package.json apps/admin/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY packages/api-client/package.json packages/api-client/package.json
 COPY packages/ui/package.json packages/ui/package.json
+COPY packages/workflow-editor/package.json packages/workflow-editor/package.json
 RUN pnpm install --frozen-lockfile
 
 COPY apps/portal apps/portal
 COPY packages/api-client packages/api-client
 COPY packages/ui packages/ui
+COPY packages/workflow-editor packages/workflow-editor
 COPY packages/auth packages/auth
 # Device Profile fixture contracts are imported by the contract-driven editor.
 COPY contracts contracts

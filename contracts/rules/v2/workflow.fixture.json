@@ -1,0 +1,185 @@
+{
+  "schema_version": "automation-workflow.v2",
+  "uuid": "00000001-1111-4111-a111-111111111111",
+  "version_uuid": "00000002-1111-4111-a111-111111111111",
+  "organization_uuid": "00000003-1111-4111-a111-111111111111",
+  "bindings": [
+    {
+      "role": "temperature",
+      "device_uuid": "00000010-1111-4111-a111-111111111111",
+      "configuration_uuid": "00000020-1111-4111-a111-111111111111",
+      "generation": 1,
+      "parameter_uuid": "00000030-1111-4111-a111-111111111111",
+      "data_type": "number",
+      "unit": "C",
+      "fresh_seconds": 120
+    },
+    {
+      "role": "pressure",
+      "device_uuid": "00000011-1111-4111-a111-111111111111",
+      "configuration_uuid": "00000021-1111-4111-a111-111111111111",
+      "generation": 1,
+      "parameter_uuid": "00000031-1111-4111-a111-111111111111",
+      "data_type": "number",
+      "unit": "kPa",
+      "fresh_seconds": 120
+    },
+    {
+      "role": "pump",
+      "device_uuid": "00000012-1111-4111-a111-111111111111",
+      "configuration_uuid": "00000022-1111-4111-a111-111111111111",
+      "generation": 1,
+      "parameter_uuid": "00000032-1111-4111-a111-111111111111",
+      "data_type": "boolean",
+      "unit": "",
+      "fresh_seconds": 120
+    }
+  ],
+  "nodes": [
+    {
+      "id": "temperature",
+      "type": "source.parameter.v1",
+      "config": {
+        "binding": "temperature"
+      }
+    },
+    {
+      "id": "temperature_window",
+      "type": "window.v1",
+      "config": {
+        "duration_seconds": 10,
+        "slide_seconds": 10,
+        "lateness_seconds": 2,
+        "minimum_samples": 1,
+        "aggregate": "average"
+      }
+    },
+    {
+      "id": "pressure",
+      "type": "source.parameter.v1",
+      "config": {
+        "binding": "pressure"
+      }
+    },
+    {
+      "id": "pressure_window",
+      "type": "window.v1",
+      "config": {
+        "duration_seconds": 10,
+        "slide_seconds": 10,
+        "lateness_seconds": 2,
+        "minimum_samples": 1,
+        "aggregate": "average"
+      }
+    },
+    {
+      "id": "join",
+      "type": "join.v1",
+      "config": {
+        "mode": "window"
+      }
+    },
+    {
+      "id": "hot",
+      "type": "compare.v1",
+      "config": {
+        "operator": "gt",
+        "value": 25
+      }
+    },
+    {
+      "id": "high",
+      "type": "compare.v1",
+      "config": {
+        "operator": "gt",
+        "value": 100
+      }
+    },
+    {
+      "id": "both",
+      "type": "boolean.v1",
+      "config": {
+        "operator": "and"
+      }
+    },
+    {
+      "id": "alert",
+      "type": "action.alert.v1",
+      "config": {
+        "title": "Pump safety condition"
+      }
+    },
+    {
+      "id": "stop_pump",
+      "type": "action.command.v1",
+      "config": {
+        "binding": "pump",
+        "value": false,
+        "cooldown_seconds": 60,
+        "ttl_seconds": 30
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "temperature",
+      "source_port": "out",
+      "target": "temperature_window",
+      "target_port": "in"
+    },
+    {
+      "source": "temperature_window",
+      "source_port": "out",
+      "target": "join",
+      "target_port": "a"
+    },
+    {
+      "source": "pressure",
+      "source_port": "out",
+      "target": "pressure_window",
+      "target_port": "in"
+    },
+    {
+      "source": "pressure_window",
+      "source_port": "out",
+      "target": "join",
+      "target_port": "b"
+    },
+    {
+      "source": "join",
+      "source_port": "a",
+      "target": "hot",
+      "target_port": "in"
+    },
+    {
+      "source": "join",
+      "source_port": "b",
+      "target": "high",
+      "target_port": "in"
+    },
+    {
+      "source": "hot",
+      "source_port": "out",
+      "target": "both",
+      "target_port": "a"
+    },
+    {
+      "source": "high",
+      "source_port": "out",
+      "target": "both",
+      "target_port": "b"
+    },
+    {
+      "source": "both",
+      "source_port": "out",
+      "target": "alert",
+      "target_port": "in"
+    },
+    {
+      "source": "both",
+      "source_port": "out",
+      "target": "stop_pump",
+      "target_port": "in"
+    }
+  ]
+}

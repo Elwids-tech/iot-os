@@ -137,14 +137,14 @@ final class AlertController
     private function views(Organization $organization, Collection $alerts): array
     {
         $alerts->loadMissing(['workflow', 'deployment', 'acknowledger:id,name', 'assignee:id,name']);
-        $deviceNames = Device::where('organization_id', $organization->id)->whereIn('uuid', $alerts->map(fn ($a) => $a->deployment->definition['binding']['device_uuid']))->pluck('name', 'uuid')->all();
+        $deviceNames = Device::where('organization_id', $organization->id)->whereIn('uuid', $alerts->map(fn ($a) => ($a->deployment->definition['binding']['device_uuid'] ?? $a->deployment->definition['bindings'][0]['device_uuid'])))->pluck('name', 'uuid')->all();
 
         return $alerts->map(fn ($a) => $this->view($a, $deviceNames))->all();
     }
 
     private function view(Alert $alert, array $deviceNames): array
     {
-        $device = $alert->deployment->definition['binding']['device_uuid'];
+        $device = ($alert->deployment->definition['binding']['device_uuid'] ?? $alert->deployment->definition['bindings'][0]['device_uuid']);
 
         return [...$alert->only(['uuid', 'episode', 'activated_at', 'cleared_at', 'acknowledged_at', 'acknowledged_by', 'assigned_at', 'activation_transition_id', 'clear_transition_id']), 'workflow_uuid' => $alert->workflow->uuid, 'workflow_name' => $alert->workflow->name, 'operation_uuid' => $alert->deployment->uuid, 'device_uuid' => $device, 'device_name' => $deviceNames[$device] ?? null, 'acknowledged_by_name' => $alert->acknowledger?->name, 'assignee' => $alert->assignee?->only(['id', 'name']), 'condition' => $alert->cleared_at ? 'cleared' : 'active', 'execution_stopped_reason' => $alert->deployment->stopped_reason];
     }

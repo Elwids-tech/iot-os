@@ -6,6 +6,6 @@ final class AlertSnapshot
 {
     public static function of(Alert $alert): array
     {
-        return [...$alert->only(['uuid', 'episode', 'activated_at', 'cleared_at', 'acknowledged_at']), 'condition' => $alert->cleared_at ? 'cleared' : 'active', 'workflow_uuid' => $alert->workflow->uuid, 'workflow_name' => $alert->workflow->name, 'device_uuid' => $alert->deployment->definition['binding']['device_uuid'], 'execution_stopped_reason' => $alert->deployment->stopped_reason];
+        return [...$alert->only(['uuid', 'episode', 'activated_at', 'cleared_at', 'acknowledged_at']), 'condition' => $alert->cleared_at ? 'cleared' : 'active', 'workflow_uuid' => $alert->workflow->uuid, 'workflow_name' => $alert->workflow->name, 'device_uuid' => ($alert->deployment->definition['binding']['device_uuid'] ?? $alert->deployment->definition['bindings'][0]['device_uuid']), 'execution_stopped_reason' => $alert->deployment->stopped_reason];
     }
 }

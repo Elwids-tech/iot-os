@@ -119,6 +119,20 @@ func (a *Application) dispatch(c devices.Command) error {
 	if d.Source.DeviceID != "" {
 		topic = "spBv1.0/" + d.Source.GroupID + "/DCMD/" + d.Source.EdgeNodeID + "/" + d.Source.DeviceID
 	}
+	if c.AutomationActionID != "" {
+		var authorization struct {
+			Allowed bool `json:"allowed"`
+		}
+		if e := a.Control.request(a.ctx, "POST", "/automation-command-check", map[string]string{"action_id": c.AutomationActionID, "command_uuid": c.UUID}, &authorization); e != nil {
+			return fail("failed", "Automation authorization could not be confirmed before dispatch.")
+		}
+		if !authorization.Allowed {
+			return fail("cancelled", "Automation authorization was revoked before dispatch.")
+		}
+		if !c.ExpiresAt.After(time.Now()) {
+			return fail("cancelled", "Automation command expired during dispatch authorization.")
+		}
+	}
 	sentAt := time.Now().UTC()
 	pending := &pendingCommand{Request: c, SentAt: sentAt}
 	a.mu.Lock()

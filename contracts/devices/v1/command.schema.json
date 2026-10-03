@@ -42,6 +42,10 @@
     "expires_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "automation_action_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [

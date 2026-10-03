@@ -142,14 +142,15 @@ type Telemetry struct {
 	Readings   []Reading  `json:"readings"`
 }
 type Command struct {
-	Generation        int       `json:"generation"`
-	UUID              string    `json:"command_uuid"`
-	OrganizationUUID  string    `json:"organization_uuid"`
-	DeviceUUID        string    `json:"device_uuid"`
-	ConfigurationUUID string    `json:"configuration_uuid"`
-	ParameterUUID     string    `json:"parameter_uuid"`
-	Value             any       `json:"value"`
-	SessionID         string    `json:"session_id"`
-	ConfirmedAt       time.Time `json:"confirmed_at"`
-	ExpiresAt         time.Time `json:"expires_at"`
+	AutomationActionID string    `json:"automation_action_id,omitempty"`
+	Generation         int       `json:"generation"`
+	UUID               string    `json:"command_uuid"`
+	OrganizationUUID   string    `json:"organization_uuid"`
+	DeviceUUID         string    `json:"device_uuid"`
+	ConfigurationUUID  string    `json:"configuration_uuid"`
+	ParameterUUID      string    `json:"parameter_uuid"`
+	Value              any       `json:"value"`
+	SessionID          string    `json:"session_id"`
+	ConfirmedAt        time.Time `json:"confirmed_at"`
+	ExpiresAt          time.Time `json:"expires_at"`
 }
