@@ -17,6 +17,13 @@ jobs:
           extensions: pdo_sqlite, pdo_pgsql, pcntl
       - run: composer install --no-interaction --prefer-dist
         working-directory: apps/api
+      - name: Configure ephemeral test application key
+        working-directory: apps/api
+        shell: bash
+        run: |
+          test_key="$(php artisan key:generate --show)"
+          echo "::add-mask::$test_key"
+          printf 'APP_KEY=%s\n' "$test_key" >> "$GITHUB_ENV"
       - run: php artisan test --compact
         working-directory: apps/api
       - uses: actions/setup-node@v4
