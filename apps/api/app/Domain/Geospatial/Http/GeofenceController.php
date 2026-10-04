@@ -23,7 +23,7 @@ final class GeofenceController
         $input = $request->validate(['search' => 'sometimes|nullable|string|max:255', 'page' => 'sometimes|integer|min:1', 'per_page' => 'sometimes|integer|min:1|max:100']);
         $page = Geofence::where('organization_id', $organization->id)
             ->when(trim($input['search'] ?? ''), fn ($query, $search) => $query->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($search).'%']))
-            ->orderBy('name')->paginate((int) ($input['per_page'] ?? 25));
+            ->orderBy('name')->paginate((int) ($input['per_page'] ?? 25), ['*'], 'page', (int) ($input['page'] ?? 1));
 
         return ['data' => $page->getCollection()->map(fn ($fence) => $this->service->view($fence)),
             'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];

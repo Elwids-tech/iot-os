@@ -696,7 +696,7 @@ func (s *Store) Cleanup(ctx context.Context, org string, cutoff time.Time) (int6
 func (s *Store) cleanup(ctx context.Context, org string, cutoff time.Time, batches, batchSize int) (int64, error) {
 	var total int64
 	var remaining bool
-	for _, table := range []string{"observations", "diagnostics"} {
+	for _, table := range []string{"observations", "diagnostics", "dag_evaluations"} {
 		for batch := 0; batch < batches; batch++ {
 			tag, e := s.Pool.Exec(ctx, `DELETE FROM device_runtime.`+table+` WHERE (tableoid,ctid) IN (SELECT tableoid,ctid FROM device_runtime.`+table+` WHERE organization_uuid=$1 AND received_at<$2 LIMIT $3)`, org, cutoff, batchSize)
 			if e != nil {

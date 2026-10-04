@@ -9,7 +9,9 @@ separate execution state and a transactional action outbox.
 
 The portal's **Automations** page includes a controlled React Flow editor,
 keyboard-accessible node/connection forms, a cross-device template, validation,
-saved-revision simulation and explicit activation review. Layout is separately
+optional saved-revision simulation and explicit activation review. Saved inactive
+workflows expose Reactivate without requiring another simulation in the current
+browser tab. Layout is separately
 revisioned; moving nodes does not alter execution or the semantic draft.
 
 Under `/api/v1/organizations/{organization}/workflows`:
@@ -27,11 +29,13 @@ Under `/api/v1/organizations/{organization}/workflows`:
 | `POST /{workflow}/deployments` | Immutable activation/disable; 202 means pending |
 | `GET /{workflow}/execution` | State, latest node trace, timer and consumer health |
 | `GET /{workflow}/actions` | Paginated action outcomes |
+| `GET /{workflow}/timeline?before={id}` | Recent evaluations, 20 per page with an older-entry cursor |
+| `GET /{workflow}/timeline/{evaluation}` | Deployed node evidence and correlated action delivery |
 | `POST /dag/commands/{command}/reconcile` | Explicit reconciliation after fresh target-state observation |
 
 Deployment request fields remain operation UUID, target state, draft revision and
 expected generation. V2 activation also accepts one `command_grants` entry per
-command node: node ID, binding, exact value, cooldown seconds, maximum per minute
+selected command setting (legacy nodes have one): node ID, binding, exact value, cooldown seconds, maximum per minute
 and expiry. This initial grant form approves exact values, not arbitrary ranges.
 Retries reuse the complete original request. Grants and snapshots are immutable.
 Workflow view/manage/activate permissions are copied from corresponding existing
@@ -65,6 +69,20 @@ Device.command is checked independently and is never added by this migration.
   trace is bounded to 1,000 node evaluations. Compilation cache holds 256 plans.
 
 ## Actions and operations
+
+The Execution tab includes a live execution timeline. Evaluations are committed
+in the same transaction as runtime state and action intents. Each entry records
+the triggering telemetry or due timer, deployed generation and revision, input
+and output values, and reasons for false, unknown, suppressed or triggered steps.
+Editing a draft does not rewrite historical node configuration. Action delivery
+is linked by exact intent IDs and distinguishes authorization, sending, target
+observation and device confirmation. Missing worker records remain pending.
+
+History begins after this feature is installed; older traces are not backfilled.
+The runtime retains up to 1,000 evaluations per workflow across deployments,
+subject to earlier organization retention. Individual traces retain the last
+1,000 steps and display a truncation notice. The UI polls every five seconds,
+supports pause and older pages, and keeps a selected evaluation stable.
 
 The `automation-worker` Laravel process receives durable intents through the
 existing runtime inbox, then checks current authority, exact deployment, stop
@@ -125,3 +143,26 @@ Docker Desktop's daemon API was unresponsive and the Compose rebuild attempt
 timed out. No fresh container, served-browser or disposable integration result
 was obtained in this check. The earlier local verification above is historical
 evidence; it does not replace a fresh rebuild or staging acceptance.
+
+### Dynamic Set Device State
+
+The portal's Set Device State node renders the selected device's applied profile:
+boolean switches, allowed enum choices, color inputs, sliders, and numeric/text
+fields. The resource picker requests `controllable=1`; the API filters active,
+applied devices with mapped state commands before pagination and checks command
+permission. `device_uuid` hydrates a saved selection independently of search.
+
+Check **Set <parameter>** for each value to change. Unchecked settings are left
+alone. Editing changes only the draft. Multi-setting nodes retain
+`action.command.v1` and use `config.settings`, an object mapping binding roles to
+scalar values, alongside `cooldown_seconds` and `ttl_seconds`. All settings must
+target distinct parameters of one device configuration. Legacy `binding` / `value`
+nodes remain valid; the two config forms cannot be mixed.
+
+Runtime creates one durable intent per setting with a distinct idempotency key.
+Activation requires one exact-value grant per node/binding pair. Each intent is
+checked against its projection from the immutable deployment; authorization,
+configuration generation, expiry, cooldown, rate limits and uncertainty remain
+per target. Settings dispatch independently: this is not an atomic update and
+arrival order is not guaranteed. Use separate controlled stages when an action
+requires another setting to be observed first.

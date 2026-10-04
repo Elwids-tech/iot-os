@@ -27,6 +27,13 @@ final class AssistantAccess
     public function conversation(User $user, Organization $organization, AssistantConversation $conversation): void
     {
         abort_unless($conversation->user_id === $user->getKey() && $conversation->organization_id === $organization->getKey(), 404);
+        if ($conversation->scope === 'automation') {
+            $this->automation($user, $organization);
+            if ($conversation->automation_workflow_id !== null) {
+                abort_unless($conversation->workflow?->organization_id === $organization->id, 404);
+            }
+            return;
+        }
         $this->organization($user, $organization);
         if ($conversation->device_profile_id !== null) {
             abort_unless($conversation->profile?->organization_id === $organization->getKey(), 404);
@@ -36,10 +43,18 @@ final class AssistantAccess
 
     public function write(AssistantConversation $conversation): void
     {
+        abort_unless($conversation->scope === 'profile', 422, 'This conversation is for automation drafts.');
         $this->conversation($conversation->user, $conversation->organization, $conversation);
         $capability = $conversation->device_profile_id === null ? 'create' : 'update';
         abort_unless($this->capabilities($conversation->user, $conversation->organization)[$capability] ?? false, 403);
         abort_if($conversation->profile?->status->value === 'archived', 422, 'Archived profiles cannot be edited.');
+    }
+
+    public function automation(User $user, Organization $organization): void
+    {
+        $auth = app(\App\Domain\Automation\Services\DagAuthorization::class);
+        $auth->authorize($user, $organization, 'manage');
+        $auth->enabled($organization);
     }
 
     public function profile(User $user, Organization $organization, string $uuid): DeviceProfile

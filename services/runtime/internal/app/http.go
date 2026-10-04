@@ -72,6 +72,7 @@ func (a *Application) Handler() http.Handler {
 	internal.HandleFunc("POST /internal/dag/compile", a.compileDAG)
 	internal.HandleFunc("POST /internal/dag/simulate", a.simulateDAG)
 	internal.HandleFunc("GET /internal/dag/execution", a.dagExecution)
+	internal.HandleFunc("GET /internal/dag/timeline", a.dagTimeline)
 	internal.HandleFunc("GET /internal/workflows/execution", a.ruleExecution)
 	internal.HandleFunc("GET /internal/workflows/location-overview", a.workflowLocationOverview)
 	internal.HandleFunc("GET /internal/rules/node-types", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, rules.NodeTypes()) })

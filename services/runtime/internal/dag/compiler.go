@@ -86,19 +86,44 @@ func Compile(w Workflow) (*Plan, []Diagnostic) {
 				fail(n.ID, "config."+key, "value", "Invalid configuration value")
 			}
 		}
-		if n.Type == "source.parameter.v1" || n.Type == "action.command.v1" {
-			b, ok := p.Bindings[str(n.Config, "binding")]
-			if !ok {
+		if n.Type == "source.parameter.v1" {
+			if _, ok := p.Bindings[str(n.Config, "binding")]; !ok {
 				fail(n.ID, "config.binding", "binding", "Unknown binding")
 			}
-			if n.Type == "action.command.v1" && ok {
-				v := n.Config["value"]
+		}
+		if n.Type == "action.command.v1" {
+			configs := commandConfigs(n.Config)
+			if settings, exists := n.Config["settings"]; exists {
+				values, ok := settings.(map[string]any)
+				_, legacyBinding := n.Config["binding"]
+				_, legacyValue := n.Config["value"]
+				if !ok || len(values) == 0 || len(values) > 32 || legacyBinding || legacyValue {
+					fail(n.ID, "config.settings", "settings", "Select 1–32 settings, without legacy binding/value fields")
+				}
+			}
+			device, configuration := "", ""
+			targets := map[string]bool{}
+			for _, c := range configs {
+				b, ok := p.Bindings[str(c, "binding")]
+				if !ok {
+					fail(n.ID, "config.settings", "binding", "Unknown command binding")
+					continue
+				}
+				v := c["value"]
 				_, numeric := number(v)
 				_, boolean := v.(bool)
 				_, text := v.(string)
 				if b.DataType == "number" && !numeric || b.DataType == "boolean" && !boolean || b.DataType == "string" && !text {
-					fail(n.ID, "config.value", "type", "Command value does not match binding")
+					fail(n.ID, "config.settings", "type", "Command value does not match binding "+b.Role)
 				}
+				if device != "" && (device != b.Device || configuration != b.Configuration) {
+					fail(n.ID, "config.settings", "device", "Settings must target one device configuration")
+				}
+				if targets[b.Parameter] {
+					fail(n.ID, "config.settings", "duplicate", "Each parameter may be set only once")
+				}
+				targets[b.Parameter] = true
+				device, configuration = b.Device, b.Configuration
 			}
 		}
 		if n.Type == "window.v1" {

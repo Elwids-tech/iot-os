@@ -1,3 +1,4 @@
+import { Scenarios } from "./Scenarios";
 import { useEffect, useRef, useState } from "react";
 import { Link, Route, Routes, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -52,6 +53,13 @@ import reference from "../../../../contracts/rules/v2/workflow.fixture.json";
 import { api } from "../lib/api";
 import { useUnsavedContribution } from "../lib/unsaved";
 import { RequestError } from "../components/forms";
+import { GeofenceConfig } from "./GeofenceConfig";
+import { DeviceStateConfig, DeviceStateReview } from "./DeviceStateConfig";
+import { commandGrants } from "./device-state";
+import { activationUnavailableReason } from "./activation";
+import { WorkflowAssistant } from "./WorkflowAssistant";
+import { ExecutionTimeline } from "./ExecutionTimeline";
+import type { EvidenceTarget } from "./execution-evidence";
 
 type Saved = {
   uuid: string;
@@ -254,6 +262,12 @@ function Workspace() {
   return <Editor key={`${org}:${workflowUuid}`} org={org} id={workflowUuid} />;
 }
 function Editor({ org, id }: { org: string; id: string }) {
+  const [tab, setTab] = useState("editor");
+  const [evidenceTarget, setEvidenceTarget] = useState<(EvidenceTarget & { sequence: number })>();
+  function showEvidence(target: EvidenceTarget) {
+    setTab("execution");
+    setEvidenceTarget(current => ({ ...target, sequence: (current?.sequence ?? 0) + 1 }));
+  }
   const [saved, setSaved] = useState<Saved>();
   const [graph, setGraph] = useState<Workflow>(empty);
   const [layout, setLayout] = useState<Layout>({ positions: {} });
@@ -307,6 +321,8 @@ function Editor({ org, id }: { org: string; id: string }) {
     : JSON.stringify(graph) !== JSON.stringify(saved.workflow) ||
       name !== saved.name;
   const layoutDirty = JSON.stringify(layout) !== layoutSaved;
+  const activationReason = activationUnavailableReason({ busy, dirty, saved, live });
+  const reactivating = live?.deployment_status === "inactive" && live.deployment_generation > 0;
   useUnsavedContribution(dirty || layoutDirty);
   const actions = useQuery({
     queryKey: ["automation-actions", org, saved?.uuid],
@@ -468,13 +484,9 @@ function Editor({ org, id }: { org: string; id: string }) {
     const command_grants =
       target === "inactive"
         ? []
-        : graph.nodes
-            .filter((n) => n.type === "action.command.v1")
-            .map((n) => ({
-              node_id: n.id,
-              binding: n.config.binding,
-              value: n.config.value,
-              cooldown_seconds: n.config.cooldown_seconds,
+        : commandGrants(graph)
+            .map((grant) => ({
+              ...grant,
               max_per_minute: rateLimit,
               expires_at: new Date(
                 Date.now() + grantDays * 86400000,
@@ -523,6 +535,7 @@ function Editor({ org, id }: { org: string; id: string }) {
           <Button disabled={busy} onClick={() => void run(save)}>
             Save
           </Button>
+          <WorkflowAssistant org={org} editorId={id} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={registry.data?.data ?? []} disabled={busy || (id !== "new" && !saved)} onApply={change} onEvidence={showEvidence} />
           <Button
             variant="outline"
             disabled={!history.length || busy}
@@ -548,16 +561,11 @@ function Editor({ org, id }: { org: string; id: string }) {
             Redo
           </Button>
           <Button
-            disabled={
-              busy ||
-              dirty ||
-              !saved ||
-              !simulation ||
-              Boolean(live?.pending_operation_uuid)
-            }
+            disabled={Boolean(activationReason)}
+            title={activationReason}
             onClick={() => setReview(true)}
           >
-            Review activation
+            {reactivating ? "Reactivate" : "Review activation"}
           </Button>
           {live?.applied_deployment_uuid && (
             <Button
@@ -569,6 +577,7 @@ function Editor({ org, id }: { org: string; id: string }) {
             </Button>
           )}
         </div>
+        {activationReason && !busy && <p className="text-sm text-muted-foreground" role="status">{activationReason}</p>}
         <RequestError error={error ?? registry.error ?? detail.error} />
         {saved &&
           live &&
@@ -662,7 +671,7 @@ function Editor({ org, id }: { org: string; id: string }) {
             onChange={(e) => setName(e.target.value)}
           />
         </Field>
-        <Tabs defaultValue="editor">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="editor">Editor</TabsTrigger>
             <TabsTrigger value="simulation">Simulation</TabsTrigger>
@@ -688,11 +697,12 @@ function Editor({ org, id }: { org: string; id: string }) {
             <WorkflowEditor
               workflow={graph}
               layout={layout}
-              registry={registry.data?.data ?? []}
+              registry={(registry.data?.data ?? []).map((type) => type.type === "action.command.v1" ? { ...type, label: "Set Device State" } : type)}
               diagnostics={diagnostics}
               onChange={change}
               onLayoutChange={setLayout}
-              renderBinding={(node, update) => (
+              renderConfig={(node, key, update) => node.type === "action.command.v1" && ["settings", "value"].includes(key) ? <span key={key} hidden /> : node.type === "geofence.v1" && key === "geometry" ? <GeofenceConfig key={node.id + key} org={org} node={node} update={update} /> : undefined}
+              renderBinding={(node, update) => node.type === "action.command.v1" ? <DeviceStateConfig key={node.id} org={org} node={node} graph={graph} onChange={change} /> : (
                 <BindingPicker
                   key={node.id}
                   org={org}
@@ -710,7 +720,8 @@ function Editor({ org, id }: { org: string; id: string }) {
               )}
             />
           </TabsContent>
-          <TabsContent value="simulation">
+          <TabsContent value="simulation" forceMount className="flex flex-col gap-4 data-[state=inactive]:hidden">
+            {saved && <Scenarios org={org} workflowId={saved.uuid} graph={graph} revision={saved.draft_revision} workflowDirty={dirty} />}
             <Card>
               <CardHeader>
                 <CardTitle>Simulate saved revision</CardTitle>
@@ -782,6 +793,7 @@ function Editor({ org, id }: { org: string; id: string }) {
             </Card>
           </TabsContent>
           <TabsContent value="execution">
+            <div className="flex flex-col gap-4">
             <Card>
               <CardHeader>
                 <CardTitle>Live execution</CardTitle>
@@ -832,31 +844,30 @@ function Editor({ org, id }: { org: string; id: string }) {
                 </Table>
               </CardContent>
             </Card>
+            <ExecutionTimeline key={saved?.uuid ?? "unsaved"} org={org} workflowId={saved?.uuid} registry={registry.data?.data ?? []} evidenceTarget={evidenceTarget} renderAssistant={evaluation => <WorkflowAssistant key={evaluation.id} org={org} editorId={id} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={registry.data?.data ?? []} disabled={busy || !saved} onApply={change} execution={evaluation} onEvidence={showEvidence} />} />
+            </div>
           </TabsContent>
         </Tabs>
         <Dialog open={review} onOpenChange={setReview}>
-          <DialogContent>
-            <DialogHeader>
+          <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-xl">
+            <DialogHeader className="shrink-0">
               <DialogTitle>
-                Activate revision {saved?.draft_revision}
+              {reactivating ? "Reactivate" : "Activate"} revision {saved?.draft_revision}
               </DialogTitle>
               <DialogDescription>
                 This replaces the current execution and starts fresh evidence.
                 Review the device commands authorized for automatic execution.
               </DialogDescription>
             </DialogHeader>
-            <FieldGroup>
+            <FieldGroup className="min-h-0 overflow-y-auto">
+              {simulation?.draft_revision !== saved?.draft_revision && (
+                <p className="text-sm text-muted-foreground">
+                  Simulation is optional and has not been run for this revision in this tab.
+                </p>
+              )}
               {graph.nodes
                 .filter((n) => n.type === "action.command.v1")
-                .map((n) => (
-                  <Alert key={n.id}>
-                    <AlertDescription>
-                      {String(n.config.binding)} → {String(n.config.value)} ·
-                      minimum {String(n.config.cooldown_seconds)} seconds
-                      between commands
-                    </AlertDescription>
-                  </Alert>
-                ))}
+                .map((n) => <DeviceStateReview key={n.id} org={org} node={n} graph={graph} />)}
               <Field>
                 <FieldLabel htmlFor="grant-days">
                   Command authorization expires after (days)
@@ -888,12 +899,12 @@ function Editor({ org, id }: { org: string; id: string }) {
                 activating does not enable email.
               </p>
             </FieldGroup>
-            <DialogFooter>
+            <DialogFooter className="shrink-0">
               <Button variant="outline" onClick={() => setReview(false)}>
                 Cancel
               </Button>
               <Button
-                disabled={busy}
+                disabled={Boolean(activationReason)}
                 onClick={() => void run(() => deploy("active"))}
               >
                 Approve and activate

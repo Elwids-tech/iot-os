@@ -92,3 +92,15 @@ CREATE TABLE IF NOT EXISTS device_runtime.dag_intents (
 CREATE TABLE IF NOT EXISTS device_runtime.dag_clock (
  singleton boolean PRIMARY KEY CHECK(singleton), cutoff bigint NOT NULL, due_at timestamptz NOT NULL
 );
+CREATE TABLE IF NOT EXISTS device_runtime.dag_evaluations (
+ id bigserial PRIMARY KEY,
+ operation_uuid uuid NOT NULL REFERENCES device_runtime.dag_executions ON DELETE CASCADE,
+ workflow_uuid uuid NOT NULL, organization_uuid uuid NOT NULL,
+ received_at timestamptz NOT NULL,
+ trigger text NOT NULL, outcome text NOT NULL,
+ source jsonb, diagnostic text,
+ trace jsonb NOT NULL DEFAULT '[]', intent_ids jsonb NOT NULL DEFAULT '[]',
+ trace_truncated boolean NOT NULL DEFAULT false
+);
+CREATE INDEX IF NOT EXISTS dag_evaluation_workflow ON device_runtime.dag_evaluations(workflow_uuid,id DESC);
+CREATE INDEX IF NOT EXISTS dag_evaluation_retention ON device_runtime.dag_evaluations(organization_uuid,received_at);

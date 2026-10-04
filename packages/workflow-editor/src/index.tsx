@@ -228,6 +228,7 @@ export function WorkflowEditor({
   onChange,
   onLayoutChange,
   renderBinding,
+  renderConfig,
 }: {
   workflow: Workflow;
   layout: Layout;
@@ -239,6 +240,7 @@ export function WorkflowEditor({
     node: WorkflowNode,
     update: (node: WorkflowNode) => void,
   ) => ReactNode;
+  renderConfig?: (node: WorkflowNode, key: string, update: (node: WorkflowNode) => void) => ReactNode;
 }) {
   const [selected, setSelected] = useState("");
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -383,12 +385,17 @@ export function WorkflowEditor({
     const type = lookup.get(typeId);
     if (!type || workflow.nodes.length >= 100) return;
     const id = `node_${crypto.randomUUID().slice(0, 8)}`;
-    const config = Object.fromEntries(
+    const config: Record<string, unknown> = Object.fromEntries(
       Object.entries(type.config_schema).map(([key, f]) => [
         key,
         f.enum?.[0] ?? (f.type === "number" ? (f.minimum ?? 0) : ""),
       ]),
     );
+    if (type.type === "action.command.v1") {
+      delete config.binding;
+      delete config.value;
+      config.settings = {};
+    }
     onChange({
       ...workflow,
       nodes: [...workflow.nodes, { id, type: type.type, config }],
@@ -796,7 +803,7 @@ export function WorkflowEditor({
                   {Object.entries(definition.config_schema)
                     .filter(([key]) => key !== "binding")
                     .map(([key, f]) =>
-                      f.type === "object" ? (
+                      renderConfig?.(node, key, update) ?? (f.type === "object" ? (
                         <ObjectField
                           key={node.id + key}
                           label={key}
@@ -808,6 +815,8 @@ export function WorkflowEditor({
                             })
                           }
                         />
+                      ) : f.type === "scalar" && workflow.bindings.find((b) => b.role === node.config.binding)?.data_type === "boolean" ? (
+                        <Picker key={key} label="Target state" value={String(node.config[key] ?? false)} choices={[{ value: "true", label: "On (true)" }, { value: "false", label: "Off (false)" }]} onChange={(value) => update({ ...node, config: { ...node.config, [key]: value === "true" } })} />
                       ) : f.enum ? (
                         <Picker
                           key={key}
@@ -855,7 +864,7 @@ export function WorkflowEditor({
                             }}
                           />
                         </Field>
-                      ),
+                      )),
                     )}
                   {diagnostics
                     .filter((d) => d.node_id === node.id)

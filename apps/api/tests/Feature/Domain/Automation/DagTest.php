@@ -140,4 +140,146 @@ final class DagTest extends TestCase
         $actions->tick($intent['id']);
         $this->assertDatabaseHas('automation_actions',['id' => $intent['id'], 'status' => 'cancelled']);
     }
+    public function test_timeline_uses_deployed_snapshot_and_exact_intent_evidence(): void
+    {
+        $w = $this->draft();
+        $workflow = Workflow::where('uuid', $w['uuid'])->firstOrFail();
+        $operation = (string) Str::uuid();
+        $graph = $w['workflow'];
+        $graph['version_uuid'] = $operation;
+        $deployment = Deployment::create([
+            'uuid' => $operation, 'automation_workflow_id' => $workflow->id,
+            'generation' => 1, 'draft_revision' => 1, 'target' => 'active',
+            'definition' => $graph, 'definition_hash' => str_repeat('a', 64),
+            'command_grants' => [], 'status' => 'succeeded',
+            'created_by' => $this->actor->id, 'created_at' => now(),
+        ]);
+        $id = hash('sha256', 'timeline-action');
+        $pending = hash('sha256', 'timeline-pending');
+        $intent = ['occurred_at' => now()->toIso8601String(), 'config' => $graph['nodes'][2]['config']];
+        DB::table('automation_actions')->insert([
+            'id' => $id, 'organization_id' => $this->org->id,
+            'automation_deployment_id' => $deployment->id, 'node_id' => 'command',
+            'kind' => 'action.command.v1', 'intent' => json_encode($intent),
+            'status' => 'observed', 'created_at' => now(), 'updated_at' => now(), 'expires_at' => now()->addMinute(),
+        ]);
+        $entry = [
+            'id' => '17', 'operation_uuid' => $operation, 'at' => now()->toIso8601String(),
+            'trigger' => 'telemetry', 'outcome' => 'triggered',
+            'source' => ['device_uuid' => $graph['bindings'][0]['device_uuid']],
+            'trace' => [['node_id' => 'compare', 'status' => 'matched', 'inputs' => [], 'outputs' => []]],
+            'intent_ids' => [$id, $pending], 'trace_truncated' => false,
+        ];
+        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::fake(['*/internal/dag/timeline*' => Http::response(['data' => $entry])]);
+        $edited = $graph;
+        $edited['nodes'][1]['config']['value'] = 99;
+        $workflow->update(['workflow' => $edited, 'draft_revision' => 2]);
+        $base = $this->url.'/'.$workflow->uuid.'/timeline';
+        $this->getJson($base.'/17')->assertOk()
+            ->assertJsonPath('data.draft_revision', 1)
+            ->assertJsonPath('data.trace.0.config.value', 25)
+            ->assertJsonPath('data.source.device_name', 'Simulator')
+            ->assertJsonPath('data.actions.0.id', $id)
+            ->assertJsonPath('data.actions.0.status', 'observed')
+            ->assertJsonPath('data.actions.0.command', null)
+            ->assertJsonPath('data.actions.1.status', 'awaiting_dispatch');
+        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::fake(['*/internal/dag/timeline*' => Http::response(['data' => [$entry], 'next_cursor' => '17', 'retention_limit' => 1000])]);
+        $this->getJson($base.'?before=18')->assertOk()->assertJsonPath('next_cursor', '17');
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'before=18'));
+        $this->getJson($base.'?before=-1')->assertUnprocessable();
+        $this->getJson($base.'/invalid')->assertUnprocessable();
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $this->getJson('/api/v1/organizations/'.$other->uuid.'/workflows/'.$workflow->uuid.'/timeline')->assertNotFound();
+        $entry['operation_uuid'] = (string) Str::uuid();
+        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::fake(['*/internal/dag/timeline*' => Http::response(['data' => $entry])]);
+        $this->getJson($base.'/17')->assertNotFound();
+    }
+
+    private function multiSettingGraph(): void
+    {
+        $configuration = DeviceConfiguration::firstOrFail();
+        $definition = $configuration->definition;
+        $profile = json_decode($definition['profile_canonical_json'], true);
+        $parameter = (string) Str::uuid();
+        $profile['parameters'][] = ['uuid' => $parameter, 'key' => 'power', 'label' => 'Power', 'kind' => 'state', 'data_type' => 'boolean', 'reports_state' => true, 'accepts_command' => true];
+        $definition['profile_canonical_json'] = json_encode($profile);
+        $definition['mappings'][] = ['parameter_uuid' => $parameter, 'command_metric' => 'Power'];
+        DB::table('device_configurations')->where('id', $configuration->id)->update(['definition' => json_encode($definition)]);
+        $this->graph['bindings'][] = [...$this->graph['bindings'][0], 'role' => 'power', 'parameter_uuid' => $parameter, 'data_type' => 'boolean', 'unit' => ''];
+        $this->graph['nodes'][2]['config'] = ['settings' => ['sensor' => 0, 'power' => true], 'cooldown_seconds' => 60, 'ttl_seconds' => 30];
+    }
+
+    public function test_multiple_settings_require_exact_grants_and_dispatch_independently(): void
+    {
+        $this->multiSettingGraph();
+        $w = $this->draft();
+        $url = $this->url.'/'.$w['uuid'].'/deployments';
+        $grant = ['node_id' => 'command', 'binding' => 'sensor', 'value' => 0, 'cooldown_seconds' => 60, 'max_per_minute' => 1, 'expires_at' => now()->addDay()->toIso8601String()];
+        $input = ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'active', 'draft_revision' => 1, 'expected_generation' => 0, 'command_grants' => [$grant]];
+        $this->postJson($url, $input)->assertUnprocessable();
+        $input['command_grants'][] = $grant;
+        $this->postJson($url, $input)->assertUnprocessable();
+        $input['command_grants'][1] = [...$grant, 'binding' => 'power', 'value' => false];
+        $this->postJson($url, $input)->assertUnprocessable();
+        $input['command_grants'][1]['value'] = true;
+        $this->postJson($url, $input)->assertStatus(202);
+        $d = Deployment::firstOrFail();
+        Workflow::firstOrFail()->update(['applied_deployment_uuid' => $d->uuid, 'desired_deployment_uuid' => $d->uuid, 'pending_operation_uuid' => null]);
+        $actions = app(DagActions::class);
+        foreach ($input['command_grants'] as $g) {
+            $intent = ['id' => hash('sha256', 'multi-'.$g['binding']), 'operation_uuid' => $d->uuid, 'organization_uuid' => $this->org->uuid, 'workflow_uuid' => $w['uuid'], 'node_id' => 'command', 'kind' => 'action.command.v1', 'config' => ['binding' => $g['binding'], 'value' => $g['value'], 'cooldown_seconds' => 60, 'ttl_seconds' => 30], 'expires_at' => now()->addSeconds(30)->toIso8601String(), 'occurred_at' => now()->toIso8601String(), 'trigger' => 'episode:1:'.$g['binding']];
+            DB::transaction(function () use ($actions, $intent) { $actions->accept($intent); $actions->accept($intent); });
+            $actions->tick($intent['id']);
+            $record = DB::table('automation_actions')->where('id', $intent['id'])->first();
+            $this->assertNotNull($record->command_uuid, $record->diagnostic ?? 'No command');
+            $this->assertTrue($actions->authorizeDispatch($intent['id'], $record->command_uuid));
+        }
+        $this->assertDatabaseCount('device_commands', 2);
+        $this->assertDatabaseCount('automation_actions', 2);
+    }
+
+    public function test_controllable_resources_filter_before_pagination_and_hydrate_selection(): void
+    {
+        $this->draft();
+        $control = Device::firstOrFail();
+        $configuration = DeviceConfiguration::firstOrFail();
+        for ($i = 0; $i < 26; $i++) {
+            $device = $control->replicate(['uuid', 'code', 'applied_configuration_uuid']);
+            $device->uuid = (string) Str::uuid();
+            $device->code = 'readonly-'.$i;
+            $device->name = 'Read only '.$i;
+            $device->save();
+            $copy = $configuration->replicate(['uuid', 'device_id']);
+            $copy->uuid = (string) Str::uuid();
+            $copy->device_id = $device->id;
+            $definition = $copy->definition;
+            $definition['mappings'][0]['command_metric'] = null;
+            $copy->definition = $definition;
+            $copy->created_at = now();
+            $copy->save();
+            $device->update(['applied_configuration_uuid' => $copy->uuid]);
+        }
+        $this->getJson($this->url.'/dag/resources?controllable=1')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.device_uuid', $control->uuid);
+        $this->getJson($this->url.'/dag/resources?controllable=1&device_uuid='.$control->uuid)->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson($this->url.'/dag/resources?controllable=1&search=Read')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson($this->url.'/dag/resources')->assertOk()->assertJsonPath('meta.total', 27);
+    }
+
+    public function test_authoring_rejects_invalid_setting_values_and_unmapped_controls(): void
+    {
+        $this->multiSettingGraph();
+        $this->draft();
+        $this->graph['nodes'][2]['config']['settings']['power'] = 'true';
+        $this->postJson($this->url.'/dag/validate', ['workflow' => $this->graph])->assertUnprocessable();
+        $this->graph['nodes'][2]['config']['settings']['power'] = true;
+        $configuration = DeviceConfiguration::firstOrFail();
+        $definition = $configuration->definition;
+        $definition['mappings'][1]['command_metric'] = null;
+        DB::table('device_configurations')->where('id', $configuration->id)->update(['definition' => json_encode($definition)]);
+        $this->postJson($this->url.'/dag/validate', ['workflow' => $this->graph])->assertUnprocessable();
+    }
+
 }

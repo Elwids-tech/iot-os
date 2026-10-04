@@ -127,6 +127,17 @@ final class DagController
         return ['data' => $p->items(), 'meta' => ['current_page' => $p->currentPage(), 'last_page' => $p->lastPage(), 'total' => $p->total()]];
     }
 
+    public function timeline(Request $r, Organization $organization, Workflow $workflow, ?string $evaluation = null): array
+    {
+        $this->auth->authorize($r->user(), $organization, 'view', $workflow);
+        abort_unless(($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2', 422, 'Execution timelines require a v2 workflow.');
+        $input = $r->validate(['before' => 'sometimes|integer|min:1|max:9223372036854775807']);
+        if ($evaluation !== null) {
+            validator(['evaluation' => $evaluation], ['evaluation' => 'required|integer|min:1|max:9223372036854775807'])->validate();
+        }
+        return app(\App\Domain\Automation\Services\DagTimeline::class)->read($organization, $workflow, isset($input['before']) ? (string) $input['before'] : null, $evaluation);
+    }
+
     public function settings(Request $r, Organization $organization): array
     {
         $this->auth->authorize($r->user(), $organization, $r->isMethod('PUT') ? 'activate' : 'view');
@@ -153,14 +164,32 @@ final class DagController
     public function resources(Request $r, Organization $organization): array
     {
         $this->auth->authorize($r->user(), $organization, 'view');
-        $r->validate(['search' => 'sometimes|nullable|string|max:255', 'page' => 'sometimes|integer|min:1']);
-        $page = Device::where('organization_id', $organization->id)->whereNotNull('applied_configuration_uuid')->when($r->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$r->string('search').'%'))->orderBy('id')->paginate(25);
-
-        return ['data' => $page->getCollection()->map(function ($device) {
+        $r->validate(['search' => 'sometimes|nullable|string|max:255', 'page' => 'sometimes|integer|min:1', 'controllable' => 'sometimes|boolean', 'device_uuid' => 'sometimes|uuid']);
+        $controllable = $r->boolean('controllable');
+        $query = Device::where('organization_id', $organization->id)->whereNotNull('applied_configuration_uuid')
+            ->when($r->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$r->string('search').'%'))
+            ->when($r->filled('device_uuid'), fn ($q) => $q->where('uuid', $r->string('device_uuid')));
+        if ($controllable) {
+            app(DeviceAuthorization::class)->authorize($r->user(), DevicePermission::COMMAND, $organization);
+            // Filter before pagination, including the applied mapping rather than just profile capability.
+            $query->where('lifecycle', 'active')->where('deployment_status', 'applied')->whereHas('configurations', function ($q) {
+                $q->whereColumn('device_configurations.uuid', 'devices.applied_configuration_uuid');
+                if (DB::connection()->getDriverName() === 'pgsql') {
+                    $q->whereRaw("EXISTS (SELECT 1 FROM jsonb_array_elements((definition->>'profile_canonical_json')::jsonb->'parameters') p, jsonb_array_elements(definition->'mappings') m WHERE p->>'uuid' = m->>'parameter_uuid' AND p->>'accepts_command' = 'true' AND p->>'reports_state' = 'true' AND COALESCE(m->>'command_metric', '') <> '')");
+                } else {
+                    $q->whereRaw("EXISTS (SELECT 1 FROM json_each(json_extract(definition, '$.profile_canonical_json'), '$.parameters') p, json_each(definition, '$.mappings') m WHERE json_extract(p.value, '$.uuid') = json_extract(m.value, '$.parameter_uuid') AND json_extract(p.value, '$.accepts_command') = 1 AND json_extract(p.value, '$.reports_state') = 1 AND COALESCE(json_extract(m.value, '$.command_metric'), '') <> '')");
+                }
+            });
+        }
+        $page = $query->orderBy('id')->paginate(25, ['*'], 'page', $r->integer('page', 1));
+        return ['data' => $page->getCollection()->map(function ($device) use ($controllable) {
             $c = $device->configurations()->where('uuid', $device->applied_configuration_uuid)->first();
             $p = $c ? json_decode($c->definition['profile_canonical_json'], true) : [];
-
-            return ['device_uuid' => $device->uuid, 'name' => $device->name, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => $device->deployment_generation, 'parameters' => collect($p['parameters'] ?? [])->filter(fn ($p) => collect($c->definition['mappings'] ?? [])->contains('parameter_uuid', $p['uuid']))->values()];
+            $parameters = collect($p['parameters'] ?? [])->filter(function ($p) use ($c, $controllable) {
+                $mapping = collect($c->definition['mappings'] ?? [])->firstWhere('parameter_uuid', $p['uuid']);
+                return $mapping && (! $controllable || (($p['accepts_command'] ?? false) && ($p['reports_state'] ?? false) && ($mapping['command_metric'] ?? null)));
+            })->values();
+            return ['device_uuid' => $device->uuid, 'name' => $device->name, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => $device->deployment_generation, 'parameters' => $parameters];
         }), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];
     }
 

@@ -17,6 +17,7 @@ final class AssistantConversation extends Model
     use HasUuids;
 
     protected $guarded = [];
+    protected $attributes = ['scope' => 'profile'];
 
     protected function casts(): array
     {
@@ -41,6 +42,11 @@ final class AssistantConversation extends Model
     public function runs(): HasMany
     {
         return $this->hasMany(AssistantRun::class, 'conversation_id');
+    }
+
+    public function workflow(): BelongsTo
+    {
+        return $this->belongsTo(\App\Domain\Automation\Models\Workflow::class, 'automation_workflow_id');
     }
 
     public function sources(): HasMany

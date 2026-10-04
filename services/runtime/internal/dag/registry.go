@@ -27,6 +27,6 @@ func Registry() []NodeType {
 		{"cooldown.v1", "Cooldown", boolIn, boolOut, map[string]Field{"seconds": bounded(1, 86400)}, true, nil, true},
 		{"action.alert.v1", "Alert", boolIn, nil, map[string]Field{"title": f("string", true)}, true, nil, true},
 		{"action.event.v1", "Integration event", boolIn, nil, map[string]Field{"name": f("string", true), "cooldown_seconds": bounded(1, 86400)}, true, nil, true},
-		{"action.command.v1", "Set device state", boolIn, nil, map[string]Field{"binding": f("string", true), "value": f("scalar", true), "cooldown_seconds": bounded(1, 86400), "ttl_seconds": bounded(1, 300)}, true, []string{"Device.command"}, true},
+		{"action.command.v1", "Set device state", boolIn, nil, map[string]Field{"binding": f("string", false), "value": f("scalar", false), "settings": f("object", false), "cooldown_seconds": bounded(1, 86400), "ttl_seconds": bounded(1, 300)}, true, []string{"Device.command"}, true},
 	}
 }

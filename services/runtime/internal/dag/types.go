@@ -109,15 +109,20 @@ type Intent struct {
 	Transition   string         `json:"transition,omitempty"`
 }
 type Trace struct {
-	Node    string           `json:"node_id"`
-	Inputs  map[string]Value `json:"inputs"`
-	Outputs map[string]Value `json:"outputs"`
+	Node      string           `json:"node_id"`
+	Inputs    map[string]Value `json:"inputs"`
+	Outputs   map[string]Value `json:"outputs"`
+	Status    string           `json:"status"`
+	Reason    string           `json:"reason"`
+	EventNote string           `json:"event_note,omitempty"`
+	IntentIDs []string         `json:"intent_ids,omitempty"`
 }
 type Result struct {
-	State     State      `json:"state"`
-	Intents   []Intent   `json:"intents"`
-	Trace     []Trace    `json:"trace"`
-	NextTimer *time.Time `json:"next_timer"`
+	State          State      `json:"state"`
+	Intents        []Intent   `json:"intents"`
+	Trace          []Trace    `json:"trace"`
+	TraceTruncated bool       `json:"trace_truncated"`
+	NextTimer      *time.Time `json:"next_timer"`
 }
 type Plan struct {
 	Workflow Workflow

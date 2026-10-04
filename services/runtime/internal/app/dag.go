@@ -3,10 +3,12 @@ package app
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/dag"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/storage"
 )
 
 func (a *Application) dagRegistry(w http.ResponseWriter, r *http.Request) {
@@ -99,4 +101,37 @@ func (a *Application) dagHealth(w http.ResponseWriter, r *http.Request) {
 		ackPending = consumer.NumAckPending
 	}
 	respond(w, 200, map[string]any{"executions": executions, "due_timers": due, "state_bytes": stateBytes, "oldest_timer": oldest, "consumer_pending": pending, "pending_acknowledgements": ackPending, "consumer_healthy": err == nil && a.rulesHealthy.Load()})
+}
+
+func (a *Application) dagTimeline(w http.ResponseWriter, r *http.Request) {
+	var before, evaluation int64
+	for key, target := range map[string]*int64{"before": &before, "evaluation_id": &evaluation} {
+		if value := r.URL.Query().Get(key); value != "" {
+			n, err := strconv.ParseInt(value, 10, 64)
+			if err != nil || n < 1 {
+				respond(w, 422, map[string]any{"message": "Invalid timeline cursor"})
+				return
+			}
+			*target = n
+		}
+	}
+	rows, err := a.Store.DAGTimeline(r.Context(), r.URL.Query().Get("organization_uuid"), r.URL.Query().Get("workflow_uuid"), before, evaluation)
+	if err != nil {
+		respond(w, 503, map[string]any{"message": "Execution history is unavailable"})
+		return
+	}
+	if evaluation > 0 {
+		if len(rows) == 0 {
+			respond(w, 404, map[string]any{"message": "Evaluation is unavailable or outside retention"})
+			return
+		}
+		respond(w, 200, map[string]any{"data": rows[0]})
+		return
+	}
+	var next *string
+	if len(rows) > 20 {
+		rows = rows[:20]
+		next = &rows[19].ID
+	}
+	respond(w, 200, map[string]any{"data": rows, "next_cursor": next, "retention_limit": storage.DAGTimelineLimit})
 }

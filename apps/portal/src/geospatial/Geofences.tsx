@@ -16,7 +16,7 @@ import { PlusIcon, Redo2Icon, SaveIcon, Trash2Icon, Undo2Icon } from "lucide-rea
 import { toast } from "sonner"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
-import { validateVertices } from "./geometry"
+import { closeRing, validateVertices } from "./geometry"
 const LocationMap = lazy(() => import("./LocationMap").then((module) => ({ default: module.LocationMap })))
 
 const defaultPolicy: GeofencePolicy = { outside_for_seconds: 60, max_gap_seconds: 45, minimum_samples: 2, uncertainty_metres: 2 }
@@ -83,6 +83,11 @@ function GeofenceEditor() {
     <div className="grid min-h-[42rem] gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <Suspense fallback={<Skeleton className="h-full w-full" />}><LocationMap devices={[]} editable vertices={vertices} selectedVertex={selectedVertex} onSelectedVertex={setSelectedVertex} onVerticesChange={changeVertices} /></Suspense>
       <Card className="overflow-y-auto"><CardHeader><CardTitle>Fence and automation</CardTitle><CardDescription>Saving immediately deploys one independent rule per assigned device.</CardDescription></CardHeader><CardContent><FieldGroup>
+        <Button variant="outline" disabled={Boolean(validation)} onClick={async () => {
+          try { await navigator.clipboard.writeText(JSON.stringify({ type: "Polygon", coordinates: [closeRing(vertices)] }, null, 2)); toast.success("Geometry JSON copied. Paste it into an automation geofence node.") }
+          catch { toast.error("Clipboard access failed. Try copying from the automation node instead.") }
+        }}>Copy geometry JSON</Button>
+        <FieldDescription>Copies the current boundary, including unsaved map edits, for an automation node.</FieldDescription>
         <Field data-invalid={!name.trim()}><FieldLabel htmlFor="fence-name">Name</FieldLabel><Input id="fence-name" value={name} maxLength={255} aria-invalid={!name.trim()} onChange={(event) => setName(event.target.value)} /></Field>
         <SearchableMultiSelect label="Assigned GPS devices" values={devices} options={(bindings.data?.data ?? []).map((binding) => ({ value: binding.device_uuid, label: binding.device_name }))} onChange={setDevices} maximum={100} />
         <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={!history.length} onClick={() => { const previous = history.at(-1)!; setFuture([vertices, ...future]); setVertices(previous); setHistory(history.slice(0, -1)) }}><Undo2Icon data-icon="inline-start" />Undo</Button>

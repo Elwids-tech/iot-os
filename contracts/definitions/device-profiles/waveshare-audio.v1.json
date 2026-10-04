@@ -1,0 +1,273 @@
+{
+  "alarm_templates": [],
+  "calculations": [],
+  "profile": {
+    "category": "signalling",
+    "code": "waveshare-audio",
+    "name": "Waveshare RGB and audio alarm",
+    "revision": 1,
+    "uuid": "40000000-0000-4000-8000-000000000000"
+  },
+  "parameters": [
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "boolean",
+      "display": {
+        "widget": "switch"
+      },
+      "format": null,
+      "key": "power",
+      "kind": "state",
+      "label": "Power",
+      "reporting": {
+        "stale_after_seconds": 30
+      },
+      "reports_state": true,
+      "unit": null,
+      "uuid": "40000000-0000-4000-8000-000000000001",
+      "validation": null
+    },
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "string",
+      "display": {
+        "widget": "color"
+      },
+      "format": "hex_color",
+      "key": "color",
+      "kind": "state",
+      "label": "Color",
+      "reporting": {
+        "stale_after_seconds": 30
+      },
+      "reports_state": true,
+      "unit": null,
+      "uuid": "40000000-0000-4000-8000-000000000002",
+      "validation": null
+    },
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "enum",
+      "display": {
+        "widget": "toggle_group"
+      },
+      "format": null,
+      "key": "mode",
+      "kind": "state",
+      "label": "Mode",
+      "reporting": {
+        "stale_after_seconds": 30
+      },
+      "reports_state": true,
+      "unit": null,
+      "uuid": "40000000-0000-4000-8000-000000000003",
+      "validation": {
+        "diagnostic_code": "mode_not_supported",
+        "engine": "json_logic",
+        "message": "Mode must be solid, blink, or strobe.",
+        "rule": {
+          "in": [
+            {
+              "var": "value"
+            },
+            [
+              "solid",
+              "blink",
+              "strobe"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "integer",
+      "display": {
+        "widget": "slider",
+        "step": 1
+      },
+      "format": null,
+      "key": "brightness",
+      "kind": "state",
+      "label": "Brightness",
+      "reporting": {
+        "stale_after_seconds": 30
+      },
+      "reports_state": true,
+      "unit": "%",
+      "uuid": "40000000-0000-4000-8000-000000000004",
+      "validation": {
+        "diagnostic_code": "brightness_out_of_range",
+        "engine": "json_logic",
+        "message": "Brightness must be between 0 and 100.",
+        "rule": {
+          "and": [
+            {
+              ">=": [
+                {
+                  "var": "value"
+                },
+                0
+              ]
+            },
+            {
+              "<=": [
+                {
+                  "var": "value"
+                },
+                100
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "boolean",
+      "display": {
+        "widget": "switch"
+      },
+      "format": null,
+      "key": "alarm_active",
+      "kind": "state",
+      "label": "Alarm active",
+      "reporting": {
+        "stale_after_seconds": 10
+      },
+      "reports_state": true,
+      "unit": null,
+      "uuid": "40000000-0000-4000-8000-000000000005",
+      "validation": null
+    },
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "enum",
+      "display": {
+        "widget": "toggle_group"
+      },
+      "format": null,
+      "key": "alarm_mode",
+      "kind": "state",
+      "label": "Alarm mode",
+      "reporting": {
+        "stale_after_seconds": 10
+      },
+      "reports_state": true,
+      "unit": null,
+      "uuid": "40000000-0000-4000-8000-000000000006",
+      "validation": {
+        "engine": "json_logic",
+        "rule": {
+          "in": [
+            {
+              "var": "value"
+            },
+            [
+              "beep",
+              "siren",
+              "steady"
+            ]
+          ]
+        },
+        "message": "Choose beep, siren, or steady.",
+        "diagnostic_code": "unsupported_alarm_mode"
+      }
+    },
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "integer",
+      "display": {
+        "widget": "slider",
+        "step": 1
+      },
+      "format": null,
+      "key": "volume",
+      "kind": "state",
+      "label": "Volume",
+      "reporting": {
+        "stale_after_seconds": 10
+      },
+      "reports_state": true,
+      "unit": "%",
+      "uuid": "40000000-0000-4000-8000-000000000007",
+      "validation": {
+        "engine": "json_logic",
+        "rule": {
+          "and": [
+            {
+              ">=": [
+                {
+                  "var": "value"
+                },
+                0
+              ]
+            },
+            {
+              "<=": [
+                {
+                  "var": "value"
+                },
+                100
+              ]
+            }
+          ]
+        },
+        "message": "Value must be between 0 and 100.",
+        "diagnostic_code": "value_out_of_range"
+      }
+    },
+    {
+      "accepts_command": true,
+      "counter": null,
+      "data_type": "integer",
+      "display": {
+        "widget": "slider",
+        "step": 1
+      },
+      "format": null,
+      "key": "alarm_duration",
+      "kind": "state",
+      "label": "Alarm duration",
+      "reporting": {
+        "stale_after_seconds": 10
+      },
+      "reports_state": true,
+      "unit": "s",
+      "uuid": "40000000-0000-4000-8000-000000000008",
+      "validation": {
+        "engine": "json_logic",
+        "rule": {
+          "and": [
+            {
+              ">=": [
+                {
+                  "var": "value"
+                },
+                1
+              ]
+            },
+            {
+              "<=": [
+                {
+                  "var": "value"
+                },
+                60
+              ]
+            }
+          ]
+        },
+        "message": "Value must be between 1 and 60.",
+        "diagnostic_code": "value_out_of_range"
+      }
+    }
+  ],
+  "schema_version": "device-profile.v1"
+}

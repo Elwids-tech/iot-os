@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Assistant\Jobs;
 
 use App\Domain\Assistant\Agents\ProfileAssistant;
+use App\Domain\Assistant\Agents\WorkflowAssistant;
 use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\AssistantBudget;
@@ -56,10 +57,11 @@ final class RunAssistant implements ShouldQueue
             app(AssistantAccess::class)->conversation($conversation->user, $conversation->organization, $conversation);
             abort_unless(config('assistant.enabled'), 503, 'Assistant unavailable.');
             $events->emit($conversation, $run, 'status', ['status' => 'running']);
-            $agent = new ProfileAssistant($run);
-            if ($conversation->sdk_conversation_id) {
+            $automation = $conversation->scope === 'automation';
+            $agent = $automation ? new WorkflowAssistant($run) : new ProfileAssistant($run);
+            if (! $automation && $conversation->sdk_conversation_id) {
                 $agent->continue($conversation->sdk_conversation_id, as: $conversation->user);
-            } else {
+            } elseif (! $automation) {
                 $agent->forUser($conversation->user);
             }
             $prompt = $run->prompt ?? '';
@@ -75,7 +77,10 @@ final class RunAssistant implements ShouldQueue
             })->all();
             abort_unless($run->fresh()?->status === 'running', 409, 'assistant.cancelled');
             $response = $agent->stream($prompt, attachments: $attachments, provider: Lab::OpenAI, model: config('assistant.model'));
-            $response->then(function (StreamedAgentResponse $result) use ($conversation): void {
+            $response->then(function (StreamedAgentResponse $result) use ($conversation, $automation): void {
+                if ($automation) {
+                    return;
+                }
                 $conversation->update(['sdk_conversation_id' => $result->conversationId, 'sdk_pending_approvals' => $result->pendingApprovals->toArray()]);
                 foreach ($result->pendingApprovals as $approval) {
                     if ($approval->tool === 'ApplyProfileSection') {
@@ -119,7 +124,7 @@ final class RunAssistant implements ShouldQueue
             if ($run) {
                 $cancelled = $run->status === 'cancelled';
                 $code = $cancelled ? 'assistant.cancelled' : ($exception->getMessage() === 'assistant.run_budget' ? 'assistant.run_budget' : 'assistant.generation_failed');
-                $message = $cancelled ? 'Generation stopped. Approved saves remain in your profile.' : ($code === 'assistant.run_budget' ? 'This response reached the configured run allowance. Continue with a smaller request.' : 'The assistant could not finish this response. Your saved profile and review proposals are safe. Retry with a smaller request, or check the provider credit and server configuration.');
+                $message = $cancelled ? 'Generation stopped. Your saved work is kept.' : ($code === 'assistant.run_budget' ? 'This response reached the configured run allowance. Continue with a smaller request.' : 'The assistant could not finish this response. Your saved work and review proposals are safe. Retry with a smaller request, or check the provider credit and server configuration.');
                 $run->update(['status' => $cancelled ? 'cancelled' : 'failed', 'answer' => $answer, 'usage' => $usage->toArray(), 'error_code' => $code, 'error_message' => $message, 'finished_at' => now()]);
                 $events->emit($conversation, $run, 'status', ['status' => $run->status, 'message' => $message]);
                 $providerError = $exception instanceof RequestException ? $exception->response->json('error') : null;

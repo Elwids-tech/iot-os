@@ -1370,6 +1370,24 @@ export class ApiClient {
       this.assistantPath(org, undefined, "/settings"),
     )
   }
+  workflowAssistantSettings(org: string) {
+    return this.data<{ enabled: boolean }>(this.assistantPath(org, undefined, "/settings?scope=automation"))
+  }
+  createWorkflowAssistantConversation(org: string, workflow_uuid?: string) {
+    return this.data<{ id: string }>(this.assistantPath(org, undefined, "/conversations"), "POST", { scope: "automation", workflow_uuid })
+  }
+  workflowAssistantDetail<T>(org: string, id: string) {
+    return this.data<T>(this.assistantPath(org, id))
+  }
+  workflowAssistantConversations(org: string) {
+    return this.data<{ id: string; title: string; workflow_uuid: string | null }[]>(this.assistantPath(org, undefined, "/conversations?scope=automation"))
+  }
+  workflowAssistantMessage(org: string, id: string, input: {
+    request_id: string; text: string; execution_id?: string;
+    target: { name: string; workflow: unknown; draft_revision?: number };
+  }) {
+    return this.data<import("./assistant").AssistantRun>(this.assistantPath(org, id, "/messages"), "POST", input)
+  }
   assistantConversations(org: string) {
     return this.data<import("./assistant").AssistantConversation[]>(
       this.assistantPath(org, undefined, "/conversations"),

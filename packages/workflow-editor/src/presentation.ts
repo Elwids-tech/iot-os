@@ -94,7 +94,9 @@ export function nodeSummary(node: WorkflowNode): string {
         ? "Match finalized windows"
         : "Match fresh readings";
     case "action.command.v1":
-      return `${c.binding || "Target"} → ${String(c.value ?? "Set value")}`;
+      return c.settings && typeof c.settings === "object"
+        ? `${Object.keys(c.settings).length} selected setting(s)`
+        : `${c.binding || "Target"} → ${String(c.value ?? "Set value")}`;
     case "action.alert.v1":
       return String(c.title || "Create or clear alert");
     case "action.event.v1":
@@ -220,7 +222,7 @@ const appearances: Record<string, NodeAppearance> = {
     tone: "commanded",
     Icon: PowerIcon,
     description:
-      "Request an approved device state change. Requires an activation grant.",
+      "Control a device: turn an alarm or RGB LED on/off, or set a parameter. Requires an activation grant. Fires when the condition becomes true (including the first known true value).",
   },
 };
 export const nodeAppearance = (type: string): NodeAppearance =>

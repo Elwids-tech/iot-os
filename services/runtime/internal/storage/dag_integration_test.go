@@ -6,6 +6,7 @@ import (
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/dag"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +56,12 @@ func TestDAGDurableRecoveryAtomicityAndFencing(t *testing.T) {
 	must(err)
 	input := devices.CommittedTelemetry{EventID: UUID(), OrganizationUUID: org, DeviceUUID: device, ConfigurationUUID: config, Generation: 1, Readings: []devices.CommittedReading{{ParameterUUID: param, Value: float64(40), Quality: "good", ObservedAt: at.Add(time.Second), ReceivedAt: at.Add(time.Second)}}}
 	must(s.ConsumeRuleTelemetry(ctx, 1, input, at.Add(time.Second)))
+	entries, err := s.DAGTimeline(ctx, org, workflow, 0, 0)
+	must(err)
+	if len(entries) != 1 || entries[0].Outcome != "waiting" {
+		t.Fatalf("missing initial evidence: %+v", entries)
+	}
+	initialID := entries[0].ID
 	// Close and reopen the store while evidence is pending.
 	s.Pool.Close()
 	s, err = Open(ctx, url)
@@ -71,6 +78,11 @@ func TestDAGDurableRecoveryAtomicityAndFencing(t *testing.T) {
 	if state.Nodes["alert"].Active {
 		t.Fatal("failed transaction changed state")
 	}
+	entries, err = s.DAGTimeline(ctx, org, workflow, 0, 0)
+	must(err)
+	if len(entries) != 1 || entries[0].ID != initialID {
+		t.Fatal("rolled-back evaluation leaked into timeline")
+	}
 	_, err = s.Pool.Exec(ctx, `ALTER TABLE device_runtime.outbox DROP CONSTRAINT dag_test_fail`)
 	must(err)
 	must(s.TickDAGs(ctx, at.Add(7*time.Second), 1))
@@ -80,6 +92,43 @@ func TestDAGDurableRecoveryAtomicityAndFencing(t *testing.T) {
 	must(s.Pool.QueryRow(ctx, `SELECT count(*) FROM device_runtime.dag_intents WHERE operation_uuid=$1`, operation).Scan(&count))
 	if count != 1 {
 		t.Fatalf("got %d intents", count)
+	}
+	entries, err = s.DAGTimeline(ctx, org, workflow, 0, 0)
+	must(err)
+	foundIntent := false
+	for _, entry := range entries {
+		foundIntent = foundIntent || len(entry.IntentIDs) > 0
+	}
+	if !foundIntent {
+		t.Fatal("timeline cannot correlate action intent")
+	}
+	foreign, err := s.DAGTimeline(ctx, UUID(), workflow, 0, 0)
+	must(err)
+	if len(foreign) != 0 {
+		t.Fatal("timeline crossed organization boundary")
+	}
+	// A busy workflow stays bounded and older-page cursors exclude newer rows.
+	tx, err := s.Pool.Begin(ctx)
+	must(err)
+	for i := 0; i <= DAGTimelineLimit; i++ {
+		must(recordDAGEvaluation(ctx, tx, w, &input, at, &dag.Result{Trace: []dag.Trace{}}, ""))
+	}
+	must(tx.Commit(ctx))
+	must(s.Pool.QueryRow(ctx, `SELECT count(*) FROM device_runtime.dag_evaluations WHERE workflow_uuid=$1`, workflow).Scan(&count))
+	if count != DAGTimelineLimit {
+		t.Fatalf("history limit failed: %d", count)
+	}
+	entries, err = s.DAGTimeline(ctx, org, workflow, 0, 0)
+	must(err)
+	if len(entries) != 21 {
+		t.Fatal("missing pagination sentinel")
+	}
+	cursor, err := strconv.ParseInt(entries[19].ID, 10, 64)
+	must(err)
+	older, err := s.DAGTimeline(ctx, org, workflow, cursor, 0)
+	must(err)
+	if len(older) != 21 || older[0].ID != entries[20].ID {
+		t.Fatal("older page skipped or repeated an evaluation")
 	}
 	disable := DAGDeployment{UUID(), workflow, org, 2, "inactive", nil}
 	must(s.DeployDAG(ctx, disable, at.Add(10*time.Second)))

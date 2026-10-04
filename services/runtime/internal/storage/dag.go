@@ -167,7 +167,7 @@ func evaluateDAGs(ctx context.Context, tx pgx.Tx, input *devices.CommittedTeleme
 	if input != nil {
 		org = input.OrganizationUUID
 	}
-	rows, err := tx.Query(ctx, `SELECT operation_uuid,definition,state FROM device_runtime.dag_executions WHERE enabled AND ($1='' OR organization_uuid::text=$1) ORDER BY operation_uuid FOR UPDATE`, org)
+	rows, err := tx.Query(ctx, `SELECT operation_uuid,definition,state,next_timer FROM device_runtime.dag_executions WHERE enabled AND ($1='' OR organization_uuid::text=$1) ORDER BY operation_uuid FOR UPDATE`, org)
 	if err != nil {
 		return err
 	}
@@ -175,12 +175,13 @@ func evaluateDAGs(ctx context.Context, tx pgx.Tx, input *devices.CommittedTeleme
 		operation  string
 		definition dag.Workflow
 		state      dag.State
+		next       *time.Time
 	}
 	executions := []execution{}
 	for rows.Next() {
 		var x execution
 		var raw, state []byte
-		if err = rows.Scan(&x.operation, &raw, &state); err != nil {
+		if err = rows.Scan(&x.operation, &raw, &state, &x.next); err != nil {
 			rows.Close()
 			return err
 		}
@@ -222,6 +223,9 @@ func evaluateDAGs(ctx context.Context, tx pgx.Tx, input *devices.CommittedTeleme
 			result, e = p.StepThrough(x.state, input, clock, finalizedThrough)
 		}
 		if e != nil {
+			if err = recordDAGEvaluation(ctx, tx, x.definition, input, at, nil, e.Error()); err != nil {
+				return err
+			}
 			if _, err = tx.Exec(ctx, `UPDATE device_runtime.dag_executions SET enabled=false,stopped_reason=$2,updated_at=$3 WHERE operation_uuid=$1`, x.operation, e.Error(), at); err != nil {
 				return err
 			}
@@ -234,6 +238,13 @@ func evaluateDAGs(ctx context.Context, tx pgx.Tx, input *devices.CommittedTeleme
 		trace, _ := json.Marshal(result.Trace)
 		if _, err = tx.Exec(ctx, `UPDATE device_runtime.dag_executions SET state=$2,next_timer=$3,updated_at=$4,last_trace=$5 WHERE operation_uuid=$1`, x.operation, state, result.NextTimer, at, trace); err != nil {
 			return err
+		}
+		// A clock sweep evaluates all active plans. Record only timers actually due
+		// for this execution, avoiding unrelated clock activity in its timeline.
+		if input != nil || x.next != nil && !x.next.After(finalizedThrough) {
+			if err = recordDAGEvaluation(ctx, tx, x.definition, input, at, &result, ""); err != nil {
+				return err
+			}
 		}
 		for _, intent := range result.Intents {
 			raw, _ := json.Marshal(intent)

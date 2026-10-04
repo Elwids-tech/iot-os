@@ -28,11 +28,27 @@ final class DagAuthoring
         $graph['uuid'] = $uuid;
         $graph['version_uuid'] = $version ?? (string) Str::uuid();
         $graph['organization_uuid'] = $org->uuid;
+        $commandValues = [];
+        foreach ($graph['nodes'] as $node) {
+            if ($node['type'] === 'action.command.v1') {
+                foreach (CommandSettings::configurations($node['config']) as $command) {
+                    $commandValues[$command['binding'] ?? ''][] = $command['value'] ?? null;
+                }
+            }
+        }
         foreach ($graph['bindings'] as $binding) {
             $device = Device::where('organization_id', $org->id)->where('uuid', $binding['device_uuid'])->firstOrFail();
             $configuration = $device->configurations()->where('uuid', $binding['configuration_uuid'])->firstOrFail();
             $profile = json_decode($configuration->definition['profile_canonical_json'], true, 512, JSON_THROW_ON_ERROR);
-            abort_unless(collect($profile['parameters'])->contains('uuid', $binding['parameter_uuid']), 422, 'Parameter does not belong to this configuration.');
+            $parameter = collect($profile['parameters'])->firstWhere('uuid', $binding['parameter_uuid']);
+            abort_unless($parameter, 422, 'Parameter does not belong to configuration.');
+            if (array_key_exists($binding['role'], $commandValues)) {
+                $mapping = collect($configuration->definition['mappings'] ?? [])->firstWhere('parameter_uuid', $binding['parameter_uuid']);
+                abort_unless(($parameter['accepts_command'] ?? false) && ($parameter['reports_state'] ?? false) && ($mapping['command_metric'] ?? null), 422, 'Setting has no approved command mapping.');
+                foreach ($commandValues[$binding['role']] as $value) {
+                    app(\App\Domain\Devices\Services\ParameterValue::class)->validate($parameter, $value);
+                }
+            }
         }
         foreach ($graph['nodes'] as &$node) {
             if (($node['config'] ?? null) === []) {

@@ -72,6 +72,7 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 	if s.Nodes == nil {
 		return Result{}, fmt.Errorf("missing execution state")
 	}
+	sourceNotes := map[string]string{}
 	if event != nil {
 		if event.OrganizationUUID != p.Workflow.Organization {
 			return Result{}, fmt.Errorf("event organization mismatch")
@@ -85,6 +86,7 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 				continue
 			}
 			ns := s.Nodes[n.ID]
+			sourceNotes[n.ID] = "This telemetry message did not include the bound parameter; retained evidence was evaluated."
 			if event.ConfigurationUUID != b.Configuration || event.Generation != b.Generation {
 				return Result{}, fmt.Errorf("binding_changed")
 			}
@@ -93,9 +95,11 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 					continue
 				}
 				if r.ObservedAt.Before(s.Started) || r.ObservedAt.After(at) || r.Historical {
+					sourceNotes[n.ID] = "Incoming reading was ignored: historical, before activation, or dated in the future. Retained evidence was evaluated."
 					continue
 				}
 				if r.Quality != "good" || r.Value == nil {
+					sourceNotes[n.ID] = "Incoming reading has invalid quality or no value."
 					if !r.ObservedAt.Before(ns.Value.At) {
 						ns.Value = Value{At: r.ObservedAt, Reason: "invalid reading"}
 					}
@@ -111,6 +115,7 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 					_, validType = r.Value.(string)
 				}
 				if !validType {
+					sourceNotes[n.ID] = "Incoming reading has an incompatible data type."
 					if !r.ObservedAt.Before(ns.Value.At) {
 						ns.Value = Value{At: r.ObservedAt, Reason: "reading type mismatch"}
 					}
@@ -119,6 +124,9 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 				v := Value{Known: true, Value: r.Value, At: r.ObservedAt, Expires: r.ObservedAt.Add(time.Duration(b.FreshSeconds) * time.Second), Token: event.EventID}
 				if !r.ObservedAt.Before(ns.Value.At) {
 					ns.Value = v
+					sourceNotes[n.ID] = "Incoming reading accepted."
+				} else {
+					sourceNotes[n.ID] = "Older reading did not replace the latest value; it may contribute to a pending window."
 				}
 				if x, ok := number(r.Value); ok {
 					if len(ns.Samples) >= 10000 {
@@ -165,6 +173,8 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 				in[e.TargetPort] = values[e.Source+":"+e.SourcePort]
 			}
 			v := in["in"]
+			status, reason := "", ""
+			intentStart := len(result.Intents)
 			switch n.Type {
 			case "source.parameter.v1":
 				out["out"] = fresh(ns.Value, at)
@@ -364,12 +374,14 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 			case "action.alert.v1", "action.command.v1", "action.event.v1":
 				b, ok := boolean(v)
 				if !ok {
+					status, reason = "waiting", "No usable condition value; no action was requested."
 					break
 				}
 				previousActive := ns.Active
 				ns.Active = b
 				if n.Type == "action.alert.v1" {
 					if b == previousActive {
+						status, reason = "suppressed", "Alert condition has not changed."
 						break
 					}
 					kind := "cleared"
@@ -379,6 +391,7 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 						ns.Episode = s.Episode
 					}
 					if ns.Episode == 0 {
+						status, reason = "not_matched", "No active alert episode to clear."
 						break
 					}
 					intent := p.intent(n, v, at, fmt.Sprintf("episode:%d:%s", ns.Episode, kind))
@@ -387,10 +400,16 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 					result.Intents = append(result.Intents, intent)
 					break
 				}
-				if !b || v.Window == "" && previousActive || v.Token == ns.LastToken {
+				if !b {
+					status, reason = "not_matched", "Condition is false; the action is rearmed."
+					break
+				}
+				if v.Window == "" && previousActive || v.Token == ns.LastToken {
+					status, reason = "suppressed", "Already triggered for this condition or evidence; waiting for a new transition."
 					break
 				}
 				if at.Before(ns.LastAction.Add(time.Duration(num(n.Config, "cooldown_seconds")) * time.Second)) {
+					status, reason = "suppressed", "Action cooldown has not elapsed."
 					break
 				}
 				trigger := v.Window
@@ -398,10 +417,21 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 					ns.Episode++
 					trigger = fmt.Sprintf("episode:%d", ns.Episode)
 				}
-				intent := p.intent(n, v, at, trigger)
+				configs := []map[string]any{n.Config}
+				if n.Type == "action.command.v1" {
+					configs = commandConfigs(n.Config)
+				}
+				for _, config := range configs {
+					command := n
+					command.Config = config
+					actionTrigger := trigger
+					if _, multi := n.Config["settings"]; multi {
+						actionTrigger += ":" + str(config, "binding")
+					}
+					result.Intents = append(result.Intents, p.intent(command, v, at, actionTrigger))
+				}
 				ns.LastAction = at
 				ns.LastToken = v.Token
-				result.Intents = append(result.Intents, intent)
 			}
 			for port, value := range out {
 				if x, ok := number(value.Value); ok && (math.IsNaN(x) || math.IsInf(x, 0)) {
@@ -410,8 +440,25 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 				values[n.ID+":"+port] = value
 				out[port] = value
 			}
-			result.Trace = append(result.Trace, Trace{n.ID, in, out})
+			if len(result.Intents) > intentStart {
+				status, reason = "triggered", "Action requested; delivery outcomes are tracked separately."
+			}
+			if status == "" {
+				status, reason = traceOutcome(out)
+				if (n.Type == "source.parameter.v1" || n.Type == "constant.v1") && status != "waiting" {
+					status, reason = "evaluated", "Value is available for downstream nodes."
+				}
+				if n.Type == "sustained.v1" && ns.Since != nil && status == "not_matched" {
+					status, reason = "waiting", "Condition is true but the required duration has not elapsed."
+				}
+			}
+			trace := Trace{Node: n.ID, Inputs: in, Outputs: out, Status: status, Reason: reason, EventNote: sourceNotes[n.ID]}
+			for _, intent := range result.Intents[intentStart:] {
+				trace.IntentIDs = append(trace.IntentIDs, intent.ID)
+			}
+			result.Trace = append(result.Trace, trace)
 			if len(result.Trace) > 1000 {
+				result.TraceTruncated = true
 				result.Trace = result.Trace[len(result.Trace)-1000:]
 			}
 		}

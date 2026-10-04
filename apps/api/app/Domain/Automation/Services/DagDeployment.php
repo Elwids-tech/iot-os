@@ -43,12 +43,14 @@ final class DagDeployment
                     $device = Device::where('organization_id', $org->id)->where('uuid', $b['device_uuid'])->lockForUpdate()->firstOrFail();
                     abort_unless($device->lifecycle === 'active' && $device->applied_configuration_uuid === $b['configuration_uuid'] && $device->deployment_generation === $b['generation'] && $device->deployment_status === 'applied', 422, 'All bindings must use the currently applied device configuration.');
                 }
-                $commands = collect($definition['nodes'])->where('type', 'action.command.v1');
-                abort_unless(count($grants) === $commands->count(), 422, 'Approve exactly one grant per command node.');
-                validator(['grants' => $grants], ['grants.*' => 'array:node_id,binding,value,cooldown_seconds,max_per_minute,expires_at', 'grants.*.node_id' => 'required|string|distinct', 'grants.*.binding' => 'required|string', 'grants.*.value' => 'present', 'grants.*.cooldown_seconds' => 'required|integer|min:1|max:86400', 'grants.*.max_per_minute' => 'required|integer|min:1|max:60', 'grants.*.expires_at' => 'required|date|after:now|before:'.now()->addYear()->toIso8601String()])->validate();
+                $commands = collect($definition['nodes'])->where('type', 'action.command.v1')->flatMap(fn ($node) => array_map(fn ($config) => [...$node, 'config' => $config], CommandSettings::configurations($node['config'])));
+                abort_unless(count($grants) === $commands->count(), 422, 'Approve exactly one grant per selected setting.');
+                validator(['grants' => $grants], ['grants.*' => 'array:node_id,binding,value,cooldown_seconds,max_per_minute,expires_at', 'grants.*.node_id' => 'required|string', 'grants.*.binding' => 'required|string', 'grants.*.value' => 'present', 'grants.*.cooldown_seconds' => 'required|integer|min:1|max:86400', 'grants.*.max_per_minute' => 'required|integer|min:1|max:60', 'grants.*.expires_at' => 'required|date|after:now|before:'.now()->addYear()->toIso8601String()])->validate();
                 foreach ($commands as $node) {
-                    $g = collect($grants)->firstWhere('node_id', $node['id']);
                     $c = $node['config'];
+                    $matches = collect($grants)->where('node_id', $node['id'])->where('binding', $c['binding']);
+                    abort_unless($matches->count() === 1, 422, 'Approve each selected setting exactly once.');
+                    $g = $matches->first();
                     abort_unless($g && $g['binding'] === $c['binding'] && $g['value'] === $c['value'] && $g['cooldown_seconds'] >= $c['cooldown_seconds'], 422, 'Command grant does not match the reviewed node.');
                     $b = collect($definition['bindings'])->firstWhere('role', $g['binding']);
                     $device = Device::where('organization_id', $org->id)->where('uuid', $b['device_uuid'])->firstOrFail();

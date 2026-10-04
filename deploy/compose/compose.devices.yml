@@ -29,6 +29,11 @@ services:
       DEVICE_RUNTIME_URL: http://runtime:8081
       DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN}
 
+  assistant-worker:
+    environment:
+      DEVICE_RUNTIME_URL: http://runtime:8081
+      DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN}
+
   runtime:
     build:
       context: ../..

@@ -30,7 +30,7 @@ final class DagActions
         $w = Workflow::where('organization_id', $org->id)->where('uuid', $intent['workflow_uuid'])->firstOrFail();
         $d = Deployment::where('automation_workflow_id', $w->id)->where('uuid', $intent['operation_uuid'])->firstOrFail();
         $node = collect($d->definition['nodes'] ?? [])->firstWhere('id', $intent['node_id']);
-        abort_unless($node && $node['type'] === $intent['kind'] && $node['config'] == $intent['config'], 422, 'Intent does not match immutable deployment.');
+        abort_unless($node && $node['type'] === $intent['kind'] && collect($node['type'] === 'action.command.v1' ? CommandSettings::configurations($node['config']) : [$node['config']])->contains(fn ($config) => $config == $intent['config']), 422, 'Intent does not match immutable deployment.');
         DB::table('automation_actions')->insertOrIgnore(['id' => $intent['id'], 'organization_id' => $org->id, 'automation_deployment_id' => $d->id, 'node_id' => $intent['node_id'], 'kind' => $intent['kind'], 'intent' => json_encode($intent, JSON_THROW_ON_ERROR), 'expires_at' => Carbon::parse($intent['expires_at']), 'created_at' => now(), 'updated_at' => now()]);
     }
 
@@ -96,7 +96,7 @@ final class DagActions
 
                     return;
                 }
-                $grant = collect($d->command_grants ?? [])->firstWhere('node_id', $action->node_id);
+                $grant = collect($d->command_grants ?? [])->first(fn ($grant) => $grant['node_id'] === $action->node_id && $grant['binding'] === ($intent['config']['binding'] ?? null) && $grant['value'] === ($intent['config']['value'] ?? null));
                 abort_unless($grant && Carbon::parse($grant['expires_at'])->isFuture(), 403, 'Command authorization expired.');
                 $binding = collect($d->definition['bindings'])->firstWhere('role', $grant['binding']);
                 $device = Device::where('organization_id', $org->id)->where('uuid', $binding['device_uuid'])->lockForUpdate()->firstOrFail();
@@ -149,7 +149,8 @@ final class DagActions
             if (! $settings?->enabled || $settings->stopped || ! $action || $action->command_uuid !== $commandUuid || ! in_array($action->status, ['accepted', 'dispatched'], true) || Carbon::parse($action->expires_at)->isPast() || $w->pending_operation_uuid || $w->desired_deployment_uuid !== $d->uuid || $w->applied_deployment_uuid !== $d->uuid || $d->stopped_reason) {
                 return false;
             }
-            $grant = collect($d->command_grants ?? [])->firstWhere('node_id', $action->node_id);
+            $intent = json_decode($action->intent, true, 512, JSON_THROW_ON_ERROR);
+            $grant = collect($d->command_grants ?? [])->first(fn ($grant) => $grant['node_id'] === $action->node_id && $grant['binding'] === ($intent['config']['binding'] ?? null) && $grant['value'] === ($intent['config']['value'] ?? null));
             if (! $grant || Carbon::parse($grant['expires_at'])->isPast()) {
                 return false;
             }

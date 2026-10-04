@@ -12,6 +12,7 @@ use App\Domain\Assistant\Models\AssistantSource;
 use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\AssistantBudget;
 use App\Domain\Assistant\Services\AssistantEvents;
+use App\Domain\Assistant\Services\ExecutionEvidence;
 use App\Domain\Assistant\Services\AssistantRecovery;
 use App\Domain\Assistant\Services\ProfileKnowledge;
 use App\Domain\Assistant\Services\ProfileProposalService;
@@ -30,6 +31,10 @@ final class AssistantController
 
     public function settings(Request $request, Organization $organization)
     {
+        if ($request->query('scope') === 'automation') {
+            $this->access->automation($request->user(), $organization);
+            return response()->json(['data' => ['enabled' => (bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))]]);
+        }
         $this->access->organization($request->user(), $organization);
 
         return response()->json(['data' => [
@@ -43,14 +48,30 @@ final class AssistantController
 
     public function index(Request $request, Organization $organization)
     {
+        if ($request->query('scope') === 'automation') {
+            $this->access->automation($request->user(), $organization);
+            $conversations = AssistantConversation::where('scope', 'automation')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->with('workflow')->latest('updated_at')->limit(100)->get();
+            return response()->json(['data' => $conversations->map(fn ($conversation) => $this->conversationData($conversation))]);
+        }
         $this->access->organization($request->user(), $organization);
-        $conversations = AssistantConversation::query()->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->with('profile')->orderByDesc('updated_at')->limit(100)->get();
+        $conversations = AssistantConversation::query()->where('scope', 'profile')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->with('profile')->orderByDesc('updated_at')->limit(100)->get();
 
         return response()->json(['data' => $conversations->map(fn ($conversation) => $this->conversationData($conversation))]);
     }
 
     public function store(Request $request, Organization $organization)
     {
+        $request->validate(['scope' => 'sometimes|in:profile,automation']);
+        if ($request->input('scope') === 'automation') {
+            $this->access->automation($request->user(), $organization);
+            $values = $request->validate(['workflow_uuid' => 'nullable|uuid', 'title' => 'nullable|string|max:255']);
+            $workflow = isset($values['workflow_uuid']) ? \App\Domain\Automation\Models\Workflow::where('organization_id', $organization->id)->where('uuid', $values['workflow_uuid'])->firstOrFail() : null;
+            $conversation = AssistantConversation::create([
+                'scope' => 'automation', 'organization_id' => $organization->id, 'user_id' => $request->user()->id,
+                'automation_workflow_id' => $workflow?->id, 'title' => $values['title'] ?? $workflow?->name ?? 'New automation conversation',
+            ]);
+            return response()->json(['data' => $this->conversationData($conversation)], 201);
+        }
         $this->access->organization($request->user(), $organization);
         $values = $request->validate(['profile_uuid' => ['nullable', 'uuid'], 'title' => ['nullable', 'string', 'max:255']]);
         $profile = isset($values['profile_uuid']) ? $this->access->profile($request->user(), $organization, $values['profile_uuid']) : null;
@@ -97,9 +118,11 @@ final class AssistantController
         $values = $request->validate([
             'request_id' => ['required', 'uuid'], 'text' => ['required', 'string', 'max:8000'],
             'source_ids' => ['sometimes', 'array', 'max:5'], 'source_ids.*' => ['uuid', 'distinct'],
+            'execution_id' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:9223372036854775807'],
             'answers' => ['sometimes', 'array', 'max:3'],
             'answers.*.id' => ['required', 'string', 'max:80'], 'answers.*.answer' => ['required', 'string', 'max:1000'],
         ]);
+        abort_if(isset($values['execution_id']) && $conversation->scope !== 'automation', 422, 'Execution evidence requires an automation conversation.');
         $sources = $conversation->sources()->whereIn('id', $values['source_ids'] ?? [])->get();
         abort_unless($sources->count() === count($values['source_ids'] ?? []), 422, 'A selected source is unavailable.');
         abort_if($sources->sum('size') > config('assistant.max_message_bytes'), 422, 'Choose attachments totaling at most 25 MiB.');
@@ -107,7 +130,23 @@ final class AssistantController
         foreach (app(AssistantRecovery::class)->pending($conversation) as $approval) {
             $decisions[$approval['id']] = ['action' => 'reject', 'reason' => 'The user requests changes instead of approving: '.$values['text']];
         }
-        $run = $this->queueRun($conversation, $values['request_id'], $values['text'], $values['source_ids'] ?? [], $decisions, $values['answers'] ?? []);
+        $target = null;
+        if ($conversation->scope === 'automation') {
+            $target = $request->validate([
+                'target' => 'required|array:name,workflow,draft_revision', 'target.name' => 'required|string|max:255',
+                'target.draft_revision' => 'nullable|integer|min:1',
+                'target.workflow' => 'required|array:schema_version,uuid,version_uuid,organization_uuid,bindings,nodes,edges',
+                'target.workflow.schema_version' => 'required|in:automation-workflow.v2',
+                'target.workflow.nodes' => 'present|array|max:100', 'target.workflow.edges' => 'present|array|max:200',
+                'target.workflow.bindings' => 'present|array|max:32', 'target.workflow.bindings.*.device_uuid' => 'required|uuid',
+            ])['target'];
+            abort_if(strlen(json_encode($target, JSON_THROW_ON_ERROR)) > 30000, 422, 'This draft is too large for the assistant. Edit it manually.');
+            foreach ($target['workflow']['bindings'] as $binding) {
+                abort_unless(\App\Domain\Devices\Models\Device::where('organization_id', $organization->id)->where('uuid', $binding['device_uuid'])->exists(), 422, 'A draft device is unavailable.');
+            }
+            abort_if(! empty($values['source_ids']), 422, 'Automation conversations use the current draft and authorized resources.');
+        }
+        $run = $this->queueRun($conversation, $values['request_id'], $values['text'], $values['source_ids'] ?? [], $decisions, $values['answers'] ?? [], $target, isset($values['execution_id']) ? (string) $values['execution_id'] : null);
 
         return response()->json(['data' => $this->runData($run)], 202);
     }
@@ -115,6 +154,7 @@ final class AssistantController
     public function preview(Request $request, Organization $organization, AssistantConversation $conversation)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
+        abort_unless($conversation->scope === 'profile', 422);
         abort_if($conversation->runs()->whereIn('status', ['queued', 'running'])->exists(), 409, 'Wait for the current response before editing its proposal.');
         $proposal = $this->proposals->preview($conversation, $request->all());
 
@@ -124,6 +164,7 @@ final class AssistantController
     public function decide(Request $request, Organization $organization, AssistantConversation $conversation, AssistantProposal $proposal)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
+        abort_unless($conversation->scope === 'profile', 422, 'Use the proposal in the automation editor, then save and review activation separately.');
         abort_unless($proposal->conversation_id === $conversation->id, 404);
         $values = $request->validate(['decision' => ['required', 'in:approve,reject'], 'content_hash' => ['required', 'string', 'size:64'], 'request_id' => ['required', 'uuid']]);
         abort_unless(hash_equals($proposal->content_hash, $values['content_hash']), 409, 'Review the latest proposal.');
@@ -186,6 +227,7 @@ final class AssistantController
     public function upload(Request $request, Organization $organization, AssistantConversation $conversation)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
+        abort_unless($conversation->scope === 'profile', 422);
         $request->validate(['file' => ['required', 'file', 'max:'.config('assistant.max_file_kib')]]);
         $file = $request->file('file');
         $extension = strtolower($file->getClientOriginalExtension());
@@ -237,25 +279,36 @@ final class AssistantController
         return response()->noContent();
     }
 
-    private function queueRun(AssistantConversation $conversation, string $requestId, string $prompt, array $sources = [], array $decisions = [], array $answers = []): AssistantRun
+    private function queueRun(AssistantConversation $conversation, string $requestId, string $prompt, array $sources = [], array $decisions = [], array $answers = [], ?array $target = null, ?string $evaluationId = null): AssistantRun
     {
-        return DB::transaction(function () use ($conversation, $requestId, $prompt, $sources, $decisions, $answers): AssistantRun {
+        return DB::transaction(function () use ($conversation, $requestId, $prompt, $sources, $decisions, $answers, $target, $evaluationId): AssistantRun {
             $locked = AssistantConversation::query()->lockForUpdate()->findOrFail($conversation->id);
             $existing = $locked->runs()->where('request_id', $requestId)->first();
             if ($existing) {
                 return $existing;
             }
-            abort_unless(config('assistant.enabled') && filled(config('ai.providers.openai.key')), 503, 'The assistant is not configured on this server. You can continue editing profiles manually.');
+            abort_unless(config('assistant.enabled') && filled(config('ai.providers.openai.key')), 503, 'The assistant is not configured on this server. You can continue editing manually.');
             app(AssistantRecovery::class)->recover();
             abort_if($locked->runs()->where('reserved_usd', '>', 0)->exists(), 409, 'This conversation already has an active response or is stopping.');
             $reserved = app(AssistantBudget::class)->reserve();
             $state = $locked->onboarding_state ?? [];
+            if ($target !== null) {
+                $targetUuid = $target['workflow']['uuid'] ?? null;
+                if ($targetUuid) {
+                    $workflow = \App\Domain\Automation\Models\Workflow::where('organization_id', $locked->organization_id)->where('uuid', $targetUuid)->firstOrFail();
+                    abort_if($locked->automation_workflow_id !== null && $locked->automation_workflow_id !== $workflow->id, 409, 'Start a new conversation for a different workflow.');
+                    $locked->automation_workflow_id = $workflow->id;
+                }
+                $state['target'] = $target;
+                $locked->proposals()->where('status', 'pending')->update(['status' => 'superseded']);
+            }
             if ($answers !== []) {
                 $state['answers'] = [...($state['answers'] ?? []), ...$answers];
             }
             $state['questions'] = [];
             $locked->update(['onboarding_state' => $state]);
-            $run = $locked->runs()->create(['request_id' => $requestId, 'prompt' => $prompt, 'source_ids' => $sources, 'decisions' => $decisions ?: null, 'reserved_usd' => $reserved]);
+            $evidence = $evaluationId !== null ? app(ExecutionEvidence::class)->capture($locked, $evaluationId) : null;
+            $run = $locked->runs()->create(['execution_context' => $evidence, 'request_id' => $requestId, 'prompt' => $prompt, 'source_ids' => $sources, 'decisions' => $decisions ?: null, 'reserved_usd' => $reserved]);
             app(AssistantEvents::class)->emit($locked, $run, 'status', ['status' => 'queued']);
             RunAssistant::dispatch($run->id)->afterCommit();
 
@@ -265,12 +318,12 @@ final class AssistantController
 
     private function conversationData(AssistantConversation $conversation): array
     {
-        return ['id' => $conversation->id, 'title' => $conversation->title, 'profile_uuid' => $conversation->profile?->uuid, 'profile_name' => $conversation->profile?->name, 'updated_at' => $conversation->updated_at?->toIso8601String()];
+        return ['id' => $conversation->id, 'title' => $conversation->title, 'scope' => $conversation->scope, 'workflow_uuid' => $conversation->workflow?->uuid, 'profile_uuid' => $conversation->profile?->uuid, 'profile_name' => $conversation->profile?->name, 'updated_at' => $conversation->updated_at?->toIso8601String()];
     }
 
     private function runData(AssistantRun $run): array
     {
-        return $run->only(['id', 'request_id', 'status', 'prompt', 'answer', 'source_ids', 'usage', 'cost_usd', 'error_code', 'error_message', 'created_at']);
+        return [...$run->only(['id', 'request_id', 'status', 'prompt', 'answer', 'source_ids', 'usage', 'cost_usd', 'error_code', 'error_message', 'created_at']), 'execution' => app(ExecutionEvidence::class)->references($run->execution_context)];
     }
 
     private function proposalData(AssistantProposal $proposal): array
