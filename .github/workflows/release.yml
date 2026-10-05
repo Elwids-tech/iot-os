@@ -3,11 +3,17 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      export_existing_run:
+        description: Successful release run to export for private offline deployment (blank builds a release)
+        required: false
+        type: string
 permissions:
   contents: read
   packages: write
 jobs:
   verify:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.export_existing_run == '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +47,7 @@ jobs:
       - run: go test ./...
         working-directory: services/runtime
   images:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.export_existing_run == '' }}
     needs: verify
     runs-on: ubuntu-latest
     strategy:
@@ -86,6 +93,7 @@ jobs:
           name: image-${{ matrix.name }}
           path: image.json
   manifest:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.export_existing_run == '' }}
     needs: images
     runs-on: ubuntu-latest
     steps:
@@ -112,3 +120,63 @@ jobs:
             deploy/release/
             deploy/ansible/
             tooling/release/
+
+  export-images:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.export_existing_run != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    steps:
+      - name: Require a successful release from this repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.export_existing_run }}
+        shell: bash
+        run: |
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" > source-run.json
+          jq -e '.status == "completed" and .conclusion == "success" and .path == ".github/workflows/release.yml"' source-run.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: single-node-release
+          path: validated-release
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.export_existing_run }}
+      - name: Export immutable images with repository-scoped credentials
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo
+          mkdir image-transfer
+          cp validated-release/release.json image-transfer/release.json
+          python3 - <<'PYTHON'
+          import json, os, pathlib, re
+          manifest = json.loads(pathlib.Path('image-transfer/release.json').read_text())
+          source = json.loads(pathlib.Path('source-run.json').read_text())
+          assert manifest['commit'] == source['head_sha']
+          expected = {'API_IMAGE', 'API_WEB_IMAGE', 'PORTAL_IMAGE', 'ADMIN_IMAGE', 'RUNTIME_IMAGE', 'SIMULATOR_IMAGE'}
+          assert set(manifest['images']) == expected
+          prefix = 'ghcr.io/' + os.environ['GITHUB_REPOSITORY'].lower() + '/'
+          with open('image-list.tsv', 'w') as stream:
+              for key, reference in sorted(manifest['images'].items()):
+                  assert reference.startswith(prefix) and re.fullmatch(r'[a-z0-9./_-]+@sha256:[a-f0-9]{64}', reference)
+                  stream.write(key + '\t' + reference + '\n')
+          PYTHON
+          while IFS=$'\t' read -r key reference; do
+            skopeo copy --all --preserve-digests --src-creds "$REGISTRY_USER:$REGISTRY_TOKEN" "docker://$reference" "dir:image-transfer/$key"
+          done < image-list.tsv
+          tar -czf release-images.tar.gz image-transfer
+          sha256sum release-images.tar.gz > release-images.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: single-node-image-transfer
+          path: |
+            release-images.tar.gz
+            release-images.tar.gz.sha256
+          retention-days: 3
+          compression-level: 0
