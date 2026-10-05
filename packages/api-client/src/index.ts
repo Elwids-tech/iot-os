@@ -481,6 +481,27 @@ export class ApiClient {
     }).then((response) => response.data)
   }
 
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    await this.csrf()
+    return this.request("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    })
+  }
+
+  async resetPassword(input: {
+    email: string
+    token: string
+    password: string
+    password_confirmation: string
+  }): Promise<{ message: string }> {
+    await this.csrf()
+    return this.request("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(input),
+    })
+  }
+
   async me(): Promise<AuthenticatedUser> {
     return this.request<ApiResponse<AuthenticatedUser>>("/api/v1/me").then(
       (response) => response.data,

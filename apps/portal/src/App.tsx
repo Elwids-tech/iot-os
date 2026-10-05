@@ -19,6 +19,7 @@ import {
 } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { AcceptInvitationPage } from "@iot-os/auth/AcceptInvitationPage"
+import { PasswordRecoveryPage } from "@iot-os/auth/PasswordRecoveryPage"
 import { Button } from "@iot-os/ui/components/button"
 import {
   Card,
@@ -109,6 +110,8 @@ export function App() {
   return (
     <UnsavedProvider>
       <Routes>
+        <Route path="forgot-password" element={<PasswordRecoveryPage key="request" apiClient={api} mode="request" />} />
+        <Route path="reset-password" element={<PasswordRecoveryPage key="reset" apiClient={api} mode="reset" />} />
         <Route
           path="accept-invitation"
           element={<AcceptInvitationPage apiClient={api} />}
@@ -170,6 +173,7 @@ function Login({ recovered = false }: { recovered?: boolean }) {
                 {...form.register("password")}
               />
               <RequestError error={error} />
+              <Link to="/forgot-password" className="text-sm text-primary underline underline-offset-4">Forgot password?</Link>
             </FieldGroup>
           </CardContent>
           <CardFooter>

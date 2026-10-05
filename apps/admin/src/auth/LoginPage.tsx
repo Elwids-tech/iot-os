@@ -17,6 +17,7 @@ import {
 } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { apiClient } from "../lib/api-client"
+import { portalUrl } from "../lib/portal"
 
 type FormErrors = {
   email?: string[]
@@ -100,6 +101,7 @@ export function LoginPage({
                 </FieldDescription>
               </Field>
               <FieldError errors={errors.form ? [{ message: errors.form }] : undefined} />
+              <a href={`${portalUrl.replace(/\/$/, "")}/forgot-password`} className="text-sm text-primary underline underline-offset-4">Forgot password?</a>
             </FieldGroup>
           </CardContent>
           <CardFooter>
