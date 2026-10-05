@@ -334,7 +334,8 @@ class Deployment:
             self.compose("stop", "caddy", "simulator", "gps-simulator", self.broker, *(["broker-admin"] if self.broker == "mqtt" else []), stdout=subprocess.DEVNULL)
             # Expire command deadlines while the runtime can still reconcile outcomes.
             time.sleep(45)
-            self.compose("stop", *WRITERS, "nats", stdout=subprocess.DEVNULL)
+            self.compose("stop", *WRITERS, stdout=subprocess.DEVNULL)
+            self.compose("stop", "nats", stdout=subprocess.DEVNULL)
             with (checkpoint / "database.dump").open("wb") as stream:
                 self.database_command("pg_dump", "-U", "postgres", "-d", "iot", "-Fc", stdout=stream)
             # Broker and JetStream files are copied only while their owners are stopped.
@@ -348,7 +349,12 @@ class Deployment:
         finally:
             # Restart only services that were running before the maintenance window.
             if running:
-                self.compose("start", *running, stdout=subprocess.DEVNULL)
+                dependencies = [name for name in ("nats", self.broker) if name in running]
+                if dependencies:
+                    self.compose("up", "-d", "--no-recreate", "--wait", *dependencies, stdout=subprocess.DEVNULL)
+                remaining = [name for name in running if name not in dependencies]
+                if remaining:
+                    self.compose("start", *remaining, stdout=subprocess.DEVNULL)
             shutil.rmtree(checkpoint)
         self.ping_heartbeat("BACKUP_HEARTBEAT_URL")
 

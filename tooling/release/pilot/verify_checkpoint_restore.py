@@ -60,7 +60,7 @@ try:
     )
     for attempt in range(60):
         r = subprocess.run(
-            ["docker", "exec", container, "pg_isready", "-U", "postgres"],
+            ["docker", "exec", container, "pg_isready", "-h", "127.0.0.1", "-U", "postgres"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )

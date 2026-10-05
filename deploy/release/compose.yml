@@ -197,6 +197,11 @@ services:
       - ${STATE_DIR}/nats:/data
       - ${CONFIG_DIR:?}/nats.conf:/etc/nats/nats.conf:ro
     mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8222/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
   emqx:
     <<: *service
     image: emqx/emqx:5.9.3

@@ -33,10 +33,10 @@ off-site checkpoint restored into an isolated database, with 83 public tables
 verified after side-effect quarantine. Local split-database container verification
 and 19 release tests passed separately.
 
-This does not establish full replacement-host/broker restoration, measured
+This does not establish full replacement-host cutover, measured
 recovery time, client hardware/tenant ACL/password-invitation acceptance, complete
 public IPv6 checks, WAL/PITR, provider-wide external monitoring or a 48-hour soak.
-Review the EMQX hosted/SaaS licensing gate before external use. Do not interpret
+The active broker has migrated to Mosquitto as described below. Do not interpret
 the older local fixture evidence as current client-environment acceptance.
 
 The broad local `tooling/monitoring/verify.py --drills` run on this date could
@@ -45,3 +45,31 @@ The local runtime reports `workflow telemetry checkpoint lost continuity;
 recovery required`. Its retained state was preserved; this is not a passing
 local monitoring acceptance run. The parser configuration was validated with
 Alloy itself and recreated in both local and remote environments separately.
+
+## Mosquitto migration — 2026-10-04
+
+Release `cdabba092af0a66731151b605438b30b71bf2bdc` passed CI, immutable image
+export, and guarded staging migration. The isolated MQTT fixture passed TLS,
+credential denial, tenant/gateway ACLs, broad/control subscription denial,
+QoS1/QoS2, retained STATE/LWT, rotation, revocation, abrupt restart and fresh-volume
+restore. The full release fixture onboarded five simulator devices, received
+runtime/geofence acknowledgements, repeated bootstrap, restored/quarantined an
+independent database, and verified Sparkplug reconnect after restart.
+
+The same security/protocol acceptance passed against public staging MQTT and
+the private provisioning adapter. Its temporary clients/roles/retained STATE
+were removed. An actual encrypted off-site checkpoint supplied broker files,
+TLS keys and administration credentials to an isolated broker/adapter restore.
+The current database checkpoint restored and quarantined all 83 public tables.
+Certificate renewal dry-run passed for the Mosquitto deployment.
+
+Operations testing exposed and corrected backup ordering and a restore-fixture
+startup race: stop runtime/writers before NATS; wait for NATS health before
+resuming them; probe PostgreSQL TCP readiness after its temporary initialization
+server exits. The updated local release rehearsal and 21 release tests passed.
+The readiness command uses `up --no-recreate --wait`, supported by the cloud's
+Compose 2.40.3. A final staging checkpoint resumed with runtime restart count
+unchanged at zero. Final acceptance recorded 15 healthy monitoring targets,
+six successful probes, 23 expected running containers, no metric/Loki alerts,
+and a healthy private Grafana tunnel. Retained rollback inputs have not been
+exercised in a live cutover drill.

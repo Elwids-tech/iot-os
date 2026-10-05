@@ -242,8 +242,9 @@ database replication remain separate future work requiring runtime fencing.
 
 ## Broker licensing gate
 
-The selected EMQX 5.9.3 image prints a Community License notice permitting a
-single node for internal use and requiring a commercial license for hosted/SaaS
-use. Review the terms for external testing and production before launch. This
-implementation does not acquire a license or replace the broker; changing the
-broker requires separate provisioning/ACL and Sparkplug compatibility tests.
+The active Hetzner pilot uses Mosquitto under EPL/EDL, with no single-node
+commercial-license requirement. Its provisioning, tenant ACLs, Sparkplug and
+recovery checks are documented in [broker operations](../../docs/mosquitto-broker.md).
+EMQX 5.9.3 remains supported for legacy environments and rollback. Its BSL terms
+include use-case restrictions on hosted/embedded offerings; review the actual
+deployment rights before choosing that legacy profile for external use.

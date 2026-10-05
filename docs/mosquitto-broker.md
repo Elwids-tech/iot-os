@@ -4,6 +4,8 @@ The release supports Mosquitto 2.0.22 (pinned image digest) with its Dynamic
 Security plugin. Existing environments remain on EMQX until explicitly migrated.
 Mosquitto is licensed under EPL/EDL, with no single-node commercial license
 requirement for this deployment. It is a single broker; this does not provide HA.
+Official license and plugin documentation: [Mosquitto](https://mosquitto.org/)
+and [Dynamic Security](https://mosquitto.org/documentation/dynamic-security/).
 
 ## Architecture and access
 
@@ -83,7 +85,8 @@ Do not perform an application rollback across incompatible schema changes.
 
 ## Backups, monitoring and limits
 
-The selected broker and adapter stop before checkpointing. Mosquitto's durable
+The selected broker and adapter stop before checkpointing. Runtime/writers stop
+before JetStream; NATS must pass its health check before writers resume. Mosquitto's durable
 directory, certificates, application state, JetStream files and logical database
 dump are included in the encrypted Restic checkpoint. Restore requires the exact
 provider, release, application encryption key and broker administration secrets.

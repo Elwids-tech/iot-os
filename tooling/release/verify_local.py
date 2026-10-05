@@ -161,7 +161,8 @@ def main():
         private_write(directory/'metrics.txt',response)
         print('Bootstrap rerun and protected metrics passed.', flush=True)
         # Exercise the same Timescale pre/post restore sequence as manage.py.
-        call('stop', 'simulator', 'gps-simulator', broker, 'runtime', 'api', 'default-worker', 'alerts-worker', 'assistant-worker', 'webhooks-worker', 'automation-worker', 'scheduler', 'nats')
+        call('stop', 'simulator', 'gps-simulator', broker, 'runtime', 'api', 'default-worker', 'alerts-worker', 'assistant-worker', 'webhooks-worker', 'automation-worker', 'scheduler')
+        call('stop', 'nats')
         with (directory/'database.dump').open('wb') as stream:
             result = subprocess.run(command+['exec','-T','timescaledb','pg_dump','-U','postgres','-d','iot','-Fc'], stdout=stream, stderr=subprocess.PIPE)
             if result.returncode: raise RuntimeError('Isolated backup dump failed')
@@ -180,7 +181,8 @@ def main():
         assert counts[0] == '7' and counts[1] == '5' and int(counts[2]) > 0 and counts[3] == '0', counts
         print('Independent Timescale restore and side-effect quarantine passed; accounts/devices/history preserved.', flush=True)
         call('stop','restore-db')
-        call('start','nats',broker,'api','runtime','default-worker','alerts-worker','assistant-worker','webhooks-worker','automation-worker','scheduler','simulator','gps-simulator')
+        call('up','-d','--no-recreate','--wait','nats',broker)
+        call('start','api','runtime','default-worker','alerts-worker','assistant-worker','webhooks-worker','automation-worker','scheduler','simulator','gps-simulator')
         wait('http://api-web/health/ready')
         time.sleep(12)
         call('exec','-T','api','php','artisan','deployment:activate-staging')

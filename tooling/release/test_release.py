@@ -38,7 +38,8 @@ class ReleaseTests(unittest.TestCase):
             with patch.object(deployment,'restic'), patch.object(deployment,'running',return_value=['mqtt','broker-admin','api']), patch.object(deployment,'compose') as compose, patch.object(deployment,'database_command',side_effect=RuntimeError('dump failed')), patch.object(release.time,'sleep'):
                 with self.assertRaises(RuntimeError): deployment.backup('backup')
             self.assertEqual(compose.call_args_list[0].args, ('stop','caddy','simulator','gps-simulator','mqtt','broker-admin'))
-            self.assertEqual(compose.call_args_list[-1].args, ('start','mqtt','broker-admin','api'))
+            self.assertEqual(compose.call_args_list[-2].args, ('up','-d','--no-recreate','--wait','mqtt'))
+            self.assertEqual(compose.call_args_list[-1].args, ('start','broker-admin','api'))
 
     def test_external_database_rejects_public_loopback_and_hostname_targets(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -176,7 +177,10 @@ class ReleaseTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'dump failed'):
                     deployment.backup('private-env')
             self.assertTrue(any(call[0] == 'stop' and 'automation-worker' in call for call in calls))
-            self.assertEqual(calls[-1], ('start', 'api', 'automation-worker', 'nats'))
+            writers_stop = next(i for i, call in enumerate(calls) if call[0] == 'stop' and 'automation-worker' in call)
+            self.assertLess(writers_stop, calls.index(('stop', 'nats')))
+            self.assertEqual(calls[-2], ('up', '-d', '--no-recreate', '--wait', 'nats'))
+            self.assertEqual(calls[-1], ('start', 'api', 'automation-worker'))
 
     def test_environment_is_literal_not_shell_code(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -247,7 +251,8 @@ class ReleaseTests(unittest.TestCase):
             with patch.object(deployment, 'restic'), patch.object(deployment, 'running', return_value=['api','runtime','nats']), patch.object(deployment, 'compose', side_effect=compose), patch.object(release.time, 'sleep'):
                 with self.assertRaisesRegex(RuntimeError, 'dump failed'):
                     deployment.backup('private-env')
-            self.assertEqual(calls[-1], ('start','api','runtime','nats'))
+            self.assertEqual(calls[-2], ('up','-d','--no-recreate','--wait','nats'))
+            self.assertEqual(calls[-1], ('start','api','runtime'))
             self.assertEqual(list((root/'private').glob('checkpoint-*')), [])
 
 

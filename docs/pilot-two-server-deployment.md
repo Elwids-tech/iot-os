@@ -23,11 +23,18 @@ GoDaddy holds DNS; only IPv4 A records were published. Public requests to
 `ops.staging.elwids.xyz` receive 403 outside the private tunnel CIDR.
 
 The application manifest identifies commit
-`6baa3315c3a8d529835c2275b50ad0d31397e3f0`, verified release run `37248562384`,
-and image-export run `37249059879` in `Elwids-tech/iot-os`. The tooling includes
-split-database overlays and a format-selective Alloy parser. Keep the application
+`cdabba092af0a66731151b605438b30b71bf2bdc`, verified release run `37256970498`,
+and image-export run `37257439033` in `Elwids-tech/iot-os`. The tooling includes
+split-database overlays, a format-selective Alloy parser, and Mosquitto operations. Keep the application
 manifest and tooling provenance separate: documentation/tooling commits do not
 change running application image digests.
+
+Mosquitto 2.0.22 now serves MQTT TLS through the Dynamic Security plugin and a
+private credential adapter. The EMQX environment, immutable application images
+and durable broker files remain available for rollback. At migration inventory,
+one real organization and zero registered connections, gateways or devices
+existed; only broker-internal `$SYS` messages were retained. See
+[broker operations and rollback](mosquitto-broker.md).
 
 No demonstration organizations or devices were seeded. The first administrator's
 generated credentials are private. Create real client organizations and named
@@ -38,7 +45,9 @@ users before provisioning their devices. Staging data is not disposable.
 Public HTTPS and dependency readiness passed. Administrator login, the staging
 label, and the admin-to-portal URL were checked in the browser. Local admin/portal
 containers were rebuilt and local navigation was checked separately. All 14
-monitoring targets were healthy after startup settled. Brevo SMTP preflight
+monitoring targets were healthy before broker migration; the final Mosquitto
+acceptance has 15 healthy targets, six successful probes and 23 running expected
+containers, with no metric or Loki alerts. Brevo SMTP preflight
 reached the approved inbox with TLS and an elwids.xyz DKIM signature. Alertmanager
 and the independent database watchdog sent firing/recovery test messages.
 Docker → Alloy → Loki log-alert evidence is retained privately.
@@ -51,20 +60,27 @@ DB recovery, not full replacement-host cutover or physical-device reconnect.
 Both hosts were rebooted separately; Docker, WireGuard, forwarding firewall,
 and API/database readiness recovered. MQTT certificate renewal dry-run passed.
 
+Mosquitto's public-endpoint security/protocol tests passed and temporary test
+credentials were removed. An actual encrypted checkpoint restored broker state,
+TLS keys and administration credentials on an isolated network. The current
+database checkpoint restored/quarantined all 83 public tables. Backup shutdown
+now stops writers before NATS and waits for NATS health before resuming them;
+the final staging checkpoint caused zero runtime restarts. Operator Grafana
+tunneling was refreshed after container addresses changed.
+
 Public probes found PostgreSQL, database metrics, Grafana, Prometheus,
 Alertmanager, Loki and the image registry unreachable. Full public IPv6 probing
 was unavailable from the operator workstation; IPv6 acceptance remains incomplete.
 
 Before production or onboarding irreplaceable data, address:
 
-- EMQX 5.9.3's hosted/SaaS commercial-license gate in the
-  [release guide](../deploy/release/README.md#broker-licensing-gate).
 - Monitoring outside Hetzner for provider-wide outages. The database watchdog
   covers application-host failure, but both hosts share a provider.
 - An agreed recovery point objective. Daily checkpoints may lose roughly
   24 hours of changes; continuous WAL archiving/PITR is not configured.
-- Client device enrollment, telemetry, command acknowledgement, cross-tenant
-  MQTT ACLs, invitation/password reset, and client role acceptance.
+- Client device enrollment, telemetry, command acknowledgement,
+  invitation/password reset, and client role acceptance. Temporary staging
+  credentials passed cross-tenant MQTT ACL checks; client hardware is still pending.
 - A measured replacement-host cutover and sustained capacity/soak run.
   No 48-hour soak completed. The existing fixture-based soak expects demo
   devices; it does not establish acceptance of this unseeded real-data pilot.
