@@ -5,13 +5,29 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from waveshare_bridge import Bridge, METRICS, decode_command, metric, sp, validate
+from waveshare_bridge import Bridge, METRICS, broker_endpoint, decode_command, metric, sp, validate
 
 VALUES = {"power": False, "color": "#FF0000", "mode": "solid", "brightness": 20,
           "alarm_active": False, "alarm_mode": "beep", "volume": 15, "alarm_duration": 5}
 
 
 class HardwareBridgeTest(unittest.TestCase):
+    def test_staging_broker_requires_explicit_opt_in_and_verified_endpoint(self):
+        self.assertEqual(broker_endpoint("ssl://localhost:8883"), ("localhost", 8883))
+        self.assertEqual(broker_endpoint("ssl://mqtt.staging.elwids.xyz:8883", True), ("mqtt.staging.elwids.xyz", 8883))
+        for url, allowed in [
+            ("ssl://mqtt.staging.elwids.xyz:8883", False),
+            ("mqtt://mqtt.staging.elwids.xyz:8883", True),
+            ("ssl://mqtt.staging.elwids.xyz:1883", True),
+            ("ssl://mqtt.elwids.xyz:8883", True),
+            ("ssl://46.225.74.65:8883", True),
+            ("ssl://mqtt.staging.elwids.xyz.attacker.test:8883", True),
+            ("ssl://user:password@mqtt.staging.elwids.xyz:8883", True),
+            ("ssl://mqtt.staging.elwids.xyz:8883?insecure=true", True),
+        ]:
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                broker_endpoint(url, allowed)
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

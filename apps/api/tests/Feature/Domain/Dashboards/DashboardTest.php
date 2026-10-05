@@ -91,6 +91,16 @@ final class DashboardTest extends TestCase
         return ['id' => (string) Str::uuid(), 'schema_version' => 2, 'type' => $type, 'title' => 'Temperature overview', 'description' => 'Operator view', 'config' => ['sources' => [$source]]];
     }
 
+    public function test_controls_accept_writable_enum_modes_but_reject_read_only_enums(): void
+    {
+        $source = $this->source('', 'enum', true, null, 'toggle_group');
+        $values = [...$this->emptyDashboard(), 'widgets' => [['id' => 'modes', 'schema_version' => 2, 'type' => 'controls', 'title' => 'Alarm mode', 'description' => '', 'config' => ['sources' => [$source]]]]];
+        $this->postJson($this->url, $values)->assertOk()->assertJsonPath('data.widgets.0.config.sources.0.data_type', 'enum');
+
+        $values['widgets'][0]['config']['sources'] = [$this->source('', 'enum')];
+        $this->postJson($this->url, $values)->assertUnprocessable()->assertJsonValidationErrors('widgets.0.config.sources.0');
+    }
+
     public function test_controls_resolve_applied_metadata_and_reject_read_only_sources(): void
     {
         $source = $this->source('%', 'integer', true);

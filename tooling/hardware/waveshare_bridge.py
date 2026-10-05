@@ -28,6 +28,18 @@ METRICS = [
     ("volume", "Volume", sp.Int32), ("alarm_duration", "Alarm duration", sp.Int32),
 ]
 KEYS = {key for key, _, _ in METRICS}
+STAGING_BROKER = "mqtt.staging.elwids.xyz"
+
+
+def broker_endpoint(value, allow_staging=False):
+    url = urlparse(value)
+    if url.scheme != "ssl" or url.username or url.password or url.path or url.query or url.fragment:
+        raise ValueError("The USB bridge requires an ssl:// hostname and verified TLS")
+    local = url.hostname in ("localhost", "127.0.0.1")
+    staging = allow_staging and url.hostname == STAGING_BROKER and (url.port or 8883) == 8883
+    if not (local or staging):
+        raise ValueError("Use the local broker, or explicitly allow the ELWIDS staging broker")
+    return url.hostname, url.port or 8883
 
 
 def validate(values, complete=False):
@@ -65,8 +77,9 @@ def decode_command(payload):
 
 
 class Bridge:
-    def __init__(self, config, port, state_file):
+    def __init__(self, config, port, state_file, allow_staging=False):
         self.config, self.port, self.state_file = config, port, Path(state_file)
+        self.allow_staging = allow_staging
         self.lock = threading.RLock()
         self.commands = queue.Queue(maxsize=32)
         self.mqtt_connected = self.host_online = self.born = False
@@ -187,10 +200,8 @@ class Bridge:
         self.clear_commands()
 
     def run(self):
-        url = urlparse(self.config["broker_url"])
-        if url.scheme != "ssl" or url.hostname not in ("localhost", "127.0.0.1"):
-            raise ValueError("This USB test bridge requires the local TLS broker")
-        self.client.connect_async(url.hostname, url.port or 8883, keepalive=10)
+        hostname, port = broker_endpoint(self.config["broker_url"], self.allow_staging)
+        self.client.connect_async(hostname, port, keepalive=10)
         self.client.loop_start()
         try:
             while not self.stopping.is_set():
@@ -255,11 +266,12 @@ if __name__ == "__main__":
     parser.add_argument("--config", required=True)
     parser.add_argument("--port", required=True)
     parser.add_argument("--state-file", required=True)
+    parser.add_argument("--allow-staging", action="store_true", help="Allow verified TLS MQTT to mqtt.staging.elwids.xyz:8883")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     lockfile = open(args.state_file+".lock", "w")
     fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    bridge = Bridge(json.loads(Path(args.config).read_text()), args.port, args.state_file)
+    bridge = Bridge(json.loads(Path(args.config).read_text()), args.port, args.state_file, args.allow_staging)
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: bridge.stopping.set())
     bridge.run()

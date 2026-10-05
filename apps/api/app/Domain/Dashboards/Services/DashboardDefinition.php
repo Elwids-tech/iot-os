@@ -245,7 +245,7 @@ final class DashboardDefinition
                 $source['unit'] = $parameter['unit'] ?? null;
                 if ($widget['type'] === 'controls') {
                     $mapping = collect($config->definition['mappings'] ?? [])->firstWhere('parameter_uuid', $parameter['uuid']);
-                    if ($device->applied_configuration_uuid !== $config->uuid || ($parameter['kind'] ?? '') !== 'state' || ! ($parameter['accepts_command'] ?? false) || ! ($parameter['reports_state'] ?? false) || empty($mapping['command_metric']) || ! in_array($parameter['data_type'], ['boolean', 'integer', 'number', 'string'], true)) {
+                    if ($device->applied_configuration_uuid !== $config->uuid || ($parameter['kind'] ?? '') !== 'state' || ! ($parameter['accepts_command'] ?? false) || ! ($parameter['reports_state'] ?? false) || empty($mapping['command_metric']) || ! in_array($parameter['data_type'], ['boolean', 'integer', 'number', 'enum', 'string'], true)) {
                         $this->fail($path, 'Choose a writable state parameter with an applied command mapping.');
                     }
                     $source['thresholds'] = [];

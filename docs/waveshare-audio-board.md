@@ -136,6 +136,37 @@ The added audio profile revision and dashboard can remain available for the next
 The USB gateway remains a local bench adapter. Automatic startup on Mac reboot and
 standalone Wi-Fi firmware are not part of this setup.
 
+## Staging onboarding
+
+The USB gateway can also connect to `mqtt.staging.elwids.xyz:8883` with the explicit
+`--allow-staging` option. Other remote endpoints remain rejected. TLS certificate
+and hostname verification stay enabled; use the Mac's trusted CA bundle in the
+private gateway configuration. No MQTT credentials are written to the board.
+
+Staging uses a separate physical device, profile, connection, and gateway. Do not
+reuse a simulator identity or replace the local RGB device. The physical profile
+is `physical-waveshare-audio`; its eight writable states retain the Waveshare
+contract, including the LED-mode and alarm-mode enums. Controls panels accept
+these enums only when they have an applied writable state mapping.
+
+Run from the checkout containing the staging gateway update, replacing private
+paths with the operator's actual files:
+
+```sh
+rtk proxy /path/to/python tooling/hardware/waveshare_bridge.py \
+  --config /private/waveshare-staging/gateway.json \
+  --state-file /private/waveshare-staging/sequence \
+  --port /dev/cu.usbmodem83201 --allow-staging
+```
+
+The Mac must stay awake, connected to the board, and online. Stop the gateway with
+Ctrl-C after a bench test: it turns both outputs off and publishes device death;
+the firmware watchdog covers an unexpected disconnect. Device configuration,
+dashboard, and recorded hardware state remain in staging for the next session.
+The physical dashboard is labeled separately from the GPS, energy, and RGB
+simulations. Driver-reported command completion does not measure visible light or
+audible sound; confirm those at the board during the walkthrough.
+
 ## GPS entry automation
 
 The local demo `GPS enters boundary → Waveshare alarm` connects GPS Demo Tracker
