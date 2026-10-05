@@ -167,6 +167,13 @@ The physical dashboard is labeled separately from the GPS, energy, and RGB
 simulations. Driver-reported command completion does not measure visible light or
 audible sound; confirm those at the board during the walkthrough.
 
+For on-demand bench demos, keep `IOT_OPS_EXPECTED_SIMULATORS=0`. The global
+`TelemetryStalled` alert honors that expectation; configured fixtures and old
+recorded readings alone do not imply that publishers should be running. Set an
+explicit positive expected count only for continuous simulator operation. Missing
+or stale expected simulators then trigger the alert; device data quality remains
+visible independently in the application.
+
 ## GPS entry automation
 
 The local demo `GPS enters boundary → Waveshare alarm` connects GPS Demo Tracker

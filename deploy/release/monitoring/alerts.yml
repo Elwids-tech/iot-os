@@ -27,10 +27,14 @@ groups:
         labels: {severity: critical}
         annotations: {summary: "Worker heartbeat is stale: {{ $labels.worker }}"}
       - alert: TelemetryStalled
-        expr: (time() - iot_simulator_oldest_observation_timestamp_seconds > 120) and on() (iot_simulator_active_devices > 0)
+        expr: >-
+          (((time() - iot_simulator_oldest_observation_timestamp_seconds > 120)
+          and on() (iot_simulator_active_devices > 0))
+          or (iot_simulator_active_devices < iot_simulator_expected_devices))
+          and on() (iot_simulator_expected_devices > 0)
         for: 2m
         labels: {severity: critical}
-        annotations: {summary: "A staging simulator is no longer persisting telemetry"}
+        annotations: {summary: "Expected simulator telemetry is missing or stale"}
       - alert: QueueBacklog
         expr: iot_queue_oldest_seconds > 120 or iot_device_outbox_pending > 100 or iot_runtime_outbox_pending > 100
         for: 5m

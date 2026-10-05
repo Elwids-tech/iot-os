@@ -1,0 +1,60 @@
+rule_files:
+  - /etc/prometheus/alerts.yml
+evaluation_interval: 1m
+tests:
+  - name: stopped on-demand demo does not alert
+    interval: 1m
+    input_series:
+      - series: iot_simulator_expected_devices{environment="staging",job="api",instance="api-web:80"}
+        values: 0+0x10
+      - series: iot_simulator_active_devices{environment="staging",job="api",instance="api-web:80"}
+        values: 5+0x10
+      - series: iot_simulator_oldest_observation_timestamp_seconds{environment="staging",job="api",instance="api-web:80"}
+        values: 0+0x10
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: TelemetryStalled
+        exp_alerts: []
+  - name: healthy expected demo does not alert
+    interval: 1m
+    input_series:
+      - series: iot_simulator_expected_devices{environment="staging",job="api",instance="api-web:80"}
+        values: 5+0x10
+      - series: iot_simulator_active_devices{environment="staging",job="api",instance="api-web:80"}
+        values: 5+0x10
+      - series: iot_simulator_oldest_observation_timestamp_seconds{environment="staging",job="api",instance="api-web:80"}
+        values: 0+60x10
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: TelemetryStalled
+        exp_alerts: []
+  - name: stale expected demo alerts
+    interval: 1m
+    input_series:
+      - series: iot_simulator_expected_devices{environment="staging",job="api",instance="api-web:80"}
+        values: 5+0x10
+      - series: iot_simulator_active_devices{environment="staging",job="api",instance="api-web:80"}
+        values: 5+0x10
+      - series: iot_simulator_oldest_observation_timestamp_seconds{environment="staging",job="api",instance="api-web:80"}
+        values: 0+0x10
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: TelemetryStalled
+        exp_alerts:
+          - exp_labels: {environment: staging, job: api, instance: "api-web:80", severity: critical}
+            exp_annotations: {summary: "Expected simulator telemetry is missing or stale"}
+  - name: missing expected demo alerts
+    interval: 1m
+    input_series:
+      - series: iot_simulator_expected_devices{environment="staging",job="api",instance="api-web:80"}
+        values: 5+0x10
+      - series: iot_simulator_active_devices{environment="staging",job="api",instance="api-web:80"}
+        values: 0+0x10
+      - series: iot_simulator_oldest_observation_timestamp_seconds{environment="staging",job="api",instance="api-web:80"}
+        values: 0+0x10
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: TelemetryStalled
+        exp_alerts:
+          - exp_labels: {environment: staging, job: api, instance: "api-web:80", severity: critical}
+            exp_annotations: {summary: "Expected simulator telemetry is missing or stale"}
