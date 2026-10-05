@@ -5,6 +5,9 @@ transfer, verified recovery evidence and remaining launch gates are documented i
 [the pilot operations runbook](../../docs/pilot-two-server-deployment.md).
 That record takes precedence over the generic single-node examples below.
 
+[Mosquitto operations](../../docs/mosquitto-broker.md) documents the opt-in
+broker profile, isolated acceptance checks, guarded migration and rollback.
+
 This release profile is separate from local development. GoDaddy manages
 elwids.xyz and Brevo sends application/operational email. The pilot uses
 DOMAIN=staging.elwids.xyz and public app, admin, api and mqtt subdomains.

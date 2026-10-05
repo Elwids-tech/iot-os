@@ -14,6 +14,32 @@ spec.loader.exec_module(release)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_mosquitto_is_opt_in_and_admin_has_no_public_port(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            self.assertEqual(deployment.broker, 'emqx')
+            deployment.env['DEVICE_BROKER_PROVIDER'] = 'mosquitto'
+            self.assertEqual(deployment.broker, 'mqtt')
+            self.assertEqual(deployment.broker_uid, 1883)
+            overlay = yaml.safe_load((release.RELEASE/'compose.mosquitto.yml').read_text())['services']
+            self.assertNotIn('ports', overlay['broker-admin'])
+            self.assertEqual(overlay['mqtt']['ports'], ['8883:8883'])
+            self.assertEqual(overlay['emqx']['profiles'], ['legacy-broker'])
+            deployment.render()
+            prometheus = yaml.safe_load((deployment.config/'prometheus.yml').read_text())
+            probe = next(job for job in prometheus['scrape_configs'] if job['job_name'] == 'health')
+            self.assertIn('http://broker-admin:8082/health/ready', probe['static_configs'][0]['targets'])
+
+    def test_mosquitto_backup_quiesces_adapter_and_broker(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.config.mkdir()
+            deployment.env['DEVICE_BROKER_PROVIDER'] = 'mosquitto'
+            with patch.object(deployment,'restic'), patch.object(deployment,'running',return_value=['mqtt','broker-admin','api']), patch.object(deployment,'compose') as compose, patch.object(deployment,'database_command',side_effect=RuntimeError('dump failed')), patch.object(release.time,'sleep'):
+                with self.assertRaises(RuntimeError): deployment.backup('backup')
+            self.assertEqual(compose.call_args_list[0].args, ('stop','caddy','simulator','gps-simulator','mqtt','broker-admin'))
+            self.assertEqual(compose.call_args_list[-1].args, ('start','mqtt','broker-admin','api'))
+
     def test_external_database_rejects_public_loopback_and_hostname_targets(self):
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)

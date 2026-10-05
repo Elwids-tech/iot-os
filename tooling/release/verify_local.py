@@ -25,7 +25,9 @@ from manage import ROOT, RELEASE, SECRET_KEYS, private_write
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--keep', action='store_true', help='Keep isolated containers/evidence for diagnosis')
+    parser.add_argument('--broker', choices=['emqx', 'mosquitto'], default='emqx')
     args = parser.parse_args()
+    broker = 'mqtt' if args.broker == 'mosquitto' else 'emqx'
     for port in [18091, 18092, 18093, 18896]:
         with socket.socket() as check:
             check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -43,6 +45,8 @@ def main():
                 'API_IMAGE': 'iot-release-api:check', 'API_WEB_IMAGE': 'iot-release-api-web:check',
                 'SIMULATOR_IMAGE': 'iot-release-simulator:check', 'RUNTIME_IMAGE': 'iot-os-dev-runtime',
                 'PORTAL_IMAGE': 'iot-os-dev-portal', 'ADMIN_IMAGE': 'iot-os-dev-admin'})
+    if broker == 'mqtt':
+        env.update(DEVICE_BROKER_PROVIDER='mosquitto', DEVICE_BROKER_ADMIN_TOKEN=secrets.token_hex(32), MOSQUITTO_ADMIN_PASSWORD=secrets.token_hex(32), RUNTIME_IMAGE='elwids-mosquitto-runtime:check')
     envfile = directory/'environment'
     private_write(envfile, ''.join(key+'='+json.dumps(value)+'\n' for key, value in env.items()))
     config = directory/'private'
@@ -58,7 +62,13 @@ def main():
     subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=mqtt.release.test', '-addext', 'subjectAltName=DNS:mqtt.release.test', '-keyout', str(certs/'privkey.pem'), '-out', str(certs/'fullchain.pem')], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.chmod(certs/'privkey.pem', 0o644)
     compose = yaml.safe_load((RELEASE/'compose.yml').read_text())
+    if broker == 'mqtt':
+        overlay = yaml.safe_load((RELEASE/'compose.mosquitto.yml').read_text())['services']
+        compose['services'].update({name:overlay[name] for name in ('mqtt', 'broker-admin')})
     selected = ['api','api-web','portal','admin','migrate','default-worker','alerts-worker','assistant-worker','webhooks-worker','automation-worker','scheduler','timescaledb','nats','emqx','runtime','runtime-migrate','simulator','gps-simulator']
+    if broker == 'mqtt':
+        selected.remove('emqx')
+        selected += ['mqtt','broker-admin']
     compose['services'] = {key:value for key,value in compose['services'].items() if key in selected}
     compose['volumes'] = {}
     for name, service in compose['services'].items():
@@ -86,10 +96,11 @@ def main():
                 source = str(RELEASE/source[2:])
             volumes.append(':'.join([source,target,*flags]))
         service['volumes'] = volumes
-        if name in ['runtime','runtime-migrate','simulator','gps-simulator']:
+        if name in ['runtime','runtime-migrate','simulator','gps-simulator','broker-admin']:
             service['volumes'].append(str(certs/'fullchain.pem')+':/certs/ca.pem:ro')
         if name == 'runtime': service['environment']['DEVICE_MQTT_CA_FILE'] = '/certs/ca.pem'
-    for name, port, target in [('api-web',18091,80),('portal',18092,80),('admin',18093,80),('emqx',18896,8883)]:
+        if name == 'broker-admin': service['environment']['BROKER_CA_FILE'] = '/certs/ca.pem'
+    for name, port, target in [('api-web',18091,80),('portal',18092,80),('admin',18093,80),(broker,18896,8883)]:
         compose['services'][name]['ports'] = [f'127.0.0.1:{port}:{target}']
     compose['networks'] = {'private': {}}
     # Independent restore target: never restore over the active verification DB.
@@ -122,12 +133,18 @@ def main():
         raise RuntimeError('Release readiness timed out; inspect private Docker project '+project)
 
     try:
-        call('up','-d','--wait','timescaledb','nats','emqx')
+        if broker == 'mqtt':
+            call('run','--rm','--no-deps','--user','0','mqtt','mosquitto_ctrl','dynsec','init','/mosquitto/data/dynamic-security.json','elwids-admin',env['MOSQUITTO_ADMIN_PASSWORD'])
+        call('up','-d','--wait','timescaledb','nats',broker)
+        if broker == 'mqtt':
+            call('up','-d','broker-admin')
         call('run','--rm','migrate')
         call('run','--rm','runtime-migrate')
         call('run','--rm','migrate','php','artisan','db:seed','--class=PermissionSeeder','--force')
         call('up','-d','api','api-web','portal','admin','default-worker','alerts-worker','assistant-worker','webhooks-worker','automation-worker','scheduler','runtime')
         wait('http://api-web/health/ready')
+        if broker == 'mqtt':
+            wait('http://broker-admin:8082/health/ready')
         print('Release API/PHP-FPM/runtime readiness passed.', flush=True)
         call('exec','-T','api','php','artisan','deployment:staging','--output=/var/www/html/storage/app/private/accounts.json')
         for name, flag in [('meter',[]),('gps',['--gps'])]:
@@ -144,7 +161,7 @@ def main():
         private_write(directory/'metrics.txt',response)
         print('Bootstrap rerun and protected metrics passed.', flush=True)
         # Exercise the same Timescale pre/post restore sequence as manage.py.
-        call('stop', 'simulator', 'gps-simulator', 'emqx', 'runtime', 'api', 'default-worker', 'alerts-worker', 'assistant-worker', 'webhooks-worker', 'automation-worker', 'scheduler', 'nats')
+        call('stop', 'simulator', 'gps-simulator', broker, 'runtime', 'api', 'default-worker', 'alerts-worker', 'assistant-worker', 'webhooks-worker', 'automation-worker', 'scheduler', 'nats')
         with (directory/'database.dump').open('wb') as stream:
             result = subprocess.run(command+['exec','-T','timescaledb','pg_dump','-U','postgres','-d','iot','-Fc'], stdout=stream, stderr=subprocess.PIPE)
             if result.returncode: raise RuntimeError('Isolated backup dump failed')
@@ -163,8 +180,11 @@ def main():
         assert counts[0] == '7' and counts[1] == '5' and int(counts[2]) > 0 and counts[3] == '0', counts
         print('Independent Timescale restore and side-effect quarantine passed; accounts/devices/history preserved.', flush=True)
         call('stop','restore-db')
-        call('start','nats','emqx','api','runtime','default-worker','alerts-worker','assistant-worker','webhooks-worker','automation-worker','scheduler','simulator','gps-simulator')
+        call('start','nats',broker,'api','runtime','default-worker','alerts-worker','assistant-worker','webhooks-worker','automation-worker','scheduler','simulator','gps-simulator')
         wait('http://api-web/health/ready')
+        time.sleep(12)
+        call('exec','-T','api','php','artisan','deployment:activate-staging')
+        print('Sparkplug reconnect after broker/runtime restart passed with runtime acknowledgements.', flush=True)
         private_write(directory/'result.json',json.dumps({'passed':True,'project':project,'at':time.time()}))
     finally:
         if args.keep:

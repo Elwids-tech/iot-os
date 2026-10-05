@@ -46,6 +46,10 @@ jobs:
           cache-dependency-path: services/runtime/go.sum
       - run: go test ./...
         working-directory: services/runtime
+      - name: Verify Mosquitto TLS, tenant ACLs and durable recovery
+        run: |
+          docker build -f deploy/docker/runtime/Dockerfile -t elwids-mosquitto-runtime:check .
+          python3 tooling/release/verify_mosquitto.py
   images:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.export_existing_run == '' }}
     needs: verify

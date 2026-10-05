@@ -12,6 +12,16 @@ final class BrokerProvisioner
 {
     private function provision(string $username, #[\SensitiveParameter] string $password, array $rules): void
     {
+        if (config('devices.broker_provider') === 'mosquitto') {
+            abort_unless(config('devices.broker_admin_token'), 503, 'Broker provisioning is not configured.');
+            $response = Http::baseUrl(config('devices.broker_admin_url'))
+                ->withToken(config('devices.broker_admin_token'))->acceptJson()->timeout(30)
+                ->put('/clients', compact('username', 'password', 'rules'));
+            abort_unless($response->successful(), 503, 'Broker credential or namespace provisioning failed.');
+
+            return;
+        }
+        abort_unless(config('devices.broker_provider') === 'emqx', 503, 'Unsupported broker provider.');
         abort_unless(config('devices.emqx_key') && config('devices.emqx_secret'), 503, 'Broker provisioning is not configured.');
         $client = Http::baseUrl(config('devices.emqx_url'))->withBasicAuth(config('devices.emqx_key'), config('devices.emqx_secret'))->acceptJson()->timeout(10);
         $auth = '/authentication/password_based:built_in_database/users';
