@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { portalUrl } from "@/lib/portal"
+import { portalUrl } from "../lib/portal"
 import type { AuthenticatedUser } from "@iot-os/api-client"
 import {
   DropdownMenu,
