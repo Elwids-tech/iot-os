@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { portalUrl } from "@/lib/portal"
 import type { AuthenticatedUser } from "@iot-os/api-client"
 import {
   DropdownMenu,
@@ -45,10 +46,6 @@ const navigationGroups = [
   ],
   [{ title: "Retention", to: "/settings/retention", icon: HistoryIcon }],
 ]
-
-const portalUrl =
-  import.meta.env.VITE_PORTAL_URL ||
-  `${window.location.protocol}//${window.location.hostname}:5173`
 
 const initials = (name: string) => {
   const words = name.trim().split(/\s+/)
