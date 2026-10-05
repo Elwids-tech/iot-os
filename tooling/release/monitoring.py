@@ -16,11 +16,17 @@ def render(root, output, environment, domain, write):
     runbook_url = 'https://ops.'+domain+'/runbook'
     rules = yaml.safe_load((local/'alerts.yml').read_text())
     names = {r['alert'] for g in rules['groups'] for r in g['rules']}
-    for group in yaml.safe_load((release/'alerts.yml').read_text())['groups']:
+    release_groups = yaml.safe_load((release/'alerts.yml').read_text())['groups']
+    telemetry = next(r for g in release_groups for r in g['rules'] if r['alert'] == 'TelemetryStalled')
+    for group in release_groups:
         rules['groups'][0]['rules'] += [r for r in group['rules'] if r['alert'] not in names]
     for group in rules['groups']:
         group['name'] = 'platform'
         for rule in group['rules']:
+            if rule['alert'] == 'TelemetryStalled':
+                # A duplicate local rule must not replace the accepted release
+                # expectation gate when deploy regenerates monitoring files.
+                rule['expr'] = telemetry['expr']
             rule.setdefault('labels', {})['environment'] = environment
             rule.setdefault('annotations', {}).update(dashboard_url=dashboard_url, runbook_url=runbook_url)
             if rule.get('for') in ('15s', '30s', '1m'):

@@ -33,6 +33,7 @@ class NotificationsTest(unittest.TestCase):
         receiver = config["receivers"][0]
         self.assertNotIn("email_configs", receiver)
         self.assertTrue(receiver["webhook_configs"][0]["send_resolved"])
+        self.assertEqual(config['route']['group_interval'], '30s')
 
     def test_outage_records_and_replays_events_while_email_is_muted(self):
         with tempfile.TemporaryDirectory() as directory:

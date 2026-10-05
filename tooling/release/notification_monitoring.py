@@ -27,6 +27,6 @@ def alertmanager_config(environment):
         }
     return {
         "global": global_config,
-        "route": {"receiver": "operator", "group_by": ["alertname", "service"], "group_wait": "30s", "repeat_interval": "4h", "routes": [{"matchers": ['severity="critical"'], "receiver": "operator", "repeat_interval": "30m"}]},
+        "route": {"receiver": "operator", "group_by": ["alertname", "service"], "group_wait": "30s", "group_interval": "30s", "repeat_interval": "4h", "routes": [{"matchers": ['severity="critical"'], "receiver": "operator", "repeat_interval": "30m"}]},
         "receivers": [receiver],
     }

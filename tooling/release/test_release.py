@@ -115,6 +115,11 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(alert['route']['routes'][0]['repeat_interval'], '30m')
             rules = yaml.safe_load((deployment.config/'alerts.yml').read_text())
             names = {r['alert'] for g in rules['groups'] for r in g['rules']}
+            actual = next(r['expr'] for g in rules['groups'] for r in g['rules'] if r['alert'] == 'TelemetryStalled')
+            expected = yaml.safe_load((release.RELEASE/'monitoring/alerts.yml').read_text())
+            expression = next(r['expr'] for g in expected['groups'] for r in g['rules'] if r['alert'] == 'TelemetryStalled')
+            self.assertEqual(actual, expression)
+            self.assertIn('iot_simulator_expected_devices > 0', actual)
             self.assertTrue({'BackupOverdue', 'StreamCapacityLow', 'WorkerStalled', 'RestoreDrillOverdue'} <= names)
             self.assertNotIn('localhost', (deployment.config/'alerts.yml').read_text())
             self.assertNotIn('environment="local"', (deployment.config/'loki-rules/fake/errors.yml').read_text())
