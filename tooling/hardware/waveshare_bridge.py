@@ -114,7 +114,9 @@ class Bridge:
             self.mqtt_connected = not reason.is_failure
             self.host_online = self.born = False
             if self.mqtt_connected:
-                client.subscribe([(self.topic("NCMD"), 0), (self.topic("DCMD", "rgb-light"), 0),
+                # Mosquitto authorizes the exact gateway subscription filter.
+                # on_message still accepts commands only for this physical device.
+                client.subscribe([(self.topic("NCMD"), 0), (self.topic("DCMD", "+"), 0),
                                   (f'spBv1.0/STATE/{self.config["host_id"]}', 1)])
 
     def on_disconnect(self, *_):

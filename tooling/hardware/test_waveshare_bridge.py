@@ -57,6 +57,23 @@ class HardwareBridgeTest(unittest.TestCase):
         self.assertTrue(self.bridge.values["power"])
         self.assertEqual(self.bridge.client.publish.call_count, 1)
 
+    def test_gateway_subscription_matches_literal_mosquitto_acl(self):
+        reason = Mock(is_failure=False)
+        self.bridge.on_connect(self.bridge.client, None, None, reason, None)
+        self.bridge.client.subscribe.assert_called_once_with([
+            (self.bridge.topic("NCMD"), 0),
+            (self.bridge.topic("DCMD", "+"), 0),
+            ("spBv1.0/STATE/host", 1),
+        ])
+
+    def test_commands_for_other_device_never_reach_the_board(self):
+        self.bridge.accept_report(self.report())
+        payload = sp.Payload()
+        payload.metrics.append(metric("Power", sp.Boolean, True))
+        message = Mock(topic=self.bridge.topic("DCMD", "another-device"), payload=payload.SerializeToString(), retain=False)
+        self.bridge.on_message(None, None, message)
+        self.assertTrue(self.bridge.commands.empty())
+
     def test_report_validation_rejects_replays_partial_and_faulted_states(self):
         self.bridge.accept_report(self.report())
         for report in [self.report(), self.report(seq=2, hardware_ok=False),
