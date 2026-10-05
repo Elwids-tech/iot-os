@@ -27,6 +27,8 @@ def main():
     old = Deployment(live, current_manifest)
     if old.broker != 'emqx':
         raise ValueError('Migration requires an existing EMQX deployment')
+    if (old.state/'mosquitto/dynamic-security.json').exists():
+        raise ValueError('Existing Mosquitto state requires review; reuse saved credentials, never reset it')
     if (old.config/'RESTORE_QUARANTINE').exists() or (old.config/'DEPLOYMENT_INCOMPLETE').exists():
         raise ValueError('Reconcile recovery/deployment state before broker migration')
     marker = old.config/'BROKER_MIGRATION_INCOMPLETE'

@@ -16,7 +16,14 @@ import (
 	"time"
 )
 
-const testPassword = "isolated-fixture-password-48-characters-long"
+var testPassword = testEnv("BROKER_TEST_PASSWORD", "isolated-fixture-password-48-characters-long")
+
+func testEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
 
 func fixtureControl(t *testing.T) *MQTT {
 	t.Helper()
@@ -24,7 +31,7 @@ func fixtureControl(t *testing.T) *MQTT {
 	if address == "" {
 		t.Skip("isolated Docker MQTT fixture required")
 	}
-	m, err := Connect(address, "mqtt.test", os.Getenv("BROKER_TEST_CA"), "elwids-admin", testPassword)
+	m, err := Connect(address, testEnv("BROKER_TEST_SERVER_NAME", "mqtt.test"), os.Getenv("BROKER_TEST_CA"), "elwids-admin", testEnv("BROKER_TEST_ADMIN_PASSWORD", testPassword))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,9 +41,12 @@ func fixtureControl(t *testing.T) *MQTT {
 func testClient(t *testing.T, username, password, id string, will bool, transports ...*net.Conn) (mqtt.Client, error) {
 	t.Helper()
 	pem, _ := os.ReadFile(os.Getenv("BROKER_TEST_CA"))
-	roots := x509.NewCertPool()
-	roots.AppendCertsFromPEM(pem)
-	opts := mqtt.NewClientOptions().AddBroker(os.Getenv("BROKER_TEST_ADDRESS")).SetClientID(id).SetUsername(username).SetPassword(password).SetConnectTimeout(2 * time.Second).SetKeepAlive(2 * time.Second).SetCleanSession(true).SetTLSConfig(&tls.Config{RootCAs: roots, ServerName: "mqtt.test", MinVersion: tls.VersionTLS12})
+	roots, _ := x509.SystemCertPool()
+	if os.Getenv("BROKER_TEST_CA") != "" {
+		roots = x509.NewCertPool()
+		roots.AppendCertsFromPEM(pem)
+	}
+	opts := mqtt.NewClientOptions().AddBroker(os.Getenv("BROKER_TEST_ADDRESS")).SetClientID(id).SetUsername(username).SetPassword(password).SetConnectTimeout(2 * time.Second).SetKeepAlive(2 * time.Second).SetCleanSession(true).SetTLSConfig(&tls.Config{RootCAs: roots, ServerName: testEnv("BROKER_TEST_SERVER_NAME", "mqtt.test"), MinVersion: tls.VersionTLS12})
 	if will {
 		opts.SetWill("spBv1.0/STATE/host-a", `{"online":false}`, 1, true)
 	}
@@ -67,7 +77,7 @@ func provisionHTTP(t *testing.T, a *Admin, c Client) {
 	body, _ := json.Marshal(c)
 	if base := os.Getenv("BROKER_TEST_ADMIN_URL"); base != "" {
 		request, _ := http.NewRequest("PUT", base+"/clients", strings.NewReader(string(body)))
-		request.Header.Set("Authorization", "Bearer fixture-private-token-32-characters-long")
+		request.Header.Set("Authorization", "Bearer "+testEnv("BROKER_TEST_TOKEN", "fixture-private-token-32-characters-long"))
 		response, err := (&http.Client{Timeout: 30 * time.Second}).Do(request)
 		if err != nil {
 			t.Fatal("private adapter unavailable", err)
@@ -110,6 +120,30 @@ func rules(group, edge, host string, isHost bool) []Rule {
 func TestMosquittoAcceptance(t *testing.T) {
 	m := fixtureControl(t)
 	a := New(m, "fixture-private-token")
+	if os.Getenv("BROKER_TEST_CLEANUP") == "true" {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		for _, username := range []string{"host-a", "edge-a", "host-b", "edge-b"} {
+			if err := m.Execute(ctx, Command{"command": "getClient", "username": username}); err == nil || err.Error() != "Client not found" {
+				t.Fatal("refusing to overwrite an existing acceptance identity")
+			}
+		}
+		t.Cleanup(func() {
+			if cleaner, err := testClient(t, "host-a", testPassword, "acceptance-cleanup", false); err == nil {
+				waitToken(t, cleaner.Publish("spBv1.0/STATE/host-a", 1, true, []byte{}))
+				cleaner.Disconnect(100)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			for _, username := range []string{"host-a", "edge-a", "host-b", "edge-b"} {
+				for _, command := range []Command{{"command": "deleteClient", "username": username}, {"command": "deleteRole", "rolename": "elwids-" + username}} {
+					if err := m.Execute(ctx, command); err != nil && err.Error() != "Client not found" && err.Error() != "Role not found" {
+						t.Error("acceptance identity cleanup failed")
+					}
+				}
+			}
+		})
+	}
 	if base := os.Getenv("BROKER_TEST_ADMIN_URL"); base != "" {
 		response, err := http.Get(base + "/health/ready")
 		if err != nil {
@@ -141,7 +175,7 @@ func TestMosquittoAcceptance(t *testing.T) {
 		bad.Disconnect(100)
 		t.Fatal("anonymous accepted")
 	}
-	if wrong, err := Connect(os.Getenv("BROKER_TEST_ADDRESS"), "wrong.test", os.Getenv("BROKER_TEST_CA"), "elwids-admin", testPassword); err == nil {
+	if wrong, err := Connect(os.Getenv("BROKER_TEST_ADDRESS"), "wrong.test", os.Getenv("BROKER_TEST_CA"), "elwids-admin", testEnv("BROKER_TEST_ADMIN_PASSWORD", testPassword)); err == nil {
 		wrong.Close()
 		t.Fatal("wrong TLS hostname accepted")
 	}

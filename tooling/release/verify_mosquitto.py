@@ -26,13 +26,14 @@ def main():
     name = 'elwids-mqtt-test-' + uuid.uuid4().hex[:10]
     with tempfile.TemporaryDirectory(prefix=name) as temp:
         path = Path(temp)
+        path.chmod(0o755) # non-root fixture containers must traverse this mount
         arch = subprocess.check_output(['docker', 'info', '--format', '{{.Architecture}}'], text=True).strip()
         arch = {'aarch64': 'arm64', 'x86_64': 'amd64'}.get(arch, arch)
         run(['go', 'test', '-c', '-o', str(path/'tests'), './internal/brokeradmin'], cwd=ROOT/'services/runtime', env={**os.environ, 'GOOS': 'linux', 'GOARCH': arch, 'CGO_ENABLED': '0'})
         run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=mqtt.test', '-addext', 'subjectAltName=DNS:mqtt.test', '-keyout', str(path/'privkey.pem'), '-out', str(path/'fullchain.pem')], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         (path/'privkey.pem').chmod(0o644) # disposable one-day fixture only
         shutil.copy2(ROOT/'deploy/release/mosquitto.conf', path/'mosquitto.conf')
-        run(['docker', 'run', '--rm', '--user', '0', '-v', str(path)+':/fixture', IMAGE, 'mosquitto_ctrl', 'dynsec', 'init', '/fixture/dynamic-security.json', 'elwids-admin', PASSWORD], stdout=subprocess.DEVNULL)
+        run(['docker', 'run', '--rm', '--user', str(os.getuid())+':'+str(os.getgid()), '-v', str(path)+':/fixture', IMAGE, 'mosquitto_ctrl', 'dynsec', 'init', '/fixture/dynamic-security.json', 'elwids-admin', PASSWORD], stdout=subprocess.DEVNULL)
         config = json.loads((path/'dynamic-security.json').read_text())
         config['defaultACLAccess'] = {'publishClientSend': False, 'publishClientReceive': False, 'subscribe': False, 'unsubscribe': True}
         (path/'dynamic-security.json').write_text(json.dumps(config))
