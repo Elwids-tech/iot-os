@@ -3,6 +3,8 @@
 import argparse
 from datetime import datetime, timezone
 import fcntl
+import http.client
+import ipaddress
 import json
 from pathlib import Path
 import smtplib
@@ -10,6 +12,7 @@ import socket
 import ssl
 import time
 import urllib.request
+import urllib.parse
 import uuid
 from email.message import EmailMessage
 
@@ -20,8 +23,28 @@ def api_request(config, path, payload=None):
         raise RuntimeError("Notification center is not configured")
     url = config.get("notifications_url", "https://api.staging.elwids.xyz/api/internal/notifications") + path
     request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "Content-Type": "application/json", "Accept": "application/json"}, data=json.dumps(payload).encode() if payload is not None else None)
-    with urllib.request.urlopen(request, timeout=8) as response:
-        return json.load(response)
+    private_host = config.get("notifications_private_host")
+    if not private_host:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            return json.load(response)
+    address = ipaddress.ip_address(private_host)
+    if not address.is_private:
+        raise ValueError("Notification transport must use the private tunnel")
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError("Private notification transport requires verified TLS")
+    connection = http.client.HTTPSConnection(parsed.hostname, parsed.port or 443, timeout=8, context=ssl.create_default_context())
+    # Pin only the connection address. HTTPSConnection still checks the
+    # certificate and SNI against the public API hostname through the tunnel.
+    connection._create_connection = lambda destination, timeout, source_address: socket.create_connection((str(address), parsed.port or 443), timeout, source_address)
+    try:
+        connection.request("POST" if payload is not None else "GET", parsed.path, body=json.dumps(payload).encode() if payload is not None else None, headers={"Authorization": "Bearer " + token, "Content-Type": "application/json", "Accept": "application/json"})
+        response = connection.getresponse()
+        if response.status != 200:
+            raise RuntimeError("Private notification API returned " + str(response.status))
+        return json.loads(response.read())
+    finally:
+        connection.close()
 
 
 def probe():

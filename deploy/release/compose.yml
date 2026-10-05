@@ -80,6 +80,7 @@ services:
       DOMAIN: ${DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL:?}
       VPN_CIDR: ${VPN_CIDR:?}
+      WATCHDOG_PRIVATE_IP: ${WATCHDOG_PRIVATE_IP:-127.0.0.1}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./Acme.Caddyfile:/etc/caddy/Acme.Caddyfile:ro

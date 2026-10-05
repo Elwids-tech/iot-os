@@ -45,6 +45,13 @@ recovery. Its SMTP path remains independent of the failed application host;
 replayed events do not send duplicate API emails. The preference grid therefore
 takes up to one watchdog interval to affect its independent sender.
 
+For the two-server pilot, set `WATCHDOG_PRIVATE_IP` to the database host's
+WireGuard address and `notifications_private_host` in its private watchdog
+configuration to the application host's WireGuard address. Only the two
+watchdog endpoints are allowed through that private client address. TLS still
+verifies the API hostname and certificate. Internal endpoints remain blocked
+on public connections; Alertmanager uses the existing private Docker network.
+
 ## Verification
 
 API tests cover master opt-out, queued-delivery cancellation, unchanged event

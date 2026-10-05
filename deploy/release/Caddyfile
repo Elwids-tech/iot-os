@@ -11,9 +11,18 @@ admin.{$DOMAIN} {
     reverse_proxy admin:80
 }
 api.{$DOMAIN} {
+    @watchdog {
+        path /api/internal/notifications/watchdog /api/internal/notifications/watchdog-preferences
+        remote_ip {$WATCHDOG_PRIVATE_IP}
+    }
+    handle @watchdog {
+        reverse_proxy api-web:80
+    }
+    handle {
     @internal path /internal/* /api/internal/*
     respond @internal 404
     reverse_proxy api-web:80
+    }
 }
 ops.{$DOMAIN} {
     @vpn remote_ip {$VPN_CIDR}
