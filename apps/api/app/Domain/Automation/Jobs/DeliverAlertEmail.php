@@ -53,6 +53,8 @@ final class DeliverAlertEmail implements ShouldQueue
             $reason = null;
             if (! $allowed) {
                 $reason = 'Recipient access is no longer valid.';
+            } elseif (! \App\Domain\Notifications\Services\Preferences::allows($user, 'workflow', $delivery->type === 'cleared' ? 'recovery' : 'warning')) {
+                $reason = 'Recipient email preferences are disabled.';
             } elseif (! ($settings['enabled'] ?? false) || ! in_array($delivery->recipient_id, $settings['recipient_ids'] ?? [], true) || ($delivery->type === 'cleared' && ! ($settings['notify_on_clear'] ?? false))) {
                 $reason = 'Notification subscription was removed or disabled.';
             } elseif ($alert->deployment->stopped_reason || $alert->deployment->status === 'failed' || $workflow->desired_deployment_uuid === null) {

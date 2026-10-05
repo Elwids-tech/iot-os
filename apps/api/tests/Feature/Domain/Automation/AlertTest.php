@@ -74,6 +74,23 @@ final class AlertTest extends TestCase
         (new DeliverAlertEmail($delivery->uuid))->handle(app(DeviceAuthorization::class));
     }
 
+    public function test_personal_email_opt_out_preserves_workflow_events_and_cancels_pending_mail(): void
+    {
+        $this->settings();
+        $this->transition('activated');
+        $delivery = AlertDelivery::firstOrFail();
+        DB::table('notification_preferences')->insert([
+            'user_id' => $this->recipient->id, 'email_enabled' => false, 'revision' => 1,
+            'grid' => json_encode(\App\Domain\Notifications\Services\Preferences::view($this->recipient)['grid']),
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->deliver($delivery);
+        Mail::assertNothingSent();
+        $this->assertSame('cancelled', $delivery->fresh()->status);
+        $this->assertDatabaseCount('notification_events', 1);
+        $this->assertDatabaseCount('automation_alerts', 1);
+    }
+
     public function test_episode_projection_deduplication_acknowledgement_and_comments(): void
     {
         $this->transition('activated');

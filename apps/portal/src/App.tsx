@@ -98,6 +98,7 @@ const TelemetryViewer = lazy(() => import("./telemetry/TelemetryViewer"))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
 const IntegrationRoutes = lazy(() => import("./integrations/Integrations"))
 const AlertRoutes = lazy(() => import("./alerts/Alerts"))
+const NotificationCenter = lazy(() => import("./notifications/NotificationCenter"))
 const AssistantPanel = lazy(() => import("./assistant/AssistantPanel"))
 const ProfileWorkspace = lazy(() =>
   import("./profiles/ProfileWorkspace").then((module) => ({
@@ -221,6 +222,8 @@ function Session() {
     <>
       <Routes>
         <Route element={<PortalShell user={user} />}>
+          <Route path="notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
+          <Route path="organizations/:organizationUuid/notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
           <Route path="organizations/:organizationUuid/devices/*" element={<Suspense fallback={<PageFallback />}><DeviceRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/integrations/*" element={<Suspense fallback={<PageFallback />}><IntegrationRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/automation/*" element={<Suspense fallback={<PageFallback />}><AutomationRoutes /></Suspense>} />
@@ -400,6 +403,7 @@ const navigationGroups = [
   [
     { path: "dashboards", label: "Dashboards", icon: LayoutGridIcon },
     { path: "alerts", label: "Alerts", icon: BellIcon },
+    { path: "notifications", label: "Notification center", icon: BellIcon },
   ],
   [
     { path: "devices", label: "Devices", icon: CpuIcon },
@@ -592,6 +596,9 @@ function PortalSidebar({
                 <DropdownMenuSeparator />
                 <AppearanceMenuItems />
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/notifications"><BellIcon />Notification center</Link>
+                </DropdownMenuItem>
                 {user.capabilities.platform_administration && (
                   <DropdownMenuItem asChild>
                     <a href={adminUrl}>

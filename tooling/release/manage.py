@@ -208,7 +208,8 @@ class Deployment:
                 targets.append("http://broker-admin:8082/health/ready")
             scrape.append({"job_name": name, "metrics_path": "/probe", "params": {"module": [module]}, "static_configs": [{"targets": targets}], "relabel_configs": [{"source_labels": ["__address__"], "target_label": "__param_target"}, {"source_labels": ["__param_target"], "target_label": "instance"}, {"target_label": "__address__", "replacement": "blackbox:9115"}]})
         private_write(self.config / "prometheus.yml", yaml.safe_dump({"global": {"scrape_interval": "30s", "evaluation_interval": "30s"}, "rule_files": ["/etc/prometheus/alerts.yml"], "alerting": {"alertmanagers": [{"static_configs": [{"targets": ["alertmanager:9093"]}]}]}, "scrape_configs": scrape}), 0o644)
-        private_write(self.config / "alertmanager.yml", yaml.safe_dump({"global": {"smtp_smarthost": "smtp-relay.brevo.com:587", "smtp_from": self.env.get("ALERT_FROM_ADDRESS") or self.env["MAIL_FROM_ADDRESS"], "smtp_auth_username": self.env.get("ALERT_SMTP_USERNAME") or self.env["MAIL_USERNAME"], "smtp_auth_password": self.env.get("ALERT_SMTP_PASSWORD") or self.env["MAIL_PASSWORD"], "smtp_require_tls": True}, "route": {"receiver": "operator", "group_by": ["alertname", "service"], "group_wait": "30s", "repeat_interval": "4h", "routes": [{"matchers": ['severity="critical"'], "receiver": "operator", "repeat_interval": "30m"}]}, "receivers": [{"name": "operator", "email_configs": [{"to": self.env["ALERT_EMAIL"], "send_resolved": True}]}]}), 0o644)
+        from notification_monitoring import alertmanager_config
+        private_write(self.config / "alertmanager.yml", yaml.safe_dump(alertmanager_config(self.env)), 0o644)
 
     def nats_capacity(self):
         defaults = {"STORE": 24<<30, "CONTROL": 64<<20, "EVENTS": 4<<30, "TELEMETRY": 12<<30, "COMMITTED": 4<<30}

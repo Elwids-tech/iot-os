@@ -21,6 +21,7 @@ export * from "./dashboards"
 export * from "./devices"
 export * from "./telemetry"
 export * from "./alerts"
+export * from "./notifications"
 export * from "./geospatial"
 
 export type Organization = {
@@ -484,6 +485,18 @@ export class ApiClient {
     return this.request<ApiResponse<AuthenticatedUser>>("/api/v1/me").then(
       (response) => response.data,
     )
+  }
+
+  notificationPreferences() {
+    return this.data<import("./notifications").NotificationPreferences>("/api/v1/notifications/preferences")
+  }
+
+  updateNotificationPreferences(input: import("./notifications").NotificationPreferences) {
+    return this.data<import("./notifications").NotificationPreferences>("/api/v1/notifications/preferences", "PUT", input)
+  }
+
+  notificationEvents(query = "") {
+    return this.request<import("./notifications").NotificationEventsPage>(`/api/v1/notifications/events?${query}`)
   }
 
   async organizationContext(uuid: string): Promise<Organization> {

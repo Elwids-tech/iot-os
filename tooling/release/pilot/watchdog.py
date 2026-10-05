@@ -1,82 +1,132 @@
-import argparse
-import json
-import time
-import ssl
-import socket
-import smtplib
-import urllib.request
-from email.message import EmailMessage
-from pathlib import Path
+"""Independent checks with cached email preferences and durable event replay."""
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--drill-firing", action="store_true")
-args = parser.parse_args()
-e = json.loads(Path("/srv/elwids/private/watchdog.json").read_text())
-path = Path("/srv/elwids/private/watchdog-state.json")
-state = (
-    json.loads(path.read_text())
-    if path.exists()
-    else {"failures": 0, "active": False, "last_sent": 0}
-)
-failures = []
-for url in [
-    "https://app.staging.elwids.xyz/",
-    "https://api.staging.elwids.xyz/health/ready",
-]:
+import argparse
+from datetime import datetime, timezone
+import fcntl
+import json
+from pathlib import Path
+import smtplib
+import socket
+import ssl
+import time
+import urllib.request
+import uuid
+from email.message import EmailMessage
+
+
+def api_request(config, path, payload=None):
+    token = config.get("notifications_token")
+    if not token:
+        raise RuntimeError("Notification center is not configured")
+    url = config.get("notifications_url", "https://api.staging.elwids.xyz/api/internal/notifications") + path
+    request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "Content-Type": "application/json", "Accept": "application/json"}, data=json.dumps(payload).encode() if payload is not None else None)
+    with urllib.request.urlopen(request, timeout=8) as response:
+        return json.load(response)
+
+
+def probe():
+    failures = []
+    for url in ["https://app.staging.elwids.xyz/", "https://api.staging.elwids.xyz/health/ready"]:
+        try:
+            with urllib.request.urlopen(url, timeout=10) as response:
+                if response.status != 200:
+                    raise RuntimeError("Unhealthy")
+        except Exception:
+            failures.append(url)
     try:
-        with urllib.request.urlopen(url, timeout=10) as r:
-            assert r.status == 200
+        with socket.create_connection(("mqtt.staging.elwids.xyz", 8883), timeout=10) as raw:
+            with ssl.create_default_context().wrap_socket(raw, server_hostname="mqtt.staging.elwids.xyz"):
+                pass
     except Exception:
-        failures.append(url)
-try:
-    with socket.create_connection(("mqtt.staging.elwids.xyz", 8883), timeout=10) as raw:
-        with ssl.create_default_context().wrap_socket(
-            raw, server_hostname="mqtt.staging.elwids.xyz"
-        ):
-            pass
-except Exception:
-    failures.append("MQTT TLS")
-if args.drill_firing:
-    failures = ["Controlled watchdog alert drill"]
-    state["failures"] = 2
-state["failures"] = state["failures"] + 1 if failures else 0
-now = int(time.time())
-notify = (
-    state["failures"] >= 3 and (not state["active"] or now - state["last_sent"] >= 3600)
-) or (not failures and state["active"])
-if notify:
-    firing = bool(failures)
-    m = EmailMessage()
-    m["From"] = "Elwids Alerts <alerts@elwids.xyz>"
-    m["To"] = e["recipient"]
-    m["Subject"] = (
-        "[FIRING]" if firing else "[RESOLVED]"
-    ) + " Elwids application watchdog"
-    m.set_content(
-        "Independent watchdog on the database host.\n"
-        + (
-            "Failed checks: " + ", ".join(failures)
-            if firing
-            else "Application HTTPS, API/database readiness, and MQTT TLS checks have recovered."
-        )
-        + "\nThis watchdog can send mail when the application host is unavailable.\n"
-    )
-    with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=20) as s:
-        s.ehlo()
-        s.starttls(context=ssl.create_default_context())
-        s.ehlo()
-        s.login(e["login"], e["key"])
-        assert not s.send_message(m)
-    state["active"] = firing
-    state["last_sent"] = now
-    print(
-        "Watchdog firing notification sent."
-        if firing
-        else "Watchdog recovery notification sent."
-    )
-path.write_text(json.dumps(state))
-path.chmod(0o600)
-if failures:
-    print("Watchdog detected a failed check; consecutive samples:", state["failures"])
-else:
-    print("Watchdog HTTPS/API/MQTT checks passed.")
+        failures.append("MQTT TLS")
+    return failures
+
+
+def send_email(config, event):
+    message = EmailMessage()
+    message["From"] = "Elwids Alerts <alerts@elwids.xyz>"
+    message["To"] = config["recipient"]
+    message["Subject"] = "[" + event["status"].upper() + "] Elwids application watchdog"
+    message.set_content(event["summary"] + "\n\nView events: https://app.staging.elwids.xyz/notifications\n")
+    with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=20) as smtp:
+        smtp.ehlo()
+        smtp.starttls(context=ssl.create_default_context())
+        smtp.ehlo()
+        smtp.login(config["login"], config["key"])
+        if smtp.send_message(message):
+            raise RuntimeError("SMTP rejected a recipient")
+
+
+def save_state(path, state):
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(state))
+    temporary.chmod(0o600)
+    temporary.replace(path)
+
+
+def run(config, path, drill=False):
+    state = json.loads(path.read_text()) if path.exists() else {"failures": 0, "active": False, "last_sent": 0}
+    # Default to no email when provisioning or when no preference cache exists.
+    prefs = state.get("preferences", {"email_enabled": False, "grid": {"critical": False, "recovery": False}})
+    try:
+        prefs = api_request(config, "/watchdog-preferences")
+        state["preferences"] = prefs
+        state["preferences_checked_at"] = int(time.time())
+    except Exception:
+        print("Preferences endpoint unavailable; retained the last saved settings.")
+    failures = ["Controlled watchdog alert drill"] if drill else probe()
+    state["failures"] = (2 if drill else state.get("failures", 0)) + 1 if failures else 0
+    active = bool(state.get("active"))
+    transition = (state["failures"] >= 3 and not active) or (not failures and active)
+    pending = state.setdefault("pending_events", [])
+    now = int(time.time())
+    if transition:
+        firing = bool(failures)
+        incident = str(uuid.uuid4()) if firing else state.get("incident_id", "legacy-outage")
+        status = "firing" if firing else "resolved"
+        event = {
+            "event_id": incident + ":" + status, "incident_id": incident, "status": status,
+            "occurred_at": datetime.now(timezone.utc).isoformat(),
+            "summary": "Failed checks: " + ", ".join(failures) if firing else "Application HTTPS, API/database readiness, and MQTT TLS checks recovered.",
+        }
+        pending.append(event)
+        state.update(active=firing, incident_id=incident, latest_event=event, last_sent=0)
+        save_state(path, state)
+    latest = state.get("latest_event")
+    level = "critical" if failures else "recovery"
+    should_email = latest and (transition or (failures and state.get("active") and now - state.get("last_sent", 0) >= 3600))
+    if should_email and prefs.get("email_enabled") is True and prefs.get("grid", {}).get(level) is True:
+        try:
+            send_email(config, latest)
+            state["last_sent"] = now
+            print("Watchdog email accepted.")
+        except Exception:
+            print("Watchdog SMTP delivery failed; event retained.")
+    # Replay persisted outage/recovery transitions after the API comes back.
+    # The API deduplicates by incident and status and never sends watchdog mail twice.
+    for event in list(pending)[:5]:
+        try:
+            api_request(config, "/watchdog", event)
+        except Exception:
+            print("Notification API unavailable; event retained for replay.")
+            break
+        pending.remove(event)
+        save_state(path, state)
+    save_state(path, state)
+    print("Watchdog detected failed checks." if failures else "Watchdog HTTPS/API/MQTT checks passed.")
+    return state
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--drill-firing", action="store_true")
+    args = parser.parse_args()
+    path = Path("/srv/elwids/private/watchdog-state.json")
+    with path.with_suffix(".lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        config = json.loads(Path("/srv/elwids/private/watchdog.json").read_text())
+        run(config, path, args.drill_firing)
+
+
+if __name__ == "__main__":
+    main()
