@@ -32,9 +32,18 @@ configured. Do not run both delivery routes. Alertmanager sends transitions to
 incident/status update the seen count without new mail or dashboard rows.
 Resolved incidents cannot be reopened by a delayed firing envelope.
 
+The pilot runs `tooling/release/pilot/reconcile_notifications.py` once a minute
+on the application host. It checks Alertmanager's current incidents, including
+silenced and inhibited alerts, and closes orphaned service events older than two
+minutes after monitoring restarts. Reconstructed recovery timestamps are labeled
+in the event details. If monitoring is unavailable or returns an invalid response,
+it retains the existing state instead of claiming recovery.
+
 Run `php artisan notifications:backfill` to import existing workflow history
 without sending mail. Earlier service emails cannot be reconstructed from
 Alertmanager alone; service history starts when the webhook is enabled.
+The pilot also imports retained Prometheus samples as approximate historical
+incidents, clearly labeled in the dashboard. These are not exact email records.
 
 The independent watchdog keeps checking the application host when its API is
 unavailable. Its private configuration adds `notifications_token` and

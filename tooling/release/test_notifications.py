@@ -11,9 +11,19 @@ from notification_monitoring import alertmanager_config
 spec = importlib.util.spec_from_file_location("watchdog", Path(__file__).parent / "pilot/watchdog.py")
 watchdog = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(watchdog)
+reconcile_spec = importlib.util.spec_from_file_location("notification_reconcile", Path(__file__).parent / "pilot/reconcile_notifications.py")
+notification_reconcile = importlib.util.module_from_spec(reconcile_spec)
+reconcile_spec.loader.exec_module(notification_reconcile)
 
 
 class NotificationsTest(unittest.TestCase):
+    def test_unavailable_monitoring_never_clears_incidents(self):
+        deployment = MagicMock()
+        with patch.object(notification_reconcile, 'active_keys', side_effect=OSError('unavailable')):
+            with self.assertRaises(OSError):
+                notification_reconcile.reconcile(deployment)
+        deployment.compose.assert_not_called()
+
     def test_private_transport_keeps_tls_hostname_and_certificate_verification(self):
         connection = MagicMock()
         connection.getresponse.return_value.status = 200
