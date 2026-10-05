@@ -1,0 +1,39 @@
+# Dedicated database VM. Start only after wg-elwids is established.
+# init-db.sql is rendered from the same private release environment as the app.
+name: elwids-pilot-database
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.29.2-pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: iot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      NO_TS_TUNE: "true"
+    ports:
+      - "${DATABASE_HOST:?}:5432:5432"
+    volumes:
+      - ${STATE_DIR:?}/postgres:/var/lib/postgresql/data
+      - ${CONFIG_DIR:?}/init-db.sql:/docker-entrypoint-initdb.d/010-roles.sql:ro
+      - ${CONFIG_DIR}/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    command: [postgres, -c, shared_buffers=2GB, -c, max_connections=100, -c, work_mem=8MB, -c, maintenance_work_mem=256MB, -c, hba_file=/etc/postgresql/pg_hba.conf]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d iot]
+      interval: 5s
+      retries: 30
+    mem_limit: 6g
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    command: ["--path.rootfs=/host", "--web.listen-address=${DATABASE_HOST:?}:9100"]
+    volumes:
+      - /:/host:ro,rslave
+    mem_limit: 64m
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

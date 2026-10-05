@@ -34,11 +34,19 @@ loki.process "containers" {
     older_than = "1h"
     drop_counter_reason = "historical_startup_logs"
   }
-  stage.logfmt {
-    mapping = { level = "level" }
+  // Parsing a JSON line as logfmt emits an Alloy error. Ingesting those errors
+  // recursively creates a log storm, so select the format before parsing it.
+  stage.match {
+    selector = "{job=\"containers\"} |~ \"^[A-Za-z_][A-Za-z0-9_]*=\""
+    stage.logfmt {
+      mapping = { level = "level" }
+    }
   }
-  stage.json {
-    expressions = { level = "level_name || level" }
+  stage.match {
+    selector = "{job=\"containers\"} |~ \"^[[:space:]]*[{]\""
+    stage.json {
+      expressions = { level = "level_name || level" }
+    }
   }
   stage.template {
     source = "level"

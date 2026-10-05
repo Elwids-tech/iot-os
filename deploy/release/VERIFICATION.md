@@ -21,16 +21,27 @@ and recovery evidence, not acceptance of a provisioned Hetzner environment.
   retained accounts/devices/history, quarantined queued side effects, and resumed
   the source deployment successfully. Disposable containers/volumes were removed.
 
-## Evidence still required before inviting testers
+## Remote pilot verification — 2026-10-04
 
-The GitHub release workflow has not run remotely. No cloud host or public release
-has been deployed. Verify x86 image publishing, host provisioning/firewall/VPN,
-DNS and real certificate renewal, SMTP delivery and password/invitation flows,
-external alerts, MQTT ACL rejection, failure/reboot/upgrade/rollback recovery,
-and AI provider controls on the target environment.
+The [Hetzner pilot runbook](../../docs/pilot-two-server-deployment.md) records
+the deployed revision, actual provider/host layout, repository-scoped image
+transfer and current launch limits. CI release/image export succeeded. Remote
+HTTPS/readiness, key-only SSH, WireGuard, private database traffic, public IPv4
+port checks, Brevo delivery, alert/watchdog notifications, certificate renewal
+dry-run and separate host reboot recovery were exercised. The newest encrypted
+off-site checkpoint restored into an isolated database, with 83 public tables
+verified after side-effect quarantine. Local split-database container verification
+and 19 release tests passed separately.
 
-The successful database restore does **not** verify the complete encrypted
-off-host Restic archive roundtrip, cold broker/JetStream state recovery, or the
-one-working-day recovery target. Rehearse those on a disposable host. The 48-hour
-soak and 25% memory-headroom acceptance gate have not been run. Review the EMQX
-license before external use. See README.md for required private inputs and gates.
+This does not establish full replacement-host/broker restoration, measured
+recovery time, client hardware/tenant ACL/password-invitation acceptance, complete
+public IPv6 checks, WAL/PITR, provider-wide external monitoring or a 48-hour soak.
+Review the EMQX hosted/SaaS licensing gate before external use. Do not interpret
+the older local fixture evidence as current client-environment acceptance.
+
+The broad local `tooling/monitoring/verify.py --drills` run on this date could
+not reach its failure drills because development API/runtime readiness failed.
+The local runtime reports `workflow telemetry checkpoint lost continuity;
+recovery required`. Its retained state was preserved; this is not a passing
+local monitoring acceptance run. The parser configuration was validated with
+Alloy itself and recreated in both local and remote environments separately.

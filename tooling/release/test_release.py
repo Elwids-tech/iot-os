@@ -14,6 +14,47 @@ spec.loader.exec_module(release)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_external_database_rejects_public_loopback_and_hostname_targets(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            for host in ('8.8.8.8', '127.0.0.1', '169.254.169.254', 'database.example.com', '', '::1'):
+                deployment.env['DATABASE_HOST'] = host
+                with self.subTest(host=host), self.assertRaises(ValueError):
+                    deployment.validate_database_host()
+            deployment.env['DATABASE_HOST'] = '10.78.0.2'
+            deployment.validate_database_host()
+
+    def test_external_database_uses_tunnel_and_disposable_client(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.env['DATABASE_HOST'] = '10.78.0.2'
+            with patch.object(release, 'run', return_value=SimpleNamespace(stdout='[{"dev":"wg-elwids"}]')), patch.object(deployment, 'compose') as compose:
+                deployment.database_ready()
+                self.assertEqual(compose.call_args.args[:5], ('run', '--rm', '--no-deps', '-T', 'db-client'))
+            with patch.object(release, 'run', return_value=SimpleNamespace(stdout='[{"dev":"eth0"}]')), patch.object(deployment, 'compose') as compose:
+                with self.assertRaisesRegex(ValueError, 'WireGuard'):
+                    deployment.database_ready()
+                compose.assert_not_called()
+
+    def test_external_restore_never_contacts_live_database(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.env['DATABASE_HOST'] = '10.78.0.2'
+            with patch.object(deployment, 'compose') as compose, patch.object(deployment, 'restic') as restic:
+                with self.assertRaisesRegex(ValueError, 'Remote database restore is disabled'):
+                    deployment.restore('backup.env', 'latest', Path(temp)/'restore')
+                compose.assert_not_called()
+                restic.assert_not_called()
+
+    def test_external_database_host_is_monitored_over_its_private_address(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.env['DATABASE_HOST'] = '10.78.0.2'
+            deployment.render()
+            prometheus = yaml.safe_load((deployment.config/'prometheus.yml').read_text())
+            host = next(job for job in prometheus['scrape_configs'] if job['job_name'] == 'host')
+            self.assertIn({'targets': ['10.78.0.2:9100'], 'labels': {'role': 'database'}}, host['static_configs'])
+
     def deployment(self, root):
         root = Path(root)
         values = release.read_env(release.RELEASE/'environment.example')

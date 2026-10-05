@@ -8,6 +8,7 @@ import argparse
 import contextlib
 import fcntl
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -85,8 +86,37 @@ class Deployment:
         # Clear accidental shell overrides; compose interpolation uses the exact private configuration.
         env = {**os.environ, **self.env}
         profiles = ["--profile", "demo", "--profile", "tools"] if args and args[0] in ("stop", "start", "restart", "ps", "down") else []
+        overlays = ["-f", RELEASE / "compose.external-db.yml"] if self.external_database else []
         return run(["docker", "compose", "--project-directory", RELEASE, "--env-file", self.env_path,
-                    "-f", RELEASE / "compose.yml", *profiles, *args], env=env, **kwargs)
+                    "-f", RELEASE / "compose.yml", *overlays, *profiles, *args], env=env, **kwargs)
+
+    @property
+    def external_database(self):
+        return self.env.get("DATABASE_HOST", "timescaledb") != "timescaledb"
+
+    def validate_database_host(self):
+        if self.external_database:
+            try:
+                address = ipaddress.IPv4Address(self.env["DATABASE_HOST"])
+            except ipaddress.AddressValueError:
+                raise ValueError("DATABASE_HOST must be timescaledb or a private WireGuard IPv4 address") from None
+            if not any(address in ipaddress.ip_network(cidr) for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")):
+                raise ValueError("External database must use a private WireGuard IPv4 address")
+
+    def database_command(self, *args, **kwargs):
+        self.validate_database_host()
+        if self.external_database:
+            route = run(["ip", "-j", "route", "get", self.env["DATABASE_HOST"]], stdout=subprocess.PIPE, text=True)
+            if not any(item.get("dev") == "wg-elwids" for item in json.loads(route.stdout)):
+                raise ValueError("External database traffic must use the wg-elwids WireGuard interface")
+            return self.compose("run", "--rm", "--no-deps", "-T", "db-client", *args, **kwargs)
+        return self.compose("exec", "-T", "timescaledb", *args, **kwargs)
+
+    def database_ready(self):
+        if self.external_database:
+            self.database_command("psql", "-v", "ON_ERROR_STOP=1", "-c", "SELECT 1", stdout=subprocess.DEVNULL)
+        else:
+            self.compose("up", "-d", "--wait", "timescaledb", stdout=subprocess.DEVNULL)
 
     @contextlib.contextmanager
     def lock(self):
@@ -96,6 +126,7 @@ class Deployment:
             yield
 
     def validate(self):
+        self.validate_database_host()
         if self.env_path.stat().st_mode & 0o077:
             raise ValueError("Environment file must have mode 0600")
         if self.env.get("DEPLOY_ENVIRONMENT") not in ("staging", "production"):
@@ -147,6 +178,9 @@ class Deployment:
             {"job_name": "host", "static_configs": [{"targets": ["node-exporter:9100"]}]},
             {"job_name": "prometheus", "static_configs": [{"targets": ["localhost:9090"]}]},
         ]
+        if self.external_database:
+            self.validate_database_host()
+            scrape[1]['static_configs'].append({'targets': [self.env['DATABASE_HOST']+':9100'], 'labels': {'role': 'database'}})
         for job, target in [('containers', 'container-metrics:9101'), ('alertmanager', 'alertmanager:9093'), ('loki', 'loki:3100'), ('alloy', 'alloy:12345'), ('blackbox', 'blackbox:9115')]:
             scrape.append({'job_name': job, 'static_configs': [{'targets': [target]}]})
         for name, module, targets in [("health", "http_ok", ["http://api-web/health/ready", "http://runtime:8081/health/ready", "https://app."+domain, "https://api."+domain+"/up"]), ("mqtt", "mqtt_tls", ["mqtt."+domain+":8883"])]:
@@ -217,7 +251,7 @@ class Deployment:
         private_write(self.config / "DEPLOYMENT_INCOMPLETE", self.release_text)
         # Quiesce before migrations and guarantee one runtime across release changes.
         self.compose("stop", "caddy", "simulator", "gps-simulator", *WRITERS, stdout=subprocess.DEVNULL)
-        self.compose("up", "-d", "--wait", "timescaledb", stdout=subprocess.DEVNULL)
+        self.database_ready()
         # Generated files are atomically replaced. Recreate their bind mounts so
         # Docker cannot retain the previous config inode after a release.
         self.compose("up", "-d", "--force-recreate", "--wait", "nats", "emqx", stdout=subprocess.DEVNULL)
@@ -259,7 +293,7 @@ class Deployment:
             time.sleep(45)
             self.compose("stop", *WRITERS, "nats", stdout=subprocess.DEVNULL)
             with (checkpoint / "database.dump").open("wb") as stream:
-                self.compose("exec", "-T", "timescaledb", "pg_dump", "-U", "postgres", "-d", "iot", "-Fc", stdout=stream)
+                self.database_command("pg_dump", "-U", "postgres", "-d", "iot", "-Fc", stdout=stream)
             # Broker and JetStream files are copied only while their owners are stopped.
             run(["tar", "-C", self.state, "-czf", checkpoint / "state.tar.gz", "app", "nats", "emqx", "simulators", "simulator-config", "mqtt-certs", "caddy"], stdout=subprocess.DEVNULL)
             shutil.copy2(self.env_path, checkpoint / "environment")
@@ -276,6 +310,8 @@ class Deployment:
         self.ping_heartbeat("BACKUP_HEARTBEAT_URL")
 
     def restore(self, backup_env, snapshot, destination):
+        if self.external_database:
+            raise ValueError("Remote database restore is disabled: restore the checkpoint on an isolated single-node recovery host, verify quarantine, then migrate to a new database host")
         if self.state.exists() and any(self.state.iterdir()):
             raise ValueError("Restore requires an empty dedicated state directory on an isolated host")
         if not destination or Path(destination).exists():

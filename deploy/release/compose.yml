@@ -18,7 +18,7 @@ x-api-env: &api-env
   LOG_LEVEL: info
   LOG_STDERR_FORMATTER: Monolog\Formatter\JsonFormatter
   DB_CONNECTION: pgsql
-  DB_HOST: timescaledb
+  DB_HOST: ${DATABASE_HOST:-timescaledb}
   DB_PORT: "5432"
   DB_DATABASE: iot
   DB_USERNAME: iot_api
@@ -152,7 +152,7 @@ services:
       DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN}
       DEVICE_CONTROL_URL: http://api-web/api/internal/devices
       IOT_RUNTIME_AUTO_MIGRATE: "false"
-      DEVICE_DATABASE_URL: postgres://iot_runtime:${RUNTIME_DB_PASSWORD:?}@timescaledb:5432/iot?sslmode=disable
+      DEVICE_DATABASE_URL: postgres://iot_runtime:${RUNTIME_DB_PASSWORD:?}@${DATABASE_HOST:-timescaledb}:5432/iot?sslmode=disable
       DEVICE_MQTT_CA_FILE: /etc/ssl/certs/ca-certificates.crt
       NATS_URL: nats://runtime:${NATS_PASSWORD:?}@nats:4222
       IOT_NATS_CONTROL_MAX_BYTES: ${IOT_NATS_CONTROL_MAX_BYTES:-67108864}
@@ -168,7 +168,7 @@ services:
     restart: "no"
     command: ["--migrate"]
     environment:
-      DEVICE_DATABASE_URL: postgres://iot_runtime:${RUNTIME_DB_PASSWORD:?}@timescaledb:5432/iot?sslmode=disable
+      DEVICE_DATABASE_URL: postgres://iot_runtime:${RUNTIME_DB_PASSWORD:?}@${DATABASE_HOST:-timescaledb}:5432/iot?sslmode=disable
   timescaledb:
     <<: *service
     image: timescale/timescaledb:2.29.2-pg17

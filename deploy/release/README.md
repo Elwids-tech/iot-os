@@ -1,24 +1,15 @@
 # Single-node staging and recoverable production pilot
 
-This is the deployable release profile, separate from local development. The first
-target is an Ubuntu LTS VM with `elwids.xyz` and Brevo SMTP. OVHcloud and Hetzner
-are under consideration; no server has been selected or provisioned. Start with
-at least 4 vCPU, 8 GB RAM and 100 GB storage for the complete staging stack, then
-verify memory headroom and seven-day disk runway under measured traffic. Budget
-CAD $40/month including off-host backups and a small AI allowance, excluding
-domain registration; confirm the actual provider quote and location first.
+The current Hetzner two-host pilot, private access, repository-scoped image
+transfer, verified recovery evidence and remaining launch gates are documented in
+[the pilot operations runbook](../../docs/pilot-two-server-deployment.md).
+That record takes precedence over the generic single-node examples below.
 
-Planning update (2026-10-02): the owner has purchased `elwids.xyz`. The new
-[domain, monitoring and email setup plan](../../docs/staging-monitoring-email-setup.md)
-recommends `DOMAIN=staging.elwids.xyz` to isolate staging URLs and cookies. With
-that setting, substitute `app.staging.elwids.xyz`, `api.staging.elwids.xyz`,
-`admin.staging.elwids.xyz`, `mqtt.staging.elwids.xyz` and `ops.staging.elwids.xyz`
-for the base-domain examples below. Host/provider selection remains unconfirmed;
-provider examples are templates, not newly provisioned hosts.
-GoDaddy DNS and an existing unconfigured Brevo account are now confirmed. The
-default MQTT certificate flow now uses HTTP-01 through Caddy and works with
-GoDaddy DNS. The local challenge endpoint was tested; public issuance, renewal
-and broker reconnect acceptance still require the real server.
+This release profile is separate from local development. GoDaddy manages
+elwids.xyz and Brevo sends application/operational email. The pilot uses
+DOMAIN=staging.elwids.xyz and public app, admin, api and mqtt subdomains.
+MQTT HTTP-01 certificate issuance and renewal dry-run passed on the actual host.
+Real client projects are retained; the deployed pilot has no demo seed data.
 
 ## Required private inputs
 
@@ -57,7 +48,8 @@ Run commands from the release's repository checkout. Examples use the project's
    Copy this exact release checkout to `/srv/iot/repository`.
 2. Trigger `.github/workflows/release.yml` on the intended revision. Download
    `single-node-release`; it contains the six image digests in `release.json`.
-   Authenticate the host to GHCR using `docker login --password-stdin`.
+   Prefer the repository-scoped CI image export and private-registry import in
+   the pilot runbook; no personal GitHub token is required on the host.
 3. Generate the environment once:
    `rtk proxy python3 tooling/release/manage.py init --env /srv/iot/private/environment`.
    Fill the private inputs above; retain all generated encryption/service keys.
@@ -113,7 +105,8 @@ worker is included in this release profile and coordinated writer lifecycle.
 Release rendering reuses the exercised [local monitoring](../../docs/local-monitoring.md)
 dashboards, inventory collector and Loki rules, with staging labels, URLs and
 longer evaluation windows. Thirty metric rules and two log rules are provisioned.
-Current target-host delivery and failure-drill evidence is still required.
+Current verified target-host evidence and remaining acceptance gates are recorded
+in the pilot runbook; this guide does not imply completion of every launch check.
 
 Grafana is at `https://ops.elwids.xyz`, VPN-only, using the generated password.
 Prometheus keeps seven days/1 GB of metrics; Loki keeps three days of logs.
@@ -142,8 +135,8 @@ every minute and withholds its heartbeat if probes, scrapes, inventory, rule
 evaluation, recent SMTP failures or the log canary are unhealthy/unknown. It does
 not prove inbox delivery. The backup heartbeat is sent only after off-host upload,
 retention and service restart succeed. Set provider deadlines to five minutes and
-26 hours respectively, and test missed-heartbeat notifications. Accounts, URLs
-and real delivery remain operator inputs.
+26 hours respectively, and test missed-heartbeat notifications. Provider-wide external monitoring and backup heartbeat accounts/URLs remain
+unconfigured in the current pilot. Database-host watchdog delivery is verified.
 
 Application SMTP uses `MAIL_*`. Alertmanager uses optional `ALERT_FROM_ADDRESS`,
 `ALERT_SMTP_USERNAME` and `ALERT_SMTP_PASSWORD`, falling back to application values.

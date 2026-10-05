@@ -5,6 +5,9 @@ COMPOSE_PROJECT_NAME=iot-staging
 STATE_DIR=/srv/iot/state
 CONFIG_DIR=/srv/iot/private
 VPN_CIDR=100.64.0.0/10
+# Set to the database host's WireGuard IPv4 address for a two-server pilot.
+# Leave as timescaledb for the existing single-node release/recovery profile.
+DATABASE_HOST=timescaledb
 ACME_EMAIL=
 MQTT_ACME_CHALLENGE=webroot
 MAIL_USERNAME=
