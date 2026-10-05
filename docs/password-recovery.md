@@ -9,7 +9,9 @@ Requests are limited to 10 per minute per IP and 5 per hour per normalized email
 The broker permits one email per account per minute. Reset attempts are limited
 to 10 per minute per IP. Both endpoints retain the application's CSRF protection.
 
-Email links use the trusted `FRONTEND_URL` configuration. Tokens are hashed in the
+Email links use the trusted `FRONTEND_URL` configuration and carry the token in a
+URL fragment, keeping it out of server access logs and HTTP referrers. The browser
+removes it from the current history entry after a successful reset. Tokens are hashed in the
 existing `password_reset_tokens` table, expire after 60 minutes, and are consumed
 once under a database row lock. Passwords require 12–256 characters and matching
 confirmation. A successful reset rotates the remember token, deletes personal

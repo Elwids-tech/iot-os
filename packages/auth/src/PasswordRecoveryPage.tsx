@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react"
 import { ApiError, type ApiClient } from "@iot-os/api-client"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@iot-os/ui/components/card"
@@ -11,7 +11,9 @@ import { CheckCircle2Icon } from "lucide-react"
 type Errors = Partial<Record<"email" | "password" | "password_confirmation" | "token", string[]>> & { form?: string }
 
 export function PasswordRecoveryPage({ apiClient, mode }: { apiClient: ApiClient; mode: "request" | "reset" }) {
-  const [params, setParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = new URLSearchParams(location.hash.slice(1))
   const token = params.get("token") ?? ""
   const [email, setEmail] = useState(mode === "reset" ? params.get("email") ?? "" : "")
   const [password, setPassword] = useState("")
@@ -31,7 +33,7 @@ export function PasswordRecoveryPage({ apiClient, mode }: { apiClient: ApiClient
         await apiClient.resetPassword({ email, token, password, password_confirmation: confirmation })
         setPassword("")
         setConfirmation("")
-        setParams({}, { replace: true })
+        navigate("/reset-password", { replace: true })
       } else {
         await apiClient.requestPasswordReset(email)
       }

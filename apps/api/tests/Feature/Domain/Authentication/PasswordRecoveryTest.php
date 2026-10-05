@@ -36,7 +36,8 @@ final class PasswordRecoveryTest extends TestCase
         Notification::assertSentToTimes($user, PasswordResetNotification::class, 1);
         $notification = Notification::sent($user, PasswordResetNotification::class)->first();
         $url = $notification->toMail($user)->actionUrl;
-        $this->assertStringStartsWith('https://app.staging.elwids.xyz/reset-password?', $url);
+        $this->assertStringStartsWith('https://app.staging.elwids.xyz/reset-password#', $url);
+        $this->assertNull(parse_url($url, PHP_URL_QUERY));
         $this->assertTrue(Hash::check($notification->token, DB::table('password_reset_tokens')->value('token')));
         $this->assertSame('alerts', $notification->connection);
         for ($i = 0; $i < 3; $i++) {
