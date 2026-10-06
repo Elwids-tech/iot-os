@@ -29,7 +29,7 @@ Real client projects are retained; the deployed pilot has no demo seed data.
 - Brevo SMTP login/key, verified `no-reply@elwids.xyz`, and operator alert mailbox.
   Add the SPF/DKIM/DMARC records supplied by Brevo; test delivery to a real inbox.
 - A separate OpenAI project key. The assistant is disabled until explicitly
-  enabled; application limits are US$0.10/day and US$0.04/run, not hard billing caps.
+  enabled; application limits are US$2.00/day and US$0.04/run, not hard billing caps.
 - Off-host Restic repository, password and S3 or SFTP credentials. A local MinIO
   volume on this VM is **not** an off-host backup. Keep recovery credentials in a
   separate password manager. Initialize the repository once with `restic init`.
