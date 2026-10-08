@@ -1,0 +1,39 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"18px"},"flowchart":{"wrappingWidth":420,"curve":"linear"},"markdownAutoWrap":false}}%%
+flowchart TB
+    subgraph tenantA["Tenant A: isolated integration environment"]
+        deviceA["Manufacturer devices A<br/>Native MQTT topics and payloads"]
+        ingressA["Private tenant A<br/>Mosquitto ingress broker"]
+        vendorA["Optional vendor broker A<br/>Customer-authorized access"]
+        runtimeA["Tenant A Node-RED container<br/>Sandbox decoder + managed publisher"]
+        deviceA -->|"MQTT over TLS"| ingressA
+        ingressA --> runtimeA
+        vendorA --> runtimeA
+    end
+    subgraph tenantB["Tenant B: separate containers, storage and credentials"]
+        deviceB["Manufacturer devices B<br/>May use the same native topics as A"]
+        ingressB["Private tenant B<br/>Mosquitto ingress broker"]
+        runtimeB["Tenant B Node-RED container<br/>Sandbox decoder + managed publisher"]
+        deviceB -->|"MQTT over TLS"| ingressB
+        ingressB --> runtimeB
+    end
+    portal["Platform portal<br/>Profiles, JavaScript, AI proposals and review"]
+    manager["Private runtime manager<br/>Deploy approved revisions and inject secrets"]
+    shared["Shared platform Mosquitto broker<br/>Tenant-scoped Sparkplug B permissions"]
+    ingest["Platform ingestion<br/>Validate identity, profile and activation"]
+    store["Stored readings by virtual device UUID<br/>Dashboards and downstream automation"]
+    portal -.->|"Approved deployment"| manager
+    manager -.-> runtimeA
+    manager -.-> runtimeB
+    runtimeA -->|"Sparkplug B"| shared
+    runtimeB -->|"Sparkplug B"| shared
+    shared --> ingest --> store
+    classDef source fill:#DBEAFE,stroke:#1D4ED8,color:#172554
+    classDef runtime fill:#DCFCE7,stroke:#15803D,color:#14532D
+    classDef control fill:#FEF3C7,stroke:#B45309,color:#451A03
+    classDef storage fill:#EDE9FE,stroke:#6D28D9,color:#2E1065
+    class deviceA,deviceB,vendorA,ingressA,ingressB,shared source
+    class runtimeA,runtimeB,ingest runtime
+    class portal,manager control
+    class store storage
+    style tenantA fill:#F8FAFC,stroke:#64748B,color:#0F172A
+    style tenantB fill:#F8FAFC,stroke:#64748B,color:#0F172A

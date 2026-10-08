@@ -31,6 +31,16 @@ final class AssistantController
 
     public function settings(Request $request, Organization $organization)
     {
+        $scope = $request->validate(['scope' => 'sometimes|in:profile,automation,help,adapter'])['scope'] ?? 'profile';
+        if ($scope === 'help') {
+            app(\App\Domain\Help\Services\HelpAccess::class)->organization($request->user(), $organization);
+            return response()->json(['data' => ['enabled' => (bool) config('assistant.enabled') && (bool) config('assistant.help_enabled') && filled(config('ai.providers.openai.key'))]]);
+        }
+        if ($scope === 'adapter') {
+            abort_unless(config('adapters.enabled'),404);
+            app(\App\Domain\Devices\Services\DeviceAuthorization::class)->authorize($request->user(),\App\Domain\Devices\Permissions\DevicePermission::MANAGE,$organization);
+            return response()->json(['data'=>str_ends_with($request->path(),'settings')?['enabled'=>(bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))]:AssistantConversation::where('scope','adapter')->where('organization_id',$organization->id)->where('user_id',$request->user()->id)->latest('updated_at')->limit(100)->get()->map(fn($conversation)=>$this->conversationData($conversation))]);
+        }
         if ($request->query('scope') === 'automation') {
             $this->access->automation($request->user(), $organization);
             return response()->json(['data' => ['enabled' => (bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))]]);
@@ -48,6 +58,17 @@ final class AssistantController
 
     public function index(Request $request, Organization $organization)
     {
+        $scope = $request->validate(['scope' => 'sometimes|in:profile,automation,help,adapter'])['scope'] ?? 'profile';
+        if ($scope === 'help') {
+            app(\App\Domain\Help\Services\HelpAccess::class)->organization($request->user(), $organization);
+            $conversations = AssistantConversation::where('scope', 'help')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->latest('updated_at')->limit(100)->get();
+            return response()->json(['data' => $conversations->map(fn ($conversation) => $this->conversationData($conversation))]);
+        }
+        if ($scope === 'adapter') {
+            abort_unless(config('adapters.enabled'),404);
+            app(\App\Domain\Devices\Services\DeviceAuthorization::class)->authorize($request->user(),\App\Domain\Devices\Permissions\DevicePermission::MANAGE,$organization);
+            return response()->json(['data'=>str_ends_with($request->path(),'settings')?['enabled'=>(bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))]:AssistantConversation::where('scope','adapter')->where('organization_id',$organization->id)->where('user_id',$request->user()->id)->latest('updated_at')->limit(100)->get()->map(fn($conversation)=>$this->conversationData($conversation))]);
+        }
         if ($request->query('scope') === 'automation') {
             $this->access->automation($request->user(), $organization);
             $conversations = AssistantConversation::where('scope', 'automation')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->with('workflow')->latest('updated_at')->limit(100)->get();
@@ -61,7 +82,21 @@ final class AssistantController
 
     public function store(Request $request, Organization $organization)
     {
-        $request->validate(['scope' => 'sometimes|in:profile,automation']);
+        $scope = $request->validate(['scope' => 'sometimes|in:profile,automation,help,adapter'])['scope'] ?? 'profile';
+        if ($scope === 'help') {
+            app(\App\Domain\Help\Services\HelpAccess::class)->organization($request->user(), $organization);
+            $values = $request->validate(['title' => 'nullable|string|max:255', 'profile_uuid' => 'prohibited', 'workflow_uuid' => 'prohibited']);
+            $conversation = AssistantConversation::create(['scope' => 'help', 'organization_id' => $organization->id, 'user_id' => $request->user()->id, 'title' => $values['title'] ?? 'Help conversation']);
+            return response()->json(['data' => $this->conversationData($conversation)], 201);
+        }
+        if ($scope === 'adapter') {
+            abort_unless(config('adapters.enabled'),404);
+            $values=$request->validate(['adapter_uuid'=>'required|uuid','title'=>'nullable|string|max:255']);
+            $adapter=\App\Domain\DeviceAdapters\Models\DeviceAdapter::where('organization_id',$organization->id)->where('uuid',$values['adapter_uuid'])->firstOrFail();
+            app(\App\Domain\Devices\Services\DeviceAuthorization::class)->authorize($request->user(),\App\Domain\Devices\Permissions\DevicePermission::MANAGE,$organization,$adapter);
+            $conversation=AssistantConversation::create(['scope'=>'adapter','organization_id'=>$organization->id,'user_id'=>$request->user()->id,'device_adapter_id'=>$adapter->id,'title'=>$values['title']??$adapter->name]);
+            return response()->json(['data'=>$this->conversationData($conversation)],201);
+        }
         if ($request->input('scope') === 'automation') {
             $this->access->automation($request->user(), $organization);
             $values = $request->validate(['workflow_uuid' => 'nullable|uuid', 'title' => 'nullable|string|max:255']);
@@ -115,6 +150,15 @@ final class AssistantController
     public function message(Request $request, Organization $organization, AssistantConversation $conversation)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
+        if ($conversation->scope === 'help') {
+            $values = $request->validate([
+                'request_id' => 'required|uuid', 'text' => 'required|string|max:8000', 'page_context' => 'required|string|max:80',
+                'source_ids' => 'prohibited', 'answers' => 'prohibited', 'target' => 'prohibited', 'execution_id' => 'prohibited',
+            ]);
+            app(\App\Domain\Help\Services\HelpRetrieval::class)->page($request->user(), $organization, $values['page_context']);
+            $run = $this->queueRun($conversation, $values['request_id'], $values['text'], pageContext: $values['page_context']);
+            return response()->json(['data' => $this->runData($run)], 202);
+        }
         $values = $request->validate([
             'request_id' => ['required', 'uuid'], 'text' => ['required', 'string', 'max:8000'],
             'source_ids' => ['sometimes', 'array', 'max:5'], 'source_ids.*' => ['uuid', 'distinct'],
@@ -257,6 +301,7 @@ final class AssistantController
     public function source(Request $request, Organization $organization, AssistantConversation $conversation, AssistantSource $source)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
+        abort_unless($conversation->scope === 'profile', 422);
         abort_unless($source->conversation_id === $conversation->id, 404);
 
         return Storage::disk('local')->download($source->path, $source->name, ['X-Content-Type-Options' => 'nosniff']);
@@ -279,15 +324,18 @@ final class AssistantController
         return response()->noContent();
     }
 
-    private function queueRun(AssistantConversation $conversation, string $requestId, string $prompt, array $sources = [], array $decisions = [], array $answers = [], ?array $target = null, ?string $evaluationId = null): AssistantRun
+    private function queueRun(AssistantConversation $conversation, string $requestId, string $prompt, array $sources = [], array $decisions = [], array $answers = [], ?array $target = null, ?string $evaluationId = null, ?string $pageContext = null): AssistantRun
     {
-        return DB::transaction(function () use ($conversation, $requestId, $prompt, $sources, $decisions, $answers, $target, $evaluationId): AssistantRun {
+        return DB::transaction(function () use ($conversation, $requestId, $prompt, $sources, $decisions, $answers, $target, $evaluationId, $pageContext): AssistantRun {
             $locked = AssistantConversation::query()->lockForUpdate()->findOrFail($conversation->id);
             $existing = $locked->runs()->where('request_id', $requestId)->first();
             if ($existing) {
                 return $existing;
             }
             abort_unless(config('assistant.enabled') && filled(config('ai.providers.openai.key')), 503, 'The assistant is not configured on this server. You can continue editing manually.');
+            if ($locked->scope === 'help') {
+                abort_unless(config('assistant.help_enabled'), 503, 'Ask Help is unavailable. You can continue reading the guides.');
+            }
             app(AssistantRecovery::class)->recover();
             abort_if($locked->runs()->where('reserved_usd', '>', 0)->exists(), 409, 'This conversation already has an active response or is stopping.');
             $reserved = app(AssistantBudget::class)->reserve();
@@ -308,7 +356,8 @@ final class AssistantController
             $state['questions'] = [];
             $locked->update(['onboarding_state' => $state]);
             $evidence = $evaluationId !== null ? app(ExecutionEvidence::class)->capture($locked, $evaluationId) : null;
-            $run = $locked->runs()->create(['execution_context' => $evidence, 'request_id' => $requestId, 'prompt' => $prompt, 'source_ids' => $sources, 'decisions' => $decisions ?: null, 'reserved_usd' => $reserved]);
+            $helpPage = $pageContext !== null ? app(\App\Domain\Help\Services\HelpCatalog::class)->context($pageContext) : null;
+            $run = $locked->runs()->create(['help_context' => $helpPage ? ['key' => $pageContext, 'title' => $helpPage['title']] : null, 'execution_context' => $evidence, 'request_id' => $requestId, 'prompt' => $prompt, 'source_ids' => $sources, 'decisions' => $decisions ?: null, 'reserved_usd' => $reserved]);
             app(AssistantEvents::class)->emit($locked, $run, 'status', ['status' => 'queued']);
             RunAssistant::dispatch($run->id)->afterCommit();
 
@@ -318,12 +367,12 @@ final class AssistantController
 
     private function conversationData(AssistantConversation $conversation): array
     {
-        return ['id' => $conversation->id, 'title' => $conversation->title, 'scope' => $conversation->scope, 'workflow_uuid' => $conversation->workflow?->uuid, 'profile_uuid' => $conversation->profile?->uuid, 'profile_name' => $conversation->profile?->name, 'updated_at' => $conversation->updated_at?->toIso8601String()];
+        return ['adapter_uuid'=>$conversation->adapter?->uuid,'id' => $conversation->id, 'title' => $conversation->title, 'scope' => $conversation->scope, 'workflow_uuid' => $conversation->workflow?->uuid, 'profile_uuid' => $conversation->profile?->uuid, 'profile_name' => $conversation->profile?->name, 'updated_at' => $conversation->updated_at?->toIso8601String()];
     }
 
     private function runData(AssistantRun $run): array
     {
-        return [...$run->only(['id', 'request_id', 'status', 'prompt', 'answer', 'source_ids', 'usage', 'cost_usd', 'error_code', 'error_message', 'created_at']), 'execution' => app(ExecutionEvidence::class)->references($run->execution_context)];
+        return [...$run->only(['id', 'request_id', 'status', 'prompt', 'answer', 'source_ids', 'usage', 'cost_usd', 'error_code', 'error_message', 'created_at']), 'execution' => app(ExecutionEvidence::class)->references($run->execution_context), ...($run->conversation->scope === 'help' ? app(\App\Domain\Help\Services\HelpAnswers::class)->visible($run) : [])];
     }
 
     private function proposalData(AssistantProposal $proposal): array

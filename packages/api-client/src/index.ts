@@ -22,6 +22,7 @@ export * from "./devices"
 export * from "./telemetry"
 export * from "./alerts"
 export * from "./notifications"
+export * from "./adapters"
 export * from "./geospatial"
 
 export type Organization = {
@@ -419,6 +420,7 @@ function directoryQuery(query: DirectoryQuery = {}): string {
 }
 
 export type * from "./assistant"
+export type * from "./help"
 export type IntegrationAbility = "devices:read" | "alerts:read" | "events:read" | "telemetry:read" | "locations:read" | "geofences:read" | "geofences:manage" | "geofences:activate"
 export interface IntegrationApplication {
   uuid: string; name: string; abilities: IntegrationAbility[]; device_uuids: string[];
@@ -1042,6 +1044,21 @@ export class ApiClient {
   createDevice(org: string, values: DeviceInput) {
     return this.data<DeviceDetail>(this.devicePath(org), "POST", values)
   }
+  startDeviceOnboarding(org: string, values: import('./onboarding').OnboardingInput) {
+    return this.data<import('./onboarding').DeviceOnboarding>(`/api/v1/organizations/${encodeURIComponent(org)}/device-onboardings`, 'POST', values)
+  }
+  deviceOnboarding(org: string, id: string) {
+    return this.data<import('./onboarding').DeviceOnboarding | null>(this.devicePath(org, id) + '/onboarding')
+  }
+  provisionDeviceOnboarding(org: string, id: string) {
+    return this.data<import('./onboarding').DeviceOnboarding>(this.devicePath(org, id) + '/onboarding/provision', 'POST')
+  }
+  deviceConnectionKit(org: string, id: string) {
+    return this.data<import('./onboarding').DeviceConnectionKit>(this.devicePath(org, id) + '/connection-kit', 'POST')
+  }
+  deviceConnectionKitArchiveUrl(org: string, id: string) {
+    return this.baseUrl + this.devicePath(org, id) + '/connection-kit/archive'
+  }
   updateDevice(
     org: string,
     id: string,
@@ -1396,8 +1413,55 @@ export class ApiClient {
     return this.data<RetentionSetting>(this.retentionPath(org), "PUT", values)
   }
 
+  private adapterPath(org: string, id?: string, suffix = "") {
+    return `/api/v1/organizations/${encodeURIComponent(org)}/device-adapters${id ? "/" + encodeURIComponent(id) : ""}${suffix}`
+  }
+  deviceAdapters(org: string) { return this.request<import("./adapters").AdapterDirectory>(this.adapterPath(org)) }
+  adapterProfiles(org: string) { return this.data<import("./adapters").AdapterProfile[]>(`/api/v1/organizations/${encodeURIComponent(org)}/device-adapter-profiles`) }
+  deviceAdapter(org: string, id: string) { return this.data<import("./adapters").DeviceAdapter>(this.adapterPath(org,id)) }
+  createDeviceAdapter(org: string, input: import("./adapters").AdapterDraft & {request_uuid: string}) { return this.data<import("./adapters").DeviceAdapter>(this.adapterPath(org), "POST", input) }
+  saveDeviceAdapter(org: string, id: string, input: import("./adapters").AdapterDraft & {draft_revision: number}) { return this.data<import("./adapters").DeviceAdapter>(this.adapterPath(org,id), "PUT", input) }
+  testDeviceAdapter(org: string, id: string, draft_revision: number) { return this.data<import("./adapters").AdapterTest>(this.adapterPath(org,id,"/test"), "POST", {draft_revision}) }
+  testAdapterConnection(org: string, id: string) { return this.data<{connected: boolean; broker_url?: string}>(this.adapterPath(org,id,"/connection-test"), "POST", {}) }
+  deployDeviceAdapter(org: string, id: string, input: {draft_revision: number; action: "deploy" | "pause" | "rollback"; revision_uuid?: string; request_uuid: string}) { return this.data<{uuid: string; status: string}>(this.adapterPath(org,id,"/deploy"), "POST", input) }
+  adapterCandidates(org: string, id: string) { return this.data<import("./adapters").AdapterCandidate[]>(this.adapterPath(org,id,"/candidates")) }
+  activateAdapterCandidate(org: string,id: string,candidate: string,input: {name: string;device_uuid?: string}) { return this.data<{installation_uuid: string;device: Device}>(this.adapterPath(org,id,`/candidates/${encodeURIComponent(candidate)}/activate`), "POST", input) }
+  adapterCredentials(org: string,id: string) { return this.data<import("./adapters").AdapterCredential[]>(this.adapterPath(org,id,"/credentials")) }
+  createAdapterCredential(org: string,id: string,name: string) { return this.data<import("./adapters").AdapterKit>(this.adapterPath(org,id,"/credentials"), "POST", {name}) }
+  adapterConnectionKit(org: string,id: string,credential: string,action: "kit" | "rotate" = "kit") { return this.data<import("./adapters").AdapterKit>(this.adapterPath(org,id,`/credentials/${encodeURIComponent(credential)}/${action}`), "POST", {}) }
+  revokeAdapterCredential(org: string,id: string,credential: string) { return this.data<{revoked: boolean}>(this.adapterPath(org,id,`/credentials/${encodeURIComponent(credential)}/revoke`), "POST", {}) }
+  adapterProposals(org: string,id: string) { return this.data<import("./adapters").AdapterProposal[]>(this.adapterPath(org,id,"/proposals")) }
+  decideAdapterProposal(org: string,id: string,proposal: string,action: "apply" | "reject",content_hash: string) { return this.data<import("./adapters").DeviceAdapter | {status: string}>(this.adapterPath(org,id,`/proposals/${encodeURIComponent(proposal)}/decision`), "POST", {action,content_hash}) }
+  adapterAssistantSettings(org: string) { return this.data<{enabled: boolean}>(this.assistantPath(org,undefined,"/settings?scope=adapter")) }
+  adapterAssistantConversations(org: string, adapter_uuid: string) { return this.data<{id: string; adapter_uuid: string}[]>(this.assistantPath(org,undefined,`/conversations?scope=adapter&adapter_uuid=${encodeURIComponent(adapter_uuid)}`)) }
+  createAdapterConversation(org: string,adapter_uuid: string) { return this.data<{id: string}>(this.assistantPath(org,undefined,"/conversations"),"POST",{scope:"adapter",adapter_uuid}) }
+
   private assistantPath(org: string, conversation?: string, suffix = "") {
     return `/api/v1/organizations/${encodeURIComponent(org)}/assistant${conversation ? `/conversations/${encodeURIComponent(conversation)}` : ""}${suffix}`
+  }
+  helpPage(org: string, context: string) {
+    return this.data<import("./help").HelpPage>(`/api/v1/organizations/${encodeURIComponent(org)}/help/page?context=${encodeURIComponent(context)}`)
+  }
+  helpArticles(org: string, query = "") {
+    return this.data<import("./help").HelpArticleSummary[]>(`/api/v1/organizations/${encodeURIComponent(org)}/help/articles?query=${encodeURIComponent(query)}`)
+  }
+  helpArticle(org: string, slug: string) {
+    return this.data<import("./help").HelpArticle>(`/api/v1/organizations/${encodeURIComponent(org)}/help/articles/${encodeURIComponent(slug)}`)
+  }
+  helpSettings(org: string) {
+    return this.data<{ enabled: boolean }>(this.assistantPath(org, undefined, "/settings?scope=help"))
+  }
+  helpConversations(org: string) {
+    return this.data<import("./help").HelpConversation[]>(this.assistantPath(org, undefined, "/conversations?scope=help"))
+  }
+  createHelpConversation(org: string) {
+    return this.data<import("./help").HelpConversation>(this.assistantPath(org, undefined, "/conversations"), "POST", { scope: "help" })
+  }
+  helpConversation(org: string, id: string) {
+    return this.data<import("./help").HelpDetail>(this.assistantPath(org, id))
+  }
+  helpMessage(org: string, id: string, input: { request_id: string; text: string; page_context: string }) {
+    return this.data<import("./help").HelpRun>(this.assistantPath(org, id, "/messages"), "POST", input)
   }
   assistantSettings(org: string) {
     return this.data<import("./assistant").AssistantSettings>(
@@ -1657,5 +1721,7 @@ export class ApiClient {
 }
 
 export const apiClient = new ApiClient()
+
+export type { DeviceOnboarding, OnboardingInput, DeviceConnectionKit } from './onboarding'
 
 export { runtimeConfig, type RuntimeConfig } from "./runtime-config"

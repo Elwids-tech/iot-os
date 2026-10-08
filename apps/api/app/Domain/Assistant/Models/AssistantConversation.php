@@ -39,6 +39,11 @@ final class AssistantConversation extends Model
         return $this->belongsTo(DeviceProfile::class, 'device_profile_id');
     }
 
+    public function adapter(): BelongsTo
+    {
+        return $this->belongsTo(\App\Domain\DeviceAdapters\Models\DeviceAdapter::class,'device_adapter_id');
+    }
+
     public function runs(): HasMany
     {
         return $this->hasMany(AssistantRun::class, 'conversation_id');

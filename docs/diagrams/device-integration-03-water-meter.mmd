@@ -1,0 +1,23 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"18px"},"flowchart":{"wrappingWidth":420,"curve":"linear"},"markdownAutoWrap":false}}%%
+flowchart TD
+    raw["Manufacturer MQTT payload<br/>serial: WM-1042<br/>flow_ml_min: 12000<br/>total_ml: 8400000"]
+    decoder["Sandboxed JavaScript decoder<br/>Extract serial and convert mL to L"]
+    metrics["Profile metrics<br/>sourceDeviceId: WM-1042<br/>flow_rate: 12 L/min<br/>total_volume: 8400 L"]
+    binding{"Valid profile and active installation binding?"}
+    preview["Unknown serial: discovery preview<br/>Invalid payload: diagnostic<br/>No production readings stored"]
+    publisher["Managed Sparkplug B publisher<br/>Owns birth, death, sequence and protobuf"]
+    storage["Existing platform ingestion and storage<br/>Virtual device UUID owns the history"]
+    consumers["Dashboard: 12 L/min and 8400 L<br/>Automation receives committed telemetry"]
+    raw --> decoder --> metrics --> binding
+    binding -->|"No"| preview
+    binding -->|"Yes"| publisher --> storage --> consumers
+    classDef payload fill:#DBEAFE,stroke:#1D4ED8,color:#172554
+    classDef processing fill:#DCFCE7,stroke:#15803D,color:#14532D
+    classDef decision fill:#FEF3C7,stroke:#B45309,color:#451A03
+    classDef diagnostic fill:#FCE7F3,stroke:#BE185D,color:#500724
+    classDef history fill:#EDE9FE,stroke:#6D28D9,color:#2E1065
+    class raw,metrics payload
+    class decoder,publisher,consumers processing
+    class binding decision
+    class preview diagnostic
+    class storage history

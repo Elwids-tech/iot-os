@@ -111,8 +111,16 @@ final class DeviceConfigurationService
             throw ValidationException::withMessages($errors);
         }
         $gateway = $candidate->gateway;
+        $installation = \App\Domain\DeviceAdapters\Models\DeviceInstallation::where('device_id', $device->id)->whereNull('ended_at')->first();
+        $binding = null;
+        if ($installation) {
+            $physical = \App\Domain\DeviceAdapters\Models\AdapterCandidate::findOrFail($installation->device_adapter_candidate_id);
+            abort_unless($physical->sparkplug_device_id === $candidate->source_device_id && $physical->adapter->sparkplug_gateway_id === $gateway->id, 422, 'The selected source differs from the active hardware installation.');
+            $binding = ['installation_uuid' => $installation->uuid, 'adapter_uuid' => $physical->adapter->uuid, 'manufacturer_serial' => $installation->manufacturer_serial];
+        }
 
         return [
+            ...($binding ? ['adapter' => $binding] : []),
             'schema_version' => 'device-configuration.v2', 'device_uuid' => $device->uuid,
             'organization_uuid' => $device->organization->uuid, 'profile_artifact_uuid' => $artifact->uuid,
             'profile_hash' => $artifact->definition_hash, 'profile_canonical_json' => $this->canonical->encode($artifact->definition),

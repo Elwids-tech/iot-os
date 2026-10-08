@@ -70,6 +70,7 @@ export function DeviceOverview({
         className="flex min-w-0 flex-col gap-6 xl:border-l xl:pl-6"
       >
         <DeviceDetails org={org} device={device} />
+        {!!device.installations?.length && <Section title="Physical installation"><p className="text-sm text-muted-foreground">Readings belong to virtual device <code className="break-all">{device.uuid}</code>.</p>{device.installations.map(installation => <div key={installation.uuid} className="mt-3 flex flex-col gap-1 text-sm"><p>{installation.manufacturer_serial} · {installation.ended_at ? "Previous installation" : "Current hardware"}</p><p className="text-muted-foreground">Installed {formatDateTime(installation.started_at)}</p><code className="break-all text-xs">{installation.uuid}</code></div>)}</Section>}
         <UsedIn org={org} device={device} />
         <DeviceAlerts org={org} device={device} />
         <RecentCommands org={org} device={device} />

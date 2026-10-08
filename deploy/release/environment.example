@@ -36,7 +36,17 @@ IOT_STAGING_DEMO_ENABLED=true
 # Staging bootstrap creates five demo devices; use 0 or an explicit count elsewhere.
 IOT_OPS_EXPECTED_SIMULATORS=5
 IOT_ASSISTANT_ENABLED=false
+IOT_HELP_AI_ENABLED=false
 OPENAI_API_KEY=
 PUBLIC_MAP_STYLE_URL=
 # Images are provided by the digest-pinned release manifest, never mutable tags.
 # Brevo SMTP credentials, OpenAI project key and backup credentials are private inputs.
+
+# Optional vendor MQTT adapters. Both adapter images are included in new manifests.
+IOT_ADAPTERS_ENABLED=false
+IOT_ADAPTER_MANAGER_TOKEN=
+IOT_ADAPTER_PUBLIC_HOST=
+IOT_ADAPTER_BIND_ADDRESS=127.0.0.1
+IOT_ADAPTER_DOCKER_NETWORK=
+IOT_ADAPTER_PORT_BASE=19000
+IOT_ADAPTER_PORT_LIMIT=19999

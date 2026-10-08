@@ -27,6 +27,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 RELEASE = ROOT / "deploy/release"
 IMAGES = ("API_IMAGE", "API_WEB_IMAGE", "PORTAL_IMAGE", "ADMIN_IMAGE", "RUNTIME_IMAGE", "SIMULATOR_IMAGE")
+ADAPTER_IMAGES = ("ADAPTER_MANAGER_IMAGE", "ADAPTER_RUNTIME_IMAGE")
 WRITERS = ("api", "default-worker", "alerts-worker", "assistant-worker", "webhooks-worker", "automation-worker", "scheduler", "runtime")
 SECRET_KEYS = ("API_DB_PASSWORD", "RUNTIME_DB_PASSWORD", "POSTGRES_PASSWORD", "DEVICE_RUNTIME_TOKEN", "DEVICE_EMQX_API_SECRET", "NATS_PASSWORD", "EMQX_COOKIE", "EMQX_DASHBOARD_PASSWORD", "GRAFANA_PASSWORD", "IOT_METRICS_TOKEN")
 
@@ -92,8 +93,23 @@ class Deployment:
             inventory = yaml.safe_load((RELEASE / "compose.yml").read_text())["services"]
             names = [name for name, service in inventory.items() if not service.get("profiles") and name != "emqx" and (not self.external_database or name != "timescaledb")]
             env["BROKER_EXPECTED_SERVICES"] = ",".join([*names, "mqtt", "broker-admin"])
+        if self.env.get("IOT_ADAPTERS_ENABLED", "false").lower() == "true":
+            if self.broker != "mqtt":
+                raise ValueError("Release adapters require the Mosquitto broker overlay")
+            overlays += ["-f", RELEASE / "compose.adapters.yml"]
+            env["BROKER_EXPECTED_SERVICES"] += ",adapter-manager,adapter-worker"
         return run(["docker", "compose", "--project-directory", RELEASE, "--env-file", self.env_path,
                     "-f", RELEASE / "compose.yml", *overlays, *profiles, *args], env=env, **kwargs)
+
+    @property
+    def adapters_enabled(self):
+        return self.env.get("IOT_ADAPTERS_ENABLED", "false").lower() == "true"
+
+    def adapter_containers(self):
+        if not self.adapters_enabled:
+            return []
+        result = run(["docker", "ps", "--filter", "label=iot.adapter.managed=true", "--filter", "label=iot.adapter.project="+self.env["COMPOSE_PROJECT_NAME"], "--format", "{{.Names}}"], capture_output=True)
+        return result.stdout.decode().splitlines()
 
     @property
     def broker(self):
@@ -173,9 +189,16 @@ class Deployment:
             raise ValueError("Separate alert SMTP username and password must both be set")
         if not self.manifest:
             raise ValueError("A release manifest is required")
-        if set(self.images["images"]) != set(IMAGES):
-            raise ValueError("Release manifest must contain exactly the six application images")
-        for key in IMAGES:
+        expected = set(IMAGES)
+        actual = set(self.images["images"])
+        if actual not in (expected, expected | set(ADAPTER_IMAGES)):
+            raise ValueError("Release manifest must contain six application images and optionally both adapter images")
+        if self.adapters_enabled:
+            if not set(ADAPTER_IMAGES) <= actual:
+                raise ValueError("Enabled adapters require both immutable adapter images")
+            if not re.fullmatch(r"[a-f0-9]{64}", self.env.get("IOT_ADAPTER_MANAGER_TOKEN", "")):
+                raise ValueError("Adapters require a generated private manager token")
+        for key in actual:
             if not re.fullmatch(r"[a-z0-9./_-]+@sha256:[a-f0-9]{64}", self.env[key]):
                 raise ValueError(f"{key} is not an immutable image digest")
         self.compose("config", "--quiet", stdout=subprocess.DEVNULL)
@@ -225,6 +248,10 @@ class Deployment:
         return limits["STORE"]
 
     def layout(self):
+        if self.adapters_enabled:
+            directory = self.state / "device-adapters"
+            directory.mkdir(parents=True, exist_ok=True)
+            directory.chmod(0o700)
         owners = {"app": (33, 33), "emqx": (1000, 1000), "mosquitto": (1883, 1883), "prometheus": (65534, 65534), "alertmanager": (65534, 65534), "grafana": (472, 0), "loki": (10001, 10001)}
         for name in ("postgres", "app", "nats", "emqx", "mosquitto", "mqtt-certs", "caddy", "prometheus", "alertmanager", "grafana", "loki", "alloy", "metrics", "simulators", "simulator-config"):
             path = self.state / name
@@ -289,6 +316,10 @@ class Deployment:
             shutil.copy2(old_manifest, self.config / "previous-release.json")
         private_write(self.config / "DEPLOYMENT_INCOMPLETE", self.release_text)
         # Quiesce before migrations and guarantee one runtime across release changes.
+        if self.adapters_enabled:
+            self.compose("stop", "adapter-manager", "adapter-worker", stdout=subprocess.DEVNULL)
+            tenants = self.adapter_containers()
+            if tenants: run(["docker", "stop", "--time", "20", *tenants], stdout=subprocess.DEVNULL)
         self.compose("stop", "caddy", "simulator", "gps-simulator", *WRITERS, stdout=subprocess.DEVNULL)
         self.database_ready()
         # Generated files are atomically replaced. Recreate their bind mounts so
@@ -304,7 +335,9 @@ class Deployment:
             self.compose("run", "--rm", "migrate", "php", "artisan", "devices:reprovision-broker", stdout=subprocess.DEVNULL)
         services = yaml.safe_load((RELEASE / "compose.yml").read_text())["services"]
         applications = [name for name, service in services.items() if not service.get("profiles") and name not in ("timescaledb", "nats", "emqx")]
+        if self.adapters_enabled: applications += ["adapter-manager", "adapter-worker"]
         self.compose("up", "-d", "--force-recreate", "--no-deps", *applications, stdout=subprocess.DEVNULL)
+        if self.adapters_enabled and tenants: run(["docker", "start", *tenants], stdout=subprocess.DEVNULL)
         self.wait("http://api-web/health/ready")
         if self.env.get("DEPLOY_ENVIRONMENT") == "staging" and self.env.get("IOT_STAGING_DEMO_ENABLED") == "true" and all((self.state / "simulator-config" / (name+".json")).is_file() for name in ("meter", "gps")):
             self.compose("--profile", "demo", "up", "-d", "simulator", "gps-simulator", stdout=subprocess.DEVNULL)
@@ -330,8 +363,12 @@ class Deployment:
         # Preflight remote access before any downtime; do not initialize repositories implicitly.
         self.restic(backup_env, "snapshots", "--json", stdout=subprocess.DEVNULL)
         running = self.running()
+        tenants = self.adapter_containers()
         checkpoint = Path(tempfile.mkdtemp(prefix="checkpoint-", dir=self.config))
         try:
+            if self.adapters_enabled:
+                self.compose("stop", "adapter-manager", "adapter-worker", stdout=subprocess.DEVNULL)
+                if tenants: run(["docker", "stop", "--time", "20", *tenants], stdout=subprocess.DEVNULL)
             self.compose("stop", "caddy", "simulator", "gps-simulator", self.broker, *(["broker-admin"] if self.broker == "mqtt" else []), stdout=subprocess.DEVNULL)
             # Expire command deadlines while the runtime can still reconcile outcomes.
             time.sleep(45)
@@ -340,7 +377,7 @@ class Deployment:
             with (checkpoint / "database.dump").open("wb") as stream:
                 self.database_command("pg_dump", "-U", "postgres", "-d", "iot", "-Fc", stdout=stream)
             # Broker and JetStream files are copied only while their owners are stopped.
-            run(["tar", "-C", self.state, "-czf", checkpoint / "state.tar.gz", "app", "nats", "mosquitto" if self.broker == "mqtt" else "emqx", "simulators", "simulator-config", "mqtt-certs", "caddy"], stdout=subprocess.DEVNULL)
+            run(["tar", "-C", self.state, "-czf", checkpoint / "state.tar.gz", "app", "nats", "mosquitto" if self.broker == "mqtt" else "emqx", "simulators", "simulator-config", "mqtt-certs", "caddy", *(["device-adapters"] if self.adapters_enabled else [])], stdout=subprocess.DEVNULL)
             shutil.copy2(self.env_path, checkpoint / "environment")
             private_write(checkpoint / "release.json", self.release_text)
             private_write(checkpoint / "checkpoint.json", json.dumps({"format": 1, "created_at": time.time(), "project": self.env["COMPOSE_PROJECT_NAME"], "quiesced": True}))
@@ -356,6 +393,7 @@ class Deployment:
                 remaining = [name for name in running if name not in dependencies]
                 if remaining:
                     self.compose("start", *remaining, stdout=subprocess.DEVNULL)
+            if tenants: run(["docker", "start", *tenants], stdout=subprocess.DEVNULL)
             shutil.rmtree(checkpoint)
         self.ping_heartbeat("BACKUP_HEARTBEAT_URL")
 
@@ -385,6 +423,10 @@ class Deployment:
             raise ValueError("Restore requires backed-up Mosquitto credentials")
         if any(original.get(k) != self.env.get(k) for k in (*SECRET_KEYS, "APP_KEY", "DEVICE_EMQX_API_KEY")):
             raise ValueError("Restore requires the backed-up encryption and service credentials")
+        if original.get("IOT_ADAPTERS_ENABLED", "false") != self.env.get("IOT_ADAPTERS_ENABLED", "false"):
+            raise ValueError("Restore requires the backed-up adapter feature configuration")
+        if self.adapters_enabled and original.get("IOT_ADAPTER_MANAGER_TOKEN") != self.env.get("IOT_ADAPTER_MANAGER_TOKEN"):
+            raise ValueError("Restore requires the backed-up adapter manager credential")
         self.validate()
         self.layout()
         self.render()
@@ -405,6 +447,14 @@ class Deployment:
         for name, owner in (("app", (33, 33)), ("mosquitto" if self.broker == "mqtt" else "emqx", (self.broker_uid, self.broker_uid)), ("mqtt-certs", (self.broker_uid, self.broker_uid))):
             for path in [self.state/name, *(self.state/name).rglob("*")]:
                 if not path.is_symlink(): os.chown(path, *owner)
+        if self.adapters_enabled:
+            for tenant in (self.state / "device-adapters").iterdir():
+                if not tenant.is_dir(): continue
+                for name, owner in (("runtime", (1000,1000)), ("broker", (1883,1883)), ("tls", (1883,1883))):
+                    directory=tenant/name
+                    if directory.exists():
+                        for entry in [directory, *directory.rglob("*")]:
+                            if not entry.is_symlink(): os.chown(entry,*owner)
         # No runtime, broker, workers, scheduler or public ingress starts after restore.
         private_write(self.config / "RESTORE_QUARANTINE", "Review pending commands, queues and webhook deliveries before resuming.\n")
         print("Database and durable state restored in quarantine. No commands or notifications can execute. Follow the restore runbook.")

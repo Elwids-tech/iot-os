@@ -235,6 +235,7 @@ function Viewer() {
   return (
     <div className="flex min-w-0 flex-col">
       <PageHeader
+        helpContext={`telemetry.${tab === "stages" ? "processing" : tab === "ai" ? "troubleshoot" : "live"}`}
         title="Telemetry viewer"
         meta={<Badge variant="outline">Sparkplug B</Badge>}
         actions={

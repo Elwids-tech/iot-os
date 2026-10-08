@@ -25,16 +25,24 @@ type Mapping struct {
 	CommandDatatype   *string     `json:"command_datatype"`
 }
 type Definition struct {
-	SchemaVersion        string    `json:"schema_version"`
-	ConfigurationUUID    string    `json:"configuration_uuid"`
-	DeviceUUID           string    `json:"device_uuid"`
-	OrganizationUUID     string    `json:"organization_uuid"`
-	ProfileArtifactUUID  string    `json:"profile_artifact_uuid"`
-	ProfileHash          string    `json:"profile_hash"`
-	ProfileCanonicalJSON string    `json:"profile_canonical_json"`
-	Source               Source    `json:"source"`
-	BirthRevision        int       `json:"birth_revision"`
-	Mappings             []Mapping `json:"mappings"`
+	Adapter              *AdapterBinding `json:"adapter,omitempty"`
+	SchemaVersion        string          `json:"schema_version"`
+	ConfigurationUUID    string          `json:"configuration_uuid"`
+	DeviceUUID           string          `json:"device_uuid"`
+	OrganizationUUID     string          `json:"organization_uuid"`
+	ProfileArtifactUUID  string          `json:"profile_artifact_uuid"`
+	ProfileHash          string          `json:"profile_hash"`
+	ProfileCanonicalJSON string          `json:"profile_canonical_json"`
+	Source               Source          `json:"source"`
+	BirthRevision        int             `json:"birth_revision"`
+	Mappings             []Mapping       `json:"mappings"`
+}
+
+// AdapterBinding comes from platform enrollment, never from the vendor payload.
+type AdapterBinding struct {
+	InstallationUUID   string `json:"installation_uuid"`
+	AdapterUUID        string `json:"adapter_uuid"`
+	ManufacturerSerial string `json:"manufacturer_serial"`
 }
 type Parameter struct {
 	IngressConversion *Conversion `json:"ingress_conversion,omitempty"`
@@ -73,17 +81,22 @@ type Profile struct {
 	Calculations  []Calculation `json:"calculations"`
 }
 type Metric struct {
-	Name       string     `json:"name"`
-	Alias      *uint64    `json:"alias,omitempty"`
-	Datatype   string     `json:"datatype"`
-	Value      any        `json:"value"`
-	Timestamp  *time.Time `json:"timestamp,omitempty"`
-	ReceivedAt time.Time  `json:"received_at,omitempty"`
-	Historical bool       `json:"historical,omitempty"`
-	IsNull     bool       `json:"is_null,omitempty"`
-	Diagnostic string     `json:"diagnostic,omitempty"`
+	InstallationUUID    string     `json:"installation_uuid,omitempty"`
+	AdapterRevisionUUID string     `json:"adapter_revision_uuid,omitempty"`
+	Name                string     `json:"name"`
+	Alias               *uint64    `json:"alias,omitempty"`
+	Datatype            string     `json:"datatype"`
+	Value               any        `json:"value"`
+	Timestamp           *time.Time `json:"timestamp,omitempty"`
+	ReceivedAt          time.Time  `json:"received_at,omitempty"`
+	Historical          bool       `json:"historical,omitempty"`
+	IsNull              bool       `json:"is_null,omitempty"`
+	Diagnostic          string     `json:"diagnostic,omitempty"`
 }
 type Reading struct {
+	InstallationUUID    string     `json:"installation_uuid,omitempty"`
+	AdapterRevisionUUID string     `json:"adapter_revision_uuid,omitempty"`
+	ManufacturerSerial  string     `json:"manufacturer_serial,omitempty"`
 	ParameterUUID       string     `json:"parameter_uuid"`
 	Key                 string     `json:"key"`
 	Label               string     `json:"label"`

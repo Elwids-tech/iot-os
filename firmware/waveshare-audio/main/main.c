@@ -16,6 +16,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "led_strip.h"
+#include "network.h"
 
 typedef struct {
     bool power, alarm_active;
@@ -121,6 +122,8 @@ static void report(void) {
     cJSON_AddNumberToObject(root,"boot_id",boot_id);
     cJSON_AddNumberToObject(root,"seq",sequence++);
     cJSON_AddBoolToObject(root,"hardware_ok",healthy);
+    cJSON_AddStringToObject(root,"network",wave_network_state());
+    cJSON_AddNumberToObject(root,"wifi_disconnect_reason",wave_network_disconnect_reason());
     cJSON_AddBoolToObject(values,"power",state.power);
     cJSON_AddStringToObject(values,"color",state.color);
     cJSON_AddStringToObject(values,"mode",state.mode);
@@ -131,6 +134,8 @@ static void report(void) {
     cJSON_AddNumberToObject(values,"alarm_duration",state.alarm_duration);
     if (acknowledgement[0]) cJSON_AddStringToObject(root,"ack",acknowledgement);
     char *line=cJSON_PrintUnformatted(root);
+    if (!line) { cJSON_Delete(root); return; }
+    wave_network_report(line);
     usb_serial_jtag_write_bytes(line,strlen(line),pdMS_TO_TICKS(30));
     usb_serial_jtag_write_bytes("\n",1,pdMS_TO_TICKS(30));
     free(line); cJSON_Delete(root); acknowledgement[0]=0;
@@ -139,10 +144,22 @@ static void report(void) {
 void app_main(void) {
     usb_serial_jtag_driver_config_t uc={.tx_buffer_size=2048,.rx_buffer_size=2048};
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&uc));
-    init_hardware(); boot_id=esp_random(); last_ping=now_ms();
+    init_hardware(); wave_network_start(); boot_id=esp_random(); last_ping=now_ms();
     char line[512]; size_t used=0; bool overflow=false;
     int64_t last_report=0; double phase=0; bool amp_on=false;
     while (true) {
+        // Network and USB use the same hardware validation and alarm timer.
+        char network_command[512];
+        if (wave_network_command(network_command,sizeof(network_command))) {
+            cJSON *root=cJSON_Parse(network_command);
+            cJSON *id=cJSON_GetObjectItemCaseSensitive(root,"id");
+            if (cJSON_IsString(id) && strlen(id->valuestring)<sizeof(acknowledgement)
+                && apply(cJSON_GetObjectItemCaseSensitive(root,"set"))) {
+                strcpy(acknowledgement,id->valuestring); report();
+            }
+            cJSON_Delete(root);
+        }
+        if (wave_network_ready()) last_ping=now_ms();
         char bytes[128]; int count=usb_serial_jtag_read_bytes(bytes,sizeof(bytes),0);
         bool changed=false;
         for (int i=0;i<count;i++) {

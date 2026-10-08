@@ -19,6 +19,11 @@ Route::prefix('v1/organizations/{organization}')->middleware(['auth:sanctum', Re
     Route::post('telemetry-captures/{capture}', [\App\Domain\Devices\Http\Controllers\TelemetryCaptureController::class, 'update'])->whereUuid('capture');
     Route::post('telemetry-captures/{capture}/diagnose', [\App\Domain\Devices\Http\Controllers\TelemetryCaptureController::class, 'diagnose'])->whereUuid('capture')->middleware('throttle:6,1');
     Route::get('devices', [DeviceController::class, 'index']);
+    Route::post('device-onboardings', [\App\Domain\Devices\Http\Controllers\OnboardingController::class, 'store'])->middleware('throttle:20,1');
+    Route::get('devices/{device}/onboarding', [\App\Domain\Devices\Http\Controllers\OnboardingController::class, 'show']);
+    Route::post('devices/{device}/onboarding/provision', [\App\Domain\Devices\Http\Controllers\OnboardingController::class, 'provision'])->middleware('throttle:10,1');
+    Route::post('devices/{device}/connection-kit', [\App\Domain\Devices\Http\Controllers\OnboardingController::class, 'kit'])->middleware('throttle:10,1');
+    Route::get('devices/{device}/connection-kit/archive', [\App\Domain\Devices\Http\Controllers\OnboardingController::class, 'archive'])->middleware('throttle:10,1');
     Route::post('devices', [DeviceController::class, 'store']);
     Route::get('devices/{device}', [DeviceController::class, 'show']);
     Route::patch('devices/{device}', [DeviceController::class, 'update']);

@@ -1,0 +1,21 @@
+{
+  "name": "@iot-os/device-adapters",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test test/*.test.cjs",
+    "start": "node manager.cjs",
+    "test:integration": "node integration/verify.cjs"
+  },
+  "dependencies": {
+    "mqtt": "^5.15.0",
+    "protobufjs": "^7.5.4",
+    "quickjs-emscripten": "^0.31.0"
+  },
+  "node-red": {
+    "nodes": {
+      "iot-device-adapter": "nodes/adapter.js"
+    }
+  }
+}

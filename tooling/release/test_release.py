@@ -14,6 +14,23 @@ spec.loader.exec_module(release)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_adapter_manager_and_worker_are_private_opt_in_services(self):
+        overlay = yaml.safe_load((release.RELEASE/'compose.adapters.yml').read_text())['services']
+        self.assertNotIn('ports', overlay['adapter-manager'])
+        self.assertEqual(['private'], overlay['adapter-manager']['networks'])
+        self.assertNotIn('/var/run/docker.sock:/var/run/docker.sock', overlay['adapter-worker']['volumes'])
+        self.assertIn('/var/run/docker.sock:/var/run/docker.sock', overlay['adapter-manager']['volumes'])
+        self.assertEqual('database', overlay['api']['environment']['IOT_ADAPTER_QUEUE_CONNECTION'])
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            self.assertFalse(deployment.adapters_enabled)
+            self.assertEqual([], deployment.adapter_containers())
+            deployment.env['IOT_ADAPTERS_ENABLED'] = 'true'
+            deployment.env['DEVICE_BROKER_PROVIDER'] = 'mosquitto'
+            with patch.object(release,'run',return_value=SimpleNamespace(stdout=b'')) as run:
+                deployment.compose('config','--quiet')
+            self.assertIn(release.RELEASE/'compose.adapters.yml', run.call_args.args[0])
+
     def test_mosquitto_is_opt_in_and_admin_has_no_public_port(self):
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)

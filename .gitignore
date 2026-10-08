@@ -3,6 +3,8 @@
 .tools/
 .local/devices/
 .local/monitoring/
+.local/ops/
+.local/pilot-database-checks/
 __pycache__/
 
 node_modules/
@@ -23,3 +25,6 @@ deploy/compose/data/
 
 # Private release credentials, disposable integration evidence and tool environments
 .local/release-*/
+
+# Private adapter verification and manager state
+.local/adapter-*/

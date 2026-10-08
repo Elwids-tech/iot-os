@@ -4,6 +4,7 @@ import { basicSetup } from "codemirror"
 import { EditorState } from "@codemirror/state"
 import { EditorView } from "@codemirror/view"
 import { json } from "@codemirror/lang-json"
+import { javascript } from "@codemirror/lang-javascript"
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language"
 import { tags } from "@lezer/highlight"
 
@@ -70,12 +71,14 @@ export default function JsonCode({
   readOnly,
   label,
   searchRequest = 0,
+  language = "json",
 }: {
   value: string
   onChange?: (value: string) => void
   readOnly?: boolean
   label: string
   searchRequest?: number
+  language?: "json" | "javascript"
 }) {
   const container = useRef<HTMLDivElement>(null)
   const editor = useRef<EditorView | null>(null)
@@ -88,7 +91,7 @@ export default function JsonCode({
         doc: value,
         extensions: [
           basicSetup,
-          json(),
+          language === "javascript" ? javascript() : json(),
           theme,
           syntaxHighlighting(colors),
           EditorView.lineWrapping,
@@ -115,7 +118,7 @@ export default function JsonCode({
     }
     // Only recreate when editing permissions or the accessible identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readOnly, label])
+  }, [readOnly, label, language])
   useEffect(() => {
     const view = editor.current
     if (view && view.state.doc.toString() !== value)

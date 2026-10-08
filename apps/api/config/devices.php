@@ -8,6 +8,7 @@ return [
     'runtime_token' => env('DEVICE_RUNTIME_TOKEN'),
     'broker_url' => env('DEVICE_MQTT_URL', 'ssl://emqx:8883'),
     'broker_public_url' => env('DEVICE_MQTT_PUBLIC_URL', 'ssl://localhost:8883'),
+    'ca_file' => env('DEVICE_MQTT_CA_FILE', '/certs/ca.crt'),
     'emqx_url' => env('DEVICE_EMQX_API_URL', 'http://emqx:18083/api/v5'),
     'emqx_key' => env('DEVICE_EMQX_API_KEY'),
     'emqx_secret' => env('DEVICE_EMQX_API_SECRET'),

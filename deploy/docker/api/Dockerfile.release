@@ -7,6 +7,7 @@ WORKDIR /var/www/html
 COPY apps/api/composer.json apps/api/composer.lock ./
 RUN composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader
 COPY apps/api ./
+RUN php artisan help:validate
 COPY contracts /var/contracts
 COPY deploy/docker/api/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY deploy/docker/api/release.ini /usr/local/etc/php/conf.d/release.ini

@@ -19,6 +19,7 @@ import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { PlusIcon } from "lucide-react"
 import { api } from "../lib/api"
+import { onboardingPath } from "./DeviceOnboarding"
 import { useDirtyContext, useUnsaved } from "../lib/unsaved"
 import {
   TextField,
@@ -97,10 +98,10 @@ export function DeviceDirectory() {
         title="Devices"
         actions={
           capabilities.manage && (
-            <Button size="sm" onClick={() => setCreate(true)}>
+            <div className="flex gap-2"><Button size="sm" variant="outline" asChild><Link to={`/organizations/${org}/device-adapters`}>Manufacturer MQTT device</Link></Button><Button size="sm" asChild><Link to={onboardingPath(org)}>
               <PlusIcon data-icon="inline-start" />
-              Register device
-            </Button>
+              Add device
+            </Link></Button></div>
           )
         }
       >
@@ -234,15 +235,13 @@ export function DeviceDirectory() {
             title="No devices yet"
             description={
               capabilities.manage
-                ? "Register a device, or onboard a source from Discovery."
+                ? "Connect your first device with a profile and a guided setup."
                 : undefined
             }
           >
             {capabilities.manage && (
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => setCreate(true)}>
-                  Register device
-                </Button>
+                <Button size="sm" variant="outline" asChild><Link to={`/organizations/${org}/device-adapters`}>Manufacturer MQTT device</Link></Button><Button size="sm" asChild><Link to={onboardingPath(org)}>Add device</Link></Button>
                 <Button asChild variant="outline" size="sm">
                   <Link to={`/organizations/${encodeURIComponent(org)}/discovery`}>
                     Open discovery

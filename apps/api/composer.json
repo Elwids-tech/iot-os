@@ -69,7 +69,8 @@
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
-        ]
+        ],
+        "help:validate": "@php artisan help:validate"
     },
     "extra": {
         "laravel": {

@@ -1,0 +1,182 @@
+{
+  "getting-started": {
+    "title": "Getting started",
+    "overview": "getting-started"
+  },
+  "dashboards": {
+    "title": "Dashboards",
+    "overview": "dashboards"
+  },
+  "dashboards.workspace": {
+    "title": "Dashboards · Workspace",
+    "overview": "dashboards"
+  },
+  "dashboards.library": {
+    "title": "Dashboards · Library",
+    "overview": "dashboards"
+  },
+  "dashboards.panel": {
+    "title": "Dashboards · Panel",
+    "overview": "dashboards"
+  },
+  "devices": {
+    "title": "Devices",
+    "overview": "devices"
+  },
+  "devices.overview": {
+    "title": "Devices · Overview",
+    "overview": "devices"
+  },
+  "devices.configuration": {
+    "title": "Configure and activate a device",
+    "overview": "device-configuration"
+  },
+  "devices.measurements": {
+    "title": "Read current measurements",
+    "overview": "device-measurements"
+  },
+  "devices.history": {
+    "title": "Inspect measurement history",
+    "overview": "device-history"
+  },
+  "devices.controls": {
+    "title": "Change a writable device setting",
+    "overview": "device-controls"
+  },
+  "devices.commands": {
+    "title": "Review and track commands",
+    "overview": "device-commands"
+  },
+  "discovery": {
+    "title": "Review discovered sources",
+    "overview": "discovery"
+  },
+  "gateways": {
+    "title": "Understand gateway connections",
+    "overview": "gateways"
+  },
+  "device-profiles": {
+    "title": "Device Profiles",
+    "overview": "profiles"
+  },
+  "device-profiles.overview": {
+    "title": "Device Profiles · Overview",
+    "overview": "profiles"
+  },
+  "device-profiles.parameters": {
+    "title": "Device Profiles · Parameters",
+    "overview": "profile-parameters"
+  },
+  "device-profiles.parameters.basics": {
+    "title": "Device Profiles · Parameters · Basics",
+    "overview": "profile-parameters"
+  },
+  "device-profiles.parameters.behavior": {
+    "title": "Device Profiles · Parameters · Behavior",
+    "overview": "profile-parameters"
+  },
+  "device-profiles.parameters.validation": {
+    "title": "Device Profiles · Parameters · Validation",
+    "overview": "profile-parameters"
+  },
+  "device-profiles.parameters.advanced": {
+    "title": "Device Profiles · Parameters · Advanced",
+    "overview": "profile-parameters"
+  },
+  "device-profiles.calculations": {
+    "title": "Create derived calculations",
+    "overview": "profile-calculations"
+  },
+  "device-profiles.alarms": {
+    "title": "Configure alarm templates",
+    "overview": "profile-alarms"
+  },
+  "device-profiles.review": {
+    "title": "Review and publish a profile",
+    "overview": "profile-review"
+  },
+  "telemetry": {
+    "title": "Telemetry",
+    "overview": "telemetry"
+  },
+  "telemetry.live": {
+    "title": "Telemetry · Live",
+    "overview": "telemetry"
+  },
+  "telemetry.processing": {
+    "title": "Telemetry · Processing",
+    "overview": "telemetry"
+  },
+  "telemetry.troubleshoot": {
+    "title": "Telemetry · Troubleshoot",
+    "overview": "telemetry"
+  },
+  "geofences": {
+    "title": "Geofences",
+    "overview": "geofences"
+  },
+  "geofences.editor": {
+    "title": "Geofences · Editor",
+    "overview": "geofences"
+  },
+  "automation": {
+    "title": "Automation",
+    "overview": "automations"
+  },
+  "automation.editor": {
+    "title": "Automation · Editor",
+    "overview": "automations"
+  },
+  "automation.conditions": {
+    "title": "Automation · Conditions",
+    "overview": "automation-conditions"
+  },
+  "automation.actions": {
+    "title": "Automation · Actions",
+    "overview": "automation-conditions"
+  },
+  "automation.simulation": {
+    "title": "Automation · Simulation",
+    "overview": "automation-simulation"
+  },
+  "automation.scenarios": {
+    "title": "Automation · Scenarios",
+    "overview": "automation-simulation"
+  },
+  "automation.execution": {
+    "title": "Read the execution timeline",
+    "overview": "automation-execution"
+  },
+  "alerts": {
+    "title": "Alerts",
+    "overview": "alerts"
+  },
+  "alerts.detail": {
+    "title": "Alerts · Detail",
+    "overview": "alerts"
+  },
+  "alerts.notifications": {
+    "title": "Alerts · Notifications",
+    "overview": "alert-notifications"
+  },
+  "alerts.notifications.workflow": {
+    "title": "Alerts · Notifications · Workflow",
+    "overview": "alert-notifications"
+  },
+  "integrations": {
+    "title": "Integrations",
+    "overview": "integrations"
+  },
+  "integrations.application": {
+    "title": "Integrations · Application",
+    "overview": "integrations"
+  },
+  "integrations.webhooks": {
+    "title": "Inspect webhook delivery",
+    "overview": "integration-webhooks"
+  },
+  "assistant": {
+    "title": "Use Help and the authoring assistants",
+    "overview": "assistant"
+  }
+}

@@ -39,6 +39,7 @@ final class DeviceView
         $artifact = ($device->appliedConfiguration ?? $device->lastAppliedConfiguration)?->artifact;
         $data['profile'] = $artifact?->profile ? ['uuid' => $artifact->profile->uuid, 'name' => $artifact->profile->name, 'revision' => $artifact->revision] : null;
         if ($detail) {
+            $data['installations'] = \App\Domain\DeviceAdapters\Models\DeviceInstallation::where('device_id', $device->id)->latest('started_at')->limit(20)->get()->map(fn ($installation) => $installation->only(['uuid', 'manufacturer_serial', 'adapter_revision_uuid', 'started_at', 'ended_at']));
             $data['retention'] = app(RetentionService::class)->effective($device->organization);
             $data['draft'] = $device->draft;
             $artifact = isset($device->draft['artifact_uuid']) ? DeviceProfileArtifact::where('uuid', $device->draft['artifact_uuid'])->first() : null;

@@ -9,17 +9,20 @@ const CommittedTelemetryStream = "IOT_COMMITTED_TELEMETRY"
 // CommittedReading is an explicit projection, never a serialization of a device
 // definition or of the retained last-valid value used by the latest-value UI.
 type CommittedReading struct {
-	ParameterUUID   string    `json:"parameter_uuid"`
-	Key             string    `json:"key"`
-	DataType        string    `json:"data_type"`
-	Unit            *string   `json:"unit"`
-	Value           any       `json:"value"`
-	Quality         string    `json:"quality"`
-	Diagnostic      string    `json:"diagnostic,omitempty"`
-	ObservedAt      time.Time `json:"observed_at"`
-	TimestampSource string    `json:"timestamp_source,omitempty"`
-	ReceivedAt      time.Time `json:"received_at"`
-	Historical      bool      `json:"historical"`
+	InstallationUUID    string    `json:"installation_uuid,omitempty"`
+	AdapterRevisionUUID string    `json:"adapter_revision_uuid,omitempty"`
+	ManufacturerSerial  string    `json:"manufacturer_serial,omitempty"`
+	ParameterUUID       string    `json:"parameter_uuid"`
+	Key                 string    `json:"key"`
+	DataType            string    `json:"data_type"`
+	Unit                *string   `json:"unit"`
+	Value               any       `json:"value"`
+	Quality             string    `json:"quality"`
+	Diagnostic          string    `json:"diagnostic,omitempty"`
+	ObservedAt          time.Time `json:"observed_at"`
+	TimestampSource     string    `json:"timestamp_source,omitempty"`
+	ReceivedAt          time.Time `json:"received_at"`
+	Historical          bool      `json:"historical"`
 }
 
 type CommittedTelemetry struct {
@@ -43,6 +46,7 @@ func ProjectCommitted(t Telemetry) CommittedTelemetry {
 	}
 	for _, r := range t.Readings {
 		event.Readings = append(event.Readings, CommittedReading{
+			InstallationUUID: r.InstallationUUID, AdapterRevisionUUID: r.AdapterRevisionUUID, ManufacturerSerial: r.ManufacturerSerial,
 			ParameterUUID: r.ParameterUUID, Key: r.Key, DataType: r.DataType, Unit: r.Unit,
 			Value: r.Value, Quality: r.Quality, Diagnostic: r.Diagnostic,
 			ObservedAt: r.ObservedAt, ReceivedAt: r.ReceivedAt, Historical: r.Historical, TimestampSource: r.TimestampSource,

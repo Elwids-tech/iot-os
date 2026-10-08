@@ -138,6 +138,7 @@ export type Device = {
   profile: { uuid: string; name: string; revision: number } | null
 }
 export type DeviceDetail = Device & {
+  installations?: {uuid: string; manufacturer_serial: string; adapter_revision_uuid: string; started_at: string; ended_at: string | null}[]
   retention: RetentionSetting
   draft: DeviceDraft | null
   draft_artifact: DeviceProfileArtifact | null
@@ -150,6 +151,9 @@ export type DeviceInput = {
   description?: string | null
 }
 export type Measurement = {
+  installation_uuid?: string
+  adapter_revision_uuid?: string
+  manufacturer_serial?: string
   parameter_uuid: string
   key: string
   label: string
@@ -176,6 +180,9 @@ export type HistorySeries = {
   }>
 }
 export type HistoryRecord = {
+  installation_uuid?: string
+  adapter_revision_uuid?: string
+  manufacturer_serial?: string
   event_uuid: string
   configuration_uuid: string
   parameter_uuid: string

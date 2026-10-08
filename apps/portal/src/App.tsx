@@ -1,5 +1,5 @@
 import { runtimeConfig } from "@iot-os/api-client"
-import { lazy, Suspense, useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import {
   ApiError,
   type AuthenticatedUser,
@@ -36,6 +36,8 @@ import {
   ThemePicker,
 } from "@iot-os/ui/components/theme-picker"
 import { PageHeader } from "@iot-os/ui/components/page-header"
+import { PageHelpContext } from "@iot-os/ui/components/page-help"
+import { helpContextForPath } from "./help/context"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -73,6 +75,7 @@ import {
 } from "@iot-os/ui/components/dialog"
 import { cn } from "@iot-os/ui/lib/utils"
 import {
+  BookOpenIcon,
   ActivityIcon,
   BellIcon,
   ChevronRightIcon,
@@ -96,10 +99,12 @@ const AutomationRoutes = lazy(() => import("./automation/Automation"))
 const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
 const GeofenceRoutes = lazy(() => import("./geospatial/Geofences"))
 const TelemetryViewer = lazy(() => import("./telemetry/TelemetryViewer"))
+const AdapterRoutes = lazy(() => import("./adapters/Routes"))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
 const IntegrationRoutes = lazy(() => import("./integrations/Integrations"))
 const AlertRoutes = lazy(() => import("./alerts/Alerts"))
 const NotificationCenter = lazy(() => import("./notifications/NotificationCenter"))
+const HelpPanel = lazy(() => import("./help/HelpPanel"))
 const AssistantPanel = lazy(() => import("./assistant/AssistantPanel"))
 const ProfileWorkspace = lazy(() =>
   import("./profiles/ProfileWorkspace").then((module) => ({
@@ -228,6 +233,7 @@ function Session() {
         <Route element={<PortalShell user={user} />}>
           <Route path="notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
           <Route path="organizations/:organizationUuid/notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
+          <Route path="organizations/:organizationUuid/device-adapters/*" element={<Suspense fallback={<PageFallback />}><AdapterRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/devices/*" element={<Suspense fallback={<PageFallback />}><DeviceRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/integrations/*" element={<Suspense fallback={<PageFallback />}><IntegrationRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/automation/*" element={<Suspense fallback={<PageFallback />}><AutomationRoutes /></Suspense>} />
@@ -411,6 +417,7 @@ const navigationGroups = [
   ],
   [
     { path: "devices", label: "Devices", icon: CpuIcon },
+    { path: "device-adapters", label: "Device adapters", icon: PlugIcon },
     { path: "gateways", label: "Gateways", icon: RouterIcon },
     { path: "telemetry", label: "Telemetry viewer", icon: ActivityIcon },
     { path: "geofences", label: "Geofences", icon: MapPinnedIcon },
@@ -433,6 +440,8 @@ function PortalSidebar({
   onOrganization,
   assistantOpen,
   onAssistant,
+  helpOpen,
+  onHelp,
   onSignOut,
 }: {
   user: AuthenticatedUser
@@ -440,6 +449,8 @@ function PortalSidebar({
   onOrganization: (uuid: string) => void
   assistantOpen: boolean
   onAssistant: () => void
+  helpOpen: boolean
+  onHelp: () => void
   onSignOut: () => void
 }) {
   const location = useLocation()
@@ -562,6 +573,11 @@ function PortalSidebar({
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
+          {organization && <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Help" aria-expanded={helpOpen} onClick={() => { onHelp(); closeMobile() }} className="text-muted-foreground hover:text-foreground">
+              <BookOpenIcon /><span className="group-data-[collapsible=icon]:sr-only">Help</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>}
           {organization && (
             <SidebarMenuItem>
               <SidebarMenuButton
@@ -635,7 +651,11 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
   const signedOut = useSignedOut()
   const { dirty } = useDirtyContext()
   const [logoutConfirm, setLogoutConfirm] = useState(false)
-  const [assistantOpen, setAssistantOpen] = useState(false)
+  const [activePanel, setActivePanel] = useState<"assistant" | "help" | null>(null)
+  const assistantOpen = activePanel === "assistant"
+  const helpOpen = activePanel === "help"
+  const [helpLoaded, setHelpLoaded] = useState(false)
+  const [helpOverride, setHelpOverride] = useState<string>()
   const [assistantLoaded, setAssistantLoaded] = useState(false)
   const [logoutError, setLogoutError] = useState<unknown>(null)
   async function logout() {
@@ -654,18 +674,26 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
   }, [org?.uuid])
   // "/organizations/{org}/{section}/..." keeps its section when switching organization (N1).
   const section = location.pathname.split("/")[3] || "dashboards"
+  const helpContext = helpOverride ?? helpContextForPath(location.pathname)
+  const helpIntegration = useMemo(() => org ? {
+    trigger: <Button variant="ghost" size="sm" aria-expanded={helpOpen} onClick={() => { setHelpLoaded(true); setActivePanel(current => current === "help" ? null : "help") }}><BookOpenIcon data-icon="inline-start" />Help</Button>,
+    onContextChange: setHelpOverride,
+  } : null, [org?.uuid, helpOpen])
 
   return (
     <TooltipProvider>
+      <PageHelpContext.Provider value={helpIntegration}>
       <SidebarProvider>
         <PortalSidebar
           user={user}
           organization={org}
           onOrganization={(uuid) => navigate(sectionPath(uuid, section))}
+          helpOpen={helpOpen}
+          onHelp={() => { setHelpLoaded(true); setActivePanel(current => current === "help" ? null : "help") }}
           assistantOpen={assistantOpen}
           onAssistant={() => {
             setAssistantLoaded(true)
-            setAssistantOpen((current) => !current)
+            setActivePanel(current => current === "assistant" ? null : "assistant")
           }}
           onSignOut={() =>
             dirty ? setLogoutConfirm(true) : void logout().catch(() => {})
@@ -675,7 +703,7 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
           className={cn(
             "min-w-0",
             // Below xl the assistant overlays the page; from xl it docks beside it.
-            assistantOpen && org && "xl:pr-[440px]",
+            (assistantOpen || helpOpen) && org && "xl:pr-[440px]",
           )}
         >
           {logoutError ? (
@@ -697,10 +725,13 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
               organizationName={org.name}
               viewedProfile={params.profileUuid}
               open={assistantOpen}
-              onClose={() => setAssistantOpen(false)}
+              onClose={() => setActivePanel(null)}
             />
           </Suspense>
         )}
+        {org && helpLoaded && <Suspense fallback={null}>
+          <HelpPanel key={org.uuid} org={org.uuid} organizationName={org.name} context={helpContext} open={helpOpen} onClose={() => setActivePanel(null)} />
+        </Suspense>}
         <Confirm
           open={logoutConfirm}
           title="Sign out without saving?"
@@ -710,6 +741,7 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
           onConfirm={logout}
         />
       </SidebarProvider>
+      </PageHelpContext.Provider>
     </TooltipProvider>
   )
 }

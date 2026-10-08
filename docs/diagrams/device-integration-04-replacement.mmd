@@ -1,0 +1,30 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"18px"},"flowchart":{"wrappingWidth":420,"curve":"linear"},"markdownAutoWrap":false}}%%
+flowchart TD
+    subgraph phase1["V1 foundation: identity and provenance"]
+        physical["Manufacturer serial + trusted source"]
+        installation["Physical installation binding<br/>Installation ID and adapter revision"]
+        virtual["Stable virtual device UUID<br/>History, dashboards and rules"]
+        physical --> installation --> virtual
+    end
+    subgraph phase2["Phase 2: replacement wizard and counter continuity"]
+        old["Old meter final logical total<br/>12480 L"]
+        baseline["Replacement meter starting raw total<br/>35 L"]
+        next["Replacement meter next raw total<br/>40 L"]
+        adjustment["Record an audited baseline adjustment<br/>12480 + (40 - 35) = 12485 L"]
+        save["Store raw total: 40 L<br/>Logical total: 12485 L<br/>Same virtual device UUID"]
+        old --> adjustment
+        baseline --> adjustment
+        next --> adjustment
+        adjustment --> save
+    end
+    virtual -.->|"Replace the installation, keep the identity"| adjustment
+    classDef identity fill:#DBEAFE,stroke:#1D4ED8,color:#172554
+    classDef baseline fill:#FEF3C7,stroke:#B45309,color:#451A03
+    classDef history fill:#EDE9FE,stroke:#6D28D9,color:#2E1065
+    classDef result fill:#DCFCE7,stroke:#15803D,color:#14532D
+    class physical,installation identity
+    class old,baseline,next,adjustment baseline
+    class virtual history
+    class save result
+    style phase1 fill:#F8FAFC,stroke:#64748B,color:#0F172A
+    style phase2 fill:#FFFBEB,stroke:#B45309,color:#451A03

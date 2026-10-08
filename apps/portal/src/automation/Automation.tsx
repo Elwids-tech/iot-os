@@ -519,7 +519,7 @@ function Editor({ org, id }: { org: string; id: string }) {
     );
   return (
     <>
-      <PageHeader title={name} />
+      <PageHeader title={name} helpContext={`automation.${tab}`} />
       <div className="flex flex-col gap-4 p-4 md:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" asChild>

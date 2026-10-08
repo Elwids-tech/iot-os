@@ -15,18 +15,20 @@ export function JsonEditor({
   value,
   onChange,
   readOnly = false,
+  language = "json",
 }: {
   label: string
   value: string
   onChange?: (value: string) => void
   readOnly?: boolean
+  language?: "json" | "javascript"
 }) {
   const [expanded, setExpanded] = useState(false)
   const [searchRequest, setSearchRequest] = useState(0)
   const [notice, setNotice] = useState("")
   let parseError = ""
   try {
-    JSON.parse(value)
+    if (language === "json") JSON.parse(value)
   } catch {
     parseError =
       "This is not valid JSON yet. Your text is preserved; correct it before saving."
@@ -39,6 +41,7 @@ export function JsonEditor({
         readOnly={readOnly}
         label={label}
         searchRequest={searchRequest}
+        language={language}
       />
     </Suspense>
   )
@@ -59,7 +62,7 @@ export function JsonEditor({
             <SearchIcon data-icon="inline-start" />
             Search
           </Button>
-          {!readOnly && (
+          {!readOnly && language === "json" && (
             <Button
               size="sm"
               variant="ghost"
@@ -113,7 +116,7 @@ export function JsonEditor({
             <DialogDescription>
               {readOnly
                 ? "Immutable definition. Search and inspect without changing it."
-                : "Advanced JSON. Close this view to return to the form."}
+                : "Advanced code. Close this view to return to the form."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2">
@@ -123,9 +126,9 @@ export function JsonEditor({
               type="button"
               onClick={() => setSearchRequest((value) => value + 1)}
             >
-              Search JSON
+              Search code
             </Button>
-            {!readOnly && (
+            {!readOnly && language === "json" && (
               <Button
                 size="sm"
                 variant="outline"

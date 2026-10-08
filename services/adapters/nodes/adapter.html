@@ -1,0 +1,19 @@
+<script type="text/javascript">
+  ["source", "decoder", "publisher", "reporter"].forEach(function (name) {
+    RED.nodes.registerType("iot-adapter-" + name, {
+      category: "IoT platform",
+      color: "#dcfce7",
+      defaults: { name: { value: "" } },
+      inputs: name === "source" ? 0 : 1,
+      outputs:
+        name === "decoder" || name === "source"
+          ? 2
+          : name === "reporter"
+            ? 0
+            : 1,
+      label: function () {
+        return this.name || "Managed " + name;
+      },
+    });
+  });
+</script>

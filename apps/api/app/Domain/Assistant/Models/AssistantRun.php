@@ -16,7 +16,7 @@ final class AssistantRun extends Model
 
     protected function casts(): array
     {
-        return ['source_ids' => 'array', 'execution_context' => 'array', 'decisions' => 'array', 'usage' => 'array', 'started_at' => 'datetime', 'finished_at' => 'datetime', 'cost_usd' => 'float', 'reserved_usd' => 'float'];
+        return ['source_ids' => 'array', 'execution_context' => 'array', 'help_context' => 'array', 'help_sources' => 'array', 'help_answer' => 'array', 'decisions' => 'array', 'usage' => 'array', 'started_at' => 'datetime', 'finished_at' => 'datetime', 'cost_usd' => 'float', 'reserved_usd' => 'float'];
     }
 
     public function conversation(): BelongsTo

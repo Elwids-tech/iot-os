@@ -1,0 +1,59 @@
+# Opt-in release overlay. The manager is private and the tenant editor has no host port.
+services:
+  api:
+    environment: &adapter-env
+      IOT_ADAPTERS_ENABLED: "true"
+      IOT_ADAPTER_MANAGER_URL: http://adapter-manager:8090
+      IOT_ADAPTER_MANAGER_TOKEN: ${IOT_ADAPTER_MANAGER_TOKEN:?}
+      IOT_ADAPTER_PORT_BASE: ${IOT_ADAPTER_PORT_BASE:-19000}
+      IOT_ADAPTER_PORT_LIMIT: ${IOT_ADAPTER_PORT_LIMIT:-19999}
+      IOT_ADAPTER_QUEUE_CONNECTION: database
+  assistant-worker:
+    environment: *adapter-env
+  adapter-worker:
+    image: ${API_IMAGE:?}
+    environment:
+      APP_ENV: ${DEPLOY_ENVIRONMENT:?}
+      APP_KEY: ${APP_KEY:?}
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: pgsql
+      DB_HOST: ${DATABASE_HOST:-timescaledb}
+      DB_PORT: 5432
+      DB_DATABASE: iot
+      DB_USERNAME: iot_api
+      DB_PASSWORD: ${API_DB_PASSWORD:?}
+      QUEUE_CONNECTION: database
+      DEVICE_RUNTIME_URL: http://runtime:8081
+      DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN:?}
+      DEVICE_BROKER_PROVIDER: ${DEVICE_BROKER_PROVIDER:-mosquitto}
+      DEVICE_BROKER_ADMIN_URL: http://broker-admin:8082
+      DEVICE_BROKER_ADMIN_TOKEN: ${DEVICE_BROKER_ADMIN_TOKEN:?}
+      DEVICE_MQTT_URL: ssl://mqtt.${DOMAIN:?}:8883
+      DEVICE_MQTT_CA_FILE: /certs/ca.crt
+      <<: *adapter-env
+    command: [php, artisan, queue:work, --queue=device-adapters, --sleep=1, --tries=1, --timeout=180, --max-time=3600]
+    volumes:
+      - ${STATE_DIR:?}/mqtt-certs/ca.crt:/certs/ca.crt:ro
+    networks: [private]
+    restart: unless-stopped
+  adapter-manager:
+    image: ${ADAPTER_MANAGER_IMAGE:?}
+    environment:
+      IOT_ADAPTER_MANAGER_TOKEN: ${IOT_ADAPTER_MANAGER_TOKEN:?}
+      IOT_ADAPTER_DOCKER_NETWORK: ${IOT_ADAPTER_DOCKER_NETWORK:?}
+      IOT_ADAPTER_HOST_STATE_DIR: ${STATE_DIR:?}/device-adapters
+      IOT_ADAPTER_STATE_DIR: /state
+      IOT_ADAPTER_PROJECT: ${COMPOSE_PROJECT_NAME:?}
+      IOT_ADAPTER_PUBLIC_HOST: ${IOT_ADAPTER_PUBLIC_HOST:?}
+      IOT_ADAPTER_BIND_ADDRESS: ${IOT_ADAPTER_BIND_ADDRESS:?}
+      IOT_ADAPTER_CALLBACK_URL: http://api:8000/api/internal/adapters/events
+      IOT_ADAPTER_RUNTIME_IMAGE: ${ADAPTER_RUNTIME_IMAGE:?}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${STATE_DIR}/device-adapters:/state
+    networks: [private]
+    mem_limit: 256m
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

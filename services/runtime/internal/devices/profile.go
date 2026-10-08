@@ -108,6 +108,8 @@ func Preview(d Definition, metrics []Metric) ([]Reading, error) {
 			}
 		}
 	}
+	// Birth previews verify the profile before an installation is enrolled.
+	d.Adapter = nil
 	return Readings(d, p, metrics, map[string]Reading{}, time.Now().UTC()), nil
 }
 
@@ -158,6 +160,15 @@ func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string
 		}
 		var converted any
 		var err error
+		if d.Adapter != nil {
+			if metric.InstallationUUID != d.Adapter.InstallationUUID || !validAdapterUUID(metric.AdapterRevisionUUID) {
+				metric.Diagnostic = "adapter installation provenance does not match enrollment"
+			} else {
+				r.InstallationUUID = d.Adapter.InstallationUUID
+				r.ManufacturerSerial = d.Adapter.ManufacturerSerial
+				r.AdapterRevisionUUID = metric.AdapterRevisionUUID
+			}
+		}
 		if metric.IsNull || metric.Value == nil {
 			err = errors.New("source reported null value")
 		} else if metric.Diagnostic != "" {
@@ -247,6 +258,16 @@ func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string
 			parameter := params[calculation.TargetParameterUUID]
 			r := Reading{ParameterUUID: parameter.UUID, Key: parameter.Key, Label: parameter.Label, DataType: parameter.DataType, Unit: parameter.Unit, Quality: "good", ReceivedAt: received, ObservedAt: received, Historical: historical}
 			r.TimestampSource = "derived"
+			if d.Adapter != nil {
+				r.InstallationUUID = d.Adapter.InstallationUUID
+				r.ManufacturerSerial = d.Adapter.ManufacturerSerial
+				for _, input := range calculation.Inputs {
+					if source, ok := updates[input.ParameterUUID]; ok && source.AdapterRevisionUUID != "" {
+						r.AdapterRevisionUUID = source.AdapterRevisionUUID
+						break
+					}
+				}
+			}
 			var err error
 			if invalid != "" {
 				err = errors.New(invalid)

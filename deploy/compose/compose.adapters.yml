@@ -1,0 +1,74 @@
+# Opt-in vendor adapter services. Preserve the active devices overlay.
+services:
+  api:
+    environment: &adapter-env
+      IOT_ADAPTERS_ENABLED: "true"
+      IOT_ADAPTER_MANAGER_URL: http://adapter-manager:8090
+      IOT_ADAPTER_MANAGER_TOKEN: ${IOT_ADAPTER_MANAGER_TOKEN:?Generate a private adapter manager token}
+      IOT_ADAPTER_PORT_BASE: ${IOT_ADAPTER_PORT_BASE:-19000}
+      IOT_ADAPTER_PORT_LIMIT: ${IOT_ADAPTER_PORT_LIMIT:-19999}
+      IOT_ADAPTER_QUEUE_CONNECTION: database
+  assistant-worker:
+    environment: *adapter-env
+  adapter-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/api/Dockerfile
+    environment:
+      APP_ENV: local
+      APP_KEY: ${IOT_API_APP_KEY:-base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: pgsql
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_DATABASE: ${IOT_POSTGRES_DATABASE:-iot_os}
+      DB_USERNAME: ${IOT_POSTGRES_USER:-iot_os}
+      DB_PASSWORD: ${IOT_POSTGRES_PASSWORD:-iot_os_dev_only}
+      QUEUE_CONNECTION: database
+      DEVICE_RUNTIME_URL: http://runtime:8081
+      DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN:?}
+      DEVICE_MQTT_URL: ssl://emqx:8883
+      DEVICE_MQTT_CA_FILE: /certs/ca.crt
+      DEVICE_EMQX_API_URL: http://emqx:18083/api/v5
+      DEVICE_EMQX_API_KEY: ${DEVICE_EMQX_API_KEY:?}
+      DEVICE_EMQX_API_SECRET: ${DEVICE_EMQX_API_SECRET:?}
+      <<: *adapter-env
+    command: [php, artisan, queue:work, --queue=device-adapters, --sleep=1, --tries=1, --timeout=180, --max-time=3600]
+    volumes:
+      - ${DEVICE_CERT_DIR:?}/ca.crt:/certs/ca.crt:ro
+    networks: [internal]
+    restart: unless-stopped
+  adapter-manager:
+    build:
+      context: ../..
+      dockerfile: services/adapters/Dockerfile
+      target: manager
+    environment:
+      IOT_ADAPTER_MANAGER_TOKEN: ${IOT_ADAPTER_MANAGER_TOKEN:?}
+      IOT_ADAPTER_DOCKER_NETWORK: ${IOT_ADAPTER_DOCKER_NETWORK:-iot-os-dev_internal}
+      IOT_ADAPTER_HOST_STATE_DIR: ${IOT_ADAPTER_HOST_STATE_DIR:?Use an absolute private state directory}
+      IOT_ADAPTER_STATE_DIR: /state
+      IOT_ADAPTER_PROJECT: ${COMPOSE_PROJECT_NAME:-iot-os-dev}
+      IOT_ADAPTER_PUBLIC_HOST: ${IOT_ADAPTER_PUBLIC_HOST:-localhost}
+      IOT_ADAPTER_BIND_ADDRESS: ${IOT_ADAPTER_BIND_ADDRESS:-127.0.0.1}
+      IOT_ADAPTER_CALLBACK_URL: http://api:8000/api/internal/adapters/events
+      IOT_ADAPTER_RUNTIME_IMAGE: ${IOT_ADAPTER_RUNTIME_IMAGE:-iot-device-adapter-runtime:local}
+      IOT_ADAPTER_ALLOW_PRIVATE_BROKERS: ${IOT_ADAPTER_ALLOW_PRIVATE_BROKERS:-false}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${IOT_ADAPTER_HOST_STATE_DIR}:/state
+    networks: [internal]
+    mem_limit: 256m
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8090/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  adapter-runtime-image:
+    profiles: [adapter-build]
+    image: ${IOT_ADAPTER_RUNTIME_IMAGE:-iot-device-adapter-runtime:local}
+    build:
+      context: ../..
+      dockerfile: services/adapters/Dockerfile
+      target: tenant-runtime

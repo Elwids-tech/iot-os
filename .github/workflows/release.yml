@@ -46,6 +46,14 @@ jobs:
           cache-dependency-path: services/runtime/go.sum
       - run: go test ./...
         working-directory: services/runtime
+      - name: Verify vendor decoder sandbox and live adapter protocol
+        run: |
+          npm ci --prefix services/adapters --ignore-scripts
+          npm test --prefix services/adapters
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mosquitto mosquitto-clients
+          npm install --no-save --prefix .local/adapter-tests node-red@4.1.13
+          MOSQUITTO_BIN=mosquitto npm run test:integration --prefix services/adapters
       - name: Verify Mosquitto TLS, tenant ACLs and durable recovery
         run: |
           docker build -f deploy/docker/runtime/Dockerfile -t elwids-mosquitto-runtime:check .
@@ -64,6 +72,8 @@ jobs:
           - {name: admin, key: ADMIN_IMAGE, file: deploy/docker/admin/Dockerfile, target: ''}
           - {name: runtime, key: RUNTIME_IMAGE, file: deploy/docker/runtime/Dockerfile, target: ''}
           - {name: simulator, key: SIMULATOR_IMAGE, file: deploy/docker/simulator/Dockerfile, target: ''}
+          - {name: adapter-manager, key: ADAPTER_MANAGER_IMAGE, file: services/adapters/Dockerfile, target: manager}
+          - {name: adapter-runtime, key: ADAPTER_RUNTIME_IMAGE, file: services/adapters/Dockerfile, target: tenant-runtime}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -113,7 +123,7 @@ jobs:
           images = {}
           for path in pathlib.Path('images').glob('*/image.json'):
               images.update(json.loads(path.read_text()))
-          assert len(images) == 6
+          assert len(images) == 8
           pathlib.Path('release.json').write_text(json.dumps({'format': 1, 'commit': os.environ['GITHUB_SHA'], 'images': images}, indent=2))
           PY
       - uses: actions/upload-artifact@v4
@@ -164,7 +174,7 @@ jobs:
           source = json.loads(pathlib.Path('source-run.json').read_text())
           assert manifest['commit'] == source['head_sha']
           expected = {'API_IMAGE', 'API_WEB_IMAGE', 'PORTAL_IMAGE', 'ADMIN_IMAGE', 'RUNTIME_IMAGE', 'SIMULATOR_IMAGE'}
-          assert set(manifest['images']) == expected
+          assert set(manifest['images']) in (expected, expected | {'ADAPTER_MANAGER_IMAGE', 'ADAPTER_RUNTIME_IMAGE'})
           prefix = 'ghcr.io/' + os.environ['GITHUB_REPOSITORY'].lower() + '/'
           with open('image-list.tsv', 'w') as stream:
               for key, reference in sorted(manifest['images'].items()):

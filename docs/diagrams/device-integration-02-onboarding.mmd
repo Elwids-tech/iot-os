@@ -1,0 +1,30 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"18px"},"flowchart":{"wrappingWidth":420,"curve":"linear"},"markdownAutoWrap":false}}%%
+flowchart TD
+    type["1. Select a device profile<br/>Create or reuse a device-type adapter"]
+    source{"2. Where does the device publish?"}
+    kit["Our tenant ingress broker<br/>Download endpoint, CA and device credentials"]
+    vendor["Reachable vendor broker<br/>Enter authorized credentials and topics"]
+    decoder["3. Add documentation and payload samples<br/>Write JavaScript or ask AI for a draft"]
+    test["4. Test raw payload to profile metrics<br/>Inspect identity, values, units and errors"]
+    valid{"Exact revision passes tests?"}
+    fix["Edit the draft or request an AI change"]
+    deploy["5. Review and deploy<br/>Platform applies the approved revision"]
+    discovery["6. Receive real device messages<br/>Preview discovered serial numbers"]
+    activate["7. Review a candidate<br/>Create or link a virtual device and activate"]
+    stored["8. Verify first stored readings<br/>Show connection, decoder and sensor freshness"]
+    type --> source
+    source -->|"Platform endpoint"| kit
+    source -->|"Vendor endpoint"| vendor
+    kit --> decoder
+    vendor --> decoder
+    decoder --> test --> valid
+    valid -->|"No"| fix --> test
+    valid -->|"Yes"| deploy --> discovery --> activate --> stored
+    classDef step fill:#DBEAFE,stroke:#1D4ED8,color:#172554
+    classDef decision fill:#FEF3C7,stroke:#B45309,color:#451A03
+    classDef success fill:#DCFCE7,stroke:#15803D,color:#14532D
+    classDef edit fill:#FCE7F3,stroke:#BE185D,color:#500724
+    class type,kit,vendor,decoder,test,deploy,discovery,activate step
+    class source,valid decision
+    class stored success
+    class fix edit

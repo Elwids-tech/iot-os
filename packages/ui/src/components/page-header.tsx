@@ -4,6 +4,7 @@ import { ChevronLeftIcon } from "lucide-react"
 
 import { cn } from "@iot-os/ui/lib/utils"
 import { SidebarTrigger } from "@iot-os/ui/components/sidebar"
+import { PageHelpContext } from "@iot-os/ui/components/page-help"
 
 // The app name comes from index.html <title>: "IoT OS" (portal) or "IoT OS Admin".
 const appName = document.title
@@ -21,6 +22,7 @@ export function PageHeader({
   actions,
   children,
   className,
+  helpContext,
 }: {
   title: string
   heading?: React.ReactNode
@@ -29,7 +31,15 @@ export function PageHeader({
   actions?: React.ReactNode
   children?: React.ReactNode
   className?: string
+  helpContext?: string
 }) {
+  const help = React.useContext(PageHelpContext)
+  const onHelpContextChange = help?.onContextChange
+  React.useEffect(() => {
+    if (!helpContext || !onHelpContextChange) return
+    onHelpContextChange(helpContext)
+    return () => onHelpContextChange(undefined)
+  }, [helpContext, onHelpContextChange])
   React.useEffect(() => {
     document.title = `${title} · ${appName}`
     return () => {
@@ -62,8 +72,8 @@ export function PageHeader({
             {meta}
           </div>
         )}
-        {actions && (
-          <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div>
+        {(actions || help) && (
+          <div className="ml-auto flex shrink-0 items-center gap-2">{actions}{help?.trigger}</div>
         )}
       </div>
       {children && (

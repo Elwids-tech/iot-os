@@ -1,0 +1,41 @@
+import { describe, expect, it } from "vitest";
+import { helpContextForPath } from "./context";
+
+describe("Help context", () => {
+  it("resolves task context without including private resource identifiers", () => {
+    expect(
+      helpContextForPath(
+        "/organizations/private-org/devices/private-device/commands",
+      ),
+    ).toBe("devices.commands");
+    expect(
+      helpContextForPath(
+        "/organizations/private-org/devices/private-device/measurements",
+      ),
+    ).toBe("devices.measurements");
+    expect(
+      helpContextForPath(
+        "/organizations/private-org/device-profiles/private-profile/review",
+      ),
+    ).toBe("device-profiles.review");
+    expect(
+      helpContextForPath(
+        "/organizations/private-org/alerts/notifications/private-workflow",
+      ),
+    ).toBe("alerts.notifications.workflow");
+    expect(helpContextForPath("/organizations/private-org/geofences/new")).toBe(
+      "geofences.editor",
+    );
+  });
+  it("uses section overviews for unsupported tabs and getting started outside a workspace", () => {
+    expect(
+      helpContextForPath(
+        "/organizations/private-org/devices/private-device/unknown",
+      ),
+    ).toBe("devices.overview");
+    expect(
+      helpContextForPath("/organizations/private-org/unknown/private-id"),
+    ).toBe("getting-started");
+    expect(helpContextForPath("/organizations")).toBe("getting-started");
+  });
+});

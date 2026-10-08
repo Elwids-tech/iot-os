@@ -362,18 +362,21 @@ type HistoryCursor struct {
 }
 
 type HistoryRecord struct {
-	TimestampSource   string    `json:"timestamp_source"`
-	Historical        bool      `json:"historical"`
-	EventUUID         string    `json:"event_uuid"`
-	ConfigurationUUID string    `json:"configuration_uuid"`
-	ParameterUUID     string    `json:"parameter_uuid"`
-	ReceivedAt        time.Time `json:"received_at"`
-	ObservedAt        time.Time `json:"observed_at"`
-	DataType          string    `json:"data_type"`
-	Unit              *string   `json:"unit"`
-	Value             any       `json:"value"`
-	Quality           string    `json:"quality"`
-	Diagnostic        string    `json:"diagnostic,omitempty"`
+	InstallationUUID    string    `json:"installation_uuid,omitempty"`
+	AdapterRevisionUUID string    `json:"adapter_revision_uuid,omitempty"`
+	ManufacturerSerial  string    `json:"manufacturer_serial,omitempty"`
+	TimestampSource     string    `json:"timestamp_source"`
+	Historical          bool      `json:"historical"`
+	EventUUID           string    `json:"event_uuid"`
+	ConfigurationUUID   string    `json:"configuration_uuid"`
+	ParameterUUID       string    `json:"parameter_uuid"`
+	ReceivedAt          time.Time `json:"received_at"`
+	ObservedAt          time.Time `json:"observed_at"`
+	DataType            string    `json:"data_type"`
+	Unit                *string   `json:"unit"`
+	Value               any       `json:"value"`
+	Quality             string    `json:"quality"`
+	Diagnostic          string    `json:"diagnostic,omitempty"`
 }
 
 type HistoryRecordsPage struct {
@@ -429,6 +432,9 @@ func (s *Store) HistoryRecords(ctx context.Context, org, device, param string, f
 		record.Value = reading.Value
 		record.Quality = reading.Quality
 		record.TimestampSource = reading.TimestampSource
+		record.InstallationUUID = reading.InstallationUUID
+		record.AdapterRevisionUUID = reading.AdapterRevisionUUID
+		record.ManufacturerSerial = reading.ManufacturerSerial
 		record.Historical = reading.Historical
 		record.Diagnostic = reading.Diagnostic
 		records = append(records, record)

@@ -27,6 +27,16 @@ final class AssistantAccess
     public function conversation(User $user, Organization $organization, AssistantConversation $conversation): void
     {
         abort_unless($conversation->user_id === $user->getKey() && $conversation->organization_id === $organization->getKey(), 404);
+        if ($conversation->scope === 'adapter') {
+            abort_unless(config('adapters.enabled') && $conversation->adapter, 404);
+            app(\App\Domain\Devices\Services\DeviceAuthorization::class)->authorize($user,\App\Domain\Devices\Permissions\DevicePermission::MANAGE,$organization,$conversation->adapter);
+            return;
+        }
+        if ($conversation->scope === 'help') {
+            app(\App\Domain\Help\Services\HelpAccess::class)->organization($user, $organization);
+            abort_unless($conversation->device_profile_id === null && $conversation->automation_workflow_id === null, 422);
+            return;
+        }
         if ($conversation->scope === 'automation') {
             $this->automation($user, $organization);
             if ($conversation->automation_workflow_id !== null) {
@@ -34,6 +44,7 @@ final class AssistantAccess
             }
             return;
         }
+        abort_unless($conversation->scope === 'profile', 422, 'Unknown assistant scope.');
         $this->organization($user, $organization);
         if ($conversation->device_profile_id !== null) {
             abort_unless($conversation->profile?->organization_id === $organization->getKey(), 404);

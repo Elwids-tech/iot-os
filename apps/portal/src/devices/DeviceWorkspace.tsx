@@ -43,6 +43,7 @@ import { CommandsSection } from "./CommandsSection"
 import { DeviceOverview } from "./DeviceOverview"
 import { AddToDashboard, EditDetails } from "./DeviceActions"
 import { DeviceControls } from "../controls/DeviceControls"
+import { DeviceConnectivity } from "./DeviceOnboarding"
 
 const HistorySection = lazy(() => import("./HistorySection"))
 const sections = {
@@ -50,6 +51,7 @@ const sections = {
   measurements: "Measurements",
   history: "History",
   configuration: "Configuration",
+  connectivity: "Connectivity",
   controls: "Controls",
   commands: "Command log",
 } as const
@@ -313,6 +315,9 @@ function Workspace({
         {lifecycle.status}
         <TabsContent value="overview">
           <DeviceOverview org={org} device={device} editable={capabilities.manage} />
+        </TabsContent>
+        <TabsContent value="connectivity">
+          <DeviceConnectivity org={org} deviceUuid={device.uuid} />
         </TabsContent>
         <TabsContent value="measurements">
           <MeasurementsSection org={org} device={device} />

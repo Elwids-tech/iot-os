@@ -2,6 +2,7 @@
 
 return [
     'enabled' => (bool) env('IOT_ASSISTANT_ENABLED', false),
+    'help_enabled' => (bool) env('IOT_HELP_AI_ENABLED', false),
     'model' => env('IOT_ASSISTANT_MODEL', 'gpt-5.4-mini-2026-03-17'),
     'queue_connection' => env('IOT_ASSISTANT_QUEUE_CONNECTION', 'assistant'),
     'daily_budget_usd' => (float) env('IOT_ASSISTANT_DAILY_BUDGET_USD', 0.50),

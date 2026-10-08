@@ -238,6 +238,23 @@ func (e *Engine) Accept(connection string, topic string, raw []byte, at time.Tim
 
 func decodeMetric(m *pb.Payload_Metric, name string, datatype pb.DataType, fallback uint64) devices.Metric {
 	metric := devices.Metric{Name: name, Alias: m.Alias, Datatype: datatype.String(), Historical: m.GetIsHistorical(), IsNull: m.GetIsNull()}
+	if properties := m.GetProperties(); properties != nil {
+		for i, key := range properties.Keys {
+			if i >= len(properties.Values) {
+				break
+			}
+			value := properties.Values[i]
+			if value.GetType() != uint32(pb.DataType_String) || value.GetIsNull() {
+				continue
+			}
+			switch key {
+			case "installation_uuid":
+				metric.InstallationUUID = value.GetStringValue()
+			case "adapter_revision_uuid":
+				metric.AdapterRevisionUUID = value.GetStringValue()
+			}
+		}
+	}
 	ts := fallback
 	if m.Timestamp != nil {
 		ts = *m.Timestamp

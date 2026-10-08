@@ -49,6 +49,7 @@ import {
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
 import { jsonText } from "./authoring"
+import { useDeviceOrganization } from "../devices/shared"
 export function ProfileWorkspace() {
   return (
     <StudioProvider>
@@ -64,6 +65,7 @@ const sections = [
   { key: "review", label: "Review and publish" },
 ]
 function Workspace() {
+  const { capabilities: deviceCapabilities } = useDeviceOrganization()
   const studio = useStudio(),
     { section = "overview" } = useParams(),
     { profile } = studio
@@ -102,6 +104,7 @@ function Workspace() {
         meta={<span className="font-mono text-xs">{profile.code}</span>}
         actions={
           <>
+            {profile.revision > 0 && deviceCapabilities.manage && <Button asChild variant="outline"><Link to={`/organizations/${studio.org}/devices/onboard?profile=${profile.uuid}`}>Connect a device</Link></Button>}
             {studio.capabilities.validate && (
               <Button
                 variant="outline"

@@ -18,7 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withCommands([WebhookWorker::class, \App\Domain\Automation\Console\AutomationWorker::class])
+    ->withCommands([WebhookWorker::class, \App\Domain\Automation\Console\AutomationWorker::class, \App\Domain\Help\Console\ValidateHelp::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->replace(TrustProxies::class, TrustDeploymentProxies::class);

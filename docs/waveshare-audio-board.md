@@ -1,5 +1,70 @@
 # Waveshare RGB and audio alarm
 
+## Standalone Wi-Fi / mobile hotspot
+
+The optional Wi-Fi firmware connects directly to the existing Sparkplug MQTT
+broker with verified TLS. It preserves the existing group, edge-node, host and
+`rgb-light` device identities and publishes the eight actual driver states. The
+Mac gateway must stay stopped while the board uses the same MQTT identity.
+USB can supply power without running a bridge; an independent USB power supply
+also works. Wi-Fi and broker reconnects are automatic. A new connection publishes
+fresh births and advances the persistent `bdSeq` counter. Commands are rejected
+if retained, stale, duplicated, malformed, or received while the host is offline.
+The existing hardware validation, alarm duration limit, BOOT-button stop and
+connection-loss stop remain active.
+
+The ESP32-S3 needs a 2.4 GHz WPA2 network. On an iPhone, enable **Allow Others to
+Join** and **Maximize Compatibility**, and keep Personal Hotspot open during the
+initial join. The SSID must match the actual advertised name exactly, including
+capitalization and straight/curly apostrophes.
+
+Store `{"ssid":"your hotspot","password":"your password"}` in a private,
+ignored Wi-Fi JSON file. Use the existing gateway JSON for the device's scoped
+MQTT credentials. Neither those files nor firmware binaries belong in Git;
+binaries contain the credentials. Prepare the configuration without logging
+secrets:
+
+```sh
+rtk proxy python3 tooling/hardware/prepare-waveshare-wifi.py \
+  --wifi .local/devices/waveshare-hotspot/wifi.json \
+  --gateway .local/hetzner-pilot/waveshare-staging/gateway.json \
+  --previous-sequence .local/hetzner-pilot/waveshare-staging/sequence \
+  --output .local/devices/waveshare-hotspot/wave_credentials.h
+```
+
+Activate the installed ESP-IDF environment, then build using a separate private
+SDK configuration and build directory:
+
+```sh
+rtk proxy env WAVE_CONFIG_DIR="$PWD/.local/devices/waveshare-hotspot" \
+  idf.py -C firmware/waveshare-audio \
+  -B "$PWD/.local/devices/waveshare-hotspot/build" \
+  -DSDKCONFIG="$PWD/.local/devices/waveshare-hotspot/sdkconfig" build
+```
+
+Verify the board's USB port and MAC, make a complete 16 MiB flash backup and
+record its SHA-256 before flashing. Using the same command and configuration,
+replace `build` with `flash -p <verified-port>`. Do not erase flash or reset
+platform data. The optional custom partition table reserves a 4 MiB application
+partition for Wi-Fi, TLS and Sparkplug while retaining the original NVS offset.
+For USB-only builds, omit `WAVE_CONFIG_DIR` and use a separate build directory.
+
+Serial reports expose `network` (`wifi_connecting`, `clock_sync`,
+`mqtt_connecting`, `waiting_for_host`, `birth_pending`, `online`) and
+`wifi_disconnect_reason`. They never expose passwords. Wi-Fi reason 201 means
+the configured SSID was not found. Completion requires a healthy board report,
+fresh staging telemetry, and a staging command reflected in physical driver
+state; a successful flash alone is insufficient.
+
+The bounded embedded protobuf codec is tested against the platform's generated
+Sparkplug schema, including malformed and oversized controls:
+
+```sh
+rtk proxy .local/devices/python/bin/python tooling/hardware/test_waveshare_wire.py
+```
+
+## USB bench setup
+
 This local test uses the **Waveshare ESP32-S3-AUDIO-Board**, connected by USB to
 the Mac running the platform. The existing **RGB LED · Controls demo** device
 keeps its identity, RGB parameter UUIDs, and history. Its profile receives four
@@ -8,7 +73,8 @@ additional audio parameters and a new published revision. A separate
 
 The path is portal → audited device command → local TLS MQTT/Sparkplug gateway
 → USB → board. Board reports travel back through the same gateway. The Mac and
-bridge must remain running; this firmware does not connect over Wi-Fi.
+bridge must remain running for USB-only builds. The optional Wi-Fi build below
+connects directly to the broker and does not need the Mac gateway.
 
 ## Controls
 
