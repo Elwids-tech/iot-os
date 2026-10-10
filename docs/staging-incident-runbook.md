@@ -5,7 +5,7 @@ must be filled and tested during [staging acceptance](../plan/tasks/staging-moni
 Monitoring changes in that plan are not yet implemented by this document.
 
 The [domain and email setup plan](staging-monitoring-email-setup.md) defines the
-proposed `*.staging.elwids.xyz` endpoints, Brevo senders, external notification
+proposed `*.staging.elwids.xyz` endpoints (now `*.elwids.xyz`; see the [pilot record](pilot-two-server-deployment.md)), Brevo senders, external notification
 provider and delivery tests. Populate the handoff below after they are verified.
 
 ## Operator handoff
