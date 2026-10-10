@@ -24,6 +24,19 @@ class NotificationsTest(unittest.TestCase):
                 notification_reconcile.reconcile(deployment)
         deployment.compose.assert_not_called()
 
+    def test_watchdog_probes_the_configured_domain(self):
+        opened, dialed = [], []
+        response = MagicMock(status=200)
+        response.__enter__.return_value = response
+        with patch.object(watchdog.urllib.request, "urlopen", side_effect=lambda url, timeout: opened.append(url) or response), \
+                patch.object(watchdog.socket, "create_connection", side_effect=lambda address, timeout: dialed.append(address) or MagicMock()), \
+                patch.object(watchdog.ssl, "create_default_context") as context:
+            self.assertEqual([], watchdog.probe({"domain": "elwids.xyz"}))
+        self.assertEqual(["https://app.elwids.xyz/", "https://api.elwids.xyz/health/ready"], opened)
+        self.assertEqual([("mqtt.elwids.xyz", 8883)], dialed)
+        self.assertEqual("mqtt.elwids.xyz", context.return_value.wrap_socket.call_args.kwargs["server_hostname"])
+        self.assertEqual("staging.elwids.xyz", watchdog.domain({}))
+
     def test_private_transport_keeps_tls_hostname_and_certificate_verification(self):
         connection = MagicMock()
         connection.getresponse.return_value.status = 200

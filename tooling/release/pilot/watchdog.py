@@ -17,11 +17,16 @@ import uuid
 from email.message import EmailMessage
 
 
+def domain(config):
+    """Base domain of the watched deployment; set "domain" in watchdog.json after a rename."""
+    return config.get("domain", "staging.elwids.xyz")
+
+
 def api_request(config, path, payload=None):
     token = config.get("notifications_token")
     if not token:
         raise RuntimeError("Notification center is not configured")
-    url = config.get("notifications_url", "https://api.staging.elwids.xyz/api/internal/notifications") + path
+    url = config.get("notifications_url", "https://api." + domain(config) + "/api/internal/notifications") + path
     request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "Content-Type": "application/json", "Accept": "application/json"}, data=json.dumps(payload).encode() if payload is not None else None)
     private_host = config.get("notifications_private_host")
     if not private_host:
@@ -47,9 +52,10 @@ def api_request(config, path, payload=None):
         connection.close()
 
 
-def probe():
+def probe(config):
     failures = []
-    for url in ["https://app.staging.elwids.xyz/", "https://api.staging.elwids.xyz/health/ready"]:
+    base = domain(config)
+    for url in ["https://app." + base + "/", "https://api." + base + "/health/ready"]:
         try:
             with urllib.request.urlopen(url, timeout=10) as response:
                 if response.status != 200:
@@ -57,8 +63,8 @@ def probe():
         except Exception:
             failures.append(url)
     try:
-        with socket.create_connection(("mqtt.staging.elwids.xyz", 8883), timeout=10) as raw:
-            with ssl.create_default_context().wrap_socket(raw, server_hostname="mqtt.staging.elwids.xyz"):
+        with socket.create_connection(("mqtt." + base, 8883), timeout=10) as raw:
+            with ssl.create_default_context().wrap_socket(raw, server_hostname="mqtt." + base):
                 pass
     except Exception:
         failures.append("MQTT TLS")
@@ -70,7 +76,7 @@ def send_email(config, event):
     message["From"] = "Elwids Alerts <alerts@elwids.xyz>"
     message["To"] = config["recipient"]
     message["Subject"] = "[" + event["status"].upper() + "] Elwids application watchdog"
-    message.set_content(event["summary"] + "\n\nView events: https://app.staging.elwids.xyz/notifications\n")
+    message.set_content(event["summary"] + "\n\nView events: https://app." + domain(config) + "/notifications\n")
     with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=20) as smtp:
         smtp.ehlo()
         smtp.starttls(context=ssl.create_default_context())
@@ -97,7 +103,7 @@ def run(config, path, drill=False):
         state["preferences_checked_at"] = int(time.time())
     except Exception:
         print("Preferences endpoint unavailable; retained the last saved settings.")
-    failures = ["Controlled watchdog alert drill"] if drill else probe()
+    failures = ["Controlled watchdog alert drill"] if drill else probe(config)
     state["failures"] = (2 if drill else state.get("failures", 0)) + 1 if failures else 0
     active = bool(state.get("active"))
     transition = (state["failures"] >= 3 and not active) or (not failures and active)
