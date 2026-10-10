@@ -60,6 +60,14 @@ import { PanelBody, widgetRegistry } from "./registry"
 import { writableParameters, controlSpec } from "../controls/model"
 import { isColorParameter } from "../history/model"
 import { WorkflowPicker } from "./WorkflowPanelEditor"
+import { VisualizationPicker } from "./VisualizationPicker"
+import {
+  candidatesFor,
+  incompatibility,
+  panelFor,
+  sourceFor,
+  type PanelType,
+} from "./suggest"
 import { LocationSettings } from "./LocationPanelEditor"
 
 type Widget = DashboardWidget
@@ -104,6 +112,9 @@ export function PanelEditor({
   const source = widget.config.sources[selected]
   const error = widgetError(widget)
   const devices = useDevices(org, source ? [source.device_uuid] : [])
+  const sourceDevices = useDevices(org, widget.config.sources.map((s) => s.device_uuid))
+  const candidates = candidatesFor(widget.config.sources, (id) => sourceDevices(id)?.data)
+  const [pendingType, setPendingType] = useState<PanelType | null>(null)
   const profileDecimals = source
     ? profilePrecision(devices(source.device_uuid)?.data, source.parameter_uuid)
     : undefined
@@ -119,12 +130,20 @@ export function PanelEditor({
       },
     }))
   }
-  function changeType(type: Widget["type"]) {
+  /**
+   * Keeps the selected parameters whenever the new type can show them, and
+   * applies its profile defaults (a gauge takes the profile range). Switching
+   * to a type that cannot show them asks first.
+   */
+  function changeType(type: PanelType, confirmed = false) {
+    const keep = widget.config.sources.length > 0 && !incompatibility(type, candidates)
+    if (widget.config.sources.length > 0 && !keep && !confirmed) {
+      setPendingType(type)
+      return
+    }
+    setPendingType(null)
     setWidget((current) => {
-      const next = newWidget(type)
-      const keep =
-        widgetRegistry[type].editor === "parameter-panel" &&
-        widgetRegistry[current.type].editor === "parameter-panel"
+      const next = keep ? panelFor(type, candidates) : newWidget(type)
       return {
         ...next,
         id: current.id,
@@ -132,7 +151,11 @@ export function PanelEditor({
           current.title === PANEL_LABELS[current.type] ? next.title : current.title,
         description: current.description,
         config: keep
-          ? { ...next.config, sources: current.config.sources }
+          ? {
+              ...next.config,
+              // Keep the panel's own colours, thresholds and labels.
+              sources: current.config.sources,
+            }
           : next.config,
       }
     })
@@ -172,25 +195,6 @@ export function PanelEditor({
           </>
         }
       >
-        <span className="text-xs text-muted-foreground" id="visualization-label">
-          Visualization
-        </span>
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          size="sm"
-          spacing={0}
-          aria-labelledby="visualization-label"
-          className="flex-wrap"
-          value={widget.type}
-          onValueChange={(type) => type && changeType(type as Widget["type"])}
-        >
-          {(Object.keys(widgetRegistry) as Widget["type"][]).map((type) => (
-            <ToggleGroupItem key={type} value={type}>
-              {PANEL_LABELS[type]}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
       </PageHeader>
       <div className="grid gap-6 p-4 md:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
         <div className="flex min-w-0 flex-col gap-6">
@@ -291,6 +295,13 @@ export function PanelEditor({
           )}
         </div>
         <div className="flex min-w-0 flex-col gap-6 lg:border-l lg:pl-6 [&>section+section]:border-t [&>section+section]:pt-6">
+          <section aria-label="Visualization" className={section}>
+            <VisualizationPicker
+              value={widget.type}
+              candidates={candidates}
+              onChange={(type) => changeType(type)}
+            />
+          </section>
           <section aria-labelledby="panel-heading" className={section}>
             <h2 id="panel-heading" className={sectionHeading}>
               Panel
@@ -492,6 +503,25 @@ export function PanelEditor({
           )}
         </div>
       </div>
+      <AlertDialog open={pendingType !== null} onOpenChange={(open) => !open && setPendingType(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Switch to {pendingType ? PANEL_LABELS[pendingType] : ""}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingType && incompatibility(pendingType, candidates)}{" "}
+              The {widget.config.sources.length === 1 ? "selected parameter" : `${widget.config.sources.length} selected parameters`} will be removed from this panel.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep {PANEL_LABELS[widget.type]}</AlertDialogCancel>
+            <Button variant="destructive" onClick={() => pendingType && changeType(pendingType, true)}>
+              Switch and remove parameters
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
@@ -567,23 +597,11 @@ function DataSection({
   function addSource() {
     const parameter = parameters.find((p) => p.uuid === parameterId)
     if (!parameter || !device.data) return
-    const next: DashboardSource = {
-      device_uuid: deviceId,
-      parameter_uuid: parameter.uuid,
-      device_name: device.data.name,
-      label: parameter.label,
-      unit: parameter.unit,
-      data_type: parameter.data_type,
-      format: parameter.format,
-      display_widget:
-        typeof parameter.display?.widget === "string"
-          ? parameter.display.widget
-          : null,
-      precision: null,
-      color: COLORS[widget.config.sources.length % COLORS.length],
-      base: { ...NEUTRAL },
-      thresholds: [],
-    }
+    const next: DashboardSource = sourceFor(
+      { uuid: deviceId, name: device.data.name },
+      parameter,
+      widget.config.sources.length,
+    )
     if (widget.config.sources.some((s) => sourceKey(s) === sourceKey(next)))
       return
     onSelect(widget.config.sources.length)

@@ -339,6 +339,26 @@ async function menu(page: Page, title = "Current temperature") {
     .click()
 }
 
+const addDialog = (page: Page) => page.getByRole("dialog", { name: "Add panel" })
+
+/** Picks a panel that uses no device parameters from the Add panel dialog. */
+async function addOther(page: Page, label: string) {
+  await addDialog(page).getByRole("button", { name: label, exact: true }).click()
+}
+
+/** Ticks Boiler room parameters in the Add panel dialog. */
+async function chooseParameters(page: Page, labels: RegExp[]) {
+  const dialog = addDialog(page)
+  const device = dialog.getByRole("button", { name: "Boiler room", exact: true })
+  await expect(dialog.getByRole("button", { name: "Other device", exact: true })).toBeVisible()
+  // The fixture lists Boiler room on the second page.
+  if (!(await device.isVisible()))
+    await dialog.getByRole("button", { name: "Show more devices", exact: true }).click()
+  await device.click()
+  for (const label of labels) await dialog.getByRole("checkbox", { name: label }).click()
+  return dialog
+}
+
 test("GPS panels use the full-page editor and long canvas drafts survive kiosk mode", async ({ page }) => {
   const { dashboards, calls, errors } = await setup(page)
   dashboards[0].layouts.lg![1].y = 24
@@ -348,7 +368,7 @@ test("GPS panels use the full-page editor and long canvas drafts survive kiosk m
   await page.goto(basePath + "/first")
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
   await page.getByRole("button", { name: "Add panel below", exact: true }).click()
-  await page.getByRole("button", { name: "Add GPS map", exact: true }).click()
+  await addOther(page, "GPS map")
   await expect(page.getByRole("heading", { name: "Edit GPS map panel", exact: true })).toBeVisible()
   await page.getByRole("combobox", { name: "GPS devices", exact: true }).click()
   await page.getByRole("option", { name: "Field tracker", exact: true }).click()
@@ -433,7 +453,7 @@ test("time travel changes chart queries, never latest values or saved defaults",
   await expect(page.locator(".recharts-line-curve").first()).toBeVisible()
   await expect(page.getByText("Latest", { exact: true })).toHaveCount(0)
   await expect(page.getByText("Time range", { exact: true })).toHaveCount(0)
-  await expect(page.getByText(/Last valid value received/)).toBeVisible()
+  await expect(page.getByText(/last valid value received/)).toBeVisible()
   const defaults = structuredClone(dashboards[0].defaults),
     latest = calls.latest
   await page.getByRole("button", { name: "Custom", exact: true }).click()
@@ -450,7 +470,7 @@ test("time travel changes chart queries, never latest values or saved defaults",
   expect(calls.writes).toBe(0)
   expect(dashboards[0].defaults).toEqual(defaults)
   await expect(
-    page.getByText(/Last valid value received/).locator("time"),
+    page.getByText(/last valid value received/).locator("time"),
   ).toHaveAttribute("title", /12:00/)
   await page.goBack()
   await expect(
@@ -584,27 +604,26 @@ test("state and colour history panels select only compatible parameters", async 
   async function addHistoryPanel(
     type: "State history" | "Colour history",
     parameter: RegExp,
+    other: { type: string; reason: string },
   ) {
     await page.getByRole("button", { name: "Add panel", exact: true }).click()
-    await page.getByRole("button", { name: `Add ${type}`, exact: true }).click()
-    await page.getByRole("combobox", { name: "Device", exact: true }).click()
-    await page
-      .getByRole("button", { name: "Next device options", exact: true })
+    const dialog = await chooseParameters(page, [parameter])
+    // The other history panel cannot show this parameter and says why.
+    await dialog.getByRole("combobox", { name: /^Visualization:/ }).click()
+    const unavailable = page.getByRole("option", { name: new RegExp(`^${other.type}`) })
+    await expect(unavailable).toHaveAttribute("aria-disabled", "true")
+    await expect(unavailable).toContainText(other.reason)
+    await page.keyboard.press("Escape")
+    await dialog
+      .getByRole("article", { name: `${type} suggestion` })
+      .getByRole("button", { name: "Add panel", exact: true })
       .click()
-    await page.getByRole("option", { name: "Boiler room", exact: true }).click()
-    await page.getByRole("combobox", { name: "Parameter", exact: true }).click()
-    await page.getByRole("option", { name: parameter }).click()
-    await page
-      .getByRole("button", { name: "Add parameter", exact: true })
-      .click()
-    await page
-      .getByRole("button", { name: "Apply to dashboard", exact: true })
-      .click()
+    await expect(dialog).toHaveCount(0)
   }
 
-  await addHistoryPanel("State history", /Power/)
+  await addHistoryPanel("State history", /^Power/, { type: "Colour history", reason: "Needs colour parameters." })
   await expect(page.getByText("On (1)", { exact: true })).toBeVisible()
-  await addHistoryPanel("Colour history", /Colour/)
+  await addHistoryPanel("Colour history", /^Colour/, { type: "State history", reason: "Needs boolean or enum parameters." })
   await expect(page.getByText("#22C55E", { exact: true })).toBeVisible()
 
   await page
@@ -652,24 +671,13 @@ test("control panels group devices and persist responsive card columns", async (
     .getByRole("button", { name: "Edit dashboard", exact: true })
     .click()
   await page.getByRole("button", { name: "Add panel", exact: true }).click()
-  await page
-    .getByRole("button", { name: "Add Controls", exact: true })
-    .click()
-  await page.getByRole("combobox", { name: "Device", exact: true }).click()
-  await page
-    .getByRole("button", { name: "Next device options", exact: true })
-    .click()
-  await page.getByRole("option", { name: "Boiler room", exact: true }).click()
-
-  for (const parameter of [/Power/, /Colour/]) {
-    await page
-      .getByRole("combobox", { name: "Parameter", exact: true })
-      .click()
-    await page.getByRole("option", { name: parameter }).click()
-    await page
-      .getByRole("button", { name: "Add parameter", exact: true })
-      .click()
-  }
+  const dialog = await chooseParameters(page, [/^Power/, /^Colour/])
+  // Writable parameters lead with controls, previewed with their data.
+  const suggestion = dialog.getByRole("article", { name: "Controls suggestion" })
+  await expect(suggestion).toContainText("Best fit")
+  await expect(suggestion).toContainText("All writable")
+  await suggestion.getByRole("button", { name: "Customize", exact: true }).click()
+  await expect(page.getByRole("combobox", { name: "Visualization: Controls" })).toBeVisible()
   const columns = page.locator('[aria-label="Cards per row"]')
   await expect(columns.locator('[data-state="on"]')).toHaveText("Auto")
   await columns.getByText("3", { exact: true }).click()
@@ -867,7 +875,7 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
   for (const type of ["Alerts"]) {
     await page.getByRole("button", { name: "Add panel", exact: true }).click()
-    await page.getByRole("button", { name: `Add ${type}`, exact: true }).click()
+    await addOther(page, type)
     await expect(page.getByRole("button", { name: "Apply to dashboard", exact: true })).toBeDisabled()
     await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
     await page.getByRole("option", { name: "Pasture boundary", exact: true }).click()
@@ -899,7 +907,7 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
   await page.getByRole("button", { name: "Add panel", exact: true }).click()
-  await page.getByRole("button", { name: "Add Alerts", exact: true }).click()
+  await addOther(page, "Alerts")
   await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
   await page.keyboard.press("ArrowDown")
   await page.keyboard.press("Enter")
@@ -1031,7 +1039,7 @@ test("panel exports, kiosk, new panel types, editor back and undo", async ({
 
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
   await page.getByRole("button", { name: "Add panel", exact: true }).click()
-  await page.getByRole("button", { name: "Add Text", exact: true }).click()
+  await addOther(page, "Text")
   await page.getByLabel("Text", { exact: true }).fill("<b>Call Ext 4410</b>")
   await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
   // Stored as plain text and rendered as text, never as HTML.
@@ -1039,13 +1047,13 @@ test("panel exports, kiosk, new panel types, editor back and undo", async ({
   await expect(page.locator("b", { hasText: "Call Ext 4410" })).toHaveCount(0)
 
   await page.getByRole("button", { name: "Add panel", exact: true }).click()
-  await page.getByRole("button", { name: "Add Gauge", exact: true }).click()
-  await page.getByRole("combobox", { name: "Device", exact: true }).click()
-  await page.getByRole("button", { name: "Next device options", exact: true }).click()
-  await page.getByRole("option", { name: "Boiler room", exact: true }).click()
-  await page.getByRole("combobox", { name: "Parameter", exact: true }).click()
-  await page.getByRole("option", { name: /^Temperature/ }).click()
-  await page.getByRole("button", { name: "Add parameter", exact: true }).click()
+  const dialog = await chooseParameters(page, [/^Temperature/])
+  // Without a profile range the gauge is not suggested but stays one pick away.
+  await expect(dialog.getByRole("article", { name: "Status suggestion" })).toContainText("Best fit")
+  await expect(dialog.getByRole("article", { name: "Gauge suggestion" })).toHaveCount(0)
+  await dialog.getByRole("combobox", { name: "Visualization: Status" }).click()
+  await page.getByRole("option", { name: /^Gauge/ }).click()
+  await expect(page.getByRole("combobox", { name: "Visualization: Gauge" })).toBeVisible()
   await page.getByLabel("Maximum", { exact: true }).fill("40")
   await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
   await expect(page.getByRole("meter", { name: "Temperature" })).toHaveAttribute(

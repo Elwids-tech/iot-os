@@ -8,7 +8,33 @@ The tenant portal supports multiple organization-shared dashboards at `/organiza
 
 ## Editing
 
-Create a named dashboard, enter **Edit dashboard**, and add Status or Time series panels. A panel has a title, description, and ordered device-parameter sources. The editor groups Panel, Data, Display, and Thresholds settings beside a preview. Parameter choices come from applied (or last-applied) immutable configuration definitions, not the latest measurements.
+Create a named dashboard, enter **Edit dashboard**, and choose **Add panel**. A panel has a title, description, and ordered device-parameter sources. The editor groups Panel, Data, Display, and Thresholds settings beside a preview. Parameter choices come from applied (or last-applied) immutable configuration definitions, not the latest measurements.
+
+### Adding panels
+
+**Add panel** starts from data, not from a panel type. Search devices, expand one, and tick its parameters; each shows its kind, unit, and current value. Up to three suggestions then render live with that data. **Add panel** places a suggestion as it is; **Customize** opens it in the editor. The **Visualization** picker lists every other type, and panels that need no parameters (Device health, GPS map, Alerts, Text) open the editor directly.
+
+Suggestions are deterministic (`apps/portal/src/dashboards/suggest.ts`) and follow the profile:
+
+- A single parameter's `display.visualization` hint wins.
+- Writable parameters lead with Controls.
+- Boolean and enum parameters suggest Status, then State history. Colour parameters suggest Status, then Colour history.
+- A numeric parameter with a range suggests a gauge using that range. The range comes from `display.min`/`display.max`, else the validation limits, else 0–100 for `%`. Counters are never suggested as gauges.
+- Several numeric parameters with one unit suggest a single Time series. Mixed units fall back to Status or Table, because a chart never mixes units.
+
+The picker disables types that cannot show the selected data and gives the reason, for example "Needs parameters with one unit."
+
+In the editor, the **Visualization** control replaces the old row of panel types. Switching keeps the sources when the new type can show them. Otherwise it asks before removing them.
+
+From a device page, **Add to dashboard** (header) or the dashboard icon on a reading row (Overview and Measurements) opens the same suggestions for that device's parameters, with the row's parameter preselected.
+
+### Profile display hints
+
+Panels read display hints from the applied profile when they render, so a profile change applies to existing panels:
+
+- State labels and tones (`display.states`) name values in Status, Table, and State history panels. Status shows the label in place of the raw value.
+- Each Status panel has one freshness line: **Live** with the newest receipt time, or **Stale** / "N of M stale" with the last valid value's receipt time, an offline device, and a shared diagnostic. Cells show only each value's age; hovering gives the details.
+- A Time series with no data in the range shows how long ago the last reading arrived and offers **Show last reading**. That moves the range to end just after the reading and keeps the same span, with a minimum of one hour.
 
 **Apply to dashboard** changes the local draft. Only **Save dashboard** persists widgets, layout, name, and viewing defaults. Resize/drag events never issue a save. Navigation offers save, discard, or stay; revision conflicts keep the draft. A panel can be duplicated, removed from the draft, or viewed fullscreen. Cancel restores the saved dashboard.
 
@@ -16,7 +42,7 @@ Status thresholds are per-source numeric lower bounds, with an explicit Base ban
 
 ## Latest versus history
 
-- Status panels show the latest available value regardless of the chart range, with platform receipt time and quality. When an invalid sample retains a previous valid value, `last_valid_received_at` identifies that value's receipt separately from the diagnostic receipt. Inactive or stale readings do not receive healthy threshold colours.
+- Status panels show the latest available value regardless of the chart range, with a panel-level freshness line. When an invalid sample retains a previous valid value, `last_valid_received_at` identifies that value's receipt separately from the diagnostic receipt. Inactive or stale readings do not receive healthy threshold colours.
 - Time series panels use the existing receipt-time history API. Values are bucket averages, not raw samples. Configuration versions are separate lines, gaps remain gaps, and incompatible unit/data-type segments are excluded with a warning. Sources in one chart must share a numeric unit.
 - The time picker supports relative presets, fixed absolute bounds, browser time or UTC, previous/next intervals, zoom out, plot zoom, and manual refresh. Relative charts advance with refresh; absolute charts re-query only on explicit viewing changes or manual refresh. Status continues its independent latest-value polling.
 - Viewing state uses `range` or `from`/`to`, `timezone`, and `refresh` URL parameters. Reload/back/forward restore it. Changing viewing state does not save shared defaults; **Use current time settings as defaults** changes those defaults in the edit draft only. New dashboards default to last 6 hours, browser timezone, and 5-second refresh. Absolute requests are limited to 400 days, matching the default retention; effective device retention may be shorter.

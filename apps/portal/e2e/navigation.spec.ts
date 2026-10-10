@@ -88,9 +88,9 @@ test("desktop navigation collapses to icon tooltips", async ({ page }) => {
   const labels = sidebar
     .getByRole("navigation", { name: "Workspace" })
     .locator('[data-sidebar="menu-button"] > span')
-  // Home, Dashboards, Alerts · Devices, Gateways, Geofences · Automations, Device profiles ·
+  // Home, Dashboards, Alerts · Devices, Gateways, Sites, Geofences · Automations, Device profiles ·
   // Discovery, Integrations · Telemetry viewer. Device adapters needs the organization feature.
-  await expect(labels).toHaveCount(11)
+  await expect(labels).toHaveCount(12)
   for (const label of await labels.all()) {
     await expect(label).toHaveCSS("position", "absolute")
     await expect(label).toHaveCSS("width", "1px")

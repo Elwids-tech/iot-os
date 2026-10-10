@@ -9,6 +9,8 @@ import {
   TableRow,
 } from "@iot-os/ui/components/table"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
+import { Button } from "@iot-os/ui/components/button"
+import { LayoutDashboardIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
 import {
@@ -23,9 +25,12 @@ import {
 export function MeasurementTable({
   readings,
   precision,
+  onAdd,
 }: {
   readings: Measurement[]
   precision?: Map<string, number | undefined>
+  /** Starts Add to dashboard with this parameter selected. */
+  onAdd?: (parameterUuid: string) => void
 }) {
   return (
     <Table>
@@ -36,6 +41,7 @@ export function MeasurementTable({
           <TableHead>Quality</TableHead>
           <TableHead className="text-right">Observed</TableHead>
           <TableHead className="text-right">Received</TableHead>
+          {onAdd && <TableHead className="w-0"><span className="sr-only">Actions</span></TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -63,6 +69,19 @@ export function MeasurementTable({
             <TableCell className="text-right">
               <Age value={r.received_at} />
             </TableCell>
+            {onAdd && (
+              <TableCell className="text-right">
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={`Add ${r.label} to a dashboard`}
+                  title="Add to dashboard"
+                  onClick={() => onAdd(r.parameter_uuid)}
+                >
+                  <LayoutDashboardIcon />
+                </Button>
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>
@@ -72,9 +91,11 @@ export function MeasurementTable({
 export function MeasurementsSection({
   org,
   device,
+  onAddToDashboard,
 }: {
   org: string
   device: DeviceDetail
+  onAddToDashboard?: (parameterUuid: string) => void
 }) {
   const configured = Boolean(
     device.applied_configuration_uuid || device.last_applied_configuration_uuid,
@@ -113,6 +134,7 @@ export function MeasurementsSection({
         <MeasurementTable
           readings={query.data.data}
           precision={parameterPrecisions(device)}
+          onAdd={onAddToDashboard}
         />
       ) : (
         <DeviceEmpty

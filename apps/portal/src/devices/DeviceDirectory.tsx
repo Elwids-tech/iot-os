@@ -64,6 +64,8 @@ export function DeviceDirectory() {
     lifecycle = params.get("lifecycle") ?? "",
     site = params.get("site") ?? ""
   const sites = useQuery({ queryKey: ["sites", org], queryFn: () => api.sites(org) })
+  // Site filter and column appear once the organization uses sites.
+  const hasSites = (sites.data?.data.length ?? 0) > 0
   const query = useQuery({
     queryKey: ["devices", org, params.toString()],
     queryFn: () =>
@@ -127,7 +129,7 @@ export function DeviceDirectory() {
           value={search}
           onChange={(e) => filter("search", e.target.value)}
         />
-        {(sites.data?.data.length ?? 0) > 0 && (
+        {hasSites && (
           <Select value={site || "all"} onValueChange={(value) => filter("site", value === "all" ? "" : value)}>
             <SelectTrigger size="sm" aria-label="Site" className="w-full sm:w-48">
               <SelectValue />
@@ -186,7 +188,7 @@ export function DeviceDirectory() {
                     <TableHead>Status</TableHead>
                     <TableHead>Last seen</TableHead>
                     <TableHead>Profile</TableHead>
-                    <TableHead>Site</TableHead>
+                    {hasSites && <TableHead>Site</TableHead>}
                     <TableHead>Gateway</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -221,13 +223,15 @@ export function DeviceDirectory() {
                           <span className="text-muted-foreground">None</span>
                         )}
                       </TableCell>
-                      <TableCell className="max-w-48 truncate">
-                        {device.site ? (
-                          <span title={device.site.timezone}>{device.site.name}</span>
-                        ) : (
-                          <span className="text-muted-foreground">None</span>
-                        )}
-                      </TableCell>
+                      {hasSites && (
+                        <TableCell className="max-w-48 truncate">
+                          {device.site ? (
+                            <span title={device.site.timezone}>{device.site.name}</span>
+                          ) : (
+                            <span className="text-muted-foreground">None</span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="max-w-56 truncate">
                         {device.candidate ? (
                           <Link

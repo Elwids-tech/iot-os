@@ -12,16 +12,21 @@ import {
   stateLabel,
   validHexColor,
 } from "./model"
+import { stateFor, TONE_COLOR, type StateLabel } from "../dashboards/profileDisplay"
 
-function segmentColor(segment: StateHistorySegment, colour: boolean) {
+function segmentColor(segment: Pick<StateHistorySegment, "value" | "known" | "data_type">, colour: boolean, states: StateLabel[] = []) {
   if (colour)
     return segment.known && validHexColor(segment.value)
       ? segment.value
       : "#94a3b8"
+  const state = segment.known ? stateFor(states, segment.value) : undefined
+  if (state?.tone) return TONE_COLOR[state.tone]
   return stateColor(segment.value, segment.known, segment.data_type)
 }
 
-function segmentLabel(segment: StateHistorySegment, colour: boolean) {
+function segmentLabel(segment: Pick<StateHistorySegment, "value" | "known" | "data_type">, colour: boolean, states: StateLabel[] = []) {
+  const state = !colour && segment.known ? stateFor(states, segment.value) : undefined
+  if (state) return state.label
   if (!colour) return stateLabel(segment.value, segment.known, segment.data_type)
   if (!segment.known) return "Unknown"
   return validHexColor(segment.value)
@@ -44,11 +49,14 @@ export function StateHistoryVisualization({
   configurations,
   colour = false,
   timezone = "browser",
+  states = [],
 }: {
   history: StateHistory
   configurations: DeviceConfiguration[]
   colour?: boolean
   timezone?: "browser" | "utc"
+  /** Profile labels and tones for the parameter's values. */
+  states?: StateLabel[]
 }) {
   const total = Math.max(1, Date.parse(history.to) - Date.parse(history.from))
   const observedColours = colour
@@ -85,11 +93,7 @@ export function StateHistoryVisualization({
                 className={cn(!duration.known && "history-unknown")}
                 style={{
                   width: `${duration.percentage}%`,
-                  backgroundColor: stateColor(
-                    duration.value,
-                    duration.known,
-                    duration.data_type,
-                  ),
+                  backgroundColor: segmentColor(duration, false, states),
                 }}
               />
             ))}
@@ -107,19 +111,11 @@ export function StateHistoryVisualization({
                     !duration.known && "history-unknown",
                   )}
                   style={{
-                    backgroundColor: stateColor(
-                      duration.value,
-                      duration.known,
-                      duration.data_type,
-                    ),
+                    backgroundColor: segmentColor(duration, false, states),
                   }}
                 />
                 <span className="min-w-0 flex-1 truncate">
-                  {stateLabel(
-                    duration.value,
-                    duration.known,
-                    duration.data_type,
-                  )}
+                  {segmentLabel(duration, false, states)}
                 </span>
                 <span className="font-mono text-xs tabular-nums text-muted-foreground">
                   {formatDuration(duration.duration_ms)} ·{" "}
@@ -138,7 +134,7 @@ export function StateHistoryVisualization({
           aria-label={`${colour ? "Colour" : "State"} history timeline, ${timeLabel(history.from, timezone)} to ${timeLabel(history.to, timezone)}: ${[
             ...history.timeline
               .reduce((totals, segment) => {
-                const label = segmentLabel(segment, colour)
+                const label = segmentLabel(segment, colour, states)
                 return totals.set(
                   label,
                   (totals.get(label) ?? 0) +
@@ -155,7 +151,7 @@ export function StateHistoryVisualization({
             const configuration = segment.configuration_uuid
               ? configurationMeta(configurations, segment.configuration_uuid)
               : null
-            const description = `${segmentLabel(segment, colour)} · ${timeLabel(segment.from, timezone)} to ${timeLabel(segment.to, timezone)}${configuration ? ` · ${configuration.configurationLabel} · ${configuration.profileLabel}` : ""}`
+            const description = `${segmentLabel(segment, colour, states)} · ${timeLabel(segment.from, timezone)} to ${timeLabel(segment.to, timezone)}${configuration ? ` · ${configuration.configurationLabel} · ${configuration.profileLabel}` : ""}`
             return (
               <span
                 key={`${segment.from}:${index}`}
@@ -167,7 +163,7 @@ export function StateHistoryVisualization({
                 )}
                 style={{
                   width: `${((Date.parse(segment.to) - Date.parse(segment.from)) / total) * 100}%`,
-                  backgroundColor: segmentColor(segment, colour),
+                  backgroundColor: segmentColor(segment, colour, states),
                 }}
                 title={description}
               />
@@ -182,7 +178,7 @@ export function StateHistoryVisualization({
         >
           {history.timeline.map((segment, index) => (
             <li key={`${segment.from}:${index}`}>
-              {`${segmentLabel(segment, colour)}, ${timeLabel(segment.from, timezone)} to ${timeLabel(segment.to, timezone)}, ${formatDuration(Date.parse(segment.to) - Date.parse(segment.from))}`}
+              {`${segmentLabel(segment, colour, states)}, ${timeLabel(segment.from, timezone)} to ${timeLabel(segment.to, timezone)}, ${formatDuration(Date.parse(segment.to) - Date.parse(segment.from))}`}
             </li>
           ))}
         </ol>
