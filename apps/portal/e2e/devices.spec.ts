@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test"
 import AxeBuilder from "@axe-core/playwright"
 import profile from "../../../contracts/definitions/device-profiles/three-phase-energy-meter.v1.json" with { type: "json" }
+import gpsProfile from "../../../contracts/definitions/device-profiles/gps-tracker.v1.json" with { type: "json" }
 
 const org = "08b842d4-dbe9-44b7-a82f-8409bf31401a"
 const meterId = "11111111-1111-4111-8111-111111111111"
@@ -140,8 +141,23 @@ const dashboard = {
   updated_at: ago(86400),
 }
 
-async function setup(page: Page) {
-  const state = { errors: [] as string[], saved: null as null | Record<string, any> }
+type Options = {
+  devices?: Record<string, any>[]
+  details?: Record<string, Record<string, any>>
+  /** Pending discovery sources no device has reserved. */
+  pending?: number
+  latest?: "unavailable" | ((device: string) => Record<string, any>[])
+  history?: "unavailable" | "empty"
+  alerts?: Record<string, any>[]
+  bindings?: Record<string, any>[]
+}
+
+async function setup(page: Page, options: Options = {}) {
+  const state = {
+    errors: [] as string[],
+    saved: null as null | Record<string, any>,
+    history: [] as URLSearchParams[],
+  }
   page.on("pageerror", (error) => state.errors.push(error.message))
   page.on("console", (message) => {
     if (message.type() === "error" && !message.text().includes("Failed to load resource"))
@@ -175,14 +191,29 @@ async function setup(page: Page) {
     if (path.endsWith("/context")) return json({ data: context })
     if (path.endsWith("/devices")) {
       const lifecycle = url.searchParams.get("lifecycle")
-      const rows = [meter, idle].filter((d) => !lifecycle || d.lifecycle === lifecycle)
+      const rows = (options.devices ?? [meter, idle]).filter(
+        (d) => !lifecycle || d.lifecycle === lifecycle,
+      )
       const perPage = Number(url.searchParams.get("per_page") ?? 25)
       return json({
         data: rows.slice(0, perPage),
         meta: { current_page: 1, last_page: 1, total: rows.length },
       })
     }
-    if (path.endsWith(`/devices/${meterId}`)) return json({ data: detail })
+    const one = /\/devices\/([^/]+)$/.exec(path)?.[1]
+    if (one && (options.details?.[one] || one === meterId))
+      return json({ data: options.details?.[one] ?? detail })
+    if (path.endsWith("/measurements/latest") && options.latest === "unavailable")
+      return json({ message: "The device runtime is unavailable." }, 503)
+    if (path.endsWith("/measurements/latest") && options.latest)
+      return json({ presence: "online", data: options.latest(path.split("/").at(-3)!) })
+    if (path.endsWith("/measurements/history") && options.history) {
+      state.history.push(url.searchParams)
+      return options.history === "unavailable"
+        ? json({ message: "The device runtime is unavailable." }, 503)
+        : json({ data: [] })
+    }
+    if (path.endsWith("/location-bindings")) return json({ data: options.bindings ?? [] })
     if (path.endsWith("/measurements/latest"))
       return json({
         presence: "online",
@@ -238,6 +269,11 @@ async function setup(page: Page) {
           },
         ],
       })
+    if (path.endsWith("/alerts") && options.alerts) {
+      const workflow = url.searchParams.get("workflow")
+      const rows = options.alerts.filter((a) => !workflow || a.workflow_uuid === workflow)
+      return json({ data: rows, meta: { current_page: 1, last_page: 1, total: rows.length } })
+    }
     if (path.endsWith("/alerts"))
       return json({
         data:
@@ -276,6 +312,11 @@ async function setup(page: Page) {
           { uuid: "c2", name: "Warehouse sensors", group_id: "warehouse", host_id: "h2", status: "provisioning", diagnostic: null },
         ],
         meta: { current_page: 1, last_page: 1, total: 2 },
+      })
+    if (path.endsWith("/discovery-candidates") && url.searchParams.get("available") === "1")
+      return json({
+        data: [],
+        meta: { current_page: 1, last_page: 1, total: options.pending ?? 0 },
       })
     if (path.endsWith("/discovery-candidates"))
       return json({ data: [candidate], meta: { current_page: 1, last_page: 1, total: 1 } })
@@ -401,5 +442,220 @@ test("gateways list their devices and discovery shows a clearable gateway filter
   await expect(page).toHaveURL(`${base}/discovery?search=met`)
   await axe(page)
   await fitsPhone(page)
+  expect(state.errors).toEqual([])
+})
+
+const generated = {
+  ...meter,
+  uuid: "33333333-3333-4333-8333-333333333333",
+  code: "device-ef7b2376-8fdb-4371-a8fa-f0426d457632",
+  name: "Boiler room sensor",
+  // A live session that has not sent data for days.
+  presence: "online",
+  last_seen_at: ago(5 * 86400),
+  candidate: null,
+}
+
+test("device directory shows one health status, short codes, pending sources and phone cards", async ({ page }, info) => {
+  const state = await setup(page, { devices: [meter, idle, generated], pending: 2 })
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto(`${base}/devices`)
+  const table = page.getByRole("table")
+  await expect(table.getByRole("columnheader")).toHaveText(["Device", "Status", "Last seen", "Profile", "Gateway"])
+  const lastSeen = await table.getByRole("columnheader", { name: "Last seen" }).boundingBox()
+  expect(lastSeen!.x + lastSeen!.width).toBeLessThanOrEqual(1280)
+  await expect(page.getByRole("link", { name: "Manufacturer MQTT device" })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Add device" })).toBeVisible()
+
+  const row = table.getByRole("row", { name: /Boiler room sensor/ })
+  await expect(row.getByText("device-ef7b…7632")).toHaveAttribute("title", generated.code)
+  await expect(row.getByText("Online · no recent data")).toBeVisible()
+  await expect(row.getByText("5 d ago")).toBeVisible()
+  await expect(table.getByRole("row", { name: /D1/ }).getByText("Needs configuration")).toBeVisible()
+  await expect(table.getByRole("row", { name: /D1/ }).getByText("testing-d1")).toBeVisible()
+  await row.getByText("Online · no recent data").hover()
+  await expect(page.getByRole("tooltip")).toContainText("LifecycleActive")
+  await expect(page.getByRole("tooltip")).toContainText("ConnectionOnline, no recent data")
+  await expect(page.getByRole("tooltip")).toContainText("Last seen5 d ago")
+  await expect(page.getByRole("tooltip")).toContainText("ConfigurationApplied")
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("tooltip")).toHaveCount(0)
+
+  const banner = page.getByRole("alert").filter({ hasText: "data sources" })
+  await expect(banner).toContainText("2 data sources have reported data but aren't devices yet")
+  await expect(banner.getByRole("link", { name: "Review" })).toHaveAttribute("href", `${base}/discovery`)
+  await axe(page)
+  await page.screenshot({ path: info.outputPath("devices-desktop.png") })
+  await banner.getByRole("button", { name: "Dismiss for this session" }).click()
+  await expect(banner).toHaveCount(0)
+  await page.reload()
+  await expect(table.getByRole("row", { name: /Boiler room sensor/ })).toBeVisible()
+  await expect(page.getByRole("alert").filter({ hasText: "data sources" })).toHaveCount(0)
+
+  await page.setViewportSize({ width: 375, height: 812 })
+  await expect(page.getByRole("table")).toBeHidden()
+  const cards = page.getByRole("list", { name: "Devices" })
+  await expect(cards.getByRole("listitem")).toHaveCount(3)
+  const card = cards.getByRole("listitem").filter({ hasText: "Boiler room sensor" })
+  await expect(card).toContainText("Online · no recent data")
+  await expect(card).toContainText("Last seen 5 d ago")
+  await expect(card).toContainText("Three-phase Energy Meter")
+  await expect(page.getByRole("link", { name: "Add device" })).toBeInViewport()
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    .toBe(true)
+  await page.screenshot({ path: info.outputPath("devices-phone.png") })
+  await card.getByRole("link", { name: "Boiler room sensor" }).click()
+  await expect(page).toHaveURL(`${base}/devices/${generated.uuid}`)
+  expect(state.errors).toEqual([])
+})
+
+test("device overview explains unavailable live values and groups repeated alerts", async ({ page }, info) => {
+  const episode = (n: number, condition: "active" | "cleared", seconds: number) => ({
+    uuid: `alert-${n}`,
+    workflow_uuid: condition === "active" ? "wf-door" : "wf-fence",
+    workflow_name: condition === "active" ? "Door open" : "Demo boundary",
+    operation_uuid: "op-1",
+    device_uuid: meterId,
+    device_name: meter.name,
+    episode: n,
+    condition,
+    activated_at: ago(seconds + 60),
+    cleared_at: condition === "cleared" ? ago(seconds) : null,
+    acknowledged_at: null,
+    acknowledged_by: null,
+    acknowledged_by_name: null,
+    assignee: null,
+    assigned_at: null,
+    execution_stopped_reason: null,
+  })
+  const state = await setup(page, {
+    details: { [meterId]: { ...detail, presence: "online", last_seen_at: ago(5 * 86400) } },
+    latest: "unavailable",
+    alerts: [
+      episode(6, "active", 600),
+      ...[5, 4, 3, 2, 1].map((n) => episode(n, "cleared", (6 - n) * 86400)),
+    ],
+  })
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`${base}/devices/${meterId}`)
+  await expect(page.getByRole("status").filter({ hasText: "Live values are unavailable right now." })).toHaveText(
+    "Live values are unavailable right now. Last reading 5 d ago.",
+  )
+  await expect(page.getByText("Online · no recent data")).toBeVisible()
+  await expect(page.getByText("Action needs attention")).toHaveCount(0)
+  await expect(page.getByText("Waiting for the first reading")).toHaveCount(0)
+
+  const summary = page.getByRole("complementary", { name: "Device summary" })
+  await expect(summary.getByText("Up to date (revision 1)")).toBeVisible()
+  await expect(summary.getByText(/requested 1/)).toHaveCount(0)
+  await summary.getByText("Up to date (revision 1)").focus()
+  await expect(page.getByRole("tooltip")).toContainText("Requested revision 1 · Applied revision 1 · Last working revision 1")
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("tooltip")).toHaveCount(0)
+
+  await expect(summary.getByText("1 active")).toBeVisible()
+  await expect(summary.getByRole("link", { name: "Demo boundary" })).toHaveCount(1)
+  await expect(summary.getByRole("link", { name: "Demo boundary" })).toHaveAttribute(
+    "href",
+    `${base}/alerts?device=${meterId}&workflow=wf-fence`,
+  )
+  await expect(summary.getByRole("listitem").filter({ hasText: "Demo boundary" })).toContainText(
+    "5 occurrences · last cleared 1 d ago",
+  )
+  await expect(summary.getByRole("link", { name: "Door open" })).toHaveAttribute("href", `${base}/alerts/alert-6`)
+  await expect(summary.getByRole("listitem").filter({ hasText: "Door open" })).toContainText("1 occurrence · active since 11 min ago")
+  await expect(summary.getByRole("link", { name: "All alerts" })).toHaveAttribute("href", `${base}/alerts?device=${meterId}`)
+  await axe(page)
+  await page.screenshot({ path: info.outputPath("overview-unavailable.png") })
+  await fitsPhone(page)
+  expect(state.errors).toEqual([])
+})
+
+test("GPS tracker overview shows its last position and age on a map", async ({ page }, info) => {
+  const trackerId = "12121212-1212-4212-8212-121212121212"
+  const gps = "45454545-4545-4545-8545-454545454545"
+  const tracker = {
+    ...detail,
+    uuid: trackerId,
+    code: "gps-demo-tracker",
+    name: "GPS Demo Tracker",
+    desired_configuration_uuid: gps,
+    applied_configuration_uuid: gps,
+    last_applied_configuration_uuid: gps,
+    profile: { uuid: profileId, name: "GPS tracker", revision: 1 },
+    configurations: [
+      {
+        ...detail.configurations[0],
+        uuid: gps,
+        profile_name: "GPS tracker",
+        definition: { profile_canonical_json: JSON.stringify(gpsProfile), mappings: [] },
+      },
+    ],
+  }
+  const values: Record<string, number> = {
+    "location.latitude": 51.0447,
+    "location.longitude": -114.0719,
+    "location.accuracy": 4,
+  }
+  const state = await setup(page, {
+    details: { [trackerId]: tracker },
+    history: "empty",
+    latest: () =>
+      gpsProfile.parameters.map((p) => ({
+        parameter_uuid: p.uuid,
+        key: p.key,
+        label: p.label,
+        data_type: p.data_type,
+        unit: p.unit,
+        value: values[p.key],
+        quality: "good",
+        observed_at: ago(120),
+        received_at: ago(119),
+        historical: false,
+      })),
+  })
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.goto(`${base}/devices/${trackerId}`)
+  const location = page.getByRole("complementary", { name: "Device summary" })
+  await expect(location.getByText("Last position 2 min ago")).toBeVisible()
+  await expect(location.getByText("51.04470, -114.07190 · ±4 m")).toBeVisible()
+  await expect(page.getByRole("button", { name: "GPS Demo Tracker: unknown" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Latest measurements" })).toBeVisible()
+  await page.screenshot({ path: info.outputPath("overview-gps.png") })
+  expect(state.errors).toEqual([])
+})
+
+test("history explains failures and jumps to the latest data", async ({ page }, info) => {
+  const quiet = { ...detail, presence: "offline", last_seen_at: ago(5 * 86400) }
+  const state = await setup(page, { details: { [meterId]: quiet }, history: "unavailable" })
+  await page.goto(`${base}/devices/${meterId}/history`)
+  const failure = page.getByRole("alert").filter({ hasText: "History couldn't be loaded" })
+  await expect(failure).toContainText("The device runtime is unavailable.")
+  await expect(page.getByText("No measurements in this range")).toHaveCount(0)
+  await expect(page.getByText(/retention cannot restore/)).toHaveCount(0)
+  await expect(failure.getByRole("button", { name: "Retry" })).toBeVisible()
+  await page.screenshot({ path: info.outputPath("history-failure.png") })
+  expect(state.errors).toEqual([])
+})
+
+test("an empty history range offers the latest data instead of retention advice", async ({ page }, info) => {
+  const lastSeen = ago(5 * 86400)
+  const quiet = { ...detail, presence: "offline", last_seen_at: lastSeen }
+  const state = await setup(page, { details: { [meterId]: quiet }, history: "empty" })
+  await page.goto(`${base}/devices/${meterId}/history`)
+  await expect(page.getByText("No measurements in this range")).toBeVisible()
+  await expect(page.getByText("The device last reported 5 d ago, before this range starts.")).toBeVisible()
+  await expect(page.getByText(/retention cannot restore/)).toHaveCount(0)
+  await axe(page)
+  await page.screenshot({ path: info.outputPath("history-empty.png") })
+  await page.getByRole("button", { name: "Jump to latest data" }).click()
+  await expect.poll(() => state.history.at(-1)?.get("to")).toBe(
+    new Date(Date.parse(lastSeen) + 60_000).toISOString(),
+  )
+  const request = state.history.at(-1)!
+  expect(Date.parse(request.get("to")!) - Date.parse(request.get("from")!)).toBe(24 * 3600_000)
+  await expect(page.getByRole("combobox", { name: "Time range" })).toHaveText("Custom range")
+  await expect(page.getByLabel("To", { exact: true })).not.toHaveValue("")
   expect(state.errors).toEqual([])
 })

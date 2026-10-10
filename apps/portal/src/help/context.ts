@@ -22,9 +22,11 @@ export function helpContextForPath(pathname: string): string {
         ? tab
           ? "alerts.notifications.workflow"
           : "alerts.notifications"
-        : resource
-          ? "alerts.detail"
-          : "alerts";
+        : resource === "events" || resource === "preferences"
+          ? `alerts.${resource}`
+          : resource
+            ? "alerts.detail"
+            : "alerts";
     case "dashboards":
       return resource ? "dashboards.workspace" : "dashboards";
     case "discovery":

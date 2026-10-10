@@ -190,15 +190,21 @@ export default function HelpPanel({
   context,
   open,
   onClose,
+  askRequest,
 }: {
   org: string;
   organizationName: string;
   context: string;
   open: boolean;
   onClose: () => void;
+  /** Changes whenever the shell's Assistant button asks for the Ask Help tab. */
+  askRequest?: number;
 }) {
   const cache = useQueryClient();
   const [tab, setTab] = useState<Tab>("page");
+  useEffect(() => {
+    if (askRequest) setTab("ask");
+  }, [askRequest]);
   const [article, setArticle] = useState<ArticleTarget | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");

@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import {
   Link,
   useNavigate,
@@ -7,9 +11,11 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import type {
+  DeviceDirectoryMeta,
   DeviceMapping,
   DeviceOnboarding as Setup,
   DeviceValidation,
+  DiscoveryCandidate,
   OnboardingInput,
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
@@ -50,15 +56,25 @@ import {
   TableHeader,
   TableRow,
 } from "@iot-os/ui/components/table";
+import { Badge } from "@iot-os/ui/components/badge";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { RequestError } from "../components/forms";
-import { useDeviceOrganization, devicePath } from "./shared";
+import {
+  Age,
+  DevicePages,
+  discoveryPath,
+  metricCount,
+  useDeviceOrganization,
+  devicePath,
+} from "./shared";
 import { ConnectionKit } from "./ConnectionKit";
+import { OnboardSource, sourceLabel } from "./OnboardSource";
 
 type Form = {
   name: string;
-  mode: "direct" | "gateway";
+  /** direct and gateway start a guided setup; adapter and discovery hand off to their own flows. */
+  mode: "direct" | "gateway" | "adapter" | "discovery";
   profile: string;
   gateway: string;
   source: string;
@@ -82,6 +98,9 @@ const valueText = (v: unknown) =>
       : String(v);
 export const onboardingPath = (org: string, id?: string) =>
   `${devicePath(org)}/onboard${id ? "/" + encodeURIComponent(id) : ""}`;
+/** Profile directory with a way back to this wizard's first step, which keeps its form in session storage. */
+export const profileSetupPath = (org: string) =>
+  `/organizations/${encodeURIComponent(org)}/device-profiles?returnTo=${encodeURIComponent(onboardingPath(org))}`;
 
 export function DeviceOnboarding() {
   const { organizationUuid, deviceUuid } = useParams();
@@ -89,7 +108,9 @@ export function DeviceOnboarding() {
 }
 
 function DeviceOnboardingForm() {
-  const { org, capabilities } = useDeviceOrganization();
+  const { org, capabilities, query: organization } = useDeviceOrganization();
+  const adaptersEnabled =
+    organization.data?.capabilities?.features?.device_adapters === true;
   const { deviceUuid } = useParams(),
     navigate = useNavigate(),
     cache = useQueryClient();
@@ -110,9 +131,17 @@ function DeviceOnboardingForm() {
     [profilePage, setProfilePage] = useState(1);
   const [gatewaySearch, setGatewaySearch] = useState(""),
     [gatewayPage, setGatewayPage] = useState(1);
+  const [sourceSearch, setSourceSearch] = useState(""),
+    [sourcePage, setSourcePage] = useState(1),
+    [source, setSource] = useState<DiscoveryCandidate | null>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState<unknown>(null);
   const lock = useRef(false);
+  // A remembered adapter choice falls back once the organization turns out not to have adapters.
+  const mode =
+    form.mode === "adapter" && organization.data && !adaptersEnabled
+      ? "direct"
+      : form.mode;
   const setupQuery = useQuery({
     queryKey: ["device-onboarding", org, deviceUuid],
     queryFn: () => api.deviceOnboarding(org, deviceUuid!),
@@ -130,11 +159,16 @@ function DeviceOnboardingForm() {
         perPage: 25,
       }),
     enabled: !deviceUuid,
+    // Profiles are often published in another tab or just before returning here.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
   const profile = useQuery({
     queryKey: ["onboarding-profile", org, form.profile],
     queryFn: () => api.deviceProfile(org, form.profile),
     enabled: !deviceUuid && !!form.profile,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
   const artifact = useQuery({
     queryKey: [
@@ -155,8 +189,22 @@ function DeviceOnboardingForm() {
         page: gatewayPage,
         per_page: 25,
       }),
-    enabled: !deviceUuid && form.mode === "gateway",
+    enabled: !deviceUuid && mode === "gateway",
   });
+  const sources = useQuery({
+    queryKey: ["onboarding-sources", org, sourceSearch, sourcePage],
+    queryFn: () =>
+      api.discoveryPage(org, {
+        available: 1,
+        search: sourceSearch,
+        page: sourcePage,
+        per_page: 10,
+      }),
+    enabled: !deviceUuid,
+    refetchInterval: mode === "discovery" ? 5000 : false,
+    refetchIntervalInBackground: false,
+  });
+  const waiting = sourceSearch ? undefined : sources.data?.meta.total;
   const step = !deviceUuid
     ? 1
     : Math.min(4, Math.max(2, Number(params.get("step") || 2) || 2));
@@ -242,12 +290,13 @@ function DeviceOnboardingForm() {
     await run(async () => {
       if (!artifact.data)
         throw new Error("Choose a published profile before continuing.");
+      if (mode !== "direct" && mode !== "gateway") return;
       const input: OnboardingInput = {
         request_uuid: form.requestUuid,
         name: form.name.trim(),
         artifact_uuid: artifact.data.uuid,
-        mode: form.mode,
-        ...(form.mode === "gateway"
+        mode,
+        ...(mode === "gateway"
           ? { gateway_uuid: form.gateway, source_device_id: form.source.trim() }
           : {}),
       };
@@ -341,7 +390,7 @@ function DeviceOnboardingForm() {
     );
   const titles = [
     "",
-    "How will your device connect?",
+    "How does this device send data?",
     setup?.mode === "gateway"
       ? "Connect through your gateway"
       : "Add these settings to your device",
@@ -359,8 +408,8 @@ function DeviceOnboardingForm() {
   const help =
     step === 1
       ? [
-          "New to gateways?",
-          "Choose direct if your hardware has its own Sparkplug B publisher. A gateway connects one or more devices on their behalf.",
+          "Not sure which to choose?",
+          `Choose Sparkplug B if your hardware has its own Sparkplug B publisher. A gateway connects one or more devices on their behalf.${adaptersEnabled ? " Hardware that sends its manufacturer’s own MQTT or JSON messages needs an adapter to translate them." : ""} If the device is already reporting through a gateway, pick it from the sources waiting to be added.`,
         ]
       : step === 2
         ? [
@@ -405,7 +454,7 @@ function DeviceOnboardingForm() {
         }
       />
       <div className="mx-auto grid w-full max-w-6xl lg:grid-cols-[minmax(0,1fr)_260px]">
-        <main
+        <section
           className="flex min-w-0 flex-col gap-7 p-5 md:p-8 lg:p-10"
           aria-labelledby="onboarding-title"
         >
@@ -418,7 +467,7 @@ function DeviceOnboardingForm() {
             </h1>
             <p className="text-sm text-muted-foreground">
               {step === 1
-                ? "Choose how your hardware will connect, then give it a name and profile."
+                ? "Choose how your hardware reports its measurements. We’ll guide you through the rest."
                 : step === 2
                   ? "Follow these steps, then return to check the connection."
                   : step === 3
@@ -441,27 +490,69 @@ function DeviceOnboardingForm() {
                 </Alert>
               )}
               <RadioGroup
-                value={form.mode}
+                value={mode}
                 onValueChange={(v) => v && update({ mode: v as Form["mode"] })}
                 className="flex w-full flex-col gap-3"
-                aria-label="Connection method"
+                aria-label="How the device sends data"
               >
-                <FieldLabel htmlFor="connection-direct"><Field orientation="horizontal" data-disabled={!capabilities.connections}>
-                  <RadioGroupItem id="connection-direct" value="direct" disabled={!capabilities.connections} data-checked={form.mode==='direct' ? '' : undefined} />
-                  <FieldContent><FieldTitle>Directly to IoT OS</FieldTitle><FieldDescription>Your hardware connects over MQTT using Sparkplug B.</FieldDescription></FieldContent>
-                </Field></FieldLabel>
-                <FieldLabel htmlFor="connection-gateway"><Field orientation="horizontal">
-                  <RadioGroupItem id="connection-gateway" value="gateway" data-checked={form.mode==='gateway' ? '' : undefined} />
-                  <FieldContent><FieldTitle>Through a gateway</FieldTitle><FieldDescription>A gateway connects one or more devices for you.</FieldDescription></FieldContent>
-                </Field></FieldLabel>
+                <ConnectionChoice value="direct" checked={mode === "direct"} disabled={!capabilities.connections} title="It speaks Sparkplug B" description="Your hardware publishes Sparkplug B over MQTT directly to IoT OS." />
+                <ConnectionChoice value="gateway" checked={mode === "gateway"} title="Through a gateway" description="A registered gateway connects this device along with others." />
+                {adaptersEnabled && (
+                  <ConnectionChoice value="adapter" checked={mode === "adapter"} title="Manufacturer MQTT / JSON" description="Your hardware sends its manufacturer’s own MQTT or JSON messages. A device adapter translates them." />
+                )}
+                <ConnectionChoice
+                  value="discovery"
+                  checked={mode === "discovery"}
+                  title={<>It’s already sending data{!!waiting && <Badge variant="info">{waiting} waiting</Badge>}</>}
+                  description="Pick a source that reports through a gateway but isn’t a device yet."
+                />
               </RadioGroup>
               {!capabilities.connections && (
                 <p className="text-sm text-muted-foreground">
-                  Direct connections need connection-management access. You can
-                  select an existing gateway.
+                  Sparkplug B devices that connect directly need
+                  connection-management access. You can select an existing
+                  gateway.
                 </p>
               )}
               <Separator />
+              {mode === "adapter" && (
+                <div className="flex flex-col items-start gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    An adapter decodes one device type’s messages into profile
+                    measurements. Choose an existing adapter to add another
+                    device of that type, or create one for a new device type.
+                  </p>
+                  <Button asChild>
+                    <Link to={`/organizations/${encodeURIComponent(org)}/device-adapters`}>
+                      Continue to device adapters
+                    </Link>
+                  </Button>
+                </div>
+              )}
+              {mode === "discovery" && (
+                <WaitingSources
+                  org={org}
+                  sources={sources}
+                  search={sourceSearch}
+                  onSearch={(v) => {
+                    setSourceSearch(v);
+                    setSourcePage(1);
+                  }}
+                  onPage={setSourcePage}
+                  canManage={capabilities.manage}
+                  onSelect={setSource}
+                />
+              )}
+              {source && (
+                <OnboardSource
+                  key={source.uuid}
+                  org={org}
+                  source={source}
+                  onClose={() => setSource(null)}
+                />
+              )}
+              {(mode === "direct" || mode === "gateway") && (
+              <>
               <FieldGroup>
                 <SearchableSelect
                   label="Device profile"
@@ -486,13 +577,13 @@ function DeviceOnboardingForm() {
                   onPageChange={setProfilePage}
                   help={
                     artifact.data
-                      ? `Published revision ${artifact.data.revision}. A profile defines measurements and their units.`
+                      ? `Version ${artifact.data.revision} is live. A profile defines measurements and their units.`
                       : "Choose a published profile. Draft profiles cannot be used yet."
                   }
                   emptyText="No published profiles found."
                 />
                 <Link
-                  to={`/organizations/${org}/device-profiles`}
+                  to={profileSetupPath(org)}
                   className="text-sm text-primary underline-offset-4 hover:underline"
                 >
                   Create or publish a profile
@@ -513,7 +604,7 @@ function DeviceOnboardingForm() {
                     A recognizable name for this individual device.
                   </FieldDescription>
                 </Field>
-                {form.mode === "gateway" && (
+                {mode === "gateway" && (
                   <>
                     <SearchableSelect
                       label="Gateway"
@@ -561,10 +652,10 @@ function DeviceOnboardingForm() {
                   disabled={
                     busy ||
                     !capabilities.manage ||
-                    (form.mode === "direct" && !capabilities.connections) ||
+                    (mode === "direct" && !capabilities.connections) ||
                     !form.name.trim() ||
                     !artifact.data ||
-                    (form.mode === "gateway" &&
+                    (mode === "gateway" &&
                       (!form.gateway || !form.source.trim()))
                   }
                   onClick={() => void start()}
@@ -572,6 +663,8 @@ function DeviceOnboardingForm() {
                   {busy ? "Saving setup…" : "Continue"}
                 </Button>
               </div>
+              </>
+              )}
             </>
           )}
           {step === 2 && setup && (
@@ -860,7 +953,7 @@ function DeviceOnboardingForm() {
               </Link>
             </>
           )}
-        </main>
+        </section>
         <aside className="flex flex-col gap-4 border-t bg-muted/20 p-5 md:p-8 lg:border-l lg:border-t-0">
           <h2 className="text-sm font-semibold">{help[0]}</h2>
           <p className="text-sm leading-relaxed text-muted-foreground">
@@ -870,7 +963,7 @@ function DeviceOnboardingForm() {
             <>
               <Separator />
               <p className="text-xs text-muted-foreground">
-                {setup.artifact.definition.profile.name} · Published revision{" "}
+                {setup.artifact.definition.profile.name} · version{" "}
                 {setup.artifact.revision}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -883,6 +976,137 @@ function DeviceOnboardingForm() {
         </aside>
       </div>
     </>
+  );
+}
+
+/** One radio card; the radio is named by its title and described by its description. */
+function ConnectionChoice({
+  value,
+  checked,
+  disabled = false,
+  title,
+  description,
+}: {
+  value: Form["mode"];
+  checked: boolean;
+  disabled?: boolean;
+  title: ReactNode;
+  description: string;
+}) {
+  const id = `connection-${value}`;
+  return (
+    <FieldLabel htmlFor={id}>
+      <Field orientation="horizontal" data-disabled={disabled}>
+        <RadioGroupItem
+          id={id}
+          value={value}
+          disabled={disabled}
+          data-checked={checked ? "" : undefined}
+          aria-labelledby={`${id}-title`}
+          aria-describedby={`${id}-description`}
+        />
+        <FieldContent>
+          <FieldTitle id={`${id}-title`}>{title}</FieldTitle>
+          <FieldDescription id={`${id}-description`}>{description}</FieldDescription>
+        </FieldContent>
+      </Field>
+    </FieldLabel>
+  );
+}
+
+/** Discovered sources no device has claimed; adding one hands off to Discovery's onboard action. */
+function WaitingSources({
+  org,
+  sources,
+  search,
+  onSearch,
+  onPage,
+  canManage,
+  onSelect,
+}: {
+  org: string;
+  sources: UseQueryResult<{
+    data: DiscoveryCandidate[];
+    meta: DeviceDirectoryMeta;
+  }>;
+  search: string;
+  onSearch: (value: string) => void;
+  onPage: (page: number) => void;
+  canManage: boolean;
+  onSelect: (source: DiscoveryCandidate) => void;
+}) {
+  return (
+    <section aria-labelledby="waiting-sources" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="waiting-sources" className="text-sm font-semibold">
+          Sources waiting to be added
+        </h2>
+        <Input
+          aria-label="Search waiting sources"
+          placeholder="Search source or gateway"
+          className="h-8 w-full sm:w-64"
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+        />
+      </div>
+      <RequestError error={sources.error} />
+      {sources.isPending ? (
+        <Skeleton className="h-32 w-full" />
+      ) : sources.data?.data.length ? (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Source</TableHead>
+              <TableHead>Gateway</TableHead>
+              <TableHead>Measurements</TableHead>
+              <TableHead className="text-right">Last seen</TableHead>
+              <TableHead>
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sources.data.data.map((c) => (
+              <TableRow key={c.uuid}>
+                <TableCell className={c.source_device_id ? "font-mono" : undefined}>
+                  {sourceLabel(c)}
+                </TableCell>
+                <TableCell>{c.gateway.name}</TableCell>
+                <TableCell className="tabular-nums">
+                  {metricCount(c.metrics.length)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Age value={c.last_seen_at} />
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    size="xs"
+                    disabled={!canManage}
+                    aria-label={`Add ${sourceLabel(c)} as a device`}
+                    onClick={() => onSelect(c)}
+                  >
+                    Add as device
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {search
+            ? "No waiting sources match."
+            : "No sources are waiting. A source appears here when a connected gateway reports a device that isn’t set up yet."}
+        </p>
+      )}
+      <DevicePages meta={sources.data?.meta} onPage={onPage} label="Waiting sources" />
+      <Link
+        to={discoveryPath(org)}
+        className="text-sm text-primary underline-offset-4 hover:underline"
+      >
+        Review all sources in Discovery
+      </Link>
+    </section>
   );
 }
 

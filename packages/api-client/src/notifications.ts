@@ -24,6 +24,7 @@ export type NotificationEvent = {
 }
 export type NotificationEventsPage = {
   data: NotificationEvent[]
-  summary: Record<Exclude<NotificationLevel, "recovery">, number> & { resolved: number }
+  /** Active counts by severity and by type; `resolved` counts clear notices. */
+  summary: Record<Exclude<NotificationLevel, "recovery">, number> & { resolved: number; sources: Record<NotificationSource, number> }
   meta: { current_page: number; last_page: number; total: number }
 }

@@ -32,6 +32,10 @@ final class OrganizationResource extends JsonResource
                     $this->resource,
                     OrganizationPermission::UPDATE->value,
                 ),
+                // Optional platform features, so clients can hide entry points the API would 404.
+                'features' => [
+                    'device_adapters' => (bool) config('adapters.enabled'),
+                ],
             ]),
         ];
     }

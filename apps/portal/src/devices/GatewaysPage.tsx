@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from "react-router-dom"
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import type {
@@ -8,6 +8,11 @@ import type {
   SparkplugConnection,
 } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@iot-os/ui/components/collapsible"
 import {
   Dialog,
   DialogContent,
@@ -34,7 +39,13 @@ import {
   TableHeader,
   TableRow,
 } from "@iot-os/ui/components/table"
-import { EllipsisIcon, PlusIcon, XIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  CopyIcon,
+  EllipsisIcon,
+  PlusIcon,
+  XIcon,
+} from "lucide-react"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
 import {
@@ -56,6 +67,7 @@ import {
   Section,
   useDeviceOrganization,
 } from "./shared"
+import { sourceLabel } from "./OnboardSource"
 
 export function GatewaysPage() {
   const { org, capabilities } = useDeviceOrganization()
@@ -180,7 +192,6 @@ export function GatewaysPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Gateway</TableHead>
-                    <TableHead>Group</TableHead>
                     <TableHead>Presence</TableHead>
                     <TableHead>Sources</TableHead>
                     <TableHead className="text-right">Devices</TableHead>
@@ -205,12 +216,6 @@ export function GatewaysPage() {
                         >
                           {g.name}
                         </Link>
-                        <p className="font-mono text-xs text-muted-foreground">
-                          {g.edge_node_id}
-                        </p>
-                      </TableCell>
-                      <TableCell className="max-w-48 truncate font-mono text-xs text-muted-foreground">
-                        {g.group_id}
                       </TableCell>
                       <TableCell>
                         <DeviceStatus value={g.presence} />
@@ -264,7 +269,6 @@ export function GatewaysPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Connection</TableHead>
-                    <TableHead>Group</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>
                       <span className="sr-only">Actions</span>
@@ -275,9 +279,6 @@ export function GatewaysPage() {
                   {connections.data.data.map((c) => (
                     <TableRow key={c.uuid}>
                       <TableCell className="font-medium">{c.name}</TableCell>
-                      <TableCell className="max-w-48 truncate font-mono text-xs text-muted-foreground">
-                        {c.group_id}
-                      </TableCell>
                       <TableCell className="whitespace-normal">
                         <DeviceStatus value={c.status} />
                         {c.diagnostic && (
@@ -316,6 +317,16 @@ export function GatewaysPage() {
               onPage={setConnectionPage}
               label="Connections"
             />
+            {!!connections.data?.data.length && (
+              <TechnicalDetails
+                className="mt-2"
+                rows={connections.data.data.map((c) => ({
+                  label: c.name,
+                  value: c.group_id,
+                  name: `${c.name} group ID`,
+                }))}
+              />
+            )}
           </Section>
         </div>
         {selectedUuid && (
@@ -345,16 +356,21 @@ export function GatewaysPage() {
                     </span>
                   </p>
                   <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
-                    <dt className="text-muted-foreground">Edge node id</dt>
-                    <dd className="font-mono break-all">{selected.edge_node_id}</dd>
                     <dt className="text-muted-foreground">Connection</dt>
                     <dd>
                       {connections.data?.data.find((c) => c.uuid === selected.connection_uuid)
                         ?.name ?? "Not on this page"}
                     </dd>
-                    <dt className="text-muted-foreground">Group</dt>
-                    <dd className="font-mono break-all">{selected.group_id}</dd>
                   </dl>
+                  <TechnicalDetails
+                    key={selected.uuid}
+                    className="mt-2"
+                    rows={[
+                      { label: "Edge node ID", value: selected.edge_node_id },
+                      { label: "Group ID", value: selected.group_id },
+                      { label: "Gateway ID", value: selected.uuid },
+                    ]}
+                  />
                   {capabilities.connections && (
                     <Button
                       className="mt-3"
@@ -400,8 +416,12 @@ export function GatewaysPage() {
                     <ul className="flex flex-col gap-2 text-sm">
                       {sources.data.data.map((c) => (
                         <li key={c.uuid} className="flex flex-wrap justify-between gap-x-3">
-                          <span className="min-w-0 truncate font-mono">
-                            {c.source_device_id || "Gateway measurements"}
+                          <span
+                            className={
+                              "min-w-0 truncate" + (c.source_device_id ? " font-mono" : "")
+                            }
+                          >
+                            {sourceLabel(c)}
                           </span>
                           <span className="flex gap-2 text-muted-foreground">
                             <DeviceStatus value={c.status} />· {metricCount(c.metrics.length)}
@@ -510,6 +530,65 @@ export function GatewaysPage() {
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+/** Broker identifiers for support, collapsed by default and copyable. */
+function TechnicalDetails({
+  rows,
+  className,
+}: {
+  rows: Array<{ label: string; value: string; name?: string }>
+  className?: string
+}) {
+  const [copied, setCopied] = useState("")
+  async function copy(name: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(`${name} copied`)
+    } catch {
+      setCopied("Copying is unavailable here. Select the text instead.")
+    }
+  }
+  return (
+    <Collapsible className={className}>
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="group -ml-2 text-muted-foreground"
+        >
+          Technical details
+          <ChevronDownIcon
+            data-icon="inline-end"
+            className="transition-transform group-data-[state=open]:rotate-180"
+          />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <dl className="mt-1 grid grid-cols-[minmax(0,auto)_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-sm">
+          {rows.map((row) => (
+            <Fragment key={row.label + row.value}>
+              <dt className="text-muted-foreground">{row.label}</dt>
+              <dd className="font-mono text-xs break-all select-all">{row.value}</dd>
+              <dd>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`Copy ${row.name ?? row.label}`}
+                  onClick={() => void copy(row.name ?? row.label, row.value)}
+                >
+                  <CopyIcon />
+                </Button>
+              </dd>
+            </Fragment>
+          ))}
+        </dl>
+        <p className="text-xs text-muted-foreground" role="status">
+          {copied}
+        </p>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 

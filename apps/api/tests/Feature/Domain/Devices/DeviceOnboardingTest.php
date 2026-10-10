@@ -7,6 +7,7 @@ namespace Tests\Feature\Domain\Devices;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceOnboarding;
+use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -154,6 +155,36 @@ final class DeviceOnboardingTest extends TestCase
         $this->assertTrue($setup['provisioned']);
         $this->postJson($this->prefix.'/devices/'.$setup['device']['uuid'].'/connection-kit')->assertUnprocessable();
         $this->postJson($this->prefix.'/device-onboardings', [...$input, 'request_uuid' => (string) Str::uuid()])->assertConflict();
+    }
+
+    public function test_discovery_reports_sources_claimed_by_a_device_setup(): void
+    {
+        $setup = $this->start();
+        $gateway = SparkplugGateway::where('uuid', $setup['gateway']['uuid'])->firstOrFail();
+        $candidate = DiscoveryCandidate::create(['organization_id' => $gateway->organization_id, 'sparkplug_gateway_id' => $gateway->id, 'source_device_id' => '', 'birth_revision' => 1, 'metrics' => []]);
+        $other = DiscoveryCandidate::create(['organization_id' => $gateway->organization_id, 'sparkplug_gateway_id' => $gateway->id, 'source_device_id' => 'unclaimed', 'birth_revision' => 1, 'metrics' => []]);
+        $rows = collect($this->getJson($this->prefix.'/discovery-candidates')->assertOk()->json('data'))->keyBy('uuid');
+        $this->assertNull($rows[$candidate->uuid]['assigned_device_uuid']);
+        $this->assertSame($setup['device']['uuid'], $rows[$candidate->uuid]['setup_device_uuid']);
+        $this->assertNull($rows[$other->uuid]['setup_device_uuid']);
+        $this->getJson($this->prefix.'/discovery-candidates?available=1')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $other->uuid);
+        $this->getJson($this->prefix.'/devices/'.$setup['device']['uuid'].'/onboarding')->assertOk()->assertJsonPath('data.candidate.setup_device_uuid', $setup['device']['uuid']);
+        $this->patchJson($this->prefix.'/discovery-candidates/'.$candidate->uuid, ['status' => 'rejected', 'birth_revision' => 1])->assertUnprocessable();
+        $this->patchJson($this->prefix.'/discovery-candidates/'.$other->uuid, ['status' => 'rejected', 'birth_revision' => 1])->assertOk();
+        $another = $this->postJson($this->prefix.'/devices', ['name' => 'Another meter', 'code' => 'another-meter'])->assertCreated()->json('data');
+        $this->putJson($this->prefix.'/devices/'.$another['uuid'].'/configuration', ['draft_revision' => $another['draft_revision'], 'artifact_uuid' => $this->artifact, 'candidate_uuid' => $candidate->uuid, 'birth_revision' => 1, 'mappings' => []])
+            ->assertConflict()->assertJsonPath('message', 'This source is being set up as another device.');
+        $own = Device::where('uuid', $setup['device']['uuid'])->firstOrFail();
+        $this->putJson($this->prefix.'/devices/'.$own->uuid.'/configuration', ['draft_revision' => $own->draft_revision, 'artifact_uuid' => $this->artifact, 'candidate_uuid' => $candidate->uuid, 'birth_revision' => 1, 'mappings' => []])->assertOk();
+        Device::where('uuid', $setup['device']['uuid'])->update(['reserved_source_uuid' => null]);
+
+        Device::where('uuid', $setup['device']['uuid'])->update(['reserved_source_uuid' => $candidate->uuid]);
+        $this->getJson($this->prefix.'/discovery-candidates/'.$candidate->uuid)->assertOk()
+            ->assertJsonPath('data.assigned_device_uuid', $setup['device']['uuid'])->assertJsonPath('data.setup_device_uuid', null);
+
+        Device::where('uuid', $setup['device']['uuid'])->update(['reserved_source_uuid' => null, 'lifecycle' => 'archived']);
+        $this->getJson($this->prefix.'/discovery-candidates/'.$candidate->uuid)->assertOk()->assertJsonPath('data.setup_device_uuid', null);
+        $this->patchJson($this->prefix.'/discovery-candidates/'.$candidate->uuid, ['status' => 'rejected', 'birth_revision' => 1])->assertOk();
     }
 
     public function test_missing_certificate_is_actionable_and_archive_blocks_kit_download(): void

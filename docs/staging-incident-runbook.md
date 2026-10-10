@@ -54,9 +54,34 @@ of confirmed URLs and coverage attached to the acceptance record:
 | Alerts not delivered | Evaluator/scrape state, Alertmanager route/silence, SMTP/send failures, external heartbeat | Use independent channel; repair delivery and prove firing plus resolved receipt |
 | Backup failed/overdue | Timer, remote storage/credentials, disk, failed-deployment marker | Verify previously running services resumed; repair backup, then verify a new remote snapshot and isolated restore |
 | Host lost | Provider console, external monitor, last backup and host fencing | Follow isolated restore procedure below; never run two command-capable runtimes for the same devices |
+| Automations paused (`WorkflowEvaluationPaused`, portal banner) | `GET /internal/status` on the runtime, runtime log `workflow evaluation paused`, NATS `IOT_COMMITTED_TELEMETRY` stream info | See [Workflow checkpoint recovery](#workflow-checkpoint-recovery). Devices, history and commands keep working meanwhile; verify a new automation evaluation after recovery |
 
 The source rules' `for` durations add to scrape/evaluation and delivery delays.
 Record actual detection/receipt times in drills instead of assuming instant alerts.
+
+## Workflow checkpoint recovery
+
+The runtime evaluates automations from the durable `IOT_COMMITTED_TELEMETRY`
+stream and stores how far it got. If that stream is replaced (for example a lost
+or recreated NATS volume) or retention removes readings that were never evaluated,
+the stored position no longer matches the stream. The runtime then pauses only
+workflow evaluation and logs `workflow telemetry checkpoint lost continuity;
+recovery required`; live values, history, commands and the portal keep working
+and the portal shows "Automations are paused".
+
+It never skips the gap on its own, because skipped readings can no longer raise
+alerts or trigger actions. After confirming the cause (and that no evaluable
+readings can be restored from a backup), an operator accepts the gap:
+
+```bash
+docker compose exec api php artisan devices:recover-workflow-checkpoint --reason="NATS volume replaced during maintenance"
+```
+
+The command refuses to act unless the runtime reports a lost checkpoint, asks for
+confirmation and logs the previous and new stream positions in the runtime log.
+Evaluation resumes from the newest retained reading within seconds, without a
+restart. Record the reason, the skipped range and any alerts or actions that may
+have been missed in the incident record.
 
 ## Safe recovery boundaries
 

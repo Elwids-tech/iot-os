@@ -46,6 +46,7 @@ class ReleaseTests(unittest.TestCase):
             prometheus = yaml.safe_load((deployment.config/'prometheus.yml').read_text())
             probe = next(job for job in prometheus['scrape_configs'] if job['job_name'] == 'health')
             self.assertIn('http://broker-admin:8082/health/ready', probe['static_configs'][0]['targets'])
+            self.assertIn('sync_interval: always', (deployment.config/'nats.conf').read_text())
 
     def test_mosquitto_backup_quiesces_adapter_and_broker(self):
         with tempfile.TemporaryDirectory() as temp:

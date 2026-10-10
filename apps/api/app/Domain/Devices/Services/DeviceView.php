@@ -73,8 +73,11 @@ final class DeviceView
 
     public static function candidate(DiscoveryCandidate $candidate): array
     {
+        $assigned = $candidate->assignedDevice?->uuid;
+
         return [...$candidate->only(['uuid', 'source_device_id', 'status', 'presence', 'session_id', 'birth_revision', 'metrics', 'last_seen_at']),
-            'assigned_device_uuid' => $candidate->assignedDevice?->uuid,
+            'assigned_device_uuid' => $assigned,
+            'setup_device_uuid' => $assigned ? null : $candidate->setupDevice()?->uuid,
             'gateway' => self::gateway($candidate->gateway)];
     }
 

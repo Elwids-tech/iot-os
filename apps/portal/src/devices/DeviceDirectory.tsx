@@ -2,8 +2,14 @@ import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useForm } from "react-hook-form"
-import type { DeviceInput } from "@iot-os/api-client"
+import type { Device, DeviceInput } from "@iot-os/api-client"
+import {
+  Alert,
+  AlertAction,
+  AlertTitle,
+} from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
+import { Card } from "@iot-os/ui/components/card"
 import { FieldGroup } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { PageHeader } from "@iot-os/ui/components/page-header"
@@ -17,7 +23,7 @@ import {
 } from "@iot-os/ui/components/table"
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { PlusIcon } from "lucide-react"
+import { InboxIcon, PlusIcon, XIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { onboardingPath } from "./DeviceOnboarding"
 import { useDirtyContext, useUnsaved } from "../lib/unsaved"
@@ -32,12 +38,14 @@ import {
   Age,
   devicePath,
   DevicePages,
-  DeviceStatus,
   DeviceEmpty,
+  discoveryPath,
   gatewayPath,
+  HealthBadge,
   profilePath,
   useDeviceOrganization,
 } from "./shared"
+import { shortDeviceCode } from "./model"
 
 const lifecycles = ["registered", "active", "deactivated", "archived"] as const
 const lifecycleLabels = {
@@ -92,16 +100,19 @@ export function DeviceDirectory() {
   const all = counts.data
     ? lifecycles.reduce((sum, value) => sum + counts.data[value], 0)
     : undefined
+  const devices = query.data?.data ?? []
   return (
     <>
       <PageHeader
         title="Devices"
         actions={
           capabilities.manage && (
-            <div className="flex gap-2"><Button size="sm" variant="outline" asChild><Link to={`/organizations/${org}/device-adapters`}>Manufacturer MQTT device</Link></Button><Button size="sm" asChild><Link to={onboardingPath(org)}>
-              <PlusIcon data-icon="inline-start" />
-              Add device
-            </Link></Button></div>
+            <Button size="sm" asChild>
+              <Link to={onboardingPath(org)}>
+                <PlusIcon data-icon="inline-start" />
+                Add device
+              </Link>
+            </Button>
           )
         }
       >
@@ -144,82 +155,79 @@ export function DeviceDirectory() {
         )}
       </PageHeader>
       <div className="p-4 md:p-6">
+        {capabilities.manage && <PendingSources org={org} />}
         <RequestError error={query.error} />
         {query.isPending ? (
           <Skeleton className="h-48 w-full" />
-        ) : query.data?.data.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Device</TableHead>
-                <TableHead>Lifecycle</TableHead>
-                <TableHead>Connection</TableHead>
-                <TableHead>Configuration</TableHead>
-                <TableHead>Profile</TableHead>
-                <TableHead>Gateway</TableHead>
-                <TableHead className="text-right">Last seen</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {query.data.data.map((device) => (
-                <TableRow key={device.uuid}>
-                  <TableCell>
-                    <Link
-                      className="font-medium text-primary underline-offset-4 hover:underline"
-                      to={devicePath(org, device.uuid)}
-                    >
-                      {device.name}
-                    </Link>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      {device.code}
-                    </p>
-                  </TableCell>
-                  <TableCell>
-                    <DeviceStatus value={device.lifecycle} />
-                  </TableCell>
-                  <TableCell>
-                    {device.lifecycle !== "deactivated" && (
-                      <DeviceStatus value={device.presence} />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {device.lifecycle !== "deactivated" ||
-                    device.deployment_status === "pending" ? (
-                      <DeviceStatus value={device.deployment_status} />
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="max-w-64 truncate">
-                    {device.profile ? (
-                      <Link
-                        className="text-primary underline-offset-4 hover:underline"
-                        to={profilePath(org, device.profile.uuid)}
-                        title={device.profile.name}
-                      >
-                        {device.profile.name}
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground">None</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-56 truncate">
-                    {device.candidate ? (
-                      <Link
-                        className="text-primary underline-offset-4 hover:underline"
-                        to={gatewayPath(org, device.candidate.gateway.uuid)}
-                      >
-                        {device.candidate.gateway.name}
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground">None</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Age value={device.last_seen_at} />
-                  </TableCell>
-                </TableRow>
+        ) : devices.length ? (
+          <>
+            <div className="max-md:hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Device</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Last seen</TableHead>
+                    <TableHead>Profile</TableHead>
+                    <TableHead>Gateway</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {devices.map((device) => (
+                    <TableRow key={device.uuid}>
+                      <TableCell className="max-w-72">
+                        <Link
+                          className="block truncate font-medium text-primary underline-offset-4 hover:underline"
+                          to={devicePath(org, device.uuid)}
+                        >
+                          {device.name}
+                        </Link>
+                        <DeviceCode code={device.code} />
+                      </TableCell>
+                      <TableCell>
+                        <HealthBadge device={device} />
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Age value={device.last_seen_at} />
+                      </TableCell>
+                      <TableCell className="max-w-64 truncate">
+                        {device.profile ? (
+                          <Link
+                            className="text-primary underline-offset-4 hover:underline"
+                            to={profilePath(org, device.profile.uuid)}
+                            title={device.profile.name}
+                          >
+                            {device.profile.name}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">None</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-56 truncate">
+                        {device.candidate ? (
+                          <Link
+                            className="text-primary underline-offset-4 hover:underline"
+                            to={gatewayPath(org, device.candidate.gateway.uuid)}
+                          >
+                            {device.candidate.gateway.name}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">None</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <ul aria-label="Devices" className="flex flex-col gap-2 md:hidden">
+              {devices.map((device) => (
+                <li key={device.uuid}>
+                  <DeviceCard org={org} device={device} />
+                </li>
               ))}
-            </TableBody>
-          </Table>
+            </ul>
+          </>
         ) : filtered ? (
           <DeviceEmpty title="No matching devices">
             <Button
@@ -240,12 +248,12 @@ export function DeviceDirectory() {
             }
           >
             {capabilities.manage && (
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" asChild><Link to={`/organizations/${org}/device-adapters`}>Manufacturer MQTT device</Link></Button><Button size="sm" asChild><Link to={onboardingPath(org)}>Add device</Link></Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button size="sm" asChild>
+                  <Link to={onboardingPath(org)}>Add device</Link>
+                </Button>
                 <Button asChild variant="outline" size="sm">
-                  <Link to={`/organizations/${encodeURIComponent(org)}/discovery`}>
-                    Open discovery
-                  </Link>
+                  <Link to={discoveryPath(org)}>Open discovery</Link>
                 </Button>
               </div>
             )}
@@ -263,6 +271,97 @@ export function DeviceDirectory() {
       </div>
       {create && <RegisterDevice org={org} onClose={() => setCreate(false)} />}
     </>
+  )
+}
+
+/** Device code; platform-generated "device-<uuid>" codes are shortened with the full code on hover. */
+function DeviceCode({ code }: { code: string }) {
+  const short = shortDeviceCode(code)
+  return (
+    <p
+      className="truncate font-mono text-xs text-muted-foreground"
+      title={short === code ? undefined : code}
+    >
+      {short}
+    </p>
+  )
+}
+
+/** Phone layout: the whole card opens the device. */
+function DeviceCard({ org, device }: { org: string; device: Device }) {
+  return (
+    <Card size="sm" className="relative gap-1 px-3 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <Link
+          className="min-w-0 truncate font-medium text-primary outline-none after:absolute after:inset-0"
+          to={devicePath(org, device.uuid)}
+        >
+          {device.name}
+        </Link>
+        <HealthBadge device={device} className="shrink-0" />
+      </div>
+      <DeviceCode code={device.code} />
+      <p className="flex min-w-0 flex-wrap gap-x-2 text-muted-foreground">
+        <span className="whitespace-nowrap">
+          Last seen <Age value={device.last_seen_at} never="never" />
+        </span>
+        <span aria-hidden="true">·</span>
+        <span className="min-w-0 truncate">
+          {device.profile ? device.profile.name : "No profile"}
+        </span>
+      </p>
+    </Card>
+  )
+}
+
+/** Sources that report data but no device uses yet; dismissed per session until more arrive. */
+function PendingSources({ org }: { org: string }) {
+  const key = "discovery-review-dismissed:" + org
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return Number(sessionStorage.getItem(key) ?? 0)
+    } catch {
+      return 0
+    }
+  })
+  const pending = useQuery({
+    queryKey: ["discovery-directory", org, "pending-count"],
+    queryFn: () =>
+      api.discoveryPage(org, { available: 1, per_page: 1 }),
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  })
+  const count = pending.data?.meta?.total ?? 0
+  if (count <= dismissed) return null
+  return (
+    <Alert className="mb-4 has-data-[slot=alert-action]:pr-32">
+      <InboxIcon />
+      <AlertTitle>
+        {count === 1
+          ? "1 data source has reported data but isn't a device yet"
+          : `${count} data sources have reported data but aren't devices yet`}
+      </AlertTitle>
+      <AlertAction className="flex items-center gap-1">
+        <Button size="xs" variant="outline" asChild>
+          <Link to={discoveryPath(org)}>Review</Link>
+        </Button>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          aria-label="Dismiss for this session"
+          onClick={() => {
+            setDismissed(count)
+            try {
+              sessionStorage.setItem(key, String(count))
+            } catch {
+              // Session storage can be unavailable; the banner still hides until reload.
+            }
+          }}
+        >
+          <XIcon />
+        </Button>
+      </AlertAction>
+    </Alert>
   )
 }
 

@@ -54,6 +54,7 @@ import {
   Pager,
 } from "../components/forms"
 import { useStudio } from "./use-studio"
+import { useReturnTo } from "./device-setup"
 import { ParameterEditor } from "./ParameterEditor"
 import { ConflictReview } from "./ConflictReview"
 import { plural } from "./ProfileDirectory"
@@ -62,6 +63,7 @@ const perPage = 25
 export function ParametersSection() {
   const studio = useStudio(),
     { profile } = studio
+  const { keep } = useReturnTo()
   const canEdit =
     studio.capabilities.update &&
     profile.status !== "archived" &&
@@ -419,13 +421,13 @@ export function ParametersSection() {
                     {parameter.kind === "derived" ? (
                       <Link
                         className="text-primary hover:underline"
-                        to={
+                        to={keep(
                           "/organizations/" +
                           studio.org +
                           "/device-profiles/" +
                           profile.uuid +
                           "/calculations"
-                        }
+                        )}
                       >
                         From calculation
                       </Link>
@@ -675,7 +677,7 @@ export function ParametersSection() {
         description={
           deleting?.kind === "group"
             ? "Its parameters move to Ungrouped. No parameters are deleted."
-            : "This removes the parameter and its own calculation from the draft. Parameters used elsewhere can't be deleted. Published revisions don't change."
+            : "This removes the parameter and its own calculation from the draft. Parameters used elsewhere can't be deleted. Published versions don't change."
         }
         onClose={() => setDeleting(null)}
         onRefresh={studio.reload}

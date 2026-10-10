@@ -25,16 +25,28 @@ type Proposal = { id: string; run_id?: string; summary: string; status: string; 
 type Detail = { id: string; runs: (AssistantRun & { execution?: ExecutionReferences | null })[]; proposals: Proposal[] }
 type Session = { id?: string; text: string; used: string[] }
 
-export function WorkflowAssistant({ org, editorId, workflowId, name, graph, revision, registry, disabled, onApply, execution: selectedExecution, onEvidence }: {
+export function WorkflowAssistant({ org, editorId, workflowId, name, graph, revision, registry, disabled, onApply, execution: selectedExecution, onEvidence, size = "default" }: {
   org: string; editorId: string; workflowId?: string; name: string; graph: Workflow; revision?: number;
   registry: NodeType[]; disabled: boolean; onApply: (graph: Workflow) => void;
-  execution?: ExecutionSelection; onEvidence: (target: EvidenceTarget) => void;
+  execution?: ExecutionSelection; onEvidence: (target: EvidenceTarget) => void; size?: "default" | "sm";
 }) {
   const cache = useQueryClient()
   const sessionId = selectedExecution ? `${editorId}:evaluation:${selectedExecution.id}` : editorId
   const key = ["workflow-assistant-session", org, sessionId]
   const [session, setSession] = useState<Session>(() => cache.getQueryData<Session>(key) ?? { text: "", used: [] })
   const [open, setOpen] = useState(false)
+  // The shell's Assistant button asks the editor's assistant to open; claiming the
+  // event tells the shell not to fall back to Ask Help.
+  useEffect(() => {
+    if (selectedExecution) return
+    const claim = (event: Event) => {
+      if (disabled) return
+      event.preventDefault()
+      setOpen(true)
+    }
+    window.addEventListener("iot-open-automation-assistant", claim)
+    return () => window.removeEventListener("iot-open-automation-assistant", claim)
+  }, [disabled, selectedExecution])
   const [autoExplain, setAutoExplain] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>()
@@ -94,7 +106,7 @@ export function WorkflowAssistant({ org, editorId, workflowId, name, graph, revi
   }
 
   return <>
-    <Button variant="outline" disabled={disabled} onClick={() => { setOpen(true); if (execution && !session.id) { setSession(current => ({ ...current, text: explanationPrompt })); setAutoExplain(true) } }}><SparklesIcon data-icon="inline-start" />{execution ? "Explain this execution" : "AI assistant"}</Button>
+    <Button variant="outline" size={size} disabled={disabled} onClick={() => { setOpen(true); if (execution && !session.id) { setSession(current => ({ ...current, text: explanationPrompt })); setAutoExplain(true) } }}><SparklesIcon data-icon="inline-start" />{execution ? "Explain this execution" : "AI assistant"}</Button>
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
         <SheetHeader className="shrink-0 border-b p-4">

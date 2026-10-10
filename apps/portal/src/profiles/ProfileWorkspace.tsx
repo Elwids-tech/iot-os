@@ -32,7 +32,8 @@ import {
   useProfileValidation,
   publishBlocker,
 } from "./use-studio"
-import { ProfileStatus, plural } from "./ProfileDirectory"
+import { plural } from "./ProfileDirectory"
+import { DeviceSetupBanner, useReturnTo } from "./device-setup"
 import { ParametersSection } from "./ParametersSection"
 import { CalculationsSection } from "./CalculationsSection"
 import { AlarmsSection } from "./AlarmsSection"
@@ -48,7 +49,7 @@ import {
 } from "../components/forms"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
-import { jsonText } from "./authoring"
+import { categoryLabel, jsonText } from "./authoring"
 import { useDeviceOrganization } from "../devices/shared"
 export function ProfileWorkspace() {
   return (
@@ -87,10 +88,19 @@ function Workspace() {
   })
   const blocker = publishBlocker(studio, check)
   const result = check.data?.validation
+  const { returnTo, keep } = useReturnTo()
+  const next = profile.revision + 1
+  // "published" means the saved draft matches the live version: nothing to publish.
+  const unchanged = profile.status === "published"
+  const saved = (
+    <span title={formatDateTime(profile.updated_at)}>
+      {formatAge(profile.updated_at)} ago
+    </span>
+  )
   return (
     <Tabs
       value={current}
-      onValueChange={(value) => navigate(base + "/" + value)}
+      onValueChange={(value) => navigate(keep(base + "/" + value))}
       // Arrow keys move focus only; Enter or a click opens the section (it is a route change).
       activationMode="manual"
       className="gap-0"
@@ -98,13 +108,22 @@ function Workspace() {
       <PageHeader
         title={profile.name}
         back={{
-          to: "/organizations/" + studio.org + "/device-profiles",
+          to: keep("/organizations/" + studio.org + "/device-profiles"),
           label: "Device profiles",
         }}
-        meta={<span className="font-mono text-xs">{profile.code}</span>}
+        meta={
+          <>
+            {profile.category && (
+              <span title={profile.category}>
+                {categoryLabel(profile.category)} ·{" "}
+              </span>
+            )}
+            <span className="font-mono text-xs">{profile.code}</span>
+          </>
+        }
         actions={
           <>
-            {profile.revision > 0 && deviceCapabilities.manage && <Button asChild variant="outline"><Link to={`/organizations/${studio.org}/devices/onboard?profile=${profile.uuid}`}>Connect a device</Link></Button>}
+            {profile.revision > 0 && deviceCapabilities.manage && !returnTo && <Button asChild variant="outline"><Link to={`/organizations/${studio.org}/devices/onboard?profile=${profile.uuid}`}>Connect a device</Link></Button>}
             {studio.capabilities.validate && (
               <Button
                 variant="outline"
@@ -116,8 +135,12 @@ function Workspace() {
             )}
             {studio.capabilities.publish && (
               <span title={blocker ?? undefined}>
-                <Button disabled={Boolean(blocker)} onClick={() => setConfirm(true)}>
-                  Publish revision {profile.revision + 1}
+                <Button
+                  variant={unchanged ? "outline" : "default"}
+                  disabled={Boolean(blocker)}
+                  onClick={() => setConfirm(true)}
+                >
+                  Publish as version {next}
                 </Button>
               </span>
             )}
@@ -129,32 +152,31 @@ function Workspace() {
             className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1 text-sm text-muted-foreground [&>span+span]:before:mr-2 [&>span+span]:before:content-['·']"
           >
             <span>
-              <ProfileStatus profile={profile} />
+              {profile.status === "archived" ? (
+                <StatusMark tone="muted">Archived</StatusMark>
+              ) : profile.revision > 0 ? (
+                <StatusMark tone="good">Live: version {profile.revision}</StatusMark>
+              ) : (
+                <StatusMark tone="muted">Not published yet</StatusMark>
+              )}
             </span>
             {studio.busy ? (
               <span>Saving changes…</span>
+            ) : profile.status === "archived" ? (
+              profile.revision > 0 && <span>Last version {profile.revision}</span>
+            ) : unchanged ? (
+              <span>No changes since version {profile.revision}</span>
+            ) : profile.revision > 0 ? (
+              <span className="text-warning">Draft changes saved {saved}</span>
             ) : (
-              <>
-                <span>Saved draft {profile.draft_revision}</span>
-                <span title={formatDateTime(profile.updated_at)}>
-                  {formatAge(profile.updated_at)} ago
-                </span>
-              </>
-            )}
-            {profile.revision > 0 && (
-              <span>
-                based on{" "}
-                <Link className="text-primary underline underline-offset-2" to={base + "/review"}>
-                  v{profile.revision}
-                </Link>
-              </span>
+              <span>Draft saved {saved}</span>
             )}
             {usage.data !== undefined && (
               <span>Used by {plural(usage.data, "device")}</span>
             )}
             {result && (
               <span>
-                <Link to={base + "/review"} className="hover:underline">
+                <Link to={keep(base + "/review")} className="hover:underline">
                   {result.valid ? (
                     <StatusMark tone="good">Validation passed</StatusMark>
                   ) : (
@@ -179,6 +201,7 @@ function Workspace() {
           </TabsList>
         </div>
       </PageHeader>
+      {returnTo && <DeviceSetupBanner returnTo={returnTo} profile={profile} />}
       <TabsContent value={current} className="min-w-0 p-4 md:p-6">
         {current === "overview" ? (
           <Overview key={profile.uuid} />
@@ -194,13 +217,13 @@ function Workspace() {
       </TabsContent>
       <Confirm
         open={confirm}
-        title={"Publish revision " + (profile.revision + 1) + "?"}
+        title={"Publish as version " + next + "?"}
         description={
-          "This publishes saved draft " +
-          profile.draft_revision +
-          ". Later edits become unpublished changes and earlier revisions stay as they are. Devices are not changed."
+          "Your saved draft becomes version " +
+          next +
+          ". Later edits stay as draft changes and earlier versions stay as they are. Devices are not changed."
         }
-        action="Publish revision"
+        action="Publish"
         destructive={false}
         onClose={() => setConfirm(false)}
         onConfirm={async () => {
@@ -354,7 +377,7 @@ function Overview() {
       </section>
       <section aria-labelledby="profile-contents">
         <h2 id="profile-contents" className="mb-2 text-sm font-semibold">
-          Draft {profile.draft_revision} contents
+          Draft contents
         </h2>
         <Table>
           <TableBody>

@@ -2,6 +2,11 @@ import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { configurationProfile, type DeviceDetail } from "@iot-os/api-client"
 import { FieldGroup } from "@iot-os/ui/components/field"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import {
   ChartContainer,
@@ -13,13 +18,24 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@iot-os/ui/components/collapsible"
-import { ChevronDownIcon, ChevronUpIcon, RefreshCwIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  CircleAlertIcon,
+  RefreshCwIcon,
+} from "lucide-react"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { formatAge } from "@iot-os/ui/lib/format"
 import { api } from "../lib/api"
-import { Choice, TextField, RequestError } from "../components/forms"
+import { Choice, TextField, errorMessage } from "../components/forms"
 import { HistoryRecordsTable } from "../history/HistoryRecordsTable"
 import { StateHistoryVisualization } from "../history/StateHistoryVisualization"
-import { configurationMeta, isColorParameter } from "../history/model"
+import {
+  configurationMeta,
+  emptyHistoryReason,
+  isColorParameter,
+  latestDataWindow,
+} from "../history/model"
 import { DeviceEmpty, formatTime, Section } from "./shared"
 
 function range(hours: number) {
@@ -28,6 +44,13 @@ function range(hours: number) {
     from: new Date(to.getTime() - hours * 3600000).toISOString(),
     to: to.toISOString(),
   }
+}
+/** Value for a datetime-local input in the browser's zone. */
+function localInput(iso: string) {
+  const date = new Date(iso)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16)
 }
 
 export default function HistorySection({
@@ -93,10 +116,25 @@ export default function HistorySection({
     }
   }
 
-  const visualPending = numeric ? numericQuery.isPending : stateQuery.isPending
+  const visual = numeric ? numericQuery : stateQuery
+  const charted = numeric || state || colour
   const hasVisualData = numeric
     ? Boolean(numericQuery.data?.some((series) => series.points.length))
     : Boolean(stateQuery.data?.timeline.length)
+  const empty = emptyHistoryReason(
+    window,
+    device.last_seen_at,
+    device.retention.cutoff ??
+      new Date(Date.now() - device.retention.days * 86400000).toISOString(),
+  )
+  function jumpToLatest() {
+    if (!device.last_seen_at) return
+    const next = latestDataWindow(window, device.last_seen_at)
+    setPreset("custom")
+    setCustom({ from: localInput(next.from), to: localInput(next.to) })
+    setWindow(next)
+    setRecordsOpen(false)
+  }
 
   return (
     <Section
@@ -198,7 +236,24 @@ export default function HistorySection({
               Refresh history
             </Button>
           </div>
-          <RequestError error={numericQuery.error ?? stateQuery.error} />
+          {charted && visual.isError && (
+            <Alert variant="destructive">
+              <CircleAlertIcon />
+              <AlertTitle>History couldn't be loaded</AlertTitle>
+              <AlertDescription>
+                <p>{errorMessage(visual.error)}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={visual.isFetching}
+                  onClick={() => void visual.refetch()}
+                >
+                  <RefreshCwIcon data-icon="inline-start" />
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {numericQuery.data?.map((series, index) => {
             const meta = configurationMeta(
@@ -278,11 +333,32 @@ export default function HistorySection({
             />
           )}
 
-          {(numeric || state || colour) && !visualPending && !hasVisualData && (
-            <DeviceEmpty
-              title="No measurements in this range"
-              description="Choose another parameter or time range. Increasing retention cannot restore measurements that were already deleted."
-            />
+          {charted && visual.isSuccess && !hasVisualData && (
+            empty === "range-expired" ? (
+              <DeviceEmpty
+                title="This range is past retention"
+                description={`Measurements are kept for ${device.retention.days} days. Increasing retention cannot restore measurements that were already deleted.`}
+              />
+            ) : empty === "data-expired" && device.last_seen_at ? (
+              <DeviceEmpty
+                title="No stored measurements"
+                description={`The device last reported ${formatAge(device.last_seen_at)} ago. Measurements are kept for ${device.retention.days} days, so its readings are no longer stored.`}
+              />
+            ) : empty === "before-range" && device.last_seen_at ? (
+              <DeviceEmpty
+                title="No measurements in this range"
+                description={`The device last reported ${formatAge(device.last_seen_at)} ago, before this range starts.`}
+              >
+                <Button size="sm" onClick={jumpToLatest}>
+                  Jump to latest data
+                </Button>
+              </DeviceEmpty>
+            ) : (
+              <DeviceEmpty
+                title="No measurements in this range"
+                description="Choose another parameter or time range."
+              />
+            )
           )}
 
           {selected && (

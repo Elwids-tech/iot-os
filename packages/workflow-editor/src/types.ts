@@ -51,6 +51,17 @@ export type NodeType = {
   permissions: string[] | null;
   simulation: boolean;
 };
+/** `GET …/dag/node-types`; `meta.stale` marks a cached catalog served while the runtime is unavailable. */
+export type NodeCatalog = {
+  data: NodeType[];
+  meta?: { stale?: boolean; cached_at?: string };
+};
+/** Host-supplied evaluation result shown on a node card (e.g. a simulation step). */
+export type NodeOutcome = {
+  status: "matched" | "not_matched" | "triggered" | "suppressed" | "waiting" | "evaluated" | (string & {});
+  label: string;
+  reason?: string;
+};
 export type Diagnostic = {
   node_id?: string;
   field: string;

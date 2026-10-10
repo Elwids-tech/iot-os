@@ -46,9 +46,11 @@ import {
   fieldError,
 } from "../components/forms"
 import { useOrganization } from "./use-studio"
+import { categoryLabel } from "./authoring"
+import { DeviceSetupBanner, useReturnTo } from "./device-setup"
 export function ProfileStatus({ profile }: { profile: DeviceProfile }) {
   return profile.status === "published" ? (
-    <StatusMark tone="good">Published v{profile.revision}</StatusMark>
+    <StatusMark tone="good">Live: version {profile.revision}</StatusMark>
   ) : profile.status === "archived" ? (
     <StatusMark tone="muted">Archived</StatusMark>
   ) : profile.revision > 0 ? (
@@ -71,6 +73,7 @@ export function ProfileDirectory() {
   const navigate = useNavigate()
   const cache = useQueryClient()
   const [params, setParams] = useSearchParams()
+  const { returnTo, keep } = useReturnTo()
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<DeviceProfile | null>(null)
   const search = params.get("search") ?? "",
@@ -121,6 +124,7 @@ export function ProfileDirectory() {
           )
         }
       />
+      {returnTo && <DeviceSetupBanner returnTo={returnTo} />}
       <div className="flex flex-col gap-3 p-4 md:p-6">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <Label htmlFor="profile-search" className="sr-only">
@@ -234,13 +238,16 @@ export function ProfileDirectory() {
                   <TableCell className="max-w-96 truncate">
                     <Link
                       className="font-medium text-primary hover:underline"
-                      to={base + "/" + profile.uuid + "/overview"}
+                      to={keep(base + "/" + profile.uuid + "/overview")}
                     >
                       {profile.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {profile.category ?? profile.code}
+                  <TableCell
+                    className="text-muted-foreground"
+                    title={profile.category ?? undefined}
+                  >
+                    {profile.category ? categoryLabel(profile.category) : "—"}
                   </TableCell>
                   <TableCell>
                     <ProfileStatus profile={profile} />
@@ -262,7 +269,7 @@ export function ProfileDirectory() {
                   <TableCell>
                     <div className="flex justify-end gap-1">
                       <Button asChild size="sm" variant="ghost">
-                        <Link to={base + "/" + profile.uuid + "/overview"}>
+                        <Link to={keep(base + "/" + profile.uuid + "/overview")}>
                           Open
                         </Link>
                       </Button>
@@ -310,14 +317,14 @@ export function ProfileDirectory() {
             })
             setCreating(false)
             setDirty(false)
-            navigate(base + "/" + profile.uuid + "/parameters")
+            navigate(keep(base + "/" + profile.uuid + "/parameters"))
           }}
         />
       )}
       <Confirm
         open={Boolean(deleting)}
         title={"Delete " + deleting?.name + "?"}
-        description="Only unused drafts can be deleted. Published revisions and referenced profiles are protected."
+        description="Only unused drafts can be deleted. Published versions and referenced profiles are protected."
         onClose={() => setDeleting(null)}
         onRefresh={() => query.refetch()}
         onConfirm={async () => {

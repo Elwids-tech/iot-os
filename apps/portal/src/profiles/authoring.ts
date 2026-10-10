@@ -4,6 +4,17 @@ import type {
   JsonValue,
 } from "@iot-os/api-client"
 export const kindLabel = (kind: string) => kind[0].toUpperCase() + kind.slice(1)
+const smallWords = new Set(["an", "as", "at", "by", "in", "is", "of", "on", "or", "to", "up"])
+/** Display text for a stored category: slugs read as words ("water-metering" → "Water metering"); typed labels stay as they are. */
+export function categoryLabel(value: string | null | undefined) {
+  const text = value?.trim() ?? ""
+  if (!/^[a-z0-9]+(?:[-_.][a-z0-9]+)*$/.test(text)) return text
+  const words = text
+    .split(/[-_.]+/)
+    .map((word) => (word.length === 2 && !smallWords.has(word) ? word.toUpperCase() : word))
+    .join(" ")
+  return words[0].toUpperCase() + words.slice(1)
+}
 export const jsonText = (value: unknown) =>
   JSON.stringify(value ?? null, null, 2)
 export function objectValue(text: string): JsonObject | null {

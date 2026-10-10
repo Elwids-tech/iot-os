@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -186,5 +187,54 @@ func TestDurableRulesRecoveryFencesAndAtomicity(t *testing.T) {
 	must(s.Pool.QueryRow(ctx, `SELECT count(*) FROM device_runtime.rule_executions WHERE rule_uuid=$1 AND enabled`, d.UUID).Scan(&count))
 	if count != 0 {
 		t.Fatal("old activation resurrected")
+	}
+}
+
+func TestRuleCheckpointRebaselineIsExplicitAndRefusesContinuousCheckpoints(t *testing.T) {
+	url := os.Getenv("DEVICE_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("Requires isolated Devices database")
+	}
+	if !strings.Contains(url, "/iot_devices_test?") {
+		t.Fatal("Refusing non-test database")
+	}
+	ctx := context.Background()
+	s, err := Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Pool.Close()
+	var count int
+	if err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM device_runtime.rule_checkpoint`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("requires unused workflow checkpoint", err)
+	}
+	defer s.Pool.Exec(ctx, `DELETE FROM device_runtime.rule_checkpoint`)
+	original := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	if sequence, err := s.PrepareRuleConsumer(ctx, original, 1, 10); err != nil || sequence != 0 {
+		t.Fatal("checkpoint not bound to the stream", sequence, err)
+	}
+	if _, _, err = s.RebaselineRuleCheckpoint(ctx, original, 1, 10); !errors.Is(err, ErrRuleCheckpointContinuous) {
+		t.Fatal("rebaselined a continuous checkpoint", err)
+	}
+	replaced := original.Add(time.Hour)
+	if _, err = s.PrepareRuleConsumer(ctx, replaced, 1, 3); !errors.Is(err, ErrRuleCheckpointContinuity) {
+		t.Fatal("accepted a replaced stream", err)
+	}
+	created, previous, err := s.RebaselineRuleCheckpoint(ctx, replaced, 1, 3)
+	if err != nil || !created.Equal(original) || previous != 0 {
+		t.Fatal("rebaseline did not report the abandoned checkpoint", created, previous, err)
+	}
+	if sequence, err := s.PrepareRuleConsumer(ctx, replaced, 1, 3); err != nil || sequence != 3 {
+		t.Fatal("rebaseline must skip retained backlog", sequence, err)
+	}
+	// Retention removed sequences 4-8: evaluation resumes after the newest retained event.
+	if _, err = s.PrepareRuleConsumer(ctx, replaced, 9, 12); !errors.Is(err, ErrRuleCheckpointContinuity) {
+		t.Fatal("accepted a retention gap", err)
+	}
+	if _, _, err = s.RebaselineRuleCheckpoint(ctx, replaced, 9, 12); err != nil {
+		t.Fatal(err)
+	}
+	if sequence, err := s.PrepareRuleConsumer(ctx, replaced, 9, 12); err != nil || sequence != 12 {
+		t.Fatal("rebaseline after retention gap", sequence, err)
 	}
 }

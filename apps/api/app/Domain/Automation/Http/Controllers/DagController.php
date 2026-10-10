@@ -8,6 +8,7 @@ use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Services\DagAuthoring;
 use App\Domain\Automation\Services\DagAuthorization;
 use App\Domain\Automation\Services\DagDeployment;
+use App\Domain\Automation\Services\DagDirectory;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceCommand;
 use App\Domain\Devices\Permissions\DevicePermission;
@@ -16,8 +17,10 @@ use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 final class DagController
 {
@@ -28,7 +31,19 @@ final class DagController
         $this->auth->authorize($r->user(), $organization, 'view');
         $this->auth->enabled($organization);
 
-        return ['data' => $this->runtime->request('GET', '/internal/dag/node-types')];
+        // The catalog changes only with runtime releases, so the last copy keeps
+        // existing graphs readable while the runtime is unavailable.
+        try {
+            $types = $this->runtime->request('GET', '/internal/dag/node-types');
+        } catch (HttpExceptionInterface $exception) {
+            $cached = Cache::get('automation.dag.node-types');
+            throw_unless($exception->getStatusCode() === 503 && is_array($cached), $exception);
+
+            return ['data' => $cached['data'], 'meta' => ['stale' => true, 'cached_at' => $cached['cached_at']]];
+        }
+        Cache::forever('automation.dag.node-types', ['data' => $types, 'cached_at' => now()->toIso8601String()]);
+
+        return ['data' => $types];
     }
 
     public function validateGraph(Request $r, Organization $organization): array
@@ -70,8 +85,9 @@ final class DagController
         $this->auth->authorize($r->user(), $organization, 'view');
         $r->validate(['page' => 'sometimes|integer|min:1', 'search' => 'sometimes|nullable|string|max:255']);
         $p = Workflow::where('organization_id', $organization->id)->where('workflow->schema_version', 'automation-workflow.v2')->when($r->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$r->string('search').'%'))->orderByDesc('id')->paginate(25);
+        $summaries = app(DagDirectory::class)->summarize($organization, $p->getCollection());
 
-        return ['data' => $p->getCollection()->map(fn ($w) => $this->view($w)), 'meta' => ['current_page' => $p->currentPage(), 'last_page' => $p->lastPage(), 'total' => $p->total()]];
+        return ['data' => $p->getCollection()->map(fn ($w) => [...$w->only(self::VIEW), ...$summaries[$w->id]]), 'meta' => ['current_page' => $p->currentPage(), 'last_page' => $p->lastPage(), 'total' => $p->total()]];
     }
 
     public function layout(Request $r, Organization $organization, Workflow $workflow): array
@@ -220,10 +236,12 @@ final class DagController
         });
     }
 
+    private const VIEW = ['uuid', 'name', 'draft_revision', 'workflow', 'definition_hash', 'layout', 'layout_revision', 'deployment_generation', 'deployment_status', 'desired_deployment_uuid', 'applied_deployment_uuid', 'pending_operation_uuid'];
+
     public function view(Workflow $w): array
     {
         $deployment = DB::table('automation_deployments')->where('automation_workflow_id', $w->id)->orderByDesc('generation')->first();
 
-        return [...$w->only(['uuid', 'name', 'draft_revision', 'workflow', 'definition_hash', 'layout', 'layout_revision', 'deployment_generation', 'deployment_status', 'desired_deployment_uuid', 'applied_deployment_uuid', 'pending_operation_uuid']), 'deployment_diagnostic' => $deployment?->diagnostic];
+        return [...$w->only(self::VIEW), 'deployment_diagnostic' => $deployment?->diagnostic];
     }
 }

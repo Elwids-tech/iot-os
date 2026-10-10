@@ -58,3 +58,23 @@ tests:
         exp_alerts:
           - exp_labels: {environment: staging, job: api, instance: "api-web:80", severity: critical}
             exp_annotations: {summary: "Expected simulator telemetry is missing or stale"}
+  - name: briefly delayed workflow evaluation does not alert
+    interval: 1m
+    input_series:
+      - series: iot_dag_consumer_healthy{environment="staging",job="api",instance="api-web:80"}
+        values: 1 1 0 0 1 1 1 1 1 1
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: WorkflowEvaluationPaused
+        exp_alerts: []
+  - name: paused workflow evaluation alerts
+    interval: 1m
+    input_series:
+      - series: iot_dag_consumer_healthy{environment="staging",job="api",instance="api-web:80"}
+        values: 1+0x2 0+0x10
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: WorkflowEvaluationPaused
+        exp_alerts:
+          - exp_labels: {environment: staging, job: api, instance: "api-web:80", severity: critical}
+            exp_annotations: {summary: "Automation evaluation is paused; see the workflow checkpoint recovery runbook"}

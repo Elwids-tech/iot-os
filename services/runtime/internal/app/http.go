@@ -23,7 +23,7 @@ func (a *Application) Handler() http.Handler {
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, map[string]bool{"ok": true}) })
 	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
 		if !a.NATS.IsConnected() || !a.rulesHealthy.Load() || a.Store.Pool.Ping(r.Context()) != nil {
-			respond(w, 503, map[string]bool{"ok": false})
+			respond(w, 503, map[string]any{"ok": false, "workflows": a.rulesStatus()})
 			return
 		}
 		respond(w, 200, map[string]bool{"ok": true})
@@ -79,6 +79,8 @@ func (a *Application) Handler() http.Handler {
 	internal.HandleFunc("GET /internal/measurements/history", a.historyHTTP)
 	internal.HandleFunc("GET /internal/measurements/records", a.historyRecordsHTTP)
 	internal.HandleFunc("GET /internal/measurements/state-history", a.stateHistoryHTTP)
+	internal.HandleFunc("GET /internal/status", a.statusHTTP)
+	internal.HandleFunc("POST /internal/rules/checkpoint/rebaseline", a.rebaselineRules)
 	mux.Handle("/internal/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		expected := "Bearer " + a.Control.Token
 		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte(expected)) != 1 {
@@ -88,6 +90,27 @@ func (a *Application) Handler() http.Handler {
 		internal.ServeHTTP(w, r)
 	}))
 	return mux
+}
+
+// statusHTTP reports each subsystem separately so the portal can explain partial
+// outages instead of treating the whole runtime as unavailable.
+func (a *Application) statusHTTP(w http.ResponseWriter, r *http.Request) {
+	storageState, messaging := "ok", "ok"
+	if a.Store.Pool.Ping(r.Context()) != nil {
+		storageState = "unavailable"
+	}
+	if !a.NATS.IsConnected() {
+		messaging = "disconnected"
+	}
+	a.mu.Lock()
+	connected, total := 0, len(a.brokers)
+	for _, b := range a.brokers {
+		if b.Client.IsConnectionOpen() {
+			connected++
+		}
+	}
+	a.mu.Unlock()
+	respond(w, 200, map[string]any{"storage": storageState, "messaging": messaging, "workflows": a.rulesStatus(), "brokers": map[string]int{"connected": connected, "total": total}})
 }
 func decodeBody(w http.ResponseWriter, r *http.Request, target any) bool {
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20))

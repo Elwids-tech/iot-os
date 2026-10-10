@@ -46,6 +46,7 @@ Route::prefix('v1/organizations/{organization}/workflows')->middleware(['auth:sa
 
 Route::prefix('v1/organizations/{organization}/alerts')->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
     Route::get('', [AlertController::class, 'index']);
+    Route::post('acknowledge', [AlertController::class, 'acknowledgeMany']);
     Route::get('{alert}', [AlertController::class, 'show']);
     Route::post('{alert}/acknowledge', [AlertController::class, 'acknowledge']);
     Route::put('{alert}/assignee', [AlertController::class, 'assign']);

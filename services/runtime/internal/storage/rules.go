@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -95,6 +96,10 @@ func (s *Store) DeployRule(ctx context.Context, request rules.Deployment, at tim
 	return tx.Commit(ctx)
 }
 
+// ErrRuleCheckpointContinuity means the checkpoint no longer matches the retained
+// stream. Only an operator may accept the gap (RebaselineRuleCheckpoint).
+var ErrRuleCheckpointContinuity = errors.New("workflow telemetry checkpoint lost continuity; recovery required")
+
 // PrepareRuleConsumer binds the durable SQL checkpoint to a particular stream
 // incarnation. Retention loss or replacement is an explicit recovery failure.
 func (s *Store) PrepareRuleConsumer(ctx context.Context, created time.Time, first, last uint64) (uint64, error) {
@@ -106,16 +111,52 @@ func (s *Store) PrepareRuleConsumer(ctx context.Context, created time.Time, firs
 	if err != nil {
 		return 0, err
 	}
-	var stored time.Time
-	var sequence uint64
-	if err = s.Pool.QueryRow(ctx, `SELECT stream_created,sequence FROM device_runtime.rule_checkpoint WHERE singleton`).Scan(&stored, &sequence); err != nil {
+	stored, sequence, err := s.RuleCheckpoint(ctx)
+	if err != nil {
 		return 0, err
 	}
 	if !stored.Equal(created.Truncate(time.Microsecond)) || sequence < baseline || sequence > last {
-		return 0, fmt.Errorf("workflow telemetry checkpoint lost continuity; recovery required")
+		return 0, ErrRuleCheckpointContinuity
 	}
 	return sequence, nil
 }
+
+// RuleCheckpoint returns the stream incarnation and sequence evaluated so far.
+func (s *Store) RuleCheckpoint(ctx context.Context) (time.Time, uint64, error) {
+	var stored time.Time
+	var sequence uint64
+	err := s.Pool.QueryRow(ctx, `SELECT stream_created,sequence FROM device_runtime.rule_checkpoint WHERE singleton`).Scan(&stored, &sequence)
+	return stored, sequence, err
+}
+
+// RebaselineRuleCheckpoint accepts a continuity gap by binding the checkpoint to
+// the current stream incarnation at its last sequence. Telemetry before that point
+// is never evaluated, so stale readings cannot trigger actions after recovery.
+// It refuses to move a checkpoint that is still continuous.
+func (s *Store) RebaselineRuleCheckpoint(ctx context.Context, created time.Time, first, last uint64) (previousCreated time.Time, previousSequence uint64, err error) {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return previousCreated, 0, err
+	}
+	defer tx.Rollback(ctx)
+	if err = tx.QueryRow(ctx, `SELECT stream_created,sequence FROM device_runtime.rule_checkpoint WHERE singleton FOR UPDATE`).Scan(&previousCreated, &previousSequence); err != nil {
+		return previousCreated, 0, err
+	}
+	baseline := uint64(0)
+	if first > 0 {
+		baseline = first - 1
+	}
+	if previousCreated.Equal(created.Truncate(time.Microsecond)) && previousSequence >= baseline && previousSequence <= last {
+		return previousCreated, previousSequence, ErrRuleCheckpointContinuous
+	}
+	if _, err = tx.Exec(ctx, `UPDATE device_runtime.rule_checkpoint SET stream_created=$1,sequence=$2 WHERE singleton`, created, last); err != nil {
+		return previousCreated, previousSequence, err
+	}
+	return previousCreated, previousSequence, tx.Commit(ctx)
+}
+
+// ErrRuleCheckpointContinuous rejects a rebaseline that would skip evaluable telemetry.
+var ErrRuleCheckpointContinuous = errors.New("workflow telemetry checkpoint is continuous; nothing to recover")
 
 // ConsumeRuleTelemetry atomically records deduplication, all affected rule states,
 // transitions, their outbox records and the broker checkpoint before acknowledgement.

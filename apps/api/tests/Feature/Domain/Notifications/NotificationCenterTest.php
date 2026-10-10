@@ -113,4 +113,30 @@ final class NotificationCenterTest extends TestCase
         $prefs['grid']['service']['critical'] = true;
         $this->putJson('/api/v1/notifications/preferences', $prefs)->assertForbidden();
     }
+
+    public function test_event_log_counts_active_events_by_type_and_filters_cleared_events_and_one_organization(): void
+    {
+        $this->ingest();
+        $acme = Organization::where('slug', 'acme-manufacturing')->firstOrFail();
+        $northstar = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $base = NotificationEvent::firstOrFail();
+        $workflow = fn (Organization $org, string $key, bool $active) => $base->replicate()->forceFill(['uuid' => (string) \Illuminate\Support\Str::uuid(), 'event_key' => hash('sha256', $key), 'incident_key' => hash('sha256', $key), 'source' => 'workflow', 'severity' => 'warning', 'status' => 'firing', 'active' => $active, 'organization_id' => $org->id])->save();
+        $workflow($acme, 'acme-active', true);
+        $workflow($acme, 'acme-cleared', false);
+        $workflow($northstar, 'northstar-active', true);
+        $this->actingAs($this->operator, 'sanctum');
+        $this->getJson('/api/v1/notifications/events')->assertOk()->assertJsonPath('meta.total', 4)
+            ->assertJsonPath('summary.sources', ['workflow' => 2, 'service' => 1, 'watchdog' => 0]);
+        $this->getJson('/api/v1/notifications/events?status=cleared')->assertJsonPath('meta.total', 1);
+        $this->getJson('/api/v1/notifications/events?status=active&organization='.$acme->uuid)->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('summary.sources', ['workflow' => 1, 'service' => 1, 'watchdog' => 0]);
+        $this->getJson('/api/v1/notifications/events?status=finished')->assertUnprocessable();
+        $this->ingest('resolved');
+        $this->getJson('/api/v1/notifications/events?status=cleared&source=service')->assertJsonPath('meta.total', 2)->assertJsonPath('summary.sources.service', 0);
+        $this->getJson('/api/v1/notifications/events?status=resolved')->assertJsonPath('meta.total', 1);
+        $member = User::where('email', 'acme.member@example.test')->firstOrFail();
+        // Members never see platform events or other tenants, even when naming them.
+        $this->actingAs($member, 'sanctum')->getJson('/api/v1/notifications/events?organization='.$northstar->uuid)->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/v1/notifications/events?organization='.$acme->uuid)->assertJsonPath('meta.total', 2)->assertJsonPath('summary.sources.workflow', 1);
+    }
 }

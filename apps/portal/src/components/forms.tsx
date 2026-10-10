@@ -47,7 +47,14 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from "@iot-os/ui/components/alert-dialog"
-import { CircleAlertIcon } from "lucide-react"
+import { CircleAlertIcon, CloudOffIcon } from "lucide-react"
+
+/** The device runtime didn't answer; RuntimeStatusBanner already explains the outage page-wide. */
+export function isRuntimeUnavailable(error: unknown): boolean {
+  if (!(error instanceof ApiError) || error.status !== 503) return false
+  const message = (error.payload as { message?: string } | null)?.message ?? ""
+  return /device runtime/i.test(message)
+}
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     const payload = error.payload as {
@@ -61,6 +68,8 @@ export function errorMessage(error: unknown): string {
       return "Your session expired. Sign in again to continue."
     if (error.status === 403)
       return "You do not have permission for this action in this organization."
+    if (error.status === 404 && (!payload?.message || payload.message === "Not Found"))
+      return "This isn't available. It may have been removed, or the feature isn't enabled for this organization."
     return (
       [
         payload?.message,
@@ -88,6 +97,15 @@ export function RequestError({
   children?: ReactNode
 }) {
   if (!error) return null
+  // Outages are explained once by the page banner; repeating a red alert per panel is noise.
+  if (isRuntimeUnavailable(error))
+    return (
+      <div role="status" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+        <CloudOffIcon className="size-4 shrink-0" aria-hidden="true" />
+        <span>Live data is unavailable right now.</span>
+        {children}
+      </div>
+    )
   return (
     <Alert variant="destructive">
       <CircleAlertIcon />
