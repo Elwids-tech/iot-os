@@ -6,8 +6,10 @@ namespace App\Domain\Administration\Services;
 
 use App\Domain\Administration\Models\OrganizationInvitation;
 use App\Domain\Administration\Notifications\OrganizationInvitationNotification;
+use App\Domain\Authorization\Models\Role;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
@@ -15,7 +17,12 @@ use Illuminate\Validation\ValidationException;
 
 final class OrganizationInvitationManager
 {
-    public function __construct(private readonly OrganizationRoleManager $roleManager) {}
+    private const LIFETIME_DAYS = 7;
+
+    public function __construct(
+        private readonly OrganizationRoleManager $roleManager,
+        private readonly OrganizationGrants $grants,
+    ) {}
 
     /**
      * @param  list<int>  $roleIds
@@ -24,11 +31,10 @@ final class OrganizationInvitationManager
     {
         $email = Str::lower(trim($email));
 
-        if ($organization->users()->where('email', $email)->exists()) {
-            throw ValidationException::withMessages(['email' => 'This user already belongs to the organization.']);
-        }
+        $this->ensureNotMember($organization, $email);
 
         $roles = $this->roleManager->rolesFor($organization, $roleIds);
+        $this->grants->ensureRoles($invitedBy, $organization, $roles);
         $token = Str::random(64);
 
         $invitation = DB::transaction(function () use ($organization, $invitedBy, $email, $roles, $token): OrganizationInvitation {
@@ -46,14 +52,71 @@ final class OrganizationInvitationManager
                 'role_ids' => $roles->modelKeys(),
                 'token_hash' => hash('sha256', $token),
                 'invited_by_user_id' => $invitedBy->getKey(),
-                'expires_at' => now()->addDays(7),
+                'expires_at' => now()->addDays(self::LIFETIME_DAYS),
             ]);
         });
 
-        $invitation->load('organization');
-        Notification::route('mail', $email)->notify(new OrganizationInvitationNotification($invitation, $token));
+        $this->send($invitation, $token);
 
         return $invitation;
+    }
+
+    /**
+     * Issue a fresh link for a pending or expired invitation; the old link stops working.
+     */
+    public function resend(OrganizationInvitation $invitation, User $actor): OrganizationInvitation
+    {
+        if ($invitation->accepted_at !== null || $invitation->revoked_at !== null) {
+            throw ValidationException::withMessages(['invitation' => 'Only pending or expired invitations can be sent again.']);
+        }
+
+        $organization = $invitation->organization;
+        $this->ensureNotMember($organization, $invitation->email);
+        $this->grants->ensureRoles($actor, $organization, $this->roleManager->rolesFor($organization, $invitation->role_ids), 'invitation');
+
+        $token = Str::random(64);
+        $invitation->forceFill([
+            'token_hash' => hash('sha256', $token),
+            'expires_at' => now()->addDays(self::LIFETIME_DAYS),
+        ])->save();
+
+        $this->send($invitation, $token);
+
+        return $invitation;
+    }
+
+    public function revoke(OrganizationInvitation $invitation, User $actor): void
+    {
+        if (! $invitation->isPending()) {
+            throw ValidationException::withMessages(['invitation' => 'Only pending invitations can be revoked.']);
+        }
+
+        $roles = Role::query()
+            ->where('organization_id', $invitation->organization_id)
+            ->whereIn('id', $invitation->role_ids)
+            ->get();
+        $this->grants->ensureRoles($actor, $invitation->organization, $roles, 'invitation');
+
+        $invitation->forceFill(['revoked_at' => now()])->save();
+    }
+
+    /**
+     * Attach each invitation's roles for display, with one query.
+     *
+     * @param  Collection<int, OrganizationInvitation>  $invitations
+     */
+    public function loadRoles(Collection $invitations): void
+    {
+        $roles = Role::query()
+            ->with('permissions')
+            ->whereIn('id', $invitations->flatMap(fn (OrganizationInvitation $invitation) => $invitation->role_ids)->unique()->values())
+            ->get()
+            ->keyBy('id');
+
+        $invitations->each(fn (OrganizationInvitation $invitation) => $invitation->setRelation(
+            'roles',
+            $roles->only($invitation->role_ids)->values(),
+        ));
     }
 
     public function findPending(string $token): OrganizationInvitation
@@ -124,5 +187,18 @@ final class OrganizationInvitationManager
 
             return $user;
         });
+    }
+
+    private function ensureNotMember(Organization $organization, string $email): void
+    {
+        if ($organization->users()->where('email', $email)->exists()) {
+            throw ValidationException::withMessages(['email' => 'This user already belongs to the organization.']);
+        }
+    }
+
+    private function send(OrganizationInvitation $invitation, string $token): void
+    {
+        $invitation->load('organization');
+        Notification::route('mail', $invitation->email)->notify(new OrganizationInvitationNotification($invitation, $token));
     }
 }

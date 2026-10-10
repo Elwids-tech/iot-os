@@ -6,6 +6,7 @@ namespace App\Domain\Administration\Http\Controllers;
 
 use App\Domain\Administration\Http\Requests\StoreOrganizationRequest;
 use App\Domain\Administration\Http\Requests\UpdateOrganizationRequest;
+use App\Domain\Administration\Services\OrganizationDefaultRoles;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Shared\Http\Resources\OrganizationResource;
 use App\Domain\Shared\Models\Organization;
@@ -13,10 +14,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 final class PlatformOrganizationController
 {
+    public function __construct(private readonly OrganizationDefaultRoles $defaultRoles) {}
+
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
@@ -43,7 +47,12 @@ final class PlatformOrganizationController
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
-        $organization = Organization::query()->create($request->validated());
+        $organization = DB::transaction(function () use ($request): Organization {
+            $organization = Organization::query()->create($request->validated());
+            $this->defaultRoles->ensure($organization);
+
+            return $organization;
+        });
 
         return OrganizationResource::make($organization)
             ->response()

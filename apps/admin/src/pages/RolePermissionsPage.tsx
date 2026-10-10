@@ -2,8 +2,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react"
 import type { OrganizationRole, OrganizationRoleDetail, RolePermission } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
-import { Checkbox } from "@iot-os/ui/components/checkbox"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@iot-os/ui/components/collapsible"
 import {
   Command,
   CommandEmpty,
@@ -22,6 +20,7 @@ import {
 import { Input } from "@iot-os/ui/components/input"
 import { Label } from "@iot-os/ui/components/label"
 import { PageHeader } from "@iot-os/ui/components/page-header"
+import { PermissionMatrix } from "@iot-os/ui/components/permission-matrix"
 import { Popover, PopoverContent, PopoverTrigger } from "@iot-os/ui/components/popover"
 import {
   Select,
@@ -32,12 +31,12 @@ import {
   SelectValue,
 } from "@iot-os/ui/components/select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { AlertCircleIcon, ChevronDownIcon, ChevronsUpDownIcon, LockKeyholeIcon, SearchXIcon } from "lucide-react"
+import { AlertCircleIcon, ChevronsUpDownIcon, LockKeyholeIcon, SearchXIcon } from "lucide-react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 import { useDiscardGuard } from "../hooks/use-discard-guard"
 import { apiClient } from "../lib/api-client"
-import { permissionGroupLabel, permissionLabel } from "../lib/permissions"
+import { permissionGroupLabel, permissionLabel } from "@iot-os/ui/lib/permission-labels"
 
 type RoleState = {
   data?: OrganizationRoleDetail
@@ -48,13 +47,6 @@ const back = { to: "/roles", label: "Roles" }
 
 function permissionNames(permissions: RolePermission[]): Set<string> {
   return new Set(permissions.filter((permission) => permission.assigned).map((permission) => permission.name))
-}
-
-function groupedPermissions(permissions: RolePermission[]): Map<string, RolePermission[]> {
-  return permissions.reduce((groups, permission) => {
-    groups.set(permission.group, [...(groups.get(permission.group) ?? []), permission])
-    return groups
-  }, new Map<string, RolePermission[]>())
 }
 
 /** The page title is a searchable role switcher; navigation goes through the discard guard. */
@@ -199,26 +191,24 @@ export function RolePermissionsPage() {
     description: `${added} added and ${removed} removed permissions for ${role?.display_name ?? "this role"} will be lost.`,
   })
 
-  const permissionGroups = useMemo(() => {
-    if (!state.data) return new Map<string, RolePermission[]>()
+  const visiblePermissions = useMemo(() => {
+    if (!state.data) return []
 
     const normalizedSearch = search.trim().toLocaleLowerCase()
-    const filtered = state.data.permissions.filter(
+    return state.data.permissions.filter(
       (permission) =>
         (group === "all" || permission.group === group) &&
         (!normalizedSearch ||
           permission.name.toLocaleLowerCase().includes(normalizedSearch) ||
           permissionLabel(permission.name).toLocaleLowerCase().includes(normalizedSearch)),
     )
-
-    return groupedPermissions(filtered)
   }, [group, search, state.data])
 
   const groupNames = useMemo(
     () => (state.data ? [...new Set(state.data.permissions.map((permission) => permission.group))] : []),
     [state.data],
   )
-  const visibleCount = [...permissionGroups.values()].reduce((total, items) => total + items.length, 0)
+  const visibleCount = visiblePermissions.length
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -250,45 +240,6 @@ export function RolePermissionsPage() {
   function clearFilters() {
     setDraftSearch("")
     setSearchParams(new URLSearchParams())
-  }
-
-  function togglePermission(name: string, checked: boolean) {
-    if (!role?.permissions_editable || isSaving) return
-
-    setSelectedPermissionNames((current) => {
-      const next = new Set(current)
-
-      if (checked) {
-        next.add(name)
-      } else {
-        next.delete(name)
-      }
-
-      return next
-    })
-  }
-
-  function toggleGroup(groupName: string) {
-    if (!role?.permissions_editable || isSaving) return
-
-    const groupPermissions = role.permissions.filter((permission) => permission.group === groupName)
-    const groupIsFullySelected = groupPermissions.every((permission) =>
-      selectedPermissionNames.has(permission.name),
-    )
-
-    setSelectedPermissionNames((current) => {
-      const next = new Set(current)
-
-      for (const permission of groupPermissions) {
-        if (groupIsFullySelected) {
-          next.delete(permission.name)
-        } else {
-          next.add(permission.name)
-        }
-      }
-
-      return next
-    })
   }
 
   function resetChanges() {
@@ -423,7 +374,7 @@ export function RolePermissionsPage() {
           </Alert>
         ) : null}
 
-        {permissionGroups.size === 0 ? (
+        {visiblePermissions.length === 0 ? (
           <Empty className="min-h-64 border-0">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -438,92 +389,13 @@ export function RolePermissionsPage() {
             </EmptyContent>
           </Empty>
         ) : (
-          <div className="border-t">
-            {[...permissionGroups.entries()].map(([groupName, permissions]) => {
-              const groupLabel = permissionGroupLabel(groupName)
-              const allGroupPermissions = role.permissions.filter(
-                (permission) => permission.group === groupName,
-              )
-              const selectedInGroup = allGroupPermissions.filter((permission) =>
-                selectedPermissionNames.has(permission.name),
-              ).length
-              const groupChecked =
-                selectedInGroup === 0
-                  ? false
-                  : selectedInGroup === allGroupPermissions.length
-                    ? true
-                    : "indeterminate"
-
-              return (
-                <Collapsible key={groupName} defaultOpen asChild>
-                  <section className="border-b">
-                    <div className="flex h-10 items-center gap-3">
-                      <Checkbox
-                        aria-label={`Select all ${groupLabel} permissions`}
-                        checked={groupChecked}
-                        disabled={!role.permissions_editable || isSaving}
-                        onCheckedChange={() => toggleGroup(groupName)}
-                      />
-                      <h2 className="min-w-0 flex-1 text-sm font-semibold">
-                        <CollapsibleTrigger className="group/trigger flex h-10 w-full items-center gap-2 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                          <ChevronDownIcon
-                            aria-hidden="true"
-                            className="size-4 shrink-0 text-muted-foreground group-data-[state=closed]/trigger:-rotate-90"
-                          />
-                          {groupLabel}
-                        </CollapsibleTrigger>
-                      </h2>
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {selectedInGroup} of {allGroupPermissions.length} selected
-                      </span>
-                    </div>
-                    <CollapsibleContent>
-                      <fieldset className="grid gap-x-6 pb-3 sm:grid-cols-2 sm:pl-7 xl:grid-cols-3">
-                        <legend className="sr-only">{groupLabel} permissions</legend>
-                        {permissions.map((permission) => {
-                          const id = `permission-${permission.name}`
-                          const checked = selectedPermissionNames.has(permission.name)
-                          const wasChecked = initialPermissionNames.has(permission.name)
-
-                          return (
-                            <label
-                              key={permission.name}
-                              className="group/permission flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-sm px-1.5 text-sm hover:bg-muted/50 has-disabled:cursor-not-allowed has-disabled:opacity-60"
-                              htmlFor={id}
-                            >
-                              <Checkbox
-                                id={id}
-                                checked={checked}
-                                disabled={!role.permissions_editable || isSaving}
-                                onCheckedChange={(value) =>
-                                  togglePermission(permission.name, value === true)
-                                }
-                              />
-                              <span className="truncate">{permissionLabel(permission.name)}</span>
-                              <span className="ml-auto hidden truncate font-mono text-xs text-muted-foreground group-hover/permission:inline group-focus-within/permission:inline">
-                                {permission.name}
-                              </span>
-                              {checked !== wasChecked ? (
-                                <span
-                                  className={
-                                    checked
-                                      ? "shrink-0 text-xs text-foreground"
-                                      : "shrink-0 text-xs text-muted-foreground line-through"
-                                  }
-                                >
-                                  {checked ? "added" : "removed"}
-                                </span>
-                              ) : null}
-                            </label>
-                          )
-                        })}
-                      </fieldset>
-                    </CollapsibleContent>
-                  </section>
-                </Collapsible>
-              )
-            })}
-          </div>
+          <PermissionMatrix
+            permissions={visiblePermissions}
+            selected={selectedPermissionNames}
+            initial={initialPermissionNames}
+            disabled={!role.permissions_editable || isSaving}
+            onChange={setSelectedPermissionNames}
+          />
         )}
       </div>
 

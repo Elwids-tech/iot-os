@@ -33,6 +33,8 @@ export type Organization = {
   users_count?: number
   capabilities?: {
     manage_administration: boolean
+    /** Member, invitation and role screens. Older payloads omit it. */
+    administration?: AdministrationCapabilities
     device_profiles?: DeviceProfileCapabilities
     devices?: DeviceCapabilities
     /** Optional platform features enabled for this organization. */
@@ -83,11 +85,72 @@ export type InvitationRole = {
   display_name: string
 }
 
+export type AdministrationCapabilities = {
+  members_view: boolean
+  invite: boolean
+  members_update: boolean
+  members_remove: boolean
+  roles_view: boolean
+  roles_create: boolean
+  roles_update: boolean
+  roles_delete: boolean
+}
+
 export type OrganizationMember = {
   id: number
   name: string
   email: string
+  is_current_user?: boolean
+  /** Whether the acting user could change or remove this member without escalating. */
+  manageable?: boolean
   roles: Pick<OrganizationRole, "id" | "key" | "display_name" | "is_default">[]
+}
+
+export type TenantPermission = {
+  name: string
+  group: string
+  /** Whether the acting user may grant it: inside the ceiling and held by them. */
+  grantable?: boolean
+}
+
+/** An organization role as the organization's own administrators see it. */
+export type TenantRole = {
+  id: number
+  key: string
+  display_name: string
+  is_default: boolean
+  is_administrator: boolean
+  members_count?: number
+  /** Every permission in the role is one the acting user can grant. */
+  assignable?: boolean
+  /** The acting user could edit or delete it. Organization Admin never is. */
+  manageable?: boolean
+  permissions: Omit<TenantPermission, "grantable">[]
+}
+
+export type TenantRoleValues = {
+  display_name: string
+  permission_names: string[]
+}
+
+export type TenantInvitation = Omit<OrganizationInvitation, "organization"> & {
+  invited_by: { id: number; name: string } | null
+  /** Whether the acting user could resend or revoke it. */
+  manageable?: boolean
+}
+
+export type MemberQuery = {
+  page?: number
+  search?: string
+  perPage?: number
+}
+
+/** The tenant permissions an organization's roles may hold. */
+export type OrganizationPermissionCeiling = {
+  organization: Pick<Organization, "uuid" | "name" | "slug">
+  restricted: boolean
+  permission_names: string[]
+  catalogue: Omit<TenantPermission, "grantable">[]
 }
 
 export type OrganizationInvitation = {
@@ -841,11 +904,99 @@ export class ApiClient {
 
   async organizationMembers(
     organizationUuid: string,
-    page = 1,
+    query: number | MemberQuery = 1,
   ): Promise<PaginatedResponse<OrganizationMember>> {
+    const { page = 1, search, perPage = 100 } = typeof query === "number" ? { page: query } : query
+    const params = new URLSearchParams({ per_page: String(perPage), page: String(page) })
+    if (search?.trim()) params.set("search", search.trim())
+
     return this.request<PaginatedResponse<OrganizationMember>>(
-      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/members?per_page=100&page=${page}`,
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/members?${params}`,
     )
+  }
+
+  async organizationRoles(organizationUuid: string): Promise<TenantRole[]> {
+    return this.request<ApiResponse<TenantRole[]>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/roles`,
+    ).then((response) => response.data)
+  }
+
+  /** The organization's permission ceiling, flagged with what the acting user can grant. */
+  async organizationRolePermissions(organizationUuid: string): Promise<TenantPermission[]> {
+    return this.request<ApiResponse<TenantPermission[]>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/role-permissions`,
+    ).then((response) => response.data)
+  }
+
+  async createOrganizationRole(organizationUuid: string, values: TenantRoleValues): Promise<TenantRole> {
+    return this.request<ApiResponse<TenantRole>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/roles`,
+      { method: "POST", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  async updateOrganizationRole(organizationUuid: string, roleId: number, values: TenantRoleValues): Promise<TenantRole> {
+    return this.request<ApiResponse<TenantRole>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/roles/${roleId}`,
+      { method: "PATCH", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  async deleteOrganizationRole(organizationUuid: string, roleId: number): Promise<void> {
+    await this.request(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/roles/${roleId}`,
+      { method: "DELETE" },
+    )
+  }
+
+  async organizationInvitations(
+    organizationUuid: string,
+    query: { status?: "pending" | "expired"; page?: number } = {},
+  ): Promise<PaginatedResponse<TenantInvitation>> {
+    const params = new URLSearchParams({ status: query.status ?? "pending", page: String(query.page ?? 1), per_page: "100" })
+
+    return this.request<PaginatedResponse<TenantInvitation>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/invitations?${params}`,
+    )
+  }
+
+  async inviteOrganizationMember(organizationUuid: string, email: string, roleIds: number[]): Promise<TenantInvitation> {
+    return this.request<ApiResponse<TenantInvitation>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/invitations`,
+      { method: "POST", body: JSON.stringify({ email, role_ids: roleIds }) },
+    ).then((response) => response.data)
+  }
+
+  /** Sends a fresh link; the previous one stops working. */
+  async resendOrganizationInvitation(organizationUuid: string, invitationUuid: string): Promise<TenantInvitation> {
+    return this.request<ApiResponse<TenantInvitation>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/invitations/${encodeURIComponent(invitationUuid)}/resend`,
+      { method: "POST" },
+    ).then((response) => response.data)
+  }
+
+  async revokeOrganizationInvitation(organizationUuid: string, invitationUuid: string): Promise<void> {
+    await this.request(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/invitations/${encodeURIComponent(invitationUuid)}`,
+      { method: "DELETE" },
+    )
+  }
+
+  async adminOrganizationPermissions(organizationUuid: string): Promise<OrganizationPermissionCeiling> {
+    return this.request<ApiResponse<OrganizationPermissionCeiling>>(
+      `/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}/permissions`,
+    ).then((response) => response.data)
+  }
+
+  /** Narrowing removes the dropped permissions from every role in the organization. */
+  async updateAdminOrganizationPermissions(
+    organizationUuid: string,
+    values: { restricted: boolean; permission_names: string[] },
+  ): Promise<OrganizationPermissionCeiling> {
+    return this.request<ApiResponse<OrganizationPermissionCeiling>>(
+      `/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}/permissions`,
+      { method: "PUT", body: JSON.stringify(values) },
+    ).then((response) => response.data)
   }
 
   async syncOrganizationMemberRoles(

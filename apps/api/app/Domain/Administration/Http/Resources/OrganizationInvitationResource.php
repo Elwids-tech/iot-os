@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Domain\Administration\Http\Resources;
 
+use App\Domain\Administration\Http\Resources\Concerns\KnowsGrantablePermissions;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 final class OrganizationInvitationResource extends JsonResource
 {
+    use KnowsGrantablePermissions;
+
     /**
      * @return array<string, mixed>
      */
@@ -30,6 +33,15 @@ final class OrganizationInvitationResource extends JsonResource
                 'name' => $this->organization->name,
                 'slug' => $this->organization->slug,
             ]),
+            'invited_by' => $this->whenLoaded('invitedBy', fn (): ?array => $this->invitedBy === null ? null : [
+                'id' => $this->invitedBy->getKey(),
+                'name' => $this->invitedBy->name,
+            ]),
+            // Manageable: the actor could resend or revoke it without handing out access they lack.
+            'manageable' => $this->when($this->grantable !== null && $this->relationLoaded('roles'), fn (): bool => $this->roles
+                ->flatMap(fn ($role) => $role->permissions->pluck('name'))
+                ->diff($this->grantable)
+                ->isEmpty()),
             'expires_at' => $this->expires_at,
             'accepted_at' => $this->accepted_at,
             'revoked_at' => $this->revoked_at,

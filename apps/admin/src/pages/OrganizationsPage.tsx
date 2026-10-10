@@ -82,14 +82,24 @@ export function OrganizationsPage() {
                   </Link>
                 </TableCell>
                 <TableCell className="w-0 text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`Edit ${organization.name}`}
-                    onClick={() => setEditing(organization)}
-                  >
-                    Edit
-                  </Button>
+                  <div className="flex justify-end gap-1">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link
+                        to={`/organizations/${encodeURIComponent(organization.uuid)}/permissions`}
+                        aria-label={`Available permissions for ${organization.name}`}
+                      >
+                        Permissions
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Edit ${organization.name}`}
+                      onClick={() => setEditing(organization)}
+                    >
+                      Edit
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

@@ -27,7 +27,7 @@ When upgrading an existing database, run the additive Studio permission seeder a
 docker compose --env-file .env -f deploy/compose/compose.dev.yml -f deploy/compose/compose.app.yml exec -T api php artisan db:seed --class=DeviceProfilePermissionSeeder --force
 ```
 
-This registers profile permissions and adds their default grants to existing built-in tenant roles. It does not change platform roles, custom tenant roles, accounts, memberships, profiles, or other permission grants. Custom roles can be granted profile permissions through the existing role-management workflow.
+This registers profile permissions and adds their default grants to existing built-in tenant roles. It does not change platform roles, custom tenant roles, accounts, memberships, profiles, or other permission grants. Custom roles can be granted profile permissions through [organization administration](organization-administration.md), within the organization's permission ceiling.
 
 For a **new, empty development environment only**, explicitly run the normal `DatabaseSeeder` once to create demo accounts. The demo seeder updates its example accounts; do not use it as a routine upgrade command.
 

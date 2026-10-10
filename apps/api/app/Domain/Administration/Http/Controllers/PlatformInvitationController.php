@@ -8,7 +8,6 @@ use App\Domain\Administration\Http\Requests\StoreOrganizationInvitationRequest;
 use App\Domain\Administration\Http\Resources\OrganizationInvitationResource;
 use App\Domain\Administration\Models\OrganizationInvitation;
 use App\Domain\Administration\Services\OrganizationInvitationManager;
-use App\Domain\Authorization\Models\Role;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -16,7 +15,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
 
 final class PlatformInvitationController
@@ -37,7 +35,7 @@ final class PlatformInvitationController
             ->paginate($perPage)
             ->withQueryString();
 
-        $this->loadRoles($invitations);
+        $this->invitations->loadRoles($invitations->getCollection());
 
         return OrganizationInvitationResource::collection($invitations);
     }
@@ -55,45 +53,21 @@ final class PlatformInvitationController
 
         $invitation = $this->invitations->invite($organization, $user, $validated['email'], $validated['role_ids']);
         $invitation->load('organization');
-        $this->loadRolesForInvitation($invitation);
+        $this->invitations->loadRoles(collect([$invitation]));
 
         return OrganizationInvitationResource::make($invitation)
             ->response()
             ->setStatusCode(201);
     }
 
-    public function destroy(OrganizationInvitation $invitation): Response
+    public function destroy(Request $request, OrganizationInvitation $invitation): Response
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
-        abort_unless($invitation->isPending(), 422, 'Only pending invitations can be revoked.');
-
-        $invitation->forceFill(['revoked_at' => now()])->save();
+        /** @var User $user */
+        $user = $request->user();
+        $this->invitations->revoke($invitation, $user);
 
         return response()->noContent();
-    }
-
-    /** @param LengthAwarePaginator<int, OrganizationInvitation> $invitations */
-    private function loadRoles(LengthAwarePaginator $invitations): void
-    {
-        $roles = Role::query()
-            ->whereIn('id', $invitations->getCollection()->flatMap(fn (OrganizationInvitation $invitation) => $invitation->role_ids)->unique())
-            ->get()
-            ->keyBy('id');
-
-        $invitations->getCollection()->each(
-            fn (OrganizationInvitation $invitation) => $invitation->setRelation(
-                'roles',
-                $roles->only($invitation->role_ids)->values(),
-            ),
-        );
-    }
-
-    private function loadRolesForInvitation(OrganizationInvitation $invitation): void
-    {
-        $invitation->setRelation(
-            'roles',
-            Role::query()->whereIn('id', $invitation->role_ids)->get(),
-        );
     }
 }

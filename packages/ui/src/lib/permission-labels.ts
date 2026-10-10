@@ -1,10 +1,11 @@
 // Plain labels for tenant permission keys. Unknown keys fall back to the raw key.
 const groupLabels: Record<string, string> = {
   Organization: "Organization",
-  User: "Users",
+  User: "Members",
   Role: "Roles",
   DeviceProfile: "Device profiles",
   Device: "Devices",
+  Workflow: "Automations",
 }
 
 const permissionLabels: Record<string, string> = {
@@ -15,13 +16,13 @@ const permissionLabels: Record<string, string> = {
   "Organization.delete": "Delete organization",
   "Organization.restore": "Restore organization",
   "Organization.force-delete": "Permanently delete organization",
-  "User.view-any": "List users",
-  "User.view": "View user",
-  "User.create": "Create users",
-  "User.update": "Edit users and their roles",
-  "User.delete": "Remove users",
-  "User.restore": "Restore users",
-  "User.force-delete": "Permanently delete users",
+  "User.view-any": "List members",
+  "User.view": "View member",
+  "User.create": "Invite members",
+  "User.update": "Change member roles",
+  "User.delete": "Remove members",
+  "User.restore": "Restore members",
+  "User.force-delete": "Permanently delete members",
   "Role.view-any": "List roles",
   "Role.view": "View role",
   "Role.create": "Create roles",
@@ -42,6 +43,9 @@ const permissionLabels: Record<string, string> = {
   "Device.manage-connections": "Manage gateways and connections",
   "Device.activate": "Activate and deactivate devices",
   "Device.command": "Send device commands",
+  "Workflow.view": "View automations",
+  "Workflow.manage": "Edit automations",
+  "Workflow.activate": "Activate automations",
 }
 
 export const permissionGroupLabel = (group: string) => groupLabels[group] ?? group

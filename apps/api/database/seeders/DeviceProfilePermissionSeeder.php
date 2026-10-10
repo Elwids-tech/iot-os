@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Domain\Administration\Services\OrganizationPermissionCeiling;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\DeviceProfiles\Permissions\DeviceProfilePermission;
+use App\Domain\Shared\Models\Organization;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -37,6 +39,9 @@ final class DeviceProfilePermissionSeeder extends Seeder
                         OrganizationRoleName::from($role->name)->permissions(), $profilePermissions,
                     )));
                 });
+            // Backfills never push a restricted organization past its permission ceiling.
+            Organization::query()->where('permissions_restricted', true)
+                ->each(fn (Organization $organization) => app(OrganizationPermissionCeiling::class)->reconcile($organization));
         } finally {
             $registrar->setPermissionsTeamId($previousTeam);
             $registrar->forgetCachedPermissions();

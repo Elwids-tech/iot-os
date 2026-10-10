@@ -16,46 +16,60 @@ final class OrganizationMembershipManager
     public function __construct(
         private readonly OrganizationAdministrationAuthorization $authorization,
         private readonly OrganizationRoleManager $roleManager,
+        private readonly OrganizationGrants $grants,
     ) {}
 
     /**
      * @param  list<int>  $roleIds
      */
-    public function syncRoles(Organization $organization, User $user, array $roleIds): void
+    public function syncRoles(Organization $organization, User $actor, User $user, array $roleIds): void
     {
         $this->ensureMembership($organization, $user);
         $roles = $this->roleManager->rolesFor($organization, $roleIds);
+        $this->grants->ensureMember($actor, $organization, $user, 'role_ids');
+        $this->grants->ensureRoles($actor, $organization, $roles);
 
-        $administratorRole = $this->administratorRole($organization);
+        // The organization row lock serializes concurrent demotions of the final administrator.
+        DB::transaction(function () use ($organization, $user, $roles): void {
+            $this->lock($organization);
+            $administratorRole = $this->administratorRole($organization);
 
-        if ($this->hasRole($organization, $user, $administratorRole)
-            && ! $roles->contains($administratorRole)
-            && ! $this->hasAnotherAdministrator($organization, $user, $administratorRole)) {
-            throw ValidationException::withMessages([
-                'role_ids' => 'Assign Organization Admin to another member before removing it from the final administrator.',
-            ]);
-        }
+            if ($administratorRole !== null
+                && $this->hasRole($organization, $user, $administratorRole)
+                && ! $roles->contains($administratorRole)
+                && ! $this->hasAnotherAdministrator($organization, $user, $administratorRole)) {
+                throw ValidationException::withMessages([
+                    'role_ids' => 'Assign Organization Admin to another member before removing it from the final administrator.',
+                ]);
+            }
 
-        $this->authorization->withinOrganization($organization, function () use ($user, $roles): void {
-            $user->syncRoles($roles);
+            $this->authorization->withinOrganization($organization, function () use ($user, $roles): void {
+                $user->syncRoles($roles);
+            });
         });
     }
 
-    public function remove(Organization $organization, User $user): void
+    public function remove(Organization $organization, User $actor, User $user): void
     {
         $this->ensureMembership($organization, $user);
-        $administratorRole = $this->administratorRole($organization);
+        $this->grants->ensureMember($actor, $organization, $user);
 
-        if ($this->hasRole($organization, $user, $administratorRole)
-            && ! $this->hasAnotherAdministrator($organization, $user, $administratorRole)) {
-            throw ValidationException::withMessages([
-                'member' => 'An organization must retain at least one Organization Admin.',
-            ]);
-        }
+        DB::transaction(function () use ($organization, $user): void {
+            $this->lock($organization);
+            $administratorRole = $this->administratorRole($organization);
 
-        $this->authorization->withinOrganization($organization, function () use ($organization, $user): void {
-            $user->syncRoles([]);
-            $organization->users()->detach($user->getKey());
+            if ($administratorRole !== null
+                && $this->hasRole($organization, $user, $administratorRole)
+                && ! $this->hasAnotherAdministrator($organization, $user, $administratorRole)) {
+                throw ValidationException::withMessages([
+                    'member' => 'An organization must retain at least one Organization Admin.',
+                ]);
+            }
+
+            $this->authorization->withinOrganization($organization, function () use ($organization, $user): void {
+                $user->syncRoles([]);
+                $organization->users()->detach($user->getKey());
+            });
         });
     }
 
@@ -66,12 +80,17 @@ final class OrganizationMembershipManager
         }
     }
 
-    private function administratorRole(Organization $organization): Role
+    private function lock(Organization $organization): void
+    {
+        Organization::query()->whereKey($organization->getKey())->lockForUpdate()->first();
+    }
+
+    private function administratorRole(Organization $organization): ?Role
     {
         return Role::query()
             ->where('organization_id', $organization->getKey())
             ->where('name', OrganizationRoleName::ORGANIZATION_ADMIN->value)
-            ->firstOrFail();
+            ->first();
     }
 
     private function hasRole(Organization $organization, User $user, Role $role): bool

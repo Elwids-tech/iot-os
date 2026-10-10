@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Domain\Administration\Services\OrganizationDefaultRoles;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
-use App\Domain\Authorization\Models\Role;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Database\Seeder;
@@ -55,6 +55,7 @@ class OrganizationSeeder extends Seeder
                 $organization->uuid ??= (string) Str::uuid();
                 $organization->saveQuietly();
                 $organization->restoreQuietly();
+                $roles = app(OrganizationDefaultRoles::class)->ensure($organization);
 
                 foreach ($definition['users'] as $userDefinition) {
                     $user = User::query()->updateOrCreate(
@@ -70,22 +71,7 @@ class OrganizationSeeder extends Seeder
 
                     $permissionRegistrar->setPermissionsTeamId($organization->id);
 
-                    $role = Role::query()->firstOrCreate(
-                        [
-                            'organization_id' => $organization->id,
-                            'name' => $userDefinition['role']->value,
-                            'guard_name' => 'web',
-                        ],
-                    );
-                    if ($role->wasRecentlyCreated) {
-                        $role->forceFill([
-                            'display_name' => $userDefinition['role']->displayName(),
-                            'is_default' => true,
-                        ])->save();
-
-                        $role->syncPermissions($userDefinition['role']->permissions());
-                    }
-                    $user->syncRoles([$role]);
+                    $user->syncRoles([$roles[$userDefinition['role']->value]]);
                 }
             }
         } finally {
