@@ -47,7 +47,7 @@ The organization must have automation enabled. Viewing requires workflow viewing
 A saved draft is separate from the deployed generation. New evaluations use the acknowledged deployed version.
 
 ## Troubleshooting
-Unconnected inputs, unavailable device settings, or missing command grants can block validation or activation. Layout edits do not establish execution behavior. **Stop all automation actions** stops new action dispatch; already dispatched commands may still arrive.
+Unconnected inputs, unavailable device settings, or missing command grants can block validation or activation. Layout edits do not establish execution behavior. **Stop all automation actions**, under **Emergency stop** at the bottom of **Automations**, asks for confirmation and then stops new action dispatch; already dispatched commands may still arrive.
 
 ## Related guides
 [Read the related guide](/help/automation-simulation)

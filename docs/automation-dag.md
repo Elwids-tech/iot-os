@@ -14,13 +14,24 @@ workflows expose Reactivate without requiring another simulation in the current
 browser tab. Layout is separately
 revisioned; moving nodes does not alter execution or the semantic draft.
 
+The canvas fits the graph when a workflow opens and leaves later zoom and pan to
+the user; viewport changes are not saved. Node cards show plain labels (bundled
+with the editor so they survive a catalog outage); type IDs live under
+**Technical details** in the docked, non-modal settings panel. Delete removes a
+node only while the canvas has focus. Simulation docks beside the same canvas
+and highlights each node's outcome; geofence location inputs start at the
+boundary centre and can be picked on a map. If the node catalog is unavailable,
+existing graphs stay viewable but nodes cannot be added; a cached catalog
+(`meta.stale`) is labelled. The organization stop sits under **Emergency stop**
+and requires confirmation.
+
 Under `/api/v1/organizations/{organization}/workflows`:
 
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /dag/node-types` | Authoritative Go node registry and form schemas |
 | `GET /dag/resources` | Searchable, paginated applied device parameters |
-| `GET /dag` | V2 workflow directory |
+| `GET /dag` | V2 workflow directory with trigger parameters, last action/deployment/edit and latest issue per row (aggregated per page) |
 | `POST /dag/validate` | Side-effect-free candidate compilation |
 | `GET, PUT /dag/settings` | Revision-checked preview and organization stop controls |
 | `POST /`, `GET, PUT /{workflow}` | Versioned authoring, selected by schema version |
