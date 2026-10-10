@@ -171,6 +171,12 @@ final class DeviceOnboardingTest extends TestCase
         $this->getJson($this->prefix.'/devices/'.$setup['device']['uuid'].'/onboarding')->assertOk()->assertJsonPath('data.candidate.setup_device_uuid', $setup['device']['uuid']);
         $this->patchJson($this->prefix.'/discovery-candidates/'.$candidate->uuid, ['status' => 'rejected', 'birth_revision' => 1])->assertUnprocessable();
         $this->patchJson($this->prefix.'/discovery-candidates/'.$other->uuid, ['status' => 'rejected', 'birth_revision' => 1])->assertOk();
+        $another = $this->postJson($this->prefix.'/devices', ['name' => 'Another meter', 'code' => 'another-meter'])->assertCreated()->json('data');
+        $this->putJson($this->prefix.'/devices/'.$another['uuid'].'/configuration', ['draft_revision' => $another['draft_revision'], 'artifact_uuid' => $this->artifact, 'candidate_uuid' => $candidate->uuid, 'birth_revision' => 1, 'mappings' => []])
+            ->assertConflict()->assertJsonPath('message', 'This source is being set up as another device.');
+        $own = Device::where('uuid', $setup['device']['uuid'])->firstOrFail();
+        $this->putJson($this->prefix.'/devices/'.$own->uuid.'/configuration', ['draft_revision' => $own->draft_revision, 'artifact_uuid' => $this->artifact, 'candidate_uuid' => $candidate->uuid, 'birth_revision' => 1, 'mappings' => []])->assertOk();
+        Device::where('uuid', $setup['device']['uuid'])->update(['reserved_source_uuid' => null]);
 
         Device::where('uuid', $setup['device']['uuid'])->update(['reserved_source_uuid' => $candidate->uuid]);
         $this->getJson($this->prefix.'/discovery-candidates/'.$candidate->uuid)->assertOk()

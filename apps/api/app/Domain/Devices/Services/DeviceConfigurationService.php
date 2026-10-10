@@ -45,6 +45,8 @@ final class DeviceConfigurationService
                 $candidate = DiscoveryCandidate::query()->where('organization_id', $locked->organization_id)->where('uuid', $draft['candidate_uuid'])->lockForUpdate()->firstOrFail();
                 abort_if($candidate->status === 'rejected', 422, 'Restore this discovery candidate before using it.');
                 abort_if(Device::query()->where('reserved_source_uuid', $candidate->uuid)->whereKeyNot($locked->id)->exists(), 409, 'This source is already assigned to another device.');
+                $claimant = $candidate->setupDevice();
+                abort_if($claimant && $claimant->id !== $locked->id, 409, 'This source is being set up as another device.');
                 if ($locked->applied_configuration_uuid) {
                     abort_unless($locked->reserved_source_uuid === $candidate->uuid, 422, 'Deactivate before selecting a different source.');
                 }
