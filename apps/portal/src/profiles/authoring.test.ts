@@ -10,7 +10,19 @@ import {
   ruleLabel,
   formulaText,
   fieldChanges,
+  categoryLabel,
 } from "./authoring"
+describe("categoryLabel", () => {
+  it("reads slugs as words and leaves typed labels alone", () => {
+    expect(categoryLabel("water-metering")).toBe("Water metering")
+    expect(categoryLabel("environmental-sensors-qa")).toBe("Environmental sensors QA")
+    expect(categoryLabel("power_in_use")).toBe("Power in use")
+    expect(categoryLabel("energy")).toBe("Energy")
+    expect(categoryLabel("Energy monitoring")).toBe("Energy monitoring")
+    expect(categoryLabel("HVAC")).toBe("HVAC")
+    expect(categoryLabel(null)).toBe("")
+  })
+})
 describe("lossless guided authoring", () => {
   it("summarizes guided rules without changing them", () => {
     expect(validationSummary({ mode: "range", min: 0, max: 480 })).toBe(

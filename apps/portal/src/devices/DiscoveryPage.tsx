@@ -1,21 +1,11 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import type { DiscoveryCandidate } from "@iot-os/api-client"
-import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Button } from "@iot-os/ui/components/button"
-import { FieldGroup } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@iot-os/ui/components/dialog"
 import {
   Table,
   TableBody,
@@ -36,21 +26,13 @@ import {
   gatewayPath,
   useDeviceOrganization,
 } from "./shared"
-import { RegisterDevice } from "./DeviceDirectory"
-
-const sourceName = (c: DiscoveryCandidate) =>
-  c.source_device_id || "Gateway measurements"
+import { OnboardSource, sourceLabel } from "./OnboardSource"
 
 export function DiscoveryPage() {
-  const { org, capabilities } = useDeviceOrganization(),
-    navigate = useNavigate()
+  const { org, capabilities } = useDeviceOrganization()
   const [params, setParams] = useSearchParams(),
-    [page, setPage] = useState(1),
-    [attachPage, setAttachPage] = useState(1),
-    [deviceSearch, setDeviceSearch] = useState("")
-  const [selected, setSelected] = useState<DiscoveryCandidate | null>(null),
-    [create, setCreate] = useState(false),
-    [existing, setExisting] = useState("")
+    [page, setPage] = useState(1)
+  const [selected, setSelected] = useState<DiscoveryCandidate | null>(null)
   const [review, setReview] = useState<DiscoveryCandidate | null>(null)
   const search = params.get("search") ?? "",
     gateway = params.get("gateway") ?? ""
@@ -72,11 +54,6 @@ export function DiscoveryPage() {
       }),
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
-  })
-  const devices = useQuery({
-    queryKey: ["devices-attach", org, deviceSearch, attachPage],
-    queryFn: () => api.devices(org, { search: deviceSearch, page: attachPage }),
-    enabled: Boolean(selected),
   })
   const candidates = query.data?.data ?? []
   const total = query.data?.meta.total
@@ -117,7 +94,7 @@ export function DiscoveryPage() {
         )}
       </PageHeader>
       <div className="p-4 md:p-6">
-        <RequestError error={query.error ?? devices.error} />
+        <RequestError error={query.error} />
         {query.isPending ? (
           <Skeleton className="h-40 w-full" />
         ) : candidates.length ? (
@@ -135,17 +112,8 @@ export function DiscoveryPage() {
             <TableBody>
               {candidates.map((c) => (
                 <TableRow key={c.uuid}>
-                  <TableCell>
-                    <span className="font-mono">{sourceName(c)}</span>
-                    <p className="text-xs text-muted-foreground">
-                      <abbr
-                        title="Sparkplug birth certificate revision"
-                        className="cursor-help"
-                      >
-                        Announced revision
-                      </abbr>{" "}
-                      {c.birth_revision}
-                    </p>
+                  <TableCell className={c.source_device_id ? "font-mono" : undefined}>
+                    {sourceLabel(c)}
                   </TableCell>
                   <TableCell>
                     <Link
@@ -169,16 +137,24 @@ export function DiscoveryPage() {
                       >
                         View device
                       </Link>
+                    ) : c.setup_device_uuid ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          className="text-primary underline-offset-4 hover:underline"
+                          to={`${devicePath(org)}/onboard/${encodeURIComponent(c.setup_device_uuid)}?step=3`}
+                        >
+                          Resume setup
+                        </Link>
+                        {c.status === "rejected" && capabilities.manage && (
+                          <Button size="xs" variant="ghost" onClick={() => setReview(c)}>
+                            Restore
+                          </Button>
+                        )}
+                      </div>
                     ) : capabilities.manage ? (
                       <div className="flex gap-2">
                         {c.status !== "rejected" && (
-                          <Button
-                            size="xs"
-                            onClick={() => {
-                              setSelected(c)
-                              setExisting("")
-                            }}
-                          >
+                          <Button size="xs" onClick={() => setSelected(c)}>
                             Onboard
                           </Button>
                         )}
@@ -219,77 +195,12 @@ export function DiscoveryPage() {
           label="Discovered sources"
         />
       </div>
-      <Dialog
-        open={Boolean(selected) && !create}
-        onOpenChange={(open) => {
-          if (!open) setSelected(null)
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Onboard {selected ? sourceName(selected) : ""}
-            </DialogTitle>
-            <DialogDescription>
-              Attach it to a registered device that has no configuration yet,
-              or register a new device.
-            </DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <SearchableSelect
-              search={deviceSearch}
-              onSearchChange={(value) => {
-                setDeviceSearch(value)
-                setAttachPage(1)
-              }}
-              loading={devices.isLoading}
-              page={attachPage}
-              hasNextPage={Boolean(
-                devices.data && attachPage < devices.data.meta.last_page,
-              )}
-              onPageChange={setAttachPage}
-              label="Existing device"
-              value={existing}
-              onChange={setExisting}
-              options={[
-                { value: "", label: "Choose a registered device" },
-                ...(devices.data?.data ?? [])
-                  .filter(
-                    (d) =>
-                      !d.applied_configuration_uuid &&
-                      d.lifecycle !== "archived",
-                  )
-                  .map((d) => ({ value: d.uuid, label: d.name })),
-              ]}
-            />
-          </FieldGroup>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreate(true)}>
-              Register new device
-            </Button>
-            <Button
-              disabled={!existing}
-              onClick={() =>
-                navigate(
-                  devicePath(org, existing) +
-                    "/configuration?candidate=" +
-                    selected!.uuid,
-                )
-              }
-            >
-              Configure selected device
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {create && selected && (
-        <RegisterDevice
+      {selected && (
+        <OnboardSource
+          key={selected.uuid}
           org={org}
-          candidate={selected.uuid}
-          onClose={() => {
-            setCreate(false)
-            setSelected(null)
-          }}
+          source={selected}
+          onClose={() => setSelected(null)}
         />
       )}
       <Confirm

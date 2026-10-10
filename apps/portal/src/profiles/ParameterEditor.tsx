@@ -29,6 +29,7 @@ import {
 import { useUnsaved } from "../lib/unsaved"
 import { api } from "../lib/api"
 import { useStudio } from "./use-studio"
+import { useReturnTo } from "./device-setup"
 import {
   jsonText,
   kindLabel,
@@ -111,6 +112,7 @@ export function ParameterEditor({
 }) {
   const studio = useStudio(),
     { profile } = studio
+  const { keep } = useReturnTo()
   const [revision, setRevision] = useState(profile.draft_revision)
   const [tab, setTab] = useState("basics"),
     [error, setError] = useState<unknown>(null)
@@ -352,13 +354,13 @@ export function ParameterEditor({
                   <FieldDescription>
                     Set its formula in{" "}
                     <Link
-                      to={
+                      to={keep(
                         "/organizations/" +
                         studio.org +
                         "/device-profiles/" +
                         profile.uuid +
                         "/calculations"
-                      }
+                      )}
                     >
                       Calculations
                     </Link>

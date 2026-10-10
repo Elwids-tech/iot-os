@@ -237,7 +237,8 @@ export function publishBlocker(
   const { profile } = studio
   if (!studio.capabilities.publish) return "Your role can't publish profiles"
   if (profile.status === "archived") return "Archived profiles can't be published"
-  if (profile.status === "published") return "No unpublished changes"
+  if (profile.status === "published")
+    return "No changes since version " + profile.revision
   if (studio.busy || check.isFetching) return "Wait for the current action"
   if (studio.blocked) return "Refresh the saved draft first"
   if (!check.data) return "Validate the saved draft first"

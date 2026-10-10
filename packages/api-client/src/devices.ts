@@ -41,6 +41,8 @@ export type Gateway = {
 }
 export type DiscoveryCandidate = {
   assigned_device_uuid: string | null
+  /** Device whose guided setup targets this source before it is reserved; null once assigned. */
+  setup_device_uuid?: string | null
   uuid: string
   source_device_id: string
   status: "pending" | "approved" | "rejected"
@@ -292,4 +294,6 @@ export type DeviceDirectoryQuery = {
   page?: number
   per_page?: number
   gateway_uuid?: string
+  /** Discovery only: pending sources that no device has reserved or claimed in setup. */
+  available?: 1
 }
