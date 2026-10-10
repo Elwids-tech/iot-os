@@ -118,6 +118,13 @@ final class DiscoveryController
         if ($candidates && ! empty($filters['gateway_uuid'])) {
             $query->whereHas('gateway', fn ($q) => $q->where('uuid', $filters['gateway_uuid']));
         }
+        if ($candidates && $request->boolean('available')) {
+            // Pending sources no device has reserved or claimed through a guided setup.
+            $query->where('status', 'pending')->whereDoesntHave('assignedDevice')->whereNotExists(fn ($q) => $q->selectRaw('1')->from('device_onboardings')
+                ->join('devices', 'devices.id', '=', 'device_onboardings.device_id')->where('devices.lifecycle', '!=', 'archived')
+                ->whereColumn('device_onboardings.sparkplug_gateway_id', 'device_discovery_candidates.sparkplug_gateway_id')
+                ->whereColumn('device_onboardings.source_device_id', 'device_discovery_candidates.source_device_id'));
+        }
         $page = $query->paginate($request->integer('per_page', 100));
 
         return ['data' => $page->getCollection()->map($view), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];

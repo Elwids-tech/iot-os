@@ -294,4 +294,6 @@ export type DeviceDirectoryQuery = {
   page?: number
   per_page?: number
   gateway_uuid?: string
+  /** Discovery only: pending sources that no device has reserved or claimed in setup. */
+  available?: 1
 }

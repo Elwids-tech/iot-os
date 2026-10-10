@@ -167,6 +167,7 @@ final class DeviceOnboardingTest extends TestCase
         $this->assertNull($rows[$candidate->uuid]['assigned_device_uuid']);
         $this->assertSame($setup['device']['uuid'], $rows[$candidate->uuid]['setup_device_uuid']);
         $this->assertNull($rows[$other->uuid]['setup_device_uuid']);
+        $this->getJson($this->prefix.'/discovery-candidates?available=1')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $other->uuid);
         $this->getJson($this->prefix.'/devices/'.$setup['device']['uuid'].'/onboarding')->assertOk()->assertJsonPath('data.candidate.setup_device_uuid', $setup['device']['uuid']);
         $this->patchJson($this->prefix.'/discovery-candidates/'.$candidate->uuid, ['status' => 'rejected', 'birth_revision' => 1])->assertUnprocessable();
         $this->patchJson($this->prefix.'/discovery-candidates/'.$other->uuid, ['status' => 'rejected', 'birth_revision' => 1])->assertOk();
