@@ -25,6 +25,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@iot-os/ui/components/sheet";
+import { keepToastsLeftOf } from "@iot-os/ui/components/sonner";
 import {
   Card,
   CardHeader,
@@ -233,6 +234,8 @@ export default function HelpPanel({
     media.addEventListener("change", change);
     return () => media.removeEventListener("change", change);
   }, []);
+  // Docked beside the page, toasts stack to the panel's left.
+  useEffect(() => keepToastsLeftOf(panel.current), [mobile]);
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
     return () => window.clearTimeout(timer);

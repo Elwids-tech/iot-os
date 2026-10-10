@@ -1363,9 +1363,6 @@ test("library views, filters, stars and row actions", async ({ page }) => {
   )
   expect(bulk.name).toBe("dashboards.json")
   expect(bulk.data).toHaveLength(3)
-  // Top-centre toasts pause while hovered and can cover the bulk actions; let them clear.
-  await page.mouse.move(0, 999)
-  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0)
   await page.getByRole("button", { name: "Delete", exact: true }).click()
   await expect(page.getByRole("alertdialog")).toContainText("Delete 3 dashboards?")
   await page.getByRole("button", { name: "Delete dashboards" }).click()
