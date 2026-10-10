@@ -2,11 +2,13 @@ import type { ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useParams } from "react-router-dom"
 import type {
+  Device,
   DeviceCapabilities,
   DeviceDetail,
   DeviceDirectoryMeta,
 } from "@iot-os/api-client"
 import { configurationProfile } from "@iot-os/api-client"
+import { Badge } from "@iot-os/ui/components/badge"
 import { Button } from "@iot-os/ui/components/button"
 import {
   Empty,
@@ -16,8 +18,14 @@ import {
   EmptyDescription,
 } from "@iot-os/ui/components/empty"
 import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@iot-os/ui/components/tooltip"
 import { formatAge, formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
 import { api } from "../lib/api"
+import { deviceHealth, healthDetails, type Freshness } from "./model"
 
 const denied: DeviceCapabilities = {
   view: false,
@@ -77,6 +85,46 @@ export function deviceStatus(value: string): [StatusTone, string] {
 export function DeviceStatus({ value }: { value: string }) {
   const [tone, label] = deviceStatus(value)
   return <StatusMark tone={tone}>{label}</StatusMark>
+}
+
+const badgeVariants = {
+  good: "success",
+  warning: "warning",
+  critical: "destructive",
+  info: "info",
+  muted: "outline",
+  commanded: "info",
+} as const
+/** One health state for a device; lifecycle, connection and configuration on hover or focus. */
+export function HealthBadge({
+  device,
+  freshness,
+  className,
+}: {
+  device: Pick<Device, "lifecycle" | "presence" | "deployment_status" | "last_seen_at">
+  freshness?: Freshness
+  className?: string
+}) {
+  const { tone, label } = deviceHealth(device, freshness)
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant={badgeVariants[tone]} tabIndex={0} className={className}>
+          {label}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>
+        <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5">
+          {healthDetails(device, freshness).map(([name, value]) => (
+            <div key={name} className="contents">
+              <dt className="opacity-70">{name}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </TooltipContent>
+    </Tooltip>
+  )
 }
 
 export function useDeviceOrganization() {

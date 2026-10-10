@@ -296,4 +296,8 @@ export type DeviceDirectoryQuery = {
   gateway_uuid?: string
   /** Discovery only: pending sources that no device has reserved or claimed in setup. */
   available?: 1
+  /** Discovery candidates only. */
+  status?: DiscoveryCandidate["status"]
+  /** Discovery candidates only: sources no device has reserved yet. */
+  unassigned?: boolean
 }

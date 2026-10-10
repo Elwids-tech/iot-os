@@ -103,7 +103,8 @@ final class DiscoveryController
 
     private function directory(Request $request, $query, callable $view, array $columns, bool $candidates = false): array
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'], 'gateway_uuid' => ['nullable', 'uuid']]);
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'], 'gateway_uuid' => ['nullable', 'uuid'],
+            'status' => ['nullable', Rule::in(['pending', 'approved', 'rejected'])], 'unassigned' => ['sometimes', Rule::in(['0', '1', 'true', 'false'])]]);
         if (! empty($filters['search'])) {
             $needle = '%'.mb_strtolower($filters['search']).'%';
             $query->where(function ($query) use ($columns, $needle, $candidates): void {
@@ -124,6 +125,13 @@ final class DiscoveryController
                 ->join('devices', 'devices.id', '=', 'device_onboardings.device_id')->where('devices.lifecycle', '!=', 'archived')
                 ->whereColumn('device_onboardings.sparkplug_gateway_id', 'device_discovery_candidates.sparkplug_gateway_id')
                 ->whereColumn('device_onboardings.source_device_id', 'device_discovery_candidates.source_device_id'));
+        }
+        if ($candidates && ! empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+        // Sources no device has reserved yet: what the Devices page asks operators to review.
+        if ($candidates && $request->boolean('unassigned')) {
+            $query->whereDoesntHave('assignedDevice');
         }
         $page = $query->paginate($request->integer('per_page', 100));
 

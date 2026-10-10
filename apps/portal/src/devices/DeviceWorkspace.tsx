@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import type { DeviceDetail } from "@iot-os/api-client"
+import { configurationProfile, type DeviceDetail } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import {
   DropdownMenu,
@@ -36,6 +36,7 @@ import {
   useDeviceOrganization,
 } from "./shared"
 import { useDeviceLifecycle } from "./DeviceLifecycleAction"
+import { deviceConnection, recentDataMs } from "./model"
 import { lifecycleStorageKey, newerDevice, reconcileDevice } from "./lifecycle"
 import { ConfigurationSection } from "./ConfigurationSection"
 import { MeasurementsSection } from "./MeasurementsSection"
@@ -413,6 +414,15 @@ function StateLine({ device }: { device: DeviceDetail }) {
     desired = configurationRevision(device, device.desired_configuration_uuid),
     working = configurationRevision(device, device.last_applied_configuration_uuid)
   const [tone] = deviceStatus(device.deployment_status)
+  const running = device.configurations?.find(
+    (c) =>
+      c.uuid ===
+      (device.applied_configuration_uuid ?? device.last_applied_configuration_uuid),
+  )
+  // Online sessions with no data for longer than the profile expects read as a warning.
+  const connection = deviceConnection(device, {
+    recentMs: recentDataMs(running ? configurationProfile(running).parameters : []),
+  })
   const configuration =
     device.deployment_status === "applied"
       ? `Configuration applied rev ${applied ?? ""}`
@@ -434,7 +444,7 @@ function StateLine({ device }: { device: DeviceDetail }) {
       {device.lifecycle !== "deactivated" && device.lifecycle !== "archived" && (
         <>
           {dot}
-          <DeviceStatus value={device.presence} />
+          <StatusMark tone={connection.tone}>{connection.label}</StatusMark>
         </>
       )}
       {dot}

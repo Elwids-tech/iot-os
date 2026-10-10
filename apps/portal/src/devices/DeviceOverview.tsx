@@ -1,16 +1,22 @@
-import { useState, type ReactNode } from "react"
+import { lazy, Suspense, useMemo, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { useQueries, useQuery } from "@tanstack/react-query"
 import {
   configurationProfile,
   type Dashboard,
   type DeviceDetail,
+  type LocationMapDevice,
   type Measurement,
 } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@iot-os/ui/components/chart"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@iot-os/ui/components/tooltip"
 import {
   Table,
   TableBody,
@@ -23,12 +29,16 @@ import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group
 import { formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { api } from "../lib/api"
-import { RequestError } from "../components/forms"
 import { dashboardPath } from "../dashboards/model"
 import { telemetryRequest } from "../dashboards/requests"
 import {
+  configurationSummary,
+  groupAlerts,
+  lastPosition,
+  locationParameters,
+} from "./model"
+import {
   Age,
-  configurationRevision,
   deviceProfile,
   devicePath,
   DeviceStatus,
@@ -52,6 +62,28 @@ type Point = { time: number; value: number }
 
 const numericReading = (r: Measurement) =>
   ["number", "integer"].includes(r.data_type)
+const LocationMap = lazy(() =>
+  import("../geospatial/LocationMap").then((module) => ({ default: module.LocationMap })),
+)
+
+/** Latest readings of the applied (else last working) configuration; one shared request. */
+function useLatest(org: string, device: DeviceDetail) {
+  const configuration =
+    device.applied_configuration_uuid ?? device.last_applied_configuration_uuid
+  return useQuery({
+    queryKey: ["device-latest", org, device.uuid, configuration, device.lifecycle],
+    queryFn: () => api.deviceLatest(org, device.uuid),
+    enabled: Boolean(configuration),
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+  })
+}
+const newest = (readings: Measurement[]) =>
+  readings.reduce<string | null>(
+    (latest, r) =>
+      !latest || Date.parse(r.observed_at) > Date.parse(latest) ? r.observed_at : latest,
+    null,
+  )
 
 export function DeviceOverview({
   org,
@@ -69,6 +101,7 @@ export function DeviceOverview({
         aria-label="Device summary"
         className="flex min-w-0 flex-col gap-6 xl:border-l xl:pl-6"
       >
+        <DeviceLocation org={org} device={device} />
         <DeviceDetails org={org} device={device} />
         {!!device.installations?.length && <Section title="Physical installation"><p className="text-sm text-muted-foreground">Readings belong to virtual device <code className="break-all">{device.uuid}</code>.</p>{device.installations.map(installation => <div key={installation.uuid} className="mt-3 flex flex-col gap-1 text-sm"><p>{installation.manufacturer_serial} · {installation.ended_at ? "Previous installation" : "Current hardware"}</p><p className="text-muted-foreground">Installed {formatDateTime(installation.started_at)}</p><code className="break-all text-xs">{installation.uuid}</code></div>)}</Section>}
         <UsedIn org={org} device={device} />
@@ -92,20 +125,9 @@ function LatestReadout({
     device.applied_configuration_uuid || device.last_applied_configuration_uuid,
   )
   const [range, setRange] = useState<Range>("1h")
-  const latest = useQuery({
-    queryKey: [
-      "device-latest",
-      org,
-      device.uuid,
-      device.applied_configuration_uuid ?? device.last_applied_configuration_uuid,
-      device.lifecycle,
-    ],
-    queryFn: () => api.deviceLatest(org, device.uuid),
-    enabled: configured,
-    refetchInterval: 5000,
-    refetchIntervalInBackground: false,
-  })
+  const latest = useLatest(org, device)
   const readings = latest.data?.data ?? []
+  const lastReading = newest(readings) ?? device.last_seen_at
   const numeric = readings.filter(numericReading).slice(0, 12)
   const trends = useQueries({
     queries: numeric.map((r) => ({
@@ -163,14 +185,13 @@ function LatestReadout({
       <Section
         title="Latest measurements"
         meta={
-          device.lifecycle === "deactivated"
-            ? "Retained readings, ingestion is off"
-            : latest.dataUpdatedAt
-              ? "Updated " +
-                new Date(latest.dataUpdatedAt).toLocaleTimeString([], {
-                  hourCycle: "h23",
-                })
-              : undefined
+          device.lifecycle === "deactivated" ? (
+            "Retained readings, ingestion is off"
+          ) : readings.length && lastReading ? (
+            <>
+              Last reading <Age value={lastReading} />
+            </>
+          ) : undefined
         }
         actions={
           numeric.length > 0 && (
@@ -192,7 +213,17 @@ function LatestReadout({
           )
         }
       >
-        <RequestError error={latest.error} />
+        {latest.isError && (
+          <p role="status" className="mb-2 text-sm text-muted-foreground">
+            Live values are unavailable right now.
+            {lastReading && (
+              <>
+                {" "}
+                Last reading <Age value={lastReading} />.
+              </>
+            )}
+          </p>
+        )}
         {latest.isPending ? (
           <Skeleton className="h-40 w-full" />
         ) : readings.length ? (
@@ -235,6 +266,10 @@ function LatestReadout({
               ))}
             </TableBody>
           </Table>
+        ) : latest.isError ? null : device.last_seen_at ? (
+          <p className="text-sm text-muted-foreground">
+            No current readings. Last seen <Age value={device.last_seen_at} />.
+          </p>
         ) : (
           <p className="text-sm text-muted-foreground">
             Waiting for the first reading.
@@ -414,11 +449,7 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
 
 function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
   const profile = deviceProfile(device)
-  const revisions = [
-    ["requested", configurationRevision(device, device.desired_configuration_uuid)],
-    ["applied", configurationRevision(device, device.applied_configuration_uuid)],
-    ["last working", configurationRevision(device, device.last_applied_configuration_uuid)],
-  ].filter(([, revision]) => revision !== undefined)
+  const configuration = configurationSummary(device)
   return (
     <Section title="Details">
       <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
@@ -462,10 +493,20 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
           {device.serial_number || <span className="text-muted-foreground">Not set</span>}
         </Detail>
         <Detail label="Configuration">
-          {revisions.length ? (
-            revisions.map(([name, revision]) => `${name} ${revision}`).join(" · ")
+          {configuration.details.length ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  tabIndex={0}
+                  className="cursor-help underline decoration-dotted underline-offset-4"
+                >
+                  {configuration.label}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{configuration.details.join(" · ")}</TooltipContent>
+            </Tooltip>
           ) : (
-            <span className="text-muted-foreground">None</span>
+            <span className="text-muted-foreground">{configuration.label}</span>
           )}
         </Detail>
         {device.description && <Detail label="Description">{device.description}</Detail>}
@@ -519,46 +560,180 @@ export function UsedIn({ org, device }: { org: string; device: DeviceDetail }) {
   )
 }
 
+/** Episodes grouped by workflow so a repeating alert reads as one line with its count. */
 function DeviceAlerts({ org, device }: { org: string; device: DeviceDetail }) {
-  const query = `device=${device.uuid}&per_page=5`
+  const filter = `device=${encodeURIComponent(device.uuid)}`
   const alerts = useQuery({
-    queryKey: ["alerts", org, query],
-    queryFn: () => api.alerts(org, query),
+    queryKey: ["alerts", org, filter + "&per_page=50"],
+    queryFn: () => api.alerts(org, filter + "&per_page=50"),
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
   })
-  const items = alerts.data?.data ?? []
-  const active = items.filter((a) => a.condition === "active").length
+  const groups = groupAlerts(alerts.data?.data ?? []).slice(0, 5)
+  // Exact per-workflow counts only when the device has more episodes than one page.
+  const truncated = (alerts.data?.meta.total ?? 0) > (alerts.data?.data.length ?? 0)
+  const totals = useQueries({
+    queries: groups.map((group) => {
+      const query = `${filter}&workflow=${encodeURIComponent(group.workflow_uuid)}&per_page=1`
+      return {
+        queryKey: ["alerts", org, query],
+        queryFn: () => api.alerts(org, query),
+        enabled: truncated,
+        staleTime: 30_000,
+      }
+    }),
+  })
+  const active = groups.filter((group) => group.active).length
+  const base = `/organizations/${encodeURIComponent(org)}/alerts`
   return (
     <Section
       title="Alerts"
       meta={alerts.data ? (active ? `${active} active` : "None active") : undefined}
+      actions={
+        <Button asChild variant="link" size="sm" className="h-auto p-0">
+          <Link to={`${base}?${filter}`}>All alerts</Link>
+        </Button>
+      }
     >
       {alerts.isPending ? (
         <Skeleton className="h-6 w-full" />
       ) : alerts.error ? (
         <p className="text-sm text-muted-foreground">Alerts could not be loaded.</p>
-      ) : items.length ? (
-        <ul className="flex flex-col gap-2 text-sm">
-          {items.map((alert) => (
-            <li key={alert.uuid} className="flex flex-wrap items-center justify-between gap-x-3">
-              <Link
-                className="min-w-0 truncate text-primary underline-offset-4 hover:underline"
-                to={`/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(alert.uuid)}`}
-              >
-                {alert.workflow_name}
-              </Link>
-              <span className="flex items-center gap-2 text-muted-foreground">
-                <StatusMark tone={alert.condition === "active" ? "critical" : "muted"}>
-                  {alert.condition === "active" ? "Active" : "Cleared"}
-                </StatusMark>
-                {alert.activated_at && <Age value={alert.activated_at} />}
-              </span>
-            </li>
-          ))}
+      ) : groups.length ? (
+        <ul className="flex flex-col gap-3 text-sm">
+          {groups.map((group, index) => {
+            const count = totals[index]?.data?.meta.total ?? group.count
+            const latest = group.latest
+            return (
+              <li key={group.workflow_uuid}>
+                <div className="flex items-center justify-between gap-3">
+                  <Link
+                    className="min-w-0 truncate text-primary underline-offset-4 hover:underline"
+                    to={
+                      count === 1
+                        ? `${base}/${encodeURIComponent(latest.uuid)}`
+                        : `${base}?${filter}&workflow=${encodeURIComponent(group.workflow_uuid)}`
+                    }
+                  >
+                    {group.workflow_name}
+                  </Link>
+                  <StatusMark
+                    tone={group.active ? "critical" : "muted"}
+                    className="shrink-0 text-muted-foreground"
+                  >
+                    {group.active ? "Active" : "Cleared"}
+                  </StatusMark>
+                </div>
+                <p className="text-muted-foreground">
+                  {count === 1 ? "1 occurrence" : `${count.toLocaleString()} occurrences`}
+                  {latest.condition === "active" && latest.activated_at ? (
+                    <>
+                      {" "}· active since <Age value={latest.activated_at} />
+                    </>
+                  ) : latest.cleared_at ? (
+                    <>
+                      {" "}· last cleared <Age value={latest.cleared_at} />
+                    </>
+                  ) : null}
+                </p>
+              </li>
+            )
+          })}
         </ul>
       ) : (
         <p className="text-sm text-muted-foreground">No alerts</p>
+      )}
+    </Section>
+  )
+}
+
+/** Last known position on a small map, from the location binding or the profile's latitude/longitude. */
+function DeviceLocation({ org, device }: { org: string; device: DeviceDetail }) {
+  const bindings = useQuery({
+    queryKey: ["location-bindings", org],
+    queryFn: () => api.locationBindings(org),
+    staleTime: 60_000,
+  })
+  const parameters = useMemo(() => {
+    const id =
+      device.applied_configuration_uuid ?? device.last_applied_configuration_uuid
+    const configuration = device.configurations?.find((c) => c.uuid === id)
+    return configuration ? configurationProfile(configuration).parameters : []
+  }, [device])
+  const where = locationParameters(
+    bindings.data?.data.find((binding) => binding.device_uuid === device.uuid),
+    parameters,
+  )
+  const latest = useLatest(org, device)
+  const position = where ? lastPosition(latest.data?.data ?? [], where) : null
+  const key = position && JSON.stringify(position)
+  const marker = useMemo<LocationMapDevice[]>(
+    () =>
+      position
+        ? [
+            {
+              device_uuid: device.uuid,
+              device_name: device.name,
+              binding_uuid: "",
+              // The overview has no geofence, so membership stays unknown (grey marker).
+              condition: "unknown",
+              active: false,
+              wandering: false,
+              active_alert: null,
+              assignment_status: null,
+              deployment_status: null,
+              latest: {
+                event_id: "",
+                status: "valid",
+                reason: position.stale ? "stale" : "eligible",
+                observed_at: position.observed_at,
+                received_at: position.received_at,
+                historical: false,
+                live_eligible: !position.stale,
+                point: {
+                  latitude: position.latitude,
+                  longitude: position.longitude,
+                  accuracy_metres: position.accuracy,
+                },
+              },
+              trail: { segments: [], sampled: false },
+            },
+          ]
+        : [],
+    // Rebuild only when the position changes, not on every 5 s poll.
+    [device.uuid, device.name, key],
+  )
+  if (!where) return null
+  return (
+    <Section
+      title="Location"
+      meta={
+        position ? (
+          <>
+            {position.stale ? "Stale position" : "Last position"}{" "}
+            <Age value={position.observed_at} />
+          </>
+        ) : undefined
+      }
+    >
+      {position ? (
+        <div className="flex flex-col gap-1">
+          <div className="h-48">
+            <Suspense fallback={<Skeleton className="h-full w-full" />}>
+              <LocationMap devices={marker} showLabels={false} />
+            </Suspense>
+          </div>
+          <p className="font-mono text-xs text-muted-foreground tabular-nums">
+            {position.latitude.toFixed(5)}, {position.longitude.toFixed(5)}
+            {position.accuracy !== null && ` · ±${formatNumber(position.accuracy, 0)} m`}
+          </p>
+        </div>
+      ) : latest.isPending && latest.fetchStatus !== "idle" ? (
+        <Skeleton className="h-6 w-full" />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {latest.isError ? "Position unavailable right now." : "No position reported yet."}
+        </p>
       )}
     </Section>
   )
