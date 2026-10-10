@@ -1,16 +1,26 @@
 # Notification center
 
-Open **Notification center** in the portal sidebar or your account menu. The
-Events dashboard records workflow transitions, service monitoring alerts, and
-independent host watchdog failures and recoveries. Critical alerts are red,
-warnings amber, information blue, and recovery events green. Labels carry the
-same meaning without relying on color. Filters, search, pagination, and event
-details are available. The dashboard refreshes every 15 seconds.
+The notification center is part of **Alerts**, the single alert inbox. Its
+tabs are **Alerts** (workflow alert episodes; active first, repeats of one
+workflow on one device grouped, bulk acknowledgement), **Event log** and
+**Email preferences** (`/organizations/{org}/alerts/events` and
+`/organizations/{org}/alerts/preferences`). The old `/notifications` links
+redirect there; without any organization they show only the email preferences.
+
+The **Event log** records workflow transitions of the current organization,
+service monitoring alerts, and independent host watchdog failures. Every event
+reads **Active** while it needs attention and **Cleared** afterwards. Critical
+alerts are red, warnings amber and information blue; labels carry the same
+meaning without relying on color. Summary cards count active events by
+severity and by type, and filter the log when selected. Filters, search,
+pagination, and event details are available. The log refreshes every 15
+seconds.
 
 ## Email preferences
 
-The grid is personal and applies across organizations. The **Turn off all
-emails** button disables all alert emails in one save. The master switch
+The grid is personal and applies across organizations. Its **Cleared** column
+controls emails sent when an alert clears (stored as `recovery`). The **Turn
+off all emails** button disables all alert emails in one save. The master switch
 overrides individual grid choices and pending email jobs recheck it before
 sending. Event recording continues. Individual choices are retained while
 muted. Password resets and account invitations are separate transactional mail.
