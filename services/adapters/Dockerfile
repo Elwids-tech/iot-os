@@ -15,4 +15,7 @@ RUN npm ci --omit=dev --ignore-scripts
 COPY services/adapters/ ./
 USER node-red
 WORKDIR /usr/src/node-red
-CMD ["npm", "start", "--", "--userDir", "/data", "--settings", "/opt/iot-adapter/runtime-settings.cjs"]
+# The base entrypoint already runs `red.js --userDir /data "$@"`, so pass only red.js
+# options. Wrapping them in `npm start --` made red.js ignore --settings, and the
+# platform adapter nodes never loaded.
+CMD ["--settings", "/opt/iot-adapter/runtime-settings.cjs"]
