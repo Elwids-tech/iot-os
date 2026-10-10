@@ -25,4 +25,16 @@ final class DiscoveryCandidate extends DeviceModel
     {
         return $this->hasOne(Device::class, 'reserved_source_uuid', 'uuid');
     }
+
+    /**
+     * The device whose guided setup targets this source but has not reserved it yet.
+     * Setup claims a gateway + Device ID when it starts; the reservation follows when measurements are reviewed.
+     */
+    public function setupDevice(): ?Device
+    {
+        return DeviceOnboarding::where('sparkplug_gateway_id', $this->sparkplug_gateway_id)
+            ->where('source_device_id', $this->source_device_id)
+            ->whereHas('device', fn ($q) => $q->where('lifecycle', '!=', 'archived'))
+            ->first()?->device;
+    }
 }

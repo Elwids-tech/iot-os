@@ -131,6 +131,7 @@ final class DiscoveryController
             $locked = DiscoveryCandidate::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->birth_revision === $values['birth_revision'], 409, 'The discovery candidate changed.');
             abort_if(Device::where('reserved_source_uuid', $locked->uuid)->exists(), 422, 'This source is assigned to a device.');
+            abort_if($values['status'] === 'rejected' && $locked->setupDevice(), 422, 'This source is being set up as a device. Resume or archive that device first.');
             $locked->update(['status' => $values['status']]);
             DeviceAudit::record('discovery.'.$values['status'], $organization->id, $request->user()->id, $locked->uuid);
         });
