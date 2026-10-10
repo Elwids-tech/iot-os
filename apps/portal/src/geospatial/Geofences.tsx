@@ -28,13 +28,13 @@ export default function GeofenceRoutes() {
 function GeofenceDirectory() {
   const { organizationUuid = "" } = useParams()
   const query = useQuery({ queryKey: ["geofences", organizationUuid], queryFn: () => api.geofences(organizationUuid) })
-  if (query.isPending) return <Skeleton className="h-80 w-full" />
-  return <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
-    <PageHeader title="Geofences" actions={<Button asChild><Link to="new"><PlusIcon data-icon="inline-start" />New geofence</Link></Button>} />
+  const header = <PageHeader title="Geofences" actions={<Button asChild><Link to="new"><PlusIcon data-icon="inline-start" />New geofence</Link></Button>} />
+  if (query.isPending) return <>{header}<div className="p-4 md:p-6"><Skeleton className="h-80 w-full" /></div></>
+  return <>{header}<main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-6">
     <RequestError error={query.error} />
     {!query.data?.data.length ? <Empty><EmptyHeader><EmptyTitle>No geofences</EmptyTitle><EmptyDescription>Draw a polygon and assign GPS devices to start monitoring boundary events.</EmptyDescription></EmptyHeader></Empty> :
       <div className="grid gap-4 md:grid-cols-2">{query.data.data.map((fence) => <Card key={fence.uuid}><CardHeader><CardTitle>{fence.name}</CardTitle><CardDescription>Revision {fence.revision} · {fence.assignments.length} assigned devices</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2">{fence.assignments.map((assignment) => <Badge key={assignment.uuid} variant={assignment.status === "active" ? "secondary" : "outline"}>{assignment.device.name} · {assignment.status}</Badge>)}</CardContent><CardFooter><Button asChild variant="outline"><Link to={fence.uuid}>Open editor</Link></Button></CardFooter></Card>)}</div>}
-  </main>
+  </main></>
 }
 
 function GeofenceEditor() {
@@ -71,21 +71,23 @@ function GeofenceEditor() {
       geometry: { type: "Polygon", coordinates: [[...vertices.map((point) => [...point]), [...vertices[0]]]] },
       assignments: devices.map((device_uuid) => ({ device_uuid, policy })) }
     return existing.data ? api.updateGeofence(organizationUuid, existing.data.uuid, input) : api.createGeofence(organizationUuid, input)
-  }, onSuccess: async (result) => { toast.success("Geofence saved and activation started."); await Promise.all([
+  }, onSuccess: async (result) => { toast.success("Geofence saved and activation started"); await Promise.all([
     cache.invalidateQueries({ queryKey: ["geofences", organizationUuid] }), cache.invalidateQueries({ queryKey: ["geofence", organizationUuid] })])
     navigate(`/organizations/${encodeURIComponent(organizationUuid)}/geofences/${encodeURIComponent(result.data.uuid)}?activation=${encodeURIComponent(result.activation.uuid)}`) } })
   const retry = useMutation({ mutationFn: (item: number) => api.retryGeofenceActivation(organizationUuid, geofenceUuid!, activationUuid!, item),
     onSuccess: (result) => cache.setQueryData(["geofence-activation", organizationUuid, geofenceUuid, activationUuid], result) })
-  if (existing.isPending && geofenceUuid) return <Skeleton className="h-96 w-full" />
-  return <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-    <PageHeader title={existing.data ? `Edit ${existing.data.name}` : "New geofence"} back={{ to: `/organizations/${organizationUuid}/geofences`, label: "Geofences" }} meta={existing.data && <Badge variant="outline">Revision {existing.data.revision}</Badge>}><p className="text-sm text-muted-foreground">Right-click the map to add a point. Drag points to move them; right-click a point to delete it.</p></PageHeader>
+  const back = { to: `/organizations/${organizationUuid}/geofences`, label: "Geofences" }
+  if (existing.isPending && geofenceUuid) return <><PageHeader title="Geofence" back={back} /><div className="p-4 md:p-6"><Skeleton className="h-96 w-full" /></div></>
+  return <>
+    <PageHeader title={existing.data ? `Edit ${existing.data.name}` : "New geofence"} back={back} meta={existing.data && <Badge variant="outline">Revision {existing.data.revision}</Badge>}><p className="text-sm text-muted-foreground">Right-click the map to add a point. Drag points to move them; right-click a point to delete it.</p></PageHeader>
+    <main className="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <RequestError error={existing.error ?? bindings.error ?? activation.error ?? events.error ?? save.error ?? retry.error} />
     <div className="grid min-h-[42rem] gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <Suspense fallback={<Skeleton className="h-full w-full" />}><LocationMap devices={[]} editable vertices={vertices} selectedVertex={selectedVertex} onSelectedVertex={setSelectedVertex} onVerticesChange={changeVertices} /></Suspense>
       <Card className="overflow-y-auto"><CardHeader><CardTitle>Fence and automation</CardTitle><CardDescription>Saving immediately deploys one independent rule per assigned device.</CardDescription></CardHeader><CardContent><FieldGroup>
         <Button variant="outline" disabled={Boolean(validation)} onClick={async () => {
-          try { await navigator.clipboard.writeText(JSON.stringify({ type: "Polygon", coordinates: [closeRing(vertices)] }, null, 2)); toast.success("Geometry JSON copied. Paste it into an automation geofence node.") }
-          catch { toast.error("Clipboard access failed. Try copying from the automation node instead.") }
+          try { await navigator.clipboard.writeText(JSON.stringify({ type: "Polygon", coordinates: [closeRing(vertices)] }, null, 2)); toast.success("Geometry JSON copied. Paste it into an automation geofence node") }
+          catch { toast.error("Clipboard access failed. Try copying from the automation node instead") }
         }}>Copy geometry JSON</Button>
         <FieldDescription>Copies the current boundary, including unsaved map edits, for an automation node.</FieldDescription>
         <Field data-invalid={!name.trim()}><FieldLabel htmlFor="fence-name">Name</FieldLabel><Input id="fence-name" value={name} maxLength={255} aria-invalid={!name.trim()} onChange={(event) => setName(event.target.value)} /></Field>
@@ -106,7 +108,8 @@ function GeofenceEditor() {
     {geofenceUuid && <Card><CardHeader><CardTitle>Event history</CardTitle><CardDescription>Boundary crossings and sustained wandering transitions.</CardDescription></CardHeader><CardContent>
       {!events.data?.data.length ? <p className="text-muted-foreground text-sm">No geofence events have been recorded yet.</p> : <div className="grid gap-2">{events.data.data.map((event) => <div className="flex flex-wrap items-center gap-2 rounded-md border p-3" key={event.uuid}><Badge variant="outline">{event.type.replaceAll("_", " ")}</Badge><span className="text-sm">{bindings.data?.data.find((binding) => binding.device_uuid === event.device_uuid)?.device_name ?? event.device_uuid}</span><time className="text-muted-foreground ml-auto text-xs" dateTime={event.occurred_at}>{new Date(event.occurred_at).toLocaleString()}</time></div>)}</div>}
     </CardContent></Card>}
-  </main>
+    </main>
+  </>
 }
 
 function defaultPoint(vertices: number[][]): number[] {

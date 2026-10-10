@@ -533,7 +533,7 @@ export function DashboardWorkspace({
       await navigator.clipboard.writeText(url)
       toast.success(`${what} copied`)
     } catch {
-      toast.error("The browser blocked copying. Copy the address bar instead.")
+      toast.error("The browser blocked copying. Copy the address bar instead")
     }
   }
   function downloadCsv(widget: DashboardWidget) {

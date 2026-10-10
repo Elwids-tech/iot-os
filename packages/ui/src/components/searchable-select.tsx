@@ -1,8 +1,13 @@
 "use client"
 
 import { useEffect, useId, useState } from "react"
-import { CheckIcon, ChevronsUpDownIcon } from "lucide-react"
+import { CheckIcon } from "lucide-react"
 import { Button } from "@iot-os/ui/components/button"
+import { cn } from "@iot-os/ui/lib/utils"
+import {
+  PickerAddon,
+  pickerTriggerClassName,
+} from "@iot-os/ui/components/select"
 import {
   Command,
   CommandGroup,
@@ -84,15 +89,17 @@ export function SearchableSelect({
         }}
       >
         <PopoverTrigger asChild>
-          <Button
+          <button
             id={id}
             type="button"
-            variant="outline"
             role="combobox"
+            data-slot="searchable-select-trigger"
+            data-size="default"
+            data-placeholder={displayLabel === placeholder ? "" : undefined}
             aria-expanded={open && !disabled}
             aria-describedby={help ? id + "-help" : undefined}
             disabled={disabled}
-            className="w-full min-w-0 justify-between"
+            className={cn(pickerTriggerClassName, "w-full min-w-0")}
             onKeyDown={(event) => {
               if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                 event.preventDefault()
@@ -101,8 +108,8 @@ export function SearchableSelect({
             }}
           >
             <span className="truncate">{displayLabel}</span>
-            <ChevronsUpDownIcon data-icon="inline-end" />
-          </Button>
+            <PickerAddon />
+          </button>
         </PopoverTrigger>
         <PopoverContent
           align="start"
@@ -222,19 +229,21 @@ export function SearchableMultiSelect({
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <Popover open={open && !disabled} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button
+          <button
             id={id}
             type="button"
-            variant="outline"
             role="combobox"
+            data-slot="searchable-select-trigger"
+            data-size="default"
+            data-placeholder={values.length ? undefined : ""}
             aria-expanded={open && !disabled}
             aria-describedby={help ? id + "-help" : undefined}
             disabled={disabled}
-            className="w-full min-w-0 justify-between"
+            className={cn(pickerTriggerClassName, "w-full min-w-0")}
           >
             <span className="truncate">{display}</span>
-            <ChevronsUpDownIcon data-icon="inline-end" />
-          </Button>
+            <PickerAddon />
+          </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 p-0" aria-label={label}>
           <Command>

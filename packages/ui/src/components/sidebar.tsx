@@ -22,7 +22,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@iot-os/ui/components/tooltip"
-import { PanelLeftIcon } from "lucide-react"
+import {
+  PanelLeftCloseIcon,
+  PanelLeftIcon,
+  PanelLeftOpenIcon,
+} from "lucide-react"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -52,8 +56,22 @@ function useSidebar() {
   return context
 }
 
+/** The last chosen desktop state; the cookie is written by setOpen below. */
+function readSidebarCookie(): boolean | undefined {
+  try {
+    const match = document.cookie
+      .split("; ")
+      .find((entry) => entry.startsWith(`${SIDEBAR_COOKIE_NAME}=`))
+    if (!match) return undefined
+    const value = match.slice(SIDEBAR_COOKIE_NAME.length + 1)
+    return value === "true" ? true : value === "false" ? false : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function SidebarProvider({
-  defaultOpen = true,
+  defaultOpen,
   open: openProp,
   onOpenChange: setOpenProp,
   className,
@@ -70,7 +88,9 @@ function SidebarProvider({
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen)
+  const [_open, _setOpen] = React.useState(
+    () => defaultOpen ?? readSidebarCookie() ?? true
+  )
   const open = openProp ?? _open
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
@@ -674,8 +694,42 @@ function SidebarMenuSubButton({
   )
 }
 
+/**
+ * A visible collapse/expand control for the desktop sidebar, placed in the
+ * footer menu. The edge rail and Cmd/Ctrl+B keep working; this is the
+ * discoverable one. Hidden on mobile, where the sheet has its own close.
+ */
+function SidebarCollapse({
+  className,
+  ...props
+}: Omit<React.ComponentProps<typeof SidebarMenuButton>, "tooltip">) {
+  const { open, toggleSidebar, isMobile } = useSidebar()
+  if (isMobile) return null
+  const label = open ? "Collapse sidebar" : "Expand sidebar"
+  const shortcut = `${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}${SIDEBAR_KEYBOARD_SHORTCUT.toUpperCase()}`
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip={`${label} (${shortcut})`}
+        aria-label={label}
+        aria-expanded={open}
+        onClick={toggleSidebar}
+        className={cn("text-muted-foreground hover:text-foreground", className)}
+        {...props}
+      >
+        {open ? <PanelLeftCloseIcon /> : <PanelLeftOpenIcon />}
+        <span className="group-data-[collapsible=icon]:sr-only">{label}</span>
+        <kbd className="ml-auto font-sans text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+          {shortcut}
+        </kbd>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  )
+}
+
 export {
   Sidebar,
+  SidebarCollapse,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,

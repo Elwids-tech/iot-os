@@ -57,6 +57,7 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
+  SidebarCollapse,
   SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
@@ -655,6 +656,7 @@ function PortalSidebar({
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
+          <SidebarCollapse />
           {organization && <SidebarMenuItem>
             <SidebarMenuButton tooltip="Help" aria-expanded={helpOpen} onClick={() => { onHelp(); closeMobile() }} className="text-muted-foreground hover:text-foreground">
               <BookOpenIcon /><span className="group-data-[collapsible=icon]:sr-only">Help</span>

@@ -100,8 +100,8 @@ export function NotificationsPage() {
                       <TableHead className="pl-4 md:pl-6">Workflow</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead className="text-right">Recipients</TableHead>
-                      <TableHead className="pr-4 md:pr-6">On clear</TableHead>
+                      <TableHead className="text-right max-2xl:hidden">Recipients</TableHead>
+                      <TableHead className="pr-4 max-2xl:hidden md:pr-6">On clear</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -140,10 +140,10 @@ export function NotificationsPage() {
                               </StatusMark>
                             ) : null}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          <TableCell className="text-right tabular-nums max-2xl:hidden">
                             {value?.recipient_ids.length}
                           </TableCell>
-                          <TableCell className="pr-4 text-muted-foreground md:pr-6">
+                          <TableCell className="pr-4 text-muted-foreground max-2xl:hidden md:pr-6">
                             {value
                               ? value.notify_on_clear
                                 ? "Email"

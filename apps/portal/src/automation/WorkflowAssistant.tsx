@@ -153,7 +153,7 @@ export function WorkflowAssistant({ org, editorId, workflowId, name, graph, revi
                   onApply(proposed)
                   setSession(current => ({ ...current, used: [...current.used, latest.id] }))
                   setOpen(false)
-                  toast.success("Proposal added to the draft. Review the canvas, then save when ready.")
+                  toast.success("Proposal added to the draft. Review the canvas, then save when ready")
                 }}>{used ? "Added to draft" : "Use this draft"}</Button></CardFooter>
               </Card>
             </MessageScrollerItem>}

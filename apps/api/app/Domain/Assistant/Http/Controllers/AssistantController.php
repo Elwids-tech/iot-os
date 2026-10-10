@@ -39,7 +39,9 @@ final class AssistantController
         if ($scope === 'adapter') {
             abort_unless(config('adapters.enabled'),404);
             app(\App\Domain\Devices\Services\DeviceAuthorization::class)->authorize($request->user(),\App\Domain\Devices\Permissions\DevicePermission::MANAGE,$organization);
-            return response()->json(['data'=>str_ends_with($request->path(),'settings')?['enabled'=>(bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))]:AssistantConversation::where('scope','adapter')->where('organization_id',$organization->id)->where('user_id',$request->user()->id)->latest('updated_at')->limit(100)->get()->map(fn($conversation)=>$this->conversationData($conversation))]);
+            // The adapter workspace lists only its own conversations; without the filter the tab could reopen another adapter's thread.
+            $adapterUuid = $request->validate(['adapter_uuid' => 'sometimes|string|max:64'])['adapter_uuid'] ?? null;
+            return response()->json(['data'=>str_ends_with($request->path(),'settings')?['enabled'=>(bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))]:AssistantConversation::where('scope','adapter')->where('organization_id',$organization->id)->where('user_id',$request->user()->id)->when($adapterUuid, fn ($query) => $query->whereHas('adapter', fn ($adapter) => $adapter->where('uuid', $adapterUuid)))->latest('updated_at')->limit(100)->get()->map(fn($conversation)=>$this->conversationData($conversation))]);
         }
         if ($request->query('scope') === 'automation') {
             $this->access->automation($request->user(), $organization);
@@ -67,7 +69,9 @@ final class AssistantController
         if ($scope === 'adapter') {
             abort_unless(config('adapters.enabled'),404);
             app(\App\Domain\Devices\Services\DeviceAuthorization::class)->authorize($request->user(),\App\Domain\Devices\Permissions\DevicePermission::MANAGE,$organization);
-            return response()->json(['data'=>str_ends_with($request->path(),'settings')?['enabled'=>(bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))]:AssistantConversation::where('scope','adapter')->where('organization_id',$organization->id)->where('user_id',$request->user()->id)->latest('updated_at')->limit(100)->get()->map(fn($conversation)=>$this->conversationData($conversation))]);
+            // The adapter workspace lists only its own conversations; without the filter the tab could reopen another adapter's thread.
+            $adapterUuid = $request->validate(['adapter_uuid' => 'sometimes|string|max:64'])['adapter_uuid'] ?? null;
+            return response()->json(['data'=>str_ends_with($request->path(),'settings')?['enabled'=>(bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))]:AssistantConversation::where('scope','adapter')->where('organization_id',$organization->id)->where('user_id',$request->user()->id)->when($adapterUuid, fn ($query) => $query->whereHas('adapter', fn ($adapter) => $adapter->where('uuid', $adapterUuid)))->latest('updated_at')->limit(100)->get()->map(fn($conversation)=>$this->conversationData($conversation))]);
         }
         if ($request->query('scope') === 'automation') {
             $this->access->automation($request->user(), $organization);
