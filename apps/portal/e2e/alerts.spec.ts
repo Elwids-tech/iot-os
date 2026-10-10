@@ -84,6 +84,19 @@ async function setup(page: Page, manage = true) {
     ],
     comments: [] as Record<string, unknown>[],
     queries: [] as URLSearchParams[],
+    acknowledgements: [] as Record<string, unknown>[],
+    eventQueries: [] as URLSearchParams[],
+    preferences: {
+      revision: 0,
+      email_enabled: true,
+      operations_access: false,
+      grid: Object.fromEntries(
+        ["workflow", "service", "watchdog"].map((source) => [
+          source,
+          { critical: true, warning: true, info: false, recovery: false },
+        ]),
+      ),
+    } as Record<string, unknown>,
     retried: false,
     assigned: undefined as number | null | undefined,
     saved: null as Record<string, unknown> | null,
@@ -153,10 +166,8 @@ async function setup(page: Page, manage = true) {
         },
       });
     if (path === "/context") return reply({ data: context });
-    if (path === "/alerts") {
-      const q = url.searchParams;
-      state.queries.push(q);
-      const rows = state.alerts.filter(
+    const matching = (q: URLSearchParams) =>
+      state.alerts.filter(
         (a) =>
           (!q.get("condition") || a.condition === q.get("condition")) &&
           (!q.get("acknowledged") ||
@@ -165,10 +176,103 @@ async function setup(page: Page, manage = true) {
           (!q.get("workflow") || a.workflow_uuid === q.get("workflow")) &&
           (!q.get("assignee") || String(a.assignee?.id) === q.get("assignee")),
       );
+    if (path === "/alerts") {
+      const q = url.searchParams;
+      state.queries.push(q);
+      const rows = matching(q);
+      if (q.get("group") === "source") {
+        const groups = new Map<string, Alert[]>();
+        for (const a of rows) {
+          const key = `${a.workflow_uuid}|${a.device_uuid}`;
+          groups.set(key, [...(groups.get(key) ?? []), a]);
+        }
+        const data = [...groups.values()].map((items) => ({
+          workflow_uuid: items[0].workflow_uuid,
+          device_uuid: items[0].device_uuid,
+          occurrences: items.length,
+          unacknowledged: items.filter((a) => !a.acknowledged_at).length,
+          active: items.filter((a) => a.condition === "active").length,
+          first_activated_at: items.at(-1)!.activated_at,
+          last_activated_at: items[0].activated_at,
+          latest: items[0],
+        }));
+        return reply({ data, meta: { current_page: 1, last_page: 1, total: data.length } });
+      }
       return reply({
         data: rows.slice(0, Number(q.get("per_page") ?? 25)),
         meta: { current_page: 1, last_page: 1, total: rows.length },
       });
+    }
+    if (path === "/alerts/acknowledge") {
+      state.acknowledgements.push(body);
+      const targets = body.alert_uuids
+        ? state.alerts.filter((a) => body.alert_uuids.includes(a.uuid))
+        : matching(
+            new URLSearchParams({
+              workflow: body.workflow_uuid,
+              device: body.device_uuid,
+              ...(body.condition && { condition: body.condition }),
+            }),
+          );
+      const fresh = targets.filter((a) => !a.acknowledged_at);
+      for (const a of fresh)
+        Object.assign(a, {
+          acknowledged_at: new Date().toISOString(),
+          acknowledged_by: 1,
+          acknowledged_by_name: "Manager",
+        });
+      return reply({ data: { acknowledged: fresh.length } });
+    }
+    if (url.pathname === "/api/v1/notifications/events") {
+      state.eventQueries.push(url.searchParams);
+      const events = [
+        {
+          uuid: "e2",
+          source: "workflow",
+          severity: "warning",
+          status: "firing",
+          active: true,
+          title: "GPS demo geofence",
+          summary: "Workflow condition activated; episode 3.",
+          service: null,
+          environment: null,
+          link: `${base}/a3`,
+          labels: null,
+          occurred_at: ago(19),
+          last_seen_at: ago(19),
+          occurrences: 1,
+        },
+        {
+          uuid: "e1",
+          source: "service",
+          severity: "critical",
+          status: "resolved",
+          active: false,
+          title: "ApiUnhealthy",
+          summary: "API readiness restored",
+          service: "api",
+          environment: "staging",
+          link: null,
+          labels: null,
+          occurred_at: ago(60),
+          last_seen_at: ago(60),
+          occurrences: 2,
+        },
+      ].filter(
+        (e) =>
+          !url.searchParams.get("status") ||
+          (url.searchParams.get("status") === "active") === e.active,
+      );
+      return reply({
+        data: events,
+        summary: { critical: 0, warning: 1, info: 0, resolved: 1, sources: { workflow: 1, service: 0, watchdog: 0 } },
+        meta: { current_page: 1, last_page: 1, total: events.length },
+      });
+    }
+    if (url.pathname === "/api/v1/notifications/preferences") {
+      if (req.method() === "PUT")
+        state.preferences = { ...body, revision: (body.revision as number) + 1 };
+      return reply({ data: state.preferences });
     }
     const alertMatch = path.match(/^\/alerts\/(a\d)(\/.*)?$/);
     if (alertMatch) {
@@ -338,14 +442,25 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
 }) => {
   const { state, errors } = await setup(page);
   await page.goto(base);
-  const episodes = page.getByRole("list", { name: "Alert episodes" }).getByRole("listitem");
-  await expect(episodes).toHaveCount(3);
-  await expect(page.getByRole("radio", { name: "Active 1" })).toBeVisible();
+  // Active alerts first, repeats of one workflow on one device grouped.
+  const sources = page.getByRole("list", { name: "Alert sources" }).getByRole("listitem");
+  await expect(sources).toHaveCount(1);
+  await expect(page.getByRole("radio", { name: "Active 1" })).toBeChecked();
   await expect(page.getByRole("radio", { name: "Cleared 2" })).toBeVisible();
-  await page.getByRole("radio", { name: /^Active/ }).click();
-  await expect(page).toHaveURL(/condition=active/);
-  await expect(episodes).toHaveCount(1);
+  await expect(page.getByRole("radio", { name: "Grouped" })).toBeChecked();
+  await expect(page.getByText("Episode", { exact: false })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Summary" })).toContainText("Active now");
   await page.getByRole("radio", { name: /^All/ }).click();
+  await expect(page).toHaveURL(/condition=all/);
+  await expect(sources).toHaveCount(2);
+  await expect(sources.first()).toContainText("GPS demo geofence — GPS tracker");
+  await expect(sources.first()).toContainText("2 occurrences");
+  await expect(sources.first()).toContainText("Active for 19 min");
+  await expect(sources.nth(1)).toContainText("Cleared after 30 min");
+  await page.getByRole("radio", { name: "Individual" }).click();
+  await expect(page).toHaveURL(/view=individual/);
+  const episodes = page.getByRole("list", { name: "Alerts" }).getByRole("listitem");
+  await expect(episodes).toHaveCount(3);
   await page.getByLabel("Unacknowledged only").click();
   await expect(page.getByLabel("Unacknowledged only")).toBeChecked();
   await expect(page).toHaveURL(/acknowledged=0/);
@@ -367,11 +482,15 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
     .toBe(true);
   await expect(episodes).toHaveCount(2);
 
-  await page.getByRole("link", { name: "GPS demo geofence · Episode 3", exact: true }).click();
-  const detail = page.getByRole("region", { name: "Episode detail" });
+  await page
+    .getByRole("link", { name: "GPS demo geofence — GPS tracker", exact: true })
+    .first()
+    .click();
+  const detail = page.getByRole("region", { name: "Alert detail" });
   await expect(
-    detail.getByRole("heading", { name: "GPS demo geofence · Episode 3" }),
+    detail.getByRole("heading", { name: "GPS demo geofence — GPS tracker" }),
   ).toBeVisible();
+  await expect(detail.getByText("Occurrence 3", { exact: true })).toBeVisible();
   await expect(detail.getByText("Unacknowledged", { exact: true })).toBeVisible();
   await expect(detail.getByRole("link", { name: "GPS tracker" })).toHaveAttribute(
     "href",
@@ -389,7 +508,23 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
   await detail.getByRole("button", { name: "Acknowledge alert" }).click();
   await expect(detail.getByText("Acknowledged by Manager")).toBeVisible();
   await expect(detail.getByRole("button", { name: "Acknowledge alert" })).toHaveCount(0);
-  await expect(detail.getByText("Active", { exact: true })).toBeVisible();
+  await expect(detail.getByText("Active", { exact: true }).first()).toBeVisible();
+
+  // The other occurrences of this workflow on this device; one cleared one is still unacknowledged.
+  const occurrences = detail.getByRole("list", { name: "Recent occurrences" });
+  await expect(occurrences.getByRole("listitem")).toHaveCount(2);
+  await expect(detail.getByRole("link", { name: "Show all 2" })).toHaveAttribute(
+    "href",
+    `${base}?view=individual&condition=all&workflow=${geofence}&device=${gps}`,
+  );
+  await detail.getByRole("button", { name: "Acknowledge all cleared (1)" }).click();
+  await expect(detail.getByText("Acknowledged 1 cleared alert.")).toBeVisible();
+  expect(state.acknowledgements.at(-1)).toEqual({
+    workflow_uuid: geofence,
+    device_uuid: gps,
+    condition: "cleared",
+  });
+  await expect(detail.getByRole("button", { name: /Acknowledge all cleared/ })).toHaveCount(0);
 
   await pick(page, "Assignee", "Operator Two");
   await expect(detail.getByText("Assigned to Operator Two")).toBeVisible();
@@ -513,11 +648,11 @@ test("drafts survive crossing the 1280px layout breakpoint", async ({ page }) =>
   await page.getByLabel("Add a comment").fill("Draft kept across layouts");
   await page.setViewportSize({ width: 1000, height: 900 });
   await expect(
-    page.getByRole("heading", { level: 1, name: "GPS demo geofence · Episode 3" }),
+    page.getByRole("heading", { level: 1, name: "GPS demo geofence — GPS tracker" }),
   ).toBeVisible();
   await expect(page.getByLabel("Add a comment")).toHaveValue("Draft kept across layouts");
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await expect(page.getByRole("list", { name: "Alert episodes" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Alert sources" })).toBeVisible();
   await expect(page.getByLabel("Add a comment")).toHaveValue("Draft kept across layouts");
   expect(errors).toEqual([]);
 });
@@ -526,13 +661,13 @@ test("mobile shows one pane at a time without sideways scroll", async ({ page })
   await page.setViewportSize({ width: 390, height: 844 });
   const { errors } = await setup(page);
   await page.goto(base);
-  await page.getByRole("link", { name: "GPS demo geofence · Episode 3", exact: true }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "GPS demo geofence · Episode 3" })).toBeVisible();
-  await expect(page.getByRole("list", { name: "Alert episodes" })).toHaveCount(0);
+  await page.getByRole("link", { name: "GPS demo geofence — GPS tracker", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "GPS demo geofence — GPS tracker" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Alert sources" })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
   await page.getByRole("link", { name: "Back to Alerts" }).click();
-  await expect(page.getByRole("list", { name: "Alert episodes" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Alert sources" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goto(`${base}/notifications/${geofence}`);
   await expect(page.getByRole("heading", { level: 1, name: "GPS demo geofence" })).toBeVisible();
@@ -544,12 +679,89 @@ test("mobile shows one pane at a time without sideways scroll", async ({ page })
 test("viewers read alerts without management actions", async ({ page }) => {
   await setup(page, false);
   await page.goto(`${base}/a1`);
-  const detail = page.getByRole("region", { name: "Episode detail" });
+  const detail = page.getByRole("region", { name: "Alert detail" });
   await expect(detail.getByText("Operator Two", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Notification settings" })).toHaveCount(0);
   await expect(detail.getByRole("button", { name: "Acknowledge alert" })).toHaveCount(0);
   await expect(detail.getByRole("combobox", { name: "Assignee" })).toHaveCount(0);
   await expect(detail.getByLabel("Add a comment")).toHaveCount(0);
+  await expect(detail.getByRole("list", { name: "Recent occurrences" })).toBeVisible();
+  await expect(detail.getByRole("button", { name: /Acknowledge all cleared/ })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: /^Select/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Acknowledge selected/ })).toHaveCount(0);
   await page.goto(`${base}/notifications`);
   await expect(page.getByText("Settings unavailable")).toBeVisible();
+});
+
+test("acknowledges whole sources after confirming and single selected alerts directly", async ({
+  page,
+}) => {
+  const { state, errors } = await setup(page);
+  Object.assign(state.alerts[1], { acknowledged_at: null, acknowledged_by: null, acknowledged_by_name: null });
+  await page.goto(`${base}?condition=all`);
+  const sources = page.getByRole("list", { name: "Alert sources" }).getByRole("listitem");
+  await expect(sources.first()).toContainText("2 occurrences over 5 h · 2 unacknowledged");
+  await page.getByRole("checkbox", { name: "Select GPS demo geofence — GPS tracker" }).check();
+  await expect(page.getByText("1 source selected")).toBeVisible();
+  await page.getByRole("button", { name: "Acknowledge selected (2)" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toContainText("Acknowledge 2 alerts?");
+  await dialog.getByRole("button", { name: "Acknowledge" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("Acknowledged 2 alerts.")).toBeVisible();
+  // "All" sends no condition, so every unacknowledged alert of the source is acknowledged.
+  expect(state.acknowledgements).toEqual([{ workflow_uuid: geofence, device_uuid: gps }]);
+  await expect(sources.first()).toContainText("all acknowledged");
+  await expect(page.getByRole("checkbox", { name: "Select GPS demo geofence — GPS tracker" })).toBeDisabled();
+
+  await page.getByRole("radio", { name: "Individual" }).click();
+  const rows = page.getByRole("list", { name: "Alerts" }).getByRole("listitem");
+  await expect(rows).toHaveCount(3);
+  await expect(page.getByRole("checkbox", { name: "Select every alert on this page" })).toBeEnabled();
+  await page.getByRole("checkbox", { name: "Select every alert on this page" }).check();
+  await expect(page.getByRole("checkbox", { name: "Select Phase voltage band — Energy meter, occurrence 2" })).toBeChecked();
+  await page.getByRole("button", { name: "Acknowledge selected (1)" }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page.getByText("Acknowledged 1 alert.")).toBeVisible();
+  expect(state.acknowledgements.at(-1)).toEqual({ alert_uuids: ["a2"] });
+  await expect(page.getByRole("checkbox", { name: "Select every alert on this page" })).toBeDisabled();
+  expect(errors).toEqual([]);
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+});
+
+test("the event log and email preferences live in Alerts and the notification center redirects there", async ({
+  page,
+}) => {
+  const { state, errors } = await setup(page);
+  await page.goto(`/organizations/${org}/notifications?status=resolved`);
+  await expect(page).toHaveURL(new RegExp(`${base}/events\\?status=cleared$`));
+  await expect(page.getByRole("tab", { name: "Event log" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("radio", { name: "Cleared" })).toBeChecked();
+  await expect.poll(() => state.eventQueries.at(-1)?.get("organization")).toBe(org);
+  expect(state.eventQueries.at(-1)?.get("status")).toBe("cleared");
+  const log = page.getByRole("table", { name: "Event log" });
+  await expect(log.getByRole("row")).toHaveCount(2);
+  await expect(log).toContainText("Cleared");
+  await expect(page.getByText(/Recover|Resolved/)).toHaveCount(0);
+  await expect(page.getByText("Active by type")).toBeVisible();
+  await page.getByRole("button", { name: "Workflow alerts" }).click();
+  await expect(page).toHaveURL(/status=active/);
+  await expect(page).toHaveURL(/source=workflow/);
+  await expect(log.getByRole("row")).toHaveCount(2);
+  await expect(log).toContainText("Active");
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+
+  await page.getByRole("tab", { name: "Email preferences" }).click();
+  await expect(page).toHaveURL(new RegExp(`${base}/preferences$`));
+  await expect(page.getByRole("columnheader", { name: "Cleared" })).toBeVisible();
+  await page.getByRole("button", { name: "Turn off all emails" }).click();
+  await expect(page.getByText("All alert emails are off")).toBeVisible();
+  expect(state.preferences.email_enabled).toBe(false);
+  await expect(page.getByRole("button", { name: "Turn off all emails" })).toBeDisabled();
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+
+  await page.getByRole("tab", { name: "Alerts" }).click();
+  await expect(page).toHaveURL(new RegExp(`${base}$`));
+  await expect(page.getByRole("list", { name: "Alert sources" })).toBeVisible();
+  expect(errors).toEqual([]);
 });
