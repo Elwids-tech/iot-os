@@ -3,6 +3,7 @@
   --workflow-surface: color-mix(in srgb, var(--card) 91%, var(--foreground) 9%);
   --workflow-grid: color-mix(in srgb, var(--foreground) 24%, transparent);
   --workflow-outline: color-mix(in srgb, var(--foreground) 38%, var(--card));
+  container: workflow-editor / inline-size;
 }
 .workflow-canvas-shell {
   min-width: 0;
@@ -253,4 +254,122 @@
   .workflow-canvas-shell {
     height: 540px;
   }
+}
+
+/* Docked, non-modal panel: inspector or host panel (simulation) beside the canvas. */
+.workflow-workspace[data-panel="true"] {
+  grid-template-columns: 220px minmax(0, 1fr) minmax(300px, 360px);
+}
+.workflow-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--workflow-outline);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  color: var(--card-foreground);
+}
+.workflow-panel-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 10px 10px 16px;
+  border-bottom: 1px solid var(--workflow-outline);
+}
+.workflow-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+}
+/* Narrow editors: the panel overlays the canvas edge instead of squeezing it. No backdrop. */
+@container workflow-editor (max-width: 1099px) {
+  .workflow-workspace {
+    position: relative;
+  }
+  .workflow-workspace[data-panel="true"] {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .workflow-panel {
+    position: absolute;
+    z-index: 20;
+    inset: 0 0 0 auto;
+    width: min(360px, calc(100% - 32px));
+    box-shadow: 0 12px 32px
+      color-mix(in srgb, var(--foreground) 24%, transparent);
+  }
+}
+@media (max-width: 767px) {
+  .workflow-panel {
+    position: static;
+    width: auto;
+    height: auto;
+    max-height: 75dvh;
+    box-shadow: none;
+  }
+}
+
+.workflow-palette-unavailable {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--workflow-outline);
+  border-radius: var(--radius-md);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* Host-supplied outcomes (simulation): colour plus a text label, never colour alone. */
+.workflow-node[data-outcome] {
+  --outcome: var(--muted-foreground);
+}
+.workflow-node[data-outcome="matched"] {
+  --outcome: var(--success);
+}
+.workflow-node[data-outcome="triggered"] {
+  --outcome: var(--primary);
+}
+.workflow-node[data-outcome="suppressed"],
+.workflow-node[data-outcome="waiting"] {
+  --outcome: var(--warning);
+}
+.workflow-node[data-outcome="evaluated"] {
+  --outcome: var(--info);
+}
+.workflow-node[data-outcome]:not([data-selected="true"]) {
+  border-color: var(--outcome);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--outcome) 35%, transparent),
+    0 3px 8px color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+.workflow-node[data-outcome="not_matched"],
+.workflow-node[data-outcome="waiting"] {
+  border-style: dashed;
+}
+.workflow-node-outcome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 14px 8px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--outcome) 14%, var(--card));
+  font-size: 12px;
+  line-height: 18px;
+}
+.workflow-node-outcome > span[aria-hidden] {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  background: var(--outcome);
+}
+.workflow-canvas .workflow-edge-active .react-flow__edge-path {
+  stroke: var(--success);
 }
