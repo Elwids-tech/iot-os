@@ -23,6 +23,16 @@ describe("Help context", () => {
         "/organizations/private-org/alerts/notifications/private-workflow",
       ),
     ).toBe("alerts.notifications.workflow");
+    expect(helpContextForPath("/organizations/private-org/alerts")).toBe("alerts");
+    expect(
+      helpContextForPath("/organizations/private-org/alerts/private-alert"),
+    ).toBe("alerts.detail");
+    expect(helpContextForPath("/organizations/private-org/alerts/events")).toBe(
+      "alerts.events",
+    );
+    expect(
+      helpContextForPath("/organizations/private-org/alerts/preferences"),
+    ).toBe("alerts.preferences");
     expect(helpContextForPath("/organizations/private-org/geofences/new")).toBe(
       "geofences.editor",
     );

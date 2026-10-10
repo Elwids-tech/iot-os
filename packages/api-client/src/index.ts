@@ -1604,6 +1604,16 @@ export class ApiClient {
   acknowledgeAlert(org: string, id: string) {
     return this.data<import("./alerts").WorkflowAlert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/acknowledge`, "POST", {})
   }
+  /** `query` takes the alerts filters; `group=source` is added. */
+  alertSources(org: string, query: string, signal?: AbortSignal) {
+    const params = new URLSearchParams(query)
+    params.set("group", "source")
+    return this.request<import("./alerts").AlertPage<import("./alerts").WorkflowAlertSource>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts?${params}`, { signal })
+  }
+  /** Already acknowledged alerts are skipped; resolves to the number newly acknowledged. */
+  acknowledgeAlerts(org: string, input: import("./alerts").AlertAcknowledgement) {
+    return this.data<{ acknowledged: number }>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/acknowledge`, "POST", input)
+  }
   /** `null` unassigns. The user must be an organization member (integer user id). */
   assignAlert(org: string, id: string, userId: number | null) {
     return this.data<import("./alerts").WorkflowAlert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/assignee`, "PUT", { user_id: userId })

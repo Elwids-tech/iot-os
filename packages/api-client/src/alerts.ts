@@ -40,6 +40,26 @@ export type AlertPage<T> = {
   data: T[];
   meta: { current_page: number; last_page: number; total: number };
 };
+/** GET alerts?group=source: one row per workflow and device, counted over the filtered alerts. */
+export type WorkflowAlertSource = {
+  workflow_uuid: string;
+  device_uuid: string;
+  occurrences: number;
+  unacknowledged: number;
+  active: number;
+  first_activated_at: string | null;
+  last_activated_at: string | null;
+  latest: WorkflowAlert;
+};
+/** Listed alerts (all must belong to the organization), or every unacknowledged alert of one source. */
+export type AlertAcknowledgement =
+  | { alert_uuids: string[] }
+  | {
+      workflow_uuid: string;
+      device_uuid: string;
+      condition?: "active" | "cleared";
+      assignee?: number;
+    };
 
 export type NotificationRecipient = {
   id: number;

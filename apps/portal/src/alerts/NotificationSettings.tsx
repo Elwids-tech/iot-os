@@ -235,9 +235,9 @@ function WorkflowSettings({
             {total !== undefined && (
               <Link
                 className="text-sm underline underline-offset-4"
-                to={`/organizations/${org}/alerts?workflow=${encodeURIComponent(workflow)}`}
+                to={`/organizations/${org}/alerts?condition=all&workflow=${encodeURIComponent(workflow)}`}
               >
-                {total} {total === 1 ? "episode" : "episodes"}
+                {total} {total === 1 ? "alert" : "alerts"}
               </Link>
             )}
           </div>
