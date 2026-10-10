@@ -13,6 +13,7 @@ const parameterId = "22222222-2222-4222-8222-222222222222"
 const secondParameter = "33333333-3333-4333-8333-333333333333"
 const stateParameter = "44444444-4444-4444-8444-444444444444"
 const colourParameter = "55555555-5555-4555-8555-555555555555"
+const energyParameter = "66666666-6666-4666-8666-666666666666"
 const source: DashboardSource = {
   device_uuid: deviceId,
   parameter_uuid: parameterId,
@@ -104,6 +105,7 @@ async function setup(
     history: 0,
     conflict: false,
     historyWindows: [] as string[],
+    increase: [] as URLSearchParams[],
   }
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
@@ -216,6 +218,27 @@ async function setup(
         ],
       })
     }
+      if (path.endsWith("/measurements/increase")) {
+      calls.increase.push(url.searchParams)
+      // Three days of usage from the start of the requested range; the last is still counting.
+      const from = Date.parse(url.searchParams.get("from")!)
+      return json({
+        data: {
+          from: url.searchParams.get("from"),
+          to: url.searchParams.get("to"),
+          bucket: url.searchParams.get("bucket"),
+          timezone: url.searchParams.get("timezone") ?? "America/Toronto",
+          unit: "kWh",
+          points: [12.5, 9, 4.25].map((increase, day) => ({
+            at: new Date(from + day * 86400000).toISOString(),
+            increase,
+            samples: 96,
+            resets: day === 1 ? 1 : 0,
+            partial: day === 2,
+          })),
+        },
+      })
+    }
       if (path.endsWith("/measurements/state-history")) {
       const parameter = url.searchParams.get("parameter_uuid")
       const from = url.searchParams.get("from")!
@@ -291,6 +314,14 @@ async function setup(
                       data_type: "number",
                       unit: "C",
                     },
+                    {
+                      uuid: energyParameter,
+                      key: "energy",
+                      label: "Energy",
+                      data_type: "number",
+                      unit: "kWh",
+                      kind: "counter",
+                    },
                   {
                     uuid: stateParameter,
                     key: "power",
@@ -326,6 +357,7 @@ async function setup(
             },
           ],
           retention: { days: 90, source: "platform" },
+          reporting_timezone: "America/Toronto",
         },
       })
     return json({ data: [] })
@@ -633,6 +665,57 @@ test("state and colour history panels select only compatible parameters", async 
   expect(dashboards[0].widgets.map((widget) => widget.type)).toEqual(
     expect.arrayContaining(["state_history", "color_history"]),
   )
+  expect(errors).toEqual([])
+})
+
+test("consumption panels show counter usage per day in the site's time zone", async ({
+  page,
+}, info) => {
+  const { dashboards, calls, errors } = await setup(page)
+  await page.goto(basePath + "/first")
+  await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
+  await page.getByRole("button", { name: "Add panel", exact: true }).click()
+  const dialog = await chooseParameters(page, [/^Energy/])
+  // A running total leads with consumption, previewed with its data.
+  const suggestion = dialog.getByRole("article", { name: "Consumption suggestion" })
+  await expect(suggestion).toContainText("Best fit")
+  await expect(suggestion).toContainText("meter resets handled")
+  await expect(dialog.getByRole("article", { name: "Gauge suggestion" })).toHaveCount(0)
+  await suggestion.getByRole("button", { name: "Customize", exact: true }).click()
+
+  await page.getByRole("combobox", { name: "Period", exact: true }).click()
+  await page.getByRole("option", { name: "Last 7 days", exact: true }).click()
+  await expect(page.getByRole("combobox", { name: "Bars", exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
+
+  const panel = page.locator(".react-grid-item").filter({ has: page.getByRole("button", { name: "Panel menu: Energy", exact: true }) })
+  await expect(panel.getByText("Last 7 days so far · per day")).toBeVisible()
+  await expect(panel.getByText(/^25\.75\s*kWh$/)).toBeVisible()
+  await expect(panel.getByRole("note")).toContainText("1 meter reset or rollover handled.")
+  await expect(panel.getByRole("note")).toContainText("Days start at midnight, America/Toronto time.")
+  const chart = panel.getByRole("img", { name: /^Energy: kWh per day/ })
+  await expect(chart.locator("svg")).toBeVisible()
+  // Three bars for the three days with readings, drawn as SVG paths.
+  await expect.poll(() => chart.locator("svg path[fill]").count()).toBeGreaterThanOrEqual(3)
+  // A screen-reader table carries every day; days without readings stay empty, not zero.
+  const rows = panel.locator("table.sr-only tbody tr")
+  await expect(rows).toHaveCount(7)
+  await expect(rows.nth(2)).toContainText("4.25 kWh (partial)")
+  await expect(rows.nth(6)).toContainText("No readings")
+  // The calendar week is cut at Toronto midnight and asks for that zone.
+  const request = calls.increase.at(-1)!
+  expect(request.get("bucket")).toBe("1d")
+  expect(request.get("timezone")).toBe("America/Toronto")
+  expect(new Date(request.get("from")!).getUTCHours()).toBe(4)
+  await page.screenshot({ path: info.outputPath("consumption.png") })
+  const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
+  expect(audit.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) }))).toEqual([])
+
+  await page.getByRole("button", { name: "Save dashboard", exact: true }).click()
+  await expect.poll(() => calls.writes).toBe(1)
+  const saved = dashboards[0].widgets.find((w) => w.type === "consumption")!
+  expect(saved.config).toMatchObject({ period: "7d", bucket: "auto" })
+  expect(saved.config.sources.map((s) => s.parameter_uuid)).toEqual([energyParameter])
   expect(errors).toEqual([])
 })
 
@@ -1280,6 +1363,9 @@ test("library views, filters, stars and row actions", async ({ page }) => {
   )
   expect(bulk.name).toBe("dashboards.json")
   expect(bulk.data).toHaveLength(3)
+  // Top-centre toasts pause while hovered and can cover the bulk actions; let them clear.
+  await page.mouse.move(0, 999)
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0)
   await page.getByRole("button", { name: "Delete", exact: true }).click()
   await expect(page.getByRole("alertdialog")).toContainText("Delete 3 dashboards?")
   await page.getByRole("button", { name: "Delete dashboards" }).click()
@@ -1301,7 +1387,7 @@ test("new dashboards from a device profile, a template and imported JSON", async
   await page.getByRole("option", { name: "Boiler profile" }).click()
   await expect(dialog.getByRole("checkbox", { name: /Boiler room/ })).toBeChecked()
   const panels = dialog.getByRole("list", { name: "Generated panels" })
-  await expect(panels.getByRole("listitem")).toHaveCount(4)
+  await expect(panels.getByRole("listitem")).toHaveCount(5)
   await dialog.getByRole("checkbox", { name: /Latest values/ }).click()
   await expect(dialog.getByLabel("Dashboard name")).toHaveValue("Boiler profile overview")
   const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
@@ -1312,6 +1398,8 @@ test("new dashboards from a device profile, a template and imported JSON", async
   expect(fromProfile.widgets.map((w) => [w.type, w.title, w.config.sources.length])).toEqual([
     ["status", "Temperatures", 2],
     ["timeseries", "Temperatures (C)", 2],
+    // The ungrouped energy counter becomes usage per period, not a running-total line.
+    ["consumption", "Usage (kWh)", 1],
     ["controls", "Controls", 2],
   ])
   expect(fromProfile.layouts.lg?.map((l) => l.i)).toEqual(fromProfile.widgets.map((w) => w.id))

@@ -1424,11 +1424,14 @@ export class ApiClient {
       from: string
       to: string
       bucket: CounterBucket
-      timezone: string
+      /** Defaults to the device's reporting time zone. */
+      timezone?: string
     },
     signal?: AbortSignal,
   ) {
-    const search = new URLSearchParams(query)
+    const search = new URLSearchParams(
+      Object.entries(query).filter((entry): entry is [string, string] => entry[1] !== undefined),
+    )
     return this.data<CounterIncrease>(
       this.devicePath(org, id) + "/measurements/increase?" + search,
       "GET", undefined, signal,

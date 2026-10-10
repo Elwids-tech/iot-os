@@ -44,8 +44,12 @@ describe("panel suggestions", () => {
     expect(types([candidate({ validation: { rule: { and: [{ ">=": [{ var: "value" }, 0] }, { "<=": [{ var: "value" }, 10] }] } } as DeviceProfileParameter["validation"] })])[0]).toBe("gauge")
   })
 
-  it("never suggests a gauge for a running total", () => {
-    expect(types([candidate({ kind: "counter", unit: "kWh", display: { min: 0, max: 100 } })])).toEqual(["status", "timeseries", "table"])
+  it("shows running totals as consumption and never as a gauge", () => {
+    const energy = candidate({ kind: "counter", unit: "kWh", display: { min: 0, max: 100 } })
+    expect(types([energy])).toEqual(["consumption", "status", "timeseries", "table"])
+    expect(types([energy, candidate({ kind: "counter", unit: "kWh" })])[0]).toBe("consumption")
+    expect(incompatibility("consumption", [candidate({ unit: "kW" })])).toBe("Needs counter parameters.")
+    expect(incompatibility("consumption", [energy, candidate({ kind: "counter", unit: "L" })])).toBe("Needs parameters with one unit.")
   })
 
   it("compares same-unit values in one chart and avoids mixed-unit charts", () => {

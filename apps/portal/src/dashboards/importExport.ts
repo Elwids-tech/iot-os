@@ -39,6 +39,7 @@ const TYPES = [
   "table",
   "text",
   "device_health",
+  "consumption",
 ] as const
 // Config keys per panel type, as the server accepts them.
 const CONFIG_KEYS: Partial<Record<DashboardWidget["type"], string[]>> = {
@@ -47,6 +48,7 @@ const CONFIG_KEYS: Partial<Record<DashboardWidget["type"], string[]>> = {
   table: ["sources"],
   text: ["sources", "text"],
   device_health: ["sources", "devices"],
+  consumption: ["sources", "bucket", "period"],
 }
 const BREAKPOINTS = ["lg", "md", "sm", "xs", "xxs"] as const
 // Read-only fields an API response carries; accepted and dropped.
@@ -188,6 +190,10 @@ function readWidget(value: unknown, path: string): DashboardWidget {
     config.min = number(c.min, `${at}.min`)
     config.max = number(c.max, `${at}.max`)
     if (config.min >= config.max) fail(`${at}.max`, "must be greater than min.")
+  }
+  if (type === "consumption") {
+    if (c.bucket !== undefined) config.bucket = oneOf(c.bucket, `${at}.bucket`, ["auto", "15m", "1h", "1d", "1w", "1mo"] as const)
+    if (c.period !== undefined) config.period = oneOf(c.period, `${at}.period`, ["dashboard", "today", "7d", "month", "12mo"] as const)
   }
   if (type === "text") config.text = text(c.text, `${at}.text`, 4000)
   if (type === "device_health")

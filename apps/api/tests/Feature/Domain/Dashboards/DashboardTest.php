@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Dashboards;
 
+use App\Domain\Automation\Models\Alert;
+use App\Domain\Automation\Models\Deployment;
+use App\Domain\Automation\Models\Workflow;
 use App\Domain\Dashboards\Models\Dashboard;
 use App\Domain\Dashboards\Models\DashboardRevision;
 use App\Domain\Dashboards\Services\DashboardDefinition;
@@ -66,11 +69,11 @@ final class DashboardTest extends TestCase
         $this->postJson($this->url, $input)->assertUnprocessable()->assertJsonValidationErrors('widgets.0.config.location_device_uuids');
     }
 
-    private function source(string $unit = 'C', string $dataType = 'number', bool $writable = false, ?string $format = null, ?string $displayWidget = null): array
+    private function source(string $unit = 'C', string $dataType = 'number', bool $writable = false, ?string $format = null, ?string $displayWidget = null, string $kind = 'state'): array
     {
         $parameter = [
             'uuid' => (string) Str::uuid(), 'label' => 'Temperature', 'data_type' => $dataType,
-            'unit' => $unit, 'kind' => 'state', 'reports_state' => true, 'accepts_command' => $writable,
+            'unit' => $unit, 'kind' => $kind, 'reports_state' => true, 'accepts_command' => $writable,
             'format' => $format, 'display' => $displayWidget ? ['widget' => $displayWidget] : [],
         ];
         $definition = ['parameters' => [$parameter]];
@@ -146,7 +149,7 @@ final class DashboardTest extends TestCase
         $this->assertSame($legacy, $dashboard->fresh()->widgets);
         $this->putJson($this->url.'/'.$dashboard->uuid, array_intersect_key($view, array_flip(['name', 'widgets', 'layouts', 'defaults', 'revision'])))->assertOk()->assertJsonPath('data.widgets.0.config.sources.0.unit', 'C')->assertJsonCount(5, 'data.widgets.0.config.sources.0.thresholds');
         // Snapshots backfilled by the library migration keep legacy widgets and null defaults.
-        \App\Domain\Dashboards\Models\DashboardRevision::create(['dashboard_id' => $dashboard->id, 'revision' => 1, 'name' => 'Legacy', 'widgets' => $legacy, 'layouts' => [], 'defaults' => null, 'tags' => []]);
+        DashboardRevision::create(['dashboard_id' => $dashboard->id, 'revision' => 1, 'name' => 'Legacy', 'widgets' => $legacy, 'layouts' => [], 'defaults' => null, 'tags' => []]);
         $this->postJson($this->url.'/'.$dashboard->uuid.'/revisions/1/restore', ['revision' => 2])->assertOk()->assertJsonPath('data.revision', 3)->assertJsonPath('data.widgets.0.schema_version', 2)->assertJsonPath('data.defaults.refresh', 5);
     }
 
@@ -246,7 +249,7 @@ final class DashboardTest extends TestCase
 
     public function test_workflow_widgets_are_tenant_scoped_and_do_not_accept_parameter_sources(): void
     {
-        $workflow = \App\Domain\Automation\Models\Workflow::create(['organization_id' => $this->organization->id, 'name' => 'Boundary', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('a',64), 'updated_by' => auth()->id()]);
+        $workflow = Workflow::create(['organization_id' => $this->organization->id, 'name' => 'Boundary', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => auth()->id()]);
         foreach (['location', 'alerts'] as $type) {
             $input = [...$this->emptyDashboard(), 'widgets' => [['id' => $type, 'schema_version' => 2, 'type' => $type, 'title' => 'Workflow panel', 'description' => '', 'config' => ['sources' => [], 'workflow_uuid' => $workflow->uuid]]]];
             $this->postJson($this->url, $input)->assertOk()->assertJsonPath('data.widgets.0.config.workflow_uuid', $workflow->uuid);
@@ -266,12 +269,12 @@ final class DashboardTest extends TestCase
 
     public function test_alert_overview_keeps_acknowledgement_separate_from_active_condition(): void
     {
-        $workflow = \App\Domain\Automation\Models\Workflow::create(['organization_id' => $this->organization->id, 'name' => 'Boundary', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('a',64), 'updated_by' => auth()->id()]);
-        $version = \App\Domain\Automation\Models\Deployment::create(['automation_workflow_id' => $workflow->id, 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition' => [], 'definition_hash' => str_repeat('a',64), 'created_by' => auth()->id(), 'created_at' => now()]);
-        foreach ([[null,null],[null,now()],[now(),null]] as $i => [$cleared,$ack]) {
-            \App\Domain\Automation\Models\Alert::create(['organization_id' => $this->organization->id, 'automation_workflow_id' => $workflow->id, 'automation_deployment_id' => $version->id, 'episode' => $i+1, 'activated_at' => now(), 'cleared_at' => $cleared, 'acknowledged_at' => $ack]);
+        $workflow = Workflow::create(['organization_id' => $this->organization->id, 'name' => 'Boundary', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => auth()->id()]);
+        $version = Deployment::create(['automation_workflow_id' => $workflow->id, 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'created_by' => auth()->id(), 'created_at' => now()]);
+        foreach ([[null, null], [null, now()], [now(), null]] as $i => [$cleared,$ack]) {
+            Alert::create(['organization_id' => $this->organization->id, 'automation_workflow_id' => $workflow->id, 'automation_deployment_id' => $version->id, 'episode' => $i + 1, 'activated_at' => now(), 'cleared_at' => $cleared, 'acknowledged_at' => $ack]);
         }
-        $this->getJson('/api/v1/organizations/'.$this->organization->uuid.'/workflows/'.$workflow->uuid.'/alert-overview')->assertOk()->assertJsonPath('data.active',2)->assertJsonPath('data.unacknowledged_active',1)->assertJsonPath('data.total',3)->assertJsonPath('data.recent.0.episode',3);
+        $this->getJson('/api/v1/organizations/'.$this->organization->uuid.'/workflows/'.$workflow->uuid.'/alert-overview')->assertOk()->assertJsonPath('data.active', 2)->assertJsonPath('data.unacknowledged_active', 1)->assertJsonPath('data.total', 3)->assertJsonPath('data.recent.0.episode', 3);
     }
 
     private function actAs(string $email): void
@@ -410,7 +413,7 @@ final class DashboardTest extends TestCase
             $this->putJson($path, [...$this->emptyDashboard('Revision '.($revision + 1)), 'revision' => $revision])->assertOk();
         }
         $this->getJson($path.'/revisions')->assertOk()->assertJsonCount(50, 'data')->assertJsonPath('data.0.revision', 55)->assertJsonPath('data.49.revision', 6);
-        $this->assertSame(50, \App\Domain\Dashboards\Models\DashboardRevision::count());
+        $this->assertSame(50, DashboardRevision::count());
         $this->getJson($path.'/revisions/5')->assertNotFound();
         // A stale revision is a conflict even when the chosen snapshot was pruned by the newer save.
         $this->postJson($path.'/revisions/5/restore', ['revision' => 54])->assertConflict();
@@ -477,6 +480,35 @@ final class DashboardTest extends TestCase
         $forged = $this->source();
         $forged['parameter_uuid'] = (string) Str::uuid();
         $this->postJson($this->url, $this->widgetPayload([...$table, 'config' => ['sources' => [$forged]]]))->assertUnprocessable()->assertJsonValidationErrors('widgets.0.config.sources.0');
+    }
+
+    public function test_consumption_panels_accept_counters_with_calendar_settings(): void
+    {
+        $counter = fn (string $unit = 'kWh') => $this->source($unit, 'number', kind: 'counter');
+        $panel = ['id' => 'energy', 'schema_version' => 2, 'type' => 'consumption', 'title' => 'Energy', 'description' => '', 'config' => ['sources' => [$counter(), $counter()], 'bucket' => '1d']];
+        $this->postJson($this->url, $this->widgetPayload($panel))->assertOk()
+            ->assertJsonPath('data.widgets.0.config.bucket', '1d')
+            ->assertJsonPath('data.widgets.0.config.sources.0.unit', 'kWh')
+            ->assertJsonPath('data.widgets.0.config.sources.0.thresholds', []);
+        $this->postJson($this->url, $this->widgetPayload([...$panel, 'config' => ['sources' => [$counter()], 'period' => 'today']]))->assertOk()
+            ->assertJsonPath('data.widgets.0.config.period', 'today');
+        $cases = [
+            'measurement, not counter' => [['sources' => [$this->source('kWh')]], 'widgets.0.config.sources.0'],
+            'text counter' => [['sources' => [[...$this->source('', 'string', kind: 'counter'), 'thresholds' => []]]], 'widgets.0.config.sources.0'],
+            'mixed units' => [['sources' => [$counter(), $counter('L')]], 'widgets.0.config.sources'],
+            'five counters' => [['sources' => array_map(fn () => $counter(), range(1, 5))], 'widgets.0.config.sources'],
+            'unknown bucket' => [['bucket' => '5m'], 'widgets.0.config.bucket'],
+            'unknown period' => [['period' => 'fortnight'], 'widgets.0.config.period'],
+            'bucket with a calendar period' => [['period' => '12mo', 'bucket' => '1h'], 'widgets.0.config.bucket'],
+            'gauge settings' => [['min' => 0], 'widgets.0.config'],
+        ];
+        foreach ($cases as $name => [$config, $error]) {
+            $this->postJson($this->url, $this->widgetPayload([...$panel, 'config' => [...$panel['config'], ...$config]]))
+                ->assertUnprocessable()->assertJsonValidationErrors($error, 'errors', $name);
+        }
+        // Other panel types do not accept consumption settings.
+        $this->postJson($this->url, $this->widgetPayload([...$this->panel($counter(), 'timeseries'), 'config' => ['sources' => [$counter()], 'bucket' => '1d']]))
+            ->assertUnprocessable()->assertJsonValidationErrors('widgets.0.config');
     }
 
     public function test_text_and_device_health_panels_validate_their_settings(): void
