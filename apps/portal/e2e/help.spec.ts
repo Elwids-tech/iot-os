@@ -234,15 +234,16 @@ test("contextual guidance, citations and panel switching preserve unsaved workfl
   await help
     .getByLabel("Ask a usage question")
     .fill("Does simulation send commands?");
-  await page
-    .getByRole("button", { name: "Profile assistant", exact: true })
-    .click();
+  // In the automation editor the shared Assistant button opens the workflow assistant.
+  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Automation assistant" }),
+  ).toBeVisible();
   await expect(help).toBeHidden();
-  await page
-    .getByLabel("Message the profile assistant")
-    .fill("Unsent profile question");
+  await page.keyboard.press("Escape");
   await page
     .locator('[data-slot="page-header"]')
+    .first()
     .getByRole("button", { name: "Help", exact: true })
     .click();
   await expect(help.getByLabel("Ask a usage question")).toHaveValue(
@@ -276,12 +277,10 @@ test("contextual guidance, citations and panel switching preserve unsaved workfl
     "Unsaved bench workflow",
   );
   await help.getByRole("button", { name: "Close Help" }).click();
-  await page
-    .getByRole("button", { name: "Profile assistant", exact: true })
-    .click();
-  await expect(page.getByLabel("Message the profile assistant")).toHaveValue(
-    "Unsent profile question",
-  );
+  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Automation assistant" }),
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 

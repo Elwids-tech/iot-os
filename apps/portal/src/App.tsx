@@ -744,8 +744,8 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
   // workflow assistant inside the automation editor, and Ask Help elsewhere.
   const openAssistant = () => {
     const [, , , page, resource] = location.pathname.split("/")
-    if (page === "automation" && resource) {
-      window.dispatchEvent(new Event("iot-open-automation-assistant"))
+    const claimed = page === "automation" && resource && !window.dispatchEvent(new Event("iot-open-automation-assistant", { cancelable: true }))
+    if (claimed) {
       setActivePanel(null)
     } else if (page === "device-profiles" || (page === "devices" && resource === "onboard")) {
       setAssistantLoaded(true)

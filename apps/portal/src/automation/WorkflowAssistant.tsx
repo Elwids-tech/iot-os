@@ -35,6 +35,18 @@ export function WorkflowAssistant({ org, editorId, workflowId, name, graph, revi
   const key = ["workflow-assistant-session", org, sessionId]
   const [session, setSession] = useState<Session>(() => cache.getQueryData<Session>(key) ?? { text: "", used: [] })
   const [open, setOpen] = useState(false)
+  // The shell's Assistant button asks the editor's assistant to open; claiming the
+  // event tells the shell not to fall back to Ask Help.
+  useEffect(() => {
+    if (selectedExecution) return
+    const claim = (event: Event) => {
+      if (disabled) return
+      event.preventDefault()
+      setOpen(true)
+    }
+    window.addEventListener("iot-open-automation-assistant", claim)
+    return () => window.removeEventListener("iot-open-automation-assistant", claim)
+  }, [disabled, selectedExecution])
   const [autoExplain, setAutoExplain] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>()

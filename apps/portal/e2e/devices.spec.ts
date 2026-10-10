@@ -313,7 +313,7 @@ async function setup(page: Page, options: Options = {}) {
         ],
         meta: { current_page: 1, last_page: 1, total: 2 },
       })
-    if (path.endsWith("/discovery-candidates") && url.searchParams.get("status") === "pending")
+    if (path.endsWith("/discovery-candidates") && url.searchParams.get("available") === "1")
       return json({
         data: [],
         meta: { current_page: 1, last_page: 1, total: options.pending ?? 0 },

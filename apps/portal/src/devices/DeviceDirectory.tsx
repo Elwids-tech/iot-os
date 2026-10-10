@@ -331,7 +331,7 @@ function PendingSources({ org }: { org: string }) {
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
   })
-  const count = pending.data?.meta.total ?? 0
+  const count = pending.data?.meta?.total ?? 0
   if (count <= dismissed) return null
   return (
     <Alert className="mb-4 has-data-[slot=alert-action]:pr-32">
