@@ -374,6 +374,10 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
   }
   const tested = !dirty && adapter?.revision.test_result?.valid === true;
   const pending = adapter?.status === "pending";
+  // A deploy notice describes the request; once the runtime acknowledges it the
+  // status badges say what is running, so the "waiting" text must not linger.
+  const deployNotice = "Deployment requested. Waiting for the tenant runtime.";
+  const shownNotice = notice === deployNotice && adapter?.status && !pending ? "" : notice;
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -420,9 +424,9 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
         </Alert>
       )}
       <RequestError error={error || profiles.error} />
-      {notice && (
+      {shownNotice && (
         <Alert>
-          <AlertDescription>{notice}</AlertDescription>
+          <AlertDescription>{shownNotice}</AlertDescription>
         </Alert>
       )}
       {adapter?.diagnostic && (
@@ -889,7 +893,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                           action: "deploy",
                           request_uuid: crypto.randomUUID(),
                         }),
-                      "Deployment requested. Waiting for the tenant runtime.",
+                      deployNotice,
                     )
                   }
                 >
