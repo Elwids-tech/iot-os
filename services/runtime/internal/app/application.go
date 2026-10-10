@@ -42,6 +42,8 @@ type Application struct {
 	captures          *telemetry.Manager
 	committedFailures atomic.Uint64
 	rulesHealthy      atomic.Bool
+	rulesFault        atomic.Pointer[ruleFault]
+	rulesRetry        chan struct{}
 	fences            sync.Map
 	releaseRuntime    func()
 	ctx               context.Context
@@ -96,7 +98,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 			releaseRuntime()
 		}
 	}()
-	a := &Application{releaseRuntime: releaseRuntime, ctx: ctx, Store: store, Logger: logger, Control: &ControlClient{URL: env("DEVICE_CONTROL_URL", "http://api:8000/api/internal/devices"), Token: token, Client: &http.Client{Timeout: 10 * time.Second}}, Engine: sparkplug.NewEngine(), definitions: map[string]devices.Definition{}, generations: map[string]int{}, latest: map[string]map[string]devices.Reading{}, sessions: map[string]string{}, compatible: map[string]bool{}, reviewRequired: map[string]bool{}, brokers: map[string]*broker{}, pending: map[string]*pendingCommand{}, rebirth: map[string]time.Time{}, rebirthPending: map[string]rebirthRequest{}, presenceAt: map[string]time.Time{}, tlsConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}}
+	a := &Application{releaseRuntime: releaseRuntime, ctx: ctx, Store: store, Logger: logger, Control: &ControlClient{URL: env("DEVICE_CONTROL_URL", "http://api:8000/api/internal/devices"), Token: token, Client: &http.Client{Timeout: 10 * time.Second}}, Engine: sparkplug.NewEngine(), definitions: map[string]devices.Definition{}, generations: map[string]int{}, latest: map[string]map[string]devices.Reading{}, sessions: map[string]string{}, compatible: map[string]bool{}, reviewRequired: map[string]bool{}, brokers: map[string]*broker{}, pending: map[string]*pendingCommand{}, rebirth: map[string]time.Time{}, rebirthPending: map[string]rebirthRequest{}, presenceAt: map[string]time.Time{}, tlsConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}, rulesRetry: make(chan struct{}, 1)}
 	nc, e := nats.Connect(env("NATS_URL", "nats://nats:4222"), nats.Name("iot-devices-runtime"), nats.MaxReconnects(-1))
 	if e != nil {
 		return nil, e
@@ -135,8 +137,8 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 		return nil, e
 	}
 	if e = a.startRuleConsumer(ctx); e != nil {
-		nc.Close()
-		return nil, e
+		// Devices, history and commands stay available; workflows wait for recovery.
+		a.pauseRules(ctx, e)
 	}
 	go a.relay(ctx)
 	go a.relayCommitted(ctx)

@@ -16,8 +16,10 @@ use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 final class DagController
 {
@@ -28,7 +30,19 @@ final class DagController
         $this->auth->authorize($r->user(), $organization, 'view');
         $this->auth->enabled($organization);
 
-        return ['data' => $this->runtime->request('GET', '/internal/dag/node-types')];
+        // The catalog changes only with runtime releases, so the last copy keeps
+        // existing graphs readable while the runtime is unavailable.
+        try {
+            $types = $this->runtime->request('GET', '/internal/dag/node-types');
+        } catch (HttpExceptionInterface $exception) {
+            $cached = Cache::get('automation.dag.node-types');
+            throw_unless($exception->getStatusCode() === 503 && is_array($cached), $exception);
+
+            return ['data' => $cached['data'], 'meta' => ['stale' => true, 'cached_at' => $cached['cached_at']]];
+        }
+        Cache::forever('automation.dag.node-types', ['data' => $types, 'cached_at' => now()->toIso8601String()]);
+
+        return ['data' => $types];
     }
 
     public function validateGraph(Request $r, Organization $organization): array

@@ -40,6 +40,11 @@ groups:
         for: 5m
         labels: {severity: warning}
         annotations: {summary: "Durable processing is falling behind"}
+      - alert: WorkflowEvaluationPaused
+        expr: iot_dag_consumer_healthy == 0
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Automation evaluation is paused; see the workflow checkpoint recovery runbook"}
       - alert: FailedJobs
         expr: iot_failed_jobs > 0
         for: 5m

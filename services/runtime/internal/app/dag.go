@@ -100,7 +100,7 @@ func (a *Application) dagHealth(w http.ResponseWriter, r *http.Request) {
 		pending = consumer.NumPending
 		ackPending = consumer.NumAckPending
 	}
-	respond(w, 200, map[string]any{"executions": executions, "due_timers": due, "state_bytes": stateBytes, "oldest_timer": oldest, "consumer_pending": pending, "pending_acknowledgements": ackPending, "consumer_healthy": err == nil && a.rulesHealthy.Load()})
+	respond(w, 200, map[string]any{"executions": executions, "due_timers": due, "state_bytes": stateBytes, "oldest_timer": oldest, "consumer_pending": pending, "pending_acknowledgements": ackPending, "consumer_healthy": err == nil && a.rulesHealthy.Load(), "consumer_fault": a.rulesFault.Load()})
 }
 
 func (a *Application) dagTimeline(w http.ResponseWriter, r *http.Request) {

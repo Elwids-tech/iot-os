@@ -18,6 +18,7 @@ Route::prefix('v1/organizations/{organization}')->middleware(['auth:sanctum', Re
     Route::get('telemetry-captures/{capture}', [\App\Domain\Devices\Http\Controllers\TelemetryCaptureController::class, 'show'])->whereUuid('capture');
     Route::post('telemetry-captures/{capture}', [\App\Domain\Devices\Http\Controllers\TelemetryCaptureController::class, 'update'])->whereUuid('capture');
     Route::post('telemetry-captures/{capture}/diagnose', [\App\Domain\Devices\Http\Controllers\TelemetryCaptureController::class, 'diagnose'])->whereUuid('capture')->middleware('throttle:6,1');
+    Route::get('runtime-status', \App\Domain\Devices\Http\Controllers\RuntimeStatusController::class);
     Route::get('devices', [DeviceController::class, 'index']);
     Route::post('device-onboardings', [\App\Domain\Devices\Http\Controllers\OnboardingController::class, 'store'])->middleware('throttle:20,1');
     Route::get('devices/{device}/onboarding', [\App\Domain\Devices\Http\Controllers\OnboardingController::class, 'show']);
