@@ -31,7 +31,7 @@
 **Members** and **Roles** let organization administrators invite people, change what they can do, and bundle permissions into roles.
 
 ## Before you start
-You need permission to list, invite or change members, or to edit roles. You can only hand out permissions that this organization allows and that you hold yourself. Platform administrators decide which permissions an organization can use.
+These pages are for organization administrators: **Members** appears when you can invite, change or remove members, and **Roles** when you can create or edit roles. You can only hand out permissions that this organization allows and that you hold yourself. Platform administrators decide which permissions an organization can use.
 
 ## Steps
 1. Open **Members** and choose **Invite people**.

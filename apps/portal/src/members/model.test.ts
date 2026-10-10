@@ -6,6 +6,8 @@ import {
   administrationOf,
   expiryLabel,
   losesOwnAdministration,
+  managesMembers,
+  managesRoles,
   matrixItems,
   noAdministration,
   roleSummary,
@@ -27,6 +29,15 @@ describe("organization administration model", () => {
   it("treats a payload without administration flags as no access", () => {
     expect(administrationOf(undefined)).toEqual(noAdministration)
     expect(administrationOf({ uuid: "o", name: "O", slug: "o", capabilities: { manage_administration: true } } as Organization)).toEqual(noAdministration)
+  })
+
+  it("shows member and role screens only to people who can manage them", () => {
+    const listOnly = { ...noAdministration, members_view: true, roles_view: true }
+    expect(managesMembers(listOnly)).toBe(false)
+    expect(managesRoles(listOnly)).toBe(false)
+    expect(managesMembers({ ...listOnly, invite: true })).toBe(true)
+    expect(managesMembers({ ...noAdministration, invite: true })).toBe(false)
+    expect(managesRoles({ ...listOnly, roles_update: true })).toBe(true)
   })
 
   it("orders Organization Admin, then built-in roles, then custom roles by name", () => {

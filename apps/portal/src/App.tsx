@@ -103,6 +103,7 @@ import { api } from "./lib/api"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
 import { TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
+import { administrationOf, managesMembers, managesRoles } from "./members/model"
 import { RuntimeStatusBanner, RuntimeStatusProvider } from "./components/RuntimeStatus"
 const HomePage = lazy(() => import("./home/HomePage"))
 const AutomationRoutes = lazy(() => import("./automation/Automation"))
@@ -465,9 +466,9 @@ const profilesEditable = (organization: Organization) => {
 }
 // Integrations and the telemetry viewer need device view and manage (I5).
 const devicesAdministered = (organization: Organization) => devicesCan("view")(organization) && devicesCan("manage")(organization)
-// Member and role screens stay hidden unless the payload grants them; older payloads omit the flags.
-const administers = (capability: keyof AdministrationCapabilities) => (organization: Organization) =>
-  organization.capabilities?.administration?.[capability] === true
+// Member and role screens are for people who can manage them; older payloads omit the flags.
+const administers = (manages: (can: AdministrationCapabilities) => boolean) => (organization: Organization) =>
+  manages(administrationOf(organization))
 
 /** Grouped by job: watching the fleet first, building and connecting after. */
 const navigationGroups: { label: string; items: NavigationItem[] }[] = [
@@ -509,8 +510,8 @@ const navigationGroups: { label: string; items: NavigationItem[] }[] = [
   {
     label: "Organization",
     items: [
-      { path: "members", label: "Members", icon: UsersIcon, visible: administers("members_view") },
-      { path: "roles", label: "Roles", icon: ShieldCheckIcon, visible: administers("roles_view") },
+      { path: "members", label: "Members", icon: UsersIcon, visible: administers(managesMembers) },
+      { path: "roles", label: "Roles", icon: ShieldCheckIcon, visible: administers(managesRoles) },
     ],
   },
 ]

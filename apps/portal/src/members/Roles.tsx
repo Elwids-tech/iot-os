@@ -27,13 +27,13 @@ import { LockKeyholeIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { api } from "../lib/api"
 import { useDirtyContext, useUnsaved } from "../lib/unsaved"
 import { Confirm, RequestError, SaveBar, TextField, fieldError } from "../components/forms"
-import { ADMINISTRATOR_LOCKED, matrixItems, plural, roleSummary } from "./model"
+import { ADMINISTRATOR_LOCKED, managesRoles, matrixItems, plural, roleSummary } from "./model"
 import { useAdministration, useRoles } from "./shared"
 
 export default function RoleRoutes() {
   const { org, can, session } = useAdministration()
   if (session.isPending) return <Skeleton className="m-4 h-64 md:m-6" />
-  if (!can.roles_view)
+  if (!managesRoles(can))
     return (
       <>
         <PageHeader title="Roles" />
@@ -41,7 +41,7 @@ export default function RoleRoutes() {
           <EmptyHeader>
             <EmptyTitle>Roles unavailable</EmptyTitle>
             <EmptyDescription>
-              You need permission to view roles in this organization. Ask an organization administrator.
+              Only people who can create or edit roles see this page. Ask an organization administrator.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

@@ -22,6 +22,14 @@ export const noAdministration: AdministrationCapabilities = {
 export const administrationOf = (organization?: Organization): AdministrationCapabilities =>
   organization?.capabilities?.administration ?? noAdministration
 
+/** Members is an administration screen: listing alone (e.g. Moderator) does not show it. */
+export const managesMembers = (can: AdministrationCapabilities) =>
+  can.members_view && (can.invite || can.members_update || can.members_remove)
+
+/** Roles is shown only to people who can create, edit or delete roles. */
+export const managesRoles = (can: AdministrationCapabilities) =>
+  can.roles_view && (can.roles_create || can.roles_update || can.roles_delete)
+
 export const NOT_GRANTABLE = "You can only grant permissions you hold yourself."
 export const ROLE_NOT_ASSIGNABLE = "Includes permissions you don't hold."
 export const ADMINISTRATOR_LOCKED =

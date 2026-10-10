@@ -47,7 +47,7 @@ import {
   TextField,
   fieldError,
 } from "../components/forms"
-import { expiryLabel, losesOwnAdministration, plural, sameSelection } from "./model"
+import { expiryLabel, losesOwnAdministration, managesMembers, plural, sameSelection } from "./model"
 import { RoleBadges, RoleChecklist, useAdministration, useRoles } from "./shared"
 
 type Tab = "members" | "invitations"
@@ -70,7 +70,7 @@ export function MembersPage() {
   }
 
   if (session.isPending) return <Skeleton className="m-4 h-64 md:m-6" />
-  if (!can.members_view)
+  if (!managesMembers(can))
     return (
       <>
         <PageHeader title="Members" />
@@ -78,7 +78,7 @@ export function MembersPage() {
           <EmptyHeader>
             <EmptyTitle>Members unavailable</EmptyTitle>
             <EmptyDescription>
-              You need permission to list members in this organization. Ask an organization administrator.
+              Only people who can invite or manage members see this page. Ask an organization administrator.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

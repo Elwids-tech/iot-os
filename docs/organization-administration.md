@@ -77,8 +77,15 @@ organization. Platform administrators read and replace the ceiling with GET and 
 
 Session payloads add `capabilities.administration` to each organization. It holds
 `members_view`, `invite`, `members_update`, `members_remove`, `roles_view`, `roles_create`,
-`roles_update` and `roles_delete`. The portal shows **Organization › Members** and **Roles**
-only when the matching flag is `true`.
+`roles_update` and `roles_delete`. The portal shows these screens only to people who can
+manage them, so listing alone (the built-in Moderator) does not show them:
+
+- **Organization › Members** needs `members_view` and at least one of `invite`,
+  `members_update` or `members_remove`.
+- **Roles** needs `roles_view` and at least one of `roles_create`, `roles_update` or
+  `roles_delete`.
+
+The API still authorizes each request by permission.
 
 ## Portal
 

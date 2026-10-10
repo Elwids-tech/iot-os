@@ -214,13 +214,21 @@ test("the role editor locks permissions you cannot grant and keeps Organization 
   expect(errors).toEqual([])
 })
 
-test("members and roles stay hidden without administration access", async ({ page }) => {
-  const { errors } = await setup(page, nothing)
-  await page.goto(`${base}/dashboards`)
-  await expect(page.getByRole("link", { name: "Devices" })).toBeVisible()
-  await expect(page.getByRole("link", { name: "Members" })).toHaveCount(0)
-  await expect(page.getByRole("link", { name: "Roles" })).toHaveCount(0)
-  await page.goto(`${base}/members`)
-  await expect(page.getByText("Members unavailable")).toBeVisible()
-  expect(errors).toEqual([])
-})
+for (const [who, administration] of [
+  ["without administration access", nothing],
+  // A Moderator can list members and roles but not manage them.
+  ["for people who can only list members and roles", { ...nothing, members_view: true, roles_view: true }],
+] as const) {
+  test(`members and roles stay hidden ${who}`, async ({ page }) => {
+    const { errors } = await setup(page, administration)
+    await page.goto(`${base}/dashboards`)
+    await expect(page.getByRole("link", { name: "Devices" })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Members" })).toHaveCount(0)
+    await expect(page.getByRole("link", { name: "Roles" })).toHaveCount(0)
+    await page.goto(`${base}/members`)
+    await expect(page.getByText("Members unavailable")).toBeVisible()
+    await page.goto(`${base}/roles`)
+    await expect(page.getByText("Roles unavailable")).toBeVisible()
+    expect(errors).toEqual([])
+  })
+}
