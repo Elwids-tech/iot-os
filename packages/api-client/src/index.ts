@@ -24,6 +24,7 @@ export * from "./alerts"
 export * from "./notifications"
 export * from "./adapters"
 export * from "./geospatial"
+export * from "./overview"
 
 export type Organization = {
   uuid: string
@@ -34,6 +35,7 @@ export type Organization = {
     manage_administration: boolean
     device_profiles?: DeviceProfileCapabilities
     devices?: DeviceCapabilities
+    features?: { device_adapters: boolean }
   }
 }
 
@@ -504,6 +506,12 @@ export class ApiClient {
     })
   }
 
+  runtimeStatus(org: string) {
+    return this.data<import("./overview").RuntimeStatus>(`/api/v1/organizations/${encodeURIComponent(org)}/runtime-status`)
+  }
+  overview(org: string) {
+    return this.data<import("./overview").OrganizationOverview>(`/api/v1/organizations/${encodeURIComponent(org)}/overview`)
+  }
   async me(): Promise<AuthenticatedUser> {
     return this.request<ApiResponse<AuthenticatedUser>>("/api/v1/me").then(
       (response) => response.data,

@@ -54,14 +54,15 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
-  SidebarSeparator,
   useSidebar,
 } from "@iot-os/ui/components/sidebar"
 import { TooltipProvider } from "@iot-os/ui/components/tooltip"
@@ -78,23 +79,30 @@ import {
   BookOpenIcon,
   ActivityIcon,
   BellIcon,
+  BlocksIcon,
+  BoxesIcon,
+  CableIcon,
   ChevronRightIcon,
   ChevronsUpDownIcon,
   CpuIcon,
-  LayersIcon,
+  HouseIcon,
+  MailIcon,
   MapPinnedIcon,
   LayoutGridIcon,
   LogOutIcon,
-  MessageSquareIcon,
-  PlugIcon,
   RouterIcon,
   ScanSearchIcon,
   ShieldIcon,
+  SparklesIcon,
+  WorkflowIcon,
+  type LucideIcon,
 } from "lucide-react"
 import { api } from "./lib/api"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
 import { TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
+import { RuntimeStatusBanner, RuntimeStatusProvider } from "./components/RuntimeStatus"
+const HomePage = lazy(() => import("./home/HomePage"))
 const AutomationRoutes = lazy(() => import("./automation/Automation"))
 const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
 const GeofenceRoutes = lazy(() => import("./geospatial/Geofences"))
@@ -233,6 +241,7 @@ function Session() {
         <Route element={<PortalShell user={user} />}>
           <Route path="notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
           <Route path="organizations/:organizationUuid/notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
+          <Route path="organizations/:organizationUuid/home" element={<HomeRoute organizations={user.organizations} />} />
           <Route path="organizations/:organizationUuid/device-adapters/*" element={<Suspense fallback={<PageFallback />}><AdapterRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/devices/*" element={<Suspense fallback={<PageFallback />}><DeviceRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/integrations/*" element={<Suspense fallback={<PageFallback />}><IntegrationRoutes /></Suspense>} />
@@ -257,7 +266,7 @@ function Session() {
           />
           <Route
             path="*"
-            element={<OrganizationLanding organizations={user.organizations} />}
+            element={<OrganizationLanding userId={user.id} organizations={user.organizations} />}
           />
         </Route>
       </Routes>
@@ -309,18 +318,37 @@ function useSignedOut() {
   }
 }
 
-const sectionPath = (uuid: string, section = "dashboards") =>
+const sectionPath = (uuid: string, section = "home") =>
   `/organizations/${encodeURIComponent(uuid)}/${section}`
 
+/** Remembers each user's last organization across sign-outs so the chooser is only needed once. */
+const lastOrganizationKey = (userId: number) => `iot-os:last-organization:${userId}`
+function rememberedOrganization(userId: number): string | null {
+  try {
+    return window.localStorage.getItem(lastOrganizationKey(userId))
+  } catch {
+    return null
+  }
+}
+function rememberOrganization(userId: number, uuid: string) {
+  try {
+    window.localStorage.setItem(lastOrganizationKey(userId), uuid)
+  } catch {
+    // Storage can be unavailable (private windows); the chooser still works.
+  }
+}
+
 function OrganizationLanding({
+  userId,
   organizations,
 }: {
+  userId: number
   organizations: Organization[]
 }) {
+  const preferred = api.getSelectedOrganizationUuid() ?? rememberedOrganization(userId)
   const selected =
-    organizations.find(
-      (item) => item.uuid === api.getSelectedOrganizationUuid(),
-    ) ?? (organizations.length === 1 ? organizations[0] : null)
+    organizations.find((item) => item.uuid === preferred) ??
+    (organizations.length === 1 ? organizations[0] : null)
   if (selected) return <Navigate to={sectionPath(selected.uuid)} replace />
   return (
     <>
@@ -404,30 +432,71 @@ const initials = (name: string, count = 2) => {
   ).toUpperCase()
 }
 
+function HomeRoute({ organizations }: { organizations: Organization[] }) {
+  const { organizationUuid } = useParams()
+  const org = organizations.find((item) => item.uuid === organizationUuid)
+  return org ? <Suspense fallback={<PageFallback />}><HomePage organizationName={org.name} /></Suspense> : null
+}
+
 function DashboardRoute() {
   const { organizationUuid, dashboardUuid } = useParams()
   return organizationUuid ? <Suspense fallback={<PageFallback />}><DashboardPage org={organizationUuid} id={dashboardUuid} /></Suspense> : null
 }
 
-const navigationGroups = [
-  [
-    { path: "dashboards", label: "Dashboards", icon: LayoutGridIcon },
-    { path: "alerts", label: "Alerts", icon: BellIcon },
-    { path: "notifications", label: "Notification center", icon: BellIcon },
-  ],
-  [
-    { path: "devices", label: "Devices", icon: CpuIcon },
-    { path: "device-adapters", label: "Device adapters", icon: PlugIcon },
-    { path: "gateways", label: "Gateways", icon: RouterIcon },
-    { path: "telemetry", label: "Telemetry viewer", icon: ActivityIcon },
-    { path: "geofences", label: "Geofences", icon: MapPinnedIcon },
-    { path: "discovery", label: "Discovery", icon: ScanSearchIcon },
-  ],
-  [
-    { path: "device-profiles", label: "Device profiles", icon: LayersIcon },
-    { path: "integrations", label: "Integrations", icon: PlugIcon },
-    { path: "automation", label: "Automations", icon: LayersIcon },
-  ],
+type NavigationItem = {
+  path: string
+  label: string
+  icon: LucideIcon
+  /** Older payloads without capabilities keep the link; the API still authorizes every request. */
+  visible?: (organization: Organization) => boolean
+}
+
+const devicesCan = (permission: "view" | "manage") => (organization: Organization) =>
+  organization.capabilities?.devices?.[permission] !== false
+const profilesEditable = (organization: Organization) => {
+  const profiles = organization.capabilities?.device_profiles
+  return !profiles || profiles.create || profiles.update
+}
+// Integrations and the telemetry viewer need device view and manage (I5).
+const devicesAdministered = (organization: Organization) => devicesCan("view")(organization) && devicesCan("manage")(organization)
+
+/** Grouped by job: watching the fleet first, building and connecting after. */
+const navigationGroups: { label: string; items: NavigationItem[] }[] = [
+  {
+    label: "Monitor",
+    items: [
+      { path: "home", label: "Home", icon: HouseIcon, visible: devicesCan("view") },
+      { path: "dashboards", label: "Dashboards", icon: LayoutGridIcon },
+      { path: "alerts", label: "Alerts", icon: BellIcon, visible: devicesCan("view") },
+    ],
+  },
+  {
+    label: "Fleet",
+    items: [
+      { path: "devices", label: "Devices", icon: CpuIcon, visible: devicesCan("view") },
+      { path: "gateways", label: "Gateways", icon: RouterIcon, visible: devicesCan("view") },
+      { path: "geofences", label: "Geofences", icon: MapPinnedIcon },
+    ],
+  },
+  {
+    label: "Build",
+    items: [
+      { path: "automation", label: "Automations", icon: WorkflowIcon },
+      { path: "device-profiles", label: "Device profiles", icon: BoxesIcon, visible: profilesEditable },
+    ],
+  },
+  {
+    label: "Connect",
+    items: [
+      { path: "discovery", label: "Discovery", icon: ScanSearchIcon, visible: devicesCan("manage") },
+      { path: "device-adapters", label: "Device adapters", icon: CableIcon, visible: (organization) => organization.capabilities?.features?.device_adapters === true && devicesCan("manage")(organization) },
+      { path: "integrations", label: "Integrations", icon: BlocksIcon, visible: devicesAdministered },
+    ],
+  },
+  {
+    label: "Diagnostics",
+    items: [{ path: "telemetry", label: "Telemetry viewer", icon: ActivityIcon, visible: devicesAdministered }],
+  },
 ]
 
 const adminUrl =
@@ -456,21 +525,17 @@ function PortalSidebar({
   const location = useLocation()
   const { setOpenMobile } = useSidebar()
   const closeMobile = () => setOpenMobile(false)
-  const devices = organization?.capabilities?.devices
-  const alerts = useQuery({
-    queryKey: ["alerts", organization?.uuid, "unacknowledged-count"],
-    queryFn: () =>
-      api.alerts(
-        organization?.uuid ?? "",
-        "condition=active&acknowledged=0&per_page=1",
-      ),
-    enabled: Boolean(organization) && devices?.view !== false,
+  // Shared with the Home page so badges and the summary come from one request.
+  const overview = useQuery({
+    queryKey: ["overview", organization?.uuid],
+    queryFn: () => api.overview(organization?.uuid ?? ""),
+    enabled: Boolean(organization) && organization?.capabilities?.devices?.view !== false,
     refetchInterval: 30000,
-    select: (page) => page.meta?.total ?? 0,
   })
-  // Integrations need device view and manage (I5); older payloads without capabilities keep the link.
-  const hidden = (path: string) =>
-    ["integrations", "telemetry"].includes(path) && devices !== undefined && !(devices.view && devices.manage)
+  const badges: Record<string, [number | undefined, string]> = {
+    alerts: [overview.data?.alerts?.active_unacknowledged, "active alerts not acknowledged"],
+    discovery: [overview.data?.discovery?.pending, "data sources waiting to be added"],
+  }
 
   return (
     <Sidebar collapsible="icon">
@@ -524,50 +589,47 @@ function PortalSidebar({
       <SidebarContent>
         {organization && (
           <nav aria-label="Workspace">
-            <SidebarGroup>
-              <SidebarGroupContent>
-                {navigationGroups.map((group, index) => (
-                  <div key={group[0].path}>
-                    {index > 0 && <SidebarSeparator className="mx-0 my-2" />}
+            {navigationGroups.map((group) => {
+              const items = group.items.filter((item) => item.visible?.(organization) ?? true)
+              if (!items.length) return null
+              return (
+                <SidebarGroup key={group.label}>
+                  <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+                  <SidebarGroupContent>
                     <SidebarMenu>
-                      {group
-                        .filter((item) => !hidden(item.path))
-                        .map((item) => {
-                          const to = sectionPath(organization.uuid, item.path)
-                          const count =
-                            item.path === "alerts" ? alerts.data : undefined
-                          return (
-                            <SidebarMenuItem key={item.path}>
-                              <SidebarMenuButton
-                                asChild
-                                tooltip={item.label}
-                                isActive={
-                                  location.pathname === to ||
-                                  location.pathname.startsWith(`${to}/`)
-                                }
-                                className="text-muted-foreground hover:text-foreground data-active:text-foreground"
-                              >
-                                <NavLink to={to} onClick={closeMobile}>
-                                  <item.icon />
-                                  <span className="group-data-[collapsible=icon]:sr-only">
-                                    {item.label}
-                                  </span>
-                                  {count ? (
-                                    <span className="ml-auto font-mono text-xs group-data-[collapsible=icon]:sr-only">
-                                      {count}
-                                      <span className="sr-only"> unacknowledged</span>
-                                    </span>
-                                  ) : null}
-                                </NavLink>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          )
-                        })}
+                      {items.map((item) => {
+                        const to = sectionPath(organization.uuid, item.path)
+                        const [count, countLabel] = badges[item.path] ?? []
+                        return (
+                          <SidebarMenuItem key={item.path}>
+                            <SidebarMenuButton
+                              asChild
+                              tooltip={item.label}
+                              isActive={
+                                location.pathname === to ||
+                                location.pathname.startsWith(`${to}/`)
+                              }
+                              className="text-muted-foreground hover:text-foreground data-active:text-foreground"
+                            >
+                              <NavLink to={to} onClick={closeMobile}>
+                                <item.icon />
+                                <span className="group-data-[collapsible=icon]:sr-only">{item.label}</span>
+                              </NavLink>
+                            </SidebarMenuButton>
+                            {count ? (
+                              <SidebarMenuBadge className="font-mono">
+                                {count}
+                                <span className="sr-only"> {countLabel}</span>
+                              </SidebarMenuBadge>
+                            ) : null}
+                          </SidebarMenuItem>
+                        )
+                      })}
                     </SidebarMenu>
-                  </div>
-                ))}
-              </SidebarGroupContent>
-            </SidebarGroup>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              )
+            })}
           </nav>
         )}
       </SidebarContent>
@@ -581,7 +643,7 @@ function PortalSidebar({
           {organization && (
             <SidebarMenuItem>
               <SidebarMenuButton
-                tooltip="Profile assistant"
+                tooltip="Assistant"
                 aria-expanded={assistantOpen}
                 onClick={() => {
                   onAssistant()
@@ -589,9 +651,9 @@ function PortalSidebar({
                 }}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <MessageSquareIcon />
+                <SparklesIcon />
                 <span className="group-data-[collapsible=icon]:sr-only">
-                  Profile assistant
+                  Assistant
                 </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -617,7 +679,7 @@ function PortalSidebar({
                 <AppearanceMenuItems />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to="/notifications"><BellIcon />Notification center</Link>
+                  <Link to={organization ? sectionPath(organization.uuid, "alerts/preferences") : "/notifications"}><MailIcon />Email preferences</Link>
                 </DropdownMenuItem>
                 {user.capabilities.platform_administration && (
                   <DropdownMenuItem asChild>
@@ -657,6 +719,7 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
   const [helpLoaded, setHelpLoaded] = useState(false)
   const [helpOverride, setHelpOverride] = useState<string>()
   const [assistantLoaded, setAssistantLoaded] = useState(false)
+  const [askRequest, setAskRequest] = useState(0)
   const [logoutError, setLogoutError] = useState<unknown>(null)
   async function logout() {
     try {
@@ -670,31 +733,48 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
     await signedOut()
   }
   useEffect(() => {
-    if (org) api.setSelectedOrganizationUuid(org.uuid)
-  }, [org?.uuid])
+    if (!org) return
+    api.setSelectedOrganizationUuid(org.uuid)
+    rememberOrganization(user.id, org.uuid)
+  }, [org?.uuid, user.id])
   // "/organizations/{org}/{section}/..." keeps its section when switching organization (N1).
-  const section = location.pathname.split("/")[3] || "dashboards"
+  const section = location.pathname.split("/")[3] || "home"
+  const openHelp = () => { setHelpLoaded(true); setActivePanel(current => current === "help" ? null : "help") }
+  // One Assistant entry point: profile authoring where profiles are built, the
+  // workflow assistant inside the automation editor, and Ask Help elsewhere.
+  const openAssistant = () => {
+    const [, , , page, resource] = location.pathname.split("/")
+    if (page === "automation" && resource) {
+      window.dispatchEvent(new Event("iot-open-automation-assistant"))
+      setActivePanel(null)
+    } else if (page === "device-profiles" || (page === "devices" && resource === "onboard")) {
+      setAssistantLoaded(true)
+      setActivePanel(current => current === "assistant" ? null : "assistant")
+    } else {
+      setHelpLoaded(true)
+      setAskRequest(Date.now())
+      setActivePanel("help")
+    }
+  }
   const helpContext = helpOverride ?? helpContextForPath(location.pathname)
   const helpIntegration = useMemo(() => org ? {
-    trigger: <Button variant="ghost" size="sm" aria-expanded={helpOpen} onClick={() => { setHelpLoaded(true); setActivePanel(current => current === "help" ? null : "help") }}><BookOpenIcon data-icon="inline-start" />Help</Button>,
+    trigger: <Button variant="ghost" size="sm" aria-expanded={helpOpen} onClick={openHelp}><BookOpenIcon data-icon="inline-start" />Help</Button>,
     onContextChange: setHelpOverride,
   } : null, [org?.uuid, helpOpen])
 
   return (
     <TooltipProvider>
       <PageHelpContext.Provider value={helpIntegration}>
+      <RuntimeStatusProvider org={org?.uuid}>
       <SidebarProvider>
         <PortalSidebar
           user={user}
           organization={org}
           onOrganization={(uuid) => navigate(sectionPath(uuid, section))}
           helpOpen={helpOpen}
-          onHelp={() => { setHelpLoaded(true); setActivePanel(current => current === "help" ? null : "help") }}
+          onHelp={openHelp}
           assistantOpen={assistantOpen}
-          onAssistant={() => {
-            setAssistantLoaded(true)
-            setActivePanel(current => current === "assistant" ? null : "assistant")
-          }}
+          onAssistant={openAssistant}
           onSignOut={() =>
             dirty ? setLogoutConfirm(true) : void logout().catch(() => {})
           }
@@ -714,7 +794,10 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
           {params.organizationUuid && !org ? (
             <WorkspaceUnavailable organizations={user.organizations} />
           ) : (
-            <Outlet />
+            <>
+              {org && <RuntimeStatusBanner />}
+              <Outlet />
+            </>
           )}
         </SidebarInset>
         {org && assistantLoaded && (
@@ -730,7 +813,7 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
           </Suspense>
         )}
         {org && helpLoaded && <Suspense fallback={null}>
-          <HelpPanel key={org.uuid} org={org.uuid} organizationName={org.name} context={helpContext} open={helpOpen} onClose={() => setActivePanel(null)} />
+          <HelpPanel key={org.uuid} org={org.uuid} organizationName={org.name} context={helpContext} open={helpOpen} onClose={() => setActivePanel(null)} askRequest={askRequest} />
         </Suspense>}
         <Confirm
           open={logoutConfirm}
@@ -741,6 +824,7 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
           onConfirm={logout}
         />
       </SidebarProvider>
+      </RuntimeStatusProvider>
       </PageHelpContext.Provider>
     </TooltipProvider>
   )

@@ -17,7 +17,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@iot-os/ui/components/empty"
-import { RequestError } from "../components/forms"
+import { isRuntimeUnavailable, RequestError } from "../components/forms"
 import {
   bandFor,
   NEUTRAL,
@@ -199,8 +199,19 @@ export function StatusPanel({
       </Table>
       </div>,
     )
+  // One notice per panel for a runtime outage instead of one per parameter cell.
+  const outage = rows.find((row) => isRuntimeUnavailable(row.query?.error))?.query?.error
   return frame(
     <div className="overflow-hidden">
+      {outage ? (
+        <div className="border-b px-2.5 py-2">
+          <RequestError error={outage}>
+            <Button variant="outline" size="sm" onClick={() => rows.forEach((row) => row.query?.refetch())}>
+              Retry
+            </Button>
+          </RequestError>
+        </div>
+      ) : null}
       <ul
         ref={cells}
         className="-mr-px -mb-px grid"
@@ -245,7 +256,7 @@ export function StatusPanel({
                   ) : null}
                 </p>
               )}
-              {query?.error && (
+              {query?.error && !isRuntimeUnavailable(query.error) && (
                 <RequestError error={query.error}>
                   <Button
                     variant="outline"
@@ -283,7 +294,7 @@ export function StatusPanel({
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Waiting for a reading
+                  {isRuntimeUnavailable(query?.error) ? "No live value" : "Waiting for a reading"}
                 </p>
               )}
             </li>
