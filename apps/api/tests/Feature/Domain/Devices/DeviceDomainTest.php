@@ -10,10 +10,12 @@ use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\DeviceProfiles\Models\ProfileParameter;
 use App\Domain\DeviceProfiles\Models\TransportBinding;
+use App\Domain\DeviceProfiles\Services\ProfileConfigurationValidator;
 use App\Domain\DeviceProfiles\Support\CanonicalJson;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Devices\Models\DiscoveryCandidate;
+use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Devices\Permissions\DevicePermission;
@@ -324,6 +326,64 @@ final class DeviceDomainTest extends TestCase
         $this->assertGreaterThanOrEqual(5, $this->getJson($this->prefix.'/devices')->json('meta.total'));
     }
 
+    public function test_sites_give_devices_a_reporting_time_zone_with_tags_and_attributes(): void
+    {
+        $vancouver = $this->postJson($this->prefix.'/sites', ['name' => 'Vancouver plant', 'timezone' => 'America/Vancouver', 'latitude' => 49.28, 'longitude' => -123.12])
+            ->assertCreated()->assertJsonPath('data.timezone', 'America/Vancouver')->json('data.uuid');
+        $this->postJson($this->prefix.'/sites', ['name' => 'Vancouver plant', 'timezone' => 'America/Toronto'])->assertUnprocessable()->assertJsonValidationErrors('name');
+        $this->postJson($this->prefix.'/sites', ['name' => 'Nowhere', 'timezone' => 'Mars/Olympus'])->assertUnprocessable()->assertJsonValidationErrors('timezone');
+        $this->postJson($this->prefix.'/sites', ['name' => 'Half', 'timezone' => 'UTC', 'latitude' => 1])->assertUnprocessable()->assertJsonValidationErrors('longitude');
+
+        $device = $this->registered('site-meter');
+        $this->patchJson($this->prefix.'/devices/'.$device->uuid, ['name' => 'Site meter', 'code' => 'site-meter', 'draft_revision' => $device->draft_revision,
+            'site_uuid' => $vancouver, 'tags' => [' Line 2 ', 'line 2', 'Energy'], 'attributes' => ['line' => '2', 'rated_kw' => 80, 'critical' => true]])
+            ->assertOk()->assertJsonPath('data.site.timezone', 'America/Vancouver')->assertJsonPath('data.tags', ['Line 2', 'Energy'])
+            ->assertJsonPath('data.attributes.rated_kw', 80);
+        $device->refresh();
+        $this->patchJson($this->prefix.'/devices/'.$device->uuid, ['name' => 'Site meter', 'code' => 'site-meter', 'draft_revision' => $device->draft_revision, 'attributes' => ['Bad Key' => 'x']])
+            ->assertUnprocessable()->assertJsonValidationErrors('attributes');
+        $this->patchJson($this->prefix.'/devices/'.$device->uuid, ['name' => 'Site meter', 'code' => 'site-meter', 'draft_revision' => $device->draft_revision, 'attributes' => ['nested' => ['a' => 1]]])
+            ->assertUnprocessable()->assertJsonValidationErrors('attributes.nested');
+        $foreign = Site::create(['organization_id' => Organization::where('slug', 'northstar-utilities')->firstOrFail()->id, 'name' => 'Elsewhere', 'timezone' => 'UTC']);
+        $this->patchJson($this->prefix.'/devices/'.$device->uuid, ['name' => 'Site meter', 'code' => 'site-meter', 'draft_revision' => $device->draft_revision, 'site_uuid' => $foreign->uuid])
+            ->assertUnprocessable()->assertJsonValidationErrors('site_uuid');
+        $this->patchJson($this->prefix.'/sites/'.$foreign->uuid, ['name' => 'Taken'])->assertNotFound();
+
+        $codes = fn (string $query) => collect($this->getJson($this->prefix.'/devices?per_page=100&'.$query)->assertOk()->json('data'))->pluck('code')->all();
+        $this->assertSame(['site-meter'], $codes('site_uuid='.$vancouver));
+        $this->assertSame(['site-meter'], $codes('tag=Energy'));
+        $this->getJson($this->prefix.'/sites')->assertOk()->assertJsonPath('data.0.devices_count', 1);
+        $this->assertSame('America/Vancouver', $device->fresh()->reportingTimezone());
+
+        // Devices without a site use the organization's zone, then UTC.
+        $this->putJson($this->prefix.'/settings/timezone', ['timezone' => 'America/Toronto'])->assertOk()->assertJsonPath('data.timezone', 'America/Toronto');
+        $this->deleteJson($this->prefix.'/sites/'.$vancouver)->assertNoContent();
+        $this->assertNull($device->fresh()->site_id);
+        $this->assertSame('America/Toronto', $device->fresh()->reportingTimezone());
+        $this->putJson($this->prefix.'/settings/timezone', ['timezone' => null])->assertOk();
+        $this->assertSame('UTC', $device->fresh()->reportingTimezone());
+
+        $this->actingAs(User::where('email', 'shared.operator@example.test')->firstOrFail(), 'sanctum');
+        Role::where('organization_id', $this->organization->id)->each(fn ($role) => $role->revokePermissionTo(DevicePermission::MANAGE->value));
+        $this->postJson($this->prefix.'/sites', ['name' => 'Denied', 'timezone' => 'UTC'])->assertForbidden();
+        $this->putJson($this->prefix.'/settings/timezone', ['timezone' => 'UTC'])->assertForbidden();
+    }
+
+    public function test_devices_can_be_listed_by_profile(): void
+    {
+        $light = $this->active($this->configured('rgb-light', 'by-profile-light'));
+        $meter = $this->active($this->configured('three-phase-energy-meter', 'by-profile-meter'));
+        $this->registered('by-profile-unconfigured');
+        $profile = $meter->fresh()->appliedConfiguration->artifact->profile->uuid;
+
+        $codes = collect($this->getJson($this->prefix.'/devices?per_page=100&profile_uuid='.$profile)->assertOk()->json('data'))->pluck('code');
+        $this->assertContains('by-profile-meter', $codes);
+        $this->assertNotContains('by-profile-light', $codes);
+        $this->assertNotContains('by-profile-unconfigured', $codes);
+        $this->getJson($this->prefix.'/devices?profile_uuid=not-a-uuid')->assertUnprocessable();
+        $this->assertNotNull($light);
+    }
+
     public function test_history_record_and_state_endpoints_proxy_bounded_contracts(): void
     {
         $device = $this->active($this->configured('rgb-light'));
@@ -363,17 +423,62 @@ final class DeviceDomainTest extends TestCase
             && str_contains($request->url(), 'retention_days='));
     }
 
+    public function test_counter_increase_proxies_calendar_buckets_for_counters_only(): void
+    {
+        $device = $this->active($this->configured('three-phase-energy-meter'));
+        $energy = '20000000-0000-4000-8000-000000000004';
+        Http::swap(new Factory);
+        Http::fake([
+            'http://runtime:8081/internal/measurements/history*' => Http::response(['data' => []]),
+            'http://runtime:8081/internal/measurements/increase*' => Http::response([
+                'data' => ['bucket' => '1d', 'timezone' => 'America/Vancouver', 'unit' => 'kWh', 'points' => [['at' => '2026-09-12T00:00:00-07:00', 'increase' => 12.5, 'samples' => 96, 'resets' => 0, 'partial' => false]]],
+            ]),
+        ]);
+        $query = fn (array $values) => $this->prefix.'/devices/'.$device->uuid.'/measurements/increase?'.http_build_query([
+            'parameter_uuid' => $energy, 'from' => '2026-09-12T07:00:00Z', 'to' => '2026-09-19T07:00:00Z', 'bucket' => '1d', 'timezone' => 'America/Vancouver', ...$values,
+        ]);
+
+        $this->getJson($query([]))->assertOk()->assertJsonPath('data.points.0.increase', 12.5);
+        // Without a time zone, buckets follow the device's site, then its organization.
+        $this->organization->forceFill(['timezone' => 'America/Halifax'])->save();
+        $this->getJson($this->prefix.'/devices/'.$device->uuid.'/measurements/increase?'.http_build_query(['parameter_uuid' => $energy, 'from' => '2026-09-12T07:00:00Z', 'to' => '2026-09-19T07:00:00Z', 'bucket' => '1d']))->assertOk();
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/internal/measurements/increase') && str_contains($request->url(), 'timezone=America%2FHalifax'));
+        $this->getJson($this->prefix.'/devices/'.$device->uuid.'/measurements/history?'.http_build_query(['parameter_uuid' => $energy, 'from' => '2026-09-12T07:00:00Z', 'to' => '2026-09-13T07:00:00Z']))->assertOk();
+        // Portal charts opt into observed time and joined configuration revisions.
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/internal/measurements/history')
+            && str_contains($request->url(), 'time_basis=observed') && str_contains($request->url(), 'merge_configurations=1'));
+        // Voltage is a measurement, not a counter.
+        $this->getJson($query(['parameter_uuid' => '20000000-0000-4000-8000-000000000001']))->assertUnprocessable()->assertJsonValidationErrors('parameter_uuid');
+        $this->getJson($query(['bucket' => '2d']))->assertUnprocessable()->assertJsonValidationErrors('bucket');
+        $this->getJson($query(['timezone' => 'Mars/Olympus']))->assertUnprocessable()->assertJsonValidationErrors('timezone');
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/internal/measurements/increase')
+            && str_contains($request->url(), 'timezone=America%2FVancouver')
+            && str_contains($request->url(), 'bucket=1d')
+            && str_contains($request->url(), 'retention_days=400')
+            && ! str_contains($request->url(), 'rollover_at=1'));
+    }
+
+    public function test_counter_settings_accept_reset_policies_and_rollover_only(): void
+    {
+        $validator = app(ProfileConfigurationValidator::class);
+        $this->assertSame([], $validator->errors(['counter_config' => ['monotonic' => true, 'reset_behavior' => 'diagnose', 'rollover_at' => 99999999]]));
+        $this->assertSame([], $validator->errors(['counter_config' => ['reset_behavior' => 'new_segment']]));
+        $this->assertArrayHasKey('counter_config.reset_behavior', $validator->errors(['counter_config' => ['reset_behavior' => 'ignore']]));
+        $this->assertArrayHasKey('counter_config.rollover_at', $validator->errors(['counter_config' => ['rollover_at' => 0]]));
+    }
+
     public function test_retention_overrides_persist_require_reduction_confirmation_and_are_platform_only(): void
     {
         $global = '/api/v1/admin/settings/telemetry-retention';
         $org = '/api/v1/admin/organizations/'.$this->organization->uuid.'/settings/telemetry-retention';
-        $this->getJson($global)->assertOk()->assertJsonPath('data.days', 90)->assertJsonPath('data.source', 'default');
-        $this->putJson($global, ['days' => 120, 'revision' => 0])->assertOk()->assertJsonPath('data.days', 120);
+        $this->getJson($global)->assertOk()->assertJsonPath('data.days', 400)->assertJsonPath('data.source', 'default');
+        $this->putJson($global, ['days' => 500, 'revision' => 0])->assertOk()->assertJsonPath('data.days', 500);
         $this->putJson($org, ['days' => 30, 'revision' => 0])->assertUnprocessable();
         $this->putJson($org, ['days' => 30, 'revision' => 0, 'confirmed_reduction' => true])->assertOk()->assertJsonPath('data.source', 'organization');
         $this->putJson($global, ['days' => 180, 'revision' => 0])->assertConflict();
         $this->getJson($org)->assertJsonPath('data.days', 30);
-        $this->putJson($org, ['days' => null, 'revision' => 1])->assertOk()->assertJsonPath('data.days', 120)->assertJsonPath('data.source', 'platform');
+        $this->putJson($org, ['days' => null, 'revision' => 1])->assertOk()->assertJsonPath('data.days', 500)->assertJsonPath('data.source', 'platform');
         $this->actingAs(User::where('email', 'shared.operator@example.test')->firstOrFail(), 'sanctum');
         $this->putJson($global, ['days' => 999, 'revision' => 1])->assertForbidden();
     }

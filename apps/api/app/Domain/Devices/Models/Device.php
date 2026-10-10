@@ -15,7 +15,18 @@ final class Device extends DeviceModel
 
     protected function casts(): array
     {
-        return ['state_revision' => 'integer', 'draft' => 'array', 'draft_revision' => 'integer', 'deployment_generation' => 'integer', 'last_seen_at' => 'immutable_datetime', 'runtime_seen_at' => 'immutable_datetime'];
+        return ['state_revision' => 'integer', 'draft' => 'array', 'draft_revision' => 'integer', 'deployment_generation' => 'integer', 'last_seen_at' => 'immutable_datetime', 'runtime_seen_at' => 'immutable_datetime', 'tags' => 'array', 'custom_attributes' => 'array'];
+    }
+
+    public function site(): BelongsTo
+    {
+        return $this->belongsTo(Site::class);
+    }
+
+    /** The IANA zone for calendar periods: the site's, else the organization's, else UTC. */
+    public function reportingTimezone(): string
+    {
+        return $this->site?->timezone ?? $this->organization?->timezone ?? 'UTC';
     }
 
     public function organization(): BelongsTo

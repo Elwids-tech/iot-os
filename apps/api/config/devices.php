@@ -12,5 +12,7 @@ return [
     'emqx_url' => env('DEVICE_EMQX_API_URL', 'http://emqx:18083/api/v5'),
     'emqx_key' => env('DEVICE_EMQX_API_KEY'),
     'emqx_secret' => env('DEVICE_EMQX_API_SECRET'),
-    'default_retention_days' => 90,
+    'default_retention_days' => 400,
+    // Shared JSON contracts: the repository checkout locally, /var/contracts in images.
+    'contracts_path' => env('IOT_CONTRACTS_PATH', is_dir(base_path('../../contracts')) ? base_path('../../contracts') : '/var/contracts'),
 ];

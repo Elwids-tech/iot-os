@@ -20,6 +20,7 @@ use App\Domain\DeviceProfiles\Services\CalculationAuthoring;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthoring;
 use App\Domain\DeviceProfiles\Services\DeviceProfileValidator;
 use App\Domain\DeviceProfiles\Services\ProfileConfigurationValidator;
+use App\Domain\DeviceProfiles\Services\PublishedParameters;
 use App\Domain\DeviceProfiles\Support\CanonicalJson;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -209,6 +210,7 @@ final class ProfileProposalService
                     $values['parameter_group_id'] = $values['parameter_group_uuid'] === null ? null : $profile->parameterGroups()->where('uuid', $values['parameter_group_uuid'])->firstOrFail()->id;
                     unset($values['parameter_group_uuid']);
                 }
+                $values = app(PublishedParameters::class)->guard($profile, $parameter, $values);
                 $parameter ? $parameter->update($values) : $profile->parameters()->create($values);
             } elseif ($section === 'groups') {
                 $group = $uuid ? $profile->parameterGroups()->where('uuid', $uuid)->firstOrFail() : null;

@@ -178,6 +178,7 @@ export default function HistorySection({
                 { value: "168", label: "Last 7 days" },
                 { value: "720", label: "Last 30 days" },
                 { value: "2160", label: "Last 90 days" },
+                { value: "8760", label: "Last 12 months" },
                 { value: "custom", label: "Custom range" },
               ]}
             />
@@ -268,6 +269,8 @@ export default function HistorySection({
                 <p className="text-sm text-muted-foreground">
                   {selected?.label} · {series.unit ?? "No unit"} ·{" "}
                   {meta.configurationLabel} · {meta.profileLabel}
+                  {(series.configurations?.length ?? 0) > 1 &&
+                    ` · joins ${series.configurations!.length} configurations`}
                 </p>
                 <ChartContainer
                   className="h-72 w-full"

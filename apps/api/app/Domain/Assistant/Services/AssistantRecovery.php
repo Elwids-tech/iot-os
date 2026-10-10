@@ -7,6 +7,8 @@ namespace App\Domain\Assistant\Services;
 use App\Domain\Assistant\Models\AssistantConversation;
 use App\Domain\Assistant\Models\AssistantRun;
 use Illuminate\Support\Facades\DB;
+use Laravel\Ai\Approvals\PendingApproval;
+use Laravel\Ai\Enums\MessageStatus;
 
 final class AssistantRecovery
 {
@@ -36,10 +38,9 @@ final class AssistantRecovery
             return [];
         }
         $pending = DB::table('agent_conversation_messages')->where('conversation_id', $conversation->sdk_conversation_id)
-            ->whereNotNull('approval_state')->get(['approval_state', 'tool_calls'])->flatMap(function ($row) {
-                $state = json_decode($row->approval_state, true);
-
-                return collect(json_decode($row->tool_calls, true))->filter(fn ($call) => array_key_exists($call['id'], $state['pending'] ?? []))
+            ->where('status', MessageStatus::Paused->value)->get(['steps'])->flatMap(function ($row) {
+                return collect(json_decode($row->steps, true))->flatMap(fn ($step) => $step['tool_calls'] ?? [])
+                    ->filter(fn ($call) => PendingApproval::isPending($call))
                     ->map(fn ($call) => ['id' => $call['id'], 'tool' => $call['name'], 'arguments' => $call['arguments']]);
             })->values()->all();
         $conversation->update(['sdk_pending_approvals' => $pending]);

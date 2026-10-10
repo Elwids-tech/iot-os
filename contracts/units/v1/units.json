@@ -1,0 +1,162 @@
+{
+  "schema_version": "units.v1",
+  "description": "Canonical measurement units. value_in_base = value * factor + offset. Units sharing a quantity are convertible; logarithmic units have their own quantity and are never converted.",
+  "quantities": {
+    "ratio": {"label": "Ratio", "base": "%"},
+    "power": {"label": "Power", "base": "W"},
+    "apparent_power": {"label": "Apparent power", "base": "VA"},
+    "reactive_power": {"label": "Reactive power", "base": "var"},
+    "energy": {"label": "Energy", "base": "Wh"},
+    "apparent_energy": {"label": "Apparent energy", "base": "VAh"},
+    "reactive_energy": {"label": "Reactive energy", "base": "varh"},
+    "voltage": {"label": "Voltage", "base": "V"},
+    "current": {"label": "Current", "base": "A"},
+    "frequency": {"label": "Frequency", "base": "Hz"},
+    "temperature": {"label": "Temperature", "base": "°C"},
+    "pressure": {"label": "Pressure", "base": "Pa"},
+    "volume": {"label": "Volume", "base": "L"},
+    "volume_flow": {"label": "Volume flow", "base": "L/min"},
+    "mass": {"label": "Mass", "base": "kg"},
+    "mass_flow": {"label": "Mass flow", "base": "kg/h"},
+    "length": {"label": "Length", "base": "m"},
+    "speed": {"label": "Speed", "base": "m/s"},
+    "area": {"label": "Area", "base": "m²"},
+    "duration": {"label": "Duration", "base": "s"},
+    "angle": {"label": "Angle", "base": "deg"},
+    "illuminance": {"label": "Illuminance", "base": "lx"},
+    "irradiance": {"label": "Irradiance", "base": "W/m²"},
+    "concentration": {"label": "Concentration", "base": "ppm"},
+    "mass_concentration": {"label": "Mass concentration", "base": "µg/m³"},
+    "rotational_speed": {"label": "Rotational speed", "base": "rpm"},
+    "data": {"label": "Data size", "base": "B"},
+    "sound_level": {"label": "Sound level", "base": "dB"},
+    "weighted_sound_level": {"label": "A-weighted sound level", "base": "dBA"},
+    "signal_strength": {"label": "Signal strength", "base": "dBm"}
+  },
+  "units": [
+    {"symbol": "%", "name": "percent", "quantity": "ratio", "factor": 1, "offset": 0, "aliases": ["percent", "pct"]},
+
+    {"symbol": "mW", "name": "milliwatt", "quantity": "power", "factor": 0.001, "offset": 0, "aliases": ["milliwatt"]},
+    {"symbol": "W", "name": "watt", "quantity": "power", "factor": 1, "offset": 0, "aliases": ["watt", "watts"]},
+    {"symbol": "kW", "name": "kilowatt", "quantity": "power", "factor": 1000, "offset": 0, "aliases": ["kilowatt", "kilowatts"]},
+    {"symbol": "MW", "name": "megawatt", "quantity": "power", "factor": 1000000, "offset": 0, "aliases": ["megawatt"]},
+    {"symbol": "hp", "name": "horsepower", "quantity": "power", "factor": 745.69987158227, "offset": 0, "aliases": ["horsepower"]},
+
+    {"symbol": "VA", "name": "volt-ampere", "quantity": "apparent_power", "factor": 1, "offset": 0, "aliases": []},
+    {"symbol": "kVA", "name": "kilovolt-ampere", "quantity": "apparent_power", "factor": 1000, "offset": 0, "aliases": []},
+    {"symbol": "MVA", "name": "megavolt-ampere", "quantity": "apparent_power", "factor": 1000000, "offset": 0, "aliases": []},
+
+    {"symbol": "var", "name": "volt-ampere reactive", "quantity": "reactive_power", "factor": 1, "offset": 0, "aliases": ["VAr", "VAR"]},
+    {"symbol": "kvar", "name": "kilovolt-ampere reactive", "quantity": "reactive_power", "factor": 1000, "offset": 0, "aliases": ["kVAr", "kVAR", "kVar"]},
+    {"symbol": "Mvar", "name": "megavolt-ampere reactive", "quantity": "reactive_power", "factor": 1000000, "offset": 0, "aliases": ["MVAr", "MVAR"]},
+
+    {"symbol": "Wh", "name": "watt-hour", "quantity": "energy", "factor": 1, "offset": 0, "aliases": []},
+    {"symbol": "kWh", "name": "kilowatt-hour", "quantity": "energy", "factor": 1000, "offset": 0, "aliases": []},
+    {"symbol": "MWh", "name": "megawatt-hour", "quantity": "energy", "factor": 1000000, "offset": 0, "aliases": []},
+    {"symbol": "GWh", "name": "gigawatt-hour", "quantity": "energy", "factor": 1000000000, "offset": 0, "aliases": []},
+    {"symbol": "J", "name": "joule", "quantity": "energy", "factor": 0.000277777777777778, "offset": 0, "aliases": ["joule"]},
+    {"symbol": "kJ", "name": "kilojoule", "quantity": "energy", "factor": 0.277777777777778, "offset": 0, "aliases": []},
+    {"symbol": "MJ", "name": "megajoule", "quantity": "energy", "factor": 277.777777777778, "offset": 0, "aliases": []},
+    {"symbol": "GJ", "name": "gigajoule", "quantity": "energy", "factor": 277777.777777778, "offset": 0, "aliases": []},
+    {"symbol": "BTU", "name": "British thermal unit", "quantity": "energy", "factor": 0.293071070172222, "offset": 0, "aliases": ["Btu"]},
+
+    {"symbol": "VAh", "name": "volt-ampere-hour", "quantity": "apparent_energy", "factor": 1, "offset": 0, "aliases": []},
+    {"symbol": "kVAh", "name": "kilovolt-ampere-hour", "quantity": "apparent_energy", "factor": 1000, "offset": 0, "aliases": []},
+
+    {"symbol": "varh", "name": "volt-ampere reactive hour", "quantity": "reactive_energy", "factor": 1, "offset": 0, "aliases": ["VArh"]},
+    {"symbol": "kvarh", "name": "kilovolt-ampere reactive hour", "quantity": "reactive_energy", "factor": 1000, "offset": 0, "aliases": ["kVArh", "kVARh"]},
+
+    {"symbol": "mV", "name": "millivolt", "quantity": "voltage", "factor": 0.001, "offset": 0, "aliases": ["millivolt"]},
+    {"symbol": "V", "name": "volt", "quantity": "voltage", "factor": 1, "offset": 0, "aliases": ["volt", "volts"]},
+    {"symbol": "kV", "name": "kilovolt", "quantity": "voltage", "factor": 1000, "offset": 0, "aliases": ["kilovolt"]},
+
+    {"symbol": "mA", "name": "milliampere", "quantity": "current", "factor": 0.001, "offset": 0, "aliases": ["milliamp"]},
+    {"symbol": "A", "name": "ampere", "quantity": "current", "factor": 1, "offset": 0, "aliases": ["amp", "amps", "ampere"]},
+    {"symbol": "kA", "name": "kiloampere", "quantity": "current", "factor": 1000, "offset": 0, "aliases": []},
+
+    {"symbol": "Hz", "name": "hertz", "quantity": "frequency", "factor": 1, "offset": 0, "aliases": ["hertz"]},
+    {"symbol": "kHz", "name": "kilohertz", "quantity": "frequency", "factor": 1000, "offset": 0, "aliases": []},
+
+    {"symbol": "°C", "name": "degree Celsius", "quantity": "temperature", "factor": 1, "offset": 0, "aliases": ["degC", "℃", "celsius"]},
+    {"symbol": "°F", "name": "degree Fahrenheit", "quantity": "temperature", "factor": 0.555555555555556, "offset": -17.7777777777778, "aliases": ["degF", "℉", "fahrenheit"]},
+    {"symbol": "K", "name": "kelvin", "quantity": "temperature", "factor": 1, "offset": -273.15, "aliases": ["kelvin"]},
+
+    {"symbol": "Pa", "name": "pascal", "quantity": "pressure", "factor": 1, "offset": 0, "aliases": ["pascal"]},
+    {"symbol": "hPa", "name": "hectopascal", "quantity": "pressure", "factor": 100, "offset": 0, "aliases": []},
+    {"symbol": "kPa", "name": "kilopascal", "quantity": "pressure", "factor": 1000, "offset": 0, "aliases": []},
+    {"symbol": "MPa", "name": "megapascal", "quantity": "pressure", "factor": 1000000, "offset": 0, "aliases": []},
+    {"symbol": "mbar", "name": "millibar", "quantity": "pressure", "factor": 100, "offset": 0, "aliases": []},
+    {"symbol": "bar", "name": "bar", "quantity": "pressure", "factor": 100000, "offset": 0, "aliases": []},
+    {"symbol": "psi", "name": "pound per square inch", "quantity": "pressure", "factor": 6894.75729316836, "offset": 0, "aliases": []},
+    {"symbol": "atm", "name": "standard atmosphere", "quantity": "pressure", "factor": 101325, "offset": 0, "aliases": []},
+
+    {"symbol": "mL", "name": "millilitre", "quantity": "volume", "factor": 0.001, "offset": 0, "aliases": ["ml"]},
+    {"symbol": "L", "name": "litre", "quantity": "volume", "factor": 1, "offset": 0, "aliases": ["l", "litre", "liter", "litres", "liters"]},
+    {"symbol": "m³", "name": "cubic metre", "quantity": "volume", "factor": 1000, "offset": 0, "aliases": ["m3", "cbm"]},
+    {"symbol": "gal", "name": "US gallon", "quantity": "volume", "factor": 3.785411784, "offset": 0, "aliases": ["gallon", "gallons"]},
+    {"symbol": "ft³", "name": "cubic foot", "quantity": "volume", "factor": 28.316846592, "offset": 0, "aliases": ["ft3", "cf"]},
+
+    {"symbol": "L/s", "name": "litre per second", "quantity": "volume_flow", "factor": 60, "offset": 0, "aliases": ["l/s", "lps"]},
+    {"symbol": "L/min", "name": "litre per minute", "quantity": "volume_flow", "factor": 1, "offset": 0, "aliases": ["l/min", "lpm"]},
+    {"symbol": "L/h", "name": "litre per hour", "quantity": "volume_flow", "factor": 0.0166666666666667, "offset": 0, "aliases": ["l/h", "lph"]},
+    {"symbol": "m³/h", "name": "cubic metre per hour", "quantity": "volume_flow", "factor": 16.6666666666667, "offset": 0, "aliases": ["m3/h", "cmh"]},
+    {"symbol": "m³/s", "name": "cubic metre per second", "quantity": "volume_flow", "factor": 60000, "offset": 0, "aliases": ["m3/s"]},
+    {"symbol": "gal/min", "name": "US gallon per minute", "quantity": "volume_flow", "factor": 3.785411784, "offset": 0, "aliases": ["gpm"]},
+    {"symbol": "ft³/min", "name": "cubic foot per minute", "quantity": "volume_flow", "factor": 28.316846592, "offset": 0, "aliases": ["cfm", "ft3/min"]},
+
+    {"symbol": "g", "name": "gram", "quantity": "mass", "factor": 0.001, "offset": 0, "aliases": ["gram"]},
+    {"symbol": "kg", "name": "kilogram", "quantity": "mass", "factor": 1, "offset": 0, "aliases": ["kilogram"]},
+    {"symbol": "t", "name": "tonne", "quantity": "mass", "factor": 1000, "offset": 0, "aliases": ["tonne", "tonnes"]},
+    {"symbol": "lb", "name": "pound", "quantity": "mass", "factor": 0.45359237, "offset": 0, "aliases": ["lbs"]},
+
+    {"symbol": "g/s", "name": "gram per second", "quantity": "mass_flow", "factor": 3.6, "offset": 0, "aliases": []},
+    {"symbol": "kg/s", "name": "kilogram per second", "quantity": "mass_flow", "factor": 3600, "offset": 0, "aliases": []},
+    {"symbol": "kg/h", "name": "kilogram per hour", "quantity": "mass_flow", "factor": 1, "offset": 0, "aliases": []},
+    {"symbol": "t/h", "name": "tonne per hour", "quantity": "mass_flow", "factor": 1000, "offset": 0, "aliases": ["tph"]},
+
+    {"symbol": "mm", "name": "millimetre", "quantity": "length", "factor": 0.001, "offset": 0, "aliases": []},
+    {"symbol": "cm", "name": "centimetre", "quantity": "length", "factor": 0.01, "offset": 0, "aliases": []},
+    {"symbol": "m", "name": "metre", "quantity": "length", "factor": 1, "offset": 0, "aliases": ["metre", "meter", "metres", "meters"]},
+    {"symbol": "km", "name": "kilometre", "quantity": "length", "factor": 1000, "offset": 0, "aliases": []},
+    {"symbol": "in", "name": "inch", "quantity": "length", "factor": 0.0254, "offset": 0, "aliases": ["inch", "inches"]},
+    {"symbol": "ft", "name": "foot", "quantity": "length", "factor": 0.3048, "offset": 0, "aliases": ["foot", "feet"]},
+    {"symbol": "mi", "name": "mile", "quantity": "length", "factor": 1609.344, "offset": 0, "aliases": ["mile", "miles"]},
+
+    {"symbol": "m/s", "name": "metre per second", "quantity": "speed", "factor": 1, "offset": 0, "aliases": []},
+    {"symbol": "km/h", "name": "kilometre per hour", "quantity": "speed", "factor": 0.277777777777778, "offset": 0, "aliases": ["kph", "kmh"]},
+    {"symbol": "mph", "name": "mile per hour", "quantity": "speed", "factor": 0.44704, "offset": 0, "aliases": []},
+    {"symbol": "kn", "name": "knot", "quantity": "speed", "factor": 0.514444444444444, "offset": 0, "aliases": ["knot", "knots", "kt"]},
+
+    {"symbol": "m²", "name": "square metre", "quantity": "area", "factor": 1, "offset": 0, "aliases": ["m2", "sqm"]},
+    {"symbol": "ha", "name": "hectare", "quantity": "area", "factor": 10000, "offset": 0, "aliases": ["hectare", "hectares"]},
+    {"symbol": "ft²", "name": "square foot", "quantity": "area", "factor": 0.09290304, "offset": 0, "aliases": ["ft2", "sqft"]},
+
+    {"symbol": "ms", "name": "millisecond", "quantity": "duration", "factor": 0.001, "offset": 0, "aliases": []},
+    {"symbol": "s", "name": "second", "quantity": "duration", "factor": 1, "offset": 0, "aliases": ["sec", "secs", "second", "seconds"]},
+    {"symbol": "min", "name": "minute", "quantity": "duration", "factor": 60, "offset": 0, "aliases": ["minute", "minutes", "mins"]},
+    {"symbol": "h", "name": "hour", "quantity": "duration", "factor": 3600, "offset": 0, "aliases": ["hr", "hrs", "hour", "hours"]},
+    {"symbol": "d", "name": "day", "quantity": "duration", "factor": 86400, "offset": 0, "aliases": ["day", "days"]},
+
+    {"symbol": "deg", "name": "degree", "quantity": "angle", "factor": 1, "offset": 0, "aliases": ["°", "degree", "degrees"]},
+    {"symbol": "rad", "name": "radian", "quantity": "angle", "factor": 57.2957795130823, "offset": 0, "aliases": ["radian", "radians"]},
+
+    {"symbol": "lx", "name": "lux", "quantity": "illuminance", "factor": 1, "offset": 0, "aliases": ["lux"]},
+    {"symbol": "W/m²", "name": "watt per square metre", "quantity": "irradiance", "factor": 1, "offset": 0, "aliases": ["W/m2"]},
+
+    {"symbol": "ppm", "name": "part per million", "quantity": "concentration", "factor": 1, "offset": 0, "aliases": []},
+    {"symbol": "ppb", "name": "part per billion", "quantity": "concentration", "factor": 0.001, "offset": 0, "aliases": []},
+    {"symbol": "µg/m³", "name": "microgram per cubic metre", "quantity": "mass_concentration", "factor": 1, "offset": 0, "aliases": ["ug/m3", "μg/m³", "µg/m3"]},
+    {"symbol": "mg/m³", "name": "milligram per cubic metre", "quantity": "mass_concentration", "factor": 1000, "offset": 0, "aliases": ["mg/m3"]},
+
+    {"symbol": "rpm", "name": "revolution per minute", "quantity": "rotational_speed", "factor": 1, "offset": 0, "aliases": ["RPM", "r/min"]},
+
+    {"symbol": "B", "name": "byte", "quantity": "data", "factor": 1, "offset": 0, "aliases": ["byte", "bytes"]},
+    {"symbol": "kB", "name": "kilobyte", "quantity": "data", "factor": 1000, "offset": 0, "aliases": ["KB"]},
+    {"symbol": "MB", "name": "megabyte", "quantity": "data", "factor": 1000000, "offset": 0, "aliases": []},
+    {"symbol": "GB", "name": "gigabyte", "quantity": "data", "factor": 1000000000, "offset": 0, "aliases": []},
+
+    {"symbol": "dB", "name": "decibel", "quantity": "sound_level", "factor": 1, "offset": 0, "aliases": ["decibel", "decibels"]},
+    {"symbol": "dBA", "name": "A-weighted decibel", "quantity": "weighted_sound_level", "factor": 1, "offset": 0, "aliases": ["dB(A)"]},
+    {"symbol": "dBm", "name": "decibel-milliwatt", "quantity": "signal_strength", "factor": 1, "offset": 0, "aliases": []}
+  ]
+}

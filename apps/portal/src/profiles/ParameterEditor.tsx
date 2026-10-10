@@ -43,6 +43,8 @@ import {
   conversionEligible,
 } from "./IncomingConversionFields"
 import { ConflictReview } from "./ConflictReview"
+import { DisplayFields } from "./DisplayFields"
+import { UnitField } from "./UnitField"
 
 type WidgetChoice = { value: string; label: string }
 
@@ -197,6 +199,8 @@ export function ParameterEditor({
   const currentWidget =
     typeof display.widget === "string" ? display.widget : ""
   const guidedValidation = readValidation(values.validation_logic)
+  // Devices, dashboards and history bind to a published parameter's identity.
+  const locked = Boolean(parameter?.published)
   const widgetChoices = controlWidgetChoices(values.data_type, currentWidget)
   let previewParameter: Pick<
     AuthoringParameter,
@@ -277,9 +281,13 @@ export function ParameterEditor({
                     className="font-mono"
                     error={fieldError(error, "key")}
                     required
-                    disabled={disabled}
+                    disabled={disabled || locked}
                     pattern="[a-zA-Z][a-zA-Z0-9._\-]*"
-                    help="Unique in this profile, for example voltage.l1."
+                    help={
+                      locked
+                        ? "Published parameters keep their key because devices, dashboards and history use it."
+                        : "Unique in this profile, for example voltage.l1."
+                    }
                     {...form.register("key")}
                   />
                 </div>
@@ -306,7 +314,7 @@ export function ParameterEditor({
                     <Choice
                       label="Kind"
                       value={values.kind}
-                      disabled={disabled}
+                      disabled={disabled || locked}
                       options={[
                         "state",
                         "measurement",
@@ -324,7 +332,7 @@ export function ParameterEditor({
                     <Choice
                       label="Data type"
                       value={values.data_type}
-                      disabled={disabled}
+                      disabled={disabled || locked}
                       options={[
                         "boolean",
                         "integer",
@@ -350,6 +358,12 @@ export function ParameterEditor({
                     />
                   </div>
                 </FieldGroup>
+                {locked && (
+                  <FieldDescription>
+                    Published: kind and data type are fixed. Add a new
+                    parameter to change them.
+                  </FieldDescription>
+                )}
                 {values.kind === "derived" && (
                   <FieldDescription>
                     Set its formula in{" "}
@@ -368,11 +382,12 @@ export function ParameterEditor({
                   </FieldDescription>
                 )}
                 <div title="unit" className="contents">
-                  <TextField
-                    label="Stored unit"
-                    placeholder="V, °C, kWh…"
+                  <UnitField
+                    value={values.unit ?? ""}
+                    onChange={(unit) => set("unit", unit)}
                     disabled={disabled}
-                    {...form.register("unit")}
+                    locked={locked}
+                    error={fieldError(error, "unit")}
                   />
                 </div>
                 {(conversionEligible(values) || values.ingress_conversion) && (
@@ -543,6 +558,21 @@ export function ParameterEditor({
                     />
                   </FieldGroup>
                 )}
+                <DisplayFields
+                  dataType={values.data_type}
+                  kind={values.kind}
+                  display={display}
+                  allowedValues={
+                    guidedValidation.mode === "options"
+                      ? guidedValidation.options
+                      : []
+                  }
+                  disabled={disabled}
+                  onChange={(field, value) =>
+                    configuration("display_config", field, value)
+                  }
+                />
+                <Separator />
                 <TextField
                   title="reporting_config.stale_after_seconds"
                   label="Stale after (seconds)"
@@ -585,17 +615,46 @@ export function ParameterEditor({
                         Counter normally increases
                       </FieldLabel>
                     </Field>
+                    <div title="counter_config.reset_behavior" className="contents">
+                      <Choice
+                        label="When the counter goes down"
+                        disabled={disabled}
+                        value={String(counter.reset_behavior ?? "new_segment")}
+                        options={[
+                          { value: "new_segment", label: "Continue from the new value" },
+                          { value: "diagnose", label: "Continue and flag for review" },
+                        ]}
+                        help="Readings stay valid. Consumption counts from the new value, so a meter reset never stops recording."
+                        onChange={(value) =>
+                          configuration(
+                            "counter_config",
+                            "reset_behavior",
+                            value || undefined,
+                          )
+                        }
+                      />
+                    </div>
                     <TextField
-                      title="counter_config.reset_behavior"
-                      label="When the counter resets"
+                      title="counter_config.rollover_at"
+                      label="Rolls over at (optional)"
+                      type="number"
+                      min="0"
+                      step="any"
                       disabled={disabled}
-                      placeholder="For example diagnose"
-                      value={String(counter.reset_behavior ?? "")}
+                      placeholder="For example 99999999"
+                      help="For meters that wrap back to zero. A drop that would use more than half of this range counts as a reset instead."
+                      value={
+                        typeof counter.rollover_at === "number"
+                          ? counter.rollover_at
+                          : ""
+                      }
                       onChange={(event) =>
                         configuration(
                           "counter_config",
-                          "reset_behavior",
-                          event.target.value || undefined,
+                          "rollover_at",
+                          event.target.value === ""
+                            ? undefined
+                            : Number(event.target.value),
                         )
                       }
                     />

@@ -58,6 +58,14 @@ Ordinary editing does not require JSON. Advanced configuration uses a bounded, l
 
 The shared theme uses blue primary actions, cool neutral surfaces, semantic status colors with text labels, and light/dark/system modes. Theme tokens are shared by navigation, fields, focus states, notifications, and JSON syntax.
 
+## Published parameters, units and display hints
+
+Once a parameter appears in a published revision, its key, kind and data type are fixed, because devices, dashboards and history bind to them. Its unit can only change to another spelling of the same unit. Labels, descriptions, groups and display settings stay editable. A published parameter can still be deleted when nothing references it, but its key is retired: no later parameter in that profile can reuse it, so existing dashboards and history are never reassigned. The rules come from the immutable artifacts and apply equally to the Studio, the assistant and calculation outputs. Parameter responses include `published`.
+
+Stored units come from the shared catalogue in `contracts/units/v1/units.json`, available at `GET /api/v1/units`. Each unit has a quantity (power, energy, volume and so on) and a conversion to that quantity's base unit. Spellings normalize to the canonical symbol on save (`kwh` → `kWh`, `m3/h` → `m³/h`); case alone never chooses between units such as `mW` and `MW`. Custom units stay allowed; they have no quantity and are never converted. Parameter responses include `unit_quantity`. Changing only a unit label still never converts stored values.
+
+**Behavior → Dashboards** sets hints that dashboards read: a display range (`display_config.min`/`max`, separate from validation limits), the preferred chart aggregation (`avg`, `min`, `max`, `last`, `sum`, or `increase` for counters), a suggested visualization, and labels with optional tones (`good`, `info`, `warning`, `critical`, `muted`) for each enum or boolean value. Labels apply only to values the parameter allows. Hints never change stored values or alarms.
+
 ## Persistence and safety contract
 
 - Authoring payload types follow Laravel resources; compiled definition types remain a separate, read-only representation. There is no fixture-backed authoring store.

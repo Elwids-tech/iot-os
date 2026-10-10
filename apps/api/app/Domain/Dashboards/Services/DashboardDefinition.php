@@ -110,8 +110,8 @@ final class DashboardDefinition
             'defaults.range.to' => ['required_if:defaults.range.mode,absolute', 'date', 'after:defaults.range.from', 'before_or_equal:now'],
         ]);
         $data['name'] = trim($data['name']);
-        if ($data['defaults']['range']['mode'] === 'absolute' && strtotime($data['defaults']['range']['to']) - strtotime($data['defaults']['range']['from']) > 90 * 86400) {
-            $this->fail('defaults.range', 'Choose a range of 90 days or less.');
+        if ($data['defaults']['range']['mode'] === 'absolute' && strtotime($data['defaults']['range']['to']) - strtotime($data['defaults']['range']['from']) > 400 * 86400) {
+            $this->fail('defaults.range', 'Choose a range of 400 days or less.');
         }
         if ($data['name'] === '') {
             $this->fail('name', 'Enter a dashboard name.');
@@ -152,6 +152,7 @@ final class DashboardDefinition
                 if (trim($widget['config']['text']) === '') {
                     $this->fail("widgets.$wi.config.text", 'Enter the panel text.');
                 }
+
                 continue;
             }
             if ($widget['type'] === 'device_health') {
@@ -168,6 +169,7 @@ final class DashboardDefinition
                     $entry['device_name'] = $device->name;
                 }
                 unset($entry);
+
                 continue;
             }
             if ($widget['type'] === 'gauge') {

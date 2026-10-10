@@ -11,7 +11,10 @@ use App\Domain\DeviceProfiles\Http\Controllers\ProfileParameterController;
 use App\Domain\DeviceProfiles\Http\Controllers\ProfileParameterGroupController;
 use App\Domain\DeviceProfiles\Http\Controllers\ProfilePreviewController;
 use App\Domain\DeviceProfiles\Http\Controllers\TransportBindingController;
+use App\Domain\DeviceProfiles\Http\Controllers\UnitCatalogueController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('v1/units', UnitCatalogueController::class)->middleware('auth:sanctum')->name('api.v1.units');
 
 Route::prefix('v1/organizations/{organization}')
     ->name('api.v1.organizations.')

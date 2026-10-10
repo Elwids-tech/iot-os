@@ -13,6 +13,11 @@ import type {
   HistorySeries,
   HistoryRecordsPage,
   StateHistory,
+  CounterBucket,
+  CounterIncrease,
+  UnitCatalogue,
+  Site,
+  SiteInput,
   RetentionSetting,
 } from "./devices"
 
@@ -288,6 +293,10 @@ export type AuthoringParameter = Omit<
   display_config: JsonObject | null
   reporting_config: JsonObject | null
   counter_config: JsonObject | null
+  /** Quantity from the unit catalogue, or null for custom and unitless parameters. */
+  unit_quantity?: string | null
+  /** In a published artifact: key, kind, data type and unit are fixed. */
+  published?: boolean
   calculation?: AuthoringCalculation | null
 }
 export type AuthoringAlarm = Omit<
@@ -1001,6 +1010,10 @@ export class ApiClient {
     query: {
       search?: string
       lifecycle?: string
+      /** Devices whose applied (or last applied) configuration uses this profile. */
+      profile_uuid?: string
+      site_uuid?: string
+      tag?: string
       page?: number
       per_page?: number
     } = {},
@@ -1014,6 +1027,10 @@ export class ApiClient {
       data: Device[]
       meta: { current_page: number; last_page: number; total: number }
     }>(`/api/v1/organizations/${encodeURIComponent(org)}/devices?${search}`)
+  }
+  /** Canonical units grouped by quantity; custom units remain allowed. */
+  units() {
+    return this.data<UnitCatalogue>("/api/v1/units")
   }
   telemetryCaptures(org: string) {
     return this.data<import("./telemetry").TelemetryCapture[]>(`/api/v1/organizations/${encodeURIComponent(org)}/telemetry-captures`)
@@ -1067,6 +1084,24 @@ export class ApiClient {
   }
   deviceConnectionKitArchiveUrl(org: string, id: string) {
     return this.baseUrl + this.devicePath(org, id) + '/connection-kit/archive'
+  }
+  sites(org: string) {
+    return this.request<{ data: Site[]; organization_timezone: string | null }>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/sites`,
+    )
+  }
+  createSite(org: string, values: SiteInput) {
+    return this.data<Site>(`/api/v1/organizations/${encodeURIComponent(org)}/sites`, "POST", values)
+  }
+  updateSite(org: string, site: string, values: Partial<SiteInput>) {
+    return this.data<Site>(`/api/v1/organizations/${encodeURIComponent(org)}/sites/${encodeURIComponent(site)}`, "PATCH", values)
+  }
+  deleteSite(org: string, site: string) {
+    return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/sites/${encodeURIComponent(site)}`, { method: "DELETE" })
+  }
+  /** The organization's zone applies to devices without a site; null means UTC. */
+  setOrganizationTimezone(org: string, timezone: string | null) {
+    return this.data<{ timezone: string | null }>(`/api/v1/organizations/${encodeURIComponent(org)}/settings/timezone`, "PUT", { timezone })
   }
   updateDevice(
     org: string,
@@ -1227,6 +1262,24 @@ export class ApiClient {
     )
     return this.data<StateHistory>(
       this.devicePath(org, id) + "/measurements/state-history?" + search,
+      "GET", undefined, signal,
+    )
+  }
+  deviceCounterIncrease(
+    org: string,
+    id: string,
+    query: {
+      parameter_uuid: string
+      from: string
+      to: string
+      bucket: CounterBucket
+      timezone: string
+    },
+    signal?: AbortSignal,
+  ) {
+    const search = new URLSearchParams(query)
+    return this.data<CounterIncrease>(
+      this.devicePath(org, id) + "/measurements/increase?" + search,
       "GET", undefined, signal,
     )
   }

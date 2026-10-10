@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceProfiles\Http\Resources;
 
+use App\Domain\DeviceProfiles\Services\PublishedParameters;
+use App\Domain\DeviceProfiles\Services\UnitCatalogue;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,6 +23,8 @@ final class ProfileParameterResource extends JsonResource
             'data_type' => $this->data_type->value,
             'format' => $this->format,
             'unit' => $this->unit,
+            'unit_quantity' => app(UnitCatalogue::class)->quantity($this->unit),
+            'published' => app(PublishedParameters::class)->isPublished($this->resource),
             'reports_state' => $this->reports_state,
             'accepts_command' => $this->accepts_command,
             'validation_logic' => $this->validation_logic,

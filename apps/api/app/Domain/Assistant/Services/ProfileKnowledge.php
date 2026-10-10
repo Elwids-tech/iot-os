@@ -23,6 +23,7 @@ final class ProfileKnowledge
             'identity' => (new StoreDeviceProfileRequest)->rules(),
             'parameters' => $rules,
             'ingress_conversion' => ['source_unit' => 'Incoming unit or null for unitless', 'multiplier' => 'Finite nonzero number', 'offset' => 'Finite number', 'equation' => 'stored = incoming * multiplier + offset', 'eligible' => 'Read-only numeric measurements and counters; positive multiplier for monotonic counters'],
+            'counter_config' => ['monotonic' => 'true for cumulative meters such as energy or volume', 'reset_behavior' => 'new_segment (default) or diagnose; a decrease never invalidates readings, diagnose also flags it for review', 'rollover_at' => 'Optional positive value at which the meter wraps to zero; ask only when the documentation states a maximum register value'],
             'groups' => (new StoreProfileParameterGroupRequest)->rules(),
             'calculations' => ['target_uuid' => 'Existing derived parameter UUID in the change envelope, or null when output is supplied', 'output' => ['key' => 'New stable key', 'label' => 'New output label', 'data_type' => 'number|integer', 'unit' => 'Output unit or null', 'parameter_group_uuid' => 'Existing group UUID or null'], 'engine' => 'json_logic', 'expression' => 'Restricted JSON Logic arithmetic using input aliases', 'inputs' => [['parameter_uuid' => 'Existing input UUID', 'alias' => 'Unique name']], 'trigger' => 'on_input_change', 'failure_policy' => 'mark_invalid'],
             'new_calculation_example' => [

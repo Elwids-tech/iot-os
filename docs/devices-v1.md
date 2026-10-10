@@ -125,7 +125,23 @@ The restricted PHP/Go expression evaluators share [18 parity cases](../contracts
 
 Supported values include scalar numbers, booleans, strings, and supported date values. Arbitrary Sparkplug datasets/templates and custom codecs are not implemented. Non-finite numbers, malformed value fields, and 64-bit integers outside JavaScript's exact integer range produce diagnostics.
 
-Timescale stores deduplicated history and durable latest state. History uses trusted receipt time, defaults to 24 hours, and respects retention. Numeric aggregation returns average/minimum/maximum/count, preserves gaps, and separates configuration/unit changes. Nonnumeric readings remain individual timestamped rows. Queries accept 10–1000 target points; a hard 2000-point response bound, including gaps, returns a shorter-range error instead of silently truncating.
+Timescale stores deduplicated history and durable latest state. Portal charts and state timelines use observed time, so a backlog uploaded after an outage appears when it was measured, not when it arrived, and they join configuration revisions that keep the same data type and unit into one series, listing where each revision starts (`configurations`). The integration SDK's `telemetry-history.v1` keeps its documented receipt-time, per-configuration series; the runtime defaults to that and the portal opts in with `time_basis=observed` and `merge_configurations=1`. Raw records keep receipt order for stable keyset pagination. A re-sent sample with the same source timestamp and value is stored once. History defaults to 24 hours and respects retention. Numeric aggregation returns average/minimum/maximum/count, preserves gaps, and separates configuration/unit changes. Nonnumeric readings remain individual timestamped rows. Queries accept 10–1000 target points; a hard 2000-point response bound, including gaps, returns a shorter-range error instead of silently truncating.
+
+After activating a new configuration, a parameter without a current value keeps showing the previous configuration's latest value, marked stale ("Retained from the previous configuration"), while its data type and unit are unchanged. Parameters the new configuration removed are not shown.
+
+### Sites, tags and attributes
+
+**Fleet → Sites** lists the organization's sites. Each has a name, an IANA time zone, and an optional address and coordinates. A device belongs to at most one site. The organization time zone on the same page applies to devices without a site; when neither is set, UTC applies. Daily, monthly and shift totals (`measurements/increase`) default to that zone, so every viewer sees the same totals; timestamps still display in each viewer's time zone. Deleting a site keeps its devices and history; they fall back to the organization's zone. Sites are not an access boundary.
+
+Devices can also carry up to 20 tags (trimmed, unique ignoring case) and 30 attributes. Attribute names start with a lowercase letter and use lowercase letters, digits, dots, dashes or underscores; values are text up to 255 characters, numbers or true/false. The device list filters by `site_uuid`, `tag` and `profile_uuid`. Sites and the organization time zone need `Device.manage` to change and `Device.view` to read.
+
+### Counters
+
+A monotonic counter that goes down never invalidates readings. The reading stays valid and starts a new segment (`counter_event: reset`), or wraps when `counter_config.rollover_at` is set and wrapping implies using at most half of the meter's range (`counter_event: rollover`). `reset_behavior: diagnose` also adds a review diagnostic; `new_segment` is the default. Buffered historical samples are never compared with the live value.
+
+`GET devices/{device}/measurements/increase` returns consumption per `15m`, `1h`, `1d`, `1w`, `1mo` or `1y` bucket, with days and months starting in the requested IANA `timezone`. Increases are computed in observed-time order, so resets that happen across reconnects or reboots are also detected. The increase between two samples belongs to the bucket of the later sample. A delta across a unit change is not counted, and a range spanning a unit change is rejected. `partial` marks buckets that extend outside the requested range. Only counter parameters are accepted, and the rollover value comes from the device's configuration.
+
+Calculations in a buffered batch use only inputs from that batch, never live cached values, and take the inputs' observed time.
 
 ## Confirmed commands
 
@@ -137,9 +153,9 @@ Only a subsequent valid live observation in the confirmed session matching the t
 
 ## Retention and cleanup
 
-Retention resolves **organization override → saved platform default → 90 days**. Platform administrators with the dedicated permission can save positive whole days up to 36500 or clear a setting to inherit. The UI shows effective days/source, protects edits, handles revision conflicts, and requires reduction confirmation with the deletion cutoff. Settings/audits survive restarts. Increasing retention cannot restore deleted measurements.
+Retention resolves **organization override → saved platform default → 400 days**. The 400-day default keeps a full year plus a month, so this month can be compared with the same month last year. Platform administrators with the dedicated permission can save positive whole days up to 36500 or clear a setting to inherit. The UI shows effective days/source, protects edits, handles revision conflicts, and requires reduction confirmation with the deletion cutoff. Settings/audits survive restarts. Increasing retention cannot restore deleted measurements.
 
-Cleanup runs after startup and every 24 hours using each organization's receipt-time cutoff. Each organization pass is limited to 30 seconds and 50 batches of 10000 rows per history/diagnostics table. It never drops shared Timescale chunks. Backlog reports **pending**; errors report **failed**. Both retry after one minute. One organization's failure does not prevent the others from being processed. Administration exposes latest outcomes and unresolved failures. Configuration, command audits, and durable latest state are outside history cleanup.
+Observation chunks are compressed after 7 days (segmented by organization, device and parameter, ordered by observed time), which reduces typical storage around 25 times. Cleanup runs after startup and every 24 hours using each organization's receipt-time cutoff. Each organization pass is limited to 2 minutes; observations are deleted one day-chunk per batch (up to 50) by tenant and time predicate, which works on compressed chunks, and diagnostics in batches of 10000 rows. It never drops shared Timescale chunks. Backlog reports **pending**; errors report **failed**. Both retry after one minute. One organization's failure does not prevent the others from being processed. Administration exposes latest outcomes and unresolved failures. Configuration, command audits, and durable latest state are outside history cleanup.
 
 ## APIs and permissions
 

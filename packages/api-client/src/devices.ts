@@ -138,6 +138,28 @@ export type Device = {
   candidate: DiscoveryCandidate | null
   /** Profile of the applied configuration, else of the last one the runtime confirmed. */
   profile: { uuid: string; name: string; revision: number } | null
+  /** Calendar periods use the site's time zone, else the organization's. */
+  site?: { uuid: string; name: string; timezone: string } | null
+  tags?: string[]
+  attributes?: Record<string, DeviceAttributeValue>
+}
+export type DeviceAttributeValue = string | number | boolean | null
+/** A physical location whose IANA time zone cuts days, months and shifts. */
+export type Site = {
+  uuid: string
+  name: string
+  timezone: string
+  address: string | null
+  latitude: number | null
+  longitude: number | null
+  devices_count?: number | null
+}
+export type SiteInput = {
+  name: string
+  timezone: string
+  address?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 export type DeviceDetail = Device & {
   installations?: {uuid: string; manufacturer_serial: string; adapter_revision_uuid: string; started_at: string; ended_at: string | null}[]
@@ -151,6 +173,9 @@ export type DeviceInput = {
   code: string
   serial_number?: string | null
   description?: string | null
+  site_uuid?: string | null
+  tags?: string[]
+  attributes?: Record<string, DeviceAttributeValue>
 }
 export type Measurement = {
   installation_uuid?: string
@@ -170,9 +195,12 @@ export type Measurement = {
   historical: boolean
 }
 export type HistorySeries = {
+  /** The newest configuration in the series. */
   configuration_uuid: string
   unit: string | null
   data_type: string
+  /** Configuration revisions joined into this series, oldest first, with where each starts. */
+  configurations?: Array<{ configuration_uuid: string; from: string }>
   points: Array<{
     at: string
     value: unknown
@@ -232,6 +260,37 @@ export type StateHistory = {
   durations: StateHistoryDuration[]
   timeline: StateHistorySegment[]
   sampled: boolean
+}
+export type UnitDefinition = {
+  symbol: string
+  name: string
+  quantity: string
+  /** value_in_base = value * factor + offset */
+  factor: number
+  offset: number
+  aliases: string[]
+}
+export type UnitCatalogue = {
+  quantities: Record<string, { label: string; base: string }>
+  units: UnitDefinition[]
+}
+export type CounterBucket = "15m" | "1h" | "1d" | "1w" | "1mo" | "1y"
+/** Counter consumption per calendar bucket. Days and months start in `timezone`. */
+export type CounterIncrease = {
+  from: string
+  to: string
+  bucket: CounterBucket
+  timezone: string
+  unit: string | null
+  points: Array<{
+    at: string
+    increase: number
+    samples: number
+    /** Decreases treated as a reset or rollover within this bucket. */
+    resets: number
+    /** The bucket extends outside the requested range or into the future. */
+    partial: boolean
+  }>
 }
 export type DeviceCommand = {
   actor_name: string

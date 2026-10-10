@@ -230,7 +230,17 @@ func (s *Store) PersistResult(ctx context.Context, t devices.Telemetry) (bool, e
 			return false, e
 		}
 		if reading.Quality == "good" {
-			_, e = tx.Exec(ctx, `INSERT INTO device_runtime.observations(event_uuid,organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,observed_at,reading) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, reading.ObservedAt, raw)
+			// Devices re-send buffered samples after reconnecting, under a new
+			// telemetry UUID. A source-timestamped sample with the same observed
+			// time and value is the same measurement. Source clocks are at most
+			// five minutes ahead of receipt, which bounds the chunk scan.
+			_, e = tx.Exec(ctx, `INSERT INTO device_runtime.observations(event_uuid,organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,observed_at,reading)
+   SELECT $1,$2,$3,$4,$5,$6,$7,$8
+   WHERE NOT $9::boolean OR NOT EXISTS (
+     SELECT 1 FROM device_runtime.observations o
+     WHERE o.organization_uuid=$2 AND o.device_uuid=$3 AND o.parameter_uuid=$5 AND o.observed_at=$7
+       AND o.received_at>=$7::timestamptz-interval '5 minutes' AND o.reading->'value'=$8::jsonb->'value')
+   ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, reading.ObservedAt, raw, reading.TimestampSource == "source")
 		} else {
 			_, e = tx.Exec(ctx, `INSERT INTO device_runtime.diagnostics(event_uuid,organization_uuid,device_uuid,parameter_uuid,received_at,reading) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
 		}
@@ -272,6 +282,39 @@ func (s *Store) Latest(ctx context.Context, org, device, configuration string) (
 	return result, rows.Err()
 }
 
+// CarriedReading is a parameter's newest latest value, possibly stored under an
+// earlier configuration of the same device.
+type CarriedReading struct {
+	ConfigurationUUID string
+	Reading           devices.Reading
+}
+
+// LatestAcross returns each parameter's newest value for the device, preferring
+// the given configuration. Callers decide whether a value from an earlier
+// configuration is still compatible.
+func (s *Store) LatestAcross(ctx context.Context, org, device, configuration string) ([]CarriedReading, error) {
+	rows, e := s.Pool.Query(ctx, `SELECT DISTINCT ON (parameter_uuid) configuration_uuid::text, reading
+      FROM device_runtime.latest WHERE organization_uuid=$1 AND device_uuid=$2
+      ORDER BY parameter_uuid, (configuration_uuid=$3) DESC, received_at DESC`, org, device, configuration)
+	if e != nil {
+		return nil, e
+	}
+	defer rows.Close()
+	result := []CarriedReading{}
+	for rows.Next() {
+		var raw []byte
+		var carried CarriedReading
+		if e = rows.Scan(&carried.ConfigurationUUID, &raw); e != nil {
+			return nil, e
+		}
+		if e = Decode(raw, &carried.Reading); e != nil {
+			return nil, e
+		}
+		result = append(result, carried)
+	}
+	return result, rows.Err()
+}
+
 type HistoryPoint struct {
 	At      time.Time `json:"at"`
 	Value   any       `json:"value"`
@@ -284,30 +327,59 @@ type HistorySeries struct {
 	Unit              *string        `json:"unit"`
 	DataType          string         `json:"data_type"`
 	Points            []HistoryPoint `json:"points"`
+	// Configurations lists the revisions a merged series spans, oldest first.
+	Configurations []ConfigurationSpan `json:"configurations,omitempty"`
 }
 
+type ConfigurationSpan struct {
+	ConfigurationUUID string    `json:"configuration_uuid"`
+	From              time.Time `json:"from"`
+}
+
+// HistoryOptions keeps the public SDK contract (receipt time, one series per
+// configuration) as the default; the portal opts into reporting semantics.
+type HistoryOptions struct {
+	// ObservedTime selects and buckets by observed time, so buffered uploads
+	// appear when they were measured.
+	ObservedTime bool
+	// MergeConfigurations joins configuration revisions that share a data type
+	// and unit into one series and reports where each revision starts.
+	MergeConfigurations bool
+}
+
+var ErrCounterUnitChanged = errors.New("The counter's unit changed in this range. Choose a range on one side of the change.")
 var ErrHistoryTooBroad = errors.New("This range contains too many values or configuration changes. Choose a shorter range.")
 
-func (s *Store) History(ctx context.Context, org, device, param string, from, to time.Time, maxPoints int) ([]HistorySeries, error) {
+func (s *Store) History(ctx context.Context, org, device, param string, from, to time.Time, maxPoints int, options HistoryOptions) ([]HistorySeries, error) {
 	seconds := int64(math.Ceil(to.Sub(from).Seconds() / float64(maxPoints/2)))
 	if seconds < 1 {
 		seconds = 1
 	}
+	// Both clauses are constants. Source clocks are at most five minutes ahead
+	// of receipt, which bounds the chunk scan for observed-time reads.
+	at, window := "received_at", "received_at>=$4 AND received_at<=$5"
+	if options.ObservedTime {
+		at, window = "observed_at", "observed_at>=$4 AND observed_at<=$5 AND received_at>=$4::timestamptz-interval '5 minutes'"
+	}
+	configuration, group := "configuration_uuid::text", "configuration_uuid,"
+	if options.MergeConfigurations {
+		configuration, group = "''", ""
+	}
 	rows, e := s.Pool.Query(ctx, `
     SELECT * FROM (
-      SELECT configuration_uuid::text, reading->>'unit' AS unit, reading->>'data_type' AS datatype,
-        to_timestamp(floor(extract(epoch FROM received_at)/$6)*$6) AS at,
+      SELECT `+configuration+`, reading->>'unit' AS unit, reading->>'data_type' AS datatype,
+        to_timestamp(floor(extract(epoch FROM `+at+`)/$6)*$6) AS at,
         to_jsonb(avg((reading->>'value')::numeric)) AS value,
         min((reading->>'value')::double precision), max((reading->>'value')::double precision), count(*)
       FROM device_runtime.observations
-      WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND received_at>=$4 AND received_at<=$5
+      WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND `+window+`
         AND reading->>'data_type' IN ('integer','number')
-      GROUP BY configuration_uuid,reading->>'unit',reading->>'data_type',4
+      GROUP BY `+group+`reading->>'unit',reading->>'data_type',4
       UNION ALL
-      SELECT configuration_uuid::text, reading->>'unit', reading->>'data_type', received_at,
+      SELECT configuration_uuid::text, reading->>'unit', reading->>'data_type', `+at+`,
         reading->'value', NULL::double precision, NULL::double precision, 1
       FROM device_runtime.observations
-      WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND received_at>=$4 AND received_at<=$5
+      WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND `+window+`
         AND reading->>'data_type' NOT IN ('integer','number')
     ) history ORDER BY at LIMIT 2001`, org, device, param, from, to, seconds)
 	if e != nil {
@@ -331,6 +403,9 @@ func (s *Store) History(ctx context.Context, org, device, param string, from, to
 			}
 		}
 		key := config + ":" + datatype
+		if options.MergeConfigurations {
+			key = datatype
+		}
 		if unit != nil {
 			key += ":" + *unit
 		}
@@ -349,9 +424,44 @@ func (s *Store) History(ctx context.Context, org, device, param string, from, to
 		if totalPoints > 2000 {
 			return nil, ErrHistoryTooBroad
 		}
+		if config != "" {
+			series[i].ConfigurationUUID = config
+		}
 		series[i].Points = append(series[i].Points, point)
 	}
-	return series, rows.Err()
+	if e = rows.Err(); e != nil || !options.MergeConfigurations || len(series) == 0 {
+		return series, e
+	}
+	spans, e := s.configurationSpans(ctx, org, device, param, from, to, at, window)
+	if e != nil {
+		return nil, e
+	}
+	for i := range series {
+		series[i].Configurations = spans
+		if len(spans) > 0 {
+			series[i].ConfigurationUUID = spans[len(spans)-1].ConfigurationUUID
+		}
+	}
+	return series, nil
+}
+
+func (s *Store) configurationSpans(ctx context.Context, org, device, param string, from, to time.Time, at, window string) ([]ConfigurationSpan, error) {
+	rows, e := s.Pool.Query(ctx, `SELECT configuration_uuid::text, min(`+at+`) FROM device_runtime.observations
+      WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND `+window+`
+      GROUP BY 1 ORDER BY 2`, org, device, param, from, to)
+	if e != nil {
+		return nil, e
+	}
+	defer rows.Close()
+	spans := []ConfigurationSpan{}
+	for rows.Next() {
+		var span ConfigurationSpan
+		if e = rows.Scan(&span.ConfigurationUUID, &span.From); e != nil {
+			return nil, e
+		}
+		spans = append(spans, span)
+	}
+	return spans, rows.Err()
 }
 
 type HistoryCursor struct {
@@ -496,33 +606,33 @@ func (s *Store) StateHistory(ctx context.Context, org, device, param string, fro
 	rows, err := s.Pool.Query(ctx, `
       WITH raw AS (
         SELECT * FROM (
-          SELECT event_uuid,configuration_uuid,received_at,reading
+          SELECT event_uuid,configuration_uuid,observed_at,reading
           FROM device_runtime.observations
-          WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND received_at<$4
-          ORDER BY received_at DESC,event_uuid DESC LIMIT 1
+          WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND observed_at<$4
+          ORDER BY observed_at DESC,event_uuid DESC LIMIT 1
         ) carry
         UNION ALL
-        SELECT event_uuid,configuration_uuid,received_at,reading
+        SELECT event_uuid,configuration_uuid,observed_at,reading
         FROM device_runtime.observations
         WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3
-          AND received_at>=$4 AND received_at<=$5
+          AND observed_at>=$4 AND observed_at<=$5 AND received_at>=$4::timestamptz-interval '5 minutes'
       ), ordered AS (
-        SELECT event_uuid,configuration_uuid,received_at,reading,
-          row_number() OVER (ORDER BY received_at,event_uuid) AS sequence,
-          lag(reading->'value') OVER (ORDER BY received_at,event_uuid) AS previous_value,
-          lag(configuration_uuid) OVER (ORDER BY received_at,event_uuid) AS previous_configuration,
-          lag(COALESCE(reading->>'quality','')) OVER (ORDER BY received_at,event_uuid) AS previous_quality,
-          lag(COALESCE(reading->>'data_type','')) OVER (ORDER BY received_at,event_uuid) AS previous_data_type
+        SELECT event_uuid,configuration_uuid,observed_at,reading,
+          row_number() OVER (ORDER BY observed_at,event_uuid) AS sequence,
+          lag(reading->'value') OVER (ORDER BY observed_at,event_uuid) AS previous_value,
+          lag(configuration_uuid) OVER (ORDER BY observed_at,event_uuid) AS previous_configuration,
+          lag(COALESCE(reading->>'quality','')) OVER (ORDER BY observed_at,event_uuid) AS previous_quality,
+          lag(COALESCE(reading->>'data_type','')) OVER (ORDER BY observed_at,event_uuid) AS previous_data_type
         FROM raw
       )
-      SELECT configuration_uuid::text,received_at,reading
+      SELECT configuration_uuid::text,observed_at,reading
       FROM ordered
       WHERE sequence=1
         OR reading->'value' IS DISTINCT FROM previous_value
         OR configuration_uuid IS DISTINCT FROM previous_configuration
         OR COALESCE(reading->>'quality','') IS DISTINCT FROM previous_quality
         OR COALESCE(reading->>'data_type','') IS DISTINCT FROM previous_data_type
-      ORDER BY received_at,event_uuid`, org, device, param, from, to)
+      ORDER BY observed_at,event_uuid`, org, device, param, from, to)
 	if err != nil {
 		return StateHistory{}, err
 	}
@@ -700,9 +810,12 @@ func (s *Store) Cleanup(ctx context.Context, org string, cutoff time.Time) (int6
 }
 
 func (s *Store) cleanup(ctx context.Context, org string, cutoff time.Time, batches, batchSize int) (int64, error) {
-	var total int64
+	total, e := s.cleanupObservations(ctx, org, cutoff, batches)
+	if e != nil {
+		return total, e
+	}
 	var remaining bool
-	for _, table := range []string{"observations", "diagnostics", "dag_evaluations"} {
+	for _, table := range []string{"diagnostics", "dag_evaluations"} {
 		for batch := 0; batch < batches; batch++ {
 			tag, e := s.Pool.Exec(ctx, `DELETE FROM device_runtime.`+table+` WHERE (tableoid,ctid) IN (SELECT tableoid,ctid FROM device_runtime.`+table+` WHERE organization_uuid=$1 AND received_at<$2 LIMIT $3)`, org, cutoff, batchSize)
 			if e != nil {
@@ -713,6 +826,8 @@ func (s *Store) cleanup(ctx context.Context, org string, cutoff time.Time, batch
 				break
 			}
 		}
+	}
+	for _, table := range []string{"observations", "diagnostics", "dag_evaluations"} {
 		var pending bool
 		if e := s.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM device_runtime.`+table+` WHERE organization_uuid=$1 AND received_at<$2)`, org, cutoff).Scan(&pending); e != nil {
 			return total, e
@@ -723,6 +838,66 @@ func (s *Store) cleanup(ctx context.Context, org string, cutoff time.Time, batch
 		return total, ErrCleanupIncomplete
 	}
 	return total, nil
+}
+
+// cleanupObservations deletes one day-chunk per batch. Compressed chunks do not
+// expose row ctids, so each batch is a tenant and time predicate that Timescale
+// applies to compressed batches directly.
+func (s *Store) cleanupObservations(ctx context.Context, org string, cutoff time.Time, batches int) (int64, error) {
+	// Emptied chunks stay until every tenant expires them, so only select
+	// chunks that still hold this tenant's expired rows.
+	rows, e := s.Pool.Query(ctx, `SELECT c.range_start,c.range_end FROM timescaledb_information.chunks c
+      WHERE c.hypertable_schema='device_runtime' AND c.hypertable_name='observations' AND c.range_start<$2
+        AND EXISTS (SELECT 1 FROM device_runtime.observations o WHERE o.organization_uuid=$1
+          AND o.received_at>=c.range_start AND o.received_at<LEAST(c.range_end,$2))
+      ORDER BY c.range_start LIMIT $3`, org, cutoff, batches)
+	if e != nil {
+		return 0, e
+	}
+	type window struct{ from, to time.Time }
+	windows := []window{}
+	for rows.Next() {
+		var w window
+		if e = rows.Scan(&w.from, &w.to); e != nil {
+			rows.Close()
+			return 0, e
+		}
+		if w.to.After(cutoff) {
+			w.to = cutoff
+		}
+		windows = append(windows, w)
+	}
+	rows.Close()
+	if e = rows.Err(); e != nil {
+		return 0, e
+	}
+	var total int64
+	for _, w := range windows {
+		deleted, e := s.deleteObservationWindow(ctx, org, w.from, w.to)
+		if e != nil {
+			return total, e
+		}
+		total += deleted
+	}
+	return total, nil
+}
+
+func (s *Store) deleteObservationWindow(ctx context.Context, org string, from, to time.Time) (int64, error) {
+	tx, e := s.Pool.Begin(ctx)
+	if e != nil {
+		return 0, e
+	}
+	defer tx.Rollback(ctx)
+	// Decompressing a day of one tenant can exceed the pool's 5 s statement
+	// limit; the caller's two-minute context still bounds the pass.
+	if _, e = tx.Exec(ctx, "SET LOCAL statement_timeout = '2min'"); e != nil {
+		return 0, e
+	}
+	tag, e := tx.Exec(ctx, `DELETE FROM device_runtime.observations WHERE organization_uuid=$1 AND received_at>=$2 AND received_at<$3`, org, from, to)
+	if e != nil {
+		return 0, e
+	}
+	return tag.RowsAffected(), tx.Commit(ctx)
 }
 
 func (s *Store) ClaimCommand(ctx context.Context, c devices.Command) (bool, error) {
@@ -858,4 +1033,106 @@ func (s *Store) ReplayOutcome(ctx context.Context, device string, generation int
 		return err
 	}
 	return s.Emit(ctx, outcome.Type, outcome.Payload)
+}
+
+// CounterBuckets maps the public bucket names to Timescale intervals.
+var CounterBuckets = map[string]string{"15m": "15 minutes", "1h": "1 hour", "1d": "1 day", "1w": "7 days", "1mo": "1 month", "1y": "1 year"}
+
+type IncreasePoint struct {
+	At       time.Time `json:"at"`
+	Increase float64   `json:"increase"`
+	Samples  int64     `json:"samples"`
+	Resets   int64     `json:"resets"`
+	Partial  bool      `json:"partial"`
+}
+
+type CounterIncrease struct {
+	From     time.Time       `json:"from"`
+	To       time.Time       `json:"to"`
+	Bucket   string          `json:"bucket"`
+	Timezone string          `json:"timezone"`
+	Unit     *string         `json:"unit"`
+	Points   []IncreasePoint `json:"points"`
+}
+
+// CounterIncrease returns consumption per calendar bucket, ordered by observed
+// time. A decrease is a rollover when wrapping at rolloverAt implies using at
+// most half of the meter's range; otherwise it is a reset counted from zero. The delta across a unit change is
+// not counted. Buckets start in the given IANA time zone; the increase between
+// two samples belongs to the bucket of the later sample.
+func (s *Store) CounterIncrease(ctx context.Context, org, device, param string, from, to time.Time, bucket string, location *time.Location, rolloverAt *float64) (CounterIncrease, error) {
+	interval, ok := CounterBuckets[bucket]
+	if !ok {
+		return CounterIncrease{}, errors.New("unsupported bucket")
+	}
+	rows, err := s.Pool.Query(ctx, `
+      WITH raw AS (
+        SELECT * FROM (
+          SELECT observed_at,event_uuid,reading->>'unit' AS unit,(reading->>'value')::double precision AS v
+          FROM device_runtime.observations
+          WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND observed_at<$4
+            AND reading->>'data_type' IN ('integer','number')
+          ORDER BY observed_at DESC,event_uuid DESC LIMIT 1
+        ) carry
+        UNION ALL
+        SELECT observed_at,event_uuid,reading->>'unit',(reading->>'value')::double precision
+        FROM device_runtime.observations
+        WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3
+          AND observed_at>=$4 AND observed_at<$5 AND received_at>=$4::timestamptz-interval '5 minutes'
+          AND reading->>'data_type' IN ('integer','number')
+      ), ordered AS (
+        SELECT observed_at,v,unit,lag(v) OVER w AS previous,lag(unit) OVER w AS previous_unit
+        FROM raw WINDOW w AS (ORDER BY observed_at,event_uuid)
+      ), deltas AS (
+        SELECT observed_at,unit,
+          CASE WHEN previous IS NULL OR unit IS DISTINCT FROM previous_unit THEN 0
+               WHEN v>=previous THEN v-previous
+               WHEN $8::double precision>previous AND $8::double precision-previous+v<=$8::double precision/2 THEN $8::double precision-previous+v
+               ELSE v END AS increase,
+          (previous IS NOT NULL AND unit IS NOT DISTINCT FROM previous_unit AND v<previous) AS reset
+        FROM ordered WHERE observed_at>=$4
+      )
+      SELECT time_bucket($6::interval,observed_at,$7) AS at,sum(increase),count(*),count(*) FILTER (WHERE reset),unit
+      FROM deltas GROUP BY 1,unit ORDER BY 1 LIMIT 2001`, org, device, param, from, to, interval, location.String(), rolloverAt)
+	if err != nil {
+		return CounterIncrease{}, err
+	}
+	defer rows.Close()
+	result := CounterIncrease{From: from, To: to, Bucket: bucket, Timezone: location.String(), Points: []IncreasePoint{}}
+	for rows.Next() {
+		var point IncreasePoint
+		var unit *string
+		if err = rows.Scan(&point.At, &point.Increase, &point.Samples, &point.Resets, &unit); err != nil {
+			return CounterIncrease{}, err
+		}
+		if len(result.Points) == 2000 {
+			return CounterIncrease{}, ErrHistoryTooBroad
+		}
+		if len(result.Points) > 0 && (unit == nil) != (result.Unit == nil) || unit != nil && result.Unit != nil && *unit != *result.Unit {
+			return CounterIncrease{}, ErrCounterUnitChanged
+		}
+		result.Unit = unit
+		point.At = point.At.In(location)
+		point.Partial = point.At.Before(from) || BucketEnd(point.At, bucket).After(to)
+		result.Points = append(result.Points, point)
+	}
+	return result, rows.Err()
+}
+
+// BucketEnd returns the start of the bucket after start, in start's location.
+func BucketEnd(start time.Time, bucket string) time.Time {
+	switch bucket {
+	case "15m":
+		return start.Add(15 * time.Minute)
+	case "1h":
+		return start.Add(time.Hour)
+	case "1d":
+		return start.AddDate(0, 0, 1)
+	case "1w":
+		return start.AddDate(0, 0, 7)
+	case "1mo":
+		return start.AddDate(0, 1, 0)
+	default:
+		return start.AddDate(1, 0, 0)
+	}
 }

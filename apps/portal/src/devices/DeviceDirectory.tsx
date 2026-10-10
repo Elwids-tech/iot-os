@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@iot-os/ui/components/table"
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@iot-os/ui/components/select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { InboxIcon, PlusIcon, XIcon } from "lucide-react"
 import { api } from "../lib/api"
@@ -60,13 +61,16 @@ export function DeviceDirectory() {
   const [params, setParams] = useSearchParams()
   const [create, setCreate] = useState(false)
   const search = params.get("search") ?? "",
-    lifecycle = params.get("lifecycle") ?? ""
+    lifecycle = params.get("lifecycle") ?? "",
+    site = params.get("site") ?? ""
+  const sites = useQuery({ queryKey: ["sites", org], queryFn: () => api.sites(org) })
   const query = useQuery({
     queryKey: ["devices", org, params.toString()],
     queryFn: () =>
       api.devices(org, {
         search,
         lifecycle,
+        site_uuid: site || undefined,
         page: Number(params.get("page") ?? 1),
       }),
     refetchInterval: 5000,
@@ -96,7 +100,7 @@ export function DeviceDirectory() {
     setParams(next, { replace: true })
   }
   const total = query.data?.meta.total
-  const filtered = Boolean(search || lifecycle)
+  const filtered = Boolean(search || lifecycle || site)
   const all = counts.data
     ? lifecycles.reduce((sum, value) => sum + counts.data[value], 0)
     : undefined
@@ -123,6 +127,19 @@ export function DeviceDirectory() {
           value={search}
           onChange={(e) => filter("search", e.target.value)}
         />
+        {(sites.data?.data.length ?? 0) > 0 && (
+          <Select value={site || "all"} onValueChange={(value) => filter("site", value === "all" ? "" : value)}>
+            <SelectTrigger size="sm" aria-label="Site" className="w-full sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sites</SelectItem>
+              {sites.data?.data.map((option) => (
+                <SelectItem key={option.uuid} value={option.uuid}>{option.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="max-w-full overflow-x-auto scrollbar-none">
           <ToggleGroup
             type="single"
@@ -169,6 +186,7 @@ export function DeviceDirectory() {
                     <TableHead>Status</TableHead>
                     <TableHead>Last seen</TableHead>
                     <TableHead>Profile</TableHead>
+                    <TableHead>Site</TableHead>
                     <TableHead>Gateway</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -199,6 +217,13 @@ export function DeviceDirectory() {
                           >
                             {device.profile.name}
                           </Link>
+                        ) : (
+                          <span className="text-muted-foreground">None</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-48 truncate">
+                        {device.site ? (
+                          <span title={device.site.timezone}>{device.site.name}</span>
                         ) : (
                           <span className="text-muted-foreground">None</span>
                         )}

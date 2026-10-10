@@ -90,6 +90,7 @@ import {
   LayoutGridIcon,
   LogOutIcon,
   RouterIcon,
+  Building2Icon,
   ScanSearchIcon,
   ShieldIcon,
   SparklesIcon,
@@ -249,6 +250,7 @@ function Session() {
           <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="discovery" /></Suspense>} />
           <Route path="organizations/:organizationUuid/telemetry" element={<Suspense fallback={<PageFallback />}><TelemetryViewer /></Suspense>} />
                   <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="gateways" /></Suspense>} />
+                  <Route path="organizations/:organizationUuid/sites" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="sites" /></Suspense>} />
           <Route path="organizations/:organizationUuid/dashboards/:dashboardUuid?" element={<DashboardRoute />} />
           <Route path="organizations/:organizationUuid/geofences/*" element={<Suspense fallback={<PageFallback />}><GeofenceRoutes /></Suspense>} />
           <Route
@@ -474,6 +476,7 @@ const navigationGroups: { label: string; items: NavigationItem[] }[] = [
     items: [
       { path: "devices", label: "Devices", icon: CpuIcon, visible: devicesCan("view") },
       { path: "gateways", label: "Gateways", icon: RouterIcon, visible: devicesCan("view") },
+      { path: "sites", label: "Sites", icon: Building2Icon, visible: devicesCan("view") },
       { path: "geofences", label: "Geofences", icon: MapPinnedIcon },
     ],
   },

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { useForm } from "react-hook-form"
+import { useFieldArray, useForm } from "react-hook-form"
 import { toast } from "sonner"
 import {
   ApiError,
@@ -24,7 +24,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@iot-os/ui/components/dialog"
-import { FieldGroup } from "@iot-os/ui/components/field"
+import { FieldDescription, FieldGroup, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
+import { Input } from "@iot-os/ui/components/input"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
@@ -33,6 +34,7 @@ import {
   RequestError,
   SaveBar,
   TextField,
+  fieldError,
 } from "../components/forms"
 import {
   appendLayout,
@@ -43,12 +45,35 @@ import {
 } from "../dashboards/model"
 import type { DeviceOperation } from "./DeviceWorkspace"
 
-const savedValues = (d: DeviceDetail): DeviceInput => ({
+type DetailsForm = Omit<DeviceInput, "tags" | "attributes"> & {
+  site_uuid: string
+  /** Comma-separated in the form, an array in the API. */
+  tags: string
+  attributes: Array<{ key: string; value: string }>
+}
+
+const savedValues = (d: DeviceDetail): DetailsForm => ({
   name: d.name,
   code: d.code,
   serial_number: d.serial_number ?? "",
   description: d.description ?? "",
+  site_uuid: d.site?.uuid ?? "",
+  tags: (d.tags ?? []).join(", "),
+  attributes: Object.entries(d.attributes ?? {}).map(([key, value]) => ({ key, value: value === null ? "" : String(value) })),
 })
+
+function deviceInput(values: DetailsForm): DeviceInput {
+  return {
+    ...values,
+    site_uuid: values.site_uuid || null,
+    tags: values.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+    attributes: Object.fromEntries(
+      values.attributes
+        .filter((row) => row.key.trim())
+        .map((row) => [row.key.trim(), row.value]),
+    ),
+  }
+}
 
 /** Identity form. Keeps the edit when a newer revision arrives and offers the saved values. */
 export function EditDetails({
@@ -64,9 +89,18 @@ export function EditDetails({
   busy: boolean
   onClose: () => void
 }) {
-  const form = useForm<DeviceInput>({ defaultValues: savedValues(device) }),
+  const form = useForm<DetailsForm>({ defaultValues: savedValues(device) }),
     [revision, setRevision] = useState(device.draft_revision),
-    [error, setError] = useState<unknown>(null)
+    [error, setError] = useState<unknown>(null),
+    [siteSearch, setSiteSearch] = useState("")
+  const attributes = useFieldArray({ control: form.control, name: "attributes" })
+  const sites = useQuery({ queryKey: ["sites", org], queryFn: () => api.sites(org) })
+  const siteOptions = [
+    { value: "", label: "No site (organization time zone)" },
+    ...(sites.data?.data ?? [])
+      .filter((site) => site.name.toLowerCase().includes(siteSearch.trim().toLowerCase()))
+      .map((site) => ({ value: site.uuid, label: `${site.name} · ${site.timezone.replaceAll("_", " ")}` })),
+  ]
   const dirty = form.formState.isDirty
   useUnsaved(dirty)
   useEffect(() => {
@@ -90,7 +124,7 @@ export function EditDetails({
           try {
             const result = await run(() =>
               api.updateDevice(org, device.uuid, {
-                ...values,
+                ...deviceInput(values),
                 draft_revision: revision,
               }),
             )
@@ -108,6 +142,46 @@ export function EditDetails({
             <TextField label="Device code" required {...form.register("code")} />
             <TextField label="Serial number" {...form.register("serial_number")} />
             <TextField label="Description" {...form.register("description")} />
+            <SearchableSelect
+              label="Site"
+              value={form.watch("site_uuid")}
+              options={siteOptions}
+              onChange={(value) => form.setValue("site_uuid", value, { shouldDirty: true })}
+              search={siteSearch}
+              onSearchChange={setSiteSearch}
+              loading={sites.isLoading}
+              help={fieldError(error, "site_uuid") ?? "Daily, monthly and shift totals use the site's time zone."}
+            />
+            <TextField
+              label="Tags"
+              placeholder="Line 2, Energy"
+              help="Separate tags with commas. Use them to filter devices and group dashboards."
+              error={fieldError(error, "tags")}
+              {...form.register("tags")}
+            />
+            <FieldSet>
+              <FieldLegend variant="label">Attributes</FieldLegend>
+              <FieldDescription>
+                Facts about this device, such as its line or room. Names use lowercase letters, digits, dots, dashes or underscores.
+              </FieldDescription>
+              {attributes.fields.map((row, index) => (
+                <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
+                  <Input aria-label={`Attribute ${index + 1} name`} placeholder="line" className="font-mono" {...form.register(`attributes.${index}.key`)} />
+                  <Input aria-label={`Attribute ${index + 1} value`} placeholder="2" {...form.register(`attributes.${index}.value`)} />
+                  <Button type="button" variant="ghost" size="sm" onClick={() => attributes.remove(index)}>
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              {fieldError(error, "attributes") && (
+                <p role="alert" className="text-sm text-destructive">{fieldError(error, "attributes")}</p>
+              )}
+              <div>
+                <Button type="button" variant="outline" size="sm" disabled={attributes.fields.length >= 30} onClick={() => attributes.append({ key: "", value: "" })}>
+                  Add attribute
+                </Button>
+              </div>
+            </FieldSet>
             {dirty && device.draft_revision !== revision && (
               <Alert>
                 <AlertTitle>Newer saved values are available</AlertTitle>

@@ -11,6 +11,7 @@ use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\DeviceProfiles\Models\DeviceProfileActivationOutbox;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\DeviceProfiles\Services\ProfileArtifactCache;
+use App\Domain\DeviceProfiles\Services\PublishedParameters;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -80,6 +81,7 @@ final class PublishDeviceProfile
         // This runs only after the publication transaction commits. A cache
         // miss always remains recoverable from the immutable artifact table.
         $this->cache->cache($artifact);
+        app(PublishedParameters::class)->forget($artifact->device_profile_id);
 
         return $artifact;
     }
