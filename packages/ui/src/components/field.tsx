@@ -98,8 +98,13 @@ function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
 
 function FieldLabel({
   className,
+  optional,
+  children,
   ...props
-}: React.ComponentProps<typeof Label>) {
+}: React.ComponentProps<typeof Label> & {
+  /** Most fields in this product are required, so mark the exceptions instead. */
+  optional?: boolean
+}) {
   return (
     <Label
       data-slot="field-label"
@@ -109,7 +114,14 @@ function FieldLabel({
         className
       )}
       {...props}
-    />
+    >
+      {children}
+      {optional && (
+        <span data-slot="field-optional" className="font-normal text-muted-foreground">
+          (optional)
+        </span>
+      )}
+    </Label>
   )
 }
 

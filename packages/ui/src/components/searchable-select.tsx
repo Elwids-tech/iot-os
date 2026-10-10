@@ -45,6 +45,9 @@ export function SearchableSelect({
   page = 1,
   hasNextPage = false,
   onPageChange,
+  labelHidden = false,
+  optional = false,
+  className,
 }: {
   label: string
   value: string
@@ -61,6 +64,10 @@ export function SearchableSelect({
   page?: number
   hasNextPage?: boolean
   onPageChange?: (page: number) => void
+  /** Filter bars keep the label for screen readers only. */
+  labelHidden?: boolean
+  optional?: boolean
+  className?: string
 }) {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -79,8 +86,10 @@ export function SearchableSelect({
     (option) => option.value !== "" || !search,
   )
   return (
-    <Field data-disabled={disabled}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+    <Field data-disabled={disabled} className={className}>
+      <FieldLabel htmlFor={id} optional={optional} className={labelHidden ? "sr-only" : undefined}>
+        {label}
+      </FieldLabel>
       <Popover
         open={open && !disabled}
         onOpenChange={(next) => {
@@ -208,6 +217,9 @@ export function SearchableMultiSelect({
   help,
   disabled,
   placeholder = "Choose options",
+  labelHidden = false,
+  optional = false,
+  className,
 }: {
   label: string
   values: string[]
@@ -217,6 +229,9 @@ export function SearchableMultiSelect({
   help?: string
   disabled?: boolean
   placeholder?: string
+  labelHidden?: boolean
+  optional?: boolean
+  className?: string
 }) {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -225,8 +240,10 @@ export function SearchableMultiSelect({
     ? `${values.length} selected`
     : placeholder
   return (
-    <Field data-disabled={disabled}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+    <Field data-disabled={disabled} className={className}>
+      <FieldLabel htmlFor={id} optional={optional} className={labelHidden ? "sr-only" : undefined}>
+        {label}
+      </FieldLabel>
       <Popover open={open && !disabled} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
