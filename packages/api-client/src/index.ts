@@ -34,6 +34,8 @@ export type Organization = {
     manage_administration: boolean
     device_profiles?: DeviceProfileCapabilities
     devices?: DeviceCapabilities
+    /** Optional platform features enabled for this organization. */
+    features?: { device_adapters: boolean }
   }
 }
 
