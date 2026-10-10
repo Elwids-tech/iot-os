@@ -196,3 +196,29 @@ export function historyFileName(device: string, parameter: string) {
       .replace(/^-|-$/g, "")
   return `${safe(device) || "device"}-${safe(parameter) || "parameter"}-history.csv`
 }
+
+export type HistoryWindow = { from: string; to: string }
+/** The same span as `window`, ending just after the last reading. */
+export function latestDataWindow(window: HistoryWindow, lastSeen: string): HistoryWindow {
+  const span = Date.parse(window.to) - Date.parse(window.from)
+  const to = Date.parse(lastSeen) + 60_000
+  return { from: new Date(to - span).toISOString(), to: new Date(to).toISOString() }
+}
+
+/**
+ * Why a successful history request came back empty: the range is past
+ * retention, the device's last data is past retention, the range starts
+ * after the device was last seen (jump to its data), or nothing was recorded.
+ */
+export function emptyHistoryReason(
+  window: HistoryWindow,
+  lastSeen: string | null,
+  retentionCutoff: string,
+): "range-expired" | "data-expired" | "before-range" | "empty" {
+  const cutoff = Date.parse(retentionCutoff),
+    seen = lastSeen ? Date.parse(lastSeen) : NaN
+  if (Date.parse(window.to) <= cutoff) return "range-expired"
+  if (seen < Date.parse(window.from))
+    return seen < cutoff ? "data-expired" : "before-range"
+  return "empty"
+}

@@ -10,9 +10,11 @@ import {
   buildHistoryCsv,
   csvCell,
   configurationMeta,
+  emptyHistoryReason,
   formatDuration,
   isColorParameter,
   isColorSource,
+  latestDataWindow,
   stateColor,
   stateLabel,
   validHexColor,
@@ -173,5 +175,23 @@ describe("history CSV", () => {
     expect(row).toContain(",-114.012333,number,")
     expect(row).toContain('"\'=HYPERLINK(""x"")"')
     expect(row).toContain(",'@lon,")
+  })
+})
+
+describe("empty history ranges", () => {
+  const day = { from: "2026-10-08T12:00:00.000Z", to: "2026-10-09T12:00:00.000Z" }
+  const cutoff = "2026-09-09T12:00:00.000Z"
+  it("offers the latest data when the device went quiet before the range", () => {
+    expect(emptyHistoryReason(day, "2026-10-04T08:30:00.000Z", cutoff)).toBe("before-range")
+    expect(latestDataWindow(day, "2026-10-04T08:30:00.000Z")).toEqual({
+      from: "2026-10-03T08:31:00.000Z",
+      to: "2026-10-04T08:31:00.000Z",
+    })
+  })
+  it("mentions retention only when the range or the last data is past the cutoff", () => {
+    expect(emptyHistoryReason({ from: "2026-08-01T00:00:00Z", to: "2026-08-02T00:00:00Z" }, "2026-10-09T11:00:00Z", cutoff)).toBe("range-expired")
+    expect(emptyHistoryReason(day, "2026-09-01T00:00:00Z", cutoff)).toBe("data-expired")
+    expect(emptyHistoryReason(day, "2026-10-09T11:00:00Z", cutoff)).toBe("empty")
+    expect(emptyHistoryReason(day, null, cutoff)).toBe("empty")
   })
 })
