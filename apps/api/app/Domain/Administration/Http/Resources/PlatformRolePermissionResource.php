@@ -40,7 +40,7 @@ final class PlatformRolePermissionResource extends JsonResource
             'permissions_editable' => $permissionsEditable,
             'permission_update_message' => $permissionsEditable
                 ? null
-                : 'The Organization Admin permission baseline cannot be changed. Create a custom role for a different permission bundle.',
+                : 'Organization Admin always has every permission available to this organization. Change the organization\'s available permissions instead.',
             'organization' => [
                 'uuid' => $this->resource->organization->uuid,
                 'name' => $this->resource->organization->name,

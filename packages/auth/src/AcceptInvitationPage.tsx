@@ -56,9 +56,12 @@ function invitationError(error: unknown): FormErrors {
 export function AcceptInvitationPage({
   apiClient,
   portalUrl = "/",
+  organizationUrl,
 }: {
   apiClient: ApiClient
   portalUrl?: string
+  /** Where to send the new member: the organization they just joined. */
+  organizationUrl?: (organizationUuid: string) => string
 }) {
   const [searchParams] = useSearchParams()
   const token = searchParams.get("token") ?? ""
@@ -152,7 +155,9 @@ export function AcceptInvitationPage({
           </CardContent>
           <CardFooter>
             <Button asChild>
-              <a href={portalUrl}>Open tenant portal</a>
+              <a href={organizationUrl && state.data ? organizationUrl(state.data.organization.uuid) : portalUrl}>
+                Open tenant portal
+              </a>
             </Button>
           </CardFooter>
         </Card>

@@ -175,6 +175,7 @@ async function mockApi(
     [2, new Set(["Organization.view", "User.view-any"])],
     [3, new Set(["Organization.view"])],
   ])
+  const ceiling = { restricted: false, names: tenantPermissions.map((permission) => permission.name) }
   const invitations = [
     {
       uuid: "invite-1",
@@ -492,6 +493,30 @@ async function mockApi(
       return
     }
 
+    const ceilingMatch = url.pathname.match(/^\/api\/v1\/admin\/organizations\/([^/]+)\/permissions$/)
+
+    if (ceilingMatch) {
+      const organization = orgs.find((item) => item.uuid === ceilingMatch[1])
+      if (!organization) {
+        await fulfillJson(route, { message: "Not found." }, 404)
+        return
+      }
+      if (request.method() === "PUT") {
+        const payload = request.postDataJSON() as { restricted: boolean; permission_names: string[] }
+        ceiling.restricted = payload.restricted
+        ceiling.names = payload.restricted ? payload.permission_names : tenantPermissions.map((permission) => permission.name)
+      }
+      await fulfillJson(route, {
+        data: {
+          organization,
+          restricted: ceiling.restricted,
+          permission_names: ceiling.names,
+          catalogue: tenantPermissions,
+        },
+      })
+      return
+    }
+
     const rolePermissionMatch = url.pathname.match(/^\/api\/v1\/admin\/roles\/(\d+)\/permissions$/)
 
     if (request.method() === "PUT" && rolePermissionMatch) {
@@ -628,20 +653,20 @@ test("manages role permissions by group and preserves changes until saving", asy
   await expect(page.getByText("All changes saved")).toBeVisible()
 
   await page.getByRole("combobox", { name: "Filter by permission group" }).click()
-  await page.getByRole("option", { name: "User" }).click()
+  await page.getByRole("option", { name: "Members" }).click()
   await page.getByRole("searchbox", { name: "Search permissions" }).fill("view-any")
   await page.getByRole("button", { name: "Search" }).click()
 
   await expect(page).toHaveURL(/group=User/)
   await expect(page).toHaveURL(/search=view-any/)
-  await expect(page.getByText("List users")).toBeVisible()
+  await expect(page.getByText("List members")).toBeVisible()
   await expect(page.getByText("View organization")).toHaveCount(0)
 
   await page.getByRole("button", { name: "Moderator" }).click()
   await page.getByRole("option", { name: /Member.*Northstar Utilities/ }).click()
 
   await expect(page).toHaveURL(/\/roles\/3$/)
-  await expect(page.getByRole("heading", { name: "Member" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Member", exact: true })).toBeVisible()
   await expect(page.getByText("Northstar Utilities · Default role · 1 of 5 selected")).toBeVisible()
 })
 
@@ -759,6 +784,30 @@ test("creates and edits an organization", async ({ page, consoleMessages }) => {
   expect(consoleMessages).toHaveLength(1)
   expect(consoleMessages[0]).toContain("status of 422")
   consoleMessages.length = 0
+})
+
+test("restricts an organization's available permissions after confirming removals", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/organizations")
+
+  await page.getByRole("link", { name: "Available permissions for Acme Manufacturing" }).click()
+  await expect(page.getByRole("heading", { name: "Available permissions" })).toBeVisible()
+  await expect(page.getByRole("radio", { name: "All permissions" })).toBeChecked()
+  await expect(page.getByRole("checkbox", { name: "List members" })).toBeDisabled()
+
+  await page.getByRole("radio", { name: "Only selected permissions" }).click()
+  await page.getByRole("checkbox", { name: "Select all Organization permissions" }).click()
+  await expect(page.getByText("Unsaved changes")).toBeVisible()
+  await page.getByRole("button", { name: "Save changes" }).click()
+
+  const confirm = page.getByRole("alertdialog", { name: /Remove \d+ permissions from Acme Manufacturing\?/ })
+  await expect(confirm).toContainText("including Organization Admin")
+  await confirm.getByRole("button", { name: "Remove permissions" }).click()
+
+  await expect(page.getByText("Available permissions saved for Acme Manufacturing")).toBeVisible()
+  await expect(page.getByRole("radio", { name: "Only selected permissions" })).toBeChecked()
+  await expect(page.getByRole("checkbox", { name: "Select all Organization permissions" })).not.toBeChecked()
+  await expect(page.getByText("All changes saved")).toBeVisible()
 })
 
 test("changes a member's roles and removes members", async ({ page, consoleMessages }) => {

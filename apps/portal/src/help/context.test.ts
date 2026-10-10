@@ -36,6 +36,9 @@ describe("Help context", () => {
     expect(helpContextForPath("/organizations/private-org/geofences/new")).toBe(
       "geofences.editor",
     );
+    expect(helpContextForPath("/organizations/private-org/members")).toBe("members");
+    expect(helpContextForPath("/organizations/private-org/roles")).toBe("roles");
+    expect(helpContextForPath("/organizations/private-org/roles/42")).toBe("roles.editor");
   });
   it("uses section overviews for unsupported tabs and getting started outside a workspace", () => {
     expect(

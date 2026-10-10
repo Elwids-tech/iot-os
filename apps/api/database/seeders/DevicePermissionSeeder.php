@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Domain\Administration\Services\OrganizationPermissionCeiling;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
 use App\Domain\Authorization\Models\PlatformRole;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Devices\Permissions\DevicePermission;
+use App\Domain\Shared\Models\Organization;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -33,6 +35,8 @@ final class DevicePermissionSeeder extends Seeder
                     $registrar->setPermissionsTeamId($role->organization_id);
                     $role->givePermissionTo(array_values(array_intersect(OrganizationRoleName::from($role->name)->permissions(), array_column(DevicePermission::cases(), 'value'))));
                 });
+            // Backfills never push a restricted organization past its permission ceiling.
+            Organization::query()->where('permissions_restricted', true)->each(fn (Organization $organization) => app(OrganizationPermissionCeiling::class)->reconcile($organization));
         } finally {
             $registrar->setPermissionsTeamId($previous);
             $registrar->forgetCachedPermissions();

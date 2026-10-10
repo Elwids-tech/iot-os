@@ -6,6 +6,7 @@ namespace App\Domain\Administration\Http\Controllers;
 
 use App\Domain\Administration\Http\Requests\SyncPlatformRolePermissionsRequest;
 use App\Domain\Administration\Http\Resources\PlatformRolePermissionResource;
+use App\Domain\Administration\Services\OrganizationPermissionCeiling;
 use App\Domain\Administration\Services\OrganizationRoleManager;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
@@ -15,7 +16,10 @@ use Illuminate\Support\Facades\Gate;
 
 final class PlatformRolePermissionController
 {
-    public function __construct(private readonly OrganizationRoleManager $roleManager) {}
+    public function __construct(
+        private readonly OrganizationRoleManager $roleManager,
+        private readonly OrganizationPermissionCeiling $ceiling,
+    ) {}
 
     public function show(Request $request, Role $role): JsonResource
     {
@@ -54,7 +58,7 @@ final class PlatformRolePermissionController
     {
         return new PlatformRolePermissionResource(
             $role,
-            $this->roleManager->availableTenantPermissions(),
+            $this->ceiling->permissionsFor($role->organization),
         );
     }
 }

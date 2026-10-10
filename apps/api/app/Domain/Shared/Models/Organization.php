@@ -13,7 +13,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
 
+/**
+ * @property bool $permissions_restricted
+ */
 #[Fillable(['name', 'slug'])]
 class Organization extends Model
 {
@@ -48,8 +52,28 @@ class Organization extends Model
         return $this->hasMany(Role::class);
     }
 
+    /**
+     * The permission ceiling, used only while permissions_restricted is set.
+     *
+     * @return BelongsToMany<Permission, $this>
+     */
+    public function permissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'organization_permission');
+    }
+
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'permissions_restricted' => 'boolean',
+        ];
     }
 }

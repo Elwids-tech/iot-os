@@ -7,6 +7,7 @@ use App\Domain\Administration\Http\Controllers\OrganizationInvitationController;
 use App\Domain\Administration\Http\Controllers\OrganizationMemberController;
 use App\Domain\Administration\Http\Controllers\OrganizationRoleController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationController;
+use App\Domain\Administration\Http\Controllers\PlatformOrganizationPermissionController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationRoleController;
 use App\Domain\Administration\Http\Controllers\PlatformInvitationController;
 use App\Domain\Administration\Http\Controllers\PlatformRoleController;
@@ -43,6 +44,12 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
         Route::post('organizations/{organization}/invitations', [PlatformInvitationController::class, 'store'])
             ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
             ->name('organizations.invitations.store');
+        Route::get('organizations/{organization}/permissions', [PlatformOrganizationPermissionController::class, 'show'])
+            ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+            ->name('organizations.permissions.show');
+        Route::put('organizations/{organization}/permissions', [PlatformOrganizationPermissionController::class, 'update'])
+            ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+            ->name('organizations.permissions.update');
         Route::get('organizations/{organization}/roles', [PlatformOrganizationRoleController::class, 'index'])
             ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
             ->name('organizations.roles.index');
@@ -77,7 +84,12 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::delete('members/{member}', [OrganizationMemberController::class, 'destroy'])->name('members.destroy');
 
             Route::get('invitations', [OrganizationInvitationController::class, 'index'])->name('invitations.index');
-            Route::post('invitations', [OrganizationInvitationController::class, 'store'])->name('invitations.store');
+            Route::post('invitations', [OrganizationInvitationController::class, 'store'])
+                ->middleware('throttle:organization-invitations')
+                ->name('invitations.store');
+            Route::post('invitations/{invitation}/resend', [OrganizationInvitationController::class, 'resend'])
+                ->middleware('throttle:organization-invitations')
+                ->name('invitations.resend');
             Route::delete('invitations/{invitation}', [OrganizationInvitationController::class, 'destroy'])
                 ->name('invitations.destroy');
         });

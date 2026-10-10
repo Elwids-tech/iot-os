@@ -29,9 +29,12 @@ export function helpContextForPath(pathname: string): string {
             : "alerts";
     case "dashboards":
       return resource ? "dashboards.workspace" : "dashboards";
+    case "roles":
+      return resource ? "roles.editor" : "roles";
     case "discovery":
     case "gateways":
     case "telemetry":
+    case "members":
       return section;
     default:
       return "getting-started";

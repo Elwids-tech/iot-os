@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Shared\Http\Resources;
 
 use App\Domain\Administration\Services\OrganizationAdministrationAuthorization;
+use App\Domain\Administration\Services\OrganizationGrants;
 use App\Domain\Shared\Models\User;
 use App\Domain\Shared\Permissions\OrganizationPermission;
 use Illuminate\Http\Request;
@@ -32,6 +33,7 @@ final class OrganizationResource extends JsonResource
                     $this->resource,
                     OrganizationPermission::UPDATE->value,
                 ),
+                'administration' => app(OrganizationGrants::class)->capabilities($user, $this->resource),
                 // Optional platform features, so clients can hide entry points the API would 404.
                 'features' => [
                     'device_adapters' => (bool) config('adapters.enabled'),

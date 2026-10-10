@@ -2,6 +2,7 @@ import { runtimeConfig } from "@iot-os/api-client"
 import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import {
   ApiError,
+  type AdministrationCapabilities,
   type AuthenticatedUser,
   type Organization,
 } from "@iot-os/api-client"
@@ -92,8 +93,10 @@ import {
   RouterIcon,
   Building2Icon,
   ScanSearchIcon,
+  ShieldCheckIcon,
   ShieldIcon,
   SparklesIcon,
+  UsersIcon,
   WorkflowIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -111,6 +114,8 @@ const AdapterRoutes = lazy(() => import("./adapters/Routes"))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
 const IntegrationRoutes = lazy(() => import("./integrations/Integrations"))
 const AlertRoutes = lazy(() => import("./alerts/Alerts"))
+const MembersPage = lazy(() => import("./members/Members").then((module) => ({ default: module.MembersPage })))
+const RoleRoutes = lazy(() => import("./members/Roles"))
 const NotificationCenter = lazy(() => import("./notifications/NotificationCenter"))
 const HelpPanel = lazy(() => import("./help/HelpPanel"))
 const AssistantPanel = lazy(() => import("./assistant/AssistantPanel"))
@@ -127,7 +132,7 @@ export function App() {
         <Route path="reset-password" element={<PasswordRecoveryPage key="reset" apiClient={api} mode="reset" />} />
         <Route
           path="accept-invitation"
-          element={<AcceptInvitationPage apiClient={api} />}
+          element={<AcceptInvitationPage apiClient={api} organizationUrl={(uuid) => sectionPath(uuid)} />}
         />
         <Route path="*" element={<Session />} />
       </Routes>
@@ -249,6 +254,8 @@ function Session() {
           <Route path="organizations/:organizationUuid/alerts/*" element={<Suspense fallback={<PageFallback />}><AlertRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="discovery" /></Suspense>} />
           <Route path="organizations/:organizationUuid/telemetry" element={<Suspense fallback={<PageFallback />}><TelemetryViewer /></Suspense>} />
+          <Route path="organizations/:organizationUuid/members" element={<Suspense fallback={<PageFallback />}><MembersPage /></Suspense>} />
+          <Route path="organizations/:organizationUuid/roles/*" element={<Suspense fallback={<PageFallback />}><RoleRoutes /></Suspense>} />
                   <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="gateways" /></Suspense>} />
                   <Route path="organizations/:organizationUuid/sites" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="sites" /></Suspense>} />
           <Route path="organizations/:organizationUuid/dashboards/:dashboardUuid?" element={<DashboardRoute />} />
@@ -460,6 +467,9 @@ const profilesEditable = (organization: Organization) => {
 }
 // Integrations and the telemetry viewer need device view and manage (I5).
 const devicesAdministered = (organization: Organization) => devicesCan("view")(organization) && devicesCan("manage")(organization)
+// Member and role screens stay hidden unless the payload grants them; older payloads omit the flags.
+const administers = (capability: keyof AdministrationCapabilities) => (organization: Organization) =>
+  organization.capabilities?.administration?.[capability] === true
 
 /** Grouped by job: watching the fleet first, building and connecting after. */
 const navigationGroups: { label: string; items: NavigationItem[] }[] = [
@@ -498,6 +508,13 @@ const navigationGroups: { label: string; items: NavigationItem[] }[] = [
   {
     label: "Diagnostics",
     items: [{ path: "telemetry", label: "Telemetry viewer", icon: ActivityIcon, visible: devicesAdministered }],
+  },
+  {
+    label: "Organization",
+    items: [
+      { path: "members", label: "Members", icon: UsersIcon, visible: administers("members_view") },
+      { path: "roles", label: "Roles", icon: ShieldCheckIcon, visible: administers("roles_view") },
+    ],
   },
 ]
 

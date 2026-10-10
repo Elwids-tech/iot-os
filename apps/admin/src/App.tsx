@@ -8,6 +8,7 @@ import { LoginPage } from "./auth/LoginPage"
 import { AdminLayout } from "./layout/AdminLayout"
 import { apiClient } from "./lib/api-client"
 import { portalUrl } from "./lib/portal"
+import { OrganizationPermissionsPage } from "./pages/OrganizationPermissionsPage"
 import { OrganizationsPage } from "./pages/OrganizationsPage"
 import { RolePermissionsPage } from "./pages/RolePermissionsPage"
 import { RolesPage } from "./pages/RolesPage"
@@ -99,6 +100,7 @@ function PlatformAdministrationApp() {
       <Route element={<AdminLayout user={screen.user} onSignOut={signOut} />}>
         <Route index element={<Navigate to="/organizations" replace />} />
         <Route path="organizations" element={<OrganizationsPage />} />
+        <Route path="organizations/:organizationUuid/permissions" element={<OrganizationPermissionsPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="roles/:roleId" element={<RolePermissionsPage />} />

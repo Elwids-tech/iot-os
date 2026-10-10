@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Domain\Administration\Services\OrganizationDefaultRoles;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
-use App\Domain\Authorization\Models\Role;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -66,12 +66,11 @@ final class BootstrapStaging extends Command
                     }
                     $org = Organization::create(['slug' => $slug, 'name' => $name, 'uuid' => (string) Str::uuid()]);
                     $registrar->setPermissionsTeamId($org->id);
+                    $roles = app(OrganizationDefaultRoles::class)->ensure($org);
                     foreach (['operator' => OrganizationRoleName::ORGANIZATION_ADMIN, 'moderator' => OrganizationRoleName::MODERATOR, 'member' => OrganizationRoleName::MEMBER] as $label => $roleName) {
                         $user = $createUser($slug.'.'.$label.'@example.test', $name.' '.$label);
                         $user->organizations()->syncWithoutDetaching([$org->id]);
-                        $role = Role::firstOrCreate(['organization_id' => $org->id, 'name' => $roleName->value, 'guard_name' => 'web'], ['display_name' => $roleName->displayName(), 'is_default' => true]);
-                        $role->syncPermissions($roleName->permissions());
-                        $user->assignRole($role);
+                        $user->assignRole($roles[$roleName->value]);
                     }
                     app(RetentionService::class)->update($org, 7, 0, true, $admin->id);
                 }

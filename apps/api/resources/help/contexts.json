@@ -186,5 +186,17 @@
   "assistant": {
     "title": "Use Help and the authoring assistants",
     "overview": "assistant"
+  },
+  "members": {
+    "title": "Members",
+    "overview": "members"
+  },
+  "roles": {
+    "title": "Roles",
+    "overview": "members"
+  },
+  "roles.editor": {
+    "title": "Roles · Editor",
+    "overview": "members"
   }
 }

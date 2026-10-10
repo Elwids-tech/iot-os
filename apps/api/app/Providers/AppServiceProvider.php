@@ -53,6 +53,15 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
         RateLimiter::for('password-reset', static fn (Request $request) => Limit::perMinute(10)->by('reset-ip:'.$request->ip()));
+        // Invitations send email, so bound how many one person or one organization can trigger.
+        RateLimiter::for('organization-invitations', static function (Request $request): array {
+            $organization = $request->route('organization');
+
+            return [
+                Limit::perMinute(20)->by('invitations-user:'.$request->user()?->getAuthIdentifier()),
+                Limit::perDay(200)->by('invitations-organization:'.(is_object($organization) ? $organization->getKey() : (string) $organization)),
+            ];
+        });
 
         Queue::looping(static fn () => Operations::heartbeat());
 
