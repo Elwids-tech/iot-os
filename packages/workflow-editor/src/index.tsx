@@ -19,6 +19,7 @@ import {
   type Node,
   type Connection,
   type ReactFlowInstance,
+  type Viewport,
 } from "@xyflow/react";
 import { Button } from "@iot-os/ui/components/button";
 import {
@@ -97,7 +98,11 @@ type NodeData = {
   outcome?: NodeOutcome;
   [key: string]: unknown;
 };
-const fitOptions = { padding: 0.16, minZoom: 0.2, maxZoom: 1 };
+const fitOptions = { padding: 0.16, minZoom: 0.15, maxZoom: 1 };
+const fieldLabel = (key: string) => {
+  const text = key.replaceAll("_", " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
 // Outcomes that pass usable evidence downstream; their outgoing edges animate.
 const flowing = new Set(["matched", "triggered", "evaluated"]);
 
@@ -271,6 +276,7 @@ export function WorkflowEditor({
   panel,
   outcomes,
   onSelectionChange,
+  palette = true,
 }: {
   workflow: Workflow;
   layout: Layout;
@@ -290,6 +296,8 @@ export function WorkflowEditor({
   /** Per-node results to highlight on the canvas, keyed by node ID. */
   outcomes?: Record<string, NodeOutcome>;
   onSelectionChange?: (nodeId: string) => void;
+  /** Show the node palette; hosts may hide it in read-mostly modes such as simulation. */
+  palette?: boolean;
 }) {
   const [selected, setSelected] = useState("");
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -305,17 +313,74 @@ export function WorkflowEditor({
   );
   const [zoom, setZoom] = useState(1);
   const [expanded, setExpanded] = useState(false);
-  // Fit once per mounted workflow; afterwards the viewport is the user's.
+  // Fit once per mounted workflow. Until the user pans or zooms, the viewport is
+  // still ours and follows canvas size changes; afterwards it is the user's.
   const fitted = useRef(false);
+  const userViewport = useRef(false);
+  // Expanding the editor remounts React Flow; restore the live viewport, not a saved one.
+  const viewport = useRef<Viewport | undefined>(undefined);
+  // Width the docked panel covers when it overlays the canvas (narrow editors).
+  const covered = () => {
+    const canvas = canvasRef.current?.getBoundingClientRect();
+    const aside = panelRef.current;
+    if (!canvas || !aside || getComputedStyle(aside).position !== "absolute") return 0;
+    return Math.max(0, canvas.right - aside.getBoundingClientRect().left);
+  };
+  const fitCanvas = (duration?: number) => {
+    const right = covered();
+    void flow?.fitView({
+      ...fitOptions,
+      duration,
+      ...(right ? { padding: { x: fitOptions.padding, y: fitOptions.padding, right: `${right + 24}px` as const } } : {}),
+    });
+  };
+  /** Bring a hidden node into view at the current zoom. */
+  const reveal = (id: string) => {
+    const canvas = canvasRef.current?.getBoundingClientRect();
+    const element = canvasRef.current?.querySelector(
+      `.react-flow__node[data-id="${CSS.escape(id)}"]`,
+    );
+    const internal = flow?.getInternalNode(id);
+    if (!flow || !canvas || !element || !internal) return;
+    const right = canvas.right - covered();
+    const box = element.getBoundingClientRect();
+    if (box.left >= canvas.left && box.right <= right && box.top >= canvas.top && box.bottom <= canvas.bottom) return;
+    const { zoom } = flow.getViewport();
+    const { x, y } = internal.internals.positionAbsolute;
+    void flow.setViewport(
+      {
+        x: (right - canvas.left) / 2 - (x + (internal.measured.width ?? 0) / 2) * zoom,
+        y: canvas.height / 2 - (y + (internal.measured.height ?? 0) / 2) * zoom,
+        zoom,
+      },
+      { duration: 200 },
+    );
+  };
   useEffect(() => {
     if (!flow || fitted.current || !workflow.nodes.length) return;
     fitted.current = true;
-    void flow.fitView(fitOptions);
+    fitCanvas();
   }, [flow, workflow.nodes.length]);
   // A host panel opens with its mode; leaving it keeps the inspector only for a selection.
   useEffect(() => {
     setPanelOpen(hostPanel || Boolean(selected));
   }, [hostPanel]);
+  // The canvas width changes when the panel docks or the palette hides.
+  const canvasLayout = `${panelOpen}:${palette}`;
+  const layoutWas = useRef(canvasLayout);
+  useEffect(() => {
+    if (layoutWas.current === canvasLayout) return;
+    layoutWas.current = canvasLayout;
+    if (!flow || !fitted.current) return;
+    // Wait for the grid and React Flow's resize observer to settle.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        if (!userViewport.current) fitCanvas(150);
+        else if (selected) reveal(selected);
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [canvasLayout]);
   useEffect(() => {
     if (panelOpen && window.matchMedia?.("(max-width: 767px)").matches)
       panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -329,7 +394,12 @@ export function WorkflowEditor({
     [workflow.nodes, workflow.edges],
   );
   const fit = () => {
-    void flow?.fitView({ ...fitOptions, minZoom: 0.15, duration: 200 });
+    userViewport.current = false;
+    fitCanvas(200);
+  };
+  const userZoom = (change: () => void) => () => {
+    userViewport.current = true;
+    change();
   };
   const arrange = () => {
     onLayoutChange({ ...layout, positions: defaultPositions });
@@ -585,7 +655,7 @@ export function WorkflowEditor({
               ) : f.enum ? (
                 <Picker
                   key={key}
-                  label={key.replaceAll("_", " ")}
+                  label={fieldLabel(key)}
                   value={String(node.config[key] ?? "")}
                   choices={f.enum.map((v) => ({ value: v, label: v }))}
                   onChange={(v) =>
@@ -598,7 +668,7 @@ export function WorkflowEditor({
               ) : (
                 <Field key={key}>
                   <FieldLabel htmlFor={`config-${node.id}-${key}`}>
-                    {key.replaceAll("_", " ")}
+                    {fieldLabel(key)}
                   </FieldLabel>
                   <Input
                     id={`config-${node.id}-${key}`}
@@ -664,8 +734,8 @@ export function WorkflowEditor({
       className="workflow-editor flex min-w-0 flex-col gap-4"
       onKeyDown={handleDeleteKey}
     >
-      <div className="workflow-workspace" data-panel={panelOpen}>
-        <Card size="sm" className="workflow-palette">
+      <div className="workflow-workspace" data-panel={panelOpen} data-palette={palette}>
+        <Card size="sm" className="workflow-palette" hidden={!palette}>
           <CardHeader>
             <CardTitle>Nodes</CardTitle>
             <CardDescription>Drag onto the canvas</CardDescription>
@@ -783,9 +853,7 @@ export function WorkflowEditor({
             <div className="flex flex-wrap items-center gap-1.5">
               <CanvasButton
                 label="Zoom out"
-                onClick={() => {
-                  void flow?.zoomOut({ duration: 150 });
-                }}
+                onClick={userZoom(() => void flow?.zoomOut({ duration: 150 }))}
               >
                 <MinusIcon />
               </CanvasButton>
@@ -793,17 +861,13 @@ export function WorkflowEditor({
                 variant="outline"
                 size="sm"
                 aria-label="Reset zoom to 100%"
-                onClick={() => {
-                  void flow?.zoomTo(1, { duration: 150 });
-                }}
+                onClick={userZoom(() => void flow?.zoomTo(1, { duration: 150 }))}
               >
                 {Math.round(zoom * 100)}%
               </Button>
               <CanvasButton
                 label="Zoom in"
-                onClick={() => {
-                  void flow?.zoomIn({ duration: 150 });
-                }}
+                onClick={userZoom(() => void flow?.zoomIn({ duration: 150 }))}
               >
                 <PlusIcon />
               </CanvasButton>
@@ -884,7 +948,15 @@ export function WorkflowEditor({
               nodes={nodes}
               edges={edges}
               onInit={setFlow}
-              onMove={(_, viewport) => setZoom(viewport.zoom)}
+              onMove={(_, next) => {
+                viewport.current = next;
+                setZoom(next.zoom);
+              }}
+              defaultViewport={viewport.current}
+              onMoveStart={(event) => {
+                // Programmatic fits and reveals have no source event.
+                if (event) userViewport.current = true;
+              }}
               onPaneClick={() => select("")}
               connectionLineStyle={{
                 stroke: "var(--primary)",
@@ -1163,7 +1235,7 @@ function ObjectField({
   const text = invalid ? value : JSON.stringify(value ?? {}, null, 2);
   return (
     <Field data-invalid={invalid}>
-      <FieldLabel htmlFor={label}>{label} (GeoJSON)</FieldLabel>
+      <FieldLabel htmlFor={label}>{fieldLabel(label)} (GeoJSON)</FieldLabel>
       <Textarea
         id={label}
         aria-invalid={invalid}

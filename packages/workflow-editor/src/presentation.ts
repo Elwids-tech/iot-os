@@ -273,8 +273,11 @@ export const nodeLabel = (type: string, registryLabel?: string): string =>
     ? registryLabel
     : nodeAppearance(type).label;
 /** Author-chosen node IDs act as names; generated `node_…` IDs do not. */
-export const nodeName = (node: WorkflowNode): string | undefined =>
-  node.id.startsWith("node_") ? undefined : node.id.replaceAll("_", " ");
+export const nodeName = (node: WorkflowNode): string | undefined => {
+  if (node.id.startsWith("node_")) return undefined;
+  const name = node.id.replaceAll("_", " ");
+  return name.charAt(0).toUpperCase() + name.slice(1);
+};
 export const paletteCategories = [
   "Inputs",
   "Calculations",
