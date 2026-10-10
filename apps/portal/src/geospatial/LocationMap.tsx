@@ -20,18 +20,22 @@ const FALLBACK_STYLE: maplibregl.StyleSpecification = {
 const EMPTY_VERTICES: number[][] = []
 
 export function LocationMap({ devices, polygon, selected, onSelect, showLabels = true, editable = false,
-  vertices = EMPTY_VERTICES, selectedVertex = null, onVerticesChange, onSelectedVertex }: {
+  vertices = EMPTY_VERTICES, selectedVertex = null, onVerticesChange, onSelectedVertex, onPick }: {
   devices: LocationMapDevice[]; polygon?: number[][][] | null; selected?: string | null; onSelect?: (device: string) => void
   showLabels?: boolean; editable?: boolean; vertices?: number[][]; selectedVertex?: number | null
   onVerticesChange?: (vertices: number[][]) => void; onSelectedVertex?: (index: number | null) => void
+  /** Click-to-pick a coordinate, e.g. a simulated GPS fix. */
+  onPick?: (point: { latitude: number; longitude: number }) => void
 }) {
   const [ready, setReady] = useState(false)
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
   const markers = useRef<Marker[]>([])
   const vertexMarkers = useRef<Marker[]>([])
-  const values = useRef({ vertices, onVerticesChange, onSelectedVertex })
-  values.current = { vertices, onVerticesChange, onSelectedVertex }
+  const values = useRef({ vertices, onVerticesChange, onSelectedVertex, onPick })
+  values.current = { vertices, onVerticesChange, onSelectedVertex, onPick }
+  const picking = Boolean(onPick)
+  const fitted = useRef<string | null>(null)
 
   useEffect(() => {
     if (!container.current) return
@@ -47,9 +51,14 @@ export function LocationMap({ devices, polygon, selected, onSelect, showLabels =
       values.current.onVerticesChange([...values.current.vertices, [event.lngLat.lng, event.lngLat.lat]])
       values.current.onSelectedVertex?.(values.current.vertices.length)
     })
+    fitted.current = null
+    if (picking) {
+      instance.getCanvas().style.cursor = "crosshair"
+      instance.on("click", (event: MapMouseEvent) => values.current.onPick?.({ latitude: event.lngLat.lat, longitude: event.lngLat.lng }))
+    }
     map.current = instance
     return () => { setReady(false); observer.disconnect(); markers.current.forEach((marker) => marker.remove()); vertexMarkers.current.forEach((marker) => marker.remove()); instance.remove(); map.current = null }
-  }, [editable])
+  }, [editable, picking])
 
   useEffect(() => {
     const instance = map.current
@@ -97,12 +106,20 @@ export function LocationMap({ devices, polygon, selected, onSelect, showLabels =
       ring.forEach((point) => bounds.extend(point as [number, number]))
       devices.forEach((device) => device.latest?.point && bounds.extend([device.latest.point.longitude, device.latest.point.latitude]))
       devices.forEach((device) => device.trail.segments.forEach((segment) => segment.forEach(({ point }) => bounds.extend([point.longitude, point.latitude]))))
-      if (!bounds.isEmpty()) instance.fitBounds(bounds, { padding: 48, maxZoom: 16, duration: 0 })
+      // A picker keeps the user's zoom after the first fit; it only pans to an off-screen pick.
+      const fitKey = JSON.stringify(ring)
+      if (picking && fitted.current === fitKey) {
+        const point = devices[0]?.latest?.point
+        if (point && !instance.getBounds().contains([point.longitude, point.latitude])) instance.easeTo({ center: [point.longitude, point.latitude], duration: 200 })
+      } else if (!bounds.isEmpty()) {
+        fitted.current = fitKey
+        instance.fitBounds(bounds, { padding: 48, maxZoom: 16, duration: 0 })
+      }
     }
     render()
-  }, [ready, devices, polygon, selected, showLabels, editable, vertices, selectedVertex, onSelect, onSelectedVertex, onVerticesChange])
+  }, [ready, devices, polygon, selected, showLabels, editable, vertices, selectedVertex, onSelect, onSelectedVertex, onVerticesChange, picking])
 
-  return <div ref={container} className="h-full min-h-0 w-full overflow-hidden rounded-md border" aria-label={editable ? "Geofence editor map" : "GPS location map"} />
+  return <div ref={container} className="h-full min-h-0 w-full overflow-hidden rounded-md border" aria-label={editable ? "Geofence editor map" : picking ? "Location picker map" : "GPS location map"} />
 }
 
 function setSource(map: MapLibreMap, id: string, data: object) {

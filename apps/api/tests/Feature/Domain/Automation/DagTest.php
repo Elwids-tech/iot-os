@@ -282,4 +282,48 @@ final class DagTest extends TestCase
         $this->postJson($this->url.'/dag/validate', ['workflow' => $this->graph])->assertUnprocessable();
     }
 
+    public function test_directory_summarises_triggers_activity_and_issues_with_a_fixed_query_count(): void
+    {
+        $this->freezeTime();
+        $first = $this->draft();
+        $workflow = Workflow::where('uuid', $first['uuid'])->firstOrFail();
+        $deployment = fn (int $generation, string $status, $at, ?string $diagnostic = null) => Deployment::create(['uuid' => (string) Str::uuid(), 'automation_workflow_id' => $workflow->id, 'generation' => $generation, 'draft_revision' => 1, 'target' => 'active', 'definition' => $first['workflow'], 'definition_hash' => str_repeat('a', 64), 'status' => $status, 'diagnostic' => $diagnostic, 'created_by' => $this->actor->id, 'created_at' => $at, 'completed_at' => $at]);
+        $applied = $deployment(1, 'succeeded', now()->subHours(3));
+        $action = fn (string $id, string $status, $at, ?string $diagnostic = null) => DB::table('automation_actions')->insert(['id' => hash('sha256', $id), 'organization_id' => $this->org->id, 'automation_deployment_id' => $applied->id, 'node_id' => 'command', 'kind' => 'action.command.v1', 'status' => $status, 'intent' => '{}', 'diagnostic' => $diagnostic, 'expires_at' => $at, 'created_at' => $at, 'updated_at' => $at]);
+        $action('older-problem', 'uncertain', now()->subHours(2), 'Older uncertainty.');
+        $action('latest-problem', 'failed', now()->subHour(), 'Device rejected the value.');
+        $action('latest', 'succeeded', now()->subMinutes(5));
+        $workflow->update(['deployment_generation' => 1, 'deployment_status' => 'applied']);
+        $second = $this->postJson($this->url, ['name' => 'Second', 'workflow' => $this->graph])->assertCreated()->json('data');
+
+        $rows = collect($this->getJson($this->url.'/dag')->assertOk()->assertJsonCount(2, 'data')->json('data'))->keyBy('uuid');
+        $row = $rows[$first['uuid']];
+        $this->assertSame([['node_id' => 'source', 'device_uuid' => Device::firstOrFail()->uuid, 'device_name' => 'Simulator', 'parameter' => 'temperature']], $row['triggers']);
+        $this->assertSame(now()->subMinutes(5)->toIso8601ZuluString(), $row['last_action_at']);
+        $this->assertSame(['target' => 'active', 'status' => 'succeeded', 'at' => now()->subHours(3)->toIso8601ZuluString(), 'draft_revision' => 1], $row['last_deployment']);
+        $this->assertSame(['source' => 'action', 'message' => 'Device rejected the value.', 'at' => now()->subHour()->toIso8601ZuluString()], $row['last_issue']);
+        $this->assertSame(now()->toIso8601ZuluString(), $row['updated_at']);
+        $this->assertSame($row['triggers'], $rows[$second['uuid']]['triggers']);
+        $this->assertNull($rows[$second['uuid']]['last_action_at']);
+        $this->assertNull($rows[$second['uuid']]['last_deployment']);
+        $this->assertNull($rows[$second['uuid']]['last_issue']);
+
+        // A newer failed activation outranks the older action failure and supplies the diagnostic.
+        $deployment(2, 'failed', now()->subMinutes(30), 'Runtime rejected the graph.');
+        $row = collect($this->getJson($this->url.'/dag')->assertOk()->json('data'))->firstWhere('uuid', $first['uuid']);
+        $this->assertSame(['source' => 'deployment', 'message' => 'Runtime rejected the graph.', 'at' => now()->subMinutes(30)->toIso8601ZuluString()], $row['last_issue']);
+        $this->assertSame('Runtime rejected the graph.', $row['deployment_diagnostic']);
+        $this->assertSame('failed', $row['last_deployment']['status']);
+
+        // Directory columns are aggregated per page, not queried per row.
+        DB::enableQueryLog();
+        $this->getJson($this->url.'/dag')->assertOk();
+        $queries = count(DB::getQueryLog());
+        for ($i = 0; $i < 4; $i++) {
+            $this->postJson($this->url, ['name' => 'More '.$i, 'workflow' => $this->graph])->assertCreated();
+        }
+        DB::flushQueryLog();
+        $this->getJson($this->url.'/dag')->assertOk()->assertJsonCount(6, 'data');
+        $this->assertSame($queries, count(DB::getQueryLog()));
+    }
 }

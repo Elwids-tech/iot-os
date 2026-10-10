@@ -35,9 +35,9 @@
 Save the intended workflow first. Provide realistic device inputs, timestamps, and missing-data cases.
 
 ## Steps
-1. Open **Simulation** and use **Simulate saved revision**.
-2. Supply representative inputs and timing.
-3. Inspect node results and proposed/suppressed actions.
+1. Open **Simulation**. The canvas stays visible and the **Simulation** panel docks beside it.
+2. Supply representative inputs. For a geofence, click the map to set latitude and longitude together; values start at the boundary centre.
+3. Select **Run simulation**, then inspect the highlighted nodes, per-node results and requested or suppressed actions. Switch between the summary and individual steps.
 4. Use **Saved test scenarios** to retain repeatable test inputs where available.
 5. Test threshold crossings, recovery, missing samples, and timing gaps.
 6. Review activation separately when results match your intent.

@@ -112,20 +112,23 @@ export function nodeSummary(node: WorkflowNode): string {
       return `A ${operators[String(c.operator)] ?? c.operator} B`;
     case "hysteresis.v1":
       return `Above ${c.activate_above} / below ${c.clear_below}`;
+    case "branch.v1":
+      return "Route true or false";
+    case "geofence.v1":
+      return `True when ${c.condition === "inside" ? "inside" : "outside"} the boundary`;
     default:
-      return node.type === "branch.v1"
-        ? "Route true or false"
-        : "Evaluate location";
+      return nodeAppearance(node.type).description;
   }
 }
 
 type NodeAppearance = {
+  label: string;
   category: string;
   tone: string;
   Icon: LucideIcon;
   description: string;
 };
-const appearances: Record<string, NodeAppearance> = {
+const appearances: Record<string, Omit<NodeAppearance, "label">> = {
   "source.parameter.v1": {
     category: "Inputs",
     tone: "info",
@@ -225,13 +228,56 @@ const appearances: Record<string, NodeAppearance> = {
       "Control a device: turn an alarm or RGB LED on/off, or set a parameter. Requires an activation grant. Fires when the condition becomes true (including the first known true value).",
   },
 };
+// Bundled labels mirror services/runtime/internal/dag/registry.go so a node
+// never falls back to its type ID when the catalog is unavailable.
+const labels: Record<string, string> = {
+  "source.parameter.v1": "Device parameter",
+  "constant.v1": "Constant",
+  "geofence.v1": "Geofence",
+  "math.v1": "Arithmetic",
+  "convert.v1": "Unit conversion",
+  "compare.v1": "Compare",
+  "boolean.v1": "Boolean logic",
+  "branch.v1": "Branch",
+  "hysteresis.v1": "Hysteresis",
+  "window.v1": "Time window",
+  "join.v1": "Correlate inputs",
+  "sustained.v1": "Sustained condition",
+  "cooldown.v1": "Cooldown",
+  "action.alert.v1": "Alert",
+  "action.event.v1": "Integration event",
+  "action.command.v1": "Set device state",
+};
+/** "vendor.flow_meter.v2" → "Vendor flow meter". */
+export function humanizeType(type: string): string {
+  const words = type
+    .replace(/\.v\d+$/, "")
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .join(" ");
+  return words ? words[0].toUpperCase() + words.slice(1) : "Node";
+}
 export const nodeAppearance = (type: string): NodeAppearance =>
-  appearances[type] ?? {
-    category: "Other",
-    tone: "primary",
-    Icon: ListFilterIcon,
-    description: "Configure this node.",
-  };
+  appearances[type]
+    ? { ...appearances[type], label: labels[type] }
+    : {
+        label: humanizeType(type),
+        category: "Other",
+        tone: "primary",
+        Icon: ListFilterIcon,
+        description: "Configure this node.",
+      };
+/** Registry label when it is a real label; type IDs are never primary text. */
+export const nodeLabel = (type: string, registryLabel?: string): string =>
+  registryLabel && registryLabel !== type
+    ? registryLabel
+    : nodeAppearance(type).label;
+/** Author-chosen node IDs act as names; generated `node_…` IDs do not. */
+export const nodeName = (node: WorkflowNode): string | undefined => {
+  if (node.id.startsWith("node_")) return undefined;
+  const name = node.id.replaceAll("_", " ");
+  return name.charAt(0).toUpperCase() + name.slice(1);
+};
 export const paletteCategories = [
   "Inputs",
   "Calculations",

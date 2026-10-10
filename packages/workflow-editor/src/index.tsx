@@ -1,5 +1,7 @@
 import {
   memo,
+  useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -17,15 +19,9 @@ import {
   type Node,
   type Connection,
   type ReactFlowInstance,
+  type Viewport,
 } from "@xyflow/react";
 import { Button } from "@iot-os/ui/components/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@iot-os/ui/components/sheet";
 import {
   Dialog,
   DialogContent,
@@ -47,10 +43,14 @@ import { Badge } from "@iot-os/ui/components/badge";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@iot-os/ui/components/collapsible";
+import {
   PlusIcon,
   TrashIcon,
   GitMergeIcon,
-  SlidersHorizontalIcon,
   MinusIcon,
   ScanIcon,
   MaximizeIcon,
@@ -58,6 +58,10 @@ import {
   WorkflowIcon,
   MousePointer2Icon,
   GripVerticalIcon,
+  PanelRightCloseIcon,
+  PanelRightOpenIcon,
+  ChevronRightIcon,
+  CloudOffIcon,
 } from "lucide-react";
 import {
   Tooltip,
@@ -68,26 +72,40 @@ import {
   arrangeNodes,
   nodeSummary,
   nodeAppearance,
+  nodeLabel,
+  nodeName,
   paletteCategories,
 } from "./presentation";
 import type {
   Workflow,
   Layout,
   NodeType,
+  NodeOutcome,
   Diagnostic,
   WorkflowNode,
 } from "./types";
 import "@xyflow/react/dist/style.css";
 import "./workflow-editor.css";
 export type * from "./types";
+export { nodeLabel, nodeName } from "./presentation";
 
 type NodeData = {
   label: string;
+  category: string;
   node: WorkflowNode;
   definition: NodeType;
   errors: string[];
+  outcome?: NodeOutcome;
   [key: string]: unknown;
 };
+const fitOptions = { padding: 0.16, minZoom: 0.15, maxZoom: 1 };
+const fieldLabel = (key: string) => {
+  const text = key.replaceAll("_", " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+// Outcomes that pass usable evidence downstream; their outgoing edges animate.
+const flowing = new Set(["matched", "triggered", "evaluated"]);
+
 const GraphNode = memo(function GraphNode({
   data,
   selected,
@@ -95,29 +113,34 @@ const GraphNode = memo(function GraphNode({
   const inputs = Object.keys(data.definition.inputs ?? {});
   const outputs = Object.keys(data.definition.outputs ?? {});
   const { Icon, tone } = nodeAppearance(data.node.type);
+  const name = nodeName(data.node);
   return (
     <article
       className="workflow-node"
       style={{ "--node-accent": `var(--${tone})` } as CSSProperties}
       data-selected={selected}
       data-invalid={data.errors.length > 0}
+      data-outcome={data.outcome?.status}
     >
       <div className="workflow-node-heading">
         <span className="workflow-node-icon">
           <Icon aria-hidden="true" size={18} />
         </span>
         <div className="min-w-0">
-          <p className="workflow-node-kind">{data.label}</p>
-          <p className="workflow-node-title">
-            {data.node.id.startsWith("node_")
-              ? data.label
-              : data.node.id.replaceAll("_", " ")}
-          </p>
+          <p className="workflow-node-kind">{name ? data.label : data.category}</p>
+          <p className="workflow-node-title">{name ?? data.label}</p>
         </div>
       </div>
       <p className="workflow-node-summary" title={nodeSummary(data.node)}>
         {nodeSummary(data.node)}
       </p>
+      {data.outcome && (
+        <p className="workflow-node-outcome" title={data.outcome.reason}>
+          <span aria-hidden="true" />
+          <strong>{data.outcome.label}</strong>
+          {data.outcome.reason && <span className="sr-only"> · {data.outcome.reason}</span>}
+        </p>
+      )}
       <div className="workflow-node-ports">
         {Array.from(
           { length: Math.max(inputs.length, outputs.length) },
@@ -219,6 +242,26 @@ function Picker({
   );
 }
 
+/** Without the catalog, keep existing connections drawable from the graph's own edges. */
+function edgeDefinition(node: WorkflowNode, workflow: Workflow): NodeType {
+  const ports = (side: "source" | "target") =>
+    Object.fromEntries(
+      workflow.edges
+        .filter((e) => e[side] === node.id)
+        .map((e) => [side === "target" ? e.target_port : e.source_port, "any"]),
+    );
+  return {
+    type: node.type,
+    label: nodeLabel(node.type),
+    inputs: ports("target"),
+    outputs: ports("source"),
+    config_schema: {},
+    stateful: false,
+    permissions: null,
+    simulation: false,
+  };
+}
+
 /** Host owns persistence, permissions, resources and deployment. No portal imports. */
 export function WorkflowEditor({
   workflow,
@@ -229,6 +272,11 @@ export function WorkflowEditor({
   onLayoutChange,
   renderBinding,
   renderConfig,
+  catalog,
+  panel,
+  outcomes,
+  onSelectionChange,
+  palette = true,
 }: {
   workflow: Workflow;
   layout: Layout;
@@ -241,28 +289,117 @@ export function WorkflowEditor({
     update: (node: WorkflowNode) => void,
   ) => ReactNode;
   renderConfig?: (node: WorkflowNode, key: string, update: (node: WorkflowNode) => void) => ReactNode;
+  /** Node catalog request state: `error` when it failed, `stale` when served from cache. */
+  catalog?: { error?: boolean; stale?: boolean; cachedAt?: string };
+  /** Host panel docked beside the canvas in place of the node inspector (e.g. simulation). */
+  panel?: { label: string; description?: ReactNode; content: ReactNode };
+  /** Per-node results to highlight on the canvas, keyed by node ID. */
+  outcomes?: Record<string, NodeOutcome>;
+  onSelectionChange?: (nodeId: string) => void;
+  /** Show the node palette; hosts may hide it in read-mostly modes such as simulation. */
+  palette?: boolean;
 }) {
   const [selected, setSelected] = useState("");
   const canvasRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const panelHeadingRef = useRef<HTMLHeadingElement>(null);
+  const panelId = useId();
   const [dragging, setDragging] = useState(false);
   const [paletteSearch, setPaletteSearch] = useState("");
-  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const hostPanel = Boolean(panel);
+  const [panelOpen, setPanelOpen] = useState(hostPanel);
   const [flow, setFlow] = useState<ReactFlowInstance<Node<NodeData>> | null>(
     null,
   );
-  const [zoom, setZoom] = useState(layout.viewport?.zoom ?? 1);
+  const [zoom, setZoom] = useState(1);
   const [expanded, setExpanded] = useState(false);
+  // Fit once per mounted workflow. Until the user pans or zooms, the viewport is
+  // still ours and follows canvas size changes; afterwards it is the user's.
+  const fitted = useRef(false);
+  const userViewport = useRef(false);
+  // Expanding the editor remounts React Flow; restore the live viewport, not a saved one.
+  const viewport = useRef<Viewport | undefined>(undefined);
+  // Width the docked panel covers when it overlays the canvas (narrow editors).
+  const covered = () => {
+    const canvas = canvasRef.current?.getBoundingClientRect();
+    const aside = panelRef.current;
+    if (!canvas || !aside || getComputedStyle(aside).position !== "absolute") return 0;
+    return Math.max(0, canvas.right - aside.getBoundingClientRect().left);
+  };
+  const fitCanvas = (duration?: number) => {
+    const right = covered();
+    void flow?.fitView({
+      ...fitOptions,
+      duration,
+      ...(right ? { padding: { x: fitOptions.padding, y: fitOptions.padding, right: `${right + 24}px` as const } } : {}),
+    });
+  };
+  /** Bring a hidden node into view at the current zoom. */
+  const reveal = (id: string) => {
+    const canvas = canvasRef.current?.getBoundingClientRect();
+    const element = canvasRef.current?.querySelector(
+      `.react-flow__node[data-id="${CSS.escape(id)}"]`,
+    );
+    const internal = flow?.getInternalNode(id);
+    if (!flow || !canvas || !element || !internal) return;
+    const right = canvas.right - covered();
+    const box = element.getBoundingClientRect();
+    if (box.left >= canvas.left && box.right <= right && box.top >= canvas.top && box.bottom <= canvas.bottom) return;
+    const { zoom } = flow.getViewport();
+    const { x, y } = internal.internals.positionAbsolute;
+    void flow.setViewport(
+      {
+        x: (right - canvas.left) / 2 - (x + (internal.measured.width ?? 0) / 2) * zoom,
+        y: canvas.height / 2 - (y + (internal.measured.height ?? 0) / 2) * zoom,
+        zoom,
+      },
+      { duration: 200 },
+    );
+  };
+  useEffect(() => {
+    if (!flow || fitted.current || !workflow.nodes.length) return;
+    fitted.current = true;
+    fitCanvas();
+  }, [flow, workflow.nodes.length]);
+  // A host panel opens with its mode; leaving it keeps the inspector only for a selection.
+  useEffect(() => {
+    setPanelOpen(hostPanel || Boolean(selected));
+  }, [hostPanel]);
+  // The canvas width changes when the panel docks or the palette hides.
+  const canvasLayout = `${panelOpen}:${palette}`;
+  const layoutWas = useRef(canvasLayout);
+  useEffect(() => {
+    if (layoutWas.current === canvasLayout) return;
+    layoutWas.current = canvasLayout;
+    if (!flow || !fitted.current) return;
+    // Wait for the grid and React Flow's resize observer to settle.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        if (!userViewport.current) fitCanvas(150);
+        else if (selected) reveal(selected);
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [canvasLayout]);
+  useEffect(() => {
+    if (panelOpen && window.matchMedia?.("(max-width: 767px)").matches)
+      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [panelOpen, selected]);
+  const select = (id: string) => {
+    setSelected(id);
+    onSelectionChange?.(id);
+  };
   const defaultPositions = useMemo(
     () => arrangeNodes(workflow),
     [workflow.nodes, workflow.edges],
   );
   const fit = () => {
-    void flow?.fitView({
-      padding: 0.16,
-      minZoom: 0.15,
-      maxZoom: 1,
-      duration: 200,
-    });
+    userViewport.current = false;
+    fitCanvas(200);
+  };
+  const userZoom = (change: () => void) => () => {
+    userViewport.current = true;
+    change();
   };
   const arrange = () => {
     onLayoutChange({ ...layout, positions: defaultPositions });
@@ -274,6 +411,7 @@ export function WorkflowEditor({
     () => new Map(registry.map((r) => [r.type, r])),
     [registry],
   );
+  const labelOf = (n: WorkflowNode) => nodeLabel(n.type, lookup.get(n.type)?.label);
   const nodes = useMemo(
     () =>
       workflow.nodes.map((node) => ({
@@ -281,53 +419,79 @@ export function WorkflowEditor({
         type: "automation",
         position: layout.positions[node.id] ?? defaultPositions[node.id],
         data: {
-          label: lookup.get(node.type)?.label ?? node.type,
+          label: nodeLabel(node.type, lookup.get(node.type)?.label),
+          category: nodeAppearance(node.type).category,
           node,
-          definition:
-            lookup.get(node.type) ?? ({ inputs: {}, outputs: {} } as NodeType),
+          definition: lookup.get(node.type) ?? edgeDefinition(node, workflow),
           errors: diagnostics
             .filter((d) => d.node_id === node.id)
             .map((d) => d.message),
+          outcome: outcomes?.[node.id],
         },
         selected: selected === node.id,
       })),
     [
       workflow.nodes,
+      workflow.edges,
       layout.positions,
       defaultPositions,
       lookup,
       diagnostics,
+      outcomes,
       selected,
     ],
   );
   const edges = useMemo(
     () =>
-      workflow.edges.map((e, i) => ({
-        id: String(i),
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.source_port,
-        targetHandle: e.target_port,
-        type: "smoothstep",
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 18,
-          height: 18,
-          color:
-            selected === e.source || selected === e.target
+      workflow.edges.map((e, i) => {
+        const connected = selected === e.source || selected === e.target;
+        const active = flowing.has(outcomes?.[e.source]?.status ?? "");
+        return {
+          id: String(i),
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.source_port,
+          targetHandle: e.target_port,
+          type: "smoothstep",
+          animated: active,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 18,
+            height: 18,
+            color: connected
               ? "var(--primary)"
-              : "var(--muted-foreground)",
-        },
-        className:
-          selected === e.source || selected === e.target
-            ? "workflow-edge-connected"
-            : undefined,
-        interactionWidth: 24,
-      })),
-    [workflow.edges, selected],
+              : active
+                ? "var(--success)"
+                : "var(--muted-foreground)",
+          },
+          className:
+            [connected && "workflow-edge-connected", active && "workflow-edge-active"]
+              .filter(Boolean)
+              .join(" ") || undefined,
+          interactionWidth: 24,
+        };
+      }),
+    [workflow.edges, selected, outcomes],
   );
   const node = workflow.nodes.find((n) => n.id === selected);
   const definition = node && lookup.get(node.type);
+  const focusSelection = () =>
+    requestAnimationFrame(() =>
+      (
+        canvasRef.current?.querySelector<HTMLElement>(
+          `.react-flow__node[data-id="${CSS.escape(selected)}"]`,
+        ) ?? canvasRef.current
+      )?.focus(),
+    );
+  const openPanel = () => {
+    if (!panel && !selected && workflow.nodes.length) select(workflow.nodes[0].id);
+    setPanelOpen(true);
+    requestAnimationFrame(() => panelHeadingRef.current?.focus());
+  };
+  const closePanel = () => {
+    setPanelOpen(false);
+    focusSelection();
+  };
   const deleteSelectedNode = () => {
     if (!node) return;
     onChange({
@@ -337,10 +501,11 @@ export function WorkflowEditor({
         (e) => e.source !== node.id && e.target !== node.id,
       ),
     });
-    setSelected("");
-    setInspectorOpen(false);
+    select("");
+    if (!panel) setPanelOpen(false);
     requestAnimationFrame(() => canvasRef.current?.focus());
   };
+  // Delete acts on the canvas only, never on a focused field or control in a panel.
   const handleDeleteKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (
       event.key !== "Delete" ||
@@ -349,6 +514,7 @@ export function WorkflowEditor({
       event.nativeEvent.isComposing ||
       event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
       !(event.target instanceof HTMLElement) ||
+      !canvasRef.current?.contains(event.target) ||
       event.target.isContentEditable ||
       event.target.closest(
         'input, textarea, select, [role="textbox"], [role="listbox"], [role="option"], [role="menu"], [role="slider"], [role="spinbutton"]',
@@ -384,6 +550,8 @@ export function WorkflowEditor({
   const add = (typeId: string, screenPosition?: { x: number; y: number }) => {
     const type = lookup.get(typeId);
     if (!type || workflow.nodes.length >= 100) return;
+    // Placing a node is the user's viewport decision; never auto-fit after it.
+    fitted.current = true;
     const id = `node_${crypto.randomUUID().slice(0, 8)}`;
     const config: Record<string, unknown> = Object.fromEntries(
       Object.entries(type.config_schema).map(([key, f]) => [
@@ -414,44 +582,175 @@ export function WorkflowEditor({
       const center = flow?.screenToFlowPosition(point) ?? point;
       onLayoutChange({
         ...layout,
-        viewport: flow?.getViewport() ?? layout.viewport,
         positions: {
           ...positions,
           [id]: { x: center.x - 116, y: center.y - 64 },
         },
       });
     };
-    // Pin the current viewport so React Flow does not auto-fit the first drop.
     // Re-measure after the empty-state prompt disappears to keep the node at
     // the same screen position even when the canvas moves within the page.
     place();
     requestAnimationFrame(place);
-    setSelected(id);
-    if (!screenPosition) setInspectorOpen(true);
+    select(id);
+    if (!screenPosition) setPanelOpen(true);
   };
+  const unavailable = Boolean(catalog?.error) && !registry.length;
   const paletteNodes = registry.filter((type) =>
     `${type.label} ${type.type} ${nodeAppearance(type.type).category} ${nodeAppearance(type.type).description}`
       .toLowerCase()
       .includes(paletteSearch.toLowerCase()),
   );
+  const nodeChoices = workflow.nodes.map((n) => ({
+    value: n.id,
+    label: nodeName(n) ?? `${labelOf(n)} · ${n.id}`,
+  }));
+  const choiceLabel = new Map(nodeChoices.map((c) => [c.value, c.label]));
   const ports = (direction: "inputs" | "outputs") =>
     workflow.nodes.flatMap((n) =>
       Object.keys(lookup.get(n.type)?.[direction] ?? {}).map((port) => ({
         value: `${n.id}:${port}`,
-        label: `${n.id} · ${port}`,
+        label: `${choiceLabel.get(n.id)} · ${port}`,
       })),
     );
+  const nodeTitle = node && (nodeName(node) ?? labelOf(node));
+  const inspector = (
+    <FieldGroup>
+      <Picker
+        label="Selected node"
+        value={selected}
+        choices={nodeChoices}
+        onChange={select}
+      />
+      {node && !definition && (
+        <Alert>
+          <AlertDescription>
+            Settings for this node need the node catalog, which is unavailable
+            right now. The node and its connections are unchanged.
+          </AlertDescription>
+        </Alert>
+      )}
+      {node && definition && (
+        <>
+          {(node.type === "source.parameter.v1" ||
+            node.type === "action.command.v1") &&
+            renderBinding(node, update)}
+          {Object.entries(definition.config_schema)
+            .filter(([key]) => key !== "binding")
+            .map(([key, f]) =>
+              renderConfig?.(node, key, update) ?? (f.type === "object" ? (
+                <ObjectField
+                  key={node.id + key}
+                  label={key}
+                  value={node.config[key]}
+                  onChange={(value) =>
+                    update({
+                      ...node,
+                      config: { ...node.config, [key]: value },
+                    })
+                  }
+                />
+              ) : f.type === "scalar" && workflow.bindings.find((b) => b.role === node.config.binding)?.data_type === "boolean" ? (
+                <Picker key={key} label="Target state" value={String(node.config[key] ?? false)} choices={[{ value: "true", label: "On (true)" }, { value: "false", label: "Off (false)" }]} onChange={(value) => update({ ...node, config: { ...node.config, [key]: value === "true" } })} />
+              ) : f.enum ? (
+                <Picker
+                  key={key}
+                  label={fieldLabel(key)}
+                  value={String(node.config[key] ?? "")}
+                  choices={f.enum.map((v) => ({ value: v, label: v }))}
+                  onChange={(v) =>
+                    update({
+                      ...node,
+                      config: { ...node.config, [key]: v },
+                    })
+                  }
+                />
+              ) : (
+                <Field key={key}>
+                  <FieldLabel htmlFor={`config-${node.id}-${key}`}>
+                    {fieldLabel(key)}
+                  </FieldLabel>
+                  <Input
+                    id={`config-${node.id}-${key}`}
+                    type={f.type === "number" ? "number" : "text"}
+                    min={f.minimum}
+                    max={f.maximum}
+                    value={String(node.config[key] ?? "")}
+                    onChange={(e) => {
+                      let value: unknown = e.target.value;
+                      if (f.type === "number")
+                        value =
+                          e.target.value === ""
+                            ? ""
+                            : Number(e.target.value);
+                      if (f.type === "scalar") {
+                        const kind = workflow.bindings.find(
+                          (b) => b.role === node.config.binding,
+                        )?.data_type;
+                        if (kind === "number")
+                          value = Number(e.target.value);
+                        if (kind === "boolean")
+                          value = e.target.value === "true";
+                      }
+                      update({
+                        ...node,
+                        config: { ...node.config, [key]: value },
+                      });
+                    }}
+                  />
+                </Field>
+              )),
+            )}
+        </>
+      )}
+      {node &&
+        diagnostics
+          .filter((d) => d.node_id === node.id)
+          .map((d, i) => (
+            <Alert key={i} variant="destructive">
+              <AlertDescription>
+                {d.field}: {d.message}
+              </AlertDescription>
+            </Alert>
+          ))}
+      {node && <TechnicalDetails node={node} definition={definition} />}
+      {node && (
+        <Button variant="outline" onClick={deleteSelectedNode}>
+          <TrashIcon data-icon="inline-start" />
+          Delete node
+        </Button>
+      )}
+    </FieldGroup>
+  );
+  const panelTitle = panel?.label ?? nodeTitle ?? "Node settings";
+  const panelDescription = panel
+    ? panel.description
+    : node
+      ? `${nodeName(node) ? `${labelOf(node)}. ` : ""}${nodeAppearance(node.type).description} Changes stay in your draft.`
+      : "Select a node on the canvas to configure it. Changes stay in your draft.";
   const editor = (
     <div
       data-expanded={expanded}
       className="workflow-editor flex min-w-0 flex-col gap-4"
       onKeyDown={handleDeleteKey}
     >
-      <div className="workflow-workspace">
-        <Card size="sm" className="workflow-palette">
+      <div className="workflow-workspace" data-panel={panelOpen} data-palette={palette}>
+        <Card size="sm" className="workflow-palette" hidden={!palette}>
           <CardHeader>
             <CardTitle>Nodes</CardTitle>
             <CardDescription>Drag onto the canvas</CardDescription>
+            {catalog?.stale && registry.length > 0 && (
+              <p
+                className="text-xs text-muted-foreground"
+                title={
+                  catalog.cachedAt
+                    ? `Cached ${new Date(catalog.cachedAt).toLocaleString()}`
+                    : undefined
+                }
+              >
+                Using cached node catalog
+              </p>
+            )}
             <Field className="mt-2">
               <FieldLabel className="sr-only" htmlFor="node-palette-search">
                 Search nodes
@@ -460,72 +759,83 @@ export function WorkflowEditor({
                 id="node-palette-search"
                 placeholder="Search nodes…"
                 value={paletteSearch}
+                disabled={unavailable}
                 onChange={(event) => setPaletteSearch(event.target.value)}
               />
             </Field>
           </CardHeader>
           <CardContent className="workflow-palette-list">
-            {paletteCategories.map((category) => {
-              const choices = paletteNodes.filter(
-                (type) => nodeAppearance(type.type).category === category,
-              );
-              if (!choices.length) return null;
-              return (
-                <section
-                  key={category}
-                  aria-label={category}
-                  className="flex flex-col gap-2"
-                >
-                  <h3 className="text-xs font-medium text-muted-foreground">
-                    {category}
-                  </h3>
-                  {choices.map((type) => {
-                    const { Icon, tone, description } = nodeAppearance(
-                      type.type,
-                    );
-                    return (
-                      <Tooltip key={type.type}>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="workflow-palette-node"
-                            style={
-                              {
-                                "--node-accent": `var(--${tone})`,
-                              } as CSSProperties
-                            }
-                            disabled={workflow.nodes.length >= 100}
-                            draggable={workflow.nodes.length < 100}
-                            onDragStart={(event) => {
-                              event.dataTransfer.setData(
-                                "application/x-iot-workflow-node",
-                                type.type,
-                              );
-                              event.dataTransfer.effectAllowed = "copy";
-                              setDragging(true);
-                            }}
-                            onDragEnd={() => setDragging(false)}
-                            onClick={() => add(type.type)}
-                          >
-                            <Icon data-icon="inline-start" />
-                            <span className="min-w-0 flex-1 whitespace-normal">
-                              {type.label}
-                            </span>
-                            <GripVerticalIcon data-icon="inline-end" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">
-                          {description} Drag to position or select to add.
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })}
-                </section>
-              );
-            })}
-            {!paletteNodes.length && (
+            {unavailable ? (
+              <div role="status" className="workflow-palette-unavailable">
+                <CloudOffIcon aria-hidden="true" className="size-4 shrink-0" />
+                <p>
+                  The node catalog is unavailable right now — existing nodes
+                  can still be viewed; adding nodes needs the device runtime.
+                </p>
+              </div>
+            ) : (
+              paletteCategories.map((category) => {
+                const choices = paletteNodes.filter(
+                  (type) => nodeAppearance(type.type).category === category,
+                );
+                if (!choices.length) return null;
+                return (
+                  <section
+                    key={category}
+                    aria-label={category}
+                    className="flex flex-col gap-2"
+                  >
+                    <h3 className="text-xs font-medium text-muted-foreground">
+                      {category}
+                    </h3>
+                    {choices.map((type) => {
+                      const { Icon, tone, description } = nodeAppearance(
+                        type.type,
+                      );
+                      return (
+                        <Tooltip key={type.type}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="workflow-palette-node"
+                              style={
+                                {
+                                  "--node-accent": `var(--${tone})`,
+                                } as CSSProperties
+                              }
+                              disabled={workflow.nodes.length >= 100}
+                              draggable={workflow.nodes.length < 100}
+                              onDragStart={(event) => {
+                                event.dataTransfer.setData(
+                                  "application/x-iot-workflow-node",
+                                  type.type,
+                                );
+                                event.dataTransfer.effectAllowed = "copy";
+                                setDragging(true);
+                              }}
+                              onDragEnd={() => setDragging(false)}
+                              onClick={() => add(type.type)}
+                            >
+                              <Icon data-icon="inline-start" />
+                              <span className="min-w-0 flex-1 whitespace-normal">
+                                {nodeLabel(type.type, type.label)}
+                              </span>
+                              <GripVerticalIcon data-icon="inline-end" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">
+                            {description} Drag to position or select to add.
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
+                  </section>
+                );
+              })
+            )}
+            {!unavailable && !paletteNodes.length && (
               <p className="text-sm text-muted-foreground">
-                No matching nodes.
+                {paletteSearch ? "No matching nodes." : "No nodes are available."}
               </p>
             )}
           </CardContent>
@@ -543,9 +853,7 @@ export function WorkflowEditor({
             <div className="flex flex-wrap items-center gap-1.5">
               <CanvasButton
                 label="Zoom out"
-                onClick={() => {
-                  void flow?.zoomOut({ duration: 150 });
-                }}
+                onClick={userZoom(() => void flow?.zoomOut({ duration: 150 }))}
               >
                 <MinusIcon />
               </CanvasButton>
@@ -553,17 +861,13 @@ export function WorkflowEditor({
                 variant="outline"
                 size="sm"
                 aria-label="Reset zoom to 100%"
-                onClick={() => {
-                  void flow?.zoomTo(1, { duration: 150 });
-                }}
+                onClick={userZoom(() => void flow?.zoomTo(1, { duration: 150 }))}
               >
                 {Math.round(zoom * 100)}%
               </Button>
               <CanvasButton
                 label="Zoom in"
-                onClick={() => {
-                  void flow?.zoomIn({ duration: 150 });
-                }}
+                onClick={userZoom(() => void flow?.zoomIn({ duration: 150 }))}
               >
                 <PlusIcon />
               </CanvasButton>
@@ -586,16 +890,19 @@ export function WorkflowEditor({
                 Arrange
               </Button>
               <Button
-                variant="outline"
+                variant={panelOpen ? "secondary" : "outline"}
                 size="sm"
-                disabled={!workflow.nodes.length}
-                onClick={() => {
-                  if (!selected) setSelected(workflow.nodes[0].id);
-                  setInspectorOpen(true);
-                }}
+                disabled={!panel && !workflow.nodes.length}
+                aria-expanded={panelOpen}
+                aria-controls={panelOpen ? panelId : undefined}
+                onClick={() => (panelOpen ? closePanel() : openPanel())}
               >
-                <SlidersHorizontalIcon data-icon="inline-start" />
-                Edit node
+                {panelOpen ? (
+                  <PanelRightCloseIcon data-icon="inline-start" />
+                ) : (
+                  <PanelRightOpenIcon data-icon="inline-start" />
+                )}
+                {panel?.label ?? "Node settings"}
               </Button>
               <CanvasButton
                 label={expanded ? "Exit expanded editor" : "Expand editor"}
@@ -641,29 +948,46 @@ export function WorkflowEditor({
               nodes={nodes}
               edges={edges}
               onInit={setFlow}
-              onMove={(_, viewport) => setZoom(viewport.zoom)}
-              onPaneClick={() => setSelected("")}
-              fitViewOptions={{ padding: 0.16, minZoom: 0.65, maxZoom: 1 }}
+              onMove={(_, next) => {
+                viewport.current = next;
+                setZoom(next.zoom);
+              }}
+              defaultViewport={viewport.current}
+              onMoveStart={(event) => {
+                // Programmatic fits and reveals have no source event.
+                if (event) userViewport.current = true;
+              }}
+              onPaneClick={() => select("")}
               connectionLineStyle={{
                 stroke: "var(--primary)",
                 strokeWidth: 3,
               }}
               nodeTypes={nodeTypes}
               onNodeClick={(_, n) => {
-                setSelected(n.id);
-                setInspectorOpen(true);
+                select(n.id);
+                setPanelOpen(true);
               }}
               onConnect={connect}
               onNodesChange={(changes) => {
                 const positions = { ...layout.positions };
                 let moved = false;
+                let next = selected;
                 for (const c of changes) {
                   if (c.type === "position" && c.position) {
                     positions[c.id] = c.position;
                     moved = true;
                   }
+                  // Keyboard selection (Enter/Space on a focused node) arrives here.
+                  if (c.type === "select") {
+                    if (c.selected) next = c.id;
+                    else if (c.id === next) next = "";
+                  }
                 }
                 if (moved) onLayoutChange({ ...layout, positions });
+                if (next !== selected) {
+                  select(next);
+                  if (next) setPanelOpen(true);
+                }
               }}
               onNodeDragStop={(_, n) =>
                 onLayoutChange({
@@ -679,11 +1003,6 @@ export function WorkflowEditor({
                   ),
                 })
               }
-              onMoveEnd={(_, viewport) =>
-                onLayoutChange({ ...layout, viewport })
-              }
-              defaultViewport={layout.viewport}
-              fitView={!layout.viewport}
               deleteKeyCode={null}
               minZoom={0.1}
               maxZoom={4}
@@ -698,11 +1017,54 @@ export function WorkflowEditor({
             />
             <span>
               Drag the canvas to pan · Scroll to zoom · Select a node to
-              configure · Delete to remove selected node
+              configure · Delete removes the selected node while the canvas
+              has focus
             </span>
             <span className="ml-auto hidden sm:inline">Left → right</span>
           </div>
         </section>
+        {panelOpen && (
+          <aside
+            ref={panelRef}
+            id={panelId}
+            className="workflow-panel"
+            aria-labelledby={`${panelId}-title`}
+          >
+            <div className="workflow-panel-header">
+              <div className="min-w-0">
+                <h2
+                  ref={panelHeadingRef}
+                  id={`${panelId}-title`}
+                  tabIndex={-1}
+                  className="truncate text-sm font-medium outline-none first-letter:uppercase"
+                >
+                  {panelTitle}
+                </h2>
+                {panelDescription && (
+                  <p className="text-xs text-muted-foreground">
+                    {panelDescription}
+                  </p>
+                )}
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Collapse ${panel?.label ?? "node settings"}`}
+                    onClick={closePanel}
+                  >
+                    <PanelRightCloseIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Collapse panel</TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="workflow-panel-body">
+              {panel ? panel.content : inspector}
+            </div>
+          </aside>
+        )}
       </div>
       <details className="rounded-lg border p-3">
         <summary className="cursor-pointer text-sm font-medium">
@@ -752,8 +1114,8 @@ export function WorkflowEditor({
                 className="flex items-center justify-between gap-2 text-sm"
               >
                 <span>
-                  {edge.source}.{edge.source_port} → {edge.target}.
-                  {edge.target_port}
+                  {choiceLabel.get(edge.source) ?? edge.source}.{edge.source_port} →{" "}
+                  {choiceLabel.get(edge.target) ?? edge.target}.{edge.target_port}
                 </span>
                 <Button
                   variant="ghost"
@@ -773,121 +1135,6 @@ export function WorkflowEditor({
           </CardContent>
         </Card>
       </details>
-      <Sheet open={inspectorOpen} onOpenChange={setInspectorOpen}>
-        <SheetContent className="overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{definition?.label ?? "Node"} settings</SheetTitle>
-            <SheetDescription>
-              {node
-                ? nodeAppearance(node.type).description
-                : "Select a node to configure."}{" "}
-              Changes stay in your draft.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 pb-6">
-            <FieldGroup>
-              <Picker
-                label="Selected node"
-                value={selected}
-                choices={workflow.nodes.map((n) => ({
-                  value: n.id,
-                  label: `${lookup.get(n.type)?.label ?? n.type} · ${n.id}`,
-                }))}
-                onChange={setSelected}
-              />
-              {node && definition && (
-                <>
-                  {(node.type === "source.parameter.v1" ||
-                    node.type === "action.command.v1") &&
-                    renderBinding(node, update)}
-                  {Object.entries(definition.config_schema)
-                    .filter(([key]) => key !== "binding")
-                    .map(([key, f]) =>
-                      renderConfig?.(node, key, update) ?? (f.type === "object" ? (
-                        <ObjectField
-                          key={node.id + key}
-                          label={key}
-                          value={node.config[key]}
-                          onChange={(value) =>
-                            update({
-                              ...node,
-                              config: { ...node.config, [key]: value },
-                            })
-                          }
-                        />
-                      ) : f.type === "scalar" && workflow.bindings.find((b) => b.role === node.config.binding)?.data_type === "boolean" ? (
-                        <Picker key={key} label="Target state" value={String(node.config[key] ?? false)} choices={[{ value: "true", label: "On (true)" }, { value: "false", label: "Off (false)" }]} onChange={(value) => update({ ...node, config: { ...node.config, [key]: value === "true" } })} />
-                      ) : f.enum ? (
-                        <Picker
-                          key={key}
-                          label={key.replaceAll("_", " ")}
-                          value={String(node.config[key] ?? "")}
-                          choices={f.enum.map((v) => ({ value: v, label: v }))}
-                          onChange={(v) =>
-                            update({
-                              ...node,
-                              config: { ...node.config, [key]: v },
-                            })
-                          }
-                        />
-                      ) : (
-                        <Field key={key}>
-                          <FieldLabel htmlFor={`config-${key}`}>
-                            {key.replaceAll("_", " ")}
-                          </FieldLabel>
-                          <Input
-                            id={`config-${key}`}
-                            type={f.type === "number" ? "number" : "text"}
-                            min={f.minimum}
-                            max={f.maximum}
-                            value={String(node.config[key] ?? "")}
-                            onChange={(e) => {
-                              let value: unknown = e.target.value;
-                              if (f.type === "number")
-                                value =
-                                  e.target.value === ""
-                                    ? ""
-                                    : Number(e.target.value);
-                              if (f.type === "scalar") {
-                                const kind = workflow.bindings.find(
-                                  (b) => b.role === node.config.binding,
-                                )?.data_type;
-                                if (kind === "number")
-                                  value = Number(e.target.value);
-                                if (kind === "boolean")
-                                  value = e.target.value === "true";
-                              }
-                              update({
-                                ...node,
-                                config: { ...node.config, [key]: value },
-                              });
-                            }}
-                          />
-                        </Field>
-                      )),
-                    )}
-                  {diagnostics
-                    .filter((d) => d.node_id === node.id)
-                    .map((d, i) => (
-                      <Alert key={i} variant="destructive">
-                        <AlertDescription>
-                          {d.field}: {d.message}
-                        </AlertDescription>
-                      </Alert>
-                    ))}
-                  <Button
-                    variant="outline"
-                  onClick={deleteSelectedNode}
-                  >
-                    <TrashIcon data-icon="inline-start" />
-                    Delete node
-                  </Button>
-                </>
-              )}
-            </FieldGroup>
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
   return (
@@ -909,6 +1156,72 @@ export function WorkflowEditor({
   );
 }
 
+function TechnicalDetails({
+  node,
+  definition,
+}: {
+  node: WorkflowNode;
+  definition?: NodeType;
+}) {
+  const ports = (values?: Record<string, string> | null) =>
+    Object.entries(values ?? {})
+      .map(([port, type]) => `${port} (${type})`)
+      .join(", ") || "None";
+  return (
+    <Collapsible>
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="group/technical w-fit px-1.5 text-muted-foreground"
+        >
+          <ChevronRightIcon
+            data-icon="inline-start"
+            className="transition-transform group-data-[state=open]/technical:rotate-90"
+          />
+          Technical details
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-1.5 pt-1 text-xs">
+          <dt className="text-muted-foreground">Node type</dt>
+          <dd>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <code tabIndex={0} className="break-all">
+                  {node.type}
+                </code>
+              </TooltipTrigger>
+              <TooltipContent>
+                Identifier used by the runtime, API and assistant. It stays the
+                same when display labels change.
+              </TooltipContent>
+            </Tooltip>
+          </dd>
+          <dt className="text-muted-foreground">Node ID</dt>
+          <dd>
+            <code className="break-all">{node.id}</code>
+          </dd>
+          {definition && (
+            <>
+              <dt className="text-muted-foreground">Inputs</dt>
+              <dd>{ports(definition.inputs)}</dd>
+              <dt className="text-muted-foreground">Outputs</dt>
+              <dd>{ports(definition.outputs)}</dd>
+              <dt className="text-muted-foreground">State</dt>
+              <dd>
+                {definition.stateful
+                  ? "Keeps state between evaluations"
+                  : "Stateless"}
+              </dd>
+            </>
+          )}
+        </dl>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 function ObjectField({
   label,
   value,
@@ -922,7 +1235,7 @@ function ObjectField({
   const text = invalid ? value : JSON.stringify(value ?? {}, null, 2);
   return (
     <Field data-invalid={invalid}>
-      <FieldLabel htmlFor={label}>{label} (GeoJSON)</FieldLabel>
+      <FieldLabel htmlFor={label}>{fieldLabel(label)} (GeoJSON)</FieldLabel>
       <Textarea
         id={label}
         aria-invalid={invalid}
