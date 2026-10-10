@@ -309,6 +309,20 @@
   animation: shimmer 1.6s linear infinite;
 }
 
+/* A live reading just changed: one 600 ms highlight behind the value, then nothing. */
+@keyframes value-flash {
+  from {
+    background-color: color-mix(in oklch, var(--primary) 28%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@utility animate-value-flash {
+  animation: value-flash 600ms ease-out;
+}
+
 /* Scroll containers fade their edges so clipped content reads as scrollable. */
 @utility scroll-fade {
   mask-image: linear-gradient(

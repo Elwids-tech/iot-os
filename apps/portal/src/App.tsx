@@ -302,11 +302,27 @@ function Session() {
   )
 }
 
-/** Placeholder while a lazily loaded page's code arrives; pages add their own padding under PageHeader. */
+/**
+ * Placeholder while a lazily loaded page's code arrives. It mirrors the page
+ * shell (header row, filter row, list rows) so the real page replaces it in
+ * place instead of popping in under a blank block.
+ */
 function PageFallback() {
   return (
-    <div className="p-4 md:p-6">
-      <Skeleton className="h-80 w-full" />
+    <div aria-busy="true" aria-label="Loading page" role="status">
+      <div className="flex min-h-14 items-center gap-3 border-b px-4 py-2 md:px-6">
+        <Skeleton className="h-5 w-36" />
+        <Skeleton className="ml-auto h-8 w-24" />
+      </div>
+      <div className="flex flex-col gap-3 p-4 md:p-6">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-8 w-28" />
+        </div>
+        {Array.from({ length: 5 }, (_, index) => (
+          <Skeleton key={index} className="h-9 w-full" />
+        ))}
+      </div>
     </div>
   )
 }
@@ -803,7 +819,7 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
         />
         <SidebarInset
           className={cn(
-            "min-w-0",
+            "min-w-0 transition-[padding] duration-200 ease-out",
             // Below xl the assistant overlays the page; from xl it docks beside it.
             (assistantOpen || helpOpen) && org && "xl:pr-[440px]",
           )}
@@ -818,7 +834,13 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
           ) : (
             <>
               {org && <RuntimeStatusBanner />}
-              <Outlet />
+              {/* Keyed by section so moving between areas fades the new page in; routes inside a section keep their state. */}
+              <div
+                key={section}
+                className="flex min-h-0 flex-1 flex-col animate-in fade-in-0 duration-150"
+              >
+                <Outlet />
+              </div>
             </>
           )}
         </SidebarInset>

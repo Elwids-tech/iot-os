@@ -7,15 +7,15 @@ import { PageHeader } from "@iot-os/ui/components/page-header"
 import { Badge } from "@iot-os/ui/components/badge"
 import { Button } from "@iot-os/ui/components/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@iot-os/ui/components/card"
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@iot-os/ui/components/empty"
+import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { SearchableMultiSelect } from "@iot-os/ui/components/searchable-select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { PlusIcon, Redo2Icon, SaveIcon, Trash2Icon, Undo2Icon } from "lucide-react"
+import { MapPinIcon, PlusIcon, Redo2Icon, SaveIcon, Trash2Icon, Undo2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "../lib/api"
-import { RequestError } from "../components/forms"
+import { LoadError, RequestError } from "../components/forms"
 import { closeRing, validateVertices } from "./geometry"
 const LocationMap = lazy(() => import("./LocationMap").then((module) => ({ default: module.LocationMap })))
 
@@ -31,8 +31,8 @@ function GeofenceDirectory() {
   const header = <PageHeader title="Geofences" actions={<Button asChild><Link to="new"><PlusIcon data-icon="inline-start" />New geofence</Link></Button>} />
   if (query.isPending) return <>{header}<div className="p-4 md:p-6"><Skeleton className="h-80 w-full" /></div></>
   return <>{header}<main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-6">
-    <RequestError error={query.error} />
-    {!query.data?.data.length ? <Empty><EmptyHeader><EmptyTitle>No geofences</EmptyTitle><EmptyDescription>Draw a polygon and assign GPS devices to start monitoring boundary events.</EmptyDescription></EmptyHeader></Empty> :
+    <LoadError error={query.error} what="geofences" onRetry={() => query.refetch()} busy={query.isFetching} />
+    {!query.data?.data.length ? <EmptyState icon={<MapPinIcon />} title="No geofences yet" description="Draw a polygon and assign GPS devices to start monitoring boundary events." action={<Button asChild><Link to="new"><PlusIcon data-icon="inline-start" />New geofence</Link></Button>} /> :
       <div className="grid gap-4 md:grid-cols-2">{query.data.data.map((fence) => <Card key={fence.uuid}><CardHeader><CardTitle>{fence.name}</CardTitle><CardDescription>Revision {fence.revision} · {fence.assignments.length} assigned devices</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2">{fence.assignments.map((assignment) => <Badge key={assignment.uuid} variant={assignment.status === "active" ? "secondary" : "outline"}>{assignment.device.name} · {assignment.status}</Badge>)}</CardContent><CardFooter><Button asChild variant="outline"><Link to={fence.uuid}>Open editor</Link></Button></CardFooter></Card>)}</div>}
   </main></>
 }

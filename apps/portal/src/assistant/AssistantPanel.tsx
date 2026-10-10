@@ -982,9 +982,10 @@ export default function AssistantPanel({
         </Sheet>
       ) : (
         <aside
-          hidden={!open}
+          inert={!open}
+          data-state={open ? "open" : "closed"}
           aria-labelledby="assistant-title"
-          className="fixed inset-y-0 right-0 z-20 w-[440px] max-w-full border-l bg-background shadow-lg xl:shadow-none"
+          className="fixed inset-y-0 right-0 z-20 w-[440px] max-w-full border-l bg-background shadow-lg transition-[transform,visibility] duration-200 ease-out data-closed:invisible data-closed:translate-x-full xl:shadow-none"
         >
           {content}
         </aside>

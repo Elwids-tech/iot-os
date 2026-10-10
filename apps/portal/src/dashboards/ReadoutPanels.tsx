@@ -171,7 +171,13 @@ export function GaugePanel({ org, widget, view }: PanelProps) {
               <Skeleton className="h-9 w-28" />
             ) : (
               <p className="font-mono text-3xl tabular-nums in-data-kiosk:text-5xl">
-                {value === null ? "—" : formatNumber(value, precision)}
+                {/* Keyed by the shown text so a changed reading remounts and runs one highlight. */}
+                <span
+                  key={value === null ? "—" : formatNumber(value, precision)}
+                  className="-mx-1 rounded-sm px-1 motion-safe:animate-value-flash"
+                >
+                  {value === null ? "—" : formatNumber(value, precision)}
+                </span>
                 {source.unit && (
                   <span className="ml-1 text-sm text-muted-foreground">
                     {source.unit}

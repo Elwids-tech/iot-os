@@ -803,11 +803,13 @@ export default function HelpPanel({
   return (
     <aside
       ref={panel}
-      hidden={!open}
+      inert={!open}
+      data-state={open ? "open" : "closed"}
       tabIndex={-1}
       aria-labelledby="help-title"
       aria-describedby="help-description"
-      className="fixed inset-y-0 right-0 w-[440px] border-l bg-background outline-none"
+      // Slides in from the right edge; closed it is off-screen, invisible and inert.
+      className="fixed inset-y-0 right-0 w-[440px] border-l bg-background outline-none transition-[transform,visibility] duration-200 ease-out data-closed:invisible data-closed:translate-x-full"
     >
       {content}
     </aside>
