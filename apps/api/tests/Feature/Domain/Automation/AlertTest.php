@@ -346,4 +346,106 @@ final class AlertTest extends TestCase
         $this->putJson($url.'/notifications', ['revision' => 0, 'enabled' => false, 'notify_on_clear' => false, 'recipient_ids' => []])->assertConflict();
         $this->getJson($url.'/notifications')->assertJsonPath('data.enabled', true);
     }
+
+    private function episode(Deployment $deployment, int $episode, array $values = []): Alert
+    {
+        return Alert::create(['organization_id' => Workflow::findOrFail($deployment->automation_workflow_id)->organization_id, 'automation_workflow_id' => $deployment->automation_workflow_id, 'automation_deployment_id' => $deployment->id, 'episode' => $episode, 'activated_at' => now()->subMinutes(60 - $episode)->startOfSecond(), ...$values]);
+    }
+
+    private function deployment(Workflow $workflow, array $definition, int $generation = 1): Deployment
+    {
+        return Deployment::create(['automation_workflow_id' => $workflow->id, 'generation' => $generation, 'draft_revision' => 1, 'target' => 'active', 'status' => 'succeeded', 'definition' => $definition, 'definition_hash' => str_repeat('d', 64), 'created_by' => $this->workflow->updated_by, 'created_at' => now()]);
+    }
+
+    public function test_grouping_by_source_counts_repeats_across_executions_and_honours_filters(): void
+    {
+        $tractor = $this->deployment->definition['binding']['device_uuid'];
+        Device::create(['uuid' => $tractor, 'organization_id' => $this->org->id, 'code' => 'tractor-7', 'name' => 'Tractor 7']);
+        $first = $this->episode($this->deployment, 1, ['cleared_at' => now()->subMinutes(50), 'acknowledged_at' => now(), 'acknowledged_by' => $this->workflow->updated_by]);
+        $this->episode($this->deployment, 2, ['cleared_at' => now()->subMinutes(40)]);
+        // A redeployment of the same workflow and device is the same source.
+        $latest = $this->episode($this->deployment($this->workflow, $this->deployment->definition, 2), 3);
+        $pump = (string) Str::uuid();
+        $dag = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Pump pressure', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('e', 64), 'updated_by' => $this->workflow->updated_by]);
+        $dagDeployment = $this->deployment($dag, ['bindings' => [['role' => 'pump', 'device_uuid' => $pump]]]);
+        $this->episode($dagDeployment, 1, ['cleared_at' => now()->subMinutes(30)]);
+        $dagLatest = $this->episode($dagDeployment, 2, ['cleared_at' => now()->subMinutes(20)]);
+        $northstar = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $foreign = Workflow::create(['organization_id' => $northstar->id, 'name' => 'Foreign', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('c', 64), 'updated_by' => $this->workflow->updated_by]);
+        $this->episode($this->deployment($foreign, ['binding' => ['device_uuid' => $tractor]]), 9);
+
+        $this->getJson($this->base.'/alerts?group=source')->assertOk()->assertJsonPath('meta.total', 2)->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.workflow_uuid', $dag->uuid)->assertJsonPath('data.0.device_uuid', $pump)->assertJsonPath('data.0.occurrences', 2)
+            ->assertJsonPath('data.0.unacknowledged', 2)->assertJsonPath('data.0.active', 0)->assertJsonPath('data.0.latest.uuid', $dagLatest->uuid)
+            ->assertJsonPath('data.1.workflow_uuid', $this->workflow->uuid)->assertJsonPath('data.1.device_uuid', $tractor)
+            ->assertJsonPath('data.1.occurrences', 3)->assertJsonPath('data.1.unacknowledged', 2)->assertJsonPath('data.1.active', 1)
+            ->assertJsonPath('data.1.latest.uuid', $latest->uuid)->assertJsonPath('data.1.latest.device_name', 'Tractor 7')->assertJsonPath('data.1.latest.condition', 'active')
+            ->assertJsonPath('data.1.first_activated_at', $first->activated_at->toJSON())->assertJsonPath('data.1.last_activated_at', $latest->activated_at->toJSON());
+        $this->getJson($this->base.'/alerts?group=source&condition=cleared&acknowledged=0')->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('data.1.occurrences', 1)->assertJsonPath('data.1.unacknowledged', 1)->assertJsonPath('data.1.active', 0);
+        $this->getJson($this->base.'/alerts?group=source&condition=active')->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.latest.uuid', $latest->uuid);
+        $this->getJson($this->base.'/alerts?group=source&per_page=1&page=2')->assertJsonPath('meta.total', 2)->assertJsonPath('meta.last_page', 2)->assertJsonPath('data.0.workflow_uuid', $this->workflow->uuid);
+        // Execution snapshots with a bindings list filter by their first bound device.
+        $this->getJson($this->base.'/alerts?group=source&device='.$pump)->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.occurrences', 2);
+        $this->getJson($this->base.'/alerts?device='.$pump)->assertJsonPath('meta.total', 2);
+        $this->getJson($this->base.'/alerts?device='.$tractor)->assertJsonPath('meta.total', 3);
+        $this->getJson($this->base.'/alerts?group=workflow')->assertUnprocessable()->assertJsonValidationErrors('group');
+        $this->getJson('/api/v1/organizations/'.$northstar->uuid.'/alerts?group=source')->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.occurrences', 1);
+        $this->actingAs($this->recipient, 'sanctum');
+        $this->getJson($this->base.'/alerts?group=source')->assertOk()->assertJsonPath('meta.total', 2);
+        $this->getJson('/api/v1/organizations/'.$northstar->uuid.'/alerts?group=source')->assertForbidden();
+    }
+
+    public function test_bulk_acknowledge_by_list_or_source_is_idempotent_audited_and_tenant_scoped(): void
+    {
+        $actor = User::where('email', 'super-admin@example.test')->firstOrFail();
+        $device = $this->deployment->definition['binding']['device_uuid'];
+        [$one, $two, $three] = array_map(fn ($episode) => $this->episode($this->deployment, $episode, ['cleared_at' => now()->subMinutes(10)]), [1, 2, 3]);
+        $active = $this->episode($this->deployment, 4);
+        $northstar = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $foreignWorkflow = Workflow::create(['organization_id' => $northstar->id, 'name' => 'Foreign', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('c', 64), 'updated_by' => $actor->id]);
+        $foreign = $this->episode($this->deployment($foreignWorkflow, ['binding' => ['device_uuid' => $device]]), 1, ['cleared_at' => now()]);
+        $url = $this->base.'/alerts/acknowledge';
+
+        // Tenant isolation: foreign alerts are never found and never changed.
+        $this->postJson($url, ['alert_uuids' => [$one->uuid, $foreign->uuid]])->assertNotFound();
+        $this->postJson('/api/v1/organizations/'.$northstar->uuid.'/alerts/acknowledge', ['alert_uuids' => [$one->uuid]])->assertNotFound();
+        $this->postJson('/api/v1/organizations/'.$northstar->uuid.'/alerts/acknowledge', ['workflow_uuid' => $this->workflow->uuid, 'device_uuid' => $device])->assertOk()->assertJsonPath('data.acknowledged', 0);
+        $this->postJson($url, ['workflow_uuid' => $foreignWorkflow->uuid, 'device_uuid' => $device])->assertOk()->assertJsonPath('data.acknowledged', 0);
+        $this->assertNull($one->fresh()->acknowledged_at);
+        $this->assertNull($foreign->fresh()->acknowledged_at);
+
+        $this->postJson($url, ['alert_uuids' => [$one->uuid, $two->uuid]])->assertOk()->assertJsonPath('data.acknowledged', 2);
+        $acknowledgedAt = $one->fresh()->acknowledged_at;
+        $this->assertSame($actor->id, (int) $one->fresh()->acknowledged_by);
+        $this->assertDatabaseHas('device_audit_events', ['action' => 'alert.acknowledged', 'resource_uuid' => $two->uuid, 'actor_id' => $actor->id]);
+        $this->assertDatabaseHas('integration_events', ['type' => 'alert.acknowledged.v1', 'resource_uuid' => $one->uuid]);
+        $this->getJson($this->base.'/alerts/'.$one->uuid)->assertJsonPath('data.acknowledged_by_name', $actor->name);
+        // Idempotent: repeating the request changes nothing and records nothing.
+        $this->postJson($url, ['alert_uuids' => [$one->uuid, $two->uuid]])->assertOk()->assertJsonPath('data.acknowledged', 0);
+        $this->assertTrue($acknowledgedAt->equalTo($one->fresh()->acknowledged_at));
+        $this->assertSame(2, DB::table('device_audit_events')->where('action', 'alert.acknowledged')->count());
+
+        $this->postJson($url, ['workflow_uuid' => $this->workflow->uuid, 'device_uuid' => $device, 'condition' => 'cleared'])->assertOk()->assertJsonPath('data.acknowledged', 1);
+        $this->assertNotNull($three->fresh()->acknowledged_at);
+        $this->assertNull($active->fresh()->acknowledged_at);
+        $this->postJson($url, ['workflow_uuid' => $this->workflow->uuid, 'device_uuid' => $device, 'condition' => 'cleared'])->assertOk()->assertJsonPath('data.acknowledged', 0);
+        $this->postJson($url, ['workflow_uuid' => $this->workflow->uuid, 'device_uuid' => (string) Str::uuid()])->assertOk()->assertJsonPath('data.acknowledged', 0);
+        $this->postJson($url, ['workflow_uuid' => $this->workflow->uuid, 'device_uuid' => $device, 'assignee' => $this->recipient->id])->assertOk()->assertJsonPath('data.acknowledged', 0);
+        $this->postJson($url, ['workflow_uuid' => $this->workflow->uuid, 'device_uuid' => $device])->assertOk()->assertJsonPath('data.acknowledged', 1);
+        $this->assertNotNull($active->fresh()->acknowledged_at);
+        $this->assertSame(4, DB::table('integration_events')->where('type', 'alert.acknowledged.v1')->count());
+        $this->assertNull($foreign->fresh()->acknowledged_at);
+
+        $this->postJson($url, [])->assertUnprocessable()->assertJsonValidationErrors(['alert_uuids', 'workflow_uuid']);
+        $this->postJson($url, ['alert_uuids' => [$one->uuid], 'workflow_uuid' => $this->workflow->uuid, 'device_uuid' => $device])->assertUnprocessable()->assertJsonValidationErrors('alert_uuids');
+        $this->postJson($url, ['workflow_uuid' => $this->workflow->uuid])->assertUnprocessable()->assertJsonValidationErrors('device_uuid');
+        $this->postJson($url, ['alert_uuids' => array_map(fn () => (string) Str::uuid(), range(1, 501))])->assertUnprocessable()->assertJsonValidationErrors('alert_uuids');
+        $this->postJson($url, ['alert_uuids' => [$one->uuid, $one->uuid]])->assertUnprocessable();
+        $this->postJson($url, ['workflow_uuid' => $this->workflow->uuid, 'device_uuid' => $device, 'condition' => 'all'])->assertUnprocessable()->assertJsonValidationErrors('condition');
+
+        $this->actingAs($this->recipient, 'sanctum');
+        $this->postJson($url, ['alert_uuids' => [$one->uuid]])->assertForbidden();
+        $this->postJson($url, ['workflow_uuid' => $this->workflow->uuid, 'device_uuid' => $device])->assertForbidden();
+    }
 }
