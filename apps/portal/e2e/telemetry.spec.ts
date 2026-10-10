@@ -231,6 +231,8 @@ test("capture, filtering, stage evidence, AI review, suspension and export", asy
   expect((await download).suggestedFilename()).toContain(id)
   await page.getByRole("button", { name: "Stop capture", exact: true }).click()
   await expect(page.getByText("Capture stopped", { exact: true })).toBeVisible()
+  // The status badge fades from default to secondary; scan once no transition is running.
+  await page.waitForFunction(() => document.getAnimations().length === 0)
   const violations = (
     await new AxeBuilder({ page }).analyze()
   ).violations.filter((v) => v.impact === "critical" || v.impact === "serious")
