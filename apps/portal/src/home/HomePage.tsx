@@ -10,6 +10,7 @@ import { formatAge } from "@iot-os/ui/lib/format"
 import { BellIcon, ChevronRightIcon, CpuIcon, LayoutGridIcon, ScanSearchIcon, StarIcon, WorkflowIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
+import { useRuntimeStatus } from "../components/RuntimeStatus"
 
 /** The organization's front page: fleet health and what needs someone's attention. */
 export default function HomePage({ organizationName }: { organizationName: string }) {
@@ -18,6 +19,7 @@ export default function HomePage({ organizationName }: { organizationName: strin
   const dashboards = useQuery({ queryKey: ["dashboards", org], queryFn: () => api.dashboards(org) })
   const path = (section: string) => `/organizations/${encodeURIComponent(org)}/${section}`
   const data = overview.data
+  const paused = useRuntimeStatus()?.automations === "paused"
   return (
     <>
       <PageHeader title="Home" meta={`What needs attention in ${organizationName}`} />
@@ -35,7 +37,7 @@ export default function HomePage({ organizationName }: { organizationName: strin
                 <StatusMark tone={data.alerts.active_unacknowledged ? "warning" : "muted"}>{data.alerts.active_unacknowledged} need acknowledgement</StatusMark>
                 <StatusMark tone="muted">{data.alerts.last_24_hours} in the last 24 h</StatusMark>
               </Summary>
-              <Summary to={path("automation")} icon={<WorkflowIcon />} title="Automations" value={data.automations.applied ?? 0} unit="running">
+              <Summary to={path("automation")} icon={<WorkflowIcon />} title="Automations" value={data.automations.applied ?? 0} unit={paused ? "active, paused" : "running"}>
                 <StatusMark tone={attentionAutomations(data) ? "critical" : "muted"}>{attentionAutomations(data)} need attention</StatusMark>
                 <StatusMark tone="muted">{data.automations.inactive ?? 0} off</StatusMark>
               </Summary>
@@ -131,7 +133,7 @@ function Attention({ data, path }: { data: OrganizationOverview; path: (section:
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{alert.workflow_name ?? "Alert"}</span>
         <span className="block truncate text-xs text-muted-foreground">
-          {[alert.device_name, alert.activated_at && `active for ${formatAge(alert.activated_at)}`, alert.acknowledged ? "acknowledged" : "not acknowledged"].filter(Boolean).join(" · ")}
+          {[alert.device_name && !alert.workflow_name?.includes(alert.device_name) ? alert.device_name : null, alert.activated_at && `active for ${formatAge(alert.activated_at)}`, alert.acknowledged ? "acknowledged" : "not acknowledged"].filter(Boolean).join(" · ")}
         </span>
       </span>
     </Row>
@@ -139,7 +141,7 @@ function Attention({ data, path }: { data: OrganizationOverview; path: (section:
   if (data.alerts.active > data.alerts.latest_active.length)
     items.push(<Row key="more-alerts" to={path("alerts")}><span className="text-muted-foreground">{data.alerts.active - data.alerts.latest_active.length} more active alerts</span></Row>)
   const fact = (key: string, count: number, to: string, text: string) =>
-    count ? items.push(<Row key={key} to={path(to)}><StatusMark tone="warning">{count}</StatusMark><span className="flex-1">{text}</span></Row>) : null
+    count ? items.push(<Row key={key} to={path(to)}><StatusMark tone="warning" /><span className="flex-1">{text}</span></Row>) : null
   fact("offline", data.devices.offline, "devices", `${plural(data.devices.offline, "device is", "devices are")} offline`)
   fact("silent", data.devices.silent, "devices", `${plural(data.devices.silent, "active device has", "active devices have")} sent nothing for over a day`)
   fact("commands", data.commands.uncertain, "devices", `${plural(data.commands.uncertain, "command has", "commands have")} an uncertain outcome`)

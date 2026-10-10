@@ -58,7 +58,6 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
@@ -533,8 +532,8 @@ function PortalSidebar({
     refetchInterval: 30000,
   })
   const badges: Record<string, [number | undefined, string]> = {
-    alerts: [overview.data?.alerts?.active_unacknowledged, "active alerts not acknowledged"],
-    discovery: [overview.data?.discovery?.pending, "data sources waiting to be added"],
+    alerts: [overview.data?.alerts?.active_unacknowledged, "unacknowledged"],
+    discovery: [overview.data?.discovery?.pending, "waiting"],
   }
 
   return (
@@ -614,14 +613,15 @@ function PortalSidebar({
                               <NavLink to={to} onClick={closeMobile}>
                                 <item.icon />
                                 <span className="group-data-[collapsible=icon]:sr-only">{item.label}</span>
+                                {count ? (
+                                  // Inside the link so screen readers announce it with the destination.
+                                  <span className="ml-auto font-mono text-xs group-data-[collapsible=icon]:sr-only">
+                                    {count}
+                                    <span className="sr-only"> {countLabel}</span>
+                                  </span>
+                                ) : null}
                               </NavLink>
                             </SidebarMenuButton>
-                            {count ? (
-                              <SidebarMenuBadge className="font-mono">
-                                {count}
-                                <span className="sr-only"> {countLabel}</span>
-                              </SidebarMenuBadge>
-                            ) : null}
                           </SidebarMenuItem>
                         )
                       })}

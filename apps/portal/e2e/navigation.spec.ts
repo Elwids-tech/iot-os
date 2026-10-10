@@ -3,6 +3,14 @@ import { test, expect, type Page } from "@playwright/test"
 const organization = "08b842d4-dbe9-44b7-a82f-8409bf31401a"
 const northstar = "5d0c1f9e-7a44-4f7e-9d6b-0c1f2a3b4c5d"
 const dashboardsPath = `/organizations/${organization}/dashboards`
+const homePath = `/organizations/${organization}/home`
+const overview = (unacknowledged = 0) => ({
+  devices: { active: 3, online: 2, offline: 0, unknown: 1, registered: 0, deactivated: 0, silent: 0 },
+  alerts: { active: unacknowledged, active_unacknowledged: unacknowledged, unacknowledged, last_24_hours: unacknowledged, latest_active: [] },
+  automations: { applied: 1 },
+  discovery: { pending: 0 },
+  commands: { uncertain: 0, recent: [] },
+})
 const acme = {
   uuid: organization,
   name: "Acme",
@@ -19,7 +27,6 @@ async function setup(
   } = {},
 ) {
   const errors: string[] = []
-  const alertQueries: string[] = []
   let signedIn = true
   page.on("pageerror", (error) => errors.push(error.message))
   page.on("console", (message) => {
@@ -58,13 +65,9 @@ async function setup(
           })
         : json({ message: "Unauthenticated." }, 401)
     if (path.endsWith("/context")) return json({ data: acme })
-    if (path.endsWith("/alerts")) {
-      alertQueries.push(url.search)
-      return json({
-        data: [],
-        meta: { current_page: 1, last_page: 1, total: options.unacknowledgedAlerts ?? 0 },
-      })
-    }
+    if (path.endsWith("/overview")) return json({ data: overview(options.unacknowledgedAlerts) })
+    if (path.endsWith("/runtime-status"))
+      return json({ data: { state: "operational", live_data: "available", automations: "running", automation_fault: null, since: null, checked_at: "2026-10-09T00:00:00Z" } })
     if (path.endsWith("/dashboards")) return json({ data: [] })
     if (path.endsWith("/devices"))
       return json({
@@ -73,7 +76,7 @@ async function setup(
       })
     return json({ data: [] })
   })
-  return { errors, alertQueries }
+  return { errors, signIn: () => { signedIn = true } }
 }
 
 test("desktop navigation collapses to icon tooltips", async ({ page }) => {
@@ -85,7 +88,9 @@ test("desktop navigation collapses to icon tooltips", async ({ page }) => {
   const labels = sidebar
     .getByRole("navigation", { name: "Workspace" })
     .locator('[data-sidebar="menu-button"] > span')
-  await expect(labels).toHaveCount(10)
+  // Home, Dashboards, Alerts · Devices, Gateways, Geofences · Automations, Device profiles ·
+  // Discovery, Integrations · Telemetry viewer. Device adapters needs the organization feature.
+  await expect(labels).toHaveCount(11)
   for (const label of await labels.all()) {
     await expect(label).toHaveCSS("position", "absolute")
     await expect(label).toHaveCSS("width", "1px")
@@ -159,11 +164,11 @@ test("mobile page header opens the sidebar to choose an organization", async ({ 
   await page.goto("/")
   await expect(page.getByRole("heading", { name: "Choose an organization", level: 1 })).toBeVisible()
   await expect(page).toHaveTitle("Choose an organization · IoT OS")
-  await expect(page.getByRole("link", { name: /Northstar/ })).toHaveAttribute("href", `/organizations/${northstar}/dashboards`)
+  await expect(page.getByRole("link", { name: /Northstar/ })).toHaveAttribute("href", `/organizations/${northstar}/home`)
   await page.getByRole("button", { name: "Toggle Sidebar" }).click()
   await page.getByRole("button", { name: "Choose organization" }).click()
   await page.getByRole("menuitemradio", { name: "Northstar" }).click()
-  await expect(page).toHaveURL(`/organizations/${northstar}/dashboards`)
+  await expect(page).toHaveURL(`/organizations/${northstar}/home`)
   expect(errors).toEqual([])
 })
 
@@ -181,31 +186,44 @@ test("organization switcher keeps the section and marks the current organization
   expect(errors).toEqual([])
 })
 
-test("sign-in lands on dashboards and an unknown workspace lists organizations", async ({ page }) => {
+test("sign-in lands on home and an unknown workspace lists organizations", async ({ page }) => {
   const { errors } = await setup(page)
   await page.goto("/")
-  await expect(page).toHaveURL(dashboardsPath)
+  await expect(page).toHaveURL(homePath)
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible()
+  await expect(page.getByText("All clear. Nothing needs attention right now.")).toBeVisible()
   await page.goto("/organizations/unknown/devices")
   await expect(page.getByRole("heading", { name: "Workspace unavailable", level: 1 })).toBeVisible()
   await page.getByRole("link", { name: /Acme/ }).click()
-  await expect(page).toHaveURL(dashboardsPath)
+  await expect(page).toHaveURL(homePath)
+  expect(errors).toEqual([])
+})
+
+test("the last organization is remembered across sign-outs", async ({ page }) => {
+  const { errors, signIn } = await setup(page, {
+    organizations: [acme, { ...acme, uuid: northstar, name: "Northstar", slug: "northstar" }],
+  })
+  await page.goto(`/organizations/${northstar}/devices`)
+  await page.getByRole("button", { name: "Operator" }).click()
+  await page.getByRole("menuitem", { name: "Sign out" }).click()
+  await expect(page.getByRole("heading", { name: "Welcome to your workspace" })).toBeVisible()
+  signIn()
+  await page.reload()
+  await expect(page).toHaveURL(`/organizations/${northstar}/home`)
   expect(errors).toEqual([])
 })
 
 test("alert count, integrations and administration follow the session", async ({ page }) => {
-  const { errors, alertQueries } = await setup(page, {
+  const { errors } = await setup(page, {
     organizations: [{ ...acme, capabilities: { devices: { view: true, manage: false, command: false } } }],
     platformAdministration: true,
     unacknowledgedAlerts: 3,
   })
   await page.goto(dashboardsPath)
   await expect(page.getByRole("link", { name: "Alerts 3 unacknowledged" })).toBeVisible()
-  expect(Object.fromEntries(new URLSearchParams(alertQueries[0]))).toEqual({
-    condition: "active",
-    acknowledged: "0",
-    per_page: "1",
-  })
   await expect(page.getByRole("link", { name: "Integrations" })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Discovery" })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Telemetry viewer" })).toHaveCount(0)
   await page.getByRole("button", { name: "Operator" }).click()
   await expect(page.getByRole("menuitem", { name: "Administration" })).toHaveAttribute("href", /^http/)
   expect(errors).toEqual([])

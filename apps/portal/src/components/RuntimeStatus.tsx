@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { CloudOffIcon, PauseCircleIcon } from "lucide-react"
 import { api } from "../lib/api"
-import { formatAge } from "@iot-os/ui/lib/format"
 
 const RuntimeStatusContext = createContext<RuntimeStatus | undefined>(undefined)
 
@@ -38,10 +37,7 @@ export function RuntimeStatusBanner() {
     <div className="border-b px-4 py-3 md:px-6" role="status">
       <Alert className="border-warning/40 bg-warning/5">
         <Icon />
-        <AlertTitle>
-          {title}
-          {status.since ? <span className="font-normal text-muted-foreground"> · for {formatAge(status.since)}</span> : null}
-        </AlertTitle>
+        <AlertTitle>{title}</AlertTitle>
         <AlertDescription>
           {description}
           {Icon === CloudOffIcon && paused ? " Automations are paused too." : null}
