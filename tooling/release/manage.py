@@ -208,7 +208,9 @@ class Deployment:
         self.config.mkdir(parents=True, exist_ok=True, mode=0o700)
         render_monitoring(ROOT, self.config, self.env['DEPLOY_ENVIRONMENT'], self.env['DOMAIN'], private_write)
         capacity = self.nats_capacity()
-        private_write(self.config / "nats.conf", 'jetstream { store_dir: "/data", max_file_store: '+str(capacity)+', max_memory_store: 64MB }\nhttp_port: 8222\nauthorization { users: [{user: "runtime", password: "'+self.env['NATS_PASSWORD']+'"}] }\n', 0o644)
+        # Sync every JetStream write: the default 2-minute interval lets a host crash drop
+        # acknowledged telemetry and break the workflow checkpoint's continuity.
+        private_write(self.config / "nats.conf", 'jetstream { store_dir: "/data", max_file_store: '+str(capacity)+', max_memory_store: 64MB, sync_interval: always }\nhttp_port: 8222\nauthorization { users: [{user: "runtime", password: "'+self.env['NATS_PASSWORD']+'"}] }\n', 0o644)
         private_write(self.config / "emqx-api-keys", self.env["DEVICE_EMQX_API_KEY"]+":"+self.env["DEVICE_EMQX_API_SECRET"]+":administrator\n", 0o644)
         sql = (RELEASE / "init-db.sql").read_text()
         for key in ("API_DB_PASSWORD", "RUNTIME_DB_PASSWORD"):
