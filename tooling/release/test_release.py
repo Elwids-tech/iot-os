@@ -127,6 +127,7 @@ class ReleaseTests(unittest.TestCase):
             args = run.call_args.args[0]
             self.assertEqual(['mqtt.example.test', 'mqtt.staging.example.test'], [args[i+1] for i, arg in enumerate(args) if arg == '-d'])
             self.assertIn('--expand', args)
+            self.assertEqual('mqtt.example.test', args[args.index('--cert-name')+1])
             for invalid in ('example.test', 'not a domain'):
                 deployment.env['LEGACY_DOMAIN'] = invalid
                 with self.assertRaisesRegex(ValueError, 'LEGACY_DOMAIN'):

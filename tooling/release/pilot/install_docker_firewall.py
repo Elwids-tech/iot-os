@@ -1,10 +1,15 @@
 from pathlib import Path
+import re
 import subprocess
 import sys
 
 role = sys.argv[1]
+# Optional extra public TCP ports for the application host, e.g. "19000:19009" for
+# per-tenant adapter brokers (Docker-published ports bypass UFW, so this chain decides).
+extra = sys.argv[2] if len(sys.argv) > 2 else ""
 assert role in ("application", "database")
-public_ports = "80,443,8883" if role == "application" else ""
+assert extra == "" or (role == "application" and re.fullmatch(r"\d{2,5}(:\d{2,5})?(,\d{2,5}(:\d{2,5})?)*", extra))
+public_ports = ",".join(filter(None, ["80,443,8883", extra])) if role == "application" else ""
 script = "#!/bin/sh\nset -eu\n"
 for tool in ["iptables", "ip6tables"]:
     script += f"{tool} -N ELWIDS-INGRESS 2>/dev/null || true\n{tool} -F ELWIDS-INGRESS\n{tool} -A ELWIDS-INGRESS -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN\n"

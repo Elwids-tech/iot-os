@@ -477,7 +477,8 @@ class Deployment:
         if mode not in ("cloudflare", "webroot"):
             raise ValueError("MQTT_ACME_CHALLENGE must be webroot or cloudflare")
         domain = "mqtt."+self.env["DOMAIN"]
-        args = ["certbot", "certonly", "--non-interactive", "--agree-tos", "--email", self.env["ACME_EMAIL"], "-d", domain, "--keep-until-expiring", "--expand"]
+        # --cert-name pins the lineage directory read below, even when the name set changes.
+        args = ["certbot", "certonly", "--non-interactive", "--agree-tos", "--email", self.env["ACME_EMAIL"], "--cert-name", domain, "-d", domain, "--keep-until-expiring", "--expand"]
         if self.env.get("LEGACY_DOMAIN"):
             # Devices configured with the previous broker hostname keep verifying TLS.
             args[args.index("--keep-until-expiring"):args.index("--keep-until-expiring")] = ["-d", "mqtt."+self.env["LEGACY_DOMAIN"]]
