@@ -38,6 +38,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@iot-os/ui/components/sheet"
+import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -218,7 +219,10 @@ export function SaveBar({
   // Inside an EditorSheet, Cancel uses the same discard guard as closing the sheet (N7).
   const discard = useContext(SheetDiscard)
   return (
-    <div className="sticky bottom-0 flex w-full flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4">
+    <div
+      ref={keepToastsAbove}
+      className="sticky bottom-0 flex w-full flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4"
+    >
       <span className="text-xs text-muted-foreground" role="status">
         {busy ? "Saving…" : dirty ? "Unsaved changes" : "No unsaved changes"}
       </span>

@@ -63,6 +63,7 @@ import {
   MessageScrollerButton,
 } from "@iot-os/ui/components/message-scroller"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
+import { keepToastsAbove, keepToastsLeftOf } from "@iot-os/ui/components/sonner"
 import {
   FileTextIcon,
   PlusIcon,
@@ -828,7 +829,11 @@ export default function AssistantPanel({
           </MessageScrollerProvider>
         )}
       </div>
-      <div className="flex flex-col gap-3 border-t bg-background p-4">
+      <div
+        // The phone sheet fills the screen, so toasts stack above the composer instead.
+        ref={mobile ? keepToastsAbove : undefined}
+        className="flex flex-col gap-3 border-t bg-background p-4"
+      >
         {!!detail?.sources.length && (
           <details>
             <summary className="cursor-pointer text-xs text-muted-foreground">
@@ -982,6 +987,7 @@ export default function AssistantPanel({
         </Sheet>
       ) : (
         <aside
+          ref={keepToastsLeftOf}
           hidden={!open}
           aria-labelledby="assistant-title"
           className="fixed inset-y-0 right-0 z-20 w-[440px] max-w-full border-l bg-background shadow-lg xl:shadow-none"

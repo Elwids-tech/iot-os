@@ -18,6 +18,7 @@ import { PageHeader } from "@iot-os/ui/components/page-header"
 import { PermissionMatrix, permissionChanges } from "@iot-os/ui/components/permission-matrix"
 import { RadioGroup, RadioGroupItem } from "@iot-os/ui/components/radio-group"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
+import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import { AlertCircleIcon } from "lucide-react"
 import { useDiscardGuard } from "../hooks/use-discard-guard"
 import { apiClient } from "../lib/api-client"
@@ -172,7 +173,7 @@ export function OrganizationPermissionsPage() {
         />
       </div>
 
-      <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 border-t bg-background px-4 py-3 md:px-6">
+      <div ref={keepToastsAbove} className="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 border-t bg-background px-4 py-3 md:px-6">
         <p className="mr-auto text-sm" aria-live="polite">
           {dirty ? (
             <>

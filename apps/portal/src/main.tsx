@@ -28,7 +28,7 @@ createRoot(document.getElementById("root")!).render(
       <SkinProvider>
         <QueryClientProvider client={queryClient}>
           <RouterProvider router={router} />
-          <Toaster position="top-center" closeButton duration={2500} />
+          <Toaster closeButton duration={2500} />
         </QueryClientProvider>
       </SkinProvider>
     </ThemeProvider>

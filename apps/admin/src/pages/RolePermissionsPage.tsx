@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@iot-os/ui/components/select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
+import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import { AlertCircleIcon, ChevronsUpDownIcon, LockKeyholeIcon, SearchXIcon } from "lucide-react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
@@ -400,7 +401,7 @@ export function RolePermissionsPage() {
       </div>
 
       {role.permissions_editable ? (
-        <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 border-t bg-background px-4 py-3 md:px-6">
+        <div ref={keepToastsAbove} className="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 border-t bg-background px-4 py-3 md:px-6">
           <p className="mr-auto text-sm" aria-live="polite">
             {isDirty ? (
               <>
