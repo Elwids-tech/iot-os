@@ -60,7 +60,7 @@ final class OverviewController
                 ])->values(),
             ],
             'automations' => (clone $workflows)->selectRaw('deployment_status, count(*) AS count')->groupBy('deployment_status')->pluck('count', 'deployment_status')->map(fn ($count) => (int) $count),
-            'discovery' => ['pending' => DiscoveryCandidate::where('organization_id', $organization->id)->where('status', 'pending')->count()],
+            'discovery' => ['pending' => DiscoveryCandidate::where('organization_id', $organization->id)->availableToOnboard()->count()],
             'commands' => [
                 'uncertain' => DeviceCommand::whereIn('device_id', Device::where('organization_id', $organization->id)->select('id'))->where('status', 'uncertain')->count(),
                 'recent' => $commands->map(fn (DeviceCommand $command) => [

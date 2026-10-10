@@ -327,7 +327,7 @@ function PendingSources({ org }: { org: string }) {
   const pending = useQuery({
     queryKey: ["discovery-directory", org, "pending-count"],
     queryFn: () =>
-      api.discoveryPage(org, { status: "pending", unassigned: true, per_page: 1 }),
+      api.discoveryPage(org, { available: 1, per_page: 1 }),
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
   })
