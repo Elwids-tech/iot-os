@@ -32,6 +32,7 @@ import {
   absoluteError,
   dateInput,
   inputDate,
+  MAX_ABSOLUTE_DAYS,
   PRESETS,
   PRESET_LABELS,
   resolveRange,
@@ -191,7 +192,7 @@ export function TimeControls({
             </FieldGroup>
             <p className="text-xs text-muted-foreground">
               {view.timezone === "utc" ? "UTC" : `Browser time (${zone})`}. Up
-              to 90 days; device retention may be shorter.
+              to {MAX_ABSOLUTE_DAYS} days; device retention may be shorter.
             </p>
             {error && (
               <p role="alert" className="text-sm text-destructive">

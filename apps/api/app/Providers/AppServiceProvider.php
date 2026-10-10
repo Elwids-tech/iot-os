@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Services\PlatformAuthorization;
+use App\Domain\DeviceProfiles\Services\PublishedParameters;
+use App\Domain\DeviceProfiles\Services\UnitCatalogue;
 use App\Domain\Shared\Models\User;
 use App\Support\Operations;
 use Illuminate\Auth\Events\Login;
@@ -24,7 +26,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Memoizes published artifacts for one request or queued job.
+        $this->app->scoped(PublishedParameters::class);
+        $this->app->singleton(UnitCatalogue::class);
     }
 
     /**

@@ -204,7 +204,7 @@ export function RetentionPage() {
               <p className="text-sm text-muted-foreground">
                 Effective retention: {setting.days} days · Source:{" "}
                 {setting.source === "default"
-                  ? "90-day fallback"
+                  ? "400-day fallback"
                   : setting.source === "platform"
                     ? "saved platform default"
                     : "organization override"}
@@ -228,7 +228,7 @@ export function RetentionPage() {
                   />
                   <FieldLabel htmlFor={id + "-inherit"}>
                     {org === "platform"
-                      ? "Use the 90-day fallback"
+                      ? "Use the 400-day fallback"
                       : "Inherit the platform default"}
                   </FieldLabel>
                 </Field>

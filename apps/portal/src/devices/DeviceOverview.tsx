@@ -1,4 +1,5 @@
 import { lazy, Suspense, useMemo, useState, type ReactNode } from "react"
+import { Badge } from "@iot-os/ui/components/badge"
 import { Link } from "react-router-dom"
 import { useQueries, useQuery } from "@tanstack/react-query"
 import {
@@ -492,6 +493,29 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
         <Detail label="Serial number">
           {device.serial_number || <span className="text-muted-foreground">Not set</span>}
         </Detail>
+        <Detail label="Site">
+          {device.site ? (
+            <span title="Daily, monthly and shift totals use this time zone.">
+              {device.site.name} · {device.site.timezone.replaceAll("_", " ")}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">None (organization time zone)</span>
+          )}
+        </Detail>
+        {(device.tags?.length ?? 0) > 0 && (
+          <Detail label="Tags">
+            <span className="flex flex-wrap gap-1">
+              {device.tags!.map((tag) => (
+                <Badge key={tag} variant="outline">{tag}</Badge>
+              ))}
+            </span>
+          </Detail>
+        )}
+        {Object.entries(device.attributes ?? {}).map(([key, value]) => (
+          <Detail key={key} label={key}>
+            <span className="font-mono">{value === null ? "—" : String(value)}</span>
+          </Detail>
+        ))}
         <Detail label="Configuration">
           {configuration.details.length ? (
             <Tooltip>

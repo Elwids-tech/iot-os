@@ -692,7 +692,8 @@ func (a *Application) cleanup() error {
 		if retention.Days < 1 {
 			return errors.New("invalid effective retention")
 		}
-		ctx, cancel := context.WithTimeout(a.ctx, 30*time.Second)
+		// Deleting a day of compressed observations decompresses the tenant's batches.
+		ctx, cancel := context.WithTimeout(a.ctx, 2*time.Minute)
 		deleted, e := a.Store.Cleanup(ctx, retention.OrganizationUUID, time.Now().UTC().AddDate(0, 0, -retention.Days))
 		cancel()
 		status, diagnostic := "completed", ""

@@ -8,11 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/storage"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata" // counter buckets resolve IANA zones without OS tzdata
 
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/rules"
@@ -79,6 +81,7 @@ func (a *Application) Handler() http.Handler {
 	internal.HandleFunc("GET /internal/measurements/history", a.historyHTTP)
 	internal.HandleFunc("GET /internal/measurements/records", a.historyRecordsHTTP)
 	internal.HandleFunc("GET /internal/measurements/state-history", a.stateHistoryHTTP)
+	internal.HandleFunc("GET /internal/measurements/increase", a.counterIncreaseHTTP)
 	internal.HandleFunc("GET /internal/status", a.statusHTTP)
 	internal.HandleFunc("POST /internal/rules/checkpoint/rebaseline", a.rebaselineRules)
 	mux.Handle("/internal/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -157,7 +160,7 @@ func (a *Application) latestHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(w, 404, map[string]string{"message": "device not found"})
 		return
 	}
-	readings, e := a.Store.Latest(r.Context(), org, id, d.ConfigurationUUID)
+	carried, e := a.Store.LatestAcross(r.Context(), org, id, d.ConfigurationUUID)
 	if e != nil {
 		respond(w, 503, map[string]string{"message": "measurement storage is unavailable"})
 		return
@@ -175,6 +178,23 @@ func (a *Application) latestHTTP(w http.ResponseWriter, r *http.Request) {
 	params := map[string]devices.Parameter{}
 	for _, p := range profile.Parameters {
 		params[p.UUID] = p
+	}
+	// A new configuration starts with no latest rows. Keep showing the previous
+	// configuration's value, marked stale, while the parameter keeps its data
+	// type and unit; drop parameters the new configuration no longer has.
+	readings := []devices.Reading{}
+	for _, c := range carried {
+		if c.ConfigurationUUID != d.ConfigurationUUID {
+			p, ok := params[c.Reading.ParameterUUID]
+			if !ok || p.DataType != c.Reading.DataType || !sameUnit(p.Unit, c.Reading.Unit) {
+				continue
+			}
+			if c.Reading.Quality == "good" {
+				c.Reading.Quality = "stale"
+				c.Reading.Diagnostic = "Retained from the previous configuration; waiting for telemetry."
+			}
+		}
+		readings = append(readings, c.Reading)
 	}
 	for i := range readings {
 		p := params[readings[i].ParameterUUID]
@@ -208,7 +228,8 @@ func (a *Application) historyHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(w, 200, map[string]any{"data": []any{}})
 		return
 	}
-	series, e := a.Store.History(r.Context(), q.Get("organization_uuid"), q.Get("device_uuid"), q.Get("parameter_uuid"), from, to, maxPoints)
+	options := storage.HistoryOptions{ObservedTime: q.Get("time_basis") == "observed", MergeConfigurations: q.Get("merge_configurations") == "1"}
+	series, e := a.Store.History(r.Context(), q.Get("organization_uuid"), q.Get("device_uuid"), q.Get("parameter_uuid"), from, to, maxPoints, options)
 	if e != nil {
 		if errors.Is(e, storage.ErrHistoryTooBroad) {
 			respond(w, 422, map[string]string{"message": e.Error()})
@@ -357,4 +378,49 @@ func (a *Application) stateHistoryHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, map[string]any{"data": history})
+}
+
+// counterIncreaseHTTP reports counter consumption per calendar bucket in an IANA
+// time zone, for example daily energy in the site's local days.
+func (a *Application) counterIncreaseHTTP(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	from, to, rangeError := historyWindow(q)
+	bucket := q.Get("bucket")
+	_, bucketOK := storage.CounterBuckets[bucket]
+	location, locationError := time.LoadLocation(q.Get("timezone"))
+	var rolloverAt *float64
+	if raw := q.Get("rollover_at"); raw != "" {
+		value, err := strconv.ParseFloat(raw, 64)
+		if err != nil || value <= 0 || math.IsInf(value, 0) || math.IsNaN(value) {
+			rangeError = errors.New("invalid rollover")
+		}
+		rolloverAt = &value
+	}
+	if rangeError != nil || !bucketOK || locationError != nil || q.Get("timezone") == "" {
+		respond(w, 422, map[string]string{"message": "invalid counter increase request"})
+		return
+	}
+	if !to.After(from) {
+		respond(w, 200, map[string]any{"data": storage.CounterIncrease{From: from, To: to, Bucket: bucket, Timezone: location.String(), Points: []storage.IncreasePoint{}}})
+		return
+	}
+	if storage.BucketEnd(from, bucket).Sub(from)*2000 < to.Sub(from) {
+		respond(w, 422, map[string]string{"message": storage.ErrHistoryTooBroad.Error()})
+		return
+	}
+	increase, err := a.Store.CounterIncrease(r.Context(), q.Get("organization_uuid"), q.Get("device_uuid"), q.Get("parameter_uuid"), from, to, bucket, location, rolloverAt)
+	if err != nil {
+		if errors.Is(err, storage.ErrHistoryTooBroad) || errors.Is(err, storage.ErrCounterUnitChanged) {
+			respond(w, 422, map[string]string{"message": err.Error()})
+			return
+		}
+		a.Logger.Warn("counter increase query failed", "error", err)
+		respond(w, 503, map[string]string{"message": "counter consumption is unavailable"})
+		return
+	}
+	respond(w, 200, map[string]any{"data": increase})
+}
+
+func sameUnit(a, b *string) bool {
+	return (a == nil || *a == "") && (b == nil || *b == "") || a != nil && b != nil && *a == *b
 }

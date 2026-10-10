@@ -6,6 +6,7 @@ namespace App\Domain\Devices\Http\Controllers;
 
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceOperation;
+use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
@@ -27,23 +28,77 @@ final class DeviceController
     public function index(Request $request, Organization $organization)
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'lifecycle' => ['nullable', Rule::in(['registered', 'active', 'deactivated', 'archived'])], 'page' => ['integer', 'min:1'], 'per_page' => ['integer', 'min:1', 'max:100']]);
-        $result = Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile'])
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'lifecycle' => ['nullable', Rule::in(['registered', 'active', 'deactivated', 'archived'])], 'profile_uuid' => ['nullable', 'uuid'], 'site_uuid' => ['nullable', 'uuid'], 'tag' => ['nullable', 'string', 'max:32'], 'page' => ['integer', 'min:1'], 'per_page' => ['integer', 'min:1', 'max:100']]);
+        $result = Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile', 'site'])
+            ->when($filters['site_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('site', fn ($site) => $site->where('uuid', $uuid)))
+            ->when($filters['tag'] ?? null, fn ($q, $tag) => $q->whereJsonContains('tags', trim($tag)))
             ->when($filters['search'] ?? null, fn ($q, $s) => $q->where(fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($s).'%'])->orWhereRaw('LOWER(code) LIKE ?', ['%'.mb_strtolower($s).'%'])))
-            ->when($filters['lifecycle'] ?? null, fn ($q, $s) => $q->where('lifecycle', $s))->orderBy('name')->paginate($request->integer('per_page', 25));
+            ->when($filters['lifecycle'] ?? null, fn ($q, $s) => $q->where('lifecycle', $s))
+            // A device's profile is its applied configuration's, or the last applied one while inactive.
+            ->when($filters['profile_uuid'] ?? null, fn ($q, $uuid) => $q->where(fn ($q) => $q
+                ->whereHas('appliedConfiguration.artifact.profile', fn ($p) => $p->where('uuid', $uuid))
+                ->orWhere(fn ($q) => $q->whereNull('applied_configuration_uuid')->whereHas('lastAppliedConfiguration.artifact.profile', fn ($p) => $p->where('uuid', $uuid)))))
+            ->orderBy('name')->paginate($request->integer('per_page', 25));
 
         return response()->json(['data' => $result->getCollection()->map(fn ($d) => DeviceView::device($d)), 'meta' => ['current_page' => $result->currentPage(), 'last_page' => $result->lastPage(), 'total' => $result->total()]]);
     }
 
     private function fields(Organization $organization, ?Device $device = null): array
     {
-        return ['name' => ['required', 'string', 'max:255'], 'code' => ['required', 'string', 'max:128', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/', Rule::unique('devices')->where('organization_id', $organization->id)->ignore($device?->id)], 'serial_number' => ['nullable', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:5000']];
+        return ['name' => ['required', 'string', 'max:255'], 'code' => ['required', 'string', 'max:128', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/', Rule::unique('devices')->where('organization_id', $organization->id)->ignore($device?->id)], 'serial_number' => ['nullable', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:5000'],
+            'site_uuid' => ['sometimes', 'nullable', 'uuid', Rule::exists('sites', 'uuid')->where('organization_id', $organization->id)],
+            'tags' => ['sometimes', 'nullable', 'array', 'max:20'], 'tags.*' => ['string', 'min:1', 'max:32'],
+            'attributes' => ['sometimes', 'nullable', 'array:'.self::attributeKeys(), 'max:30'],
+            'attributes.*' => ['nullable', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! is_string($value) && ! is_int($value) && ! is_float($value) && ! is_bool($value) && $value !== null || is_string($value) && mb_strlen($value) > 255) {
+                    $fail('Attribute values are text up to 255 characters, numbers or true/false.');
+                }
+            }]];
+    }
+
+    /** Attribute keys are free-form identifiers; the array rule needs them listed, so accept whatever was sent when every key is valid. */
+    private static function attributeKeys(): string
+    {
+        $attributes = request()->input('attributes');
+        $keys = is_array($attributes) ? array_keys($attributes) : [];
+        foreach ($keys as $key) {
+            if (! is_string($key) || ! preg_match('/^[a-z][a-z0-9_.-]{0,63}$/', $key)) {
+                throw ValidationException::withMessages(['attributes' => 'Attribute names start with a lowercase letter and use lowercase letters, digits, dots, dashes or underscores.']);
+            }
+        }
+
+        return implode(',', $keys) ?: '_';
+    }
+
+    /** Maps the site UUID and normalizes tags (trimmed, unique ignoring case). */
+    private function context(Organization $organization, array $values): array
+    {
+        if (array_key_exists('site_uuid', $values)) {
+            $values['site_id'] = $values['site_uuid'] ? Site::where('organization_id', $organization->id)->where('uuid', $values['site_uuid'])->value('id') : null;
+            unset($values['site_uuid']);
+        }
+        if (array_key_exists('tags', $values)) {
+            $tags = [];
+            foreach ($values['tags'] ?? [] as $tag) {
+                $tag = trim($tag);
+                if ($tag !== '' && ! in_array(mb_strtolower($tag), array_map('mb_strtolower', $tags), true)) {
+                    $tags[] = $tag;
+                }
+            }
+            $values['tags'] = $tags;
+        }
+        if (array_key_exists('attributes', $values)) {
+            $values['custom_attributes'] = $values['attributes'] ?? [];
+            unset($values['attributes']);
+        }
+
+        return $values;
     }
 
     public function store(Request $request, Organization $organization)
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization);
-        $values = $request->validate($this->fields($organization));
+        $values = $this->context($organization, $request->validate($this->fields($organization)));
         $device = DB::transaction(function () use ($values, $organization, $request) {
             $device = Device::create([...$values, 'organization_id' => $organization->id, 'created_by' => $request->user()->id, 'updated_by' => $request->user()->id]);
             DeviceAudit::record('device.registered', $organization->id, $request->user()->id, $device->uuid);
@@ -64,7 +119,7 @@ final class DeviceController
     public function update(Request $request, Organization $organization, Device $device)
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $device);
-        $values = $request->validate([...$this->fields($organization, $device), 'draft_revision' => ['required', 'integer', 'min:1']]);
+        $values = $this->context($organization, $request->validate([...$this->fields($organization, $device), 'draft_revision' => ['required', 'integer', 'min:1']]));
         $updated = $this->configuration->locked($device, $values['draft_revision'], function ($locked) use ($values, $request) {
             $locked->fill([...$values, 'draft_revision' => $locked->draft_revision + 1, 'updated_by' => $request->user()->id])->save();
             DeviceAudit::record('device.updated', $locked->organization_id, $request->user()->id, $locked->uuid);
@@ -185,7 +240,9 @@ final class DeviceController
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $device);
         $values = $request->validate(['from' => ['required', 'date'], 'to' => ['required', 'date', 'after:from'], 'parameter_uuid' => ['required', 'uuid'], 'max_points' => ['sometimes', 'integer', 'min:10', 'max:1000']]);
 
-        return app(RuntimeClient::class)->request('GET', '/internal/measurements/history', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
+        // Portal charts place readings at observed time and join configuration
+        // revisions; the integration SDK keeps its receipt-time, per-configuration contract.
+        return app(RuntimeClient::class)->request('GET', '/internal/measurements/history', [...$values, 'time_basis' => 'observed', 'merge_configurations' => 1, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
     }
 
     public function historyRecords(Request $request, Organization $organization, Device $device)
@@ -222,6 +279,47 @@ final class DeviceController
         }
 
         return app(RuntimeClient::class)->request('GET', '/internal/measurements/state-history', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
+    }
+
+    /** Counter consumption per calendar bucket, with days and months cut in the given IANA time zone. */
+    public function counterIncrease(Request $request, Organization $organization, Device $device)
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $device);
+        $values = $request->validate([
+            'from' => ['required', 'date'],
+            'to' => ['required', 'date', 'after:from'],
+            'parameter_uuid' => ['required', 'uuid'],
+            'bucket' => ['required', Rule::in(['15m', '1h', '1d', '1w', '1mo', '1y'])],
+            // Defaults to the device's site, then its organization, so totals match for every viewer.
+            'timezone' => ['sometimes', 'timezone:all'],
+        ]);
+        $values['timezone'] ??= $device->reportingTimezone();
+        $counter = $this->counterParameter($device, $values['parameter_uuid']);
+        if ($counter === null) {
+            throw ValidationException::withMessages([
+                'parameter_uuid' => 'Choose a counter parameter from a device configuration.',
+            ]);
+        }
+
+        return app(RuntimeClient::class)->request('GET', '/internal/measurements/increase', [...$values,
+            'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid,
+            'rollover_at' => $counter['rollover_at'] ?? null,
+            'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
+    }
+
+    /** The counter settings from the newest configuration that defines the parameter as a counter. */
+    private function counterParameter(Device $device, string $parameterUuid): ?array
+    {
+        foreach ($device->configurations()->latest('id')->get() as $configuration) {
+            $canonical = $configuration->definition['profile_canonical_json'] ?? [];
+            $profile = is_string($canonical) ? json_decode($canonical, true) : $canonical;
+            $parameter = collect(is_array($profile) ? ($profile['parameters'] ?? []) : [])->firstWhere('uuid', $parameterUuid);
+            if ($parameter && ($parameter['kind'] ?? null) === 'counter' && in_array($parameter['data_type'] ?? null, ['integer', 'number'], true)) {
+                return is_array($parameter['counter'] ?? null) ? $parameter['counter'] : [];
+            }
+        }
+
+        return null;
     }
 
     private function supportsStateHistory(Device $device, string $parameterUuid): bool

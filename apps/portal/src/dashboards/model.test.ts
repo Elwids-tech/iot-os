@@ -125,7 +125,8 @@ describe("historical viewing state", () => {
     expect(absoluteError("bad", "bad")).toMatch(/valid/);
     expect(absoluteError("2026-01-02", "2026-01-01")).toMatch(/after/);
     expect(absoluteError("2026-01-01", "2099-01-01")).toMatch(/future/);
-    expect(absoluteError("2025-01-01", "2026-01-01")).toMatch(/90 days/);
+    expect(absoluteError("2025-01-01", "2026-01-01")).toBeNull();
+    expect(absoluteError("2024-06-01", "2026-01-01")).toMatch(/400 days/);
   });
   it("converts UTC and local inputs using the date-specific offset", () => {
     const iso = "2026-01-15T12:30:45.000Z";

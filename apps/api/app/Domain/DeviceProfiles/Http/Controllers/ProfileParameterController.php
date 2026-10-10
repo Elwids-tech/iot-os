@@ -13,6 +13,7 @@ use App\Domain\DeviceProfiles\Models\ProfileParameterGroup;
 use App\Domain\DeviceProfiles\Permissions\DeviceProfilePermission;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthoring;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization;
+use App\Domain\DeviceProfiles\Services\PublishedParameters;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +25,7 @@ final class ProfileParameterController
     public function __construct(
         private readonly DeviceProfileAuthorization $authorization,
         private readonly DeviceProfileAuthoring $authoring,
+        private readonly PublishedParameters $published,
     ) {}
 
     public function store(UpsertProfileParameterRequest $request, Organization $organization, DeviceProfile $profile): JsonResponse
@@ -33,6 +35,7 @@ final class ProfileParameterController
 
         $result = $this->authoring->mutate($profile, $request->user(), $draftRevision, function (DeviceProfile $locked) use ($attributes, $groupUuid): ProfileParameter {
             $attributes['parameter_group_id'] = $this->groupId($locked, $groupUuid);
+            $attributes = $this->published->guard($locked, null, $attributes);
 
             return $locked->parameters()->create($attributes);
         });
@@ -53,6 +56,7 @@ final class ProfileParameterController
             if ($groupWasProvided) {
                 $attributes['parameter_group_id'] = $this->groupId($locked, $groupUuid);
             }
+            $attributes = $this->published->guard($locked, $editable, $attributes);
             $editable->fill($attributes)->save();
 
             return $editable;

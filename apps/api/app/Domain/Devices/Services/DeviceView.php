@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Services;
 
+use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceCommand;
@@ -38,8 +39,11 @@ final class DeviceView
         // Same rule as telemetry reads: the applied configuration, else the last one the runtime confirmed.
         $artifact = ($device->appliedConfiguration ?? $device->lastAppliedConfiguration)?->artifact;
         $data['profile'] = $artifact?->profile ? ['uuid' => $artifact->profile->uuid, 'name' => $artifact->profile->name, 'revision' => $artifact->revision] : null;
+        $data['site'] = $device->site ? $device->site->only(['uuid', 'name', 'timezone']) : null;
+        $data['tags'] = $device->tags ?? [];
+        $data['attributes'] = (object) ($device->custom_attributes ?? []);
         if ($detail) {
-            $data['installations'] = \App\Domain\DeviceAdapters\Models\DeviceInstallation::where('device_id', $device->id)->latest('started_at')->limit(20)->get()->map(fn ($installation) => $installation->only(['uuid', 'manufacturer_serial', 'adapter_revision_uuid', 'started_at', 'ended_at']));
+            $data['installations'] = DeviceInstallation::where('device_id', $device->id)->latest('started_at')->limit(20)->get()->map(fn ($installation) => $installation->only(['uuid', 'manufacturer_serial', 'adapter_revision_uuid', 'started_at', 'ended_at']));
             $data['retention'] = app(RetentionService::class)->effective($device->organization);
             $data['draft'] = $device->draft;
             $artifact = isset($device->draft['artifact_uuid']) ? DeviceProfileArtifact::where('uuid', $device->draft['artifact_uuid'])->first() : null;

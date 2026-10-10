@@ -1,3 +1,5 @@
+-- Index builds on large hypertables exceed the pool's 5 s statement timeout.
+SET statement_timeout = 0;
 DO $$ BEGIN
  IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'device_runtime') THEN
   CREATE SCHEMA device_runtime;
@@ -41,6 +43,17 @@ CREATE TABLE IF NOT EXISTS device_runtime.observations (
 SELECT create_hypertable('device_runtime.observations', 'received_at', if_not_exists => TRUE, chunk_time_interval => INTERVAL '1 day');
 CREATE INDEX IF NOT EXISTS observations_lookup ON device_runtime.observations (organization_uuid,device_uuid,parameter_uuid,received_at DESC);
 CREATE INDEX IF NOT EXISTS observations_history_cursor ON device_runtime.observations (organization_uuid,device_uuid,parameter_uuid,received_at DESC,event_uuid DESC);
+-- Reporting (charts, state timelines, counter increase) uses observed time; raw records keep receipt order.
+CREATE INDEX IF NOT EXISTS observations_observed ON device_runtime.observations (organization_uuid,device_uuid,parameter_uuid,observed_at DESC);
+-- Compress chunks after a week so long retention fits small disks. Segments
+-- follow the reporting access path; ordering by observed time lets reports skip
+-- compressed batches. Retention cleanup deletes compressed data by predicate.
+DO $$ BEGIN
+ IF NOT (SELECT compression_enabled FROM timescaledb_information.hypertables WHERE hypertable_schema='device_runtime' AND hypertable_name='observations') THEN
+  ALTER TABLE device_runtime.observations SET (timescaledb.compress, timescaledb.compress_segmentby = 'organization_uuid,device_uuid,parameter_uuid', timescaledb.compress_orderby = 'observed_at DESC, received_at DESC, event_uuid');
+ END IF;
+END $$;
+SELECT add_compression_policy('device_runtime.observations', compress_after => INTERVAL '7 days', if_not_exists => true);
 CREATE TABLE IF NOT EXISTS device_runtime.latest (
  organization_uuid uuid NOT NULL, device_uuid uuid NOT NULL, configuration_uuid uuid NOT NULL, parameter_uuid uuid NOT NULL,
  received_at timestamptz NOT NULL, reading jsonb NOT NULL,
@@ -104,3 +117,4 @@ CREATE TABLE IF NOT EXISTS device_runtime.dag_evaluations (
 );
 CREATE INDEX IF NOT EXISTS dag_evaluation_workflow ON device_runtime.dag_evaluations(workflow_uuid,id DESC);
 CREATE INDEX IF NOT EXISTS dag_evaluation_retention ON device_runtime.dag_evaluations(organization_uuid,received_at);
+RESET statement_timeout;

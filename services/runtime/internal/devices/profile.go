@@ -193,13 +193,18 @@ func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string
 		if metric.Datatype != mapping.Datatype {
 			err = errors.New("source datatype changed; review the mapping")
 		}
-		if parameter.Counter != nil && parameter.Counter.Monotonic && err == nil {
-			previous, ok := latest[parameter.UUID]
-			if ok {
+		// A decrease starts a new counter segment instead of invalidating the
+		// reading. Historical samples are older than the live value, so they are
+		// never compared with it; reporting orders samples by observed time.
+		if parameter.Counter != nil && parameter.Counter.Monotonic && err == nil && !r.Historical {
+			if previous, ok := latest[parameter.UUID]; ok {
 				a, aok := Number(previous.Value)
 				b, bok := Number(r.Value)
 				if aok && bok && b < a {
-					err = errors.New("counter decreased; reset requires review")
+					_, r.CounterEvent = parameter.Counter.Increase(a, b)
+					if parameter.Counter.ResetBehavior == "diagnose" {
+						r.Diagnostic = "Counter " + r.CounterEvent + " detected; consumption continues from the new value."
+					}
 				}
 			}
 		}
@@ -224,10 +229,24 @@ func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string
 			context := map[string]any{}
 			invalid := ""
 			historical := false
+			// Buffered samples must not be combined with live cached inputs.
+			for _, input := range calculation.Inputs {
+				if r, ok := updates[input.ParameterUUID]; ok && r.Historical {
+					historical = true
+				}
+			}
+			mixed := false
+			var observed time.Time
 			for _, input := range calculation.Inputs {
 				r, ok := updates[input.ParameterUUID]
 				if ok {
 					changed = true
+					if r.ObservedAt.After(observed) {
+						observed = r.ObservedAt
+					}
+				} else if historical {
+					mixed = true
+					continue
 				} else {
 					r, ok = latest[input.ParameterUUID]
 				}
@@ -252,11 +271,14 @@ func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string
 				continue
 			}
 			progress = true
-			if !changed {
+			if !changed || mixed {
 				continue
 			}
+			if observed.IsZero() {
+				observed = received
+			}
 			parameter := params[calculation.TargetParameterUUID]
-			r := Reading{ParameterUUID: parameter.UUID, Key: parameter.Key, Label: parameter.Label, DataType: parameter.DataType, Unit: parameter.Unit, Quality: "good", ReceivedAt: received, ObservedAt: received, Historical: historical}
+			r := Reading{ParameterUUID: parameter.UUID, Key: parameter.Key, Label: parameter.Label, DataType: parameter.DataType, Unit: parameter.Unit, Quality: "good", ReceivedAt: received, ObservedAt: observed, Historical: historical}
 			r.TimestampSource = "derived"
 			if d.Adapter != nil {
 				r.InstallationUUID = d.Adapter.InstallationUUID

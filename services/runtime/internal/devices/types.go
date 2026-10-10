@@ -62,11 +62,30 @@ type Parameter struct {
 	Reporting *struct {
 		StaleAfterSeconds int `json:"stale_after_seconds"`
 	} `json:"reporting"`
-	Counter *struct {
-		Monotonic     bool   `json:"monotonic"`
-		ResetBehavior string `json:"reset_behavior"`
-	} `json:"counter"`
+	Counter *CounterConfig `json:"counter"`
 }
+
+// CounterConfig describes a cumulative counter. A decrease never invalidates a
+// reading: it starts a new segment, or wraps when RolloverAt is set.
+type CounterConfig struct {
+	Monotonic     bool     `json:"monotonic"`
+	ResetBehavior string   `json:"reset_behavior"`
+	RolloverAt    *float64 `json:"rollover_at,omitempty"`
+}
+
+// Increase returns the consumption between two consecutive counter values.
+func (c *CounterConfig) Increase(previous, current float64) (float64, string) {
+	if current >= previous {
+		return current - previous, ""
+	}
+	// A wrap is only plausible when it implies using at most half of the
+	// meter's range between two samples; anything larger is a reset.
+	if c != nil && c.RolloverAt != nil && *c.RolloverAt > previous && *c.RolloverAt-previous+current <= *c.RolloverAt/2 {
+		return *c.RolloverAt - previous + current, "rollover"
+	}
+	return current, "reset"
+}
+
 type Calculation struct {
 	TargetParameterUUID string `json:"target_parameter_uuid"`
 	Inputs              []struct {
@@ -110,6 +129,7 @@ type Reading struct {
 	ReceivedAt          time.Time  `json:"received_at"`
 	LastValidReceivedAt *time.Time `json:"last_valid_received_at,omitempty"`
 	Historical          bool       `json:"historical"`
+	CounterEvent        string     `json:"counter_event,omitempty"`
 }
 type Event struct {
 	UUID       string          `json:"uuid"`

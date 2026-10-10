@@ -232,6 +232,8 @@ export function resolveRange(range: DashboardRange, now = Date.now()) {
       }
     : { from: range.from, to: range.to }
 }
+/** Matches the default measurement retention, so a full year plus a month can be compared. */
+export const MAX_ABSOLUTE_DAYS = 400
 export function absoluteError(
   from: string,
   to: string,
@@ -243,8 +245,8 @@ export function absoluteError(
     return "Enter valid From and To dates and times."
   if (end <= start) return "To must be after From."
   if (end > now) return "To cannot be in the future."
-  if (end - start > PRESETS["30d"] * 3)
-    return "Choose a range of 90 days or less. Available data also depends on device retention."
+  if (end - start > MAX_ABSOLUTE_DAYS * 86_400_000)
+    return `Choose a range of ${MAX_ABSOLUTE_DAYS} days or less. Available data also depends on device retention.`
   return null
 }
 export function readView(

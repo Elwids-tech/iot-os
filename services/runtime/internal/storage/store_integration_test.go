@@ -89,9 +89,14 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 	must(s.Apply(ctx, foreign.Definition, 1, "device.applied.v1"))
 	must(s.Persist(ctx, foreign))
 	// A bounded pass must report backlog, remain tenant scoped, and resume safely.
+	// Observations are deleted one day-chunk per batch, including compressed chunks.
 	older := old
 	older.UUID = UUID()
+	older.Readings = append([]devices.Reading(nil), old.Readings...)
+	older.Readings[0].ReceivedAt = now.Add(-101 * 24 * time.Hour)
 	must(s.Persist(ctx, older))
+	_, e = s.Pool.Exec(ctx, "SELECT compress_chunk(c, if_not_compressed => true) FROM show_chunks('device_runtime.observations', older_than => INTERVAL '90 days') c")
+	must(e)
 	partial, partialErr := s.cleanup(ctx, org, now.Add(-90*24*time.Hour), 1, 1)
 	if partial != 1 || !errors.Is(partialErr, ErrCleanupIncomplete) {
 		t.Fatalf("expected resumable cleanup backlog, got %d / %v", partial, partialErr)
@@ -105,7 +110,7 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 	if count != 1 {
 		t.Fatal("cleanup crossed organization boundary")
 	}
-	history, e := s.History(ctx, org, d.DeviceUUID, parameter, now.Add(-time.Hour), now.Add(time.Minute), 100)
+	history, e := s.History(ctx, org, d.DeviceUUID, parameter, now.Add(-time.Hour), now.Add(time.Minute), 100, HistoryOptions{})
 	must(e)
 	if len(history) != 1 || len(history[0].Points) != 1 {
 		t.Fatal(history)
@@ -118,7 +123,7 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 		text.Readings = []devices.Reading{{ParameterUUID: textParameter, DataType: "string", Value: value, Quality: "good", ObservedAt: now, ReceivedAt: now.Add(time.Duration(i) * time.Millisecond)}}
 		must(s.Persist(ctx, text))
 	}
-	history, e = s.History(ctx, org, d.DeviceUUID, textParameter, now.Add(-time.Hour), now.Add(time.Minute), 100)
+	history, e = s.History(ctx, org, d.DeviceUUID, textParameter, now.Add(-time.Hour), now.Add(time.Minute), 100, HistoryOptions{})
 	must(e)
 	if len(history) != 1 || len(history[0].Points) != 3 {
 		t.Fatal("nonnumeric events were bucketed", history)

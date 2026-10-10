@@ -24,7 +24,7 @@ final class CalculationAuthoring
             $group = $output['parameter_group_uuid'] ?? null;
             $groupId = $group ? $profile->parameterGroups()->where('uuid', $group)->firstOrFail()->id : null;
             $target = $profile->parameters()->create([
-                ...Arr::only($output, ['key', 'label', 'data_type', 'unit']),
+                ...app(PublishedParameters::class)->guard($profile, null, Arr::only($output, ['key', 'label', 'data_type', 'unit'])),
                 'kind' => 'derived', 'reports_state' => true, 'accepts_command' => false,
                 'parameter_group_id' => $groupId,
                 'sort_order' => ($profile->parameters()->max('sort_order') ?? -1) + 1,
