@@ -4,25 +4,26 @@ declare(strict_types=1);
 
 namespace App\Domain\Assistant\Jobs;
 
+use App\Domain\Assistant\Agents\AdapterAssistant;
+use App\Domain\Assistant\Agents\HelpAgent;
 use App\Domain\Assistant\Agents\ProfileAssistant;
 use App\Domain\Assistant\Agents\WorkflowAssistant;
-use App\Domain\Assistant\Agents\HelpAgent;
-use App\Domain\Help\Services\HelpAnswers;
-use App\Domain\Help\Services\HelpRetrieval;
 use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\AssistantBudget;
 use App\Domain\Assistant\Services\AssistantEvents;
+use App\Domain\Help\Services\HelpAnswers;
+use App\Domain\Help\Services\HelpRetrieval;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Ai\Approvals\Decision;
 use Laravel\Ai\Approvals\Decisions;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Files;
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\StreamedAgentResponse;
 use Laravel\Ai\Streaming\Events\StreamEnd;
 use Laravel\Ai\Streaming\Events\TextDelta;
@@ -53,7 +54,7 @@ final class RunAssistant implements ShouldQueue
         $run = AssistantRun::query()->findOrFail($this->runId);
         $conversation = $run->conversation;
         $events = app(AssistantEvents::class);
-        $usage = new Usage;
+        $usage = new TextUsage;
         $buffer = '';
         $answer = '';
         $lastFlush = microtime(true);
@@ -87,11 +88,12 @@ final class RunAssistant implements ShouldQueue
                 $conversation->touch();
                 $events->emit($conversation, $run, 'status', ['status' => 'completed']);
                 logger()->info('Help response completed.', ['run_id' => $run->id, 'context' => $run->help_context['key'], 'supported' => $normalized['supported'], 'latency_ms' => (int) (1000 * (microtime(true) - $lastFlush)), 'estimated_cost_usd' => app(AssistantBudget::class)->cost($usage->toArray())]);
+
                 return;
             }
             abort_unless(in_array($conversation->scope, ['profile', 'automation', 'adapter'], true), 422, 'Unknown assistant scope.');
             $automation = $conversation->scope === 'automation';
-            $agent = $automation ? new WorkflowAssistant($run) : ($conversation->scope === 'adapter' ? new \App\Domain\Assistant\Agents\AdapterAssistant($run) : new ProfileAssistant($run));
+            $agent = $automation ? new WorkflowAssistant($run) : ($conversation->scope === 'adapter' ? new AdapterAssistant($run) : new ProfileAssistant($run));
             if (! $automation && $conversation->sdk_conversation_id) {
                 $agent->continue($conversation->sdk_conversation_id, as: $conversation->user);
             } elseif (! $automation) {

@@ -38,8 +38,13 @@ final class AssistantBudget
 
     public function cost(array $usage): float
     {
-        $input = ($usage['prompt_tokens'] ?? 0) + ($usage['cache_read_input_tokens'] ?? 0) + ($usage['cache_write_input_tokens'] ?? 0);
+        // Laravel AI 1.x totals already include cached input and reasoning output; rows
+        // stored before 1.x use prompt/completion keys that excluded cached input.
+        $input = array_key_exists('input_tokens', $usage)
+            ? $usage['input_tokens'] ?? 0
+            : ($usage['prompt_tokens'] ?? 0) + ($usage['cache_read_input_tokens'] ?? 0) + ($usage['cache_write_input_tokens'] ?? 0);
+        $output = $usage['output_tokens'] ?? $usage['completion_tokens'] ?? 0;
 
-        return round(($input * 0.75 + ($usage['completion_tokens'] ?? 0) * 4.5) / 1000000, 6);
+        return round(($input * 0.75 + $output * 4.5) / 1000000, 6);
     }
 }
