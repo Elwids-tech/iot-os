@@ -162,7 +162,7 @@ export function AlarmsSection() {
       <Confirm
         open={Boolean(deleting)}
         title="Delete this alarm template?"
-        description="It's removed from the draft. Published revisions don't change."
+        description="It's removed from the draft. Published versions don't change."
         onClose={() => setDeleting(null)}
         onRefresh={studio.reload}
         onConfirm={async () => {

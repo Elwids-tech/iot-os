@@ -65,7 +65,7 @@ async function request(
 }
 async function saved(page: Page) {
   await expect(page.getByRole("dialog")).toHaveCount(0)
-  await expect(page.getByText(/Saved draft \d+/)).toBeVisible()
+  await expect(page.getByText(/^Draft (changes )?saved /)).toBeVisible()
 }
 async function createProfile(page: Page, name: string) {
   await page.getByRole("button", { name: "New profile", exact: true }).click()
@@ -232,7 +232,7 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
     page.getByText("Saved draft passed validation", { exact: true }),
   ).toBeVisible()
   await expect(
-    page.getByRole("button", { name: "Publish revision 1", exact: true }),
+    page.getByRole("button", { name: "Publish as version 1", exact: true }),
   ).toBeEnabled()
   await expect(
     page.getByRole("cell", { name: "Energy meter studio", exact: true }),
@@ -244,14 +244,14 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
   await healthy(page)
   await screenshot(page, info, "review-before-publish")
   await page
-    .getByRole("button", { name: "Publish revision 1", exact: true })
+    .getByRole("button", { name: "Publish as version 1", exact: true })
     .click()
   await page
     .getByRole("alertdialog")
-    .getByRole("button", { name: "Publish revision", exact: true })
+    .getByRole("button", { name: "Publish", exact: true })
     .click()
   await expect(
-    page.getByRole("button", { name: "Inspect revision 1" }),
+    page.getByRole("button", { name: "Inspect version 1" }),
   ).toBeVisible()
   const first = (
     await (await request(page, "GET", path + "/artifacts/1")).json()
@@ -266,7 +266,7 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
     }),
   ).toBeVisible()
   await expect(
-    page.getByText("Unpublished changes", { exact: true }),
+    page.getByText(/^Draft changes saved /),
   ).toBeVisible()
   expect(
     (await (await request(page, "GET", path + "/artifacts/1")).json()).data
@@ -277,22 +277,22 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
     .getByRole("button", { name: "Validate draft", exact: true })
     .click()
   await page
-    .getByRole("button", { name: "Publish revision 2", exact: true })
+    .getByRole("button", { name: "Publish as version 2", exact: true })
     .click()
   await page
     .getByRole("alertdialog")
-    .getByRole("button", { name: "Publish revision", exact: true })
+    .getByRole("button", { name: "Publish", exact: true })
     .click()
   await expect(
-    page.getByRole("button", { name: "Inspect revision 2" }),
+    page.getByRole("button", { name: "Inspect version 2" }),
   ).toBeVisible()
   expect(
     (await (await request(page, "GET", path + "/artifacts/1")).json()).data
       .definition,
   ).toEqual(first.definition)
-  await page.getByRole("button", { name: "Inspect revision 1" }).click()
+  await page.getByRole("button", { name: "Inspect version 1" }).click()
   const definition = page.getByRole("textbox", {
-    name: "Published revision 1",
+    name: "Version 1",
     exact: true,
   })
   await expect(definition).toHaveAttribute("aria-readonly", "true")

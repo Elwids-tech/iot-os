@@ -35,6 +35,7 @@ import { api } from "../lib/api"
 import { Pager, RequestError } from "../components/forms"
 import { useStudio, useProfileValidation, publishBlocker } from "./use-studio"
 import { plural } from "./ProfileDirectory"
+import { useReturnTo } from "./device-setup"
 import {
   artifactChanges,
   fieldChanges,
@@ -93,17 +94,13 @@ export function ReviewSection() {
   const base =
     "/organizations/" + studio.org + "/device-profiles/" + profile.uuid
   const blocker = publishBlocker(studio, check)
+  const { keep } = useReturnTo()
   return (
     <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-8">
         <section aria-labelledby="review-validation" className="flex flex-col gap-3">
           <h2 id="review-validation" className="text-sm font-semibold">
             Validation
-            {result && (
-              <span className="ml-2 font-normal text-muted-foreground">
-                Draft {result.validation.draft_revision}
-              </span>
-            )}
           </h2>
           <RequestError error={check.error} />
           {!studio.capabilities.validate ? (
@@ -141,7 +138,7 @@ export function ReviewSection() {
                           <TableCell colSpan={3} className="font-medium">
                             <Link
                               className="text-primary hover:underline"
-                              to={base + "/" + area.key}
+                              to={keep(base + "/" + area.key)}
                             >
                               {area.label}
                             </Link>
@@ -175,7 +172,7 @@ export function ReviewSection() {
               <div className="flex flex-wrap items-center gap-3">
                 <h2 id="review-changes" className="text-sm font-semibold">
                   Changes since{" "}
-                  {profile.revision ? "v" + profile.revision : "creation"}
+                  {profile.revision ? "version " + profile.revision : "creation"}
                   <span className="ml-2 font-normal text-muted-foreground">
                     {plural(fields.length, "change")}
                   </span>
@@ -246,14 +243,14 @@ export function ReviewSection() {
           <h2 id="review-publish" className="mb-1 font-semibold">
             Publish
           </h2>
-          <p>{blocker ?? "Ready to publish revision " + (profile.revision + 1)}</p>
+          <p>{blocker ?? "Ready to publish as version " + (profile.revision + 1)}</p>
           <p className="text-muted-foreground">
             Publishing doesn't change devices. Activation is separate.
           </p>
         </section>
-        <section aria-labelledby="review-revisions" className="flex flex-col gap-2">
-          <h2 id="review-revisions" className="text-sm font-semibold">
-            Revisions
+        <section aria-labelledby="review-versions" className="flex flex-col gap-2">
+          <h2 id="review-versions" className="text-sm font-semibold">
+            Versions
             {history.data && (
               <span className="ml-2 font-normal text-muted-foreground">
                 {history.data.meta.total}
@@ -262,22 +259,22 @@ export function ReviewSection() {
           </h2>
           <RequestError error={history.error ?? error}>
             <Button variant="outline" onClick={() => history.refetch()}>
-              Retry revision history
+              Retry version history
             </Button>
           </RequestError>
           {history.isPending ? (
             <p role="status" className="text-sm text-muted-foreground">
-              Loading revisions…
+              Loading versions…
             </p>
           ) : !history.data?.data.length ? (
             <p className="text-sm text-muted-foreground">
-              No published revisions yet.
+              No published versions yet.
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Revision</TableHead>
+                  <TableHead>Version</TableHead>
                   <TableHead>Published</TableHead>
                   <TableHead>
                     <span className="sr-only">Actions</span>
@@ -288,9 +285,11 @@ export function ReviewSection() {
                 {history.data.data.map((item) => (
                   <TableRow key={item.uuid}>
                     <TableCell title={item.definition_hash.slice(0, 12)}>
-                      v{item.revision}
+                      Version {item.revision}
                       {item.revision === profile.revision && (
-                        <span className="text-muted-foreground"> · current</span>
+                        <span className="text-muted-foreground">
+                          {profile.status === "archived" ? " · latest" : " · live"}
+                        </span>
                       )}
                     </TableCell>
                     <TableCell
@@ -303,7 +302,7 @@ export function ReviewSection() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label={"Inspect revision " + item.revision}
+                        aria-label={"Inspect version " + item.revision}
                         onClick={async () => {
                           try {
                             setError(null)
@@ -344,14 +343,14 @@ export function ReviewSection() {
       >
         <DialogContent className="flex max-h-[90svh] flex-col overflow-y-auto sm:max-w-5xl">
           <DialogHeader>
-            <DialogTitle>Published revision {artifact?.revision}</DialogTitle>
+            <DialogTitle>Version {artifact?.revision}</DialogTitle>
             <DialogDescription>
               Published definitions can't be edited.
             </DialogDescription>
           </DialogHeader>
           {artifact && (
             <JsonEditor
-              label={"Published revision " + artifact.revision}
+              label={"Version " + artifact.revision}
               readOnly
               value={jsonText(artifact.definition)}
             />
