@@ -29,6 +29,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
 import { formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { LayoutDashboardIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { dashboardPath } from "../dashboards/model"
 import { telemetryRequest } from "../dashboards/requests"
@@ -90,14 +91,17 @@ export function DeviceOverview({
   org,
   device,
   editable,
+  onAddToDashboard,
 }: {
   org: string
   device: DeviceDetail
   editable: boolean
+  /** Starts Add to dashboard with this parameter selected. */
+  onAddToDashboard?: (parameterUuid: string) => void
 }) {
   return (
     <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_20rem] xl:gap-6">
-      <LatestReadout org={org} device={device} editable={editable} />
+      <LatestReadout org={org} device={device} editable={editable} onAdd={onAddToDashboard} />
       <aside
         aria-label="Device summary"
         className="flex min-w-0 flex-col gap-6 xl:border-l xl:pl-6"
@@ -117,10 +121,12 @@ function LatestReadout({
   org,
   device,
   editable,
+  onAdd,
 }: {
   org: string
   device: DeviceDetail
   editable: boolean
+  onAdd?: (parameterUuid: string) => void
 }) {
   const configured = Boolean(
     device.applied_configuration_uuid || device.last_applied_configuration_uuid,
@@ -237,6 +243,7 @@ function LatestReadout({
                 <TableHead className="text-right">Value</TableHead>
                 <TableHead>Quality</TableHead>
                 <TableHead className="text-right">Observed</TableHead>
+                {onAdd && <TableHead className="w-0"><span className="sr-only">Actions</span></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -263,6 +270,19 @@ function LatestReadout({
                   <TableCell className="text-right">
                     <Age value={r.observed_at} />
                   </TableCell>
+                  {onAdd && (
+                    <TableCell className="text-right">
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={`Add ${r.label} to a dashboard`}
+                        title="Add to dashboard"
+                        onClick={() => onAdd(r.parameter_uuid)}
+                      >
+                        <LayoutDashboardIcon />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

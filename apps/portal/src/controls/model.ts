@@ -30,7 +30,7 @@ const valueVariable = (value: unknown) =>
       (value as Record<string, unknown>).var === "value",
   )
 
-function validationOptions(parameter: DeviceProfileParameter) {
+export function validationOptions(parameter: DeviceProfileParameter) {
   const rule = parameter.validation?.rule as Record<string, unknown> | undefined
   const membership = rule?.in
   if (
@@ -52,7 +52,7 @@ function validationOptions(parameter: DeviceProfileParameter) {
   })
 }
 
-function validationRange(parameter: DeviceProfileParameter) {
+export function validationRange(parameter: DeviceProfileParameter) {
   const rule = parameter.validation?.rule as Record<string, unknown> | undefined
   const conditions = Array.isArray(rule?.and) ? rule.and : rule ? [rule] : []
   let min: number | undefined, max: number | undefined

@@ -19,12 +19,14 @@ import {
 } from "@iot-os/ui/components/empty"
 import { isRuntimeUnavailable, RequestError } from "../components/forms"
 import {
+  appliedParameters,
   bandFor,
   NEUTRAL,
   profilePrecision,
   seriesColor,
   sourceKey,
 } from "./model"
+import { displayStates, stateFor, TONE_COLOR, type StateTone } from "./profileDisplay"
 import { useDevices, useHistory, useLatest, useNow } from "./panelData"
 import {
   Age,
@@ -121,6 +123,14 @@ export function StatusPanel({
     const precision =
       source.precision ??
       profilePrecision(devices(source.device_uuid)?.data, source.parameter_uuid)
+    // State labels and tones come from the applied profile at render time.
+    const parameter = appliedParameters(devices(source.device_uuid)?.data).find(
+      (p) => p.uuid === source.parameter_uuid,
+    )
+    const profileState =
+      measurement && measurement.value !== null && measurement.value !== undefined
+        ? stateFor(displayStates(parameter), measurement.value)
+        : undefined
     return {
       source,
       query,
@@ -130,7 +140,12 @@ export function StatusPanel({
       state: query?.error
         ? { ...NEUTRAL, label: "Unavailable" }
         : bandFor(source, measurement),
-      value: measurement ? formatReading(measurement.value, precision) : "—",
+      value: profileState
+        ? profileState.label
+        : measurement
+          ? formatReading(measurement.value, precision)
+          : "—",
+      tone: profileState?.tone,
       unit: measurement?.unit ?? source.unit,
       trend: history[index]?.data?.series.flatMap((s) =>
         s.points.map((p) => (typeof p.value === "number" ? p.value : null)),
@@ -149,6 +164,7 @@ export function StatusPanel({
     return frame(
       // Narrow panels drop Trend, then Age; fullscreen shows every column.
       <div className="@container">
+      <Freshness rows={rows} now={now} timezone={view.timezone} />
       <Table>
         <TableHeader>
           <TableRow>
@@ -178,8 +194,9 @@ export function StatusPanel({
                   <Skeleton className="ml-auto h-4 w-12" />
                 ) : (
                   <>
+                    <ToneSquare tone={row.tone} />
                     {row.value}
-                    {row.unit && (
+                    {row.unit && !row.tone && (
                       <span className="ml-1 text-muted-foreground">{row.unit}</span>
                     )}
                   </>
@@ -212,6 +229,7 @@ export function StatusPanel({
           </RequestError>
         </div>
       ) : null}
+      <Freshness rows={rows} now={now} timezone={view.timezone} />
       <ul
         ref={cells}
         className="-mr-px -mb-px grid"
@@ -248,8 +266,9 @@ export function StatusPanel({
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <p className="font-mono text-2xl break-words tabular-nums in-data-kiosk:text-4xl [@container(max-height:11rem)]:text-lg">
+                  <ToneSquare tone={row.tone} />
                   {row.value}
-                  {row.unit ? (
+                  {row.unit && !row.tone ? (
                     <span className="ml-1 text-sm text-muted-foreground">
                       {row.unit}
                     </span>
@@ -272,26 +291,18 @@ export function StatusPanel({
                   Simulation, not telemetry
                 </p>
               ) : measurement ? (
-                <div className="flex flex-col text-xs text-muted-foreground">
-                  <p>
-                    {retained ? "Last valid value received " : "Received "}
-                    <Age at={readingTime(measurement)} now={now} timezone={view.timezone} />
-                    {" ago"}
-                  </p>
-                  {retained && (
-                    <p>
-                      Latest diagnostic received{" "}
-                      <Age at={measurement.received_at} now={now} timezone={view.timezone} />
-                      {" ago"}
-                    </p>
-                  )}
-                  {measurement.diagnostic && <p>{measurement.diagnostic}</p>}
-                  {row.presence && row.presence !== "online" && (
-                    <StatusMark tone="muted">
-                      Device {presenceLabel(row.presence).toLowerCase()}
-                    </StatusMark>
-                  )}
-                </div>
+                // Freshness is summarized once per panel; details stay on hover.
+                <p
+                  className="text-xs text-muted-foreground"
+                  title={[
+                    retained ? "Last valid value retained." : null,
+                    measurement.diagnostic,
+                    row.presence && row.presence !== "online" ? `Device ${presenceLabel(row.presence).toLowerCase()}.` : null,
+                  ].filter(Boolean).join(" ") || undefined}
+                >
+                  <Age at={readingTime(measurement)} now={now} timezone={view.timezone} />
+                  {" ago"}
+                </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
                   {isRuntimeUnavailable(query?.error) ? "No live value" : "Waiting for a reading"}
@@ -332,3 +343,61 @@ function Sparkline({
     </svg>
   )
 }
+
+function ToneSquare({ tone }: { tone?: StateTone }) {
+  if (!tone) return null
+  return (
+    <span
+      aria-hidden
+      className="mr-2 inline-block size-2.5 align-middle"
+      style={{ backgroundColor: TONE_COLOR[tone] }}
+    />
+  )
+}
+
+type FreshnessRow = {
+  measurement?: Measurement
+  simulated: boolean
+  presence?: string
+}
+
+/** One freshness line for the whole panel instead of repeating it in every cell. */
+function Freshness({
+  rows,
+  now,
+  timezone,
+}: {
+  rows: FreshnessRow[]
+  now: number
+  timezone: "browser" | "utc"
+}) {
+  const live = rows.filter((row) => row.measurement && !row.simulated)
+  if (!live.length) return null
+  const newest = live
+    .map((row) => readingTime(row.measurement!))
+    .sort()
+    .at(-1)!
+  const stale = live.filter((row) => row.measurement!.quality !== "good")
+  const offline = live.some((row) => row.presence && row.presence !== "online")
+  const diagnostics = [...new Set(stale.map((row) => row.measurement!.diagnostic).filter(Boolean))]
+  const healthy = !stale.length && !offline
+  // Invalid readings keep showing the last valid value; say so plainly.
+  const retained =
+    stale.length > 0 &&
+    stale.every(({ measurement: m }) => m!.last_valid_received_at && m!.value !== null && m!.value !== undefined)
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 border-b px-2.5 py-1.5 text-xs text-muted-foreground">
+      <StatusMark tone={healthy ? "good" : "muted"}>
+        {healthy ? "Live" : stale.length === live.length ? "Stale" : `${stale.length} of ${live.length} stale`}
+      </StatusMark>
+      <span>
+        {healthy ? "updated " : retained ? "last valid value received " : "last reading "}
+        <Age at={newest} now={now} timezone={timezone} />
+        {" ago"}
+      </span>
+      {offline && <span>· Device offline</span>}
+      {diagnostics.length === 1 && <span>· {diagnostics[0]}</span>}
+    </p>
+  )
+}
+

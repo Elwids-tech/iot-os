@@ -16,7 +16,8 @@ import {
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
 import { StateHistoryVisualization } from "../history/StateHistoryVisualization"
-import { resolveRange, sourceKey } from "./model"
+import { displayStates } from "./profileDisplay"
+import { appliedParameters, resolveRange, sourceKey } from "./model"
 import { telemetryRequest } from "./requests"
 
 export function HistoryStatePanel({
@@ -114,6 +115,9 @@ export function HistoryStatePanel({
                 configurations={device?.configurations ?? []}
                 colour={colour}
                 timezone={view.timezone}
+                states={displayStates(
+                  appliedParameters(device).find((p) => p.uuid === source.parameter_uuid),
+                )}
               />
             ) : (
               <Alert>

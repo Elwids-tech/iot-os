@@ -232,7 +232,15 @@ function Workspace({
   const [dialog, setDialog] = useState<"details" | "dashboard" | "archive" | null>(
     null,
   )
+  const [dashboardParameters, setDashboardParameters] = useState<string[]>([])
   const archived = device.lifecycle === "archived"
+  const addParameter =
+    capabilities.manage && !archived
+      ? (parameter: string) => {
+          setDashboardParameters([parameter])
+          setDialog("dashboard")
+        }
+      : undefined
   const archiveReason = locked
     ? "Wait for the current request to finish."
     : device.applied_configuration_uuid || device.desired_configuration_uuid
@@ -251,7 +259,7 @@ function Workspace({
         actions={
           <>
             {capabilities.manage && !archived && (
-              <Button variant="outline" size="sm" onClick={() => setDialog("dashboard")}>
+              <Button variant="outline" size="sm" onClick={() => { setDashboardParameters([]); setDialog("dashboard") }}>
                 <PlusIcon data-icon="inline-start" />
                 <span className="max-sm:sr-only">Add to dashboard</span>
               </Button>
@@ -315,13 +323,13 @@ function Workspace({
         )}
         {lifecycle.status}
         <TabsContent value="overview">
-          <DeviceOverview org={org} device={device} editable={capabilities.manage} />
+          <DeviceOverview org={org} device={device} editable={capabilities.manage} onAddToDashboard={addParameter} />
         </TabsContent>
         <TabsContent value="connectivity">
           <DeviceConnectivity org={org} deviceUuid={device.uuid} />
         </TabsContent>
         <TabsContent value="measurements">
-          <MeasurementsSection org={org} device={device} />
+          <MeasurementsSection org={org} device={device} onAddToDashboard={addParameter} />
         </TabsContent>
         <TabsContent value="history">
           <Suspense fallback={<Skeleton className="h-80 w-full" />}>
@@ -366,7 +374,7 @@ function Workspace({
         />
       )}
       {dialog === "dashboard" && (
-        <AddToDashboard org={org} device={device} onClose={() => setDialog(null)} />
+        <AddToDashboard org={org} device={device} initialParameters={dashboardParameters} onClose={() => setDialog(null)} />
       )}
       <Confirm
         open={dialog === "archive"}

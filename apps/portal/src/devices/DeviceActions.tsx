@@ -27,6 +27,8 @@ import {
 import { FieldDescription, FieldGroup, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
+import { Checkbox } from "@iot-os/ui/components/checkbox"
+import { RadioGroup, RadioGroupItem } from "@iot-os/ui/components/radio-group"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
 import {
@@ -39,11 +41,13 @@ import {
 import {
   appendLayout,
   appliedParameters,
-  COLORS,
   dashboardPath,
-  NEUTRAL,
 } from "../dashboards/model"
 import type { DeviceOperation } from "./DeviceWorkspace"
+import { writableParameters } from "../controls/model"
+import { PANEL_LABELS } from "../dashboards/model"
+import { PANEL_ICONS } from "../dashboards/icons"
+import { panelFor, suggestPanels, type Candidate, type PanelType } from "../dashboards/suggest"
 
 type DetailsForm = Omit<DeviceInput, "tags" | "attributes"> & {
   site_uuid: string
@@ -220,10 +224,13 @@ export function EditDetails({
 export function AddToDashboard({
   org,
   device,
+  initialParameters = [],
   onClose,
 }: {
   org: string
   device: DeviceDetail
+  /** Parameters to start with, for example the row the user came from. */
+  initialParameters?: string[]
   onClose: () => void
 }) {
   const cache = useQueryClient(),
@@ -235,12 +242,21 @@ export function AddToDashboard({
   const [search, setSearch] = useState(""),
     [selected, setSelected] = useState(""),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState<unknown>(null)
+    [error, setError] = useState<unknown>(null),
+    [chosen, setChosen] = useState<string[]>(initialParameters),
+    [type, setType] = useState<PanelType | "">("")
   const parameters = appliedParameters(device).slice(0, 100)
+  const writable = new Set(writableParameters(device).map((p) => p.uuid))
+  const candidates: Candidate[] = parameters
+    .filter((p) => chosen.includes(p.uuid))
+    .map((parameter) => ({ device: { uuid: device.uuid, name: device.name }, parameter, writable: writable.has(parameter.uuid) }))
+  const suggestions = suggestPanels(candidates).slice(0, 3)
+  const panelType = type && suggestions.some((s) => s.type === type) ? type : suggestions[0]?.type
   const options = (dashboards.data ?? [])
     .filter((d) => d.name.toLowerCase().includes(search.toLowerCase()))
     .map((d) => ({ value: d.uuid, label: d.name }))
   async function add() {
+    if (!panelType) return
     setBusy(true)
     setError(null)
     try {
@@ -251,32 +267,7 @@ export function AddToDashboard({
       })
       const dashboard = fresh.find((d: Dashboard) => d.uuid === selected)
       if (!dashboard) throw new Error("This dashboard no longer exists.")
-      const widget: DashboardWidget = {
-        id: crypto.randomUUID(),
-        schema_version: 2,
-        type: "status",
-        title: device.name,
-        description: "",
-        config: {
-          sources: parameters.map((parameter, index) => ({
-            device_uuid: device.uuid,
-            parameter_uuid: parameter.uuid,
-            device_name: device.name,
-            label: parameter.label,
-            unit: parameter.unit,
-            data_type: parameter.data_type,
-            format: parameter.format,
-            display_widget:
-              typeof parameter.display?.widget === "string"
-                ? parameter.display.widget
-                : null,
-            precision: null,
-            color: COLORS[index % COLORS.length],
-            base: { ...NEUTRAL },
-            thresholds: [],
-          })),
-        },
-      }
+      const widget: DashboardWidget = panelFor(panelType, candidates)
       await api.updateDashboard(org, dashboard.uuid, {
         name: dashboard.name,
         widgets: [...dashboard.widgets, widget],
@@ -312,13 +303,58 @@ export function AddToDashboard({
         <DialogHeader>
           <DialogTitle>Add to dashboard</DialogTitle>
           <DialogDescription>
-            Adds a status panel with {parameters.length}{" "}
-            {parameters.length === 1 ? "parameter" : "parameters"} of{" "}
-            {device.name}.
+            Choose what to show from {device.name}. Suggestions use each
+            parameter's profile.
           </DialogDescription>
         </DialogHeader>
         {parameters.length ? (
           <FieldGroup>
+            <FieldSet>
+              <FieldLegend variant="label">Parameters</FieldLegend>
+              <ul className="flex max-h-48 flex-col overflow-auto rounded-md border p-1">
+                {parameters.map((parameter) => {
+                  const id = `add-${parameter.uuid}`
+                  return (
+                    <li key={parameter.uuid} className="flex items-center gap-2 rounded-sm px-1.5 py-1 hover:bg-accent/60">
+                      <Checkbox
+                        id={id}
+                        checked={chosen.includes(parameter.uuid)}
+                        onCheckedChange={(checked) =>
+                          setChosen((current) =>
+                            checked === true ? [...current, parameter.uuid] : current.filter((uuid) => uuid !== parameter.uuid),
+                          )
+                        }
+                      />
+                      <label htmlFor={id} className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-2">
+                        <span className="truncate text-sm">{parameter.label}</span>
+                        <span className="truncate font-mono text-xs text-muted-foreground">{parameter.unit ?? parameter.data_type}</span>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+            </FieldSet>
+            {suggestions.length > 0 && (
+              <FieldSet>
+                <FieldLegend variant="label">Show as</FieldLegend>
+                <RadioGroup value={panelType} onValueChange={(value) => setType(value as PanelType)}>
+                  {suggestions.map((suggestion) => {
+                    const Icon = PANEL_ICONS[suggestion.type]
+                    const id = `show-as-${suggestion.type}`
+                    return (
+                      <label key={suggestion.type} htmlFor={id} className="flex cursor-pointer items-start gap-3 rounded-md border p-2.5 has-[button[data-state=checked]]:border-primary">
+                        <RadioGroupItem id={id} value={suggestion.type} className="mt-0.5" />
+                        <Icon className="mt-0.5 size-4 text-muted-foreground" />
+                        <span className="flex min-w-0 flex-col">
+                          <span className="text-sm font-medium">{PANEL_LABELS[suggestion.type]}</span>
+                          <span className="text-xs text-muted-foreground">{suggestion.reason}</span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </RadioGroup>
+              </FieldSet>
+            )}
             <SearchableSelect
               label="Dashboard"
               value={selected}
@@ -351,7 +387,7 @@ export function AddToDashboard({
             Cancel
           </Button>
           <Button
-            disabled={busy || !selected || !parameters.length}
+            disabled={busy || !selected || !candidates.length || !panelType}
             onClick={add}
           >
             {busy ? "Adding…" : "Add panel"}

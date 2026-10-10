@@ -78,36 +78,25 @@ import {
 } from "@iot-os/ui/components/sheet"
 import { cn } from "@iot-os/ui/lib/utils"
 import {
-  ActivityIcon,
-  BellIcon,
-  ChartLineIcon,
-  ChartNoAxesGanttIcon,
   ChevronDownIcon,
   ChevronsUpDownIcon,
   CopyIcon,
   DownloadIcon,
   FileJsonIcon,
-  GaugeIcon,
   GripVerticalIcon,
   HistoryIcon,
   LinkIcon,
-  MapPinIcon,
   MaximizeIcon,
   MonitorIcon,
   MoreHorizontalIcon,
-  PaletteIcon,
   PanelRightIcon,
   PencilIcon,
   PlusIcon,
-  Rows3Icon,
   SaveIcon,
   Settings2Icon,
   Share2Icon,
-  SlidersHorizontalIcon,
   StarIcon,
-  TableIcon,
   Trash2Icon,
-  TypeIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "../lib/api"
@@ -119,7 +108,6 @@ import {
   cleanLayouts,
   dashboardPath,
   fileName,
-  newWidget,
   PANEL_LABELS,
   PRESET_LABELS,
   readView,
@@ -131,6 +119,7 @@ import {
   writeView,
 } from "./model"
 import { PanelEditor } from "./PanelEditor"
+import { AddPanelDialog } from "./AddPanelDialog"
 import { PanelBody, widgetRegistry } from "./registry"
 import { TimeControls } from "./TimeControls"
 import { ContextRail } from "./ContextRail"
@@ -146,19 +135,6 @@ const ROW_HEIGHT = 48
 const RAIL_KEY = "iot-dashboard-rail"
 // Per-viewer Status display by panel id; absent means fit automatically.
 const DISPLAY_KEY = "iot-dashboard-status-display"
-const ICONS: Record<DashboardWidget["type"], typeof GaugeIcon> = {
-  status: Rows3Icon,
-  gauge: GaugeIcon,
-  table: TableIcon,
-  controls: SlidersHorizontalIcon,
-  device_health: ActivityIcon,
-  timeseries: ChartLineIcon,
-  state_history: ChartNoAxesGanttIcon,
-  color_history: PaletteIcon,
-  location: MapPinIcon,
-  alerts: BellIcon,
-  text: TypeIcon,
-}
 const NO_CSV: DashboardWidget["type"][] = ["text", "controls", "location", "alerts"]
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -204,6 +180,7 @@ export function DashboardWorkspace({
   const [editorDirty, setEditorDirty] = useState(false)
   const [editorDiscard, setEditorDiscard] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [addKey, setAddKey] = useState(0)
   const addPlacement = useRef<"available" | "bottom">("available")
   const [revealWidget, setRevealWidget] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -397,6 +374,7 @@ export function DashboardWorkspace({
   }
   function openAdd(placement: "available" | "bottom" = "available") {
     addPlacement.current = placement
+    setAddKey((current) => current + 1)
     setAddOpen(true)
   }
   function applyWidget(widget: DashboardWidget) {
@@ -1218,47 +1196,16 @@ export function DashboardWorkspace({
           </SheetContent>
         </Sheet>
       )}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Add panel</DialogTitle>
-            <DialogDescription>Choose what the panel shows.</DialogDescription>
-          </DialogHeader>
-          {[...new Set(Object.values(widgetRegistry).map((d) => d.group))].map((group) => (
-            <section key={group} className="flex flex-col gap-2">
-              <h3 className="skin-label text-xs text-muted-foreground">{group}</h3>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {(Object.keys(widgetRegistry) as DashboardWidget["type"][])
-                  .filter((type) => widgetRegistry[type].group === group)
-                  .map((type) => {
-                    const Icon = ICONS[type]
-                    return (
-                      <Button
-                        key={type}
-                        variant="outline"
-                        aria-label={`Add ${PANEL_LABELS[type]}`}
-                        aria-describedby={`add-${type}`}
-                        className="h-auto items-start justify-start gap-3 p-3 text-left whitespace-normal"
-                        onClick={() => {
-                          setAddOpen(false)
-                          openEditor(newWidget(type))
-                        }}
-                      >
-                        <Icon className="mt-0.5 text-muted-foreground" />
-                        <span className="flex flex-col gap-0.5">
-                          <span className="font-medium">{PANEL_LABELS[type]}</span>
-                          <span id={`add-${type}`} className="text-xs font-normal text-muted-foreground">
-                            {widgetRegistry[type].description}
-                          </span>
-                        </span>
-                      </Button>
-                    )
-                  })}
-              </div>
-            </section>
-          ))}
-        </DialogContent>
-      </Dialog>
+      <AddPanelDialog
+        key={addKey}
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        org={org}
+        view={view}
+        window={window}
+        onAdd={applyWidget}
+        onCustomize={openEditor}
+      />
       {fullscreen}
       <AlertDialog open={discard} onOpenChange={setDiscard}>
         <AlertDialogContent>

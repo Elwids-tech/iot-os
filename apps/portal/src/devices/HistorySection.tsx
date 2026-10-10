@@ -30,6 +30,7 @@ import { api } from "../lib/api"
 import { Choice, TextField, errorMessage } from "../components/forms"
 import { HistoryRecordsTable } from "../history/HistoryRecordsTable"
 import { StateHistoryVisualization } from "../history/StateHistoryVisualization"
+import { displayStates } from "../dashboards/profileDisplay"
 import {
   configurationMeta,
   emptyHistoryReason,
@@ -333,6 +334,7 @@ export default function HistorySection({
               history={stateQuery.data}
               configurations={device.configurations}
               colour={colour}
+              states={displayStates(selected)}
             />
           )}
 

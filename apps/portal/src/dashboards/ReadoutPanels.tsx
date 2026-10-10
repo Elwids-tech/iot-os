@@ -27,11 +27,13 @@ import {
   bandFor,
   gaugeSegments,
   NEUTRAL,
+  appliedParameters,
   profilePrecision,
   sourceKey,
 } from "./model"
 import { useDevices, useLatest, useNow } from "./panelData"
 import type { PanelProps } from "./registry"
+import { displayStates, stateFor, TONE_COLOR } from "./profileDisplay"
 
 export function formatReading(value: unknown, precision?: number) {
   return typeof value === "number"
@@ -110,6 +112,18 @@ function useReadings(org: string, sources: DashboardSource[], view: DashboardVie
       precision:
         source.precision ??
         profilePrecision(devices(source.device_uuid)?.data, source.parameter_uuid),
+      // The profile's label and tone for enum and boolean values, read at render time.
+      state:
+        reading && reading.value !== null && reading.value !== undefined
+          ? stateFor(
+              displayStates(
+                appliedParameters(devices(source.device_uuid)?.data).find(
+                  (p) => p.uuid === source.parameter_uuid,
+                ),
+              ),
+              reading.value,
+            )
+          : undefined,
     }
   })
 }
@@ -240,7 +254,7 @@ export function TablePanel({ org, widget, view }: PanelProps) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map(({ source, query, reading, band, precision }) => (
+        {rows.map(({ source, query, reading, band, precision, state }) => (
           <TableRow key={sourceKey(source)}>
             <TableCell className="max-w-40 truncate">
               <Link
@@ -256,8 +270,11 @@ export function TablePanel({ org, widget, view }: PanelProps) {
                 <Skeleton className="ml-auto h-4 w-12" />
               ) : (
                 <>
-                  {reading ? formatReading(reading.value, precision) : "—"}
-                  {source.unit && (
+                  {state?.tone && (
+                    <span aria-hidden className="mr-2 inline-block size-2.5 align-middle" style={{ backgroundColor: TONE_COLOR[state.tone] }} />
+                  )}
+                  {state ? state.label : reading ? formatReading(reading.value, precision) : "—"}
+                  {source.unit && !state && (
                     <span className="ml-1 text-muted-foreground">{source.unit}</span>
                   )}
                 </>

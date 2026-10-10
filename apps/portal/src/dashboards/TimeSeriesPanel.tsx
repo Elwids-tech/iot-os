@@ -32,7 +32,8 @@ import {
   tickFormatter,
   timeLabel,
 } from "./model"
-import { useDeviceActivity, useDevices, useHistory } from "./panelData"
+import { useDeviceActivity, useDevices, useHistory, useLatest, useNow } from "./panelData"
+import { Age, readingTime } from "./ReadoutPanels"
 import type { PanelProps } from "./registry"
 
 const numericType = (type: string) => ["number", "integer"].includes(type)
@@ -54,6 +55,9 @@ export default function TimeSeriesPanel({
   })
   const devices = useDevices(org, deviceIds)
   const activity = useDeviceActivity(org, deviceIds)
+  // When the range is empty, offer the newest reading instead of a dead end.
+  const latest = useLatest(org, deviceIds, 0)
+  const now = useNow()
   // Relative ranges: the axis follows the newest fetched window, so it
   // advances with every refresh instead of freezing at first render.
   const fetched = queries
@@ -304,16 +308,49 @@ export default function TimeSeriesPanel({
           </ChartContainer>
         </div>
       ) : (
-        !failed.length && (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>No measurements in this range</EmptyTitle>
-              <EmptyDescription>
-                Choose another range or parameter.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        )
+        !failed.length && (() => {
+          const last = sources
+            .flatMap((source) => {
+              const reading = latest(source.device_uuid)?.data?.data.find(
+                (m) => m.parameter_uuid === source.parameter_uuid && m.value !== null && m.value !== undefined,
+              )
+              return reading ? [readingTime(reading)] : []
+            })
+            .sort()
+            .at(-1)
+          const at = last ? Date.parse(last) : NaN
+          const outside = Number.isFinite(at) && (at < from || at > to)
+          return (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>No measurements in this range</EmptyTitle>
+                <EmptyDescription>
+                  {outside ? (
+                    <>
+                      Last reading <Age at={last!} now={now} timezone={view.timezone} /> ago.
+                    </>
+                  ) : (
+                    "Choose another range or parameter."
+                  )}
+                </EmptyDescription>
+              </EmptyHeader>
+              {outside && onZoom && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    // Same window length, ending just after the last reading.
+                    const span = Math.max(to - from, 3600000)
+                    const end = Math.min(at + span * 0.1, Date.now())
+                    onZoom(new Date(end - span).toISOString(), new Date(end).toISOString())
+                  }}
+                >
+                  Show last reading
+                </Button>
+              )}
+            </Empty>
+          )
+        })()
       )}
       {/* Keep static labels outside Recharts' viewport-measurement loop
           when the dashboard moves or resizes a chart. */}
