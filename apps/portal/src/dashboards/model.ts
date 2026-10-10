@@ -72,6 +72,7 @@ export const PANEL_LABELS: Record<DashboardWidget["type"], string> = {
   location: "GPS map",
   alerts: "Alerts",
   text: "Text",
+  consumption: "Consumption",
 }
 export const numeric = (source: Pick<DashboardSource, "data_type">) =>
   ["number", "integer"].includes(source.data_type)
@@ -98,7 +99,9 @@ export function newWidget(type: DashboardWidget["type"]): DashboardWidget {
             ? { sources: [], text: "" }
             : type === "device_health"
               ? { sources: [], devices: [] }
-              : { sources: [] },
+              : type === "consumption"
+                ? { sources: [], bucket: "auto", period: "dashboard" }
+                : { sources: [] },
   }
 }
 /** Profile display.precision for a source's parameter, used when the panel sets none. */
@@ -166,6 +169,16 @@ export function widgetError(widget: DashboardWidget): string | null {
       return "A gauge shows up to 4 parameters."
     if (widget.config.sources.some((s) => !numeric(s)))
       return "Gauges require numeric parameters."
+  }
+  if (widget.type === "consumption") {
+    if (widget.config.sources.some((s) => !numeric(s)))
+      return "Consumption requires counter parameters."
+    if (widget.config.sources.length > 4)
+      return "A consumption panel shows up to 4 counters."
+    if (new Set(widget.config.sources.map((s) => s.unit ?? "")).size > 1)
+      return "Use counters with the same unit, or add a separate panel."
+    if ((widget.config.period ?? "dashboard") !== "dashboard" && (widget.config.bucket ?? "auto") !== "auto")
+      return "Calendar periods choose their own bars."
   }
   if (widget.type === "timeseries") {
     if (widget.config.sources.some((s) => !numeric(s)))

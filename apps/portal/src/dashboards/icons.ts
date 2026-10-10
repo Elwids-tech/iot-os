@@ -1,6 +1,7 @@
 import {
   ActivityIcon,
   BellIcon,
+  ChartColumnIcon,
   ChartLineIcon,
   ChartNoAxesGanttIcon,
   GaugeIcon,
@@ -25,4 +26,5 @@ export const PANEL_ICONS: Record<DashboardWidget["type"], typeof GaugeIcon> = {
   location: MapPinIcon,
   alerts: BellIcon,
   text: TypeIcon,
+  consumption: ChartColumnIcon,
 }

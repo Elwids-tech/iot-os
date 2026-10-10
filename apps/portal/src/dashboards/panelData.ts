@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react"
 import { useQueries, type QueryClient } from "@tanstack/react-query"
 import type {
+  CounterBucket,
+  CounterIncrease,
   DashboardSource,
   DashboardView,
   DashboardWidget,
@@ -10,6 +12,7 @@ import type {
   StateHistory,
 } from "@iot-os/api-client"
 import { api } from "../lib/api"
+import { effectiveBucket, periodWindow } from "./calendar"
 import { resolveRange } from "./model"
 import { telemetryRequest } from "./requests"
 
@@ -108,6 +111,89 @@ export function useHistory(
   })
 }
 
+/** The zone that cuts a device's days and months: its site's, else its organization's. */
+export const reportingTimezone = (device?: DeviceDetail) =>
+  device?.reporting_timezone ?? device?.site?.timezone
+
+export function consumptionKey(org: string, source: DashboardSource, widget: DashboardWidget, view: DashboardView) {
+  const period = widget.config.period ?? "dashboard"
+  return [
+    "dashboard-consumption",
+    org,
+    source.device_uuid,
+    source.parameter_uuid,
+    period === "dashboard" ? JSON.stringify(view.range) : period,
+    widget.config.bucket ?? "auto",
+  ]
+}
+
+export type ConsumptionData = {
+  from: number
+  to: number
+  bucket: CounterBucket
+  /** The chosen bars would be too many for the range, so automatic bars are used. */
+  coarsened: boolean
+  increase: CounterIncrease
+}
+
+/**
+ * Counter usage per bucket for each source. Calendar periods are cut in the
+ * device's zone and wait for it; the dashboard range lets the server use
+ * the same zone by default.
+ */
+export function useConsumption(
+  org: string,
+  widget: DashboardWidget,
+  view: DashboardView,
+  window: { from: string; to: string },
+  timezone: (deviceUuid: string) => string | undefined,
+) {
+  const period = widget.config.period ?? "dashboard"
+  const live = period !== "dashboard" || view.range.mode === "relative"
+  return useQueries({
+    queries: widget.config.sources.map((source) => {
+      const zone = timezone(source.device_uuid)
+      return {
+        queryKey: consumptionKey(org, source, widget, view),
+        queryFn: async ({ signal }: { signal: AbortSignal }): Promise<ConsumptionData> => {
+          let from: number, to: number, bucket: CounterBucket, coarsened = false
+          if (period === "dashboard") {
+            const range = view.range.mode === "relative" ? resolveRange(view.range) : window
+            from = Date.parse(range.from)
+            to = Date.parse(range.to)
+            ;({ bucket, coarsened } = effectiveBucket(widget.config.bucket, to - from))
+          } else {
+            ;({ from, to, bucket } = periodWindow(period, Date.now(), zone ?? "UTC"))
+          }
+          const increase = await telemetryRequest(signal, () =>
+            api.deviceCounterIncrease(
+              org,
+              source.device_uuid,
+              {
+                parameter_uuid: source.parameter_uuid,
+                from: new Date(from).toISOString(),
+                to: new Date(to).toISOString(),
+                bucket,
+                timezone: zone,
+              },
+              signal,
+            ),
+          )
+          return { from, to, bucket, coarsened, increase }
+        },
+        enabled: period === "dashboard" || Boolean(zone),
+        staleTime: Infinity,
+        gcTime: 30000,
+        // Usage changes slowly; never poll faster than every 30 s.
+        refetchInterval: live && view.refresh ? Math.max(view.refresh, 30) * 1000 : (false as const),
+        refetchIntervalInBackground: false,
+        refetchOnWindowFocus: false,
+        retry: 1,
+      }
+    }),
+  })
+}
+
 /** Alert episodes and recent commands per device, every 30 s; shared by the rail and chart annotations. */
 export function useDeviceActivity(org: string, deviceIds: string[]) {
   const ids = unique(deviceIds)
@@ -179,6 +265,17 @@ export function panelCsvRows(
     )
     return rows.length
       ? [["time", "device", "parameter", "average", "unit", "min", "max", "samples"], ...rows]
+      : []
+  }
+  if (widget.type === "consumption") {
+    const rows = sources.flatMap((s) => {
+      const data = cache.getQueryData<ConsumptionData>(consumptionKey(org, s, widget, view))
+      return (data?.increase.points ?? []).map((p) => [
+        p.at, s.device_name, s.label, p.increase, data!.increase.unit, data!.increase.bucket, data!.increase.timezone, p.samples, p.resets, p.partial,
+      ])
+    })
+    return rows.length
+      ? [["bucket_start", "device", "parameter", "increase", "unit", "bucket", "timezone", "samples", "resets", "partial"], ...rows]
       : []
   }
   if (widget.type === "state_history" || widget.type === "color_history") {

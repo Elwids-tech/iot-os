@@ -32,7 +32,13 @@ export type StatusWidgetConfig = {
   text?: string;
   /** Device health panel devices, up to 50; device_name is set by the server. */
   devices?: { device_uuid: string; device_name?: string }[];
+  /** Consumption bars: "auto" picks a size from the range. Calendar periods choose their own. */
+  bucket?: ConsumptionBucket;
+  /** Consumption window: the dashboard range, or a calendar period in each device's time zone. */
+  period?: ConsumptionPeriod;
 };
+export type ConsumptionBucket = "auto" | "15m" | "1h" | "1d" | "1w" | "1mo";
+export type ConsumptionPeriod = "dashboard" | "today" | "7d" | "month" | "12mo";
 export type DashboardWidget = {
   id: string;
   schema_version: 2;
@@ -47,7 +53,8 @@ export type DashboardWidget = {
     | "gauge"
     | "table"
     | "text"
-    | "device_health";
+    | "device_health"
+    | "consumption";
   title: string;
   description: string;
   config: StatusWidgetConfig;

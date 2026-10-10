@@ -102,7 +102,7 @@ export const TEMPLATES: DashboardTemplate[] = [
   {
     id: "energy",
     name: "Three-phase energy meter",
-    creates: "Status and time series for phase voltage and energy, gauge for average voltage",
+    creates: "Status and time series for phase voltage, gauge for average voltage, energy status and use per period",
     needs: "Voltage L1 to L3, average voltage, imported and exported energy",
     build: (devices) =>
       usable([
@@ -116,7 +116,11 @@ export const TEMPLATES: DashboardTemplate[] = [
           { min: 0, max: 300 },
         ),
         panel("energy-status", "status", "Energy", byKeys(devices, ENERGY)),
-        panel("energy-chart", "timeseries", "Energy", byKeys(devices, ENERGY)),
+        // Energy counters read as usage per period; a panel compares up to 4.
+        panel("energy-usage", "consumption", "Energy use", byKeys(devices, ENERGY).slice(0, 4), {
+          bucket: "auto",
+          period: "dashboard",
+        }),
       ]),
   },
   {
@@ -180,7 +184,8 @@ function healthPanel(devices: DeviceDetail[], title: string): DashboardWidget {
 
 /**
  * A status panel per parameter group, a time series per group and unit
- * (charts need one unit), and one controls panel for writable parameters.
+ * (charts need one unit), consumption for counters (up to 4 per panel), and
+ * one controls panel for writable parameters.
  * `groupOf` maps a parameter uuid to its profile group label.
  */
 export function profilePanels(
@@ -199,12 +204,12 @@ export function profilePanels(
       panel(`status-${group}`, "status", group || "Latest values", pairs),
     )
     const units = new Map<string, Pair[]>()
+    const counters = new Map<string, Pair[]>()
     for (const pair of pairs)
-      if (numeric(pair[1]))
-        units.set(pair[1].unit ?? "", [
-          ...(units.get(pair[1].unit ?? "") ?? []),
-          pair,
-        ])
+      if (numeric(pair[1])) {
+        const byUnit = pair[1].kind === "counter" ? counters : units
+        byUnit.set(pair[1].unit ?? "", [...(byUnit.get(pair[1].unit ?? "") ?? []), pair])
+      }
     for (const [unit, list] of units)
       widgets.push(
         panel(
@@ -214,6 +219,17 @@ export function profilePanels(
           list,
         ),
       )
+    for (const [unit, list] of counters)
+      for (let start = 0; start < list.length; start += 4)
+        widgets.push(
+          panel(
+            `usage-${group}-${unit}-${start}`,
+            "consumption",
+            `${group || "Usage"}${unit ? ` (${unit})` : ""}${list.length > 4 ? ` ${start / 4 + 1}` : ""}`,
+            list.slice(start, start + 4),
+            { bucket: "auto", period: "dashboard" },
+          ),
+        )
   }
   return usable([
     ...widgets,

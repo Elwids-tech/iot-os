@@ -26,6 +26,7 @@ export const PARAMETER_PANELS: PanelType[] = [
   "status",
   "gauge",
   "timeseries",
+  "consumption",
   "table",
   "controls",
   "state_history",
@@ -36,6 +37,7 @@ export const OTHER_PANELS: PanelType[] = ["device_health", "location", "alerts",
 
 const numeric = (p: DeviceProfileParameter) => p.data_type === "number" || p.data_type === "integer"
 const stateful = (p: DeviceProfileParameter) => p.data_type === "boolean" || p.data_type === "enum"
+const counter = (p: DeviceProfileParameter) => p.kind === "counter" && numeric(p)
 const unitOf = (p: DeviceProfileParameter) => p.unit ?? ""
 
 const HINTS: Record<string, PanelType> = {
@@ -44,7 +46,7 @@ const HINTS: Record<string, PanelType> = {
   gauge: "gauge",
   meter: "gauge",
   timeseries: "timeseries",
-  consumption: "timeseries",
+  consumption: "consumption",
   state_timeline: "state_history",
   table: "table",
   color: "color_history",
@@ -62,6 +64,10 @@ export function incompatibility(type: PanelType, candidates: Candidate[]): strin
       return parameters.length > 4 ? "Shows up to 4 parameters." : null
     case "timeseries":
       if (!parameters.every(numeric)) return "Needs numeric parameters."
+      return new Set(parameters.map(unitOf)).size > 1 ? "Needs parameters with one unit." : null
+    case "consumption":
+      if (!parameters.every(counter)) return "Needs counter parameters."
+      if (parameters.length > 4) return "Shows up to 4 counters."
       return new Set(parameters.map(unitOf)).size > 1 ? "Needs parameters with one unit." : null
     case "state_history":
       return parameters.every(stateful) ? null : "Needs boolean or enum parameters."
@@ -102,18 +108,21 @@ export function suggestPanels(candidates: Candidate[]): Suggestion[] {
     const ranges = parameters.map(displayRange)
     const ranged = ranges.every(Boolean)
     const oneUnit = new Set(parameters.map(unitOf)).size === 1
-    const counter = parameters.every((p) => p.kind === "counter")
+    const counters = parameters.every(counter)
+    // Running totals read best as usage per period, with meter resets handled.
+    if (counters)
+      add("consumption", single ? "Usage per hour, day or month, with meter resets handled." : "Compares usage per period, with meter resets handled.")
     if (single) {
-      if (ranged && !counter) {
+      if (ranged && !counters) {
         const range = ranges[0]!
         add("gauge", `Profile range ${range.min}–${range.max}${single.unit ? " " + single.unit : ""}.`)
       }
-      add("status", counter ? "Shows the running total now." : "Shows the current value and how fresh it is.")
+      add("status", counters ? "Shows the running total now." : "Shows the current value and how fresh it is.")
       add("timeseries", "Follows the dashboard time range.")
     } else {
       if (oneUnit) add("timeseries", "One unit, so a single chart compares them.")
       add("status", "Shows each current value.")
-      if (ranged && oneUnit && !counter) add("gauge", "Ranges come from the profile.")
+      if (ranged && oneUnit && !counters) add("gauge", "Ranges come from the profile.")
     }
   }
   add("table", "Lists every value in rows.")

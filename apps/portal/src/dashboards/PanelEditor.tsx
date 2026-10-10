@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import type {
+  ConsumptionBucket,
+  ConsumptionPeriod,
   DashboardSource,
   DashboardView,
   DashboardWidget,
@@ -41,7 +43,8 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { api } from "../lib/api"
-import { RequestError } from "../components/forms"
+import { Choice, RequestError } from "../components/forms"
+import { PERIOD_LABELS } from "./calendar"
 import {
   appliedParameters,
   COLORS,
@@ -213,6 +216,8 @@ export function PanelEditor({
                   ? "Simulation"
                   : definition.mode === "latest"
                     ? "Latest values"
+                    : widget.type === "consumption" && (widget.config.period ?? "dashboard") !== "dashboard"
+                      ? PERIOD_LABELS[widget.config.period!]
                     : view.range.mode === "relative"
                       ? PRESET_LABELS[view.range.preset]
                       : "Fixed range"}
@@ -392,6 +397,41 @@ export function PanelEditor({
                       />
                     </Field>
                   ))}
+                </FieldGroup>
+              )}
+              {widget.type === "consumption" && (
+                <FieldGroup>
+                  <Choice
+                    label="Period"
+                    value={widget.config.period ?? "dashboard"}
+                    options={Object.entries(PERIOD_LABELS).map(([value, label]) => ({ value, label }))}
+                    onChange={(period) =>
+                      setWidget({
+                        ...widget,
+                        // Calendar periods choose their own bars.
+                        config: { ...widget.config, period: period as ConsumptionPeriod, bucket: "auto" },
+                      })
+                    }
+                    help="Today, weeks and months start at midnight in each device's site time zone."
+                  />
+                  {(widget.config.period ?? "dashboard") === "dashboard" && (
+                    <Choice
+                      label="Bars"
+                      value={widget.config.bucket ?? "auto"}
+                      options={[
+                        { value: "auto", label: "Automatic" },
+                        { value: "15m", label: "Every 15 minutes" },
+                        { value: "1h", label: "Hourly" },
+                        { value: "1d", label: "Daily" },
+                        { value: "1w", label: "Weekly, from Monday" },
+                        { value: "1mo", label: "Monthly" },
+                      ]}
+                      onChange={(bucket) =>
+                        setWidget({ ...widget, config: { ...widget.config, bucket: bucket as ConsumptionBucket } })
+                      }
+                      help="Automatic picks a bar size from the dashboard time range."
+                    />
+                  )}
                 </FieldGroup>
               )}
               {widget.type === "controls" && (
@@ -593,7 +633,7 @@ function DataSection({
           (parameter) => controlSpec(parameter).kind !== "unsupported",
         )
       : appliedParameters(device.data)
-  const limit = widget.type === "gauge" ? 4 : 100
+  const limit = widget.type === "gauge" || widget.type === "consumption" ? 4 : 100
   function addSource() {
     const parameter = parameters.find((p) => p.uuid === parameterId)
     if (!parameter || !device.data) return
@@ -659,8 +699,9 @@ function DataSection({
           options={parameters
             .filter(
               (p) =>
-                (!["timeseries", "gauge"].includes(widget.type) ||
+                (!["timeseries", "gauge", "consumption"].includes(widget.type) ||
                   ["number", "integer"].includes(p.data_type)) &&
+                (widget.type !== "consumption" || p.kind === "counter") &&
                 (widget.type !== "state_history" ||
                   ["boolean", "enum"].includes(p.data_type)) &&
                 (widget.type !== "color_history" || isColorParameter(p)) &&
@@ -694,6 +735,7 @@ function DataSection({
       <p className="text-xs text-muted-foreground">
         Parameters come from the applied profile, even before their first reading.
         {widget.type === "gauge" && " A gauge shows up to 4."}
+        {widget.type === "consumption" && " Consumption uses counters, up to 4 with one unit."}
       </p>
       <RequestError error={devices.error ?? device.error} />
       {widget.config.sources.length > 0 && (

@@ -15,6 +15,12 @@ use Illuminate\Validation\ValidationException;
 
 final class DashboardDefinition
 {
+    /** Bars per consumption panel; "auto" picks one from the dashboard range. */
+    public const CONSUMPTION_BUCKETS = ['auto', '15m', '1h', '1d', '1w', '1mo'];
+
+    /** "dashboard" follows the dashboard range; the others are calendar periods in the device's time zone. */
+    public const CONSUMPTION_PERIODS = ['dashboard', 'today', '7d', 'month', '12mo'];
+
     public static function defaults(): array
     {
         return ['range' => ['mode' => 'relative', 'preset' => '6h'], 'timezone' => 'browser', 'refresh' => 5];
@@ -50,10 +56,10 @@ final class DashboardDefinition
             'widgets.*' => ['array:id,schema_version,type,title,description,config'],
             'widgets.*.id' => ['required', 'string', 'max:100', 'distinct:strict'],
             'widgets.*.schema_version' => ['required', 'integer', 'in:2'],
-            'widgets.*.type' => ['required', 'in:status,timeseries,controls,state_history,color_history,location,alerts,gauge,table,text,device_health'],
+            'widgets.*.type' => ['required', 'in:status,timeseries,controls,state_history,color_history,location,alerts,gauge,table,text,device_health,consumption'],
             'widgets.*.title' => ['required', 'string', 'max:120'],
             'widgets.*.description' => ['nullable', 'string', 'max:1000'],
-            'widgets.*.config' => ['required', 'array:sources,columns,workflow_uuid,min,max,text,devices,location_device_uuids,geofence_uuid,show_trails,show_labels,trail_window'],
+            'widgets.*.config' => ['required', 'array:sources,columns,workflow_uuid,min,max,text,devices,location_device_uuids,geofence_uuid,show_trails,show_labels,trail_window,bucket,period'],
             'widgets.*.config.sources' => ['present', 'array', 'max:100'],
             'widgets.*.config.workflow_uuid' => ['sometimes', 'uuid'],
             'widgets.*.config.location_device_uuids' => ['sometimes', 'array', 'max:100'],
@@ -63,6 +69,8 @@ final class DashboardDefinition
             'widgets.*.config.show_labels' => ['sometimes', 'boolean'],
             'widgets.*.config.trail_window' => ['sometimes', Rule::in(['1h', '6h', '24h', '7d'])],
             'widgets.*.config.columns' => ['sometimes', Rule::in(['auto', 1, 2, 3, 4])],
+            'widgets.*.config.bucket' => ['sometimes', Rule::in(self::CONSUMPTION_BUCKETS)],
+            'widgets.*.config.period' => ['sometimes', Rule::in(self::CONSUMPTION_PERIODS)],
             'widgets.*.config.min' => ['required_if:widgets.*.type,gauge', 'numeric'],
             'widgets.*.config.max' => ['required_if:widgets.*.type,gauge', 'numeric'],
             'widgets.*.config.text' => ['required_if:widgets.*.type,text', 'string', 'max:4000'],
@@ -141,7 +149,7 @@ final class DashboardDefinition
             if ($widget['title'] === '') {
                 $this->fail("widgets.$wi.title", 'Enter a panel title.');
             }
-            $settings = ['location' => ['sources', 'workflow_uuid', 'location_device_uuids', 'geofence_uuid', 'show_trails', 'show_labels', 'trail_window'], 'gauge' => ['sources', 'min', 'max'], 'table' => ['sources'], 'text' => ['sources', 'text'], 'device_health' => ['sources', 'devices']][$widget['type']] ?? ['sources', 'columns', 'workflow_uuid'];
+            $settings = ['location' => ['sources', 'workflow_uuid', 'location_device_uuids', 'geofence_uuid', 'show_trails', 'show_labels', 'trail_window'], 'gauge' => ['sources', 'min', 'max'], 'table' => ['sources'], 'text' => ['sources', 'text'], 'device_health' => ['sources', 'devices'], 'consumption' => ['sources', 'bucket', 'period']][$widget['type']] ?? ['sources', 'columns', 'workflow_uuid'];
             if (array_diff(array_keys($widget['config']), $settings)) {
                 $this->fail("widgets.$wi.config", 'This panel type does not accept these settings.');
             }
@@ -261,6 +269,12 @@ final class DashboardDefinition
                 if ($widget['type'] === 'gauge' && ! $numeric) {
                     $this->fail($path, 'Gauges require a numeric parameter.');
                 }
+                if ($widget['type'] === 'consumption') {
+                    if (! $numeric || ($parameter['kind'] ?? null) !== 'counter') {
+                        $this->fail($path, 'Consumption requires a counter parameter.');
+                    }
+                    $source['thresholds'] = [];
+                }
                 if ($widget['type'] === 'state_history' && ! in_array($source['data_type'], ['boolean', 'enum'], true)) {
                     $this->fail($path, 'State history requires a boolean or enum parameter.');
                 }
@@ -286,7 +300,15 @@ final class DashboardDefinition
                 usort($source['thresholds'], fn ($a, $b) => $a['value'] <=> $b['value']);
             }
             unset($source);
-            if ($widget['type'] === 'timeseries' && count(array_unique($units)) > 1) {
+            if ($widget['type'] === 'consumption') {
+                if (count($widget['config']['sources']) > 4) {
+                    $this->fail("widgets.$wi.config.sources", 'A consumption panel shows up to 4 counters.');
+                }
+                if (($widget['config']['period'] ?? 'dashboard') !== 'dashboard' && ($widget['config']['bucket'] ?? 'auto') !== 'auto') {
+                    $this->fail("widgets.$wi.config.bucket", 'Calendar periods choose their own bars. Use Auto.');
+                }
+            }
+            if (in_array($widget['type'], ['timeseries', 'consumption'], true) && count(array_unique($units)) > 1) {
                 $this->fail("widgets.$wi.config.sources", 'Use parameters with the same unit, or create a separate chart.');
             }
         }

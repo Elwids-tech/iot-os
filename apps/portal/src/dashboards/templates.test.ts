@@ -59,7 +59,7 @@ describe("dashboard templates", () => {
       ["timeseries", "Phase voltage", 6],
       ["gauge", "Average voltage", 2],
       ["status", "Energy", 4],
-      ["timeseries", "Energy", 4],
+      ["consumption", "Energy use", 4],
     ])
     expect(widgets[0].config.sources[3]).toMatchObject({
       device_uuid: "b",
@@ -96,7 +96,7 @@ describe("dashboard templates", () => {
 })
 
 describe("device profile panels", () => {
-  it("adds a status per group, a chart per group and unit, and controls", () => {
+  it("adds a status per group, a chart per group and unit, consumption for counters, and controls", () => {
     const widgets = profilePanels(
       [
         device("a", [
@@ -110,7 +110,7 @@ describe("device profile panels", () => {
       ["status", "Latest values", 5],
       ["timeseries", "Trend (V)", 4],
       ["status", "Energy", 2],
-      ["timeseries", "Energy (kWh)", 2],
+      ["consumption", "Energy (kWh)", 2],
       ["controls", "Controls", 1],
     ])
     const { widgets: placed, layouts } = withLayout(widgets)

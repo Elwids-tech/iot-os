@@ -45,6 +45,8 @@ final class DeviceView
         if ($detail) {
             $data['installations'] = DeviceInstallation::where('device_id', $device->id)->latest('started_at')->limit(20)->get()->map(fn ($installation) => $installation->only(['uuid', 'manufacturer_serial', 'adapter_revision_uuid', 'started_at', 'ended_at']));
             $data['retention'] = app(RetentionService::class)->effective($device->organization);
+            // Calendar totals such as "today" are cut in this zone for every viewer.
+            $data['reporting_timezone'] = $device->reportingTimezone();
             $data['draft'] = $device->draft;
             $artifact = isset($device->draft['artifact_uuid']) ? DeviceProfileArtifact::where('uuid', $device->draft['artifact_uuid'])->first() : null;
             $data['draft_artifact'] = $artifact ? [...$artifact->only(['uuid', 'revision', 'definition_hash', 'definition', 'status', 'compiled_at']), 'profile_uuid' => $artifact->profile->uuid] : null;

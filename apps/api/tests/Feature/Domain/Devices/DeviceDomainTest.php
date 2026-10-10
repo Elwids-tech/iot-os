@@ -354,12 +354,14 @@ final class DeviceDomainTest extends TestCase
         $this->assertSame(['site-meter'], $codes('tag=Energy'));
         $this->getJson($this->prefix.'/sites')->assertOk()->assertJsonPath('data.0.devices_count', 1);
         $this->assertSame('America/Vancouver', $device->fresh()->reportingTimezone());
+        $this->getJson($this->prefix.'/devices/'.$device->uuid)->assertOk()->assertJsonPath('data.reporting_timezone', 'America/Vancouver');
 
         // Devices without a site use the organization's zone, then UTC.
         $this->putJson($this->prefix.'/settings/timezone', ['timezone' => 'America/Toronto'])->assertOk()->assertJsonPath('data.timezone', 'America/Toronto');
         $this->deleteJson($this->prefix.'/sites/'.$vancouver)->assertNoContent();
         $this->assertNull($device->fresh()->site_id);
         $this->assertSame('America/Toronto', $device->fresh()->reportingTimezone());
+        $this->getJson($this->prefix.'/devices/'.$device->uuid)->assertOk()->assertJsonPath('data.reporting_timezone', 'America/Toronto');
         $this->putJson($this->prefix.'/settings/timezone', ['timezone' => null])->assertOk();
         $this->assertSame('UTC', $device->fresh()->reportingTimezone());
 

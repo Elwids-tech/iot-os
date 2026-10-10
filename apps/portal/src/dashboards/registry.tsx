@@ -14,6 +14,7 @@ import { PANEL_LABELS } from "./model"
 const TimeSeriesPanel = lazy(() => import("./TimeSeriesPanel"))
 const StateHistoryPanel = lazy(() => import("./StateHistoryPanel"))
 const ColorHistoryPanel = lazy(() => import("./ColorHistoryPanel"))
+const ConsumptionPanel = lazy(() => import("./ConsumptionPanel"))
 
 /**
  * mode: "latest" panels ignore the time range; "range" panels follow it.
@@ -74,6 +75,15 @@ export const widgetRegistry = {
     editor: "parameter-panel",
     version: 2,
     renderer: TimeSeriesPanel,
+  },
+  consumption: {
+    label: PANEL_LABELS.consumption,
+    group: "Over time",
+    mode: "range",
+    description: "Counter usage per hour, day or month, with meter resets handled.",
+    editor: "parameter-panel",
+    version: 2,
+    renderer: ConsumptionPanel,
   },
   state_history: {
     label: PANEL_LABELS.state_history,

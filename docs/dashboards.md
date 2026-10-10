@@ -36,6 +36,20 @@ Panels read display hints from the applied profile when they render, so a profil
 - Each Status panel has one freshness line: **Live** with the newest receipt time, or **Stale** / "N of M stale" with the last valid value's receipt time, an offline device, and a shared diagnostic. Cells show only each value's age; hovering gives the details.
 - A Time series with no data in the range shows how long ago the last reading arrived and offers **Show last reading**. That moves the range to end just after the reading and keeps the same span, with a minimum of one hour.
 
+### Consumption
+
+Consumption panels show counter usage as bars per 15 minutes, hour, day, week or month. They use the counter increase endpoint (`GET devices/{device}/measurements/increase`), so meter resets and rollovers are counted correctly and noted on the panel.
+
+- **Period** is either the dashboard time range or a calendar period: Today (hourly), Last 7 days (daily), This month (daily), or Last 12 months (monthly). Calendar periods ignore the dashboard range.
+- **Bars** applies to the dashboard range. Automatic gives about 4 to 60 bars. A fixed size that would draw more than 120 bars falls back to automatic, and the panel says so.
+- Days, weeks (from Monday) and months start at midnight in the device's reporting time zone: its site's, else the organization's, else UTC. Device details return it as `reporting_timezone`. Every viewer sees the same totals, and the panel names the zone. Hours in the dashboard range read in the viewer's zone.
+- A bucket still counting, or one that starts before the range, is drawn hatched and labelled partial. Buckets without readings stay empty rather than showing zero.
+- One counter shows its total for the period above the bars. Several counters (up to 4, one unit) draw side by side, with a legend of totals; totals are never summed across counters, since sub-meters often overlap.
+- Clicking a bar in the dashboard range zooms the range to that bucket.
+- The panel suggests itself for counter parameters and for profiles whose `display.visualization` is `consumption`. Profile-generated dashboards and the energy template use it for counters.
+
+Charts are drawn with Apache ECharts 6 through `packages/charts`: one React wrapper, the SVG renderer, and a theme bridge that resolves design tokens (skins, light and dark) to concrete colours. The module is lazy-loaded with the panels that use it.
+
 **Apply to dashboard** changes the local draft. Only **Save dashboard** persists widgets, layout, name, and viewing defaults. Resize/drag events never issue a save. Navigation offers save, discard, or stay; revision conflicts keep the draft. A panel can be duplicated, removed from the draft, or viewed fullscreen. Cancel restores the saved dashboard.
 
 Status thresholds are per-source numeric lower bounds, with an explicit Base band below the first boundary. Lower bounds are inclusive; the next boundary is exclusive. Operators can add/remove bands and explicitly replace selected sources' rules using Copy thresholds. Simulation changes the preview only. Thresholds are display rules, not alarms or telemetry conversions.
@@ -75,6 +89,7 @@ All routes sit under `v1/organizations/{org}/dashboards`. Reads need `Device.vie
 | `table` | 1 to 100 `sources` of any data type |
 | `text` | `text` up to 4000 characters, `sources: []`. Stored as plain text, so render it as text, not HTML |
 | `device_health` | `devices: [{device_uuid, device_name}]`, 1 to 50 devices in the organization, `sources: []`. The server sets `device_name` |
+| `consumption` | 1 to 4 numeric counter `sources` with one unit, optional `bucket` (`auto`, `15m`, `1h`, `1d`, `1w`, `1mo`) and `period` (`dashboard`, `today`, `7d`, `month`, `12mo`). Calendar periods require `bucket: auto`. Thresholds are cleared |
 
 Each type accepts only its own config keys. Existing types keep `sources`, `columns`, and `workflow_uuid`.
 

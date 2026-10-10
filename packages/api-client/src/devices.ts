@@ -162,6 +162,8 @@ export type SiteInput = {
   longitude?: number | null
 }
 export type DeviceDetail = Device & {
+  /** IANA zone that cuts days and months: the site's, else the organization's, else UTC. */
+  reporting_timezone?: string
   installations?: {uuid: string; manufacturer_serial: string; adapter_revision_uuid: string; started_at: string; ended_at: string | null}[]
   retention: RetentionSetting
   draft: DeviceDraft | null
