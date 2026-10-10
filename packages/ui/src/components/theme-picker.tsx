@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
 } from "@iot-os/ui/components/dropdown-menu"
 import { isSkin, skins, useSkin } from "@iot-os/ui/components/skin"
+import { isPalette, palettes, usePalette } from "@iot-os/ui/components/palette"
 
 const themes = [
   { value: "light", label: "Light" },
@@ -18,10 +19,11 @@ const themes = [
   { value: "system", label: "System" },
 ]
 
-/** Theme and skin radio groups, for use inside any DropdownMenuContent (user menu, ThemePicker). */
+/** Theme, dark palette and skin radio groups, for use inside any DropdownMenuContent (user menu, ThemePicker). */
 export function AppearanceMenuItems() {
   const { theme = "system", setTheme } = useTheme()
   const { skin, setSkin } = useSkin()
+  const { palette, setPalette } = usePalette()
   return (
     <>
       <DropdownMenuLabel>Theme</DropdownMenuLabel>
@@ -29,6 +31,23 @@ export function AppearanceMenuItems() {
         {themes.map((item) => (
           <DropdownMenuRadioItem value={item.value} key={item.value}>
             {item.label}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel>Dark palette</DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        value={palette}
+        onValueChange={(value) => {
+          if (isPalette(value)) setPalette(value)
+        }}
+      >
+        {palettes.map((item) => (
+          <DropdownMenuRadioItem value={item.value} key={item.value}>
+            <span className="flex flex-col">
+              <span>{item.label}</span>
+              <span className="text-xs text-muted-foreground">{item.description}</span>
+            </span>
           </DropdownMenuRadioItem>
         ))}
       </DropdownMenuRadioGroup>

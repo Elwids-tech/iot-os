@@ -6,13 +6,17 @@
     <meta name="theme-color" content="#ffffff" />
     <title>IoT OS Admin</title>
     <script>
-      // Skin before first paint; SkinProvider (packages/ui skin.tsx) takes over after load.
+      // Skin and dark palette before first paint; SkinProvider and PaletteProvider
+      // (packages/ui skin.tsx, palette.tsx) take over after load.
       try {
         var skin = localStorage.getItem("iot-skin")
         document.documentElement.dataset.skin =
           skin === "instrument" || skin === "flight-deck" ? skin : "console"
+        var palette = localStorage.getItem("iot-palette")
+        document.documentElement.dataset.palette = palette === "ink" ? "ink" : "dusk"
       } catch (error) {
         document.documentElement.dataset.skin = "console"
+        document.documentElement.dataset.palette = "dusk"
       }
     </script>
   </head>
