@@ -10,7 +10,7 @@ broker profile, isolated acceptance checks, guarded migration and rollback.
 
 This release profile is separate from local development. GoDaddy manages
 elwids.xyz and Brevo sends application/operational email. The pilot uses
-DOMAIN=staging.elwids.xyz and public app, admin, api and mqtt subdomains.
+DOMAIN=elwids.xyz (previously staging.elwids.xyz, kept as LEGACY_DOMAIN redirects) and public app, admin, api and mqtt subdomains.
 MQTT HTTP-01 certificate issuance and renewal dry-run passed on the actual host.
 Real client projects are retained; the deployed pilot has no demo seed data.
 

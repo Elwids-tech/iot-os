@@ -12,15 +12,24 @@ recoverable pilot with real project data; it is not HA.
 | Application | 46.225.74.65 | 10.78.0.1 | API, admin, portal, workers, runtime, NATS, MQTT, monitoring |
 | Database | 46.225.66.171 | 10.78.0.2 | PostgreSQL 17 / TimescaleDB 2.29.2, metrics, independent watchdog |
 
-Public URLs:
+Public URLs (since 2026-10-10; `elwids.xyz` is dedicated to this environment):
 
-- `https://app.staging.elwids.xyz`
-- `https://admin.staging.elwids.xyz`
-- `https://api.staging.elwids.xyz`
-- MQTT TLS: `mqtt.staging.elwids.xyz:8883`
+- `https://app.elwids.xyz`
+- `https://admin.elwids.xyz`
+- `https://api.elwids.xyz`
+- MQTT TLS: `mqtt.elwids.xyz:8883`
+- Vendor adapter brokers: `mqtt.elwids.xyz`, one TLS port per organization in 19000–19009
 
 GoDaddy holds DNS; only IPv4 A records were published. Public requests to
-`ops.staging.elwids.xyz` receive 403 outside the private tunnel CIDR.
+`ops.elwids.xyz` receive 403 outside the private tunnel CIDR.
+
+The original `*.staging.elwids.xyz` names remain as `LEGACY_DOMAIN`: app, admin,
+api and ops redirect (308) to the new hosts, and the broker certificate covers both
+`mqtt.elwids.xyz` and `mqtt.staging.elwids.xyz`, so devices configured with the old
+broker name keep connecting. Move those devices to `mqtt.elwids.xyz`, then remove
+`LEGACY_DOMAIN`, redeploy, re-run `manage.py certificates` and delete the
+`*.staging` DNS records. The database watchdog reads `domain` and
+`notifications_url` from its private `watchdog.json`.
 
 The application manifest identifies commit
 `cdabba092af0a66731151b605438b30b71bf2bdc`, verified release run `37256970498`,

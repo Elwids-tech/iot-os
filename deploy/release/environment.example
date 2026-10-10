@@ -50,3 +50,6 @@ IOT_ADAPTER_BIND_ADDRESS=127.0.0.1
 IOT_ADAPTER_DOCKER_NETWORK=
 IOT_ADAPTER_PORT_BASE=19000
 IOT_ADAPTER_PORT_LIMIT=19999
+# Previous base domain after a rename, e.g. staging.elwids.xyz. Its app/admin/api/ops
+# hosts redirect to DOMAIN and mqtt.<LEGACY_DOMAIN> stays on the broker certificate.
+LEGACY_DOMAIN=

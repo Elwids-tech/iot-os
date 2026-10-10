@@ -7,3 +7,4 @@ http://mqtt.{$DOMAIN} {
         respond 404
     }
 }
+import /etc/caddy/legacy-acme.Caddyfile

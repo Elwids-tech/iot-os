@@ -37,3 +37,5 @@ ops.{$DOMAIN} {
     }
     respond 403
 }
+# Previous hostnames after a domain change (generated; empty when LEGACY_DOMAIN is unset).
+import /etc/caddy/legacy.Caddyfile

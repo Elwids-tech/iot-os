@@ -171,6 +171,9 @@ class Deployment:
             raise ValueError("Production must disable demo data")
         if not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)+", self.env["DOMAIN"]):
             raise ValueError("Invalid domain")
+        legacy = self.env.get("LEGACY_DOMAIN", "")
+        if legacy and (legacy == self.env["DOMAIN"] or not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)+", legacy)):
+            raise ValueError("LEGACY_DOMAIN must be a different valid domain")
         if not re.fullmatch(r"[a-z][a-z0-9-]+", self.env["COMPOSE_PROJECT_NAME"]):
             raise ValueError("Invalid Compose project name")
         for path in (self.state, self.config):
@@ -207,6 +210,14 @@ class Deployment:
         from monitoring import render as render_monitoring
         self.config.mkdir(parents=True, exist_ok=True, mode=0o700)
         render_monitoring(ROOT, self.config, self.env['DEPLOY_ENVIRONMENT'], self.env['DOMAIN'], private_write)
+        # After a domain change the previous hostnames keep working: web hosts redirect
+        # (308 keeps API methods) and the MQTT name still answers ACME challenges so its
+        # certificate stays valid for devices configured with the old broker address.
+        legacy, domain = self.env.get("LEGACY_DOMAIN", ""), self.env["DOMAIN"]
+        redirects = "".join(f"{host}.{legacy} {{\n    redir https://{host}.{domain}{{uri}} 308\n}}\n" for host in ("app", "admin", "api", "ops")) if legacy else ""
+        challenge = f"http://mqtt.{legacy} {{\n    handle /.well-known/acme-challenge/* {{\n        root * /var/www/acme\n        file_server\n    }}\n    handle {{\n        respond 404\n    }}\n}}\n" if legacy else ""
+        private_write(self.config / "legacy.Caddyfile", redirects, 0o644)
+        private_write(self.config / "legacy-acme.Caddyfile", challenge, 0o644)
         capacity = self.nats_capacity()
         # Sync every JetStream write: the default 2-minute interval lets a host crash drop
         # acknowledged telemetry and break the workflow checkpoint's continuity.
@@ -466,7 +477,11 @@ class Deployment:
         if mode not in ("cloudflare", "webroot"):
             raise ValueError("MQTT_ACME_CHALLENGE must be webroot or cloudflare")
         domain = "mqtt."+self.env["DOMAIN"]
-        args = ["certbot", "certonly", "--non-interactive", "--agree-tos", "--email", self.env["ACME_EMAIL"], "-d", domain, "--keep-until-expiring"]
+        # --cert-name pins the lineage directory read below, even when the name set changes.
+        args = ["certbot", "certonly", "--non-interactive", "--agree-tos", "--email", self.env["ACME_EMAIL"], "--cert-name", domain, "-d", domain, "--keep-until-expiring", "--expand"]
+        if self.env.get("LEGACY_DOMAIN"):
+            # Devices configured with the previous broker hostname keep verifying TLS.
+            args[args.index("--keep-until-expiring"):args.index("--keep-until-expiring")] = ["-d", "mqtt."+self.env["LEGACY_DOMAIN"]]
         bootstrap = None
         if mode == "cloudflare":
             cloudflare_file = cloudflare_file or self.env.get("CLOUDFLARE_CREDENTIALS_FILE")

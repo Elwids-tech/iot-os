@@ -85,6 +85,8 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./Acme.Caddyfile:/etc/caddy/Acme.Caddyfile:ro
+      - ${CONFIG_DIR:?}/legacy.Caddyfile:/etc/caddy/legacy.Caddyfile:ro
+      - ${CONFIG_DIR:?}/legacy-acme.Caddyfile:/etc/caddy/legacy-acme.Caddyfile:ro
       - ${STATE_DIR}/acme-webroot:/var/www/acme:ro
       - ${STATE_DIR}/caddy:/data
     mem_limit: 128m

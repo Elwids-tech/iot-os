@@ -110,6 +110,31 @@ class ReleaseTests(unittest.TestCase):
         release.private_write(path, ''.join(k+'='+v+'\n' for k,v in values.items()))
         return release.Deployment(path, None)
 
+    def test_domain_rename_keeps_previous_hostnames_working(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.render()
+            self.assertEqual('', (deployment.config/'legacy.Caddyfile').read_text())
+            self.assertEqual('', (deployment.config/'legacy-acme.Caddyfile').read_text())
+            deployment.env.update(DOMAIN='example.test', LEGACY_DOMAIN='staging.example.test')
+            deployment.render()
+            redirects = (deployment.config/'legacy.Caddyfile').read_text()
+            for host in ('app', 'admin', 'api', 'ops'):
+                self.assertIn(f'{host}.staging.example.test {{\n    redir https://{host}.example.test{{uri}} 308', redirects)
+            self.assertIn('http://mqtt.staging.example.test {', (deployment.config/'legacy-acme.Caddyfile').read_text())
+            with patch.object(release, 'run') as run, patch.object(deployment, 'running', return_value=['caddy']):
+                deployment.certificates(dry_run=True)
+            args = run.call_args.args[0]
+            self.assertEqual(['mqtt.example.test', 'mqtt.staging.example.test'], [args[i+1] for i, arg in enumerate(args) if arg == '-d'])
+            self.assertIn('--expand', args)
+            self.assertEqual('mqtt.example.test', args[args.index('--cert-name')+1])
+            for invalid in ('example.test', 'not a domain'):
+                deployment.env['LEGACY_DOMAIN'] = invalid
+                with self.assertRaisesRegex(ValueError, 'LEGACY_DOMAIN'):
+                    deployment.validate()
+            caddy = yaml.safe_load((release.RELEASE/'compose.yml').read_text())['services']['caddy']['volumes']
+            self.assertIn('${CONFIG_DIR:?}/legacy.Caddyfile:/etc/caddy/legacy.Caddyfile:ro', caddy)
+
     def test_stream_budget_requires_headroom(self):
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)
