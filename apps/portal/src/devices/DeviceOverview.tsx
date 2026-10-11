@@ -12,7 +12,7 @@ import {
   type Measurement,
 } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@iot-os/ui/components/chart"
+import { EChart, timeSeriesOption, useChartTheme, type TimeLine } from "@iot-os/charts"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
 import {
@@ -30,7 +30,6 @@ import {
 } from "@iot-os/ui/components/table"
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
 import { formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { LayoutDashboardIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { dashboardPath } from "../dashboards/model"
@@ -337,6 +336,32 @@ function Sparkline({ points }: { points: Point[] }) {
   )
 }
 
+/** The lines of the trend chart; split out so the hooks run after TrendChart's early returns. */
+function TrendPlot({
+  lines,
+  unit,
+  precision,
+  formatTick,
+}: {
+  lines: TimeLine[]
+  unit: string | null | undefined
+  precision: Map<string, number | undefined>
+  formatTick: (time: number) => string
+}) {
+  const theme = useChartTheme()
+  const option = useMemo(
+    () =>
+      timeSeriesOption(theme, {
+        lines,
+        formatTick,
+        formatTime: (time) => formatDateTime(new Date(time).toISOString()),
+        formatValue: (value, line) => `${formatNumber(value, precision.get(line.key))}${unit ? ` ${unit}` : ""}`,
+      }),
+    [theme, JSON.stringify(lines), unit],
+  )
+  return <EChart option={option} label={`Readings${unit ? ` in ${unit}` : ""} over time`} className="h-64 w-full" />
+}
+
 /**
  * Chart for the largest group of numeric readings that share a unit.
  * ponytail: skips groups whose values are far apart (latitude and longitude share "deg"),
@@ -378,47 +403,20 @@ function TrendChart({
         : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }),
     })
   const unit = group[0].unit
-  const config = Object.fromEntries(
-    group.map((r, index) => [
-      `s${index}`,
-      { label: r.label, color: `var(--series-${index + 1})` },
-    ]),
-  )
   return (
     <Section title={unit ? `Readings in ${unit}` : "Readings"} meta={`Last ${range}`}>
-      <ChartContainer config={config} className="aspect-auto h-64 w-full">
-        <LineChart data={data} margin={{ left: 4, right: 8, top: 8 }}>
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="time"
-            type="number"
-            scale="time"
-            domain={["dataMin", "dataMax"]}
-            tickFormatter={tick}
-            minTickGap={48}
-          />
-          <YAxis domain={["auto", "auto"]} width={48} />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(_, payload) =>
-                  formatDateTime(new Date(Number(payload[0]?.payload?.time)).toISOString())
-                }
-              />
-            }
-          />
-          {group.map((_, index) => (
-            <Line
-              key={index}
-              dataKey={`s${index}`}
-              stroke={`var(--color-s${index})`}
-              dot={false}
-              connectNulls
-              isAnimationActive={false}
-            />
-          ))}
-        </LineChart>
-      </ChartContainer>
+      <TrendPlot
+        lines={group.map((r, index) => ({
+          key: r.parameter_uuid,
+          name: r.label,
+          color: `var(--series-${index + 1})`,
+          points: points.get(r.parameter_uuid) ?? [],
+          connectNulls: true,
+        }))}
+        unit={unit}
+        precision={precision}
+        formatTick={tick}
+      />
       <table aria-label="Chart legend" className="mt-2 w-full text-sm">
         <thead className="text-muted-foreground">
           <tr className="border-b">

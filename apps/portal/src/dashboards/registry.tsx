@@ -144,6 +144,8 @@ export type PanelProps = {
   display?: "cells" | "table"
   /** Time series: draw the previous period as ghost lines. */
   compare?: boolean
+  /** Time charts on one dashboard share this group, so their crosshairs move together. */
+  group?: string
 }
 export function PanelBody(props: PanelProps) {
   const Renderer = widgetRegistry[props.widget.type]?.renderer

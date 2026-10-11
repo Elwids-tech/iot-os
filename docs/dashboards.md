@@ -48,7 +48,14 @@ Consumption panels show counter usage as bars per 15 minutes, hour, day, week or
 - Clicking a bar in the dashboard range zooms the range to that bucket.
 - The panel suggests itself for counter parameters and for profiles whose `display.visualization` is `consumption`. Profile-generated dashboards and the energy template use it for counters.
 
-Charts are drawn with Apache ECharts 6 through `packages/charts`: one React wrapper, the SVG renderer, and a theme bridge that resolves design tokens (skins, light and dark) to concrete colours. The module is lazy-loaded with the panels that use it.
+Every chart in the portal is drawn with Apache ECharts 6 through `packages/charts`: one React wrapper (`EChart`), the SVG renderer, and a theme bridge that resolves design tokens (skins, light and dark) to concrete colours. Recharts is gone. Panels build their options with shared builders, so dashboards and device pages look and behave the same:
+
+- `timeSeriesOption`: Time series panels, device history and the device trend chart. Threshold bands are shaded (when the sources share one set of thresholds) under dashed threshold lines; alert episodes are shaded across the plot and commands are dotted marks. Compare draws the previous period dashed and faded. The tooltip lists every line at the hovered time.
+- `timelineOption`: State and Colour history, with each segment's span, duration and configuration on hover. Unknown values draw as a pale block with a dashed outline.
+- `gaugeOption`: Gauge panels as a radial arc. Bands tint the track and the arc takes the colour of the band the value is in; the value, range and age stay HTML, and a `meter` element carries the value for assistive technology.
+- Consumption keeps its own bar option.
+
+Time charts on one dashboard share a crosshair: hovering one shows the same moment on the others, mapped by time rather than by pixel, so panels of any size line up. Dragging across a time chart selects a range: dashboards switch to that absolute range and device history to a custom range. Charts scrolled out of view defer updates until they are visible again. The module is lazy-loaded with the panels that use it. `apps/storybook` shows each builder under Components/Charts.
 
 **Apply to dashboard** changes the local draft. Only **Save dashboard** persists widgets, layout, name, and viewing defaults. Resize/drag events never issue a save. Navigation offers save, discard, or stay; revision conflicts keep the draft. A panel can be duplicated, removed from the draft, or viewed fullscreen. Cancel restores the saved dashboard.
 

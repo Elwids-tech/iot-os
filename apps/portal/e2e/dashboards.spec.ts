@@ -6,6 +6,11 @@ import type {
   DashboardWidget,
 } from "@iot-os/api-client"
 
+/** The first time series chart, found by its accessible name. */
+const timeChart = (page: Page) => page.getByRole("img", { name: / over time$/ }).first()
+/** A drawn data line inside the first time series chart (axis lines are thinner). */
+const plotted = (page: Page) => timeChart(page).locator('svg path[stroke-width="1.75"]').first()
+
 const org = "08b842d4-dbe9-44b7-a82f-8409bf31401a"
 const basePath = `/organizations/${org}/dashboards`
 const deviceId = "11111111-1111-4111-8111-111111111111"
@@ -472,7 +477,7 @@ test("multiple dashboards, explicit apply/save, and save before switching", asyn
   expect(dashboards[1].widgets).toHaveLength(0)
   await page.goto(basePath + "/first")
   await expect(page.getByText("Cooling status", { exact: true })).toBeVisible()
-  await expect(page.locator(".recharts-line-curve").first()).toBeVisible()
+  await expect(plotted(page)).toBeVisible()
   await page.screenshot({ path: info.outputPath("dashboard-desktop.png") })
   expect(errors).toEqual([])
 })
@@ -482,7 +487,7 @@ test("time travel changes chart queries, never latest values or saved defaults",
 }, info) => {
   const { dashboards, calls, errors } = await setup(page)
   await page.goto(basePath + "/first")
-  await expect(page.locator(".recharts-line-curve").first()).toBeVisible()
+  await expect(plotted(page)).toBeVisible()
   await expect(page.getByText("Latest", { exact: true })).toHaveCount(0)
   await expect(page.getByText("Time range", { exact: true })).toHaveCount(0)
   await expect(page.getByText(/last valid value received/)).toBeVisible()
@@ -868,8 +873,8 @@ test("plot zoom updates history and manual refresh keeps absolute bounds", async
 }) => {
   const { calls, errors } = await setup(page)
   await page.goto(basePath + "/first")
-  const plot = page.locator(".recharts-wrapper")
-  await expect(page.locator(".recharts-line-curve").first()).toBeVisible()
+  const plot = timeChart(page)
+  await expect(plotted(page)).toBeVisible()
   const box = await plot.boundingBox()
   expect(box).not.toBeNull()
   await page.mouse.move(box!.x + 85, box!.y + 60)
@@ -890,12 +895,37 @@ test("plot zoom updates history and manual refresh keeps absolute bounds", async
   expect(errors).toEqual([])
 })
 
+test("time charts on a dashboard share a crosshair by time, whatever their size", async ({ page }) => {
+  const { dashboards, errors } = await setup(page)
+  dashboards[0].widgets.push(panel("trend", "timeseries", "Temperature trend"))
+  dashboards[0].layouts.lg!.push({ i: "trend", x: 0, y: 6, w: 4, h: 6 })
+  await page.setViewportSize({ width: 1440, height: 1100 })
+  await page.goto(basePath + "/first")
+  const history = page.getByRole("img", { name: /^Temperature history/ })
+  const trend = page.getByRole("img", { name: /^Temperature trend/ })
+  await expect(history.locator('svg path[stroke-width="1.75"]').first()).toBeVisible()
+  await expect(trend.locator('svg path[stroke-width="1.75"]').first()).toBeVisible()
+  const box = (await history.boundingBox())!
+  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height / 2)
+  const tip = history.locator(".chart-tooltip")
+  const linked = trend.locator(".chart-tooltip")
+  await expect(tip).toBeVisible()
+  await expect(linked).toBeVisible()
+  // The narrower chart shows the same moment, not the same pixel.
+  const time = (await tip.innerText()).split("\n")[0]
+  expect(time).not.toBe("")
+  await expect(linked).toContainText(time)
+  await page.mouse.move(2, 2)
+  await expect(linked).toBeHidden()
+  expect(errors).toEqual([])
+})
+
 test("relative charts poll in place without replacing rendered data", async ({
   page,
 }) => {
   const { calls, errors } = await setup(page, true, { historyDelayMs: 500 })
   await page.goto(basePath + "/first?refresh=5")
-  const chart = page.locator(".recharts-wrapper").first()
+  const chart = timeChart(page)
   await expect(chart).toBeVisible()
   const initialHistoryCalls = calls.history
 
@@ -1037,7 +1067,7 @@ test("chart labels survive repeated layout changes, full-page capture and refres
   for (const width of [1440, 1000, 390, 1440]) {
     await page.setViewportSize({width, height: 900})
     await expect(page.getByRole("list", {name: "Chart legend"})).toContainText("Temperature")
-    await expect(page.locator(".recharts-line-curve").first()).toBeVisible()
+    await expect(plotted(page)).toBeVisible()
     await expect.poll(() => page.locator(".react-grid-item").evaluateAll(items =>
       items.every(item => getComputedStyle(item).transitionDuration === "0s")
     )).toBe(true)
@@ -1102,7 +1132,7 @@ test("panel exports, kiosk, new panel types, editor back and undo", async ({
 }) => {
   const { dashboards, calls, errors } = await setup(page)
   await page.goto(basePath + "/first")
-  await expect(page.locator(".recharts-line-curve").first()).toBeVisible()
+  await expect(plotted(page)).toBeVisible()
   const download = page.waitForEvent("download")
   await menu(page, "Temperature history")
   await page.getByRole("menuitem", { name: "Download CSV", exact: true }).click()

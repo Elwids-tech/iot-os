@@ -211,10 +211,9 @@ command, and no elevation tokens to express a panel.
 
 ## Deferred
 
-- Recharts to ECharts. `TimeSeriesPanel`, `HistorySection` and
-  `DeviceOverview` have drag-zoom, reference areas and e2e coverage, and the
-  ECharts setup (`core.ts`) registers bar charts only. Port them together
-  with line, zoom and mark-area support as their own change.
+- ~~Recharts to ECharts~~: done in the dashboard roadmap's phase 4b
+  (`feat/charts-echarts`). Every chart uses `packages/charts`; the kit's
+  Recharts wrapper and the dependency are removed. See `docs/dashboards.md`.
 - Server sorting for other list endpoints (profiles, automations, gateways).
   Devices shows the pattern: an allowlist, `meta.sort`, and headers that
   enable on the echo.

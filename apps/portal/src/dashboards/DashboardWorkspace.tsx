@@ -568,6 +568,7 @@ export function DashboardWorkspace({
     view,
     window,
     compare,
+    group: `dashboard:${saved.uuid}`,
     onZoom: (from: string, to: string) =>
       updateView({ ...view, range: { mode: "absolute", from, to } }),
   }

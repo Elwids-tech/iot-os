@@ -27,7 +27,6 @@
     "react-hook-form": "^7.62.0",
     "react-resizable": "^4.0.2",
     "react-router-dom": "^7.18.2",
-    "recharts": "3.8.0",
     "sonner": "^2.0.7",
     "@iot-os/workflow-editor": "workspace:*"
   },

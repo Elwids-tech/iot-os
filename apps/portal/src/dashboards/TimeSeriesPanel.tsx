@@ -1,10 +1,6 @@
 import { RelativeTime } from "@iot-os/ui/components/freshness"
-import { useState, type CSSProperties } from "react"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@iot-os/ui/components/chart"
+import { useMemo, type CSSProperties } from "react"
+import { EChart, timeSeriesOption, useChartTheme, type TimeLine } from "@iot-os/charts"
 import { Button } from "@iot-os/ui/components/button"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import {
@@ -14,15 +10,6 @@ import {
   EmptyTitle,
 } from "@iot-os/ui/components/empty"
 import { formatNumber } from "@iot-os/ui/lib/format"
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceArea,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts"
 import { errorMessage } from "../components/forms"
 import {
   bandColor,
@@ -32,6 +19,7 @@ import {
   sourceKey,
   tickFormatter,
   timeLabel,
+  valueBands,
 } from "./model"
 import { useDeviceActivity, useDevices, useHistory, useLatest, useNow } from "./panelData"
 import { readingTime } from "./ReadoutPanels"
@@ -46,7 +34,9 @@ export default function TimeSeriesPanel({
   window,
   onZoom,
   compare = false,
+  group,
 }: PanelProps) {
+  const theme = useChartTheme()
   const sources = widget.config.sources
   const deviceIds = sources.map((s) => s.device_uuid)
   const queries = useHistory(org, sources, view, window)
@@ -119,18 +109,6 @@ export default function TimeSeriesPanel({
       })
     : []
   const lines = [...series, ...ghosts]
-  const times = new Map<number, Record<string, number | null>>()
-  for (const s of lines)
-    for (const p of s.points) {
-      const row = times.get(p.time) ?? { time: p.time }
-      row[s.key] = p.value
-      times.set(p.time, row)
-    }
-  const data = [...times.values()].sort((a, b) => Number(a.time) - Number(b.time))
-  const [selection, setSelection] = useState<{
-    from: number
-    to: number
-  } | null>(null)
   const thresholds = [
     ...new Map(
       sources.flatMap((s) => s.thresholds).map((t) => [t.value, t]),
@@ -150,6 +128,54 @@ export default function TimeSeriesPanel({
   const failed = queries.flatMap((query, index) =>
     query.error ? [{ query, index }] : [],
   )
+  // Shade bands only when every source with thresholds shares them; mixed sets keep the dashed lines.
+  const bandSets = new Map(
+    sources
+      .filter((s) => s.thresholds.length)
+      .map((s) => [JSON.stringify([s.base, [...s.thresholds].sort((a, b) => a.value - b.value)]), s]),
+  )
+  const bands = bandSets.size === 1 ? valueBands([...bandSets.values()][0]) : []
+  // Rebuild the chart only when what it draws changes, not on every clock tick.
+  const drawn = [
+    [...queries, ...previous].map((q) => q.dataUpdatedAt).join(),
+    deviceIds.map((id) => devices(id)?.dataUpdatedAt ?? 0).join(),
+    episodes.map((e) => `${e.uuid}:${e.cleared_at ?? ""}`).join(),
+    commands.map((c) => c.uuid).join(),
+    JSON.stringify(sources),
+  ].join("|")
+  const option = useMemo(() => {
+    if (!hasData) return null
+    const lineIndex = new Map(lines.map((line) => [line.key, line.index]))
+    const chartLines: TimeLine[] = lines.map((line) => ({
+      key: line.key,
+      name: line.name,
+      color: line.color,
+      points: line.points,
+      ghost: line.key.startsWith("previous"),
+    }))
+    return timeSeriesOption(theme, {
+      lines: chartLines,
+      from,
+      to,
+      formatTick: tickFormatter(to - from, view.timezone),
+      formatTime: (time) => timeLabel(new Date(time).toISOString(), view.timezone),
+      formatValue: (value, line) =>
+        `${formatNumber(value, precision(lineIndex.get(line.key) ?? 0))}${unit ? ` ${unit}` : ""}`,
+      areas: episodes.map((episode) => ({
+        from: Math.max(from, Date.parse(episode.activated_at!)),
+        to: Math.min(to, episode.cleared_at ? Date.parse(episode.cleared_at) : to),
+        color: "var(--warning)",
+      })),
+      markers: commands.map((command) => ({ at: Date.parse(command.created_at), color: "var(--commanded)" })),
+      thresholds: thresholds.map((threshold) => ({
+        value: threshold.value,
+        color: bandColor(threshold.color),
+        label: `${threshold.label.charAt(0).toUpperCase()}${threshold.label.slice(1)} ${formatNumber(threshold.value)}${unit ? ` ${unit}` : ""}`,
+      })),
+      bands: bands.map((band) => ({ from: band.from, to: band.to, color: bandColor(band.color) })),
+      selectable: Boolean(onZoom),
+    })
+  }, [theme, drawn, hasData, from, to, compare, view.timezone, unit, Boolean(onZoom)])
   if (!sources.length)
     return (
       <Empty>
@@ -180,133 +206,19 @@ export default function TimeSeriesPanel({
           <span className="font-mono text-xs text-muted-foreground">
             {unit || "Value"}
           </span>
-          <ChartContainer
-            className="aspect-auto min-h-36 w-full flex-1"
-            config={Object.fromEntries(
-              lines.map((s) => [s.key, { label: s.name, color: s.color }]),
-            )}
-          >
-            <LineChart
-              accessibilityLayer
-              data={data}
-              margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
-              onMouseDown={(state) => {
-                const at = Number(state.activeLabel)
-                if (onZoom && Number.isFinite(at))
-                  setSelection({ from: at, to: at })
-              }}
-              onMouseMove={(state) => {
-                const at = Number(state.activeLabel)
-                if (selection && Number.isFinite(at))
-                  setSelection({ ...selection, to: at })
-              }}
-              onMouseUp={() => {
-                if (selection && selection.from !== selection.to)
-                  onZoom?.(
-                    new Date(Math.min(selection.from, selection.to)).toISOString(),
-                    new Date(Math.max(selection.from, selection.to)).toISOString(),
-                  )
-                setSelection(null)
-              }}
-              onMouseLeave={() => setSelection(null)}
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="time"
-                type="number"
-                domain={[from, to]}
-                allowDataOverflow
-                tickFormatter={tickFormatter(to - from, view.timezone)}
-                minTickGap={40}
-              />
-              <YAxis domain={["auto", "auto"]} width={52} />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(_, payload) =>
-                      timeLabel(
-                        new Date(Number(payload?.[0]?.payload?.time)).toISOString(),
-                        view.timezone,
-                      )
-                    }
-                    formatter={(value, key, item) => {
-                      const line = lines.find((l) => l.key === key)
-                      return (
-                        <div className="flex w-full items-center gap-2">
-                          <span
-                            aria-hidden
-                            className="h-0.5 w-3 shrink-0"
-                            style={{ backgroundColor: item.color }}
-                          />
-                          <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                            {line?.name}
-                          </span>
-                          <span className="font-mono tabular-nums">
-                            {typeof value === "number"
-                              ? formatNumber(value, line && precision(line.index))
-                              : "No sample"}
-                            {unit && ` ${unit}`}
-                          </span>
-                        </div>
-                      )
-                    }}
-                  />
-                }
-              />
-              {episodes.map((episode) => (
-                <ReferenceArea
-                  key={episode.uuid}
-                  x1={Math.max(from, Date.parse(episode.activated_at!))}
-                  x2={Math.min(to, episode.cleared_at ? Date.parse(episode.cleared_at) : to)}
-                  fill="var(--warning)"
-                  fillOpacity={0.1}
-                  ifOverflow="hidden"
-                />
-              ))}
-              {commands.map((command) => (
-                <ReferenceLine
-                  key={command.uuid}
-                  x={Date.parse(command.created_at)}
-                  stroke="var(--commanded)"
-                  strokeDasharray="2 3"
-                  ifOverflow="hidden"
-                />
-              ))}
-              {thresholds.map((threshold) => (
-                <ReferenceLine
-                  key={threshold.value}
-                  y={threshold.value}
-                  stroke={bandColor(threshold.color)}
-                  strokeDasharray="4 4"
-                  strokeOpacity={0.7}
-                  ifOverflow="hidden"
-                />
-              ))}
-              {lines.map((s) => (
-                <Line
-                  key={s.key}
-                  data={s.points.map((p) => ({ ...p, [s.key]: p.value }))}
-                  dataKey={s.key}
-                  name={s.key}
-                  stroke={s.color}
-                  strokeDasharray={s.key.startsWith("previous") ? "4 3" : undefined}
-                  strokeOpacity={s.key.startsWith("previous") ? 0.55 : 1}
-                  type="linear"
-                  dot={s.points.filter((p) => p.value !== null).length < 3}
-                  connectNulls={false}
-                  isAnimationActive={false}
-                />
-              ))}
-              {selection && (
-                <ReferenceArea
-                  x1={Math.min(selection.from, selection.to)}
-                  x2={Math.max(selection.from, selection.to)}
-                  fill="var(--primary)"
-                  fillOpacity={0.12}
-                />
-              )}
-            </LineChart>
-          </ChartContainer>
+          {option && (
+            <EChart
+              option={option}
+              group={group}
+              label={`${widget.title || "Time series"}: ${unit || "values"} over time`}
+              className="min-h-36 w-full flex-1"
+              onSelectRange={
+                onZoom
+                  ? (start, end) => onZoom(new Date(start).toISOString(), new Date(end).toISOString())
+                  : undefined
+              }
+            />
+          )}
         </div>
       ) : (
         !failed.length && (() => {
@@ -353,8 +265,6 @@ export default function TimeSeriesPanel({
           )
         })()
       )}
-      {/* Keep static labels outside Recharts' viewport-measurement loop
-          when the dashboard moves or resizes a chart. */}
       <div
         className="text-xs"
         style={{ "--columns": columns } as CSSProperties}

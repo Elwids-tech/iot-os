@@ -26,12 +26,14 @@ export function HistoryStatePanel({
   view,
   window,
   colour = false,
+  group,
 }: {
   org: string
   widget: DashboardWidget
   view: DashboardView
   window: { from: string; to: string }
   colour?: boolean
+  group?: string
 }) {
   const sources = widget.config.sources
   const rangeKey = JSON.stringify(view.range)
@@ -115,6 +117,7 @@ export function HistoryStatePanel({
                 configurations={device?.configurations ?? []}
                 colour={colour}
                 timezone={view.timezone}
+                group={group}
                 states={displayStates(
                   appliedParameters(device).find((p) => p.uuid === source.parameter_uuid),
                 )}
