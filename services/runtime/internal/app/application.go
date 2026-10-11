@@ -692,10 +692,11 @@ func (a *Application) cleanup() error {
 	ctx, cancel := context.WithTimeout(a.ctx, 2*time.Minute)
 	pruned, e := a.Store.PruneLedgers(ctx, time.Now().UTC())
 	cancel()
+	if pruned > 0 {
+		a.Logger.Info("runtime ledgers pruned", "deleted_rows", pruned, "complete", e == nil)
+	}
 	if e != nil {
 		failures = append(failures, fmt.Errorf("ledger pruning: %w", e))
-	} else if pruned > 0 {
-		a.Logger.Info("runtime ledgers pruned", "deleted_rows", pruned)
 	}
 	for _, retention := range state.Retention {
 		if retention.Days < 1 {

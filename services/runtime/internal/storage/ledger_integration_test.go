@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -46,6 +47,11 @@ func TestLedgersArePrunedOutsideTheRedeliveryWindow(t *testing.T) {
 	must(exec(ctx, s, `INSERT INTO device_runtime.telemetry_outbox(telemetry_uuid,organization_uuid,event,created_at,published_at) VALUES ($1,$4,'{}',$5,$5),($2,$4,'{}',$5,NULL),($3,$4,'{}',$6,$6)`,
 		oldCommitted, unpublishedCommitted, windowCommitted, org, now.Add(-30*day), now.Add(-3*day)))
 
+	// A bounded pass that fills its batches reports more work instead of
+	// silently waiting a day; the next pass finishes.
+	if _, err = s.pruneLedgers(ctx, now, 1, 1); !errors.Is(err, ErrCleanupIncomplete) {
+		t.Fatal("a full bounded pass must report incomplete pruning", err)
+	}
 	if _, err = s.PruneLedgers(ctx, now); err != nil {
 		t.Fatal(err)
 	}

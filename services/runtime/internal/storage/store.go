@@ -857,24 +857,33 @@ const ledgerRetention = 8 * 24 * time.Hour
 
 // PruneLedgers removes published lifecycle events and consumed-input markers
 // that no longer protect against redelivery. Both tables are global, so they are
-// pruned once per cleanup pass rather than per tenant.
+// pruned once per cleanup pass rather than per tenant. A pass is bounded; it
+// returns ErrCleanupIncomplete when rows remain so the caller retries soon.
 func (s *Store) PruneLedgers(ctx context.Context, now time.Time) (int64, error) {
+	return s.pruneLedgers(ctx, now, 50, 10000)
+}
+
+func (s *Store) pruneLedgers(ctx context.Context, now time.Time, batches, batchSize int) (int64, error) {
 	cutoff := now.Add(-ledgerRetention)
 	var total int64
+	incomplete := false
 	for _, statement := range []string{
-		`DELETE FROM device_runtime.outbox WHERE uuid IN (SELECT uuid FROM device_runtime.outbox WHERE published_at<$1 LIMIT 10000)`,
-		`DELETE FROM device_runtime.rule_inputs WHERE event_uuid IN (SELECT event_uuid FROM device_runtime.rule_inputs WHERE consumed_at<$1 LIMIT 10000)`,
+		`DELETE FROM device_runtime.outbox WHERE uuid IN (SELECT uuid FROM device_runtime.outbox WHERE published_at<$1 LIMIT $2)`,
+		`DELETE FROM device_runtime.rule_inputs WHERE event_uuid IN (SELECT event_uuid FROM device_runtime.rule_inputs WHERE consumed_at<$1 LIMIT $2)`,
 	} {
-		for batch := 0; batch < 50; batch++ {
-			tag, err := s.Pool.Exec(ctx, statement, cutoff)
+		full := true
+		for batch := 0; batch < batches && full; batch++ {
+			tag, err := s.Pool.Exec(ctx, statement, cutoff, batchSize)
 			if err != nil {
 				return total, err
 			}
 			total += tag.RowsAffected()
-			if tag.RowsAffected() < 10000 {
-				break
-			}
+			full = tag.RowsAffected() == int64(batchSize)
 		}
+		incomplete = incomplete || full
+	}
+	if incomplete {
+		return total, ErrCleanupIncomplete
 	}
 	return total, nil
 }
