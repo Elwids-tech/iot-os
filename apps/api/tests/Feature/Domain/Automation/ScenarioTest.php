@@ -3,6 +3,7 @@
 namespace Tests\Feature\Domain\Automation;
 
 use App\Domain\Automation\Models\Workflow;
+use App\Domain\Automation\Services\ScenarioSimulation;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -110,15 +111,16 @@ final class ScenarioTest extends TestCase
         $this->actingAs(User::where('email', 'acme.member@example.test')->firstOrFail(), 'sanctum');
         $this->getJson($this->url)->assertOk();
         $this->postJson($this->url.'/'.$id.'/runs', ['revision' => 1, 'draft_revision' => 1])->assertForbidden();
-        $this->deleteJson($this->url.'/'.$id,['revision' => 1])->assertForbidden();
+        $this->deleteJson($this->url.'/'.$id, ['revision' => 1])->assertForbidden();
     }
+
     public function test_groups_same_device_readings_and_preserves_zero_false_and_age(): void
     {
-        $device = (string) \Illuminate\Support\Str::uuid();
-        $config = (string) \Illuminate\Support\Str::uuid();
+        $device = (string) Str::uuid();
+        $config = (string) Str::uuid();
         $graph = $this->workflow->workflow;
         foreach (['number', 'boolean'] as $type) {
-            $graph['bindings'][] = ['role' => $type, 'device_uuid' => $device, 'configuration_uuid' => $config, 'generation' => 1, 'parameter_uuid' => (string) \Illuminate\Support\Str::uuid(), 'data_type' => $type, 'unit' => '', 'fresh_seconds' => 30];
+            $graph['bindings'][] = ['role' => $type, 'device_uuid' => $device, 'configuration_uuid' => $config, 'generation' => 1, 'parameter_uuid' => (string) Str::uuid(), 'data_type' => $type, 'unit' => '', 'fresh_seconds' => 30];
             $graph['nodes'][] = ['id' => $type, 'type' => 'source.parameter.v1', 'config' => ['binding' => $type]];
         }
         $this->workflow->update(['workflow' => $graph]);
@@ -127,12 +129,11 @@ final class ScenarioTest extends TestCase
             ['binding' => 'number', 'value' => 0, 'quality' => 'good', 'age_seconds' => 0],
             ['binding' => 'boolean', 'value' => false, 'quality' => 'bad', 'age_seconds' => 60],
         ];
-        $steps = app(\App\Domain\Automation\Services\ScenarioSimulation::class)->steps($this->definition, $this->workflow);
+        $steps = app(ScenarioSimulation::class)->steps($this->definition, $this->workflow);
         $this->assertCount(1, $steps);
         $this->assertCount(2, $steps[0]['event']['readings']);
         $this->assertSame(0, $steps[0]['event']['readings'][0]['value']);
         $this->assertFalse($steps[0]['event']['readings'][1]['value']);
         $this->assertSame(60, strtotime($steps[0]['at']) - strtotime($steps[0]['event']['readings'][1]['observed_at']));
     }
-
 }

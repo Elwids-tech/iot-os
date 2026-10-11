@@ -113,7 +113,11 @@ func (a *Application) statusHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	a.mu.Unlock()
-	respond(w, 200, map[string]any{"storage": storageState, "messaging": messaging, "workflows": a.rulesStatus(), "brokers": map[string]int{"connected": connected, "total": total}})
+	deadLetters := map[string]any{"since_start": a.deadLetters.Load(), "retained": nil}
+	if info, err := a.JS.StreamInfo(DeadLetterStream); err == nil {
+		deadLetters["retained"] = info.State.Msgs
+	}
+	respond(w, 200, map[string]any{"storage": storageState, "messaging": messaging, "workflows": a.rulesStatus(), "brokers": map[string]int{"connected": connected, "total": total}, "dead_letters": deadLetters})
 }
 func decodeBody(w http.ResponseWriter, r *http.Request, target any) bool {
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20))

@@ -168,6 +168,7 @@ services:
       IOT_NATS_EVENTS_MAX_BYTES: ${IOT_NATS_EVENTS_MAX_BYTES:-4294967296}
       IOT_NATS_TELEMETRY_MAX_BYTES: ${IOT_NATS_TELEMETRY_MAX_BYTES:-12884901888}
       IOT_NATS_COMMITTED_MAX_BYTES: ${IOT_NATS_COMMITTED_MAX_BYTES:-4294967296}
+      IOT_NATS_DEAD_LETTER_MAX_BYTES: ${IOT_NATS_DEAD_LETTER_MAX_BYTES:-268435456}
     mem_limit: 256m
     stop_grace_period: 40s
   runtime-migrate:
@@ -324,7 +325,7 @@ services:
     volumes:
       - ../monitoring/local/collector.py:/app/collector.py:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ../../docs/staging-incident-runbook.md:/app/runbook.md:ro
+      - ../../docs/ops/incident-runbook.md:/app/runbook.md:ro
     mem_limit: 64m
 
 networks:

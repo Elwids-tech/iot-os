@@ -1,10 +1,12 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Domain\Integrations\Http;
 
 use App\Domain\Devices\Models\Device;
-use App\Domain\Devices\Services\{RuntimeClient, RetentionService};
+use App\Domain\Devices\Services\RetentionService;
+use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -28,6 +30,7 @@ final class TelemetryController
             'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid,
             'configuration_uuid' => $configuration,
         ]);
+
         return ['schema_version' => 'telemetry-latest.v1', 'device_uuid' => $device->uuid,
             'configuration_uuid' => $result['configuration_uuid'] ?? $configuration,
             'presence' => $result['presence'] ?? 'unknown',
@@ -51,6 +54,7 @@ final class TelemetryController
             'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid,
             'retention_days' => app(RetentionService::class)->effective($organization)['days'],
         ]);
+
         return ['schema_version' => 'telemetry-records.v1', 'device_uuid' => $device->uuid,
             'parameter_uuid' => $values['parameter_uuid'],
             'data' => array_map(fn (array $row) => Arr::only($row, [
@@ -70,6 +74,7 @@ final class TelemetryController
         if (CarbonImmutable::parse($values['from'])->diffInSeconds(CarbonImmutable::parse($values['to'])) > 31 * 86400) {
             throw ValidationException::withMessages(['to' => 'Use a history window of at most 31 days.']);
         }
+
         return $values;
     }
 
@@ -82,6 +87,7 @@ final class TelemetryController
             ...$values, 'max_points' => $values['max_points'] ?? 500,
             'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => $retention,
         ], RuntimeClient::RANGE_TIMEOUT);
+
         return ['schema_version' => 'telemetry-history.v1', 'device_uuid' => $device->uuid,
             'parameter_uuid' => $values['parameter_uuid'], 'retention_days' => $retention,
             'from' => $result['from'] ?? null, 'to' => $result['to'] ?? null,

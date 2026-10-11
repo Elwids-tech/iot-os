@@ -1,7 +1,11 @@
 <?php
+
 declare(strict_types=1);
+
 namespace App\Domain\Integrations\Services;
+
 use App\Domain\Automation\Models\Alert;
+
 final class AlertSnapshot
 {
     public static function of(Alert $alert): array

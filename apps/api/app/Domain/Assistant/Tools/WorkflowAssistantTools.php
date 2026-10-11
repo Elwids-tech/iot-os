@@ -9,8 +9,10 @@ use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\WorkflowProposalService;
 use App\Domain\Automation\Http\Controllers\DagController;
 use App\Domain\Geospatial\Http\GeofenceController;
+use App\Domain\Shared\Models\Organization;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Http\Request as HttpRequest;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
@@ -68,19 +70,19 @@ final class WorkflowAssistantTools implements Tool
         }
     }
 
-    private function descriptionData(HttpRequest $http, \App\Domain\Shared\Models\Organization $organization): array
+    private function descriptionData(HttpRequest $http, Organization $organization): array
     {
         return [
-                    ...app(DagController::class)->registry($http, $organization),
-                    'multi_setting_command_example' => [
-                        'id' => 'alarm', 'type' => 'action.command.v1',
-                        'config' => ['settings' => ['alarm_enabled' => true, 'alarm_volume' => 20], 'cooldown_seconds' => 60, 'ttl_seconds' => 30],
-                    ],
-                    'command_rules' => 'The example settings keys alarm_enabled and alarm_volume are binding roles, NOT parameter keys or UUIDs. Include one graph.bindings entry for each setting role using the selected device and parameter UUID. config.settings is a JSON object of role:scalar_value, never an array or a JSON string. In a multi-setting node, OMIT config.binding and config.value entirely, even null or empty values. All selected settings must belong to one device. Legacy nodes may use binding/value instead of settings, never both.',
-                ];
+            ...app(DagController::class)->registry($http, $organization),
+            'multi_setting_command_example' => [
+                'id' => 'alarm', 'type' => 'action.command.v1',
+                'config' => ['settings' => ['alarm_enabled' => true, 'alarm_volume' => 20], 'cooldown_seconds' => 60, 'ttl_seconds' => 30],
+            ],
+            'command_rules' => 'The example settings keys alarm_enabled and alarm_volume are binding roles, NOT parameter keys or UUIDs. Include one graph.bindings entry for each setting role using the selected device and parameter UUID. config.settings is a JSON object of role:scalar_value, never an array or a JSON string. In a multi-setting node, OMIT config.binding and config.value entirely, even null or empty values. All selected settings must belong to one device. Legacy nodes may use binding/value instead of settings, never both.',
+        ];
     }
 
-    private function discover(HttpRequest $request, \App\Domain\Shared\Models\Organization $organization, array $arguments): array
+    private function discover(HttpRequest $request, Organization $organization, array $arguments): array
     {
         validator($arguments, [
             'device_search' => 'sometimes|string|min:1|max:255',
@@ -89,23 +91,28 @@ final class WorkflowAssistantTools implements Tool
         ])->validate();
         $result = ['schema' => $this->descriptionData($request, $organization)];
         foreach (['device_search' => 'devices', 'control_search' => 'controllable_devices', 'geofence_search' => 'geofences'] as $key => $name) {
-            if (! isset($arguments[$key])) continue;
+            if (! isset($arguments[$key])) {
+                continue;
+            }
             $scoped = HttpRequest::create('/', 'GET', ['search' => $arguments[$key], 'controllable' => $key === 'control_search']);
             $scoped->setUserResolver(fn () => $request->user());
             $result[$name] = $key === 'geofence_search'
                 ? app(GeofenceController::class)->index($scoped, $organization)
                 : $this->devices($scoped, $organization);
         }
+
         return $result;
     }
 
-    private function devices(HttpRequest $request, \App\Domain\Shared\Models\Organization $organization): array
+    private function devices(HttpRequest $request, Organization $organization): array
     {
         $result = app(DagController::class)->resources($request, $organization);
         $result['data'] = $result['data']->map(function ($device) {
-            $device['parameters'] = collect($device['parameters'])->map(fn ($parameter) => \Illuminate\Support\Arr::only($parameter, ['uuid', 'key', 'label', 'kind', 'data_type', 'unit', 'accepts_command', 'reports_state', 'format', 'validation']))->all();
+            $device['parameters'] = collect($device['parameters'])->map(fn ($parameter) => Arr::only($parameter, ['uuid', 'key', 'label', 'kind', 'data_type', 'unit', 'accepts_command', 'reports_state', 'format', 'validation']))->all();
+
             return $device;
         })->all();
+
         return $result;
     }
 }

@@ -132,7 +132,7 @@ final class DeviceProfileStudioTest extends TestCase
         $this->deleteJson($this->path(), ['draft_revision' => $revision])->assertConflict();
         $this->postJson($this->path('/publish'), ['draft_revision' => $this->revision()])->assertCreated();
         $this->getJson($this->path('/artifacts'))->assertOk()->assertJsonPath('meta.total', 2)->assertJsonPath('data.0.revision', 2)->assertJsonMissingPath('data.0.definition');
-        $this->getJson($this->path('/artifacts/1'))->assertJsonPath('data.definition', $first);
+        $this->assertSameJsonDocument($first, $this->getJson($this->path('/artifacts/1'))->assertOk()->json('data.definition'));
         $this->deleteJson($this->path(), ['draft_revision' => $this->revision()])->assertUnprocessable();
     }
 

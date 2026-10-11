@@ -6,6 +6,8 @@ namespace Database\Seeders;
 
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Permissions\RolePermission;
+use App\Domain\Automation\Permissions\WorkflowPermission;
+use App\Domain\Dashboards\Permissions\DashboardPermission;
 use App\Domain\DeviceProfiles\Permissions\DeviceProfilePermission;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Shared\Permissions\OrganizationPermission;
@@ -25,8 +27,8 @@ class PermissionSeeder extends Seeder
             RolePermission::getPermissionGroup() => RolePermission::cases(),
             DeviceProfilePermission::getPermissionGroup() => DeviceProfilePermission::cases(),
             DevicePermission::getPermissionGroup() => DevicePermission::cases(),
-            \App\Domain\Automation\Permissions\WorkflowPermission::getPermissionGroup() => \App\Domain\Automation\Permissions\WorkflowPermission::cases(),
-            \App\Domain\Dashboards\Permissions\DashboardPermission::getPermissionGroup() => \App\Domain\Dashboards\Permissions\DashboardPermission::cases(),
+            WorkflowPermission::getPermissionGroup() => WorkflowPermission::cases(),
+            DashboardPermission::getPermissionGroup() => DashboardPermission::cases(),
             PlatformAdministrationPermission::getPermissionGroup() => PlatformAdministrationPermission::cases(),
         ];
         $guards = array_keys(config('auth.guards'));

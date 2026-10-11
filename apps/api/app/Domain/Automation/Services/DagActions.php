@@ -184,7 +184,7 @@ final class DagActions
     {
         DB::table('integration_streams')->insertOrIgnore(['organization_id' => $org->id, 'sequence' => 0]);
         $stream = DB::table('integration_streams')->where('organization_id', $org->id)->lockForUpdate()->first();
-        DB::table('integration_events')->insert(['uuid' => (string) Str::uuid(), 'organization_id' => $org->id, 'sequence' => $stream->sequence + 1, 'device_uuid' => $d->definition['bindings'][0]['device_uuid'], 'resource_uuid' => $this->commandKey($intent['id']), 'type' => 'automation.triggered.v1', 'snapshot' => json_encode(['workflow_uuid' => $intent['workflow_uuid'], 'action_id' => $intent['id'], 'name' => $intent['config']['name'], 'node_id' => $intent['node_id']],JSON_THROW_ON_ERROR), 'occurred_at' => Carbon::parse($intent['occurred_at']), 'recorded_at' => now()]);
-        DB::table('integration_streams')->where('organization_id',$org->id)->update(['sequence' => $stream->sequence + 1]);
+        DB::table('integration_events')->insert(['uuid' => (string) Str::uuid(), 'organization_id' => $org->id, 'sequence' => $stream->sequence + 1, 'device_uuid' => $d->definition['bindings'][0]['device_uuid'], 'resource_uuid' => $this->commandKey($intent['id']), 'type' => 'automation.triggered.v1', 'snapshot' => json_encode(['workflow_uuid' => $intent['workflow_uuid'], 'action_id' => $intent['id'], 'name' => $intent['config']['name'], 'node_id' => $intent['node_id']], JSON_THROW_ON_ERROR), 'occurred_at' => Carbon::parse($intent['occurred_at']), 'recorded_at' => now()]);
+        DB::table('integration_streams')->where('organization_id', $org->id)->update(['sequence' => $stream->sequence + 1]);
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Assistant\Services\AssistantRecovery;
+use App\Domain\Devices\Services\RuntimeLedgers;
 use App\Support\Operations;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -12,12 +13,18 @@ Artisan::command('assistant:recover', function () {
     $this->info('Stale assistant runs recovered.');
 })->purpose('Release reservations and close interrupted assistant responses');
 
+Artisan::command('devices:prune-ledgers', function (RuntimeLedgers $ledgers) {
+    $deleted = $ledgers->prune();
+    $this->info("Pruned {$deleted['outbox']} published outbox events and {$deleted['inbox']} inbox entries.");
+})->purpose('Remove runtime outbox and inbox rows that no longer protect against redelivery');
+
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
 Schedule::call(fn () => Operations::heartbeat('scheduler'))->everyMinute();
 Schedule::command('assistant:recover')->everyMinute()->withoutOverlapping();
+Schedule::command('devices:prune-ledgers')->dailyAt('03:15')->withoutOverlapping();
 
 Schedule::call(function (): void {
     if (config('deployment.ops_enabled')) {

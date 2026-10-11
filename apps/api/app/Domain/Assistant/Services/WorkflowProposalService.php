@@ -13,6 +13,7 @@ use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 final class WorkflowProposalService
 {
@@ -35,7 +36,7 @@ final class WorkflowProposalService
         $compiled = app(DagAuthoring::class)->compile($conversation->organization, $data['workflow'], $conversation->workflow?->uuid ?? (string) Str::uuid());
         $diagnostics = $compiled['diagnostics'] ?? [];
         if (! ($compiled['valid'] ?? false)) {
-            throw \Illuminate\Validation\ValidationException::withMessages(['workflow' => array_map(fn ($d) => ($d['node_id'] ?? 'graph').': '.$d['message'], $diagnostics) ?: ['Invalid workflow.']]);
+            throw ValidationException::withMessages(['workflow' => array_map(fn ($d) => ($d['node_id'] ?? 'graph').': '.$d['message'], $diagnostics) ?: ['Invalid workflow.']]);
         }
         $workflow = $compiled['definition'];
         unset($workflow['uuid'], $workflow['version_uuid'], $workflow['organization_uuid']);

@@ -268,6 +268,8 @@ test("session recovery offers sign out", async ({ page }) => {
 test("⌘K jumps to a page and Settings holds general and appearance options", async ({ page }) => {
   const { errors } = await setup(page)
   await page.goto(dashboardsPath)
+  // The shortcut listens once the organization has loaded, as the search button does.
+  await expect(page.getByRole("button", { name: /Search or jump to/ })).toBeVisible()
   await page.keyboard.press("ControlOrMeta+k")
   const palette = page.getByRole("dialog", { name: "Search or jump to" })
   await expect(palette).toBeVisible()
@@ -308,8 +310,10 @@ test("⌘K selects the top result again when device matches arrive", async ({ pa
     })
   })
   await page.goto(`/organizations/${organization}/settings/general`)
+  await expect(page.getByRole("button", { name: /Search or jump to/ })).toBeVisible()
   await page.keyboard.press("ControlOrMeta+k")
   const palette = page.getByRole("dialog", { name: "Search or jump to" })
+  await expect(palette).toBeVisible()
   await palette.getByRole("combobox", { name: "Search or jump to" }).fill("gps")
   // The dashboard matches first; the device arrives later, sorts above it and takes the selection.
   await expect(palette.getByRole("option", { name: /GPS Demo Tracker/ })).toHaveAttribute("aria-selected", "true")

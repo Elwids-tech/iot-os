@@ -851,6 +851,47 @@ func sampleStateSegments(segments []StateSegment, from, to time.Time, maxPoints 
 
 var ErrCleanupIncomplete = errors.New("bounded cleanup has more expired measurements to remove")
 
+// ledgerRetention outlives the 7-day JetStream stream age, so a message the
+// broker can still redeliver is always recognised as a duplicate.
+const ledgerRetention = 8 * 24 * time.Hour
+
+// PruneLedgers removes published lifecycle events and consumed-input markers
+// that no longer protect against redelivery. Both tables are global, so they are
+// pruned once per cleanup pass rather than per tenant. A pass is bounded; it
+// returns ErrCleanupIncomplete when rows remain so the caller retries soon.
+func (s *Store) PruneLedgers(ctx context.Context, now time.Time) (int64, error) {
+	return s.pruneLedgers(ctx, now, 50, 10000)
+}
+
+func (s *Store) pruneLedgers(ctx context.Context, now time.Time, batches, batchSize int) (int64, error) {
+	cutoff := now.Add(-ledgerRetention)
+	var total int64
+	incomplete := false
+	for _, statement := range []string{
+		`DELETE FROM device_runtime.outbox WHERE uuid IN (SELECT uuid FROM device_runtime.outbox WHERE published_at<$1 LIMIT $2)`,
+		`DELETE FROM device_runtime.rule_inputs WHERE event_uuid IN (SELECT event_uuid FROM device_runtime.rule_inputs WHERE consumed_at<$1 LIMIT $2)`,
+	} {
+		full := true
+		for batch := 0; batch < batches && full; batch++ {
+			tag, err := s.Pool.Exec(ctx, statement, cutoff, batchSize)
+			if err != nil {
+				return total, err
+			}
+			total += tag.RowsAffected()
+			full = tag.RowsAffected() == int64(batchSize)
+		}
+		incomplete = incomplete || full
+	}
+	if incomplete {
+		return total, ErrCleanupIncomplete
+	}
+	return total, nil
+}
+
+// ErrRejected marks a request that can never succeed as sent (invalid, stale or
+// cross-tenant). Durable consumers dead-letter it instead of retrying forever.
+var ErrRejected = errors.New("request rejected")
+
 func (s *Store) Cleanup(ctx context.Context, org string, cutoff time.Time) (int64, error) {
 	return s.cleanup(ctx, org, cutoff, 50, 10000)
 }
@@ -873,6 +914,24 @@ func (s *Store) cleanup(ctx context.Context, org string, cutoff time.Time, batch
 			}
 		}
 	}
+	// Published committed events carry full readings and back the location map
+	// and the integration API, so they follow the tenant's measurement retention.
+	// They are also the ingestion deduplication ledger, so never prune inside the
+	// window in which the telemetry stream can still redeliver a message.
+	committedCutoff := cutoff
+	if ledger := time.Now().UTC().Add(-ledgerRetention); ledger.Before(committedCutoff) {
+		committedCutoff = ledger
+	}
+	for batch := 0; batch < batches; batch++ {
+		tag, e := s.Pool.Exec(ctx, `DELETE FROM device_runtime.telemetry_outbox WHERE sequence IN (SELECT sequence FROM device_runtime.telemetry_outbox WHERE organization_uuid=$1 AND created_at<$2 AND published_at IS NOT NULL LIMIT $3)`, org, committedCutoff, batchSize)
+		if e != nil {
+			return total, e
+		}
+		total += tag.RowsAffected()
+		if tag.RowsAffected() < int64(batchSize) {
+			break
+		}
+	}
 	for _, table := range []string{"observations", "diagnostics", "dag_evaluations"} {
 		var pending bool
 		if e := s.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM device_runtime.`+table+` WHERE organization_uuid=$1 AND received_at<$2)`, org, cutoff).Scan(&pending); e != nil {
@@ -880,6 +939,11 @@ func (s *Store) cleanup(ctx context.Context, org string, cutoff time.Time, batch
 		}
 		remaining = remaining || pending
 	}
+	var pending bool
+	if e := s.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM device_runtime.telemetry_outbox WHERE organization_uuid=$1 AND created_at<$2 AND published_at IS NOT NULL)`, org, committedCutoff).Scan(&pending); e != nil {
+		return total, e
+	}
+	remaining = remaining || pending
 	if remaining {
 		return total, ErrCleanupIncomplete
 	}

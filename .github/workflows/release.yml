@@ -10,48 +10,28 @@ on:
         type: string
 permissions:
   contents: read
-  packages: write
 jobs:
+  # The pull request checks, so a release runs the API suite on PostgreSQL too.
   verify:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.export_existing_run == '' }}
+    uses: ./.github/workflows/ci.yml
+  release-checks:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.export_existing_run == '' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          php-version: '8.4'
-          extensions: pdo_sqlite, pdo_pgsql, pcntl
-      - run: composer install --no-interaction --prefer-dist
-        working-directory: apps/api
-      - name: Configure ephemeral test application key
-        working-directory: apps/api
-        shell: bash
-        run: |
-          test_key="$(php artisan key:generate --show)"
-          echo "::add-mask::$test_key"
-          printf 'APP_KEY=%s\n' "$test_key" >> "$GITHUB_ENV"
-      - run: php artisan test --compact
-        working-directory: apps/api
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @iot-os/api-client typecheck
-      # Portal and admin lint = typecheck + design system guardrails (packages/ui/scripts/check-ui.mjs).
-      - run: pnpm --filter @iot-os/portal --filter @iot-os/admin lint
-      - run: pip install PyYAML
-      - run: python3 -m unittest discover -s tooling/release -p 'test_*.py'
-      - uses: actions/setup-go@v5
+          node-version-file: .nvmrc
+      # verify_mosquitto.py cross-compiles the broker admin tests.
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: services/runtime/go.mod
           cache-dependency-path: services/runtime/go.sum
-      - run: go test ./...
-        working-directory: services/runtime
-      - name: Verify vendor decoder sandbox and live adapter protocol
+      - name: Verify the live adapter protocol
         run: |
           npm ci --prefix services/adapters --ignore-scripts
-          npm test --prefix services/adapters
           sudo apt-get update -qq
           sudo apt-get install -y -qq mosquitto mosquitto-clients
           npm install --no-save --prefix .local/adapter-tests node-red@4.1.13
@@ -62,8 +42,11 @@ jobs:
           python3 tooling/release/verify_mosquitto.py
   images:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.export_existing_run == '' }}
-    needs: verify
+    needs: [verify, release-checks]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -77,18 +60,18 @@ jobs:
           - {name: adapter-manager, key: ADAPTER_MANAGER_IMAGE, file: services/adapters/Dockerfile, target: manager}
           - {name: adapter-runtime, key: ADAPTER_RUNTIME_IMAGE, file: services/adapters/Dockerfile, target: tenant-runtime}
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Image name
         id: image
         shell: bash
         run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         id: build
         with:
           context: .
@@ -104,7 +87,7 @@ jobs:
           IMAGE: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
           KEY: ${{ matrix.key }}
         run: python3 -c 'import os,json;open("image.json","w").write(json.dumps({os.environ["KEY"]:os.environ["IMAGE"]}))'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: image-${{ matrix.name }}
           path: image.json
@@ -113,8 +96,8 @@ jobs:
     needs: images
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: image-*
           path: images
@@ -128,7 +111,7 @@ jobs:
           assert len(images) == 8
           pathlib.Path('release.json').write_text(json.dumps({'format': 1, 'commit': os.environ['GITHUB_SHA'], 'images': images}, indent=2))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: single-node-release
           path: |
@@ -154,7 +137,7 @@ jobs:
           [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" > source-run.json
           jq -e '.status == "completed" and .conclusion == "success" and .path == ".github/workflows/release.yml"' source-run.json
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: single-node-release
           path: validated-release
@@ -188,7 +171,7 @@ jobs:
           done < image-list.tsv
           tar -czf release-images.tar.gz image-transfer
           sha256sum release-images.tar.gz > release-images.tar.gz.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: single-node-image-transfer
           path: |

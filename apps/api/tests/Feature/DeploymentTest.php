@@ -18,6 +18,18 @@ final class DeploymentTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * On PostgreSQL the metrics also read the Go runtime's device_runtime schema, which the
+     * runtime creates in production. Apply its real schema (idempotent) outside the test
+     * transaction; migrate:fresh only drops the public schema.
+     */
+    protected function beforeRefreshingDatabase(): void
+    {
+        if (DB::getDriverName() === 'pgsql') {
+            DB::unprepared(file_get_contents(base_path('../../services/runtime/internal/storage/schema.sql')));
+        }
+    }
+
     public function test_stream_capacity_metrics_use_each_limit_and_only_fixed_stream_labels(): void
     {
         Http::fake(['*' => Http::response(['storage' => 99, 'account_details' => [['stream_detail' => [

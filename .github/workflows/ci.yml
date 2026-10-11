@@ -1,0 +1,221 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  # github.workflow is the caller's name under workflow_call, so a release never cancels CI on the same ref.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  api:
+    name: API (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      timescaledb:
+        image: timescale/timescaledb:2.29.2-pg17
+        env:
+          POSTGRES_DB: iot_os_test
+          POSTGRES_USER: iot_os_test
+          POSTGRES_PASSWORD: iot_os_test
+          TIMESCALEDB_TELEMETRY: 'off'
+        ports: ['5432:5432']
+        # TCP, not the socket: the image's init server answers on the socket before the real server starts.
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U iot_os_test -d iot_os_test"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      # tests/TestCase.php accepts PostgreSQL only for a database whose name ends in _test.
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: iot_os_test
+      DB_USERNAME: iot_os_test
+      DB_PASSWORD: iot_os_test
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, pdo_sqlite, pcntl
+          coverage: none
+      - name: Locate the Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('apps/api/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Configure ephemeral test application key
+        shell: bash
+        run: |
+          test_key="$(php artisan key:generate --show)"
+          echo "::add-mask::$test_key"
+          printf 'APP_KEY=%s\n' "$test_key" >> "$GITHUB_ENV"
+      - run: vendor/bin/pint --test
+      - run: php artisan help:validate
+      - run: php artisan test --compact
+
+  runtime:
+    name: Runtime (Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      timescaledb:
+        image: timescale/timescaledb:2.29.2-pg17
+        env:
+          POSTGRES_DB: iot_devices_test
+          POSTGRES_USER: devices_test
+          POSTGRES_PASSWORD: devices_test
+          TIMESCALEDB_TELEMETRY: 'off'
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U devices_test -d iot_devices_test"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      # These un-skip the storage and app integration tests; they refuse any database but iot_devices_test.
+      DEVICE_TEST_DATABASE_URL: postgres://devices_test:devices_test@127.0.0.1:5432/iot_devices_test?sslmode=disable
+      DEVICE_TEST_NATS_URL: nats://127.0.0.1:4222
+    defaults:
+      run:
+        working-directory: services/runtime
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: services/runtime/go.mod
+          cache-dependency-path: services/runtime/go.sum
+      # Service containers cannot take arguments, and JetStream needs --jetstream.
+      - name: Start NATS with JetStream
+        run: |
+          docker run -d --name nats -p 127.0.0.1:4222:4222 -p 127.0.0.1:8222:8222 nats:2.14.5-alpine --jetstream -m 8222
+          if ! timeout 60 sh -c 'until curl -fsS "http://127.0.0.1:8222/healthz?js-enabled-only=true"; do sleep 1; done'; then
+            docker logs nats
+            exit 1
+          fi
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            printf 'Run gofmt -w on:\n%s\n' "$unformatted"
+            exit 1
+          fi
+      - run: go vet ./...
+      # -p 1: the storage and app packages share the singleton workflow checkpoint in one database.
+      - run: go test -count=1 -p 1 ./...
+
+  web:
+    name: Web (TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @iot-os/api-client typecheck
+      # Portal and admin lint = typecheck + design system guardrails (packages/ui/scripts/check-ui.mjs).
+      - run: pnpm --filter @iot-os/portal --filter @iot-os/admin lint
+      # Unit tests only: admin's test script is Playwright against a live stack.
+      - name: Unit tests
+        run: pnpm --filter @iot-os/portal --filter @iot-os/ui --filter @iot-os/charts --filter @iot-os/integration-sdk --filter @iot-os/vertical-demo test
+      - run: pnpm --filter @iot-os/portal --filter @iot-os/admin build
+
+  e2e:
+    name: Portal end-to-end (mocked API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @iot-os/portal build
+      - run: pnpm --filter @iot-os/portal exec playwright install --with-deps --only-shell chromium
+      - name: Run the specs that mock the API
+        working-directory: apps/portal
+        env:
+          STUDIO_BASE_URL: http://127.0.0.1:4173
+          STUDIO_ARTIFACTS: ${{ runner.temp }}/playwright
+        run: |
+          pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort > "$RUNNER_TEMP/preview.log" 2>&1 &
+          if ! timeout 60 sh -c 'until curl -fsS -o /dev/null http://127.0.0.1:4173/; do sleep 1; done'; then
+            cat "$RUNNER_TEMP/preview.log"
+            exit 1
+          fi
+          # studio.spec.ts drives a live API, so it stays a local check.
+          pnpm exec playwright test $(ls e2e/*.spec.ts | grep -v '^e2e/studio\.spec\.ts$')
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure()
+        with:
+          name: playwright-traces
+          path: ${{ runner.temp }}/playwright
+          retention-days: 7
+
+  adapters:
+    name: Device adapters
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: services/adapters/package-lock.json
+      - run: npm ci --prefix services/adapters --ignore-scripts
+      # The live Mosquitto and Node-RED protocol test stays in the release workflow.
+      - run: npm test --prefix services/adapters
+
+  tooling:
+    name: Tooling (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # Release hosts run Ubuntu 24.04's Python 3.12.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tooling/simulators/requirements.txt
+      - run: python -m pip install -r tooling/simulators/requirements.txt PyYAML==6.0.3
+      - run: python -m unittest discover -s tooling/release -p 'test_*.py'
+      - run: python -m unittest discover -s tooling/simulators -p 'test_*.py'
+      - run: python tooling/verify-devices-contracts.py
+      - name: Node version matches tooling/versions.env
+        run: |
+          pinned="$(sed -n 's/^NODE_VERSION=//p' tooling/versions.env)"
+          if [ "$(cat .nvmrc)" != "$pinned" ]; then
+            echo ".nvmrc says $(cat .nvmrc) but tooling/versions.env pins $pinned"
+            exit 1
+          fi

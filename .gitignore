@@ -1,10 +1,17 @@
 .DS_Store
 .env
 .tools/
-.local/devices/
-.local/monitoring/
-.local/ops/
-.local/pilot-database-checks/
+
+# Agent tool state: worktrees and personal settings stay local; shared
+# .claude/ commands and skills are committed.
+.claude/worktrees/
+.claude/settings.local.json
+.kilo/
+**/.codex/
+
+# Generated screenshots and scratch output
+/output/
+
 __pycache__/
 
 node_modules/
@@ -23,11 +30,9 @@ vendor/
 
 deploy/compose/data/
 
-# Private release credentials, disposable integration evidence and tool environments
-.local/release-*/
-
-# Private adapter verification and manager state
-.local/adapter-*/
+# Private credentials, environment files, database dumps, release evidence and
+# adapter state. Nothing under .local/ is ever committed.
+.local/
 
 # Storybook build output
 storybook-static/

@@ -10,6 +10,8 @@ use App\Domain\Automation\Models\AlertDelivery;
 use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Devices\Services\DeviceAudit;
+use App\Domain\Integrations\Services\EventJournal;
+use App\Domain\Notifications\Services\EventRecorder;
 
 final class AlertProjector
 {
@@ -24,8 +26,8 @@ final class AlertProjector
             return;
         }
         $alert->update([$column => $transition['id'], $active ? 'activated_at' : 'cleared_at' => $transition['occurred_at']]);
-        app(\App\Domain\Notifications\Services\EventRecorder::class)->workflow($alert, $transition['type'], $transition['occurred_at']);
-        \App\Domain\Integrations\Services\EventJournal::alert($alert, $transition['type']);
+        app(EventRecorder::class)->workflow($alert, $transition['type'], $transition['occurred_at']);
+        EventJournal::alert($alert, $transition['type']);
         DeviceAudit::record('alert.'.$transition['type'], $workflow->organization_id, null, $alert->uuid, ['transition_id' => $transition['id'], 'episode' => $alert->episode]);
         // A late activation fills history without reopening or notifying an
         // already-cleared episode. Clear-first envelopes never invent activation.

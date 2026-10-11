@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Assistant\Models;
 
+use App\Domain\Automation\Models\Workflow;
+use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -17,6 +19,7 @@ final class AssistantConversation extends Model
     use HasUuids;
 
     protected $guarded = [];
+
     protected $attributes = ['scope' => 'profile'];
 
     protected function casts(): array
@@ -41,7 +44,7 @@ final class AssistantConversation extends Model
 
     public function adapter(): BelongsTo
     {
-        return $this->belongsTo(\App\Domain\DeviceAdapters\Models\DeviceAdapter::class,'device_adapter_id');
+        return $this->belongsTo(DeviceAdapter::class, 'device_adapter_id');
     }
 
     public function runs(): HasMany
@@ -51,7 +54,7 @@ final class AssistantConversation extends Model
 
     public function workflow(): BelongsTo
     {
-        return $this->belongsTo(\App\Domain\Automation\Models\Workflow::class, 'automation_workflow_id');
+        return $this->belongsTo(Workflow::class, 'automation_workflow_id');
     }
 
     public function sources(): HasMany

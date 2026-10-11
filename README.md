@@ -1,69 +1,66 @@
 # IoT OS
 
-IoT OS is an API-first, AI-first industrial IoT platform built as a cross-language monorepo.
+IoT OS is a multi-tenant industrial IoT platform. Organizations connect devices over
+Sparkplug B (or vendor MQTT through sandboxed adapters), describe them with versioned
+device profiles, store and chart their telemetry, send confirmed commands, automate
+on live data, raise alerts, and expose data to external applications through a scoped
+API, an event feed and webhooks.
 
-Active work is tracked as small, reviewable tasks in the [plan](plan/README.md). Architecture decisions are accepted, while implementation status is recorded separately and must be supported by repository and runtime evidence.
+It is one repository: a React portal and admin (`apps/portal`, `apps/admin`), a
+Laravel control plane (`apps/api`), a Go data plane (`services/runtime`), per-tenant
+adapter runtimes (`services/adapters`), shared packages and cross-language contracts.
+Laravel owns intent and the public API; Go executes activated definitions.
 
-## Repository Boundaries
+**Documentation: [docs/README.md](docs/README.md)** — start with the
+[architecture overview](docs/architecture/overview.md).
 
-```text
-apps/          React applications and Laravel control plane
-services/      Go data-plane runtime
-packages/      Shared React and TypeScript packages
-contracts/     Versioned cross-language contracts and fixtures
-integrations/  Adapter-runtime artifacts
-deploy/        Development and release deployment profiles
-tooling/       Reproducible developer commands
+## Quickstart (about 10 minutes)
+
+Needs Docker with Compose, Git, `curl`, `tar`, OpenSSL and Node.js on macOS or Linux
+([details](docs/dev/local-setup.md#prerequisites)).
+
+```sh
+./tooling/bootstrap        # pinned Task in .tools/bin, creates .env, runs doctor
+./taskw devices:setup      # private TLS certificates and runtime secrets in .local/devices/
+./taskw devices:up         # builds and starts infrastructure, API, workers, runtime, portal, admin
 ```
 
-See [Monorepo and Developer Experience](plan/roadmap/phase-1/monorepo-and-developer-experience.md) for the intended complete layout.
+On the first run only (empty database), create the demo organizations and accounts:
 
-## Initial Developer Setup
-
-The current repository foundation requires Docker, Git, `curl`, `tar`, and a SHA-256 utility on macOS or Linux. The bootstrap script installs the pinned Task binary inside the repository; it does not modify a global toolchain.
-
-```bash
-./tooling/bootstrap
-./taskw deps:up
-./taskw deps:status
+```sh
+docker compose --env-file .env --env-file .local/devices/devices.env \
+  -f deploy/compose/compose.dev.yml -f deploy/compose/compose.app.yml \
+  -f deploy/compose/compose.devices.yml \
+  exec -T api php artisan db:seed --force
 ```
 
-Application workspaces are being added incrementally. The root doctor command reports which local language tools are available without treating optional local toolchains as a replacement for the pinned CI/release toolchains.
+Then open:
 
-## Device Profile Studio
+| | |
+| --- | --- |
+| Portal | http://localhost:5173 — `shared.operator@example.test` / `password` |
+| Admin | http://localhost:5174 — `super-admin@example.test` / `password` |
+| API | http://localhost:8001 |
+| Captured email | http://localhost:8025 |
 
-The tenant authoring portal runs on `http://localhost:5173`; platform administration remains on `http://localhost:5174`. See [Device Profile Studio](docs/device-profile-studio.md) for startup, login, safe upgrades, authoring, and isolated browser tests.
+To see live data, start a simulated device
+([simulators](docs/dev/simulators-and-fixtures.md#sparkplug-simulators-native-path)).
+These credentials are development-only.
 
-## Useful Commands
+## Everyday commands
 
-The [Devices v1 guide](docs/devices-v1.md) covers registration, Sparkplug B on EMQX, live measurements and history, confirmed commands, retention, and recovery. Run `./taskw devices:test` for disposable simulator acceptance or `./taskw devices:serve` for an interactive review. The normal development stack is unchanged unless the Devices overlay is explicitly selected.
-
-```bash
-./taskw doctor
-./taskw deps:config
-./taskw deps:up
-./taskw deps:status
-./taskw deps:smoke
-./taskw deps:logs
-./taskw deps:down
-./taskw lint
-./taskw test
-./taskw runtime:test
-./taskw runtime:dev
-./taskw devices:test
-./taskw devices:serve
+```sh
+./taskw                    # list all tasks
+./taskw doctor             # check tools, configuration and ports
+./taskw lint               # TypeScript (incl. design-system guardrails) and go vet
+./taskw test               # TypeScript and Go tests
+(cd apps/api && php artisan test --compact)   # Laravel tests
+./taskw devices:test       # disposable end-to-end Devices suite
 ```
 
-Development credentials in `.env.example` are intentionally non-production values. Production packaging will generate unique secrets and must never reuse them.
+To stop the stack, run `docker compose … down` with the same `--env-file` and `-f`
+options as above. It keeps volumes; never add `-v`.
 
-## Staging and single-node releases
-
-For the running local Grafana/Prometheus/Loki stack and Mailpit alert drills, see
-[local service monitoring](docs/local-monitoring.md). Start or update it with
-`rtk proxy python3 tooling/monitoring/local.py up`.
-
-The [Sunday staging readiness plan](plan/tasks/staging-monitoring-readiness.md) records monitoring, Grafana logs/alerts, deployment gaps and October 5 client onboarding gates. The [incident runbook](docs/staging-incident-runbook.md) covers operator response and recovery. These are planning documents; target-environment acceptance remains outstanding.
-
-The [monitoring, domain and email setup plan](docs/staging-monitoring-email-setup.md) covers the confirmed `elwids.xyz` domain, staging DNS, Brevo email, alert recipients and independent external monitoring.
-
-See [the release runbook](deploy/release/README.md) for immutable images, Hetzner host setup, `elwids.xyz`/Brevo configuration, staging fixtures, monitoring, backup/recovery, and launch gates. This profile is separate from the local development stack.
+After a change, rebuild only the affected service and check it in the running app
+([local setup](docs/dev/local-setup.md#rebuild-one-service), [testing](docs/dev/testing.md)).
+Deployment is covered in [release](docs/ops/release.md).

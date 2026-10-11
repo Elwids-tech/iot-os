@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Domain\Automation\Http\Controllers;
 
+use App\Domain\Automation\Models\Alert;
 use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
+use App\Domain\Automation\Services\DagAuthorization;
 use App\Domain\Automation\Services\WorkflowDeploymentService;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
+use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
@@ -40,7 +43,9 @@ final class WorkflowController
 
     public function show(Request $request, Organization $organization, Workflow $workflow): array
     {
-        if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') { return app(DagController::class)->show($request, $organization, $workflow); }
+        if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') {
+            return app(DagController::class)->show($request, $organization, $workflow);
+        }
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $workflow);
 
         return ['data' => $this->view($workflow)];
@@ -48,7 +53,9 @@ final class WorkflowController
 
     public function store(Request $request, Organization $organization)
     {
-        if ($request->input('workflow.schema_version') === 'automation-workflow.v2') { return app(DagController::class)->store($request, $organization); }
+        if ($request->input('workflow.schema_version') === 'automation-workflow.v2') {
+            return app(DagController::class)->store($request, $organization);
+        }
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization);
         $values = $this->compile($request, $organization, (string) Str::uuid());
         $workflow = DB::transaction(function () use ($values, $request, $organization) {
@@ -63,7 +70,9 @@ final class WorkflowController
 
     public function update(Request $request, Organization $organization, Workflow $workflow): array
     {
-        if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') { return app(DagController::class)->update($request, $organization, $workflow); }
+        if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') {
+            return app(DagController::class)->update($request, $organization, $workflow);
+        }
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $workflow);
         $revision = $request->validate(['draft_revision' => ['required', 'integer', 'min:1']])['draft_revision'];
         abort_unless($workflow->draft_revision === $revision, 409, 'The workflow draft has changed. Reload before editing.');
@@ -126,7 +135,9 @@ final class WorkflowController
 
     public function simulate(Request $request, Organization $organization, Workflow $workflow): array
     {
-        if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') { return app(DagController::class)->simulate($request, $organization, $workflow); }
+        if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') {
+            return app(DagController::class)->simulate($request, $organization, $workflow);
+        }
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $workflow);
         $input = $request->validate(['draft_revision' => ['required', 'integer', 'min:1'], 'steps' => ['required', 'array', 'min:1', 'max:1000'], 'steps.*' => ['required', 'array:at,event'], 'steps.*.at' => ['required', 'date'], 'steps.*.event' => ['nullable', 'array']]);
         abort_unless($input['draft_revision'] === $workflow->draft_revision, 409, 'The workflow draft has changed. Reload before simulating.');
@@ -149,7 +160,9 @@ final class WorkflowController
 
     public function deploy(Request $request, Organization $organization, Workflow $workflow)
     {
-        if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') { return app(DagController::class)->deploy($request, $organization, $workflow); }
+        if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') {
+            return app(DagController::class)->deploy($request, $organization, $workflow);
+        }
         $this->authorization->authorize($request->user(), DevicePermission::ACTIVATE, $organization, $workflow);
         $input = $request->validate(['operation_uuid' => ['required', 'uuid'], 'target_state' => ['required', 'in:active,inactive'], 'draft_revision' => ['required', 'integer', 'min:1'], 'expected_generation' => ['required', 'integer', 'min:0']]);
         $deployment = app(WorkflowDeploymentService::class)->request($workflow, $input, $request->user()->id);
@@ -160,9 +173,10 @@ final class WorkflowController
     public function deployment(Request $request, Organization $organization, Workflow $workflow, string $operation): array
     {
         if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') {
-            app(\App\Domain\Automation\Services\DagAuthorization::class)->authorize($request->user(), $organization, 'view', $workflow);
-            $deployment = Deployment::where('automation_workflow_id',$workflow->id)->where('uuid',$operation)->firstOrFail();
-            return ['data'=>app(DagController::class)->view($workflow),'deployment'=>$this->deploymentView($deployment)];
+            app(DagAuthorization::class)->authorize($request->user(), $organization, 'view', $workflow);
+            $deployment = Deployment::where('automation_workflow_id', $workflow->id)->where('uuid', $operation)->firstOrFail();
+
+            return ['data' => app(DagController::class)->view($workflow), 'deployment' => $this->deploymentView($deployment)];
         }
 
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $workflow);
@@ -188,7 +202,9 @@ final class WorkflowController
 
     public function execution(Request $request, Organization $organization, Workflow $workflow): array
     {
-        if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') { return app(DagController::class)->execution($request, $organization, $workflow); }
+        if (($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2') {
+            return app(DagController::class)->execution($request, $organization, $workflow);
+        }
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $workflow);
         if (! $workflow->applied_deployment_uuid) {
             return ['data' => null];
@@ -206,9 +222,10 @@ final class WorkflowController
             Device::where('organization_id', $organization->id)->where('uuid', $version->definition['binding']['device_uuid'] ?? '')->firstOrFail();
             $data = $this->runtime->request('GET', '/internal/workflows/location-overview', [
                 'operation_uuid' => $workflow->applied_deployment_uuid, 'organization_uuid' => $organization->uuid,
-                'retention_days' => app(\App\Domain\Devices\Services\RetentionService::class)->effective($organization)['days'],
+                'retention_days' => app(RetentionService::class)->effective($organization)['days'],
             ]);
         }
+
         return ['data' => ['workflow_uuid' => $workflow->uuid, 'workflow_name' => $workflow->name,
             'deployment_status' => $workflow->deployment_status ?? 'inactive', 'operation_uuid' => $workflow->applied_deployment_uuid,
             'snapshot' => $data]];
@@ -217,8 +234,9 @@ final class WorkflowController
     public function alertOverview(Request $request, Organization $organization, Workflow $workflow): array
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $workflow);
-        $query = \App\Domain\Automation\Models\Alert::where('organization_id', $organization->id)->where('automation_workflow_id', $workflow->id);
+        $query = Alert::where('organization_id', $organization->id)->where('automation_workflow_id', $workflow->id);
         $counts = (clone $query)->selectRaw('COUNT(*) as total, SUM(CASE WHEN cleared_at IS NULL THEN 1 ELSE 0 END) as active, SUM(CASE WHEN cleared_at IS NULL AND acknowledged_at IS NULL THEN 1 ELSE 0 END) as unacknowledged')->first();
+
         return ['data' => ['workflow_uuid' => $workflow->uuid, 'workflow_name' => $workflow->name, 'checked_at' => now()->toIso8601String(),
             'active' => (int) $counts->active,
             'unacknowledged_active' => (int) $counts->unacknowledged,

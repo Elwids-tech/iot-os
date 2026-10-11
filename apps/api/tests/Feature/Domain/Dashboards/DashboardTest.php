@@ -60,7 +60,7 @@ final class DashboardTest extends TestCase
         $response = $this->postJson($this->url, $input)->assertOk()->assertJsonPath('data.widgets.0.config.location_device_uuids.0', $source['device_uuid']);
         $dashboard = Dashboard::where('uuid', $response->json('data.uuid'))->firstOrFail();
         $revision = DashboardRevision::where('dashboard_id', $dashboard->id)->firstOrFail();
-        $this->assertSame($gps['config'], $revision->widgets[0]['config']);
+        $this->assertSameJsonDocument($gps['config'], $revision->widgets[0]['config']);
         $this->assertSame(['field'], $revision->tags);
         $input['widgets'][1]['config']['location_device_uuids'] = [$source['device_uuid']];
         $this->postJson($this->url, $input)->assertUnprocessable()->assertJsonValidationErrors('widgets.1.config');
@@ -146,7 +146,7 @@ final class DashboardTest extends TestCase
         $legacy = [['id' => 'existing', 'type' => 'status', 'config' => ['sources' => [['device_uuid' => $source['device_uuid'], 'parameter_uuid' => $source['parameter_uuid']]], 'thresholds' => $source['thresholds']]]];
         $dashboard = Dashboard::create(['organization_id' => $this->organization->id, 'name' => 'Legacy', 'widgets' => $legacy, 'layouts' => []]);
         $view = $this->getJson($this->url.'/'.$dashboard->uuid)->assertOk()->assertJsonPath('data.widgets.0.title', 'Status')->assertJsonPath('data.widgets.0.config.sources.0.base.label', 'Below range')->json('data');
-        $this->assertSame($legacy, $dashboard->fresh()->widgets);
+        $this->assertSameJsonDocument($legacy, $dashboard->fresh()->widgets);
         $this->putJson($this->url.'/'.$dashboard->uuid, array_intersect_key($view, array_flip(['name', 'widgets', 'layouts', 'defaults', 'revision'])))->assertOk()->assertJsonPath('data.widgets.0.config.sources.0.unit', 'C')->assertJsonCount(5, 'data.widgets.0.config.sources.0.thresholds');
         // Snapshots backfilled by the library migration keep legacy widgets and null defaults.
         DashboardRevision::create(['dashboard_id' => $dashboard->id, 'revision' => 1, 'name' => 'Legacy', 'widgets' => $legacy, 'layouts' => [], 'defaults' => null, 'tags' => []]);
@@ -356,8 +356,8 @@ final class DashboardTest extends TestCase
             ->assertJsonPath('data.folder', 'Plant A')
             ->json('data');
         $this->assertNotSame($original['uuid'], $copy['uuid']);
-        $this->assertSame($original['widgets'], $copy['widgets']);
-        $this->assertSame($original['layouts'], $copy['layouts']);
+        $this->assertSameJsonDocument($original['widgets'], $copy['widgets']);
+        $this->assertSameJsonDocument($original['layouts'], $copy['layouts']);
         $this->assertSame($original['defaults'], $copy['defaults']);
         $this->getJson($this->url.'/'.$copy['uuid'].'/revisions')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.revision', 1);
         $this->postJson($this->url.'/'.$original['uuid'].'/duplicate', ['name' => ''])->assertUnprocessable()->assertJsonValidationErrors('name');
