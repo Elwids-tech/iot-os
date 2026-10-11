@@ -30,7 +30,7 @@ createRoot(document.getElementById("root")!).render(
         <PaletteProvider>
           <QueryClientProvider client={queryClient}>
             <RouterProvider router={router} />
-            <Toaster position="bottom-right" closeButton duration={2500} />
+            <Toaster closeButton duration={2500} />
           </QueryClientProvider>
         </PaletteProvider>
       </SkinProvider>

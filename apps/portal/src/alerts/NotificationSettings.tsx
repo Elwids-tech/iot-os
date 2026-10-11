@@ -20,6 +20,7 @@ import { FormSection, SwitchField } from "@iot-os/ui/components/form-fields";
 import { PageHeader } from "@iot-os/ui/components/page-header";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
+import { keepToastsAbove } from "@iot-os/ui/components/sonner";
 import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark";
 import {
   Table,
@@ -619,7 +620,7 @@ function SettingsForm({
         )}
       </FormSection>
       <RequestError error={save.error} />
-      <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t bg-background px-4 py-3 md:-mx-6 md:px-6">
+      <div ref={keepToastsAbove} className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t bg-background px-4 py-3 md:-mx-6 md:px-6">
         <span role="status" className="mr-auto text-sm text-muted-foreground">
           {save.isPending
             ? "Saving…"

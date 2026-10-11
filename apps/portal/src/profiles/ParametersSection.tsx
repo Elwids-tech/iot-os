@@ -17,6 +17,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@iot-os/ui/components/select"
+import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import {
   Table,
   TableHeader,
@@ -608,7 +609,10 @@ export function ParametersSection() {
         </AccordionItem>
       </Accordion>
       {order && (
-        <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 border bg-card p-3">
+        <div
+          ref={keepToastsAbove}
+          className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 border bg-card p-3"
+        >
           <span className="text-sm">
             Unsaved {order.kind === "groups" ? "group" : "parameter"} order
           </span>

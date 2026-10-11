@@ -21,6 +21,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@iot-os/ui/components/sheet"
+import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -182,7 +183,10 @@ export function SaveBar({
   const discard = useContext(SheetDiscard)
   const saved = useJustSaved(dirty, busy)
   return (
-    <div className="sticky bottom-0 flex w-full flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4">
+    <div
+      ref={keepToastsAbove}
+      className="sticky bottom-0 flex w-full flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4"
+    >
       <span
         className={cn("flex items-center gap-1.5 text-xs text-muted-foreground", saved && "text-success")}
         role="status"

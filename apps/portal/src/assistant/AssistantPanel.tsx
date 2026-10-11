@@ -56,6 +56,7 @@ import {
   MessageScrollerButton,
 } from "@iot-os/ui/components/message-scroller"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
+import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import {
   FileTextIcon,
   PlusIcon,
@@ -217,6 +218,8 @@ export default function ProfileAssistantBody({
   const { dirty } = useDirtyContext()
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
+  // Below xl the workspace panel is a full-height sheet, so toasts must clear the composer.
+  const [sheet] = useState(() => !window.matchMedia("(min-width: 1280px)").matches)
   const [selected, setSelected] = useState<string | null>(
     () => cache.getQueryData<string>(["assistant-selected", org]) ?? null,
   )
@@ -795,7 +798,11 @@ export default function ProfileAssistantBody({
           </MessageScrollerProvider>
         )}
       </div>
-      <div className="flex flex-col gap-3 border-t bg-background p-4">
+      <div
+        // The phone sheet fills the screen, so toasts stack above the composer instead.
+        ref={sheet ? keepToastsAbove : undefined}
+        className="flex flex-col gap-3 border-t bg-background p-4"
+      >
         {!!detail?.sources.length && (
           <details>
             <summary className="cursor-pointer text-xs text-muted-foreground">

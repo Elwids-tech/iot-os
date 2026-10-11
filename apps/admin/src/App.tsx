@@ -37,7 +37,7 @@ export function App() {
   return (
     <>
       <RouterProvider router={router} />
-      <Toaster position="bottom-right" closeButton duration={2500} />
+      <Toaster closeButton duration={2500} />
     </>
   )
 }

@@ -692,6 +692,29 @@ test("asks before discarding unsaved permission changes", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Roles" })).toBeVisible()
 })
 
+test("saved toasts stack above the sticky permission bar on a phone", async ({ page }) => {
+  await mockApi(page)
+  await page.setViewportSize({ width: 390, height: 700 })
+  await page.goto("/roles/2")
+
+  const group = page.getByRole("checkbox", { name: "Select all Organization permissions" })
+  await group.click()
+  await page.getByRole("button", { name: "Save changes" }).click()
+  const toast = page.locator("[data-sonner-toast]")
+  await expect(toast).toContainText("Permissions saved for Moderator")
+  // The bar wraps on a phone; the toast settles above it rather than over its buttons.
+  const bar = page.getByRole("button", { name: "Reset changes" }).locator("..")
+  await expect
+    .poll(async () => {
+      const [placed, pinned] = [await toast.boundingBox(), await bar.boundingBox()]
+      return placed!.y + placed!.height <= pinned!.y
+    })
+    .toBe(true)
+  await group.click()
+  await page.getByRole("button", { name: "Save changes" }).click()
+  await expect(page.getByText("All changes saved")).toBeVisible()
+})
+
 test("shows Organization Admin permissions as protected", async ({ page }) => {
   await mockApi(page)
   await page.goto("/roles/1")
