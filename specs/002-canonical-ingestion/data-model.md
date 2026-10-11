@@ -40,7 +40,7 @@ the same effective observation time (`values[].observed_at`, else envelope
 | `quality` | enum `good`, `uncertain`, `bad` | yes | Must not be `good` when `value` is absent |
 | `quality_code` | string | no | 1 to 64 characters, the source's native code (for example an OPC UA status) |
 | `quality_reason` | string | no | 1 to 256 characters, safe text |
-| `unit` | object `{symbol, custom}` | no | `symbol` 1 to 32 characters; `custom: false` means a symbol from `contracts/units/v1/units.json` *(checker validates the fixtures; readers do not convert)* |
+| `unit` | object `{symbol, custom}` | no | `symbol` 1 to 32 characters; `custom: false` means a symbol from `contracts/units/v1/units.json` *(reader; readers never convert)* |
 | `observed_at` | date-time | no | Per-value source time |
 | `time_source` | enum `source`, `receipt`, `corrected_future`, `derived` | yes | Where the effective time came from (FR-006) |
 | `historical` | boolean | yes | `true` for backfilled or buffered values (FR-010) |
@@ -239,6 +239,9 @@ written; where the emitter and the handler disagree, the schema follows the emit
 the difference is listed in the contract's description.
 
 ### 7.3 Wrappers and snapshot
+
+`internal.control-state.v1` is the reconciliation snapshot served by
+`GET /api/internal/devices/state`.
 
 | Contract id | Schema (new, `internal/`) | Producer → consumer | Live check |
 | --- | --- | --- | --- |

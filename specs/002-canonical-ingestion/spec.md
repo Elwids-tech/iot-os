@@ -229,7 +229,8 @@ side catch each one before merge.
   (FR-031).
 - **Device identity that does not match the bindings.** An envelope whose trusted
   context names a platform device that the platform's own bindings do not associate
-  with that source address and organization is rejected by ingestion (FR-004).
+  with that source address and organization is rejected by ingestion with
+  `device_mismatch` (FR-004; the check itself ships with the ingestion spec).
 - **A type that exists in code but not in the contracts** (or the reverse) fails the
   coverage check.
 - **Messages in flight across an upgrade.** Control messages and runtime events queued
@@ -267,7 +268,11 @@ side catch each one before merge.
   trusted context, and only when the authenticated credential itself identifies the
   device (for example a per-device credential) or the trusted ingress boundary resolved
   a platform-owned binding; the trusted context MUST state which of the two applies.
-  Ingestion re-verifies the identity against its own bindings and rejects a mismatch.
+  Ingestion re-verifies the identity against its own bindings and rejects a mismatch
+  with the `device_mismatch` rejection code defined here; because no live component
+  consumes the envelope in this feature (FR-033), performing that re-verification is
+  delivered by the canonical ingestion spec, and this feature delivers the contract
+  rule, the code and an example of the rejection.
 - **FR-005**: An envelope MUST carry provenance in typed fields: protocol family; the
   adapter and its immutable revision when an adapter produced it; the installation
   identity when known; a bounded set of safe transport details (for example topic,
@@ -414,10 +419,11 @@ side catch each one before merge.
   support, as both sides already do in the running system (the runtime dead-letters an
   unknown control message type; the control plane refuses an unknown runtime event type,
   which the runtime then dead-letters), and automated tests MUST prove it for every
-  consumer. In addition, every consumer of an internal message (control messages and
-  the claim response in the runtime, the reconciliation snapshot in the runtime, runtime
-  events in the control plane) MUST check each received message against its contract
-  in the running system and, on a violation:
+  consumer. In addition, every consumer of an internal message, including control
+  messages, every control-plane response and the reconciliation snapshot in the
+  runtime, and runtime events and every runtime request in the control plane, MUST
+  check each received message against its contract in the running system and, on a
+  violation:
   - write one structured log entry naming the message type, contract version, message
     identity and the failing locations, without message values or secrets;
   - increment a violation count per message type and contract version that operators
