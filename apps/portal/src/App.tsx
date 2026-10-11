@@ -513,7 +513,7 @@ const navigationGroups: { label: string; items: NavigationItem[] }[] = [
     label: "Monitor",
     items: [
       { path: "home", label: "Home", icon: HouseIcon, visible: devicesCan("view") },
-      { path: "dashboards", label: "Dashboards", icon: LayoutGridIcon },
+      { path: "dashboards", label: "Dashboards", icon: LayoutGridIcon, visible: (organization) => organization.capabilities?.dashboards?.view !== false },
       { path: "alerts", label: "Alerts", icon: BellIcon, visible: devicesCan("view") },
     ],
   },
@@ -890,6 +890,7 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
           org={org.uuid}
           pages={palettePages}
           canManageDevices={devicesCan("manage")(org)}
+          canViewDashboards={org.capabilities?.dashboards?.view !== false}
           open={searchOpen}
           onOpenChange={setSearchOpen}
         />

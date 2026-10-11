@@ -14,6 +14,7 @@ import {
   type Dashboard,
   type DashboardView,
   type DashboardWidget,
+  type DashboardCapabilities,
 } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
@@ -128,6 +129,8 @@ import { TimeControls } from "./TimeControls"
 import { ContextRail } from "./ContextRail"
 import { panelCsvRows } from "./panelData"
 import { VersionHistory } from "./VersionHistory"
+import { ShareDialog } from "./ShareDialog"
+import { dashboardAbilities } from "./access"
 import { DuplicateDialog, SettingsDialog } from "./LibraryDialogs"
 import { definition, downloadJson } from "./importExport"
 
@@ -159,19 +162,24 @@ function writeStorage(key: string, value: unknown) {
 export function DashboardWorkspace({
   org,
   saved,
-  canManage,
+  capabilities,
+  canManageDevices,
 }: {
   org: string
   saved: Dashboard
-  canManage: boolean
+  capabilities: DashboardCapabilities
+  /** Acknowledging alerts in the context rail is a device action. */
+  canManageDevices: boolean
 }) {
+  const abilities = dashboardAbilities(saved, capabilities)
+  const canEdit = abilities.edit
   const location = useLocation(),
     navigate = useNavigate(),
     cache = useQueryClient()
   const [params, setParams] = useSearchParams()
   const gap = usePanelGap()
   const [draft, setDraft] = useState<Dashboard | null>(() =>
-    location.state?.edit && canManage ? structuredClone(saved) : null,
+    location.state?.edit && canEdit ? structuredClone(saved) : null,
   )
   const [base, setBase] = useState(saved)
   const dashboard = draft ?? saved
@@ -188,7 +196,7 @@ export function DashboardWorkspace({
   const [revealWidget, setRevealWidget] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [dialog, setDialog] = useState<
-    "settings" | "duplicate" | "history" | "delete" | null
+    "settings" | "duplicate" | "history" | "delete" | "share" | null
   >(null)
   const [discard, setDiscard] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -308,12 +316,12 @@ export function DashboardWorkspace({
     // A reload, shared link or Forward opens the editor for a saved or
     // drafted panel; unknown ids (and viewers) drop the parameter.
     const widget = (draft ?? saved).widgets.find((w) => w.id === editorParam)
-    if (widget && canManage) {
+    if (widget && canEdit) {
       if (!draft) startEditing()
       setEditor(structuredClone(widget))
     } else setParam("edit-panel", null)
     // Runs when the URL or permission changes, not when the editor state does.
-  }, [editorParam, canManage])
+  }, [editorParam, canEdit])
   const kioskView = useRef<HTMLDivElement>(null)
   const kioskButton = useRef<HTMLButtonElement>(null)
   const wasKiosk = useRef(kiosk)
@@ -668,13 +676,13 @@ export function DashboardWorkspace({
     <Empty className="border">
       <EmptyHeader>
         <EmptyTitle>No panels yet</EmptyTitle>
-        {!canManage && (
+        {!canEdit && (
           <EmptyDescription>
-            People who can manage devices add panels here.
+            People who can edit this dashboard add panels here.
           </EmptyDescription>
         )}
       </EmptyHeader>
-      {canManage && (
+      {canEdit && (
         <Button
           onClick={() => {
             if (!draft) startEditing()
@@ -1034,10 +1042,17 @@ export function DashboardWorkspace({
               >
                 <PanelRightIcon />
               </Toggle>
-              <Button variant="outline" onClick={() => void copy(link(), "Dashboard link")}>
-                <Share2Icon data-icon="inline-start" />
-                <span className="max-sm:sr-only">Share</span>
-              </Button>
+              {abilities.share ? (
+                <Button variant="outline" onClick={() => setDialog("share")}>
+                  <Share2Icon data-icon="inline-start" />
+                  <span className="max-sm:sr-only">Share</span>
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => void copy(link(), "Dashboard link")}>
+                  <LinkIcon data-icon="inline-start" />
+                  <span className="max-sm:sr-only">Copy link</span>
+                </Button>
+              )}
               <Button
                 ref={kioskButton}
                 variant="outline"
@@ -1054,7 +1069,7 @@ export function DashboardWorkspace({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuGroup>
-                    {canManage && (
+                    {capabilities.create && (
                       <DropdownMenuItem onSelect={() => setDialog("duplicate")}>
                         <CopyIcon />
                         Duplicate
@@ -1070,14 +1085,14 @@ export function DashboardWorkspace({
                       <HistoryIcon />
                       Version history
                     </DropdownMenuItem>
-                    {canManage && (
+                    {canEdit && (
                       <DropdownMenuItem onSelect={() => setDialog("settings")}>
                         <Settings2Icon />
                         Settings
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuGroup>
-                  {canManage && (
+                  {abilities.delete && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
@@ -1091,7 +1106,7 @@ export function DashboardWorkspace({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-              {canManage && (
+              {canEdit && (
                 <Button onClick={startEditing}>
                   <PencilIcon data-icon="inline-start" />
                   Edit<span className="sr-only"> dashboard</span>
@@ -1150,7 +1165,7 @@ export function DashboardWorkspace({
             <ContextRail
               org={org}
               dashboard={saved}
-              canManage={canManage}
+              canManage={canManageDevices}
               timezone={view.timezone}
             />
           </div>
@@ -1240,7 +1255,7 @@ export function DashboardWorkspace({
                 org={org}
                 dashboard={saved.uuid}
                 revision={saved.revision}
-                canManage={canManage}
+                canManage={canEdit}
                 onRestored={(next) => {
                   setBase(withCompactLayouts(next))
                   setDialog(null)
@@ -1258,6 +1273,19 @@ export function DashboardWorkspace({
           folderOnly={false}
           onReload={() => cache.invalidateQueries({ queryKey: ["dashboard", org, saved.uuid] })}
           onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === "share" && (
+        <ShareDialog
+          org={org}
+          dashboard={saved}
+          link={link()}
+          onClose={() => setDialog(null)}
+          onSaved={(access) => {
+            cache.setQueryData<Dashboard>(["dashboard", org, saved.uuid], (current) => (current ? { ...current, access } : current))
+            setBase((current) => ({ ...current, access }))
+            void cache.invalidateQueries({ queryKey: ["dashboards", org] })
+          }}
         />
       )}
       {dialog === "duplicate" && (

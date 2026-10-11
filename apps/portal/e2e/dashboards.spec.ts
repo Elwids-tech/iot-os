@@ -898,6 +898,117 @@ test("panels stick to the top or the panel above, so a drag down never strands o
   expect(errors).toEqual([])
 })
 
+test("owners restrict a dashboard and share it with a role and a member", async ({ page }) => {
+  const { dashboards, errors } = await setup(page)
+  Object.assign(dashboards[0], { access: "organization", abilities: { edit: true, share: true, delete: true } })
+  const access = {
+    access: "organization",
+    owner: { id: 1, name: "Dashboard operator" },
+    shares: [] as Record<string, unknown>[],
+  }
+  const names: Record<string, { name: string; detail: string }> = {
+    "role:7": { name: "Shift supervisors", detail: "6 members" },
+    "user:12": { name: "Pat Lee", detail: "pat@example.test" },
+  }
+  let saved: Record<string, unknown> | null = null
+  await page.route("**/dashboard-share-targets**", (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          roles: [{ type: "role", id: 7, ...names["role:7"] }],
+          users: [{ type: "user", id: 12, ...names["user:12"] }],
+        },
+      },
+    }),
+  )
+  await page.route("**/dashboards/first/access", (route) => {
+    if (route.request().method() === "PUT") {
+      saved = route.request().postDataJSON()
+      const body = saved as { access: string; shares: { type: string; id: number; level: string }[] }
+      access.access = body.access
+      access.shares = body.shares.map((share) => ({ ...share, ...names[`${share.type}:${share.id}`] }))
+      dashboards[0].access = body.access as "organization" | "restricted"
+    }
+    return route.fulfill({ json: { data: access } })
+  })
+  await page.goto(basePath + "/first")
+  await page.getByRole("button", { name: "Share", exact: true }).click()
+  const dialog = page.getByRole("dialog", { name: "Share Plant overview" })
+  await expect(dialog.getByRole("list", { name: "People and roles with access" })).toContainText("Dashboard operatorOwner")
+  await dialog.getByRole("radio", { name: /Only the people and roles below/ }).click()
+  await dialog.getByRole("combobox", { name: "Add people or roles", exact: true }).click()
+  await page.getByRole("option", { name: "Shift supervisors · 6 members", exact: true }).click()
+  await dialog.getByRole("combobox", { name: "Add people or roles", exact: true }).click()
+  await page.getByRole("option", { name: "Pat Lee · pat@example.test", exact: true }).click()
+  await dialog.getByRole("combobox", { name: "Access for Pat Lee", exact: true }).click()
+  await page.getByRole("option", { name: "Can edit", exact: true }).click()
+  await page.waitForFunction(() => document.getAnimations().length === 0)
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([])
+  await dialog.getByRole("button", { name: "Save sharing", exact: true }).click()
+  await expect(page.getByText("Sharing updated")).toBeVisible()
+  expect(saved).toEqual({
+    access: "restricted",
+    shares: [
+      { type: "role", id: 7, level: "view" },
+      { type: "user", id: 12, level: "edit" },
+    ],
+  })
+
+  // The library marks restricted dashboards.
+  await page.goto(basePath)
+  await expect(page.getByRole("row", { name: /Plant overview/ })).toContainText("Restricted")
+  expect(errors).toEqual([])
+})
+
+test("each person sees only what their dashboard access allows", async ({ page }) => {
+  const { dashboards, errors } = await setup(page, false)
+  Object.assign(dashboards[0], { access: "organization", abilities: { edit: true, share: false, delete: false } })
+  Object.assign(dashboards[1], { access: "organization", abilities: { edit: false, share: false, delete: false } })
+  const session = (view: boolean) => ({
+    data: {
+      id: 2, name: "Shared editor", email: "editor@example.test", email_verified_at: "2026-01-01", is_super_admin: false,
+      capabilities: { platform_administration: false },
+      organizations: [{ uuid: org, name: "Acme Manufacturing", slug: "acme", capabilities: { devices: { view: true, manage: false }, dashboards: { view, create: false, manage: false } } }],
+    },
+  })
+  let canView = true
+  await page.route("**/api/v1/me", (route) => route.fulfill({ json: session(canView) }))
+  await page.route("**/api/v1/organizations/*/dashboards/secret", (route) => route.fulfill({ status: 403, json: { message: "You don't have access to this dashboard." } }))
+
+  // Library: no creating; row menus follow each dashboard's abilities.
+  await page.goto(basePath)
+  await expect(page.getByRole("link", { name: "Plant overview", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "New dashboard" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Actions for Plant overview" }).click()
+  await expect(page.getByRole("menuitem")).toHaveText(["Open", "Settings", "Move to folder", "Export JSON"])
+  await page.keyboard.press("Escape")
+  await page.getByRole("button", { name: "Actions for Utilities" }).click()
+  await expect(page.getByRole("menuitem")).toHaveText(["Open", "Export JSON"])
+  await page.keyboard.press("Escape")
+
+  // Shared to edit: Edit, but no Share, Duplicate or Delete.
+  await page.goto(basePath + "/first")
+  await expect(page.getByRole("button", { name: "Edit dashboard", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Share", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Copy link", exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "More dashboard actions" }).click()
+  await expect(page.getByRole("menuitem", { name: "Delete" })).toHaveCount(0)
+  await expect(page.getByRole("menuitem", { name: "Duplicate" })).toHaveCount(0)
+  await page.keyboard.press("Escape")
+
+  // A restricted dashboard someone else owns explains itself.
+  await page.goto(basePath + "/secret")
+  await expect(page.getByText("You don't have access to this dashboard", { exact: true })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Back to Dashboards" })).toHaveCount(1)
+
+  // Without dashboard access the section disappears from navigation.
+  canView = false
+  await page.goto(basePath)
+  await expect(page.getByText("You can't open dashboards", { exact: true })).toBeVisible()
+  await expect(page.getByRole("navigation").getByRole("link", { name: "Dashboards", exact: true })).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
 test("plot zoom updates history and manual refresh keeps absolute bounds", async ({
   page,
 }) => {
@@ -1581,7 +1692,7 @@ test("viewers browse the library without create or manage actions", async ({ pag
   await page.reload()
   await expect(page.getByText("No dashboards yet")).toBeVisible()
   await expect(
-    page.getByText("People who manage devices can create dashboards for this organization."),
+    page.getByText("People who can create dashboards add them here."),
   ).toBeVisible()
   await expect(page.getByRole("button", { name: "New dashboard" })).toHaveCount(0)
   expect(errors).toEqual([])

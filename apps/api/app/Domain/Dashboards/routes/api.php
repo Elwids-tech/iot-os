@@ -17,4 +17,7 @@ Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'da
     Route::get('dashboards/{dashboard}/revisions', [DashboardController::class, 'revisions']);
     Route::get('dashboards/{dashboard}/revisions/{number}', [DashboardController::class, 'revision'])->where('number', '[0-9]{1,9}');
     Route::post('dashboards/{dashboard}/revisions/{number}/restore', [DashboardController::class, 'restore'])->where('number', '[0-9]{1,9}');
+    Route::get('dashboards/{dashboard}/access', [DashboardController::class, 'access']);
+    Route::put('dashboards/{dashboard}/access', [DashboardController::class, 'updateAccess']);
+    Route::get('dashboard-share-targets', [DashboardController::class, 'shareTargets']);
 });

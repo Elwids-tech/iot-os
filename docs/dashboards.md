@@ -88,6 +88,26 @@ All routes sit under `v1/organizations/{org}/dashboards`. Reads need `Device.vie
 - `POST {id}/revisions/{n}/restore` `{revision}` writes the snapshot as a new revision. It uses the current `revision` check (409 when stale) and the update validation, so sources that no longer belong to the organization are rejected.
 - `POST {id}/duplicate` `{name}` copies widgets, layouts, defaults, tags, and folder into a new dashboard at revision 1.
 
+## Access and sharing
+
+Dashboards have permissions of their own, separate from devices:
+
+| Permission | Allows | Built-in roles |
+| --- | --- | --- |
+| `Dashboard.view` | Open dashboards shared with the organization or with you | Admin, Moderator, Member |
+| `Dashboard.create` | Create dashboards; you own them and can edit, share and delete them | Admin, Moderator |
+| `Dashboard.manage` | Open, edit, share and delete every dashboard | Admin |
+
+The `2026_10_11_000000_add_dashboard_access` migration copies existing grants so nobody loses access: whoever had `Device.view` gets `Dashboard.view`, and whoever had `Device.manage` gets `Dashboard.create` and `Dashboard.manage`. It covers custom roles, direct grants and restricted organizations' permission ceilings (`DashboardPermissionBackfill`).
+
+Each dashboard is open to the **organization** (everyone with `Dashboard.view`) or **restricted** (its owner, dashboard managers and the members and roles it is shared with). New and existing dashboards are open to the organization. A share grants **Can view** or **Can edit**; only the owner and managers change access or delete. Duplicating keeps the original's access and shares, so a copy never reaches more people. The API filters the library, returns each dashboard's `access` and the viewer's `abilities` (`edit`, `share`, `delete`), and answers 403 for a dashboard someone can't open. Organization capabilities include `dashboards: {view, create, manage}`.
+
+Endpoints: `GET`/`PUT /organizations/{org}/dashboards/{uuid}/access` (needs the share ability; `PUT` replaces access and every share, and rejects roles or members from other organizations) and `GET /organizations/{org}/dashboard-share-targets?search=` (roles with member counts and members, for anyone who can create or manage dashboards).
+
+In the portal, the Share button opens a dialog with the access choice, the owner, each share's level and a searchable picker for people and roles. People who can't share get Copy link instead. The library has an Access column and row actions that follow each dashboard's abilities. The Dashboards section is hidden without `Dashboard.view`, and other screens that list dashboards skip the request.
+
+Kiosk displays and public links come later; they show a published revision through server-resolved queries.
+
 ## Panel types
 
 | Type | Config |

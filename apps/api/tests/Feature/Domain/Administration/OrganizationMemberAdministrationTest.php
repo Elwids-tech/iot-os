@@ -21,7 +21,7 @@ final class OrganizationMemberAdministrationTest extends TestCase
 
     /** A partial administrator: manages people and roles, but holds no device management. */
     private const PEOPLE_LEAD = [
-        'Organization.view', 'Device.view', 'Workflow.view', 'DeviceProfile.view-any', 'DeviceProfile.view',
+        'Organization.view', 'Device.view', 'Workflow.view', 'Dashboard.view', 'DeviceProfile.view-any', 'DeviceProfile.view',
         'User.view-any', 'User.create', 'User.update', 'User.delete',
         'Role.view-any', 'Role.create', 'Role.update', 'Role.delete',
     ];

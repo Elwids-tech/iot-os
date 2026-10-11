@@ -32,6 +32,7 @@ import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group
 import { formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
 import { LayoutDashboardIcon } from "lucide-react"
 import { api } from "../lib/api"
+import { useDashboardCapabilities } from "../dashboards/access"
 import { dashboardPath } from "../dashboards/model"
 import { telemetryRequest } from "../dashboards/requests"
 import {
@@ -559,9 +560,11 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
 
 /** Dashboards whose panels read this device, filtered from the dashboards list. */
 export function UsedIn({ org, device }: { org: string; device: DeviceDetail }) {
+  const canViewDashboards = useDashboardCapabilities(org).view
   const dashboards = useQuery({
     queryKey: ["dashboards", org],
     queryFn: () => api.dashboards(org),
+    enabled: canViewDashboards,
   })
   const used = (dashboards.data ?? [])
     .map((dashboard: Dashboard) => ({
