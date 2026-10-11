@@ -238,3 +238,50 @@ func TestRuleCheckpointRebaselineIsExplicitAndRefusesContinuousCheckpoints(t *te
 		t.Fatal("rebaseline after retention gap", sequence, err)
 	}
 }
+
+func TestSkipRuleTelemetryAdvancesExactlyOneSequence(t *testing.T) {
+	url := os.Getenv("DEVICE_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("Requires isolated Devices database")
+	}
+	if !strings.Contains(url, "/iot_devices_test?") {
+		t.Fatal("Refusing non-test database")
+	}
+	ctx := context.Background()
+	s, err := Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Pool.Close()
+	var count int
+	if err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM device_runtime.rule_checkpoint`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("requires unused workflow checkpoint", err)
+	}
+	defer s.Pool.Exec(ctx, `DELETE FROM device_runtime.rule_checkpoint`)
+	created := time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC)
+	if _, err = s.PrepareRuleConsumer(ctx, created, 1, 5); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint := func(want uint64) {
+		t.Helper()
+		if _, got, err := s.RuleCheckpoint(ctx); err != nil || got != want {
+			t.Fatalf("checkpoint %d (%v), want %d", got, err, want)
+		}
+	}
+	if err = s.SkipRuleTelemetry(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint(1)
+	if err = s.SkipRuleTelemetry(ctx, 1); err != nil {
+		t.Fatal("a redelivered skip must be idempotent", err)
+	}
+	checkpoint(1)
+	if err = s.SkipRuleTelemetry(ctx, 3); err == nil {
+		t.Fatal("skipping must never open a gap")
+	}
+	checkpoint(1)
+	if err = s.SkipRuleTelemetry(ctx, 2); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint(2)
+}

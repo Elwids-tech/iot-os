@@ -96,24 +96,49 @@ func (a *Application) startRuleConsumer(ctx context.Context) error {
 				}
 				var input devices.CommittedTelemetry
 				if e == nil {
-					e = storage.Decode(message.Data, &input)
+					if decodeErr := storage.Decode(message.Data, &input); decodeErr != nil {
+						e = a.skipRuleTelemetry(ctx, durable, message, metadata.Sequence.Stream, decodeErr)
+						if e == nil {
+							e = message.AckSync(nats.Context(ctx))
+						}
+						a.settleRuleTelemetry(message, e)
+						continue
+					}
 				}
 				if e == nil {
 					e = a.Store.ConsumeRuleTelemetry(ctx, metadata.Sequence.Stream, input, time.Now().UTC())
 				}
 				if e == nil {
 					e = message.AckSync(nats.Context(ctx))
-				} else {
-					_ = message.NakWithDelay(3 * time.Second)
 				}
-				a.noteRules(e)
-				if e != nil {
-					a.Logger.Warn("workflow telemetry deferred", "error", e)
-				}
+				a.settleRuleTelemetry(message, e)
 			}
 		}
 	}()
 	return nil
+}
+
+// skipRuleTelemetry dead-letters an undecodable committed message and moves the
+// checkpoint past it, so one bad payload cannot pause every tenant's workflows
+// while the checkpoint still never skips a message it has not accounted for.
+func (a *Application) skipRuleTelemetry(ctx context.Context, durable string, message *nats.Msg, sequence uint64, cause error) error {
+	if err := a.deadLetter(durable, message, cause); err != nil {
+		return err
+	}
+	if err := a.Store.SkipRuleTelemetry(ctx, sequence); err != nil {
+		return err
+	}
+	a.deadLetters.Add(1)
+	a.Logger.Error("committed telemetry dead-lettered", "consumer", durable, "sequence", sequence, "error", cause)
+	return nil
+}
+
+func (a *Application) settleRuleTelemetry(message *nats.Msg, err error) {
+	if err != nil {
+		_ = message.NakWithDelay(retryDelay(deliveries(message)))
+		a.Logger.Warn("workflow telemetry deferred", "deliveries", deliveries(message), "error", err)
+	}
+	a.noteRules(err)
 }
 
 // ruleFault explains why workflow evaluation is paused. Only faults that need an

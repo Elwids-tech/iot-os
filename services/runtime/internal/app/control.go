@@ -43,7 +43,7 @@ func (c *ControlClient) request(ctx context.Context, method, path string, input,
 	defer response.Body.Close()
 	if response.StatusCode >= 300 {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
-		return fmt.Errorf("control-plane request %s %s returned %d", method, path, response.StatusCode)
+		return &controlStatusError{Method: method, Path: path, Status: response.StatusCode}
 	}
 	if output != nil {
 		decoder := json.NewDecoder(io.LimitReader(response.Body, 32<<20))
@@ -129,6 +129,9 @@ func (a *Application) subscribe() error {
 	if err := a.ensureCommittedStream(); err != nil {
 		return err
 	}
+	if err := a.ensureDeadLetterStream(); err != nil {
+		return err
+	}
 	for _, stream := range []struct {
 		Name, Subject, CapacityEnv string
 		Bytes                      int64
@@ -149,21 +152,21 @@ func (a *Application) subscribe() error {
 		{"iot.control.>", "devices-control", func(m *nats.Msg) error {
 			var ev devices.Event
 			if e := storage.Decode(m.Data, &ev); e != nil {
-				return e
+				return permanent(e)
 			}
 			return a.handleControl(ev)
 		}},
 		{"iot.runtime.>", "devices-control-inbox", func(m *nats.Msg) error {
 			var ev devices.Event
 			if e := storage.Decode(m.Data, &ev); e != nil {
-				return e
+				return permanent(e)
 			}
 			return a.Control.request(a.ctx, "POST", "/events", ev, nil)
 		}},
 		{"iot.telemetry.>", "devices-storage", func(m *nats.Msg) error {
 			var telemetry devices.Telemetry
 			if e := storage.Decode(m.Data, &telemetry); e != nil {
-				return e
+				return permanent(e)
 			}
 			unlock := a.lockDevice(telemetry.Definition.DeviceUUID)
 			defer unlock()
@@ -192,12 +195,7 @@ func (a *Application) subscribe() error {
 	for _, h := range handlers {
 		handler := h
 		sub, e := a.JS.Subscribe(handler.subject, func(m *nats.Msg) {
-			if e := handler.handle(m); e != nil {
-				a.Logger.Warn("durable event deferred", "subject", m.Subject, "error", e)
-				_ = m.NakWithDelay(3 * time.Second)
-			} else {
-				_ = m.Ack()
-			}
+			a.settle(handler.durable, m, handler.handle(m))
 		}, nats.Durable(handler.durable), nats.ManualAck(), nats.AckExplicit(), nats.MaxAckPending(1), nats.DeliverAll())
 		if e != nil {
 			return e

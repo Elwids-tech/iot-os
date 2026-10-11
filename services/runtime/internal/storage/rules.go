@@ -14,7 +14,7 @@ import (
 
 func (s *Store) DeployRule(ctx context.Context, request rules.Deployment, at time.Time) error {
 	if err := request.Validate(); err != nil {
-		return err
+		return fmt.Errorf("%w: %v", ErrRejected, err)
 	}
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
@@ -53,11 +53,11 @@ func (s *Store) DeployRule(ctx context.Context, request rules.Deployment, at tim
 		return err
 	}
 	if org != request.OrganizationUUID {
-		return fmt.Errorf("workflow organization mismatch")
+		return fmt.Errorf("%w: workflow organization mismatch", ErrRejected)
 	}
 	if request.Generation <= generation {
 		if request.Generation == generation && (operation == nil || *operation != request.OperationUUID) {
-			return fmt.Errorf("workflow generation conflict")
+			return fmt.Errorf("%w: workflow generation conflict", ErrRejected)
 		}
 		return tx.Commit(ctx) // original outcome is already durably in the outbox
 	}
@@ -192,6 +192,26 @@ func (s *Store) ConsumeRuleTelemetry(ctx context.Context, sequence uint64, input
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// SkipRuleTelemetry advances the checkpoint past exactly one message that was
+// dead-lettered instead of evaluated. It is idempotent for a redelivery.
+func (s *Store) SkipRuleTelemetry(ctx context.Context, sequence uint64) error {
+	if sequence == 0 {
+		return fmt.Errorf("workflow telemetry sequence must be positive")
+	}
+	tag, err := s.Pool.Exec(ctx, `UPDATE device_runtime.rule_checkpoint SET sequence=$1 WHERE singleton AND sequence=$2`, sequence, sequence-1)
+	if err != nil || tag.RowsAffected() == 1 {
+		return err
+	}
+	_, current, err := s.RuleCheckpoint(ctx)
+	if err != nil {
+		return err
+	}
+	if current >= sequence {
+		return nil
+	}
+	return fmt.Errorf("workflow telemetry sequence gap: expected %d, got %d", current+1, sequence)
 }
 
 func (s *Store) TickRules(ctx context.Context, at time.Time) error {

@@ -41,6 +41,7 @@ type rebirthRequest struct{ Connection, Group, Edge string }
 type Application struct {
 	captures          *telemetry.Manager
 	committedFailures atomic.Uint64
+	deadLetters       atomic.Uint64
 	rulesHealthy      atomic.Bool
 	rulesFault        atomic.Pointer[ruleFault]
 	rulesRetry        chan struct{}
@@ -599,13 +600,13 @@ func (a *Application) handleControl(ev devices.Event) error {
 	case "workflow.deploy.v2":
 		var request storage.DAGDeployment
 		if err := storage.Decode(ev.Payload, &request); err != nil {
-			return err
+			return permanent(err)
 		}
 		return a.Store.DeployDAG(a.ctx, request, time.Now().UTC())
 	case "workflow.deploy.v1":
 		var request rules.Deployment
 		if err := storage.Decode(ev.Payload, &request); err != nil {
-			return err
+			return permanent(err)
 		}
 		return a.Store.DeployRule(a.ctx, request, time.Now().UTC())
 	case "connection.changed.v1":
@@ -615,7 +616,7 @@ func (a *Application) handleControl(ev devices.Event) error {
 	case "device.command.v1":
 		var c devices.Command
 		if e := storage.Decode(ev.Payload, &c); e != nil {
-			return e
+			return permanent(e)
 		}
 		return a.dispatch(c)
 	case "device.activate.v1":
@@ -625,7 +626,7 @@ func (a *Application) handleControl(ev devices.Event) error {
 			OperationUUID string             `json:"operation_uuid"`
 		}
 		if e := storage.Decode(ev.Payload, &request); e != nil {
-			return e
+			return permanent(e)
 		}
 		return a.activate(request.Definition, request.Generation, request.OperationUUID)
 	case "device.deactivate.v1":
@@ -636,11 +637,11 @@ func (a *Application) handleControl(ev devices.Event) error {
 			OperationUUID    string `json:"operation_uuid"`
 		}
 		if e := storage.Decode(ev.Payload, &request); e != nil {
-			return e
+			return permanent(e)
 		}
 		return a.deactivate(request.DeviceUUID, request.OrganizationUUID, request.Generation, request.OperationUUID)
 	}
-	return fmt.Errorf("unsupported control event %s", ev.Type)
+	return permanent(fmt.Errorf("unsupported control event %s", ev.Type))
 }
 func (a *Application) maintenance(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
@@ -688,6 +689,15 @@ func (a *Application) cleanup() error {
 		return e
 	}
 	var failures []error
+	ctx, cancel := context.WithTimeout(a.ctx, 2*time.Minute)
+	pruned, e := a.Store.PruneLedgers(ctx, time.Now().UTC())
+	cancel()
+	if pruned > 0 {
+		a.Logger.Info("runtime ledgers pruned", "deleted_rows", pruned, "complete", e == nil)
+	}
+	if e != nil {
+		failures = append(failures, fmt.Errorf("ledger pruning: %w", e))
+	}
 	for _, retention := range state.Retention {
 		if retention.Days < 1 {
 			return errors.New("invalid effective retention")

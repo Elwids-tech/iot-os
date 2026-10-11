@@ -248,7 +248,7 @@ class Deployment:
         private_write(self.config / "alertmanager.yml", yaml.safe_dump(alertmanager_config(self.env)), 0o644)
 
     def nats_capacity(self):
-        defaults = {"STORE": 24<<30, "CONTROL": 64<<20, "EVENTS": 4<<30, "TELEMETRY": 12<<30, "COMMITTED": 4<<30}
+        defaults = {"STORE": 24<<30, "CONTROL": 64<<20, "EVENTS": 4<<30, "TELEMETRY": 12<<30, "COMMITTED": 4<<30, "DEAD_LETTER": 256<<20}
         limits = {}
         for name, default in defaults.items():
             key = "IOT_NATS_"+name+"_MAX_BYTES"

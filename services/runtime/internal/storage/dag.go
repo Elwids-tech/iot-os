@@ -90,7 +90,7 @@ func checkDAGBindings(ctx context.Context, tx pgx.Tx, w dag.Workflow) error {
 
 func (s *Store) DeployDAG(ctx context.Context, r DAGDeployment, at time.Time) error {
 	if r.Target != "active" && r.Target != "inactive" || r.Generation < 1 {
-		return fmt.Errorf("invalid deployment")
+		return fmt.Errorf("%w: invalid deployment", ErrRejected)
 	}
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
@@ -107,11 +107,11 @@ func (s *Store) DeployDAG(ctx context.Context, r DAGDeployment, at time.Time) er
 		return err
 	}
 	if org != r.Organization {
-		return fmt.Errorf("tenant mismatch")
+		return fmt.Errorf("%w: tenant mismatch", ErrRejected)
 	}
 	if r.Generation <= generation {
 		if r.Generation == generation && (operation == nil || *operation != r.Operation) {
-			return fmt.Errorf("generation conflict")
+			return fmt.Errorf("%w: generation conflict", ErrRejected)
 		}
 		return tx.Commit(ctx)
 	}
@@ -119,7 +119,7 @@ func (s *Store) DeployDAG(ctx context.Context, r DAGDeployment, at time.Time) er
 	diagnostic := ""
 	if r.Target == "active" {
 		if r.Definition == nil || r.Definition.UUID != r.Workflow || r.Definition.Version != r.Operation || r.Definition.Organization != r.Organization {
-			return fmt.Errorf("snapshot identity mismatch")
+			return fmt.Errorf("%w: snapshot identity mismatch", ErrRejected)
 		}
 		p, err = dagPlan(*r.Definition)
 		if err == nil {
