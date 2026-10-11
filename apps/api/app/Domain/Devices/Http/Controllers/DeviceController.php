@@ -250,7 +250,7 @@ final class DeviceController
 
         // Portal charts place readings at observed time and join configuration
         // revisions; the integration SDK keeps its receipt-time, per-configuration contract.
-        return app(RuntimeClient::class)->request('GET', '/internal/measurements/history', [...$values, 'time_basis' => 'observed', 'merge_configurations' => 1, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
+        return app(RuntimeClient::class)->request('GET', '/internal/measurements/history', [...$values, 'time_basis' => 'observed', 'merge_configurations' => 1, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']], RuntimeClient::RANGE_TIMEOUT);
     }
 
     public function historyRecords(Request $request, Organization $organization, Device $device)
@@ -286,7 +286,7 @@ final class DeviceController
             ]);
         }
 
-        return app(RuntimeClient::class)->request('GET', '/internal/measurements/state-history', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
+        return app(RuntimeClient::class)->request('GET', '/internal/measurements/state-history', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']], RuntimeClient::RANGE_TIMEOUT);
     }
 
     /** Counter consumption per calendar bucket, with days and months cut in the given IANA time zone. */
@@ -312,7 +312,7 @@ final class DeviceController
         return app(RuntimeClient::class)->request('GET', '/internal/measurements/increase', [...$values,
             'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid,
             'rollover_at' => $counter['rollover_at'] ?? null,
-            'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
+            'retention_days' => app(RetentionService::class)->effective($organization)['days']], RuntimeClient::RANGE_TIMEOUT);
     }
 
     /** The counter settings from the newest configuration that defines the parameter as a counter. */

@@ -81,7 +81,7 @@ final class TelemetryController
         $result = app(RuntimeClient::class)->request('GET', '/internal/measurements/history', [
             ...$values, 'max_points' => $values['max_points'] ?? 500,
             'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => $retention,
-        ]);
+        ], RuntimeClient::RANGE_TIMEOUT);
         return ['schema_version' => 'telemetry-history.v1', 'device_uuid' => $device->uuid,
             'parameter_uuid' => $values['parameter_uuid'], 'retention_days' => $retention,
             'from' => $result['from'] ?? null, 'to' => $result['to'] ?? null,

@@ -17,7 +17,7 @@ import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
 import { StateHistoryVisualization } from "../history/StateHistoryVisualization"
 import { displayStates } from "./profileDisplay"
-import { appliedParameters, resolveRange, sourceKey } from "./model"
+import { appliedParameters, historyRefresh, resolveRange, sourceKey } from "./model"
 import { telemetryRequest } from "./requests"
 
 export function HistoryStatePanel({
@@ -37,10 +37,7 @@ export function HistoryStatePanel({
 }) {
   const sources = widget.config.sources
   const rangeKey = JSON.stringify(view.range)
-  const refreshInterval =
-    view.range.mode === "relative" && view.refresh
-      ? view.refresh * 1000
-      : (false as const)
+  const refreshInterval = historyRefresh(view)
   const histories = useQueries({
     queries: sources.map((source) => ({
       queryKey: [

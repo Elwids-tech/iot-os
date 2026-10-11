@@ -236,6 +236,10 @@ func (a *Application) historyHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.Logger.Warn("history query failed", "error", e)
+		if storage.IsQueryTimeout(e) {
+			respond(w, 504, map[string]string{"message": rangeTooSlow})
+			return
+		}
 		respond(w, 503, map[string]string{"message": "measurement history is unavailable"})
 		return
 	}
@@ -356,6 +360,10 @@ func (a *Application) historyRecordsHTTP(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+// rangeTooSlow explains a range read cut off at its statement limit; a shorter
+// range reads fewer readings.
+const rangeTooSlow = "This range has too many readings to load in time. Choose a shorter range."
+
 func (a *Application) stateHistoryHTTP(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	from, to, rangeError := historyWindow(q)
@@ -374,6 +382,10 @@ func (a *Application) stateHistoryHTTP(w http.ResponseWriter, r *http.Request) {
 	history, err := a.Store.StateHistory(r.Context(), q.Get("organization_uuid"), q.Get("device_uuid"), q.Get("parameter_uuid"), from, to, maxPoints)
 	if err != nil {
 		a.Logger.Warn("state history query failed", "error", err)
+		if storage.IsQueryTimeout(err) {
+			respond(w, 504, map[string]string{"message": rangeTooSlow})
+			return
+		}
 		respond(w, 503, map[string]string{"message": "state history is unavailable"})
 		return
 	}
@@ -415,6 +427,10 @@ func (a *Application) counterIncreaseHTTP(w http.ResponseWriter, r *http.Request
 			return
 		}
 		a.Logger.Warn("counter increase query failed", "error", err)
+		if storage.IsQueryTimeout(err) {
+			respond(w, 504, map[string]string{"message": rangeTooSlow})
+			return
+		}
 		respond(w, 503, map[string]string{"message": "counter consumption is unavailable"})
 		return
 	}

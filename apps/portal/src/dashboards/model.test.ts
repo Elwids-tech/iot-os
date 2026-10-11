@@ -14,6 +14,7 @@ import {
   dateInput,
   DEFAULT_VIEW,
   gaugeSegments,
+  historyRefresh,
   inputDate,
   newWidget,
   profilePrecision,
@@ -429,5 +430,15 @@ describe("compactLayouts", () => {
       ],
     });
     expect(layouts.lg?.find((item) => item.i === "below")?.y).toBe(10);
+  });
+});
+
+describe("historyRefresh", () => {
+  it("keeps short relative ranges on the dashboard refresh and paces long ones by their span", () => {
+    const view = (preset: "6h" | "30d", refresh: 0 | 5) => ({ ...DEFAULT_VIEW, range: { mode: "relative" as const, preset }, refresh });
+    expect(historyRefresh(view("6h", 5))).toBe(5400);
+    expect(historyRefresh(view("30d", 5))).toBe(648000);
+    expect(historyRefresh(view("30d", 0))).toBe(false);
+    expect(historyRefresh({ ...DEFAULT_VIEW, range: { mode: "absolute", from: "2026-10-01T00:00:00Z", to: "2026-10-02T00:00:00Z" }, refresh: 5 })).toBe(false);
   });
 });
