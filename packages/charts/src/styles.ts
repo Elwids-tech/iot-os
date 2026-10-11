@@ -15,6 +15,8 @@ export function axisStyle(theme: ChartTheme) {
 export function tooltipStyle(theme: ChartTheme) {
   return {
     confine: true,
+    // A stable hook for tests; ECharts tooltips have no role.
+    className: "chart-tooltip",
     backgroundColor: theme.popover,
     borderColor: theme.border,
     borderWidth: 1,

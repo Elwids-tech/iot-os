@@ -1,14 +1,51 @@
 // Only the chart types and components in use, so each chart chunk stays small.
-// Add line, mark-line and data-zoom modules here when a panel needs them.
-import { BarChart } from "echarts/charts"
-import { GridComponent, TooltipComponent } from "echarts/components"
+import { BarChart, CustomChart, GaugeChart, LineChart } from "echarts/charts"
+import {
+  BrushComponent,
+  GridComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  TooltipComponent,
+} from "echarts/components"
 import { init, use, type ComposeOption } from "echarts/core"
 import { SVGRenderer } from "echarts/renderers"
-import type { BarSeriesOption } from "echarts/charts"
-import type { GridComponentOption, TooltipComponentOption } from "echarts/components"
+import type {
+  BarSeriesOption,
+  CustomSeriesOption,
+  GaugeSeriesOption,
+  LineSeriesOption,
+} from "echarts/charts"
+import type {
+  BrushComponentOption,
+  GridComponentOption,
+  MarkAreaComponentOption,
+  MarkLineComponentOption,
+  TooltipComponentOption,
+} from "echarts/components"
 
-use([BarChart, GridComponent, TooltipComponent, SVGRenderer])
+use([
+  BarChart,
+  CustomChart,
+  GaugeChart,
+  LineChart,
+  BrushComponent,
+  GridComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  TooltipComponent,
+  SVGRenderer,
+])
 
-export type ChartOption = ComposeOption<BarSeriesOption | GridComponentOption | TooltipComponentOption>
+export type ChartOption = ComposeOption<
+  | BarSeriesOption
+  | CustomSeriesOption
+  | GaugeSeriesOption
+  | LineSeriesOption
+  | BrushComponentOption
+  | GridComponentOption
+  | MarkAreaComponentOption
+  | MarkLineComponentOption
+  | TooltipComponentOption
+>
 
 export { init }
