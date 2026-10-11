@@ -14,7 +14,7 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     Route::post('auth/reset-password', [PasswordRecoveryController::class, 'reset'])
         ->middleware('throttle:password-reset')->name('auth.reset-password');
     Route::post('auth/login', [SessionController::class, 'store'])
-        ->name('auth.login');
+        ->middleware('throttle:login')->name('auth.login');
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('me', [SessionController::class, 'show'])
