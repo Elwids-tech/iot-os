@@ -208,7 +208,7 @@ final class WebhookTest extends TestCase
         $this->assertSame('failed', WebhookDelivery::firstOrFail()->status);
         $member = User::where('email', 'acme.member@example.test')->firstOrFail();
         $this->token = $member->createToken('member')->plainTextToken;
-        $this->api('GET',$this->url)->assertForbidden();
-        $this->api('PUT',$this->url,['revision' => 1, 'url' => 'https://receiver.example.test/events'])->assertForbidden();
+        $this->api('GET', $this->url)->assertForbidden();
+        $this->api('PUT', $this->url, ['revision' => 1, 'url' => 'https://receiver.example.test/events'])->assertForbidden();
     }
 }
