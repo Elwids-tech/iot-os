@@ -24,8 +24,9 @@ the few contracts that exist have already drifted from what is sent (see
 
 This feature defines the contracts only. Three later specs build on it: canonical
 ingestion in the runtime, a multi-tenant adapter service that replaces the
-per-tenant adapter runtimes, and incremental control-plane synchronisation. Nothing
-that runs today changes behaviour as a result of this feature.
+per-tenant adapter runtimes, and incremental control-plane synchronisation. Apart
+from logging and counting contract violations in the running system, nothing that runs
+today changes behaviour as a result of this feature.
 
 **Terms used in this spec**
 
@@ -42,6 +43,16 @@ that runs today changes behaviour as a result of this feature.
   it.
 - **Contract**: a versioned, machine-readable description of a message with golden
   examples that must validate (valid examples) or must fail (invalid examples).
+
+## Clarifications
+
+### Session 2026-10-11
+
+- Q: Are source lifecycle signals (online/offline, parameter announcement for discovery) part of this contract set, or do they stay protocol-specific until the ingestion spec? → A: Part of this spec: companion contracts for source presence and source announcement, under the same trusted-context rules as the telemetry envelope.
+- Q: Should consumers check message content against the contracts in the running system now, or only in tests? → A: Live checking that logs and counts violations but never refuses or changes processing; refusal comes in later specs.
+- Q: Within a supported major version, should readers ignore unknown fields or reject them? → A: Tolerate unknown fields in internal control-plane/runtime messages; reject them in the canonical envelope and its companion lifecycle messages.
+- Q: Where may a platform device identity appear in an envelope? → A: The source address is always required; a platform device identity is optional and appears only in the trusted context, when the authenticated credential identifies the device or the ingress resolved a platform binding; ingestion re-verifies it.
+- Q: Does "every internal message" include the runtime read endpoints the control plane calls (latest values, history, captures, compile/simulate, timelines)? → A: No. They are out of scope and remain a separate roadmap item (typed runtime gateway).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -89,6 +100,13 @@ field-by-field mapping that shows nothing the platform uses today is lost.
 6. **Given** the same source message delivered twice, **When** the two envelopes are
    built under the documented identity rules, **Then** both carry the same message
    identity.
+7. **Given** the native Sparkplug birth and death fixtures and a vendor source seen for
+   the first time, **When** they are expressed with the companion lifecycle contracts,
+   **Then** births become source announcements (parameters, types, units), deaths
+   become source presence changes, and both validate under the same trusted-context
+   rules as the envelope.
+8. **Given** an envelope or lifecycle message with a field its contract version does
+   not define, **When** it is validated, **Then** it is rejected.
 
 ---
 
@@ -162,6 +180,13 @@ side catch each one before merge.
    **When** it is checked against its published contract, **Then** the contract and the
    producer agree (the drift found in research is resolved by correcting the contract to
    describe what is sent today).
+5. **Given** an internal message of a supported type whose content breaks its contract,
+   **When** a consumer receives it in the running system, **Then** the consumer logs and
+   counts one violation for that message type and processes the message exactly as it
+   does today.
+6. **Given** an internal message with an extra field its contract version does not
+   define, **When** a consumer receives it, **Then** the field is ignored and no
+   violation is counted.
 
 ---
 
@@ -195,15 +220,26 @@ side catch each one before merge.
   limit, make the envelope invalid.
 - **Unknown version.** A message that declares an unsupported version is refused, never
   guessed at or partially applied.
-- **Unknown fields inside a supported version.** Handled as decided in FR-030.
+- **Unknown fields inside a supported version.** Internal control-plane and runtime
+  messages: ignored, so additive changes and messages queued across an upgrade keep
+  working, and not counted as violations. Canonical envelope and lifecycle messages:
+  rejected (FR-030).
+- **Malformed internal message in the running system.** Logged and counted as a
+  violation, then processed exactly as today; never refused because of the check
+  (FR-031).
+- **Device identity that does not match the bindings.** An envelope whose trusted
+  context names a platform device that the platform's own bindings do not associate
+  with that source address and organization is rejected by ingestion (FR-004).
 - **A type that exists in code but not in the contracts** (or the reverse) fails the
   coverage check.
 - **Messages in flight across an upgrade.** Control messages and runtime events queued
   before an upgrade may be read by the newer release; every contract version that can
   still be in flight remains readable until the queues have drained.
-- **Lifecycle signals.** Source online or offline, and a source announcing its
-  parameters (which Sparkplug births and deaths provide today), are handled as decided
-  in FR-017.
+- **Lifecycle signals.** A source going online or offline, and a source announcing
+  its parameters (which Sparkplug births and deaths provide today), use the companion
+  presence and announcement contracts (FR-017). A source that never announces itself
+  can still send telemetry; discovery simply has no announcement for it. Presence may
+  be `unknown` when the adapter cannot tell.
 
 ## Requirements *(mandatory)*
 
@@ -226,9 +262,12 @@ side catch each one before merge.
   identity in the observed content.
 - **FR-004**: An envelope MUST carry the source address as the protocol knows it (for
   example a Sparkplug group, edge node and device; a manufacturer serial; a topic or
-  endpoint) so that platform-owned configuration can bind it to a platform device. A
-  platform device identity MAY appear only in the trusted context, set by the trusted
-  ingress boundary after it resolved the binding, and ingestion verifies it.
+  endpoint) so that platform-owned configuration can bind it to a platform device. The
+  source address is always required. A platform device identity MAY appear only in the
+  trusted context, and only when the authenticated credential itself identifies the
+  device (for example a per-device credential) or the trusted ingress boundary resolved
+  a platform-owned binding; the trusted context MUST state which of the two applies.
+  Ingestion re-verifies the identity against its own bindings and rejects a mismatch.
 - **FR-005**: An envelope MUST carry provenance in typed fields: protocol family; the
   adapter and its immutable revision when an adapter produced it; the installation
   identity when known; a bounded set of safe transport details (for example topic,
@@ -282,15 +321,20 @@ side catch each one before merge.
   explanation, the envelope's message identity and declared version, and the adapter
   revision. It MUST NOT include raw payload content beyond a reference.
 - **FR-016**: The envelope documentation MUST include a field-by-field mapping from
-  each existing source (native Sparkplug births and data messages, and the vendor
-  decoder output) to the envelope, listing any source information that is
-  intentionally not carried and why.
-- **FR-017**: Source lifecycle signals (a source coming online or going offline, and a
-  source announcing its parameters and types for discovery) MUST be handled as follows:
-  [NEEDS CLARIFICATION: Are lifecycle signals part of this contract set, as companion
-  messages to the telemetry envelope, or do they stay protocol-specific until the
-  ingestion spec? Sparkplug births and deaths provide them today, and the vendor path
-  gets them only through the Sparkplug re-encoding.]
+  each existing source (native Sparkplug births, data messages and deaths, and the
+  vendor decoder output) to the envelope and the lifecycle contracts, listing any
+  source information that is intentionally not carried and why.
+- **FR-017**: The contract set MUST include two companion lifecycle contracts that share
+  the envelope's trusted context, source address, provenance, received time, message
+  identity, versioning and unknown-field rules:
+  - **Source presence**: a source became `online`, `offline` or `unknown`, with an
+    optional reason, the session or epoch it refers to, and an optional observation
+    time.
+  - **Source announcement**: the parameters a source says it reports (name, value type,
+    optional unit, optional writable flag), with an announcement revision that changes
+    whenever the set of names or types changes, so discovery can detect changes as
+    Sparkplug births do today.
+  Neither carries values; values travel only in telemetry envelopes.
 
 **Internal control-plane and runtime messages**
 
@@ -338,16 +382,17 @@ side catch each one before merge.
 **Enforcement**
 
 - **FR-025**: The control plane's automated tests MUST prove that every message it
-  produces conforms to its contract (each control message type, claim and
-  acknowledgement responses, the reconciliation snapshot) and that it consumes every
-  valid runtime event example successfully. How invalid examples are refused is set by
-  FR-031.
+  produces conforms to its closed contract (each control message type, claim and
+  acknowledgement responses, the reconciliation snapshot), that it consumes every
+  valid runtime event example successfully, and that its live check (FR-031) counts a
+  violation for every invalid runtime event example while processing continues as
+  today.
 - **FR-026**: The runtime's automated tests MUST prove the mirror: every message it
-  produces conforms (runtime events, claim and acknowledgement requests) and it
-  consumes every valid control message and snapshot example successfully, with refusal
-  of invalid examples as set by FR-031. A reference reader for the canonical envelope
-  MUST accept every valid envelope example and refuse every invalid one with the
-  documented diagnostic code.
+  produces conforms to its closed contract (runtime events, claim and acknowledgement
+  requests), it consumes every valid control message and snapshot example
+  successfully, and its live check counts a violation for every invalid example. A
+  reference reader for the canonical envelope and lifecycle contracts MUST accept every
+  valid example and refuse every invalid one with the documented diagnostic code.
 - **FR-027**: The automated checks MUST fail when a message type is produced or handled
   in code without a contract, or when a contract lacks either producer-side or
   consumer-side conformance tests.
@@ -356,21 +401,31 @@ side catch each one before merge.
   removes a field or changes its meaning keeps the same major version.
 - **FR-029**: The pull request checks MUST run contract validation and both sides'
   conformance tests on every pull request, and a failure MUST block merging.
-- **FR-030**: Within a supported major version, a field the reader does not know MUST be
-  handled as follows: [NEEDS CLARIFICATION: Should readers ignore unknown fields
-  (tolerant, so additive changes can ship to one side first and queued messages survive
-  an upgrade) or refuse them (strict, as every existing contract schema is written
-  today, so both sides must change in the same release)?]
+- **FR-030**: Within a supported major version, unknown fields MUST be handled as
+  follows:
+  - **Internal control-plane and runtime messages**: readers ignore fields they do not
+    know, and the live check does not count them as violations. Producers are tested
+    against the closed contract, so they never send a field the contract does not
+    define.
+  - **Canonical envelope and lifecycle contracts**: readers reject fields their
+    supported version does not define. A new optional field becomes usable only after
+    every reader supports the version that adds it.
 - **FR-031**: Consumers MUST keep refusing message types and versions they do not
   support, as both sides already do in the running system (the runtime dead-letters an
   unknown control message type; the control plane refuses an unknown runtime event type,
   which the runtime then dead-letters), and automated tests MUST prove it for every
-  consumer. Checking each message's content against its full contract in the running
-  system is handled as follows: [NEEDS CLARIFICATION: Should consumers validate message
-  content against the contracts in the running system now (so that, for example, a
-  malformed runtime event is refused permanently instead of failing and being retried
-  forever, a small behaviour change), or only in automated tests, with live validation
-  arriving in the later ingestion and synchronisation specs?]
+  consumer. In addition, every consumer of an internal message (control messages and
+  the claim response in the runtime, the reconciliation snapshot in the runtime, runtime
+  events in the control plane) MUST check each received message against its contract
+  in the running system and, on a violation:
+  - write one structured log entry naming the message type, contract version, message
+    identity and the failing locations, without message values or secrets;
+  - increment a violation count per message type and contract version that operators
+    can read from the side's existing status or metrics output;
+  - process the message exactly as it would without the check. The check MUST NOT
+    refuse, delay, retry or alter a message, and a failure inside the check itself is
+    counted and logged, never propagated.
+  Refusing non-conforming content is left to later specs.
 
 **Compatibility**
 
@@ -378,7 +433,7 @@ side catch each one before merge.
   ingestion, the adapter runtimes and the Sparkplug they publish, the interfaces between
   the control plane and the runtime (their operations, outcomes and message content),
   the runtime's internal message streams, and stored telemetry stay as they are, except
-  where FR-031 is resolved otherwise.
+  for the violation logging and counting in FR-031.
 - **FR-033**: No component emits or consumes the canonical telemetry envelope on a live
   path as part of this feature.
 - **FR-034**: Native Sparkplug devices and vendor devices behind an adapter MUST keep
@@ -392,8 +447,8 @@ side catch each one before merge.
   address, provenance, received time, optional observation time, and one or more
   values.
 - **Trusted context**: organization, authenticated connection or adapter deployment,
-  adapter and revision, and optionally the resolved platform device. Set only by the
-  trusted ingress boundary.
+  adapter and revision, and optionally the platform device with the basis for it
+  (credential or binding). Set only by the trusted ingress boundary.
 - **Source address**: how the protocol names the device (Sparkplug hierarchy,
   manufacturer serial, topic, endpoint). Bound to a platform device by platform-owned
   configuration.
@@ -403,6 +458,13 @@ side catch each one before merge.
   redelivery, plus optional sequence and session for gap detection.
 - **Rejection diagnostic**: stage, code, safe explanation, message identity, declared
   version and adapter revision for an envelope that was refused.
+- **Source presence**: a lifecycle message saying a source is online, offline or
+  unknown, with reason and session; shares the envelope's trusted context and identity
+  rules.
+- **Source announcement**: a lifecycle message listing the parameters a source reports
+  (name, type, unit) with an announcement revision; carries no values.
+- **Contract violation record**: the log entry and count produced when a live check
+  finds a received internal message that breaks its contract.
 - **Control message**: intent from the control plane (activation, deactivation, command,
   deployment, connection change, retention change), identified by a unique id and
   fenced by generation or operation.
@@ -424,10 +486,11 @@ side catch each one before merge.
   today (7 control message types, 16 runtime event types, the delivery wrappers, the
   automation command check and the reconciliation snapshot) have a versioned contract
   with at least one valid and one invalid example.
-- **SC-002**: 100% of the information today's ingestion uses from each existing source
-  (every field in the Sparkplug golden fixtures and in the vendor decoder output) has a
-  documented place in the envelope; anything not carried is listed with a reason, and
-  nothing is dropped silently.
+- **SC-002**: 100% of the information today's ingestion and discovery use from each
+  existing source (every field in the Sparkplug golden fixtures, including births and
+  deaths, and in the vendor decoder output) has a documented place in the envelope or
+  the lifecycle contracts; anything not carried is listed with a reason, and nothing is
+  dropped silently.
 - **SC-003**: In a seeded-fault exercise of at least 10 deliberate breaking changes
   spread across the control plane, the runtime and the envelope (missing required
   field, undeclared field, renamed type, unsupported version, contract edited without
@@ -446,6 +509,13 @@ side catch each one before merge.
   it.
 - **SC-008**: The added checks keep every continuous integration job within its current
   time limit and report in the same pull request check run as the code change.
+- **SC-009**: In the rebuilt stack, after the contract corrections, running the Sparkplug
+  and vendor simulators through activation, commands, a deployment and a deactivation
+  produces zero live contract violations on either side, and a deliberately malformed
+  runtime event raises the matching violation count by exactly one without changing how
+  the event is handled.
+- **SC-010**: The live checks add no more than 5% to the time each consumer spends
+  handling a message, measured with the simulators before and after.
 
 ## Assumptions
 
@@ -454,8 +524,8 @@ side catch each one before merge.
   request is acceptable. Mixed versions occur only for messages already queued when an
   upgrade happens.
 - "Every internal message" means the control messages, runtime events, delivery
-  wrappers and reconciliation snapshot named in the description. Out of scope: the
-  runtime query endpoints the control plane calls for reads (latest values, history,
+  wrappers, automation command check and reconciliation snapshot named in the
+  description (confirmed in clarification). Out of scope: the runtime query endpoints the control plane calls for reads (latest values, history,
   captures, validation, workflow compile and simulate, timelines); the adapter manager's
   private interface and the adapter runtime's event reporting; and the public API, which
   spec 001 covers. The committed telemetry feed is already contracted and is only
@@ -469,9 +539,8 @@ side catch each one before merge.
 - Command downlink (encoding commands for vendor devices) is out of scope; adapters are
   uplink-only today.
 - Both sides already refuse unknown message types (and therefore unknown type versions)
-  in the running system; this feature keeps that behaviour. Content validation on the
-  live paths is decided under FR-031; otherwise this feature requires conformance in
-  automated tests and pull request checks only.
+  in the running system; this feature keeps that behaviour. Live content checks only
+  log and count (FR-031); they never change how a message is processed.
 - New contracts live with the existing contracts and follow the existing contract rules
   (versioned identifiers, golden examples, consumers refuse unsupported versions).
   Contract technology, code generation and file layout are decided in the plan, using
