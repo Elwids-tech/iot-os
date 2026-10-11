@@ -14,11 +14,12 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import type {
-  AlertDelivery,
-  Dashboard,
-  WorkflowAlert,
-  WorkflowAlertSource,
+import {
+  ApiError,
+  type AlertDelivery,
+  type Dashboard,
+  type WorkflowAlert,
+  type WorkflowAlertSource,
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
 import { Checkbox } from "@iot-os/ui/components/checkbox";
@@ -50,7 +51,7 @@ import {
 import { formatAge, formatDateTime } from "@iot-os/ui/lib/format";
 import { api } from "../lib/api";
 import { useUnsavedContribution } from "../lib/unsaved";
-import { Confirm, RequestError } from "../components/forms";
+import { Confirm, LoadError, RequestError } from "../components/forms";
 import {
   DeviceEmpty,
   DevicePages,
@@ -66,6 +67,7 @@ import {
   alertQuery,
   alertTitle,
   conditionOf,
+  isAlertId,
   sourceKey,
 } from "./model";
 import { useWide } from "./shared";
@@ -78,6 +80,8 @@ export default function AlertRoutes() {
       <Route path="preferences" element={<MovedToSettings section="email" />} />
       <Route path="notifications" element={<MovedToSettings section="notifications" />} />
       <Route path="notifications/:workflowUuid" element={<MovedToSettings section="notifications" />} />
+      {/* A guessed alerts/settings link would otherwise be read as an alert id. */}
+      <Route path="settings" element={<MovedToSettings section="notifications" />} />
       <Route path=":alertUuid" element={<AlertsPage />} />
     </Routes>
   );
@@ -99,6 +103,8 @@ const conditionMark = (alert: WorkflowAlert) =>
   );
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${count.toLocaleString()} ${count === 1 ? one : many}`;
+const isNotFound = (error: unknown) =>
+  error instanceof ApiError && error.status === 404;
 
 /** Duration, acknowledgement and assignee; the title already names workflow and device. */
 function AlertMeta({ alert }: { alert: WorkflowAlert }) {
@@ -215,7 +221,7 @@ function AlertsPage() {
   const selectedAlert = useQuery({
     queryKey: ["alert", org, selected],
     queryFn: () => api.alert(org, selected!),
-    enabled: capabilities.view && Boolean(selected),
+    enabled: capabilities.view && Boolean(selected) && isAlertId(selected!),
   });
   const [deviceSearch, setDeviceSearch] = useState("");
   const [devicePage, setDevicePage] = useState(1);
@@ -849,19 +855,20 @@ function AlertDetail({
   const query = useQuery({
     queryKey: ["alert", org, id],
     queryFn: () => api.alert(org, id),
-    enabled: capabilities.view,
-    refetchInterval: 5000,
+    enabled: capabilities.view && isAlertId(id),
+    refetchInterval: (current) => (isNotFound(current.state.error) ? false : 5000),
   });
   const alert = query.data;
+  const missing = !isAlertId(id) || isNotFound(query.error);
   const comments = useQuery({
     queryKey: ["alert-comments", org, id, page],
     queryFn: () => api.alertComments(org, id, page),
-    enabled: capabilities.view,
+    enabled: capabilities.view && !missing,
   });
   const deliveries = useQuery({
     queryKey: ["alert-deliveries", org, id],
     queryFn: () => api.alertDeliveries(org, id),
-    enabled: capabilities.manage,
+    enabled: capabilities.manage && !missing,
     refetchInterval: 5000,
   });
   const dashboards = useQuery({
@@ -906,7 +913,11 @@ function AlertDetail({
       void cache.invalidateQueries({ queryKey: ["alert-comments", org, id] });
     },
   });
-  const title = alert ? alertTitle(alert) : "Alert";
+  const title = alert
+    ? alertTitle(alert)
+    : missing && capabilities.view
+      ? "Alert not found"
+      : "Alert";
   const occurrence = alert ? `Occurrence ${alert.episode}` : undefined;
   // Sections sit under the page h1 when narrow and under the pane's h2 when wide.
   const Heading = back ? "h2" : "h3";
@@ -972,8 +983,22 @@ function AlertDetail({
   timeline.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const body = (
     <div className="flex min-w-0 flex-col gap-6">
-      <RequestError error={organization.error ?? query.error} />
-      {query.isPending && capabilities.view ? (
+      {missing && capabilities.view ? (
+        <DeviceEmpty
+          title="No alert matches this link"
+          description="It may have been removed, or the link may be incomplete."
+        />
+      ) : (
+        <LoadError
+          error={organization.error ?? query.error}
+          what="this alert"
+          onRetry={() =>
+            organization.error ? organization.refetch() : query.refetch()
+          }
+          busy={organization.isFetching || query.isFetching}
+        />
+      )}
+      {query.isPending && capabilities.view && !missing ? (
         <Skeleton className="h-48 w-full" />
       ) : null}
       {!organization.isPending && !capabilities.view ? (

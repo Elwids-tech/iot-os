@@ -4,7 +4,7 @@ use App\Domain\Assistant\Http\Controllers\AssistantController;
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1/organizations/{organization}/assistant')->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
+Route::prefix('v1/organizations/{organization}/assistant')->whereUuid(['organization', 'conversation', 'source', 'proposal', 'run'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
     Route::get('settings', [AssistantController::class, 'settings']);
     Route::get('conversations', [AssistantController::class, 'index']);
     Route::post('conversations', [AssistantController::class, 'store'])->middleware('throttle:30,1');

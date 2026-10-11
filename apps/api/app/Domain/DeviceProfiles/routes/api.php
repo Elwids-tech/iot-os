@@ -18,6 +18,7 @@ Route::get('v1/units', UnitCatalogueController::class)->middleware('auth:sanctum
 
 Route::prefix('v1/organizations/{organization}')
     ->name('api.v1.organizations.')
+    ->whereUuid(['organization', 'profile', 'group', 'parameter', 'alarm', 'binding'])
     ->middleware(['auth:sanctum', ResolveOrganizationContext::class])
     ->group(function (): void {
         Route::get('device-profiles', [DeviceProfileController::class, 'index'])->name('device-profiles.index');

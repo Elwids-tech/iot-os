@@ -4,7 +4,7 @@ use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use App\Domain\DeviceAdapters\Http\AdapterController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1/organizations/{organization}')->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
+Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'adapter', 'candidate', 'credential', 'proposal'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
     Route::get('device-adapters', [AdapterController::class, 'index']);
     Route::get('device-adapter-profiles', [AdapterController::class, 'profiles']);
     Route::post('device-adapters', [AdapterController::class, 'store']);

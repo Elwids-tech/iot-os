@@ -16,12 +16,12 @@ use App\Domain\Devices\Http\Controllers\TelemetryCaptureController;
 use App\Domain\Devices\Http\Middleware\AuthenticateDeviceRuntime;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1/organizations/{organization}')->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
+Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'capture', 'device', 'operation', 'site', 'command', 'connection', 'gateway', 'candidate'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
     Route::get('telemetry-captures', [TelemetryCaptureController::class, 'index']);
     Route::post('telemetry-captures', [TelemetryCaptureController::class, 'store'])->middleware('throttle:20,1');
-    Route::get('telemetry-captures/{capture}', [TelemetryCaptureController::class, 'show'])->whereUuid('capture');
-    Route::post('telemetry-captures/{capture}', [TelemetryCaptureController::class, 'update'])->whereUuid('capture');
-    Route::post('telemetry-captures/{capture}/diagnose', [TelemetryCaptureController::class, 'diagnose'])->whereUuid('capture')->middleware('throttle:6,1');
+    Route::get('telemetry-captures/{capture}', [TelemetryCaptureController::class, 'show']);
+    Route::post('telemetry-captures/{capture}', [TelemetryCaptureController::class, 'update']);
+    Route::post('telemetry-captures/{capture}/diagnose', [TelemetryCaptureController::class, 'diagnose'])->middleware('throttle:6,1');
     Route::get('runtime-status', RuntimeStatusController::class);
     Route::get('devices', [DeviceController::class, 'index']);
     Route::post('device-onboardings', [OnboardingController::class, 'store'])->middleware('throttle:20,1');

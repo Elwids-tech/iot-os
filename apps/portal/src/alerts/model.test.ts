@@ -5,6 +5,7 @@ import {
   alertTitle,
   conditionOf,
   eventState,
+  isAlertId,
   legacyNotificationPath,
 } from "./model";
 
@@ -48,6 +49,12 @@ describe("Alert list filters", () => {
       "device=d1&condition=active",
     );
     expect(alertQuery(new URLSearchParams("condition=all&page=2")).toString()).toBe("page=2");
+  });
+  it("treats only a UUID path segment as an alert id", () => {
+    expect(isAlertId("0f8fad5b-d9cb-469f-a165-70867728950e")).toBe(true);
+    expect(isAlertId("0F8FAD5B-D9CB-469F-A165-70867728950E")).toBe(true);
+    expect(isAlertId("settings")).toBe(false);
+    expect(isAlertId("0f8fad5b-d9cb-469f-a165-70867728950e-x")).toBe(false);
   });
   it("sends the signed-in user's id for assigned to me, never the word me", () => {
     expect(alertQuery(new URLSearchParams("assignee=me"), 7).get("assignee")).toBe("7");

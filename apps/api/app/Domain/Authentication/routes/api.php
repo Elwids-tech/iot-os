@@ -24,6 +24,7 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             ->name('auth.logout');
 
         Route::get('organizations/{organization}/context', [OrganizationContextController::class, 'show'])
+            ->whereUuid('organization')
             ->middleware(ResolveOrganizationContext::class)
             ->name('organizations.context');
     });
