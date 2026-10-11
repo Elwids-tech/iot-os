@@ -1,8 +1,10 @@
+import { useMemo } from "react"
 import type {
   DeviceConfiguration,
   StateHistory,
   StateHistorySegment,
 } from "@iot-os/api-client"
+import { EChart, timelineOption, useChartTheme } from "@iot-os/charts"
 import { Badge } from "@iot-os/ui/components/badge"
 import { cn } from "@iot-os/ui/lib/utils"
 import {
@@ -13,12 +15,13 @@ import {
   validHexColor,
 } from "./model"
 import { stateFor, TONE_COLOR, type StateLabel } from "../dashboards/profileDisplay"
+import { tickFormatter } from "../dashboards/model"
 
 function segmentColor(segment: Pick<StateHistorySegment, "value" | "known" | "data_type">, colour: boolean, states: StateLabel[] = []) {
   if (colour)
     return segment.known && validHexColor(segment.value)
       ? segment.value
-      : "#94a3b8"
+      : "var(--muted-foreground)"
   const state = segment.known ? stateFor(states, segment.value) : undefined
   if (state?.tone) return TONE_COLOR[state.tone]
   return stateColor(segment.value, segment.known, segment.data_type)
@@ -50,6 +53,7 @@ export function StateHistoryVisualization({
   colour = false,
   timezone = "browser",
   states = [],
+  group,
 }: {
   history: StateHistory
   configurations: DeviceConfiguration[]
@@ -57,8 +61,36 @@ export function StateHistoryVisualization({
   timezone?: "browser" | "utc"
   /** Profile labels and tones for the parameter's values. */
   states?: StateLabel[]
+  /** Linked time charts on a dashboard share a crosshair. */
+  group?: string
 }) {
-  const total = Math.max(1, Date.parse(history.to) - Date.parse(history.from))
+  const theme = useChartTheme()
+  const from = Date.parse(history.from),
+    to = Date.parse(history.to)
+  const option = useMemo(
+    () =>
+      timelineOption(theme, {
+        from,
+        to,
+        formatTick: tickFormatter(to - from, timezone),
+        formatTime: (time) => timeLabel(new Date(time).toISOString(), timezone),
+        formatDuration,
+        segments: history.timeline.map((segment) => {
+          const configuration = segment.configuration_uuid
+            ? configurationMeta(configurations, segment.configuration_uuid)
+            : null
+          return {
+            from: Date.parse(segment.from),
+            to: Date.parse(segment.to),
+            color: segmentColor(segment, colour, states),
+            label: segmentLabel(segment, colour, states),
+            detail: configuration ? `${configuration.configurationLabel} · ${configuration.profileLabel}` : undefined,
+            unknown: !segment.known || (colour && !validHexColor(segment.value)),
+          }
+        }),
+      }),
+    [theme, history, configurations, colour, timezone, JSON.stringify(states)],
+  )
   const observedColours = colour
     ? [
         ...new Set(
@@ -127,11 +159,12 @@ export function StateHistoryVisualization({
         </div>
       )}
       <div className="flex flex-col gap-2">
-        {/* One label summarizes the strip; segments keep hover titles only. */}
-        <div
-          className="flex h-12 min-w-0 overflow-hidden rounded-md border bg-muted"
-          role="img"
-          aria-label={`${colour ? "Colour" : "State"} history timeline, ${timeLabel(history.from, timezone)} to ${timeLabel(history.to, timezone)}: ${[
+        {/* One label summarizes the timeline; segments describe themselves on hover. */}
+        <EChart
+          option={option}
+          group={group}
+          className="h-20 w-full"
+          label={`${colour ? "Colour" : "State"} history timeline, ${timeLabel(history.from, timezone)} to ${timeLabel(history.to, timezone)}: ${[
             ...history.timeline
               .reduce((totals, segment) => {
                 const label = segmentLabel(segment, colour, states)
@@ -146,30 +179,7 @@ export function StateHistoryVisualization({
           ]
             .map(([label, ms]) => `${label} ${formatDuration(ms)}`)
             .join(", ")}`}
-        >
-          {history.timeline.map((segment, index) => {
-            const configuration = segment.configuration_uuid
-              ? configurationMeta(configurations, segment.configuration_uuid)
-              : null
-            const description = `${segmentLabel(segment, colour, states)} · ${timeLabel(segment.from, timezone)} to ${timeLabel(segment.to, timezone)}${configuration ? ` · ${configuration.configurationLabel} · ${configuration.profileLabel}` : ""}`
-            return (
-              <span
-                key={`${segment.from}:${index}`}
-                className={cn(
-                  "min-w-px border-r border-foreground/10 last:border-r-0",
-                  (!segment.known ||
-                    (colour && !validHexColor(segment.value))) &&
-                    "history-unknown",
-                )}
-                style={{
-                  width: `${((Date.parse(segment.to) - Date.parse(segment.from)) / total) * 100}%`,
-                  backgroundColor: segmentColor(segment, colour, states),
-                }}
-                title={description}
-              />
-            )
-          })}
-        </div>
+        />
         {/* The image label summarizes; this list gives screen readers every
             segment in order. One text node per item keeps text matches exact. */}
         <ol

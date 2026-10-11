@@ -237,6 +237,25 @@ export function gaugeSegments(source: DashboardSource, min: number, max: number)
     })
     .filter((segment) => segment.to > segment.from)
 }
+/**
+ * A source's bands as value ranges for shading a chart: below the first
+ * threshold is the base band, then each threshold's band up to the next.
+ * Neutral bands are left out, since shading them adds nothing.
+ */
+export function valueBands(source: DashboardSource) {
+  const bands = [
+    { value: null as number | null, ...source.base },
+    ...[...source.thresholds].sort((a, b) => a.value - b.value),
+  ]
+  return bands
+    .map((band, index) => ({
+      from: band.value,
+      to: bands[index + 1]?.value ?? null,
+      color: band.color,
+      label: band.label,
+    }))
+    .filter((band) => band.color !== NEUTRAL.color)
+}
 export function resolveRange(range: DashboardRange, now = Date.now()) {
   return range.mode === "relative"
     ? {
@@ -320,17 +339,20 @@ export function inputDate(value: string, timezone: DashboardView["timezone"]) {
     ? date.toISOString()
     : ""
 }
-/** Axis ticks sized to the range: time of day, weekday and time, or date. */
+/**
+ * Axis ticks sized to the range: time of day within a day; within a week,
+ * the day at midnight and the time otherwise; beyond that, the date.
+ */
 export function tickFormatter(span: number, timezone: DashboardView["timezone"]) {
-  const format = new Intl.DateTimeFormat(undefined, {
-    ...(span <= PRESETS["24h"]
-      ? { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
-      : span <= PRESETS["7d"]
-        ? { weekday: "short", hour: "2-digit", hourCycle: "h23" }
-        : { month: "short", day: "numeric" }),
-    ...(timezone === "utc" ? { timeZone: "UTC" } : {}),
-  })
-  return (value: number) => format.format(value)
+  const zone = timezone === "utc" ? { timeZone: "UTC" } : {}
+  const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23", ...zone })
+  const day = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", ...zone })
+  const date = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", ...zone })
+  return (value: number) => {
+    if (span > PRESETS["7d"]) return date.format(value)
+    const clock = time.format(value)
+    return span > PRESETS["24h"] && clock === "00:00" ? day.format(value) : clock
+  }
 }
 /** Min, average, max and last of the non-empty values, in time order. */
 export function seriesStats(values: Array<number | null>) {

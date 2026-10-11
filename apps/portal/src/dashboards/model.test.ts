@@ -24,6 +24,7 @@ import {
   resolveRange,
   responsiveLayouts,
   thresholdError,
+  valueBands,
   widgetError,
   writeView,
 } from "./model";
@@ -348,6 +349,11 @@ describe("chart helpers", () => {
     const at = Date.parse("2026-09-09T12:30:00Z");
     expect(tickFormatter(3600000, "utc")(at)).toMatch(/12:30/);
     expect(tickFormatter(30 * 86400000, "utc")(at)).not.toMatch(/12:30/);
+    // Within a week, midnight names the day and other ticks keep the time.
+    const midnight = Date.UTC(2026, 9, 5);
+    expect(tickFormatter(7 * 86400000, "utc")(midnight)).toMatch(/5/);
+    expect(tickFormatter(7 * 86400000, "utc")(midnight)).not.toMatch(/00:00/);
+    expect(tickFormatter(7 * 86400000, "utc")(midnight + 12 * 3600000)).toMatch(/12:00/);
   });
   it("summarizes known values and escapes CSV cells", () => {
     expect(seriesStats([null, 2, 4, null])).toEqual({ min: 2, avg: 3, max: 4, last: 4 });
@@ -358,3 +364,25 @@ describe("chart helpers", () => {
     expect(toCsv([["=cmd()", -2.5]])).toBe("'=cmd(),-2.5\r\n");
   });
 });
+
+describe("valueBands", () => {
+  it("turns the base band and thresholds into value ranges and skips neutral bands", () => {
+    const source = {
+      base: { label: "Current", color: "#64748b" },
+      thresholds: [
+        { value: 30, label: "critical", color: "#dc2626" },
+        { value: 25, label: "warning", color: "#d97706" },
+      ],
+    } as Parameters<typeof valueBands>[0]
+    expect(valueBands(source)).toEqual([
+      { from: 25, to: 30, color: "#d97706", label: "warning" },
+      { from: 30, to: null, color: "#dc2626", label: "critical" },
+    ])
+    expect(valueBands({ ...source, base: { label: "Low", color: "#dc2626" } })[0]).toEqual({
+      from: null,
+      to: 25,
+      color: "#dc2626",
+      label: "Low",
+    })
+  })
+})

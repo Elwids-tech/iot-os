@@ -7,12 +7,8 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@iot-os/ui/components/alert"
+import { EChart, timeSeriesOption, useChartTheme } from "@iot-os/charts"
 import { Button } from "@iot-os/ui/components/button"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@iot-os/ui/components/chart"
 import {
   Collapsible,
   CollapsibleContent,
@@ -24,8 +20,7 @@ import {
   CircleAlertIcon,
   RefreshCwIcon,
 } from "lucide-react"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
-import { formatAge } from "@iot-os/ui/lib/format"
+import { formatAge, formatNumber } from "@iot-os/ui/lib/format"
 import { api } from "../lib/api"
 import { Choice, TextField, errorMessage } from "../components/forms"
 import { HistoryRecordsTable } from "../history/HistoryRecordsTable"
@@ -52,6 +47,58 @@ function localInput(iso: string) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 16)
+}
+
+/** One stored series of a numeric parameter; dragging across it selects a custom range. */
+function HistoryChart({
+  points,
+  name,
+  unit,
+  span,
+  onSelect,
+}: {
+  points: { at: string; value: unknown }[]
+  name: string
+  unit: string | null
+  span: number
+  onSelect: (from: number, to: number) => void
+}) {
+  const theme = useChartTheme()
+  const option = useMemo(
+    () =>
+      timeSeriesOption(theme, {
+        lines: [
+          {
+            key: "value",
+            name,
+            color: "var(--series-1)",
+            points: points.map((point) => ({
+              time: Date.parse(point.at),
+              value: typeof point.value === "number" ? point.value : null,
+            })),
+          },
+        ],
+        formatTick: (time) =>
+          new Date(time).toLocaleString(
+            [],
+            span > 36 * 3600000
+              ? { month: "short", day: "numeric" }
+              : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" },
+          ),
+        formatTime: (time) => formatTime(new Date(time).toISOString()),
+        formatValue: (value) => `${formatNumber(value)}${unit ? ` ${unit}` : ""}`,
+        selectable: true,
+      }),
+    [theme, points, name, unit, span],
+  )
+  return (
+    <EChart
+      option={option}
+      label={`${name}: ${unit ?? "values"} over time`}
+      className="h-72 w-full"
+      onSelectRange={onSelect}
+    />
+  )
 }
 
 export default function HistorySection({
@@ -128,6 +175,13 @@ export default function HistorySection({
     device.retention.cutoff ??
       new Date(Date.now() - device.retention.days * 86400000).toISOString(),
   )
+  function selectRange(from: number, to: number) {
+    const next = { from: new Date(from).toISOString(), to: new Date(to).toISOString() }
+    setPreset("custom")
+    setCustom({ from: localInput(next.from), to: localInput(next.to) })
+    setWindow(next)
+    setRecordsOpen(false)
+  }
   function jumpToLatest() {
     if (!device.last_seen_at) return
     const next = latestDataWindow(window, device.last_seen_at)
@@ -273,58 +327,13 @@ export default function HistorySection({
                   {(series.configurations?.length ?? 0) > 1 &&
                     ` · joins ${series.configurations!.length} configurations`}
                 </p>
-                <ChartContainer
-                  className="h-72 w-full"
-                  config={{
-                    value: {
-                      label: selected?.label ?? "Value",
-                      color: "var(--series-1)",
-                    },
-                  }}
-                >
-                  <LineChart
-                    accessibilityLayer
-                    data={series.points.map((point) => ({
-                      ...point,
-                      time: new Date(point.at).getTime(),
-                    }))}
-                  >
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey="time"
-                      type="number"
-                      domain={["dataMin", "dataMax"]}
-                      minTickGap={48}
-                      tickFormatter={(value) =>
-                        new Date(value).toLocaleString(
-                          [],
-                          Date.parse(window.to) - Date.parse(window.from) >
-                            36 * 3600000
-                            ? { month: "short", day: "numeric" }
-                            : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" },
-                        )
-                      }
-                    />
-                    <YAxis domain={["auto", "auto"]} />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          labelFormatter={(_, payload) =>
-                            formatTime(payload[0]?.payload?.at)
-                          }
-                        />
-                      }
-                    />
-                    <Line
-                      dataKey="value"
-                      type="linear"
-                      stroke="var(--color-value)"
-                      dot={series.points.length < 3}
-                      connectNulls={false}
-                      isAnimationActive={false}
-                    />
-                  </LineChart>
-                </ChartContainer>
+                <HistoryChart
+                  points={series.points}
+                  name={selected?.label ?? "Value"}
+                  unit={series.unit}
+                  span={Date.parse(window.to) - Date.parse(window.from)}
+                  onSelect={selectRange}
+                />
               </div>
             )
           })}

@@ -1,5 +1,7 @@
 import { RelativeTime } from "@iot-os/ui/components/freshness"
+import { useMemo } from "react"
 import { Link } from "react-router-dom"
+import { EChart, gaugeOption, useChartTheme } from "@iot-os/charts"
 import type {
   DashboardBand,
   DashboardSource,
@@ -30,6 +32,7 @@ import {
   NEUTRAL,
   appliedParameters,
   profilePrecision,
+  seriesColor,
   sourceKey,
 } from "./model"
 import { useDevices, useLatest, useNow } from "./panelData"
@@ -117,6 +120,41 @@ export const readingTime = (reading: Measurement) =>
     ? reading.last_valid_received_at
     : reading.received_at
 
+/** The arc of one gauge; the value and range around it are HTML. */
+function GaugeArc({
+  source,
+  min,
+  max,
+  value,
+  band,
+}: {
+  source: DashboardSource
+  min: number
+  max: number
+  value: number | null
+  band: DashboardBand
+}) {
+  const theme = useChartTheme()
+  const segments = gaugeSegments(source, min, max)
+  const option = useMemo(
+    () =>
+      gaugeOption(theme, {
+        min,
+        max,
+        value,
+        // The filled arc takes the colour of the band the value is in.
+        color: band.color === NEUTRAL.color ? seriesColor(source.color) : bandColor(band.color),
+        bands: segments.map((segment) => ({
+          to: segment.to / 100,
+          color: bandColor(segment.color),
+          neutral: segment.color === NEUTRAL.color,
+        })),
+      }),
+    [theme, min, max, value, band.color, source.color, JSON.stringify(segments)],
+  )
+  return <EChart option={option} label={`${source.label} gauge`} className="h-32 w-full in-data-kiosk:h-48" />
+}
+
 export function GaugePanel({ org, widget, view }: PanelProps) {
   const now = useNow()
   const min = widget.config.min ?? 0,
@@ -132,40 +170,19 @@ export function GaugePanel({ org, widget, view }: PanelProps) {
     <ul
       className="grid gap-4"
       style={{
-        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 14rem), 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 12rem), 1fr))",
       }}
     >
       {rows.map(({ source, query, reading, band, precision }) => {
         const value =
           typeof reading?.value === "number" ? reading.value : null
-        const position =
-          value === null
-            ? null
-            : Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100))
         return (
-          <li key={sourceKey(source)} className="flex min-w-0 flex-col gap-2">
+          <li key={sourceKey(source)} className="flex min-w-0 flex-col gap-1">
             <div className="flex items-baseline justify-between gap-2 text-sm">
               <span className="truncate">{source.label}</span>
               {showBand(source, band) && <BandMark band={band} />}
             </div>
-            {query?.isPending ? (
-              <Skeleton className="h-9 w-28" />
-            ) : (
-              <p className="font-mono text-3xl tabular-nums in-data-kiosk:text-5xl">
-                {/* Keyed by the shown text so a changed reading remounts and runs one highlight. */}
-                <span
-                  key={value === null ? "—" : formatNumber(value, precision)}
-                  className="-mx-1 rounded-sm px-1 motion-safe:animate-value-flash"
-                >
-                  {value === null ? "—" : formatNumber(value, precision)}
-                </span>
-                {source.unit && (
-                  <span className="ml-1 text-sm text-muted-foreground">
-                    {source.unit}
-                  </span>
-                )}
-              </p>
-            )}
+            {/* The meter carries the value for assistive technology; the arc inside it is presentational. */}
             <div
               role="meter"
               aria-label={source.label}
@@ -177,25 +194,29 @@ export function GaugePanel({ org, widget, view }: PanelProps) {
                   ? "No reading"
                   : `${formatNumber(value, precision)}${source.unit ? " " + source.unit : ""}, ${band.label}`
               }
-              className="relative h-2 bg-muted"
+              className="relative"
             >
-              {gaugeSegments(source, min, max).map((segment) => (
-                <span
-                  key={segment.from}
-                  className="absolute inset-y-0 opacity-70"
-                  style={{
-                    left: `${segment.from}%`,
-                    width: `${segment.to - segment.from}%`,
-                    backgroundColor: bandColor(segment.color),
-                  }}
-                />
-              ))}
-              {position !== null && (
-                <span
-                  className="absolute -inset-y-1 w-0.5 bg-foreground"
-                  style={{ left: `calc(${position}% - 1px)` }}
-                />
-              )}
+              <GaugeArc source={source} min={min} max={max} value={value} band={band} />
+              <div className="absolute inset-x-0 top-[46%] flex justify-center">
+                {query?.isPending ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <p className="font-mono text-2xl tabular-nums in-data-kiosk:text-5xl">
+                    {/* Keyed by the shown text so a changed reading remounts and runs one highlight. */}
+                    <span
+                      key={value === null ? "—" : formatNumber(value, precision)}
+                      className="-mx-1 rounded-sm px-1 motion-safe:animate-value-flash"
+                    >
+                      {value === null ? "—" : formatNumber(value, precision)}
+                    </span>
+                    {source.unit && (
+                      <span className="ml-1 text-sm text-muted-foreground">
+                        {source.unit}
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="flex justify-between font-mono text-xs text-muted-foreground tabular-nums">
               <span>{formatNumber(min)}</span>
