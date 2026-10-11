@@ -53,7 +53,7 @@ is internal HTTP authenticated with the shared `DEVICE_RUNTIME_TOKEN` bearer
   Types include device applied/failed/deactivated, presence, discovery birth,
   command status, heartbeat, retention cleanup, workflow
   deployment/transition/membership/suspension and `automation.intent.v1`
-  ([events reference](../reference/events.md#runtime-events-go-to-laravel)).
+  ([events reference](../reference/events.md#runtime-events-go--laravel)).
 
 **Laravel queries Go.** Reads that need runtime data (latest values, history,
 telemetry captures, validation, workflow compile/simulate, execution timelines)
@@ -82,15 +82,18 @@ storage and evaluation stages ([events reference](../reference/events.md#nats-je
 - Delivery is at least once in both directions; both sides are idempotent on
   UUIDs and fence by generation.
 - Go acknowledges an outbox row once it is in JetStream, before it is processed.
-  The control consumer handles one message at a time, so an unknown control type
-  blocks the stream until fixed.
+  The control consumers handle one message at a time; a message a consumer cannot
+  process is moved to the `IOT_DEAD_LETTERS` stream (`iot.deadletter.<consumer>`)
+  and counted as `dead_letters` in the runtime's `/internal/status`.
+- The outbox and inbox ledgers (`device_outbox`, `device_inbox`,
+  `device_runtime.outbox`) grow with traffic. Processed rows are removed with
+  `php artisan devices:prune-ledgers`; run `--help` for its scope and options.
 - Known scaling limits, recorded as follow-up work in the
   [roadmap](../roadmap.md#next):
   - The 30-second state poll loads every connection, device and configuration
     across all organizations, with per-row queries, and Go caps the response at
     32 MiB with a 10 s timeout. Its cost grows with the whole fleet.
   - The claim loop moves at most about 100 control rows per second.
-  - Nothing prunes `device_outbox`, `device_inbox` or `device_runtime.outbox`.
   - One runtime instance only, enforced by a Postgres advisory lock.
 - The boundary leaks in two places: Laravel reads `device_runtime.*` tables for
   operations metrics and writes `device_runtime.commands` during restore
