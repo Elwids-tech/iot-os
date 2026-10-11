@@ -58,7 +58,7 @@ Exit code 0 means pass and 1 means fail.
   - an operation not on the list has an **open** JSON response schema;
   - a listed operation does not exist in the contract, or has a closed schema;
   - the list has more entries than the base branch's list, or is not sorted and unique;
-  - an `x-audience: integration` operation is listed (switched on in phase 3).
+  - an `x-audience: integration` operation is listed (switched on in PR 3).
 - **Open schema** means: `{}`; or no `$ref`, `type`, `properties`, `items`, `oneOf`,
   `anyOf`, `allOf`, `enum` or `const`; or `type: object` without `properties`,
   `patternProperties` or an `additionalProperties` schema; or `type: array` without

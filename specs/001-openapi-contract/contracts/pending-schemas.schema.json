@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://iot-os.local/contracts/openapi/pending-schemas.schema.json",
   "title": "Pending-schema list",
-  "description": "Operations that may lack a full response schema. Shrink only: CI fails if the list has more entries than on the base branch, if an entry does not exist, if an entry already has a closed schema, or (from phase 3) if an integration operation is listed.",
+  "description": "Operations that may lack a full response schema. Shrink only: CI fails if the list has more entries than on the base branch, if an entry does not exist, if an entry already has a closed schema, or (from PR 3) if an integration operation is listed.",
   "type": "object",
   "additionalProperties": false,
   "required": ["operations"],

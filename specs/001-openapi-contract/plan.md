@@ -22,7 +22,7 @@ Redoc references are built: the integration one may be published; the `api/v1` o
 for developers only.
 
 No endpoint changes behaviour. The work lands in nine pull requests of one to four days
-each, about 19 to 24 engineer-days in total. The 155 `api/v1` operations whose bodies stay
+each, about 18 to 22 engineer-days in total. The 155 `api/v1` operations whose bodies stay
 pending are described afterwards in about six small follow-up pull requests. Decisions
 and versions are in [research.md](research.md).
 
@@ -72,12 +72,12 @@ marked NEEDS CLARIFICATION.
 | I | Laravel owns intent; Go executes | Does the contract describe only Laravel's public API, with no client talking to the runtime? | Pass: `/api/internal` excluded; runtime output is described only where Laravel passes it through, and marked `x-runtime-shaped`. | Pass |
 | II | Immutable versions, explicit activation | Does anything change definition versioning or activation? | Pass (not affected) | Pass |
 | III | Tenant isolation everywhere | Does it touch tenant data or weaken organization checks? | Pass: read-only description; integration 404 for another organization is verified for all 18 operations. | Pass: G2 checks `x-organization-scoped` on every organization route. |
-| IV | Contracts first | Is there a versioned contract in `contracts/`, updated with consumers in the same pull request, with fixtures, and do consumers reject unsupported versions? | Pass: this feature creates the contract and its drift check. | Pass: examples validated by lint act as fixtures; generated types and the client library change in the same pull request; the SDK still rejects an unsupported `schema_version`. Returning an unknown event *type* inside v1 matches the contracts rule that additive changes stay within a version (research R9). |
+| IV | Contracts first | Is there a versioned contract in `contracts/`, updated with consumers in the same pull request, with fixtures, and do consumers reject unsupported versions? | Pass: this feature creates the contract and its drift check. | Pass: every fully described operation carries at least one success example, validated by lint, as its golden fixture, and real responses are checked too; generated types and the client library change in the same pull request; the SDK still rejects an unsupported `schema_version`. Returning an unknown event *type* inside v1 matches the contracts rule that additive changes stay within a version (research R9). |
 | V | AI proposes, people approve | Any AI path? | Pass (not affected) | Pass |
 | VI | Show uncertainty; never invent state | Does the contract claim shapes nobody checked? | Pass | Pass: pending operations get open bodies and `x-schema-status: pending` instead of inferred guesses (R7); nullable and runtime-shaped fields described as they are. |
 | VII | Durable, idempotent messaging | Any messaging change? | Pass (not affected) | Pass: unknown event types no longer stop a consumer's cursor. |
 | VIII | One design system | Any UI built outside `@iot-os/ui`? | Justified deviation | Justified deviation: the references are static Redoc pages, generated developer documentation rather than product UI (Complexity Tracking). |
-| IX | Done means verified where it runs | CI on PostgreSQL, rebuilt containers, exercised in the running app? | Pass | Pass: each pull request lists its container rebuilds (api for PHP and contract changes, portal and admin for client-library types) and checks that the route list is unchanged and `/docs/api` is absent. |
+| IX | Done means verified where it runs | CI on PostgreSQL, rebuilt containers, exercised in the running app? | Pass | Pass: each pull request lists its container rebuilds (`api` for PHP and contract changes; `portal` and `admin` for client-library types and for any change to the root `package.json` or `pnpm-lock.yaml`, which their images install from; the `vertical-demo` image for SDK changes) and checks that the route list is unchanged and `/docs/api` is absent. |
 | — | Decisions are ADRs | Is a lasting decision recorded? | Action | Pass: phase 1 adds ADR-015 (contract generated from Laravel, checked by tests, enforced in CI). |
 | — | Small, reviewable changes | Can each pull request be reviewed alone? | Pass | Pass: nine pull requests, generated files kept separate from hand-written ones in each diff (Complexity Tracking: one spec, several pull requests). |
 
@@ -195,6 +195,8 @@ management 10. About 12 to 16 engineer-days.
    a named owner must approve.
 4. **Where the integration reference is published** (CI artefact only, a docs page, or a
    website). It doesn't block implementation: phase 9 produces the artefact either way.
+5. **Make the new Contract job a required check** in the repository's branch protection
+   once PR 4 merges (a GitHub setting these tasks cannot change), so FR-021 holds.
 
 ## Complexity Tracking
 

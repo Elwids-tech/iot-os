@@ -227,7 +227,7 @@ contract nor the generated types claim a shape nobody has checked (principle VI)
 - a listed operation does not exist, or is no longer open;
 - the list has more entries than the base branch's copy (`git show
   origin/main:contracts/openapi/pending-schemas.json`);
-- an `x-audience: integration` operation is listed (enabled from phase 3 on).
+- an `x-audience: integration` operation is listed (enabled from PR 3 on).
 
 During this spec the list starts with all 247 in-scope operations and shrinks to the
 155 agreed by the owner (FR-019a); the follow-up domain pull requests take it to zero.
