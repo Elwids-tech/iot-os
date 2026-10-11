@@ -1,0 +1,53 @@
+{
+  "schema_version": "telemetry.envelope.v1",
+  "message_id": "182155fa-989e-5e27-af05-c77252734e9a",
+  "identity": {
+    "basis": "observed_time"
+  },
+  "trusted": {
+    "organization_uuid": "90000000-0000-4000-8000-000000000003",
+    "ingress": {
+      "kind": "device_credential",
+      "uuid": "90000000-0000-4000-8000-0000000000b1"
+    },
+    "device": {
+      "device_uuid": "90000000-0000-4000-8000-0000000000b2",
+      "basis": "credential"
+    }
+  },
+  "source": {
+    "protocol": "http_json",
+    "address": {
+      "scheme": "device_key",
+      "key": "EM-77"
+    }
+  },
+  "provenance": {
+    "transport": "http"
+  },
+  "received_at": "2026-10-11T08:05:01.400Z",
+  "observed_at": "2026-10-11T08:05:00.000Z",
+  "values": [
+    {
+      "name": "voltage.l1",
+      "type": "number",
+      "value": 231.4,
+      "quality": "good",
+      "unit": {
+        "symbol": "V",
+        "custom": false
+      },
+      "time_source": "source",
+      "historical": false
+    },
+    {
+      "name": "energy.imported",
+      "type": "number",
+      "quality": "bad",
+      "no_value_reason": "decode_failed",
+      "quality_reason": "Register returned a non-numeric value",
+      "time_source": "source",
+      "historical": false
+    }
+  ]
+}
