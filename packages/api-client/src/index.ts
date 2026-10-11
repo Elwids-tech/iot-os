@@ -42,6 +42,8 @@ export type Organization = {
     administration?: AdministrationCapabilities
     device_profiles?: DeviceProfileCapabilities
     devices?: DeviceCapabilities
+    /** Dashboard permissions of their own. Older payloads omit it. */
+    dashboards?: import("./dashboards").DashboardCapabilities
     /** Optional platform features enabled for this organization. */
     features?: { device_adapters: boolean }
   }
@@ -1336,6 +1338,21 @@ export class ApiClient {
 
   deleteDashboard(org: string, dashboard: string) {
     return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}`, { method: "DELETE" })
+  }
+
+  /** Who can open the dashboard; needs the share ability. */
+  dashboardAccess(org: string, dashboard: string) {
+    return this.data<import("./dashboards").DashboardAccessSettings>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}/access`)
+  }
+
+  /** Replaces the dashboard's access and every share in one step. */
+  updateDashboardAccess(org: string, dashboard: string, values: import("./dashboards").DashboardAccessInput) {
+    return this.data<import("./dashboards").DashboardAccessSettings>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}/access`, "PUT", values)
+  }
+
+  /** Roles and members matching a search, for sharing dashboards. */
+  dashboardShareTargets(org: string, search = "") {
+    return this.data<{ roles: import("./dashboards").DashboardShareTarget[]; users: import("./dashboards").DashboardShareTarget[] }>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboard-share-targets?${new URLSearchParams({ search })}`)
   }
 
   starDashboard(org: string, dashboard: string, starred: boolean) {

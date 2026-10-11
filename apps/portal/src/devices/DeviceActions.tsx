@@ -250,8 +250,9 @@ export function AddToDashboard({
     .map((parameter) => ({ device: { uuid: device.uuid, name: device.name }, parameter, writable: writable.has(parameter.uuid) }))
   const suggestions = suggestPanels(candidates).slice(0, 3)
   const panelType = type && suggestions.some((s) => s.type === type) ? type : suggestions[0]?.type
+  // Only dashboards this person may edit can take a new panel.
   const options = (dashboards.data ?? [])
-    .filter((d) => d.name.toLowerCase().includes(search.toLowerCase()))
+    .filter((d) => d.abilities?.edit !== false && d.name.toLowerCase().includes(search.toLowerCase()))
     .map((d) => ({ value: d.uuid, label: d.name }))
   async function add() {
     if (!panelType) return

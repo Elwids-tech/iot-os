@@ -13,12 +13,14 @@ export function PortalCommandPalette({
   org,
   pages,
   canManageDevices,
+  canViewDashboards = true,
   open,
   onOpenChange,
 }: {
   org: string
   pages: { path: string; label: string; icon: LucideIcon }[]
   canManageDevices: boolean
+  canViewDashboards?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -38,7 +40,7 @@ export function PortalCommandPalette({
   const dashboards = useQuery({
     queryKey: ["dashboards", org],
     queryFn: () => api.dashboards(org),
-    enabled: open,
+    enabled: open && canViewDashboards,
   })
   const go = (to: string) => () => navigate(to)
   const groups: { heading: string; items: PaletteItem[] }[] = [

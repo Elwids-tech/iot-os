@@ -10,6 +10,7 @@ import { Status, StatusMark } from "@iot-os/ui/components/status-mark"
 import { formatAge } from "@iot-os/ui/lib/format"
 import { BellIcon, ChevronRightIcon, CpuIcon, LayoutGridIcon, ScanSearchIcon, StarIcon, WorkflowIcon } from "lucide-react"
 import { api } from "../lib/api"
+import { useDashboardCapabilities } from "../dashboards/access"
 import { RequestError } from "../components/forms"
 import { useRuntimeStatus } from "../components/RuntimeStatus"
 
@@ -17,7 +18,8 @@ import { useRuntimeStatus } from "../components/RuntimeStatus"
 export default function HomePage({ organizationName }: { organizationName: string }) {
   const org = useParams().organizationUuid!
   const overview = useQuery({ queryKey: ["overview", org], queryFn: () => api.overview(org), refetchInterval: 30000 })
-  const dashboards = useQuery({ queryKey: ["dashboards", org], queryFn: () => api.dashboards(org) })
+  const canViewDashboards = useDashboardCapabilities(org).view
+  const dashboards = useQuery({ queryKey: ["dashboards", org], queryFn: () => api.dashboards(org), enabled: canViewDashboards })
   const path = (section: string) => `/organizations/${encodeURIComponent(org)}/${section}`
   const data = overview.data
   const paused = useRuntimeStatus()?.automations === "paused"

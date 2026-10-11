@@ -8,6 +8,7 @@ use App\Domain\Devices\Models\DeviceModel;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class Dashboard extends DeviceModel
 {
@@ -29,5 +30,10 @@ final class Dashboard extends DeviceModel
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function shares(): HasMany
+    {
+        return $this->hasMany(DashboardShare::class);
     }
 }

@@ -73,9 +73,34 @@ export type DashboardLayout = Partial<
     ReadonlyArray<{ i: string; x: number; y: number; w: number; h: number }>
   >
 >;
+/** Organization: everyone with Dashboard.view; restricted: the owner, managers and the shares listed. */
+export type DashboardAccessLevel = "organization" | "restricted";
+/** What the signed-in person may do with a dashboard, beyond opening it. */
+export type DashboardAbilities = { edit: boolean; share: boolean; delete: boolean };
+export type DashboardCapabilities = { view: boolean; create: boolean; manage: boolean };
+export type DashboardShareTarget = {
+  type: "role" | "user";
+  id: number;
+  name: string;
+  /** A member's email, or a role's member count. */
+  detail: string | null;
+};
+export type DashboardShare = DashboardShareTarget & { level: "view" | "edit" };
+export type DashboardAccessSettings = {
+  access: DashboardAccessLevel;
+  owner: { id: number; name: string | null } | null;
+  shares: DashboardShare[];
+};
+export type DashboardAccessInput = {
+  access: DashboardAccessLevel;
+  shares: Array<Pick<DashboardShare, "type" | "id" | "level">>;
+};
 export type Dashboard = {
   uuid: string;
   name: string;
+  /** Older APIs omit access and abilities. */
+  access?: DashboardAccessLevel;
+  abilities?: DashboardAbilities;
   widgets: DashboardWidget[];
   layouts: DashboardLayout;
   defaults: DashboardView;

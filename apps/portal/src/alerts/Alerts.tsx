@@ -50,6 +50,7 @@ import {
 } from "@iot-os/ui/components/alert";
 import { formatAge, formatDateTime } from "@iot-os/ui/lib/format";
 import { api } from "../lib/api";
+import { useDashboardCapabilities } from "../dashboards/access";
 import { useUnsavedContribution } from "../lib/unsaved";
 import { Confirm, LoadError, RequestError } from "../components/forms";
 import {
@@ -842,6 +843,7 @@ function AlertDetail({
   back?: string;
 }) {
   const { org, capabilities, query: organization } = useDeviceOrganization();
+  const canViewDashboards = useDashboardCapabilities(org).view;
   const cache = useQueryClient();
   const [comment, setComment] = useState({
     uuid: crypto.randomUUID(),
@@ -874,7 +876,7 @@ function AlertDetail({
   const dashboards = useQuery({
     queryKey: ["dashboards", org],
     queryFn: () => api.dashboards(org),
-    enabled: capabilities.view && Boolean(alert),
+    enabled: canViewDashboards && Boolean(alert),
     staleTime: 60000,
   });
   const members = useQuery({

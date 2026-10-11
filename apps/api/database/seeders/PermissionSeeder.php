@@ -26,6 +26,7 @@ class PermissionSeeder extends Seeder
             DeviceProfilePermission::getPermissionGroup() => DeviceProfilePermission::cases(),
             DevicePermission::getPermissionGroup() => DevicePermission::cases(),
             \App\Domain\Automation\Permissions\WorkflowPermission::getPermissionGroup() => \App\Domain\Automation\Permissions\WorkflowPermission::cases(),
+            \App\Domain\Dashboards\Permissions\DashboardPermission::getPermissionGroup() => \App\Domain\Dashboards\Permissions\DashboardPermission::cases(),
             PlatformAdministrationPermission::getPermissionGroup() => PlatformAdministrationPermission::cases(),
         ];
         $guards = array_keys(config('auth.guards'));

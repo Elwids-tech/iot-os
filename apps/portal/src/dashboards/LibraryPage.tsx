@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
-import type { Dashboard } from "@iot-os/api-client"
+import type { Dashboard, DashboardCapabilities } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import {
   DropdownMenu,
@@ -22,6 +22,7 @@ import {
   FileUpIcon,
   LayoutDashboardIcon,
   LayoutTemplateIcon,
+  LockIcon,
   PlusIcon,
   StarIcon,
   Trash2Icon,
@@ -29,6 +30,8 @@ import {
 import { api } from "../lib/api"
 import { Confirm, errorMessage, RequestError } from "../components/forms"
 import { dashboardPath } from "./model"
+import { dashboardAbilities } from "./access"
+import { ShareDialog } from "./ShareDialog"
 import { definition, downloadJson } from "./importExport"
 import type { DashboardTemplate } from "./templates"
 import {
@@ -55,7 +58,7 @@ const UNFILED = "__unfiled__"
 type Open =
   | { kind: "blank" | "import" | "profile" | "templates" }
   | { kind: "template"; template: DashboardTemplate }
-  | { kind: "settings" | "move" | "duplicate"; uuid: string }
+  | { kind: "settings" | "move" | "duplicate" | "share"; uuid: string }
   | { kind: "delete"; uuids: string[] }
 
 /** Devices a dashboard reads from, by uuid, with the name the panels saved. */
@@ -88,11 +91,12 @@ function patch(
 
 export function DashboardLibrary({
   org,
-  canManage,
+  capabilities,
 }: {
   org: string
-  canManage: boolean
+  capabilities: DashboardCapabilities
 }) {
+  const canCreate = capabilities.create
   const query = useQuery({
     queryKey: ["dashboards", org],
     queryFn: () => api.dashboards(org),
@@ -122,9 +126,9 @@ export function DashboardLibrary({
   // Templates used to be a view; old links open the template picker instead.
   useEffect(() => {
     if (rawView !== "templates") return
-    if (canManage) setOpen({ kind: "templates" })
+    if (canCreate) setOpen({ kind: "templates" })
     setParams(patch(params, { view: null }), { replace: true })
-  }, [rawView, canManage])
+  }, [rawView, canCreate])
 
   const all = query.data ?? []
   const byView: Record<View, Dashboard[]> = {
@@ -223,6 +227,21 @@ export function DashboardLibrary({
       value: (d) => d.name,
       cell: (d) => <RowLink to={dashboardPath(org, d.uuid)}>{d.name}</RowLink>,
     },
+    {
+      id: "access",
+      header: "Access",
+      mobile: "hidden",
+      value: (d) => (d.access === "restricted" ? "Restricted" : "Organization"),
+      cell: (d) =>
+        d.access === "restricted" ? (
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground" title="Only the people and roles it is shared with">
+            <LockIcon aria-hidden className="size-3.5" />
+            Restricted
+          </span>
+        ) : (
+          <span className="text-muted-foreground">Organization</span>
+        ),
+    },
     { id: "folder", header: "Folder", value: (d) => d.folder, cell: (d) => <span className="text-muted-foreground">{d.folder}</span> },
     {
       id: "tags",
@@ -251,7 +270,7 @@ export function DashboardLibrary({
       <CollectionPage
         title="Dashboards"
         actions={
-          canManage && (
+          canCreate && (
             <>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -367,7 +386,7 @@ export function DashboardLibrary({
               <Button size="sm" variant="outline" onClick={() => exportRows(chosen)}>
                 Export JSON
               </Button>
-              {canManage && (
+              {chosen.every((d) => dashboardAbilities(d, capabilities).delete) && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -384,15 +403,18 @@ export function DashboardLibrary({
               <DropdownMenuItem asChild>
                 <Link to={dashboardPath(org, d.uuid)}>Open</Link>
               </DropdownMenuItem>
-              {canManage && (
+              {dashboardAbilities(d, capabilities).share && (
+                <DropdownMenuItem onSelect={() => setOpen({ kind: "share", uuid: d.uuid })}>Share</DropdownMenuItem>
+              )}
+              {canCreate && <DropdownMenuItem onSelect={() => setOpen({ kind: "duplicate", uuid: d.uuid })}>Duplicate</DropdownMenuItem>}
+              {dashboardAbilities(d, capabilities).edit && (
                 <>
-                  <DropdownMenuItem onSelect={() => setOpen({ kind: "duplicate", uuid: d.uuid })}>Duplicate</DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setOpen({ kind: "settings", uuid: d.uuid })}>Settings</DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setOpen({ kind: "move", uuid: d.uuid })}>Move to folder</DropdownMenuItem>
                 </>
               )}
               <DropdownMenuItem onSelect={() => exportRows([d])}>Export JSON</DropdownMenuItem>
-              {canManage && (
+              {dashboardAbilities(d, capabilities).delete && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem variant="destructive" onSelect={() => setOpen({ kind: "delete", uuids: [d.uuid] })}>
@@ -409,14 +431,14 @@ export function DashboardLibrary({
               title={emptyTitle}
               description={
                 !all.length
-                  ? canManage
+                  ? canCreate
                     ? "Start blank, from a template or from a device profile."
-                    : "People who manage devices can create dashboards for this organization."
+                    : "People who can create dashboards add them here."
                   : undefined
               }
               action={
                 !all.length &&
-                canManage && (
+                canCreate && (
                   <>
                     <Button size="sm" onClick={() => setOpen({ kind: "blank" })}>
                       <PlusIcon data-icon="inline-start" />
@@ -450,6 +472,15 @@ export function DashboardLibrary({
             setOpen(null)
             return cache.invalidateQueries({ queryKey: ["dashboards", org] })
           }}
+        />
+      )}
+      {open?.kind === "share" && target && (
+        <ShareDialog
+          org={org}
+          dashboard={target}
+          link={`${globalThis.location.origin}${dashboardPath(org, target.uuid)}`}
+          onClose={() => setOpen(null)}
+          onSaved={() => void cache.invalidateQueries({ queryKey: ["dashboards", org] })}
         />
       )}
       {open?.kind === "templates" && (

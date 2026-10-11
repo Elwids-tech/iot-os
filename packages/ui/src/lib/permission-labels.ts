@@ -6,6 +6,7 @@ const groupLabels: Record<string, string> = {
   DeviceProfile: "Device profiles",
   Device: "Devices",
   Workflow: "Automations",
+  Dashboard: "Dashboards",
 }
 
 const permissionLabels: Record<string, string> = {
@@ -46,6 +47,9 @@ const permissionLabels: Record<string, string> = {
   "Workflow.view": "View automations",
   "Workflow.manage": "Edit automations",
   "Workflow.activate": "Activate automations",
+  "Dashboard.view": "Open dashboards shared with them",
+  "Dashboard.create": "Create and share their own dashboards",
+  "Dashboard.manage": "Edit, share and delete every dashboard",
 }
 
 export const permissionGroupLabel = (group: string) => groupLabels[group] ?? group
