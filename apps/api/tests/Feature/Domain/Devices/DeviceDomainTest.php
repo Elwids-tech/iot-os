@@ -683,6 +683,6 @@ final class DeviceDomainTest extends TestCase
             $this->assertEquals($draft['mappings'][0]['ingress_conversion'], $mapping['ingress_conversion']);
         }
         $this->assertSame($old->definition, $old->fresh()->definition);
-        $this->assertSame($definition, $artifact->fresh()->definition);
+        $this->assertSameJsonDocument($definition, $artifact->fresh()->definition);
     }
 }

@@ -186,8 +186,11 @@ final class SchneiderThreePhaseEnergyMeterSeederTest extends TestCase
     public function test_an_insert_failure_rolls_back_the_entire_profile(): void
     {
         Organization::factory()->create(['slug' => 'acme-manufacturing']);
-        // The test connection is forced to isolated SQLite; simulate a mid-seed write failure.
-        DB::unprepared("CREATE TRIGGER reject_meter_parameter BEFORE INSERT ON profile_parameters WHEN NEW.key = 'current.l1' BEGIN SELECT RAISE(ABORT, 'Simulated seed failure'); END");
+        // Simulate a mid-seed write failure; the test transaction discards the trigger afterwards.
+        DB::unprepared(DB::getDriverName() === 'pgsql'
+            ? "CREATE FUNCTION reject_meter_parameter() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN RAISE EXCEPTION 'Simulated seed failure'; END \$\$;
+               CREATE TRIGGER reject_meter_parameter BEFORE INSERT ON profile_parameters FOR EACH ROW WHEN (NEW.key = 'current.l1') EXECUTE FUNCTION reject_meter_parameter()"
+            : "CREATE TRIGGER reject_meter_parameter BEFORE INSERT ON profile_parameters WHEN NEW.key = 'current.l1' BEGIN SELECT RAISE(ABORT, 'Simulated seed failure'); END");
         $this->expectException(QueryException::class);
         try {
             $this->seed(SchneiderThreePhaseEnergyMeterSeeder::class);
