@@ -20,14 +20,7 @@ import {
   DialogTitle,
 } from "@iot-os/ui/components/dialog"
 import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@iot-os/ui/components/select"
+import { SelectField } from "@iot-os/ui/components/form-fields"
 import { AlertCircleIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useDiscardGuard } from "../hooks/use-discard-guard"
@@ -60,23 +53,17 @@ function OrganizationChoice({
   if (organizations.length < 2) return null
 
   return (
-    <Field>
-      <FieldLabel htmlFor="member-organization">Organization</FieldLabel>
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger id="member-organization" className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent position="popper">
-          <SelectGroup>
-            {organizations.map((organization) => (
-              <SelectItem key={organization.uuid} value={organization.uuid}>
-                {organization.name}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    </Field>
+    <SelectField
+      id="member-organization"
+      label="Organization"
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      options={organizations.map((organization) => ({
+        value: organization.uuid,
+        label: organization.name,
+      }))}
+    />
   )
 }
 

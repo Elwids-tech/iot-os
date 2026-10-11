@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query"
 import { Link, useSearchParams } from "react-router-dom"
 import type { DiscoveryCandidate } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import { Input } from "@iot-os/ui/components/input"
+import {
+  FilterBar,
+  FilterCount,
+  FilterSearch,
+} from "@iot-os/ui/components/filter-bar"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import {
@@ -67,31 +71,32 @@ export function DiscoveryPage() {
           </Button>
         }
       >
-        <Input
-          aria-label="Search discovered sources"
-          placeholder="Search source or gateway"
-          className="h-8 w-full sm:w-64"
-          value={search}
-          onChange={(e) => filter("search", e.target.value)}
-        />
-        {gateway && (
-          <span className="inline-flex h-7 items-center gap-1 rounded-md border pr-0.5 pl-2 text-sm">
-            Gateway: {candidates[0]?.gateway.name ?? "selected"}
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Clear gateway filter"
-              onClick={() => filter("gateway", "")}
-            >
-              <XIcon />
-            </Button>
-          </span>
-        )}
-        {total !== undefined && (
-          <span className="ml-auto text-sm text-muted-foreground" role="status">
-            {total === 1 ? "1 source" : `${total} sources`}
-          </span>
-        )}
+        <FilterBar>
+          <FilterSearch
+            label="Search discovered sources"
+            placeholder="Search source or gateway"
+            value={search}
+            onChange={(e) => filter("search", e.target.value)}
+          />
+          {gateway && (
+            <span className="inline-flex h-8 items-center gap-1 rounded-md border pr-0.5 pl-2 text-sm">
+              Gateway: {candidates[0]?.gateway.name ?? "selected"}
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Clear gateway filter"
+                onClick={() => filter("gateway", "")}
+              >
+                <XIcon />
+              </Button>
+            </span>
+          )}
+          {total !== undefined && (
+            <FilterCount>
+              {total === 1 ? "1 source" : `${total} sources`}
+            </FilterCount>
+          )}
+        </FilterBar>
       </PageHeader>
       <div className="p-4 md:p-6">
         <RequestError error={query.error} />

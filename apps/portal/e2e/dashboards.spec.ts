@@ -995,6 +995,8 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   await page.keyboard.press("ArrowDown")
   await page.keyboard.press("Enter")
   await expect(page.getByText("1 active", { exact: true })).toBeVisible()
+  // The closing picker fades out; scan once no animation is running.
+  await page.waitForFunction(() => document.getAnimations().length === 0)
   const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
   expect(audit.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)

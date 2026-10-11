@@ -6,7 +6,7 @@ import type { NotificationEvent, NotificationSource } from "@iot-os/api-client";
 import { Badge } from "@iot-os/ui/components/badge";
 import { Button } from "@iot-os/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@iot-os/ui/components/card";
-import { Input } from "@iot-os/ui/components/input";
+import { FilterBar, FilterSearch } from "@iot-os/ui/components/filter-bar";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@iot-os/ui/components/sheet";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { StatusMark } from "@iot-os/ui/components/status-mark";
@@ -59,7 +59,7 @@ export function EventLogPage() {
     <Inbox
       tab="events"
       filters={
-        <>
+        <FilterBar>
           <ToggleGroup
             type="single"
             size="sm"
@@ -105,12 +105,11 @@ export function EventLogPage() {
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <Input
-            aria-label="Search events"
+          <FilterSearch
+            label="Search events"
             placeholder="Search events or services…"
             value={search}
             onChange={(event) => filter({ search: event.target.value })}
-            className="h-7 w-full sm:w-64"
           />
           <div className="ml-auto flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Updates every 15 seconds</span>
@@ -119,7 +118,7 @@ export function EventLogPage() {
               Refresh
             </Button>
           </div>
-        </>
+        </FilterBar>
       }
     >
       <div className="flex flex-col gap-6 p-4 md:p-6">

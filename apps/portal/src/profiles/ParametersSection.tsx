@@ -4,7 +4,12 @@ import { Link } from "react-router-dom"
 import type { AuthoringParameter, ProfileGroup } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import { Input } from "@iot-os/ui/components/input"
-import { Label } from "@iot-os/ui/components/label"
+import {
+  FilterBar,
+  FilterCount,
+  FilterField,
+  FilterSearch,
+} from "@iot-os/ui/components/filter-bar"
 import {
   Select,
   SelectTrigger,
@@ -186,15 +191,12 @@ export function ParametersSection() {
       : undefined
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Label htmlFor="parameter-search" className="sr-only">
-          Search parameters
-        </Label>
-        <Input
+      <FilterBar>
+        <FilterSearch
           id="parameter-search"
-          type="search"
-          placeholder="Label or key"
-          className="w-full sm:w-56"
+          label="Search parameters"
+          placeholder="Search label or key"
+          className="sm:w-56"
           value={search}
           disabled={Boolean(order)}
           onChange={(event) => {
@@ -202,37 +204,34 @@ export function ParametersSection() {
             setPage(1)
           }}
         />
-        <div className="flex items-center gap-2">
-          <Label htmlFor="parameter-group" className="font-normal text-muted-foreground">
-            Group
-          </Label>
-          <Select
-            value={group || "all"}
-            disabled={Boolean(order)}
-            onValueChange={(value) => {
-              setGroup(value === "all" ? "" : value)
-              setPage(1)
-            }}
-          >
-            <SelectTrigger id="parameter-group">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All groups</SelectItem>
-              <SelectItem value="ungrouped">Ungrouped</SelectItem>
-              {profile.parameter_groups.map((item) => (
-                <SelectItem key={item.uuid} value={item.uuid}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {plural(filtered.length, "parameter")}
-        </span>
+        <FilterField label="Group" id="parameter-group">
+          {(id) => (
+            <Select
+              value={group || "all"}
+              disabled={Boolean(order)}
+              onValueChange={(value) => {
+                setGroup(value === "all" ? "" : value)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger id={id}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All groups</SelectItem>
+                <SelectItem value="ungrouped">Ungrouped</SelectItem>
+                {profile.parameter_groups.map((item) => (
+                  <SelectItem key={item.uuid} value={item.uuid}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </FilterField>
+        <FilterCount>{plural(filtered.length, "parameter")}</FilterCount>
         {canEdit && (
-          <div className="flex gap-2 sm:ml-auto">
+          <div className="flex gap-2">
             <span title={reorderBlocked}>
               <Button
                 variant="outline"
@@ -257,7 +256,7 @@ export function ParametersSection() {
             </Button>
           </div>
         )}
-      </div>
+      </FilterBar>
       {ordering ? (
         <Table>
           <TableHeader>

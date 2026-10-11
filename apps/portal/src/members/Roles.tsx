@@ -12,6 +12,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@iot-os/ui/components/empty"
+import { FieldError } from "@iot-os/ui/components/field"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { PermissionMatrix, permissionChanges } from "@iot-os/ui/components/permission-matrix"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
@@ -286,11 +287,7 @@ function RoleEditor({ org, role }: { org: string; role?: TenantRole }) {
               onChange={setSelected}
             />
           )}
-          {fieldError(error, "permission_names") && (
-            <p role="alert" className="text-sm text-destructive">
-              {fieldError(error, "permission_names")}
-            </p>
-          )}
+          <FieldError>{fieldError(error, "permission_names")}</FieldError>
           {error && !fieldError(error, "display_name") && !fieldError(error, "permission_names") ? (
             <RequestError error={error} />
           ) : null}

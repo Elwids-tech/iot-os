@@ -22,11 +22,13 @@ import {
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
   FieldSet,
   FieldLegend,
 } from "@iot-os/ui/components/field"
+import { FormSection, ValueField } from "@iot-os/ui/components/form-fields"
 import { Input } from "@iot-os/ui/components/input"
 import { Textarea } from "@iot-os/ui/components/textarea"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
@@ -76,8 +78,6 @@ import { LocationSettings } from "./LocationPanelEditor"
 type Widget = DashboardWidget
 type SetWidget = (update: (current: Widget) => Widget) => void
 const THRESHOLD_TYPES: Widget["type"][] = ["status", "gauge", "timeseries", "table"]
-const section = "flex flex-col gap-3"
-const sectionHeading = "skin-label text-sm font-semibold"
 
 /** Full-page panel editor. Apply changes the dashboard draft only; Save dashboard shares it. */
 export function PanelEditor({
@@ -206,11 +206,9 @@ export function PanelEditor({
               {error}
             </p>
           )}
-          <section aria-labelledby="preview-heading" className={section}>
-            <div className="flex flex-wrap items-baseline gap-2">
-              <h2 id="preview-heading" className={sectionHeading}>
-                Preview
-              </h2>
+          <FormSection level={2}
+            title="Preview"
+            actions={
               <span className="text-xs text-muted-foreground">
                 {simulationEnabled
                   ? "Simulation"
@@ -222,7 +220,8 @@ export function PanelEditor({
                       ? PRESET_LABELS[view.range.preset]
                       : "Fixed range"}
               </span>
-            </div>
+            }
+          >
             <div className="flex h-96 flex-col border bg-card">
               <div className="border-b px-3 py-2">
                 <p className="truncate text-sm font-medium">
@@ -286,7 +285,7 @@ export function PanelEditor({
                 )}
               </FieldGroup>
             )}
-          </section>
+          </FormSection>
           {definition.editor === "parameter-panel" && (
             <DataSection
               org={org}
@@ -300,17 +299,14 @@ export function PanelEditor({
           )}
         </div>
         <div className="flex min-w-0 flex-col gap-6 lg:border-l lg:pl-6 [&>section+section]:border-t [&>section+section]:pt-6">
-          <section aria-label="Visualization" className={section}>
+          <section aria-label="Visualization" className="flex flex-col gap-3">
             <VisualizationPicker
               value={widget.type}
               candidates={candidates}
               onChange={(type) => changeType(type)}
             />
           </section>
-          <section aria-labelledby="panel-heading" className={section}>
-            <h2 id="panel-heading" className={sectionHeading}>
-              Panel
-            </h2>
+          <FormSection level={2} title="Panel">
             <FieldGroup>
               <Field data-invalid={!widget.title.trim()}>
                 <FieldLabel htmlFor="panel-title">Panel title</FieldLabel>
@@ -319,8 +315,12 @@ export function PanelEditor({
                   value={widget.title}
                   maxLength={120}
                   aria-invalid={!widget.title.trim()}
+                  aria-describedby={widget.title.trim() ? undefined : "panel-title-error"}
                   onChange={(e) => setWidget({ ...widget, title: e.target.value })}
                 />
+                {!widget.title.trim() && (
+                  <FieldError id="panel-title-error">Enter a panel title.</FieldError>
+                )}
               </Field>
               <Field>
                 <FieldLabel htmlFor="panel-description">Description</FieldLabel>
@@ -342,6 +342,11 @@ export function PanelEditor({
                     value={widget.config.text ?? ""}
                     maxLength={4000}
                     aria-invalid={!widget.config.text?.trim()}
+                    aria-describedby={
+                      widget.config.text?.trim()
+                        ? "panel-text-help"
+                        : "panel-text-help panel-text-error"
+                    }
                     onChange={(e) =>
                       setWidget({
                         ...widget,
@@ -349,7 +354,12 @@ export function PanelEditor({
                       })
                     }
                   />
-                  <FieldDescription>Plain text, up to 4000 characters.</FieldDescription>
+                  <FieldDescription id="panel-text-help">
+                    Plain text, up to 4000 characters.
+                  </FieldDescription>
+                  {!widget.config.text?.trim() && (
+                    <FieldError id="panel-text-error">Enter the panel text.</FieldError>
+                  )}
                 </Field>
               )}
               {widget.type === "location" && <LocationSettings org={org} widget={widget} onChange={setWidget} />}
@@ -363,12 +373,9 @@ export function PanelEditor({
                 />
               )}
             </FieldGroup>
-          </section>
+          </FormSection>
           {definition.editor === "parameter-panel" && (
-            <section aria-labelledby="display-heading" className={section}>
-              <h2 id="display-heading" className={sectionHeading}>
-                Display
-              </h2>
+            <FormSection level={2} title="Display">
               {widget.type === "gauge" && (
                 <FieldGroup className="grid grid-cols-2 gap-3">
                   {(["min", "max"] as const).map((key) => (
@@ -483,13 +490,11 @@ export function PanelEditor({
                       onChange={(e) => patchSource({ label: e.target.value })}
                     />
                   </Field>
-                  <Field>
-                    <FieldLabel htmlFor="source-unit">Profile unit</FieldLabel>
-                    <Input id="source-unit" readOnly value={source.unit ?? "No unit"} />
-                    <FieldDescription>
-                      Set by the device profile; the dashboard never converts it.
-                    </FieldDescription>
-                  </Field>
+                  <ValueField
+                    label="Profile unit"
+                    value={source.unit ?? "No unit"}
+                    help="Set by the device profile; the dashboard never converts it."
+                  />
                   {numeric(source) && widget.type !== "controls" && (
                     <Field>
                       <FieldLabel htmlFor="source-precision">Decimal places</FieldLabel>
@@ -531,7 +536,7 @@ export function PanelEditor({
                   Add a parameter under Data first.
                 </p>
               )}
-            </section>
+            </FormSection>
           )}
           {THRESHOLD_TYPES.includes(widget.type) && (
             <ThresholdsSection
@@ -662,10 +667,7 @@ function DataSection({
     onSelect(index + direction)
   }
   return (
-    <section aria-labelledby="data-heading" className={section}>
-      <h2 id="data-heading" className={sectionHeading}>
-        Data
-      </h2>
+    <FormSection level={2} title="Data">
       <FieldGroup className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
         <SearchableSelect
           label="Device"
@@ -732,11 +734,11 @@ function DataSection({
           Add parameter
         </Button>
       </FieldGroup>
-      <p className="text-xs text-muted-foreground">
+      <FieldDescription>
         Parameters come from the applied profile, even before their first reading.
         {widget.type === "gauge" && " A gauge shows up to 4."}
         {widget.type === "consumption" && " Consumption uses counters, up to 4 with one unit."}
-      </p>
+      </FieldDescription>
       <RequestError error={devices.error ?? device.error} />
       {widget.config.sources.length > 0 && (
         <ul aria-label="Panel parameters" className="flex flex-col border-t">
@@ -790,7 +792,7 @@ function DataSection({
           ))}
         </ul>
       )}
-    </section>
+    </FormSection>
   )
 }
 
@@ -815,10 +817,7 @@ function DevicesSection({
   const chosen = widget.config.devices ?? []
   const option = devices.data?.data.find((d) => d.uuid === deviceId)
   return (
-    <section aria-labelledby="devices-heading" className={section}>
-      <h2 id="devices-heading" className={sectionHeading}>
-        Devices
-      </h2>
+    <FormSection level={2} title="Devices">
       <FieldGroup className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
         <SearchableSelect
           label="Device"
@@ -898,7 +897,7 @@ function DevicesSection({
           ))}
         </ul>
       )}
-    </section>
+    </FormSection>
   )
 }
 
@@ -917,10 +916,7 @@ function ThresholdsSection({
   const [targets, setTargets] = useState<string[]>([])
   const issue = source ? thresholdError(source) : null
   return (
-    <section aria-labelledby="thresholds-heading" className={section}>
-      <h2 id="thresholds-heading" className={sectionHeading}>
-        Thresholds
-      </h2>
+    <FormSection level={2} title="Thresholds">
       {source && numeric(source) ? (
         <FieldGroup>
           <FieldDescription>
@@ -1028,11 +1024,7 @@ function ThresholdsSection({
               </FieldSet>
             )
           })}
-          {issue && (
-            <p role="alert" className="text-sm text-destructive">
-              {issue}
-            </p>
-          )}
+          {issue && <FieldError>{issue}</FieldError>}
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -1138,6 +1130,6 @@ function ThresholdsSection({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </section>
+    </FormSection>
   )
 }

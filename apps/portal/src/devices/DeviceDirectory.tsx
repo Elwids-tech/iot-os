@@ -11,7 +11,12 @@ import {
 import { Button } from "@iot-os/ui/components/button"
 import { Card } from "@iot-os/ui/components/card"
 import { FieldGroup } from "@iot-os/ui/components/field"
-import { Input } from "@iot-os/ui/components/input"
+import {
+  FilterBar,
+  FilterCount,
+  FilterField,
+  FilterSearch,
+} from "@iot-os/ui/components/filter-bar"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import {
   Table,
@@ -122,56 +127,61 @@ export function DeviceDirectory() {
           )
         }
       >
-        <Input
-          aria-label="Search devices"
-          placeholder="Search name or code"
-          className="h-8 w-full sm:w-64"
-          value={search}
-          onChange={(e) => filter("search", e.target.value)}
-        />
-        {hasSites && (
-          <Select value={site || "all"} onValueChange={(value) => filter("site", value === "all" ? "" : value)}>
-            <SelectTrigger size="sm" aria-label="Site" className="w-full sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All sites</SelectItem>
-              {sites.data?.data.map((option) => (
-                <SelectItem key={option.uuid} value={option.uuid}>{option.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        <div className="max-w-full overflow-x-auto scrollbar-none">
-          <ToggleGroup
-            type="single"
-            size="sm"
-            aria-label="Lifecycle"
-            value={lifecycle || "all"}
-            onValueChange={(value) =>
-              value && filter("lifecycle", value === "all" ? "" : value)
-            }
-          >
-            <ToggleGroupItem value="all">
-              All
-              <span className="font-normal tabular-nums">{all ?? ""}</span>
-            </ToggleGroupItem>
-            {lifecycles.map((value) => (
-              <ToggleGroupItem key={value} value={value}>
-                {lifecycleLabels[value]}
-                <span className="font-normal tabular-nums">
-                  {counts.data?.[value] ?? ""}
-                </span>
+        <FilterBar>
+          <FilterSearch
+            label="Search devices"
+            placeholder="Search name or code"
+            value={search}
+            onChange={(e) => filter("search", e.target.value)}
+          />
+          {hasSites && (
+            <FilterField label="Site" className="w-full sm:w-48">
+              {(id) => (
+                <Select value={site || "all"} onValueChange={(value) => filter("site", value === "all" ? "" : value)}>
+                  <SelectTrigger id={id} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All sites</SelectItem>
+                    {sites.data?.data.map((option) => (
+                      <SelectItem key={option.uuid} value={option.uuid}>{option.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </FilterField>
+          )}
+          <div className="max-w-full overflow-x-auto scrollbar-none">
+            <ToggleGroup
+              type="single"
+              size="sm"
+              aria-label="Lifecycle"
+              value={lifecycle || "all"}
+              onValueChange={(value) =>
+                value && filter("lifecycle", value === "all" ? "" : value)
+              }
+            >
+              <ToggleGroupItem value="all">
+                All
+                <span className="font-normal tabular-nums">{all ?? ""}</span>
               </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        </div>
-        {total !== undefined && (
-          <span className="ml-auto text-sm text-muted-foreground" role="status">
-            {total === 1 ? "1 device" : `${total} devices`}
-            {filtered ? " match" : ""}
-          </span>
-        )}
+              {lifecycles.map((value) => (
+                <ToggleGroupItem key={value} value={value}>
+                  {lifecycleLabels[value]}
+                  <span className="font-normal tabular-nums">
+                    {counts.data?.[value] ?? ""}
+                  </span>
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+          {total !== undefined && (
+            <FilterCount>
+              {total === 1 ? "1 device" : `${total} devices`}
+              {filtered ? " match" : ""}
+            </FilterCount>
+          )}
+        </FilterBar>
       </PageHeader>
       <div className="p-4 md:p-6">
         {capabilities.manage && <PendingSources org={org} />}

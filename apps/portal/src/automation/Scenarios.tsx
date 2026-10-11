@@ -22,7 +22,7 @@ import {
   FieldGroup,
   FieldDescription,
 } from "@iot-os/ui/components/field";
-import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
+import { SelectField, TextField } from "@iot-os/ui/components/form-fields";
 import {
   Accordion,
   AccordionItem,
@@ -212,21 +212,23 @@ export function Scenarios({
             </AlertDescription>
           </Alert>
         )}
-        <div className="flex flex-wrap gap-2">
-          <LocalSelect
-            aria-label="Saved scenario"
-            value={draft?.uuid ?? ""}
-            disabled={dirty || busy}
-            options={(list.data?.data ?? []).map((s) => ({
-              value: s.uuid!,
-              label: s.name,
-            }))}
-            onChange={(value) => {
-              const s = list.data?.data.find((s) => s.uuid === value);
-              if (s) open(s);
-            }}
-            placeholder="Select a scenario"
-          />
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-64 flex-1">
+            <SelectField
+              label="Saved scenario"
+              value={draft?.uuid ?? ""}
+              disabled={dirty || busy}
+              options={(list.data?.data ?? []).map((s) => ({
+                value: s.uuid!,
+                label: s.name,
+              }))}
+              onChange={(value) => {
+                const s = list.data?.data.find((s) => s.uuid === value);
+                if (s) open(s);
+              }}
+              placeholder="Select a scenario"
+            />
+          </div>
           <Button
             variant="outline"
             disabled={dirty || busy}
@@ -305,35 +307,28 @@ export function Scenarios({
                           }
                         />
                       </Field>
-                      <Field>
-                        <FieldLabel>Input</FieldLabel>
-                        <LocalSelect
-                          label={`Step ${index + 1} input`}
-                          value={step.device_uuid ?? "clock"}
-                          options={[
-                            { value: "clock", label: "Advance clock only" },
-                            ...devices.map((id) => ({
-                              value: id,
-                              label: sources
-                                .filter((b) => b.device_uuid === id)
-                                .map((b) => b.role)
-                                .join(", "),
-                            })),
-                          ]}
-                          onChange={(value) =>
-                            updateStep(index, {
-                              ...step,
-                              device_uuid: value === "clock" ? null : value,
-                              readings: [],
-                            })
-                          }
-                        />
-                        <FieldDescription>
-                          Readings from the selected device arrive together.
-                          Omitted readings retain earlier evidence until it
-                          expires.
-                        </FieldDescription>
-                      </Field>
+                      <SelectField
+                        label={`Step ${index + 1} input`}
+                        value={step.device_uuid ?? "clock"}
+                        options={[
+                          { value: "clock", label: "Advance clock only" },
+                          ...devices.map((id) => ({
+                            value: id,
+                            label: sources
+                              .filter((b) => b.device_uuid === id)
+                              .map((b) => b.role)
+                              .join(", "),
+                          })),
+                        ]}
+                        help="Readings from the selected device arrive together. Omitted readings retain earlier evidence until it expires."
+                        onChange={(value) =>
+                          updateStep(index, {
+                            ...step,
+                            device_uuid: value === "clock" ? null : value,
+                            readings: [],
+                          })
+                        }
+                      />
                       {sources
                         .filter((b) => b.device_uuid === step.device_uuid)
                         .map((b) => {
@@ -457,7 +452,7 @@ export function Scenarios({
                       {step.expected_outputs.map((c, j) => (
                         <Field key={j}>
                           <FieldLabel>Output check {j + 1}</FieldLabel>
-                          <LocalSelect
+                          <SelectField
                             label="Output node"
                             value={c.node_id}
                             options={graph.nodes.map((n) => ({
@@ -629,21 +624,18 @@ export function Scenarios({
               </Button>
             </div>
             {!!history.data?.data.length && (
-              <Field>
-                <FieldLabel>Run history</FieldLabel>
-                <LocalSelect
-                  label="Run history"
-                  value={run?.uuid ?? ""}
-                  options={history.data.data.map((r) => ({
-                    value: r.uuid,
-                    label: `${r.result.passed ? "Passed" : "Failed"} · workflow ${r.draft_revision} / scenario ${r.scenario_revision} · ${new Date(r.created_at).toLocaleString()}`,
-                  }))}
-                  onChange={(value) => {
-                    setRun(history.data?.data.find((r) => r.uuid === value));
-                    setEvidence("");
-                  }}
-                />
-              </Field>
+              <SelectField
+                label="Run history"
+                value={run?.uuid ?? ""}
+                options={history.data.data.map((r) => ({
+                  value: r.uuid,
+                  label: `${r.result.passed ? "Passed" : "Failed"} · workflow ${r.draft_revision} / scenario ${r.scenario_revision} · ${new Date(r.created_at).toLocaleString()}`,
+                }))}
+                onChange={(value) => {
+                  setRun(history.data?.data.find((r) => r.uuid === value));
+                  setEvidence("");
+                }}
+              />
             )}
           </fieldset>
         )}
@@ -773,56 +765,22 @@ function ScalarInput({
     }
   }, [value]);
   return (
-    <Field data-invalid={invalid}>
-      <Input
-        aria-label={label}
-        aria-invalid={invalid}
-        value={raw}
-        onChange={(e) => {
-          setRaw(e.target.value);
-          try {
-            const next = JSON.parse(e.target.value);
-            if (next !== null && typeof next === "object") throw new Error();
-            setInvalid(false);
-            onChange(next);
-          } catch {
-            setInvalid(true);
-            onChange(undefined);
-          }
-        }}
-      />
-      {invalid && (
-        <FieldDescription>
-          Enter a valid JSON value before saving.
-        </FieldDescription>
-      )}
-    </Field>
-  );
-}
-
-function LocalSelect({
-  label = "Select option",
-  options,
-  ...props
-}: {
-  label?: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  placeholder?: string;
-  "aria-label"?: string;
-}) {
-  const [search, setSearch] = useState("");
-  return (
-    <SearchableSelect
-      {...props}
-      label={props["aria-label"] ?? label}
-      options={options.filter((o) =>
-        o.label.toLowerCase().includes(search.toLowerCase()),
-      )}
-      search={search}
-      onSearchChange={setSearch}
+    <TextField
+      label={label}
+      value={raw}
+      error={invalid ? "Enter a valid JSON value before saving." : undefined}
+      onChange={(e) => {
+        setRaw(e.target.value);
+        try {
+          const next = JSON.parse(e.target.value);
+          if (next !== null && typeof next === "object") throw new Error();
+          setInvalid(false);
+          onChange(next);
+        } catch {
+          setInvalid(true);
+          onChange(undefined);
+        }
+      }}
     />
   );
 }

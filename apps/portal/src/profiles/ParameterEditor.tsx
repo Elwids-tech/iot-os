@@ -2,14 +2,8 @@ import { useEffect, useState } from "react"
 import { useForm, type PathValue } from "react-hook-form"
 import { Link } from "react-router-dom"
 import type { AuthoringParameter, JsonValue } from "@iot-os/api-client"
-import {
-  FieldGroup,
-  Field,
-  FieldLabel,
-  FieldDescription,
-} from "@iot-os/ui/components/field"
-import { Input } from "@iot-os/ui/components/input"
-import { Checkbox } from "@iot-os/ui/components/checkbox"
+import { FieldGroup, FieldDescription } from "@iot-os/ui/components/field"
+import { CheckboxField, ValueField } from "@iot-os/ui/components/form-fields"
 import {
   Tabs,
   TabsList,
@@ -422,55 +416,39 @@ export function ParameterEditor({
                 <div title="format" className="contents">
                   <TextField
                     label="Display format"
-                    placeholder="Optional"
+                    optional
                     disabled={disabled}
                     {...form.register("format")}
                   />
                 </div>
                 {parameter && (
-                  <Field title="uuid">
-                    <FieldLabel htmlFor="parameter-identity">
-                      Parameter ID
-                    </FieldLabel>
-                    <Input
-                      id="parameter-identity"
-                      className="font-mono"
-                      readOnly
-                      value={parameter.uuid}
-                    />
-                  </Field>
+                  <div title="uuid" className="contents">
+                    <ValueField label="Parameter ID" value={parameter.uuid} mono copy />
+                  </div>
                 )}
               </FieldGroup>
             </TabsContent>
             <TabsContent value="behavior">
               <FieldGroup>
-                <Field orientation="horizontal">
-                  <Checkbox
-                    id="reports-state"
-                    checked={values.reports_state}
-                    disabled={disabled}
-                    onCheckedChange={(value) =>
-                      set("reports_state", value === true)
-                    }
-                  />
-                  <FieldLabel htmlFor="reports-state">Reports state</FieldLabel>
-                </Field>
-                <Field orientation="horizontal">
-                  <Checkbox
-                    id="accepts-command"
-                    checked={values.accepts_command}
-                    disabled={disabled || values.kind === "derived"}
-                    onCheckedChange={(value) =>
-                      set("accepts_command", value === true)
-                    }
-                  />
-                  <FieldLabel htmlFor="accepts-command">
-                    Accepts commands
-                  </FieldLabel>
-                </Field>
-                {values.kind === "derived" && (
-                  <FieldDescription>Derived parameters are read-only.</FieldDescription>
-                )}
+                <CheckboxField
+                  id="reports-state"
+                  label="Reports state"
+                  checked={values.reports_state}
+                  disabled={disabled}
+                  onCheckedChange={(value) => set("reports_state", value)}
+                />
+                <CheckboxField
+                  id="accepts-command"
+                  label="Accepts commands"
+                  checked={values.accepts_command}
+                  disabled={disabled || values.kind === "derived"}
+                  description={
+                    values.kind === "derived"
+                      ? "Derived parameters are read-only."
+                      : undefined
+                  }
+                  onCheckedChange={(value) => set("accepts_command", value)}
+                />
                 <Separator />
                 <div title="display_config.widget" className="contents">
                   <Choice
@@ -598,23 +576,17 @@ export function ParameterEditor({
                 {values.kind === "counter" && (
                   <>
                     <Separator />
-                    <Field orientation="horizontal" title="counter_config.monotonic">
-                      <Checkbox
+                    <div title="counter_config.monotonic" className="contents">
+                      <CheckboxField
                         id="counter-monotonic"
+                        label="Counter normally increases"
                         disabled={disabled}
                         checked={counter.monotonic === true}
                         onCheckedChange={(value) =>
-                          configuration(
-                            "counter_config",
-                            "monotonic",
-                            value === true,
-                          )
+                          configuration("counter_config", "monotonic", value)
                         }
                       />
-                      <FieldLabel htmlFor="counter-monotonic">
-                        Counter normally increases
-                      </FieldLabel>
-                    </Field>
+                    </div>
                     <div title="counter_config.reset_behavior" className="contents">
                       <Choice
                         label="When the counter goes down"
@@ -636,7 +608,8 @@ export function ParameterEditor({
                     </div>
                     <TextField
                       title="counter_config.rollover_at"
-                      label="Rolls over at (optional)"
+                      label="Rolls over at"
+                      optional
                       type="number"
                       min="0"
                       step="any"

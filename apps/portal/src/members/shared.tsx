@@ -2,9 +2,8 @@ import { useQuery } from "@tanstack/react-query"
 import { useParams } from "react-router-dom"
 import type { TenantRole } from "@iot-os/api-client"
 import { Badge } from "@iot-os/ui/components/badge"
-import { Checkbox } from "@iot-os/ui/components/checkbox"
+import { ChoiceCard } from "@iot-os/ui/components/choice-card"
 import {
-  Field,
   FieldDescription,
   FieldError,
   FieldLegend,
@@ -60,29 +59,22 @@ export function RoleChecklist({
     <FieldSet data-invalid={Boolean(error)}>
       <FieldLegend variant="label">Roles</FieldLegend>
       <FieldDescription>Members get every permission in each role they hold.</FieldDescription>
-      <div className="flex flex-col divide-y rounded-md border">
+      <div className="flex flex-col gap-2">
         {roles.map((role) => {
-          const id = `role-${role.id}`
           const locked = role.assignable === false
-          const checked = value.includes(role.id)
           return (
-            <Field key={role.id} orientation="horizontal" className="px-3 py-2.5 has-disabled:opacity-60">
-              <Checkbox
-                id={id}
-                checked={checked}
-                disabled={disabled || locked}
-                aria-describedby={`${id}-summary`}
-                onCheckedChange={(next) =>
-                  onChange(next === true ? [...value, role.id] : value.filter((item) => item !== role.id))
-                }
-              />
-              <label htmlFor={id} className="flex min-w-0 flex-1 flex-col gap-0.5 text-sm">
-                <span className="font-medium">{role.display_name}</span>
-                <span id={`${id}-summary`} className="text-xs text-muted-foreground">
-                  {locked ? ROLE_NOT_ASSIGNABLE : roleSummary(role)}
-                </span>
-              </label>
-            </Field>
+            <ChoiceCard
+              key={role.id}
+              type="checkbox"
+              value={`role-${role.id}`}
+              checked={value.includes(role.id)}
+              disabled={disabled || locked}
+              title={role.display_name}
+              description={locked ? ROLE_NOT_ASSIGNABLE : roleSummary(role)}
+              onCheckedChange={(next) =>
+                onChange(next ? [...value, role.id] : value.filter((item) => item !== role.id))
+              }
+            />
           )
         })}
       </div>

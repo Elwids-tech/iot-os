@@ -18,6 +18,7 @@ import {
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldLabel,
 } from "@iot-os/ui/components/field"
 import {
@@ -48,6 +49,7 @@ export function SearchableSelect({
   labelHidden = false,
   optional = false,
   className,
+  error,
 }: {
   label: string
   value: string
@@ -68,6 +70,8 @@ export function SearchableSelect({
   labelHidden?: boolean
   optional?: boolean
   className?: string
+  /** A validation message shown under the help text; also marks the trigger invalid. */
+  error?: React.ReactNode
 }) {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -85,8 +89,11 @@ export function SearchableSelect({
   const visibleOptions = options.filter(
     (option) => option.value !== "" || !search,
   )
+  const describedBy =
+    [help && id + "-help", error && id + "-error"].filter(Boolean).join(" ") ||
+    undefined
   return (
-    <Field data-disabled={disabled} className={className}>
+    <Field data-disabled={disabled} data-invalid={Boolean(error)} className={className}>
       <FieldLabel htmlFor={id} optional={optional} className={labelHidden ? "sr-only" : undefined}>
         {label}
       </FieldLabel>
@@ -106,7 +113,8 @@ export function SearchableSelect({
             data-size="default"
             data-placeholder={displayLabel === placeholder ? "" : undefined}
             aria-expanded={open && !disabled}
-            aria-describedby={help ? id + "-help" : undefined}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={describedBy}
             disabled={disabled}
             className={cn(pickerTriggerClassName, "w-full min-w-0")}
             onKeyDown={(event) => {
@@ -203,6 +211,7 @@ export function SearchableSelect({
         </PopoverContent>
       </Popover>
       {help && <FieldDescription id={id + "-help"}>{help}</FieldDescription>}
+      {error && <FieldError id={id + "-error"}>{error}</FieldError>}
     </Field>
   )
 }
@@ -220,6 +229,7 @@ export function SearchableMultiSelect({
   labelHidden = false,
   optional = false,
   className,
+  error,
 }: {
   label: string
   values: string[]
@@ -232,6 +242,7 @@ export function SearchableMultiSelect({
   labelHidden?: boolean
   optional?: boolean
   className?: string
+  error?: React.ReactNode
 }) {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -239,8 +250,11 @@ export function SearchableMultiSelect({
   const display = values.length
     ? `${values.length} selected`
     : placeholder
+  const describedBy =
+    [help && id + "-help", error && id + "-error"].filter(Boolean).join(" ") ||
+    undefined
   return (
-    <Field data-disabled={disabled} className={className}>
+    <Field data-disabled={disabled} data-invalid={Boolean(error)} className={className}>
       <FieldLabel htmlFor={id} optional={optional} className={labelHidden ? "sr-only" : undefined}>
         {label}
       </FieldLabel>
@@ -254,7 +268,8 @@ export function SearchableMultiSelect({
             data-size="default"
             data-placeholder={values.length ? undefined : ""}
             aria-expanded={open && !disabled}
-            aria-describedby={help ? id + "-help" : undefined}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={describedBy}
             disabled={disabled}
             className={cn(pickerTriggerClassName, "w-full min-w-0")}
           >
@@ -290,6 +305,7 @@ export function SearchableMultiSelect({
         </PopoverContent>
       </Popover>
       {help && <FieldDescription id={id + "-help"}>{help}</FieldDescription>}
+      {error && <FieldError id={id + "-error"}>{error}</FieldError>}
     </Field>
   )
 }

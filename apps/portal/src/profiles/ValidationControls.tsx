@@ -422,7 +422,8 @@ export function ParameterPreview({
         }
       />
       <TextField
-        label="Previous value (optional JSON)"
+        label="Previous value (JSON)"
+        optional
         value={previous}
         onChange={(event) => setPrevious(event.target.value)}
       />

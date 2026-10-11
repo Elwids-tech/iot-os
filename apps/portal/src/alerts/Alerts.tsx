@@ -28,7 +28,9 @@ import {
 } from "@iot-os/ui/components/card";
 import { Checkbox } from "@iot-os/ui/components/checkbox";
 import { Field, FieldLabel } from "@iot-os/ui/components/field";
+import { FilterBar, FilterCount } from "@iot-os/ui/components/filter-bar";
 import { PageHeader } from "@iot-os/ui/components/page-header";
+import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark";
 import {
@@ -71,7 +73,7 @@ import {
   conditionOf,
   sourceKey,
 } from "./model";
-import { Age, InlineSelect, useWide } from "./shared";
+import { Age, useWide } from "./shared";
 
 export default function AlertRoutes() {
   return (
@@ -321,7 +323,7 @@ function AlertsPage() {
       header={!narrowDetail || denied}
       filters={
         !denied && (
-          <>
+          <FilterBar>
             <ToggleGroup
               type="single"
               size="sm"
@@ -380,8 +382,10 @@ function AlertsPage() {
                 Assigned to me
               </FieldLabel>
             </Field>
-            <InlineSelect
+            <SearchableSelect
               label="Device"
+              labelHidden
+              className="w-full sm:w-64"
               value={params.get("device") ?? ""}
               selectedLabel={params.get("device") ? deviceName : "All devices"}
               options={[
@@ -402,8 +406,10 @@ function AlertsPage() {
               loading={devices.isFetching}
               onChange={(value) => change("device", value)}
             />
-            <InlineSelect
+            <SearchableSelect
               label="Workflow"
+              labelHidden
+              className="w-full sm:w-64"
               value={params.get("workflow") ?? ""}
               selectedLabel={params.get("workflow") ? workflowName : "All workflows"}
               options={[
@@ -425,14 +431,11 @@ function AlertsPage() {
               onChange={(value) => change("workflow", value)}
             />
             {total !== undefined && (
-              <span
-                className="ml-auto text-sm text-muted-foreground tabular-nums"
-                aria-live="polite"
-              >
+              <FilterCount>
                 {grouped ? plural(total, "source") : plural(total, "alert")}
-              </span>
+              </FilterCount>
             )}
-          </>
+          </FilterBar>
         )
       }
     >
@@ -996,8 +999,9 @@ function AlertDetail({
               </div>
             )}
             {capabilities.manage && (
-              <InlineSelect
+              <SearchableSelect
                 label="Assignee"
+                className="w-full sm:w-64"
                 value={alert.assignee ? String(alert.assignee.id) : ""}
                 selectedLabel={alert.assignee?.name ?? "Unassigned"}
                 options={[

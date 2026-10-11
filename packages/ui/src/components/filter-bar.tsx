@@ -16,7 +16,8 @@ function FilterBar({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="filter-bar"
       role="group"
       aria-label="Filters"
-      className={cn("flex flex-wrap items-center gap-x-3 gap-y-2", className)}
+      // Full width, so inside a header row it takes its own line instead of squeezing beside tabs.
+      className={cn("flex w-full flex-wrap items-center gap-x-3 gap-y-2", className)}
       {...props}
     />
   )

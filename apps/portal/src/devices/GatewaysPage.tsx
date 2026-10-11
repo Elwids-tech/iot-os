@@ -28,7 +28,11 @@ import {
   DropdownMenuTrigger,
 } from "@iot-os/ui/components/dropdown-menu"
 import { FieldGroup } from "@iot-os/ui/components/field"
-import { Input } from "@iot-os/ui/components/input"
+import {
+  FilterBar,
+  FilterCount,
+  FilterSearch,
+} from "@iot-os/ui/components/filter-bar"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import {
@@ -158,23 +162,24 @@ export function GatewaysPage() {
           )
         }
       >
-        <Input
-          aria-label="Find a gateway"
-          placeholder="Find a gateway"
-          className="h-8 w-full sm:w-64"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setPage(1)
-          }}
-        />
-        {gateways.data && (
-          <span className="ml-auto text-sm text-muted-foreground" role="status">
-            {gateways.data.meta.total === 1
-              ? "1 gateway"
-              : `${gateways.data.meta.total} gateways`}
-          </span>
-        )}
+        <FilterBar>
+          <FilterSearch
+            label="Find a gateway"
+            placeholder="Search gateways by name"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
+          />
+          {gateways.data && (
+            <FilterCount>
+              {gateways.data.meta.total === 1
+                ? "1 gateway"
+                : `${gateways.data.meta.total} gateways`}
+            </FilterCount>
+          )}
+        </FilterBar>
       </PageHeader>
       <div className="grid items-start gap-8 p-4 md:p-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:gap-6">
         <div className="flex min-w-0 flex-col gap-8">

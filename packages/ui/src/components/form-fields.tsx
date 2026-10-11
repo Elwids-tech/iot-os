@@ -115,6 +115,7 @@ function SelectField({
   placeholder,
   id: idProp,
   className,
+  labelHidden,
 }: FieldChrome & {
   id?: string
   value: string
@@ -123,12 +124,14 @@ function SelectField({
   disabled?: boolean
   placeholder?: string
   className?: string
+  /** Toolbars keep the label for screen readers only. */
+  labelHidden?: boolean
 }) {
   const generated = React.useId()
   const id = idProp ?? generated
   return (
     <Field data-invalid={Boolean(error)} data-disabled={disabled}>
-      <FieldLabel htmlFor={id} optional={optional}>
+      <FieldLabel htmlFor={id} optional={optional} className={labelHidden ? "sr-only" : undefined}>
         {label}
       </FieldLabel>
       <Select
@@ -167,6 +170,7 @@ function SelectField({
 type ToggleChrome = {
   label: React.ReactNode
   description?: React.ReactNode
+  error?: React.ReactNode
   checked: boolean
   onCheckedChange: (checked: boolean) => void
   disabled?: boolean
@@ -180,6 +184,7 @@ function ToggleRow({
   control,
   label,
   description,
+  error,
   id,
   align,
   disabled,
@@ -187,21 +192,26 @@ function ToggleRow({
 }: {
   control: React.ReactNode
   id: string
-} & Pick<ToggleChrome, "label" | "description" | "align" | "disabled" | "className">) {
-  const text = description ? (
-    <FieldContent>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <FieldDescription id={id + "-description"}>{description}</FieldDescription>
-    </FieldContent>
-  ) : (
-    <FieldLabel htmlFor={id} className="font-normal">
-      {label}
-    </FieldLabel>
-  )
+} & Pick<ToggleChrome, "label" | "description" | "error" | "align" | "disabled" | "className">) {
+  const text =
+    description || error ? (
+      <FieldContent>
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        {description && (
+          <FieldDescription id={id + "-description"}>{description}</FieldDescription>
+        )}
+        {error && <FieldError id={id + "-error"}>{error}</FieldError>}
+      </FieldContent>
+    ) : (
+      <FieldLabel htmlFor={id} className="font-normal">
+        {label}
+      </FieldLabel>
+    )
   return (
     <Field
       orientation="horizontal"
       data-disabled={disabled}
+      data-invalid={Boolean(error)}
       className={cn(align === "end" && "justify-between", className)}
     >
       {align === "end" ? (
@@ -219,6 +229,11 @@ function ToggleRow({
   )
 }
 
+const toggleDescribedBy = (id: string, description: unknown, error: unknown) =>
+  [description && id + "-description", error && id + "-error"]
+    .filter(Boolean)
+    .join(" ") || undefined
+
 /** An on/off setting that applies as soon as it is saved. */
 function SwitchField({
   checked,
@@ -226,6 +241,7 @@ function SwitchField({
   disabled,
   id: idProp,
   description,
+  error,
   ...rest
 }: ToggleChrome) {
   const generated = React.useId()
@@ -234,6 +250,7 @@ function SwitchField({
     <ToggleRow
       id={id}
       description={description}
+      error={error}
       disabled={disabled}
       {...rest}
       control={
@@ -242,7 +259,8 @@ function SwitchField({
           checked={checked}
           disabled={disabled}
           onCheckedChange={onCheckedChange}
-          aria-describedby={description ? id + "-description" : undefined}
+          aria-invalid={Boolean(error) || undefined}
+          aria-describedby={toggleDescribedBy(id, description, error)}
         />
       }
     />
@@ -256,6 +274,7 @@ function CheckboxField({
   disabled,
   id: idProp,
   description,
+  error,
   ...rest
 }: ToggleChrome) {
   const generated = React.useId()
@@ -264,6 +283,7 @@ function CheckboxField({
     <ToggleRow
       id={id}
       description={description}
+      error={error}
       disabled={disabled}
       {...rest}
       control={
@@ -272,7 +292,8 @@ function CheckboxField({
           checked={checked}
           disabled={disabled}
           onCheckedChange={(value) => onCheckedChange(value === true)}
-          aria-describedby={description ? id + "-description" : undefined}
+          aria-invalid={Boolean(error) || undefined}
+          aria-describedby={toggleDescribedBy(id, description, error)}
         />
       }
     />
@@ -355,6 +376,7 @@ function FormSection({
   title,
   description,
   actions,
+  level = 3,
   className,
   children,
   ...props
@@ -362,8 +384,11 @@ function FormSection({
   title: React.ReactNode
   description?: React.ReactNode
   actions?: React.ReactNode
+  /** Heading level, so sections directly under a page title can be h2 and keep heading order. */
+  level?: 2 | 3 | 4
 }) {
   const id = React.useId()
+  const Heading = `h${level}` as const
   return (
     <section
       aria-labelledby={id}
@@ -373,9 +398,9 @@ function FormSection({
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex min-w-0 flex-col gap-1">
-          <h3 id={id} className="skin-label text-sm font-semibold">
+          <Heading id={id} className="skin-label text-sm font-semibold">
             {title}
-          </h3>
+          </Heading>
           {description && (
             <p className="text-sm text-muted-foreground">{description}</p>
           )}

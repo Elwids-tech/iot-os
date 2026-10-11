@@ -222,10 +222,10 @@ function SiteEditor({
               help={fieldError(error, "timezone") ?? "Search by city. Daylight saving changes are handled automatically."}
               onChange={(zone) => form.setValue("timezone", zone, { shouldDirty: true })}
             />
-            <TextField label="Address" placeholder="Optional" {...form.register("address")} />
+            <TextField label="Address" optional {...form.register("address")} />
             <FieldGroup className="grid gap-4 sm:grid-cols-2">
-              <TextField label="Latitude" type="number" step="any" min="-90" max="90" placeholder="Optional" error={fieldError(error, "latitude")} {...form.register("latitude")} />
-              <TextField label="Longitude" type="number" step="any" min="-180" max="180" placeholder="Optional" error={fieldError(error, "longitude")} {...form.register("longitude")} />
+              <TextField label="Latitude" type="number" step="any" min="-90" max="90" optional error={fieldError(error, "latitude")} {...form.register("latitude")} />
+              <TextField label="Longitude" type="number" step="any" min="-180" max="180" optional error={fieldError(error, "longitude")} {...form.register("longitude")} />
             </FieldGroup>
             <RequestError error={error} />
           </FieldGroup>
