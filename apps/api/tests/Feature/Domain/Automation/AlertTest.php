@@ -13,6 +13,7 @@ use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Services\WorkflowDeploymentService;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\DeviceAuthorization;
+use App\Domain\Notifications\Services\Preferences;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -81,7 +82,7 @@ final class AlertTest extends TestCase
         $delivery = AlertDelivery::firstOrFail();
         DB::table('notification_preferences')->insert([
             'user_id' => $this->recipient->id, 'email_enabled' => false, 'revision' => 1,
-            'grid' => json_encode(\App\Domain\Notifications\Services\Preferences::view($this->recipient)['grid']),
+            'grid' => json_encode(Preferences::view($this->recipient)['grid']),
             'created_at' => now(), 'updated_at' => now(),
         ]);
         $this->deliver($delivery);
@@ -263,6 +264,25 @@ final class AlertTest extends TestCase
         Mail::assertNothingSent();
         $this->actingAs($this->recipient, 'sanctum');
         $this->postJson($this->base.$suffix, ['retry_generation' => 1])->assertForbidden();
+    }
+
+    /**
+     * Postgres rejects a malformed uuid with a 500, which SQLite never does, so the test also proves the
+     * request stopped before any alert query.
+     */
+    public function test_returns_404_without_querying_alerts_when_an_alert_or_delivery_id_is_not_a_uuid(): void
+    {
+        $alert = $this->episode($this->deployment, 1);
+        DB::enableQueryLog();
+
+        $this->getJson($this->base.'/alerts/not-a-uuid')->assertNotFound();
+        $this->getJson($this->base.'/alerts/settings/comments?page=1')->assertNotFound();
+        $this->getJson($this->base.'/alerts/settings/deliveries')->assertNotFound();
+        $this->postJson($this->base.'/alerts/not-a-uuid/acknowledge')->assertNotFound();
+        $this->postJson($this->base.'/alerts/'.$alert->uuid.'/deliveries/not-a-uuid/retry', ['retry_generation' => 0])->assertNotFound();
+
+        $alertQueries = array_filter(DB::getQueryLog(), fn (array $query): bool => str_contains($query['query'], 'automation_alert'));
+        $this->assertSame([], $alertQueries);
     }
 
     public function test_list_and_detail_name_device_acknowledger_and_assignee_and_filter_by_device_and_workflow(): void

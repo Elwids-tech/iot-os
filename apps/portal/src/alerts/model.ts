@@ -44,6 +44,10 @@ export function alertQuery(params: URLSearchParams, me?: number) {
 export const sourceKey = (alert: Pick<WorkflowAlert, "workflow_uuid" | "device_uuid">) =>
   `${alert.workflow_uuid}|${alert.device_uuid}`;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Alert ids are UUIDs; any other path segment cannot name an alert, so there is nothing to ask the API. */
+export const isAlertId = (value: string) => UUID.test(value);
+
 /** Event log vocabulary matches alerts: an event needs attention while Active, otherwise it is Cleared. */
 export function eventState(event: Pick<NotificationEvent, "status" | "active">) {
   return event.status === "firing" && event.active ? "Active" : "Cleared";
