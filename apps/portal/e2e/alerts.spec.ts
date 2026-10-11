@@ -7,6 +7,8 @@ const meter = "18b842d4-dbe9-44b7-a82f-8409bf314d02";
 const geofence = "18b842d4-dbe9-44b7-a82f-8409bf314f01";
 const voltage = "18b842d4-dbe9-44b7-a82f-8409bf314f02";
 const base = `/organizations/${org}/alerts`;
+// Alert links must be UUIDs; anything else reads as a broken link.
+const alertIds = { a1: "a0000000-0000-4000-8000-000000000001", a2: "a0000000-0000-4000-8000-000000000002", a3: "a0000000-0000-4000-8000-000000000003" };
 const settings = `/organizations/${org}/settings/notifications`;
 const now = Date.now();
 const ago = (minutes: number) => new Date(now - minutes * 60000).toISOString();
@@ -66,8 +68,8 @@ async function setup(page: Page, manage = true) {
   });
   const state = {
     alerts: [
-      alert("a3", geofence, gps, 3, {}),
-      alert("a2", voltage, meter, 2, {
+      alert(alertIds.a3, geofence, gps, 3, {}),
+      alert(alertIds.a2, voltage, meter, 2, {
         condition: "cleared",
         activated_at: ago(130),
         cleared_at: ago(100),
@@ -75,7 +77,7 @@ async function setup(page: Page, manage = true) {
         acknowledged_by: 1,
         acknowledged_by_name: "Manager",
       }),
-      alert("a1", geofence, gps, 1, {
+      alert(alertIds.a1, geofence, gps, 1, {
         condition: "cleared",
         activated_at: ago(300),
         cleared_at: ago(280),
@@ -237,7 +239,7 @@ async function setup(page: Page, manage = true) {
           summary: "Workflow condition activated; episode 3.",
           service: null,
           environment: null,
-          link: `${base}/a3`,
+          link: `${base}/${alertIds.a3}`,
           labels: null,
           occurred_at: ago(19),
           last_seen_at: ago(19),
@@ -275,7 +277,7 @@ async function setup(page: Page, manage = true) {
         state.preferences = { ...body, revision: (body.revision as number) + 1 };
       return reply({ data: state.preferences });
     }
-    const alertMatch = path.match(/^\/alerts\/(a\d)(\/.*)?$/);
+    const alertMatch = path.match(/^\/alerts\/([0-9a-f-]{36})(\/.*)?$/);
     if (alertMatch) {
       const item = state.alerts.find((a) => a.uuid === alertMatch[1])!;
       const suffix = alertMatch[2] ?? "";
@@ -647,7 +649,7 @@ test("after our operation settles, polling follows another user's operation", as
 
 test("drafts survive crossing the 1280px layout breakpoint", async ({ page }) => {
   const { errors } = await setup(page);
-  await page.goto(`${base}/a3`);
+  await page.goto(`${base}/${alertIds.a3}`);
   await page.getByLabel("Add a comment").fill("Draft kept across layouts");
   await page.setViewportSize({ width: 1000, height: 900 });
   await expect(
@@ -681,7 +683,7 @@ test("mobile shows one pane at a time without sideways scroll", async ({ page })
 
 test("viewers read alerts without management actions", async ({ page }) => {
   await setup(page, false);
-  await page.goto(`${base}/a1`);
+  await page.goto(`${base}/${alertIds.a1}`);
   const detail = page.getByRole("region", { name: "Alert detail" });
   await expect(detail.getByText("Operator Two", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Notification settings" })).toHaveCount(0);
@@ -728,7 +730,7 @@ test("acknowledges whole sources after confirming and single selected alerts dir
   await page.getByRole("button", { name: "Acknowledge selected (1)" }).click();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await expect(page.getByText("Acknowledged 1 alert.")).toBeVisible();
-  expect(state.acknowledgements.at(-1)).toEqual({ alert_uuids: ["a2"] });
+  expect(state.acknowledgements.at(-1)).toEqual({ alert_uuids: [alertIds.a2] });
   await expect(page.getByRole("checkbox", { name: "Select every alert on this page" })).toBeDisabled();
   expect(errors).toEqual([]);
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
