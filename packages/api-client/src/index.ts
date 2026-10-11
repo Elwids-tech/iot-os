@@ -1165,6 +1165,8 @@ export class ApiClient {
       profile_uuid?: string
       site_uuid?: string
       tag?: string
+      /** name, code, last_seen or created; a leading "-" sorts descending. */
+      sort?: string
       page?: number
       per_page?: number
     } = {},
@@ -1176,7 +1178,8 @@ export class ApiClient {
     )
     return this.request<{
       data: Device[]
-      meta: { current_page: number; last_page: number; total: number }
+      /** `sort` echoes the applied sort; APIs without server sorting leave it out. */
+      meta: { current_page: number; last_page: number; total: number; sort?: string }
     }>(`/api/v1/organizations/${encodeURIComponent(org)}/devices?${search}`)
   }
   /** Canonical units grouped by quantity; custom units remain allowed. */
