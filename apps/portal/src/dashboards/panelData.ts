@@ -13,7 +13,7 @@ import type {
 } from "@iot-os/api-client"
 import { api } from "../lib/api"
 import { effectiveBucket, periodWindow } from "./calendar"
-import { resolveRange } from "./model"
+import { historyRefresh, resolveRange } from "./model"
 import { telemetryRequest } from "./requests"
 
 const unique = (ids: string[]) => [...new Set(ids)]
@@ -100,10 +100,7 @@ export function useHistory(
       enabled,
       staleTime: Infinity,
       gcTime: 30000,
-      refetchInterval:
-        view.range.mode === "relative" && view.refresh
-          ? view.refresh * 1000
-          : (false as const),
+      refetchInterval: historyRefresh(view),
       refetchIntervalInBackground: false,
       refetchOnWindowFocus: false,
       retry: 1,

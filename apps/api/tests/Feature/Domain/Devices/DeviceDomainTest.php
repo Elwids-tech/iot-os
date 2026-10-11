@@ -443,6 +443,25 @@ final class DeviceDomainTest extends TestCase
             && str_contains($request->url(), 'retention_days='));
     }
 
+    public function test_range_reads_cut_off_by_the_runtime_explain_themselves(): void
+    {
+        $device = $this->active($this->configured('rgb-light'));
+        Http::swap(new Factory);
+        Http::fake([
+            'http://runtime:8081/internal/measurements/state-history*' => Http::response(['message' => 'This range has too many readings to load in time. Choose a shorter range.'], 504),
+            'http://runtime:8081/internal/measurements/history*' => Http::response(['message' => 'state history is unavailable'], 503),
+        ]);
+        $range = ['parameter_uuid' => '10000000-0000-4000-8000-000000000001', 'from' => '2026-09-01T00:00:00Z', 'to' => '2026-10-01T00:00:00Z'];
+
+        $this->getJson($this->prefix.'/devices/'.$device->uuid.'/measurements/state-history?'.http_build_query($range))
+            ->assertStatus(504)
+            ->assertJsonPath('message', 'This range has too many readings to load in time. Choose a shorter range.');
+        // Other runtime failures keep the generic answer.
+        $this->getJson($this->prefix.'/devices/'.$device->uuid.'/measurements/history?'.http_build_query($range))
+            ->assertStatus(503)
+            ->assertJsonPath('message', 'The device runtime could not complete this request.');
+    }
+
     public function test_counter_increase_proxies_calendar_buckets_for_counters_only(): void
     {
         $device = $this->active($this->configured('three-phase-energy-meter'));

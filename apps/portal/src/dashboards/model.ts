@@ -265,6 +265,16 @@ export function resolveRange(range: DashboardRange, now = Date.now()) {
       }
     : { from: range.from, to: range.to }
 }
+/**
+ * How often a relative range re-reads its history: the dashboard's refresh,
+ * but never more often than 1/4000 of the span. Six hours still refresh
+ * every few seconds; a month re-reads about every 11 minutes instead of
+ * re-reading every stored sample every few seconds.
+ */
+export function historyRefresh(view: DashboardView): number | false {
+  if (view.range.mode !== "relative" || !view.refresh) return false
+  return Math.max(view.refresh * 1000, Math.round(PRESETS[view.range.preset] / 4000))
+}
 /** Matches the default measurement retention, so a full year plus a month can be compared. */
 export const MAX_ABSOLUTE_DAYS = 400
 export function absoluteError(

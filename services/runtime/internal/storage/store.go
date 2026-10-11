@@ -15,6 +15,7 @@ import (
 
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,6 +23,36 @@ import (
 var schema string
 
 type Store struct{ Pool *pgxpool.Pool }
+
+// querier is a pool or a transaction.
+type querier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+// rangeReadTimeout bounds the history reads people request for a time range.
+// The pool's 5 s statement limit suits ingestion, but a first read of a month
+// of compressed chunks can take longer while they decompress from disk.
+const rangeReadTimeout = "25s"
+
+// beginRangeRead starts a read-only transaction with rangeReadTimeout. Roll it
+// back when done; there is nothing to commit.
+func (s *Store) beginRangeRead(ctx context.Context) (pgx.Tx, error) {
+	tx, e := s.Pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if e != nil {
+		return nil, e
+	}
+	if _, e = tx.Exec(ctx, "SET LOCAL statement_timeout = '"+rangeReadTimeout+"'"); e != nil {
+		_ = tx.Rollback(ctx)
+		return nil, e
+	}
+	return tx, nil
+}
+
+// IsQueryTimeout reports whether Postgres cancelled a query at its statement limit.
+func IsQueryTimeout(e error) bool {
+	var pg *pgconn.PgError
+	return errors.As(e, &pg) && pg.Code == "57014"
+}
 
 func Open(ctx context.Context, url string) (*Store, error) {
 	return OpenWithSchema(ctx, url, true)
@@ -365,7 +396,12 @@ func (s *Store) History(ctx context.Context, org, device, param string, from, to
 	if options.MergeConfigurations {
 		configuration, group = "''", ""
 	}
-	rows, e := s.Pool.Query(ctx, `
+	tx, e := s.beginRangeRead(ctx)
+	if e != nil {
+		return nil, e
+	}
+	defer tx.Rollback(ctx)
+	rows, e := tx.Query(ctx, `
     SELECT * FROM (
       SELECT `+configuration+`, reading->>'unit' AS unit, reading->>'data_type' AS datatype,
         to_timestamp(floor(extract(epoch FROM `+at+`)/$6)*$6) AS at,
@@ -432,7 +468,7 @@ func (s *Store) History(ctx context.Context, org, device, param string, from, to
 	if e = rows.Err(); e != nil || !options.MergeConfigurations || len(series) == 0 {
 		return series, e
 	}
-	spans, e := s.configurationSpans(ctx, org, device, param, from, to, at, window)
+	spans, e := configurationSpans(ctx, tx, org, device, param, from, to, at, window)
 	if e != nil {
 		return nil, e
 	}
@@ -445,8 +481,8 @@ func (s *Store) History(ctx context.Context, org, device, param string, from, to
 	return series, nil
 }
 
-func (s *Store) configurationSpans(ctx context.Context, org, device, param string, from, to time.Time, at, window string) ([]ConfigurationSpan, error) {
-	rows, e := s.Pool.Query(ctx, `SELECT configuration_uuid::text, min(`+at+`) FROM device_runtime.observations
+func configurationSpans(ctx context.Context, q querier, org, device, param string, from, to time.Time, at, window string) ([]ConfigurationSpan, error) {
+	rows, e := q.Query(ctx, `SELECT configuration_uuid::text, min(`+at+`) FROM device_runtime.observations
       WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND `+window+`
       GROUP BY 1 ORDER BY 2`, org, device, param, from, to)
 	if e != nil {
@@ -603,35 +639,45 @@ type stateChange struct {
 }
 
 func (s *Store) StateHistory(ctx context.Context, org, device, param string, from, to time.Time, maxPoints int) (StateHistory, error) {
-	rows, err := s.Pool.Query(ctx, `
+	tx, err := s.beginRangeRead(ctx)
+	if err != nil {
+		return StateHistory{}, err
+	}
+	defer tx.Rollback(ctx)
+	// Only the compared fields travel through the window and sort, not the whole
+	// reading: a month of one-second samples otherwise spills the sort to disk.
+	rows, err := tx.Query(ctx, `
       WITH raw AS (
         SELECT * FROM (
-          SELECT event_uuid,configuration_uuid,observed_at,reading
+          SELECT event_uuid,configuration_uuid,observed_at,reading->'value' AS value,
+            COALESCE(reading->>'quality','') AS quality,COALESCE(reading->>'data_type','') AS data_type
           FROM device_runtime.observations
           WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND observed_at<$4
           ORDER BY observed_at DESC,event_uuid DESC LIMIT 1
         ) carry
         UNION ALL
-        SELECT event_uuid,configuration_uuid,observed_at,reading
+        SELECT event_uuid,configuration_uuid,observed_at,reading->'value',
+          COALESCE(reading->>'quality',''),COALESCE(reading->>'data_type','')
         FROM device_runtime.observations
         WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3
           AND observed_at>=$4 AND observed_at<=$5 AND received_at>=$4::timestamptz-interval '5 minutes'
       ), ordered AS (
-        SELECT event_uuid,configuration_uuid,observed_at,reading,
-          row_number() OVER (ORDER BY observed_at,event_uuid) AS sequence,
-          lag(reading->'value') OVER (ORDER BY observed_at,event_uuid) AS previous_value,
-          lag(configuration_uuid) OVER (ORDER BY observed_at,event_uuid) AS previous_configuration,
-          lag(COALESCE(reading->>'quality','')) OVER (ORDER BY observed_at,event_uuid) AS previous_quality,
-          lag(COALESCE(reading->>'data_type','')) OVER (ORDER BY observed_at,event_uuid) AS previous_data_type
+        SELECT *,
+          row_number() OVER w AS sequence,
+          lag(value) OVER w AS previous_value,
+          lag(configuration_uuid) OVER w AS previous_configuration,
+          lag(quality) OVER w AS previous_quality,
+          lag(data_type) OVER w AS previous_data_type
         FROM raw
+        WINDOW w AS (ORDER BY observed_at,event_uuid)
       )
-      SELECT configuration_uuid::text,observed_at,reading
+      SELECT configuration_uuid::text,observed_at,value,quality,data_type
       FROM ordered
       WHERE sequence=1
-        OR reading->'value' IS DISTINCT FROM previous_value
+        OR value IS DISTINCT FROM previous_value
         OR configuration_uuid IS DISTINCT FROM previous_configuration
-        OR COALESCE(reading->>'quality','') IS DISTINCT FROM previous_quality
-        OR COALESCE(reading->>'data_type','') IS DISTINCT FROM previous_data_type
+        OR quality IS DISTINCT FROM previous_quality
+        OR data_type IS DISTINCT FROM previous_data_type
       ORDER BY observed_at,event_uuid`, org, device, param, from, to)
 	if err != nil {
 		return StateHistory{}, err
@@ -640,17 +686,17 @@ func (s *Store) StateHistory(ctx context.Context, org, device, param string, fro
 	changes := []stateChange{}
 	for rows.Next() {
 		var change stateChange
-		var reading devices.Reading
 		var raw []byte
-		if err = rows.Scan(&change.ConfigurationUUID, &change.At, &raw); err != nil {
+		var quality string
+		if err = rows.Scan(&change.ConfigurationUUID, &change.At, &raw, &quality, &change.DataType); err != nil {
 			return StateHistory{}, err
 		}
-		if err = Decode(raw, &reading); err != nil {
-			return StateHistory{}, err
+		if raw != nil {
+			if err = Decode(raw, &change.Value); err != nil {
+				return StateHistory{}, err
+			}
 		}
-		change.Value = reading.Value
-		change.DataType = reading.DataType
-		change.Known = reading.Value != nil && (reading.Quality == "" || reading.Quality == "good")
+		change.Known = change.Value != nil && (quality == "" || quality == "good")
 		changes = append(changes, change)
 	}
 	if err = rows.Err(); err != nil {
@@ -1065,7 +1111,12 @@ func (s *Store) CounterIncrease(ctx context.Context, org, device, param string, 
 	if !ok {
 		return CounterIncrease{}, errors.New("unsupported bucket")
 	}
-	rows, err := s.Pool.Query(ctx, `
+	tx, err := s.beginRangeRead(ctx)
+	if err != nil {
+		return CounterIncrease{}, err
+	}
+	defer tx.Rollback(ctx)
+	rows, err := tx.Query(ctx, `
       WITH raw AS (
         SELECT * FROM (
           SELECT observed_at,event_uuid,reading->>'unit' AS unit,(reading->>'value')::double precision AS v
