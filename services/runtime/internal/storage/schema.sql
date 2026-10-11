@@ -117,4 +117,8 @@ CREATE TABLE IF NOT EXISTS device_runtime.dag_evaluations (
 );
 CREATE INDEX IF NOT EXISTS dag_evaluation_workflow ON device_runtime.dag_evaluations(workflow_uuid,id DESC);
 CREATE INDEX IF NOT EXISTS dag_evaluation_retention ON device_runtime.dag_evaluations(organization_uuid,received_at);
+-- Retention and ledger pruning (Store.cleanup, Store.PruneLedgers).
+CREATE INDEX IF NOT EXISTS telemetry_outbox_retention ON device_runtime.telemetry_outbox(organization_uuid,created_at) WHERE published_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS runtime_outbox_published ON device_runtime.outbox(published_at) WHERE published_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS rule_inputs_consumed ON device_runtime.rule_inputs(consumed_at);
 RESET statement_timeout;
