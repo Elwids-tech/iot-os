@@ -114,6 +114,20 @@ services:
     networks:
       - internal
 
+  # Runs routes/console.php schedules (ledger pruning, assistant recovery,
+  # heartbeats) as the release scheduler service does.
+  scheduler:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/api/Dockerfile
+    environment: *api-environment
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [internal]
+
   admin:
     build:
       context: ../..

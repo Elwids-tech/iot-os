@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Http\Controllers;
 
+use App\Domain\Automation\Services\DagActions;
 use App\Domain\Automation\Services\WorkflowDeploymentService;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
@@ -17,28 +18,40 @@ use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 final class RuntimeController
 {
+    /**
+     * The runtime reconciles against this snapshot every 30 seconds, so it is
+     * built with a fixed number of queries however many devices exist.
+     */
     public function state(RetentionService $retention): array
     {
-        $configurations = DeviceConfiguration::all()->keyBy('uuid');
+        $organizations = Organization::all();
+        $organizationUuids = $organizations->pluck('uuid', 'id');
+        $devices = Device::where('lifecycle', '!=', 'archived')
+            ->addSelect(['devices.*', 'current_operation_uuid' => DeviceOperation::select('uuid')
+                ->whereColumn('device_id', 'devices.id')->whereColumn('generation', 'devices.deployment_generation')->limit(1)])
+            ->get();
+        $configurations = DeviceConfiguration::whereIn('uuid', $devices->pluck('desired_configuration_uuid')
+            ->merge($devices->pluck('applied_configuration_uuid'))->filter()->unique()->values())->get()->keyBy('uuid');
 
         return [
             'connections' => SparkplugConnection::where('status', 'ready')->get()->map(fn ($c) => [
-                'uuid' => $c->uuid, 'organization_uuid' => Organization::findOrFail($c->organization_id)->uuid,
+                'uuid' => $c->uuid, 'organization_uuid' => $organizationUuids[$c->organization_id],
                 'group_id' => $c->group_id, 'host_id' => $c->host_id, 'username' => $c->username,
                 'password' => $c->password, 'broker_url' => config('devices.broker_url'),
             ]),
-            'devices' => Device::where('lifecycle', '!=', 'archived')->with('organization')->get()->map(fn ($d) => [
-                'uuid' => $d->uuid, 'organization_uuid' => $d->organization->uuid, 'generation' => $d->deployment_generation, 'operation_uuid' => DeviceOperation::where('device_id', $d->id)->where('generation', $d->deployment_generation)->value('uuid'),
+            'devices' => $devices->map(fn ($d) => [
+                'uuid' => $d->uuid, 'organization_uuid' => $organizationUuids[$d->organization_id], 'generation' => $d->deployment_generation, 'operation_uuid' => $d->current_operation_uuid,
                 'lifecycle' => $d->lifecycle, 'deployment_status' => $d->deployment_status,
                 'desired' => $configurations->get($d->desired_configuration_uuid)?->definition,
                 'applied' => $configurations->get($d->applied_configuration_uuid)?->definition,
             ]),
-            'retention' => Organization::all()->map(fn ($o) => ['organization_uuid' => $o->uuid, ...$retention->effective($o)]),
+            'retention' => $organizations->map(fn ($o) => ['organization_uuid' => $o->uuid, ...$retention->effective($o)]),
         ];
     }
 
@@ -70,8 +83,9 @@ final class RuntimeController
 
     public function automationCommandCheck(Request $request): array
     {
-        $v=$request->validate(['action_id'=>'required|string|size:64','command_uuid'=>'required|uuid']);
-        return ['allowed'=>app(\App\Domain\Automation\Services\DagActions::class)->authorizeDispatch($v['action_id'],$v['command_uuid'])];
+        $v = $request->validate(['action_id' => 'required|string|size:64', 'command_uuid' => 'required|uuid']);
+
+        return ['allowed' => app(DagActions::class)->authorizeDispatch($v['action_id'], $v['command_uuid'])];
     }
 
     public function event(Request $request): array
@@ -85,7 +99,11 @@ final class RuntimeController
                 return ['ok' => true, 'duplicate' => true];
             }
             $p = $event['payload'];
-            if ($event['type'] === 'automation.intent.v1') { app(\App\Domain\Automation\Services\DagActions::class)->accept($p); return ['ok'=>true]; }
+            if ($event['type'] === 'automation.intent.v1') {
+                app(DagActions::class)->accept($p);
+
+                return ['ok' => true];
+            }
             if (str_starts_with($event['type'], 'workflow.')) {
                 app(WorkflowDeploymentService::class)->event($event['type'], $p);
 
@@ -98,14 +116,20 @@ final class RuntimeController
                 return ['ok' => true];
             }
             if ($event['type'] === 'connection.presence.v1') {
-                $connection = SparkplugConnection::where('uuid', $p['connection_uuid'])->firstOrFail();
+                $connection = SparkplugConnection::where('uuid', $p['connection_uuid'])->first();
+                if (! $connection) {
+                    return $this->unknownReference($event);
+                }
                 $connection->gateways()->update(['presence' => $p['presence'], 'runtime_seen_at' => now()]);
                 DiscoveryCandidate::whereHas('gateway', fn ($query) => $query->where('sparkplug_connection_id', $connection->id))->update(['presence' => $p['presence']]);
 
                 return ['ok' => true];
             }
             if ($event['type'] === 'discovery.presence.v1') {
-                $connection = SparkplugConnection::where('uuid', $p['connection_uuid'])->firstOrFail();
+                $connection = SparkplugConnection::where('uuid', $p['connection_uuid'])->first();
+                if (! $connection) {
+                    return $this->unknownReference($event);
+                }
                 $gateway = $connection->gateways()->where('edge_node_id', $p['edge_node_id'])->first();
                 if ($gateway && $gateway->session_id === $p['session_id']) {
                     $gateway->update(['presence' => 'online', 'last_seen_at' => $p['received_at'], 'runtime_seen_at' => now()]);
@@ -115,13 +139,19 @@ final class RuntimeController
                 return ['ok' => true];
             }
             if ($event['type'] === 'retention.cleanup.v1') {
-                $org = Organization::where('uuid', $p['organization_uuid'] ?? '')->firstOrFail();
+                $org = Organization::where('uuid', $p['organization_uuid'] ?? '')->first();
+                if (! $org) {
+                    return $this->unknownReference($event);
+                }
                 DeviceAudit::record('retention.cleanup', $org->id, null, null, ['status' => $p['status'] ?? 'failed', 'deleted_rows' => (int) ($p['deleted_rows'] ?? 0), 'diagnostic' => mb_substr($p['diagnostic'] ?? '', 0, 2000)]);
 
                 return ['ok' => true];
             }
             if (in_array($event['type'], ['discovery.birth.v1', 'gateway.presence.v1'], true)) {
-                $connection = SparkplugConnection::where('uuid', $p['connection_uuid'] ?? '')->firstOrFail();
+                $connection = SparkplugConnection::where('uuid', $p['connection_uuid'] ?? '')->first();
+                if (! $connection) {
+                    return $this->unknownReference($event);
+                }
                 $gateway = SparkplugGateway::firstOrCreate(['sparkplug_connection_id' => $connection->id, 'edge_node_id' => $p['edge_node_id']],
                     ['organization_id' => $connection->organization_id, 'name' => $p['edge_node_id']]);
                 if ($event['type'] === 'gateway.presence.v1') {
@@ -150,9 +180,15 @@ final class RuntimeController
 
                 return ['ok' => true];
             }
-            $device = Device::where('uuid', $p['device_uuid'] ?? '')->whereHas('organization', fn ($q) => $q->where('uuid', $p['organization_uuid'] ?? ''))->lockForUpdate()->firstOrFail();
+            $device = Device::where('uuid', $p['device_uuid'] ?? '')->whereHas('organization', fn ($q) => $q->where('uuid', $p['organization_uuid'] ?? ''))->lockForUpdate()->first();
+            if (! $device) {
+                return $this->unknownReference($event);
+            }
             if ($event['type'] === 'command.status.v1') {
-                $command = $device->commands()->where('uuid', $p['command_uuid'] ?? '')->firstOrFail();
+                $command = $device->commands()->where('uuid', $p['command_uuid'] ?? '')->first();
+                if (! $command) {
+                    return $this->unknownReference($event);
+                }
                 if (in_array($command->status, ['observed', 'failed', 'timed_out', 'uncertain', 'already_at_target', 'cancelled'], true)) {
                     return ['ok' => true];
                 }
@@ -214,5 +250,17 @@ final class RuntimeController
 
             return ['ok' => true];
         });
+    }
+
+    /**
+     * An event about a connection, device or command that was deleted after the
+     * runtime emitted it. It is recorded in the inbox and acknowledged: a 404
+     * would make the runtime retry it forever, blocking every later event.
+     */
+    private function unknownReference(array $event): array
+    {
+        Log::warning('Runtime event refers to a record that no longer exists.', ['uuid' => $event['uuid'], 'type' => $event['type']]);
+
+        return ['ok' => true, 'ignored' => 'unknown_reference'];
     }
 }
