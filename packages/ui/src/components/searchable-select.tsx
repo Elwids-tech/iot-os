@@ -1,8 +1,13 @@
 "use client"
 
 import { useEffect, useId, useState } from "react"
-import { CheckIcon, ChevronsUpDownIcon } from "lucide-react"
+import { CheckIcon } from "lucide-react"
 import { Button } from "@iot-os/ui/components/button"
+import { cn } from "@iot-os/ui/lib/utils"
+import {
+  PickerAddon,
+  pickerTriggerClassName,
+} from "@iot-os/ui/components/select"
 import {
   Command,
   CommandGroup,
@@ -13,6 +18,7 @@ import {
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldLabel,
 } from "@iot-os/ui/components/field"
 import {
@@ -40,6 +46,10 @@ export function SearchableSelect({
   page = 1,
   hasNextPage = false,
   onPageChange,
+  labelHidden = false,
+  optional = false,
+  className,
+  error,
 }: {
   label: string
   value: string
@@ -56,6 +66,12 @@ export function SearchableSelect({
   page?: number
   hasNextPage?: boolean
   onPageChange?: (page: number) => void
+  /** Filter bars keep the label for screen readers only. */
+  labelHidden?: boolean
+  optional?: boolean
+  className?: string
+  /** A validation message shown under the help text; also marks the trigger invalid. */
+  error?: React.ReactNode
 }) {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -73,9 +89,14 @@ export function SearchableSelect({
   const visibleOptions = options.filter(
     (option) => option.value !== "" || !search,
   )
+  const describedBy =
+    [help && id + "-help", error && id + "-error"].filter(Boolean).join(" ") ||
+    undefined
   return (
-    <Field data-disabled={disabled}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+    <Field data-disabled={disabled} data-invalid={Boolean(error)} className={className}>
+      <FieldLabel htmlFor={id} optional={optional} className={labelHidden ? "sr-only" : undefined}>
+        {label}
+      </FieldLabel>
       <Popover
         open={open && !disabled}
         onOpenChange={(next) => {
@@ -84,15 +105,18 @@ export function SearchableSelect({
         }}
       >
         <PopoverTrigger asChild>
-          <Button
+          <button
             id={id}
             type="button"
-            variant="outline"
             role="combobox"
+            data-slot="searchable-select-trigger"
+            data-size="default"
+            data-placeholder={displayLabel === placeholder ? "" : undefined}
             aria-expanded={open && !disabled}
-            aria-describedby={help ? id + "-help" : undefined}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={describedBy}
             disabled={disabled}
-            className="w-full min-w-0 justify-between"
+            className={cn(pickerTriggerClassName, "w-full min-w-0")}
             onKeyDown={(event) => {
               if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                 event.preventDefault()
@@ -101,8 +125,8 @@ export function SearchableSelect({
             }}
           >
             <span className="truncate">{displayLabel}</span>
-            <ChevronsUpDownIcon data-icon="inline-end" />
-          </Button>
+            <PickerAddon />
+          </button>
         </PopoverTrigger>
         <PopoverContent
           align="start"
@@ -187,6 +211,7 @@ export function SearchableSelect({
         </PopoverContent>
       </Popover>
       {help && <FieldDescription id={id + "-help"}>{help}</FieldDescription>}
+      {error && <FieldError id={id + "-error"}>{error}</FieldError>}
     </Field>
   )
 }
@@ -201,6 +226,10 @@ export function SearchableMultiSelect({
   help,
   disabled,
   placeholder = "Choose options",
+  labelHidden = false,
+  optional = false,
+  className,
+  error,
 }: {
   label: string
   values: string[]
@@ -210,6 +239,10 @@ export function SearchableMultiSelect({
   help?: string
   disabled?: boolean
   placeholder?: string
+  labelHidden?: boolean
+  optional?: boolean
+  className?: string
+  error?: React.ReactNode
 }) {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -217,24 +250,32 @@ export function SearchableMultiSelect({
   const display = values.length
     ? `${values.length} selected`
     : placeholder
+  const describedBy =
+    [help && id + "-help", error && id + "-error"].filter(Boolean).join(" ") ||
+    undefined
   return (
-    <Field data-disabled={disabled}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+    <Field data-disabled={disabled} data-invalid={Boolean(error)} className={className}>
+      <FieldLabel htmlFor={id} optional={optional} className={labelHidden ? "sr-only" : undefined}>
+        {label}
+      </FieldLabel>
       <Popover open={open && !disabled} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button
+          <button
             id={id}
             type="button"
-            variant="outline"
             role="combobox"
+            data-slot="searchable-select-trigger"
+            data-size="default"
+            data-placeholder={values.length ? undefined : ""}
             aria-expanded={open && !disabled}
-            aria-describedby={help ? id + "-help" : undefined}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={describedBy}
             disabled={disabled}
-            className="w-full min-w-0 justify-between"
+            className={cn(pickerTriggerClassName, "w-full min-w-0")}
           >
             <span className="truncate">{display}</span>
-            <ChevronsUpDownIcon data-icon="inline-end" />
-          </Button>
+            <PickerAddon />
+          </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 p-0" aria-label={label}>
           <Command>
@@ -264,6 +305,7 @@ export function SearchableMultiSelect({
         </PopoverContent>
       </Popover>
       {help && <FieldDescription id={id + "-help"}>{help}</FieldDescription>}
+      {error && <FieldError id={id + "-error"}>{error}</FieldError>}
     </Field>
   )
 }

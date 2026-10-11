@@ -15,13 +15,13 @@ import {
   type WorkflowDeploymentStatus,
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
-import { Field, FieldLabel } from "@iot-os/ui/components/field";
+import { FieldDescription } from "@iot-os/ui/components/field";
+import { FormSection, SwitchField } from "@iot-os/ui/components/form-fields";
 import { PageHeader } from "@iot-os/ui/components/page-header";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { keepToastsAbove } from "@iot-os/ui/components/sonner";
 import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark";
-import { Switch } from "@iot-os/ui/components/switch";
 import {
   Table,
   TableBody,
@@ -101,8 +101,8 @@ export function NotificationsPage() {
                       <TableHead className="pl-4 md:pl-6">Workflow</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead className="text-right">Recipients</TableHead>
-                      <TableHead className="pr-4 md:pr-6">On clear</TableHead>
+                      <TableHead className="text-right max-2xl:hidden">Recipients</TableHead>
+                      <TableHead className="pr-4 max-2xl:hidden md:pr-6">On clear</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -141,10 +141,10 @@ export function NotificationsPage() {
                               </StatusMark>
                             ) : null}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          <TableCell className="text-right tabular-nums max-2xl:hidden">
                             {value?.recipient_ids.length}
                           </TableCell>
-                          <TableCell className="pr-4 text-muted-foreground md:pr-6">
+                          <TableCell className="pr-4 text-muted-foreground max-2xl:hidden md:pr-6">
                             {value
                               ? value.notify_on_clear
                                 ? "Email"
@@ -242,13 +242,8 @@ function WorkflowSettings({
               </Link>
             )}
           </div>
-          <WorkflowState org={org} uuid={workflow} name={name} level={back ? 2 : 3} />
-          <SettingsForm
-            org={org}
-            workflow={workflow}
-            initial={query.data}
-            level={back ? 2 : 3}
-          />
+          <WorkflowState org={org} uuid={workflow} name={name} />
+          <SettingsForm org={org} workflow={workflow} initial={query.data} />
         </>
       ) : query.isPending ? (
         <Skeleton className="h-64 w-full" />
@@ -279,14 +274,11 @@ function WorkflowState({
   org,
   uuid,
   name,
-  level,
 }: {
   org: string;
   uuid: string;
   name: string;
-  level: 2 | 3;
 }) {
-  const Heading = level === 2 ? "h2" : "h3";
   const { capabilities } = useDeviceOrganization();
   const cache = useQueryClient();
   const key = ["workflow", org, uuid];
@@ -402,10 +394,7 @@ function WorkflowState({
     data.deployment_status,
   ];
   return (
-    <section aria-labelledby="workflow-state" className="flex flex-col gap-3 border-t pt-4">
-      <Heading id="workflow-state" className="text-sm font-semibold">
-        Workflow
-      </Heading>
+    <FormSection level={2} title="Workflow" className="border-t pt-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
         <StatusMark tone={tone}>{label}</StatusMark>
         <span className="text-muted-foreground">
@@ -462,7 +451,7 @@ function WorkflowState({
         onConfirm={() => deploy("active")}
         onRefresh={() => workflow.refetch()}
       />
-    </section>
+    </FormSection>
   );
 }
 
@@ -470,14 +459,11 @@ function SettingsForm({
   org,
   workflow,
   initial,
-  level,
 }: {
   org: string;
   workflow: string;
   initial: Settings;
-  level: 2 | 3;
 }) {
-  const Heading = level === 2 ? "h2" : "h3";
   const cache = useQueryClient();
   const [baseline, setBaseline] = useState(initial);
   const [draft, setDraft] = useState(initial);
@@ -513,48 +499,37 @@ function SettingsForm({
         save.mutate();
       }}
     >
-      <section aria-labelledby="email-heading" className="flex flex-col gap-3 border-t pt-4">
-        <Heading id="email-heading" className="text-sm font-semibold">
-          Email
-        </Heading>
-        <Field orientation="horizontal">
-          <Switch
-            id="email-enabled"
-            checked={draft.enabled}
-            disabled={save.isPending}
-            onCheckedChange={(enabled) => change({ ...draft, enabled })}
-          />
-          <FieldLabel htmlFor="email-enabled" className="font-normal">
-            Enable email notifications
-          </FieldLabel>
-        </Field>
-        <Field orientation="horizontal">
-          <Switch
-            id="email-recovery"
-            checked={draft.notify_on_clear}
-            disabled={save.isPending}
-            onCheckedChange={(notify_on_clear) =>
-              change({ ...draft, notify_on_clear })
-            }
-          />
-          <FieldLabel htmlFor="email-recovery" className="font-normal">
-            Email when the condition clears
-          </FieldLabel>
-        </Field>
-        <p className="text-xs text-muted-foreground">
+      <FormSection level={2} title="Email" className="border-t pt-4">
+        <SwitchField
+          id="email-enabled"
+          label="Enable email notifications"
+          checked={draft.enabled}
+          disabled={save.isPending}
+          onCheckedChange={(enabled) => change({ ...draft, enabled })}
+        />
+        <SwitchField
+          id="email-recovery"
+          label="Email when the condition clears"
+          checked={draft.notify_on_clear}
+          disabled={save.isPending}
+          onCheckedChange={(notify_on_clear) =>
+            change({ ...draft, notify_on_clear })
+          }
+        />
+        <FieldDescription>
           Applies to future transitions. Existing episodes are not emailed
           again.
-        </p>
-      </section>
-      <section aria-labelledby="recipients-heading" className="flex flex-col gap-3 border-t pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <Heading id="recipients-heading" className="text-sm font-semibold">
-            Recipients
-          </Heading>
+        </FieldDescription>
+      </FormSection>
+      <FormSection level={2}
+        title="Recipients"
+        className="border-t pt-4"
+        actions={
           <span className="text-xs text-muted-foreground tabular-nums">
             {draft.recipient_ids.length} of 20
           </span>
-        </div>
+        }
+      >
         <SearchableSelect
           label="Add recipient"
           value=""
@@ -643,7 +618,7 @@ function SettingsForm({
         ) : (
           <p className="text-sm text-muted-foreground">No recipients selected.</p>
         )}
-      </section>
+      </FormSection>
       <RequestError error={save.error} />
       <div ref={keepToastsAbove} className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t bg-background px-4 py-3 md:-mx-6 md:px-6">
         <span role="status" className="mr-auto text-sm text-muted-foreground">

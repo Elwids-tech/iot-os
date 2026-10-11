@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group";
+import { usePanel, type PanelTab } from "../panel/context";
 import type {
   HelpArticle,
   HelpArticleSummary,
@@ -67,6 +69,7 @@ import {
   ArrowLeftIcon,
   BookOpenIcon,
   SendIcon,
+  SparklesIcon,
   SquareIcon,
   PlusIcon,
   Trash2Icon,
@@ -75,7 +78,7 @@ import {
 import { api } from "../lib/api";
 import { Confirm, RequestError } from "../components/forms";
 
-type Tab = "page" | "guides" | "ask";
+
 type ArticleTarget = { slug: string; heading?: string };
 const activeRun = (detail?: HelpDetail) =>
   detail?.runs.find(
@@ -185,27 +188,32 @@ function GuideList({
   );
 }
 
+/**
+ * The workspace panel: one docked rail (a sheet below xl) with an Ask tab for
+ * the assistant of the current context and two tabs of guides. Pages that own
+ * an assistant portal it into the Ask tab through the panel slot; the profile
+ * assistant arrives as `profileAssistant`; everywhere else Ask answers usage
+ * questions from the guides.
+ */
 export default function HelpPanel({
   org,
   organizationName,
   context,
-  open,
-  onClose,
-  askRequest,
+  profileAssistant,
 }: {
   org: string;
   organizationName: string;
   context: string;
-  open: boolean;
-  onClose: () => void;
-  /** Changes whenever the shell's Assistant button asks for the Ask Help tab. */
-  askRequest?: number;
+  /** The device-profile authoring body, when the page is a profile page. */
+  profileAssistant?: ReactNode;
 }) {
   const cache = useQueryClient();
-  const [tab, setTab] = useState<Tab>("page");
-  useEffect(() => {
-    if (askRequest) setTab("ask");
-  }, [askRequest]);
+  const workspace = usePanel();
+  const { open, tab, setTab, slot, setSlotTarget, askMode, setAskMode } = workspace;
+  const onClose = workspace.closePanel;
+  const hasContext = Boolean(slot) || Boolean(profileAssistant);
+  // With a context assistant present, Ask can still answer usage questions from the guides.
+  const askHelp = tab === "ask" && (!hasContext || askMode === "help");
   const [article, setArticle] = useState<ArticleTarget | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -296,7 +304,7 @@ export default function HelpPanel({
   const conversations = useQuery({
     queryKey: ["help", org, "conversations"],
     queryFn: () => api.helpConversations(org),
-    enabled: open && tab === "ask",
+    enabled: open && askHelp,
   });
   const detail = useQuery({
     queryKey: ["help", org, "conversation", selected],
@@ -386,19 +394,23 @@ export default function HelpPanel({
   const content = (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-start justify-between gap-2 border-b p-4">
-        <div>
+        <div className="min-w-0">
           <h2 id="help-title" className="flex items-center gap-2 font-semibold">
-            <BookOpenIcon className="size-4" />
-            Help
+            <SparklesIcon className="size-4" />
+            Assistant
           </h2>
-          <p id="help-description" className="text-xs text-muted-foreground">
-            Guides and usage questions · {organizationName}
+          <p id="help-description" className="truncate text-xs text-muted-foreground">
+            {slot
+              ? (slot.description ?? `Working on ${slot.title}`)
+              : profileAssistant
+                ? `Device profiles · ${organizationName}`
+                : `Guides and usage questions · ${organizationName}`}
           </p>
         </div>
         <Button
           size="icon"
           variant="ghost"
-          aria-label="Close Help"
+          aria-label="Close assistant"
           onClick={onClose}
         >
           <XIcon />
@@ -407,20 +419,62 @@ export default function HelpPanel({
       <Tabs
         value={tab}
         onValueChange={(value) => {
-          setTab(value as Tab);
+          setTab(value as PanelTab);
           setArticle(null);
           setError(null);
         }}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
         <div className="border-b p-3">
-          <TabsList className="w-full" aria-label="Help views">
+          <TabsList className="w-full" aria-label="Assistant views">
+            <TabsTrigger value="ask">Ask</TabsTrigger>
             <TabsTrigger value="page">This page</TabsTrigger>
             <TabsTrigger value="guides">All guides</TabsTrigger>
-            <TabsTrigger value="ask">Ask Help</TabsTrigger>
           </TabsList>
         </div>
-        <TabsContent value={tab} className="flex min-h-0 flex-1 flex-col">
+        {tab === "ask" && hasContext && !article && (
+          <div className="border-b p-3">
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              spacing={0}
+              aria-label="Ask about"
+              value={askMode}
+              onValueChange={(value) => {
+                if (value === "context" || value === "help") setAskMode(value);
+              }}
+            >
+              <ToggleGroupItem value="context">
+                {slot?.title ?? "This profile"}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="help">Usage help</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        )}
+        {/* Always mounted: the page that owns the context assistant portals its body here. */}
+        <div
+          ref={setSlotTarget}
+          data-slot="panel-slot"
+          className={
+            tab === "ask" && slot && askMode === "context" && !article
+              ? "flex min-h-0 flex-1 flex-col"
+              : "hidden"
+          }
+        />
+        {tab === "ask" && !slot && profileAssistant && askMode === "context" && !article && (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Suspense fallback={<Skeleton className="m-4 h-40" />}>{profileAssistant}</Suspense>
+          </div>
+        )}
+        <TabsContent
+          value={tab}
+          className={
+            tab === "ask" && hasContext && askMode === "context" && !article
+              ? "hidden"
+              : "flex min-h-0 flex-1 flex-col"
+          }
+        >
           {Boolean(error) && (
             <div className="p-3">
               <RequestError error={error} />
@@ -437,7 +491,7 @@ export default function HelpPanel({
                   <ArrowLeftIcon data-icon="inline-start" />
                   Back to{" "}
                   {tab === "ask"
-                    ? "Ask Help"
+                    ? "Ask"
                     : tab === "guides"
                       ? "all guides"
                       : "this page"}
@@ -568,7 +622,7 @@ export default function HelpPanel({
               {settings.data && !available && (
                 <div className="p-3">
                   <Alert>
-                    <AlertTitle>Ask Help unavailable</AlertTitle>
+                    <AlertTitle>Usage help unavailable</AlertTitle>
                     <AlertDescription>
                       You can still read and search the guides. AI answers are
                       unavailable on this server right now.
@@ -756,7 +810,7 @@ export default function HelpPanel({
                           }
                         >
                           <SendIcon data-icon="inline-start" />
-                          Ask Help
+                          Ask
                         </Button>
                       )}
                     </InputGroupAddon>
@@ -794,7 +848,7 @@ export default function HelpPanel({
           }}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Help</SheetTitle>
+            <SheetTitle>Assistant</SheetTitle>
             <SheetDescription>
               Guides and usage questions for {organizationName}
             </SheetDescription>
@@ -806,11 +860,13 @@ export default function HelpPanel({
   return (
     <aside
       ref={panel}
-      hidden={!open}
+      inert={!open}
+      data-state={open ? "open" : "closed"}
       tabIndex={-1}
       aria-labelledby="help-title"
       aria-describedby="help-description"
-      className="fixed inset-y-0 right-0 w-[440px] border-l bg-background outline-none"
+      // Slides in from the right edge; closed it is off-screen, invisible and inert.
+      className="fixed inset-y-0 right-0 w-[440px] border-l bg-background outline-none transition-[transform,visibility] duration-200 ease-out data-closed:invisible data-closed:translate-x-full"
     >
       {content}
     </aside>

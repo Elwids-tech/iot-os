@@ -17,6 +17,13 @@
 @source "../../../../apps/**/*.{ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
+/*
+ * The shared overlays (dialog, sheet, popover, menus, select, tooltip, accordion)
+ * animate through data-open / data-closed. Radix only sets data-state, so map the
+ * variants to it; the bare attributes keep Base UI style callers working too.
+ */
+@custom-variant data-open (&:is([data-state="open"], [data-open]));
+@custom-variant data-closed (&:is([data-state="closed"], [data-closed]));
 
 @theme inline {
   --color-success: var(--success);
@@ -46,6 +53,7 @@
   --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-input-fill: var(--input-fill);
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -108,7 +116,9 @@
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.51 0.2 27.3); /* darker than stock so destructive button text passes AA on its tinted background */
   --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  /* Field borders sit at 3:1 or better on their surface (WCAG 1.4.11); page borders stay hairlines. */
+  --input: oklch(0.64 0 0);
+  --input-fill: oklch(1 0 0);
   --ring: oklch(0.56 0.2 260);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -146,7 +156,8 @@
   --accent: #161616;
   --accent-foreground: #fff;
   --border: #1c1c1c;
-  --input: #2a2a2a;
+  --input: #5e5e5e; /* 3.2:1 on black and on cards */
+  --input-fill: #000;
   --ring: #7fb0ff;
   --sidebar: #000;
   --sidebar-foreground: #fff;
@@ -156,6 +167,46 @@
   --sidebar-accent-foreground: #fff;
   --sidebar-border: #1c1c1c;
   --sidebar-ring: #7fb0ff;
+}
+
+/*
+ * Dark palette axis on <html>: data-palette="dusk" (default) | "ink".
+ * Ink is the pure-black block above. Dusk lowers text contrast to a comfortable
+ * 15:1 and raises surface, border and field contrast so structure is visible:
+ * background < card < popover, hairline borders at 1.45:1, field borders at
+ * 3:1 or better on their surface. Flight Deck keeps its own dark colours.
+ */
+.dark[data-palette="dusk"]:not([data-skin="flight-deck"]) {
+  --background: oklch(0.19 0.012 255);
+  --foreground: oklch(0.93 0.008 255);
+  --card: oklch(0.225 0.012 255);
+  --card-foreground: oklch(0.93 0.008 255);
+  --popover: oklch(0.26 0.012 255);
+  --popover-foreground: oklch(0.93 0.008 255);
+  --primary: oklch(0.78 0.14 255);
+  --primary-foreground: oklch(0.17 0.03 255);
+  --secondary: oklch(0.29 0.014 255);
+  --secondary-foreground: oklch(0.93 0.008 255);
+  --muted: oklch(0.26 0.012 255);
+  --muted-foreground: oklch(0.72 0.02 255);
+  --accent: oklch(0.31 0.03 255);
+  --accent-foreground: oklch(0.93 0.008 255);
+  --border: oklch(0.32 0.014 255);
+  --input: oklch(0.52 0.02 255);
+  --input-fill: oklch(0.165 0.012 255);
+  --ring: oklch(0.78 0.14 255);
+  --success: oklch(0.78 0.17 150);
+  --warning: oklch(0.83 0.16 80);
+  --info: oklch(0.8 0.12 240);
+  --destructive: oklch(0.72 0.19 25);
+  --sidebar: oklch(0.165 0.012 255);
+  --sidebar-foreground: oklch(0.93 0.008 255);
+  --sidebar-primary: oklch(0.78 0.14 255);
+  --sidebar-primary-foreground: oklch(0.17 0.03 255);
+  --sidebar-accent: oklch(0.225 0.012 255);
+  --sidebar-accent-foreground: oklch(0.93 0.008 255);
+  --sidebar-border: oklch(0.26 0.012 255);
+  --sidebar-ring: oklch(0.78 0.14 255);
 }
 
 [data-skin="instrument"] {
@@ -204,7 +255,8 @@
   --muted-foreground: #a9b4bf;
   --accent: #141a20;
   --border: #192026;
-  --input: #27303a;
+  --input: #606c79; /* 3.1:1 on the translucent black panels */
+  --input-fill: #000;
   --primary: #3fd8ff;
   --ring: #3fd8ff;
   --sidebar-primary: #3fd8ff;
@@ -230,6 +282,85 @@
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* Live "thinking…" text: a light sweep across the glyphs, nothing else moves. */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@utility shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--muted-foreground) 0%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* A live reading just changed: one 600 ms highlight behind the value, then nothing. */
+@keyframes value-flash {
+  from {
+    background-color: color-mix(in oklch, var(--primary) 28%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@utility animate-value-flash {
+  animation: value-flash 600ms ease-out;
+}
+
+/* Scroll containers fade their edges so clipped content reads as scrollable. */
+@utility scroll-fade {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 1rem,
+    black calc(100% - 1rem),
+    transparent
+  );
+}
+
+@utility scroll-fade-x {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 1rem,
+    black calc(100% - 1rem),
+    transparent
+  );
+}
+
+@utility scroll-fade-b {
+  mask-image: linear-gradient(to bottom, black calc(100% - 1.5rem), transparent);
+}
+
+/*
+ * Reduced motion: collapse every animation and transition to a single frame.
+ * Near-zero rather than zero so animationend/transitionend still fire for
+ * code that waits on them (Radix Presence unmounts on animationend).
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

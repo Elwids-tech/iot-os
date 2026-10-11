@@ -5,7 +5,12 @@ import { useForm } from "react-hook-form"
 import type { DeviceProfile } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import { Input } from "@iot-os/ui/components/input"
-import { Label } from "@iot-os/ui/components/label"
+import {
+  FilterBar,
+  FilterCount,
+  FilterField,
+  FilterSearch,
+} from "@iot-os/ui/components/filter-bar"
 import {
   Select,
   SelectTrigger,
@@ -126,58 +131,50 @@ export function ProfileDirectory() {
       />
       {returnTo && <DeviceSetupBanner returnTo={returnTo} />}
       <div className="flex flex-col gap-3 p-4 md:p-6">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <Label htmlFor="profile-search" className="sr-only">
-            Search profiles
-          </Label>
-          <Input
+        <FilterBar>
+          <FilterSearch
             id="profile-search"
-            type="search"
-            placeholder="Name or code"
-            className="w-full sm:w-64"
+            label="Search profiles"
+            placeholder="Search name or code"
             value={search}
             onChange={(event) => filter("search", event.target.value)}
           />
-          <div className="flex items-center gap-2">
-            <Label htmlFor="profile-status" className="font-normal text-muted-foreground">
-              Status
-            </Label>
-            <Select
-              value={status || "all"}
-              onValueChange={(value) =>
-                filter("status", value === "all" ? "" : value)
-              }
-            >
-              <SelectTrigger id="profile-status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {statuses.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="profile-category" className="font-normal text-muted-foreground">
-              Category
-            </Label>
-            <Input
-              id="profile-category"
-              placeholder="All categories"
-              className="w-40"
-              value={category}
-              onChange={(event) => filter("category", event.target.value)}
-            />
-          </div>
+          <FilterField label="Status" id="profile-status">
+            {(id) => (
+              <Select
+                value={status || "all"}
+                onValueChange={(value) =>
+                  filter("status", value === "all" ? "" : value)
+                }
+              >
+                <SelectTrigger id={id}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {statuses.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </FilterField>
+          {/* A text filter, not a picker: it matches any part of the category. */}
+          <FilterField label="Category" id="profile-category" className="w-40">
+            {(id) => (
+              <Input
+                id={id}
+                placeholder="Filter by category"
+                value={category}
+                onChange={(event) => filter("category", event.target.value)}
+              />
+            )}
+          </FilterField>
           {query.data && (
-            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-              {plural(query.data.meta.total, "profile")}
-            </span>
+            <FilterCount>{plural(query.data.meta.total, "profile")}</FilterCount>
           )}
-        </div>
+        </FilterBar>
         {organization.error || query.error ? (
           <RequestError error={organization.error ?? query.error}>
             <Button

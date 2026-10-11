@@ -37,8 +37,14 @@ import {
   CardContent,
 } from "@iot-os/ui/components/card";
 import { Field, FieldGroup, FieldLabel } from "@iot-os/ui/components/field";
+import {
+  CheckboxField,
+  FormSection,
+  SelectField,
+  TextField,
+  TextareaField,
+} from "@iot-os/ui/components/form-fields";
 import { Input } from "@iot-os/ui/components/input";
-import { Textarea } from "@iot-os/ui/components/textarea";
 import { Badge } from "@iot-os/ui/components/badge";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert";
@@ -215,32 +221,9 @@ function CanvasButton({
   );
 }
 const nodeTypes = { automation: GraphNode };
-
-function Picker({
-  label,
-  value,
-  choices,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  choices: { value: string; label: string }[];
-  onChange: (value: string) => void;
-}) {
-  const [search, setSearch] = useState("");
-  return (
-    <SearchableSelect
-      label={label}
-      value={value}
-      options={choices.filter((c) =>
-        c.label.toLowerCase().includes(search.toLowerCase()),
-      )}
-      search={search}
-      onSearchChange={setSearch}
-      onChange={onChange}
-    />
-  );
-}
+type Choice = { value: string; label: string };
+// Short, static option lists use a plain select; longer ones get search (shadcn: 2–7 options).
+const SELECT_LIMIT = 7;
 
 /** Without the catalog, keep existing connections drawable from the graph's own edges. */
 function edgeDefinition(node: WorkflowNode, workflow: Workflow): NodeType {
@@ -407,6 +390,17 @@ export function WorkflowEditor({
   };
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
+  // The shared SearchableSelect leaves filtering to the host: one search string per picker.
+  const [searches, setSearches] = useState<Record<string, string>>({});
+  const searchProps = (picker: string) => ({
+    search: searches[picker] ?? "",
+    onSearchChange: (text: string) =>
+      setSearches((current) => ({ ...current, [picker]: text })),
+  });
+  const matching = (picker: string, choices: Choice[]) => {
+    const query = (searches[picker] ?? "").toLowerCase();
+    return choices.filter((c) => c.label.toLowerCase().includes(query));
+  };
   const lookup = useMemo(
     () => new Map(registry.map((r) => [r.type, r])),
     [registry],
@@ -614,12 +608,56 @@ export function WorkflowEditor({
       })),
     );
   const nodeTitle = node && (nodeName(node) ?? labelOf(node));
+  // Classify each config field once so diagnostics can attach to the controls
+  // that take an `error`; the rest stay in the alert list below the fields.
+  const configFields =
+    node && definition
+      ? Object.entries(definition.config_schema)
+          .filter(([key]) => key !== "binding")
+          .map(([key, f]) => {
+            const custom = renderConfig?.(node, key, update);
+            const bound =
+              f.type === "scalar"
+                ? workflow.bindings.find((b) => b.role === node.config.binding)
+                    ?.data_type
+                : undefined;
+            const control: "custom" | "object" | "toggle" | "select" | "search" | "text" =
+              custom != null
+                ? "custom"
+                : f.type === "object"
+                  ? "object"
+                  : bound === "boolean"
+                    ? "toggle"
+                    : f.enum
+                      ? f.enum.length <= SELECT_LIMIT
+                        ? "select"
+                        : "search"
+                      : "text";
+            return { key, f, custom, control, bound };
+          })
+      : [];
+  const nodeDiagnostics = node
+    ? diagnostics.filter((d) => d.node_id === node.id)
+    : [];
+  // The compiler names config fields `config.<key>`.
+  const inlineKeys = new Set(
+    configFields
+      .filter((c) => c.control === "object" || c.control === "select" || c.control === "text")
+      .map((c) => `config.${c.key}`),
+  );
+  const fieldError = (key: string) => {
+    const messages = nodeDiagnostics
+      .filter((d) => d.field === `config.${key}`)
+      .map((d) => d.message);
+    return messages.length ? messages.join(" ") : undefined;
+  };
   const inspector = (
     <FieldGroup>
-      <Picker
+      <SearchableSelect
         label="Selected node"
         value={selected}
-        choices={nodeChoices}
+        options={matching("node", nodeChoices)}
+        {...searchProps("node")}
         onChange={select}
       />
       {node && !definition && (
@@ -635,84 +673,95 @@ export function WorkflowEditor({
           {(node.type === "source.parameter.v1" ||
             node.type === "action.command.v1") &&
             renderBinding(node, update)}
-          {Object.entries(definition.config_schema)
-            .filter(([key]) => key !== "binding")
-            .map(([key, f]) =>
-              renderConfig?.(node, key, update) ?? (f.type === "object" ? (
+          {configFields.map(({ key, f, custom, control, bound }) => {
+            if (control === "custom") return custom;
+            const id = `config-${node.id}-${key}`;
+            const value = String(node.config[key] ?? "");
+            const optional = !f.required;
+            const error = fieldError(key);
+            const set = (next: unknown) =>
+              update({ ...node, config: { ...node.config, [key]: next } });
+            if (control === "object")
+              return (
                 <ObjectField
                   key={node.id + key}
+                  id={id}
                   label={key}
                   value={node.config[key]}
-                  onChange={(value) =>
-                    update({
-                      ...node,
-                      config: { ...node.config, [key]: value },
-                    })
-                  }
+                  optional={optional}
+                  error={error}
+                  onChange={set}
                 />
-              ) : f.type === "scalar" && workflow.bindings.find((b) => b.role === node.config.binding)?.data_type === "boolean" ? (
-                <Picker key={key} label="Target state" value={String(node.config[key] ?? false)} choices={[{ value: "true", label: "On (true)" }, { value: "false", label: "Off (false)" }]} onChange={(value) => update({ ...node, config: { ...node.config, [key]: value === "true" } })} />
-              ) : f.enum ? (
-                <Picker
+              );
+            if (control === "toggle")
+              return (
+                <CheckboxField
                   key={key}
+                  id={id}
+                  label="Target state"
+                  description="On (true) when checked, off (false) when clear."
+                  checked={node.config[key] === true}
+                  onCheckedChange={set}
+                />
+              );
+            if (control === "select" || control === "search") {
+              const choices = (f.enum ?? []).map((v) => ({ value: v, label: v }));
+              return control === "select" ? (
+                <SelectField
+                  key={key}
+                  id={id}
                   label={fieldLabel(key)}
-                  value={String(node.config[key] ?? "")}
-                  choices={f.enum.map((v) => ({ value: v, label: v }))}
-                  onChange={(v) =>
-                    update({
-                      ...node,
-                      config: { ...node.config, [key]: v },
-                    })
-                  }
+                  value={value}
+                  options={choices}
+                  optional={optional}
+                  error={error}
+                  onChange={set}
                 />
               ) : (
-                <Field key={key}>
-                  <FieldLabel htmlFor={`config-${node.id}-${key}`}>
-                    {fieldLabel(key)}
-                  </FieldLabel>
-                  <Input
-                    id={`config-${node.id}-${key}`}
-                    type={f.type === "number" ? "number" : "text"}
-                    min={f.minimum}
-                    max={f.maximum}
-                    value={String(node.config[key] ?? "")}
-                    onChange={(e) => {
-                      let value: unknown = e.target.value;
-                      if (f.type === "number")
-                        value =
-                          e.target.value === ""
-                            ? ""
-                            : Number(e.target.value);
-                      if (f.type === "scalar") {
-                        const kind = workflow.bindings.find(
-                          (b) => b.role === node.config.binding,
-                        )?.data_type;
-                        if (kind === "number")
-                          value = Number(e.target.value);
-                        if (kind === "boolean")
-                          value = e.target.value === "true";
-                      }
-                      update({
-                        ...node,
-                        config: { ...node.config, [key]: value },
-                      });
-                    }}
-                  />
-                </Field>
-              )),
-            )}
+                <SearchableSelect
+                  key={key}
+                  label={fieldLabel(key)}
+                  value={value}
+                  options={matching(id, choices)}
+                  {...searchProps(id)}
+                  optional={optional}
+                  onChange={set}
+                />
+              );
+            }
+            return (
+              <TextField
+                key={key}
+                id={id}
+                label={fieldLabel(key)}
+                type={f.type === "number" ? "number" : "text"}
+                min={f.minimum}
+                max={f.maximum}
+                value={value}
+                optional={optional}
+                error={error}
+                onChange={(e) => {
+                  let next: unknown = e.target.value;
+                  if (f.type === "number")
+                    next = e.target.value === "" ? "" : Number(e.target.value);
+                  if (f.type === "scalar" && bound === "number")
+                    next = Number(e.target.value);
+                  set(next);
+                }}
+              />
+            );
+          })}
         </>
       )}
-      {node &&
-        diagnostics
-          .filter((d) => d.node_id === node.id)
-          .map((d, i) => (
-            <Alert key={i} variant="destructive">
-              <AlertDescription>
-                {d.field}: {d.message}
-              </AlertDescription>
-            </Alert>
-          ))}
+      {nodeDiagnostics
+        .filter((d) => !inlineKeys.has(d.field))
+        .map((d, i) => (
+          <Alert key={i} variant="destructive">
+            <AlertDescription>
+              {d.field}: {d.message}
+            </AlertDescription>
+          </Alert>
+        ))}
       {node && <TechnicalDetails node={node} definition={definition} />}
       {node && (
         <Button variant="outline" onClick={deleteSelectedNode}>
@@ -780,14 +829,7 @@ export function WorkflowEditor({
                 );
                 if (!choices.length) return null;
                 return (
-                  <section
-                    key={category}
-                    aria-label={category}
-                    className="flex flex-col gap-2"
-                  >
-                    <h3 className="text-xs font-medium text-muted-foreground">
-                      {category}
-                    </h3>
+                  <FormSection key={category} title={category} className="gap-2">
                     {choices.map((type) => {
                       const { Icon, tone, description } = nodeAppearance(
                         type.type,
@@ -829,7 +871,7 @@ export function WorkflowEditor({
                         </Tooltip>
                       );
                     })}
-                  </section>
+                  </FormSection>
                 );
               })
             )}
@@ -1079,16 +1121,18 @@ export function WorkflowEditor({
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <div className="grid gap-3 md:grid-cols-2">
-              <Picker
+              <SearchableSelect
                 label="Output port"
                 value={source}
-                choices={ports("outputs")}
+                options={matching("source", ports("outputs"))}
+                {...searchProps("source")}
                 onChange={setSource}
               />
-              <Picker
+              <SearchableSelect
                 label="Input port"
                 value={target}
-                choices={ports("inputs")}
+                options={matching("target", ports("inputs"))}
+                {...searchProps("target")}
                 onChange={setTarget}
               />
             </div>
@@ -1223,37 +1267,42 @@ function TechnicalDetails({
 }
 
 function ObjectField({
+  id,
   label,
   value,
+  optional,
+  error,
   onChange,
 }: {
+  id: string;
   label: string;
   value: unknown;
+  optional?: boolean;
+  error?: string;
   onChange: (value: unknown) => void;
 }) {
+  // A string value is text that did not parse as a JSON object.
   const invalid = typeof value === "string";
   const text = invalid ? value : JSON.stringify(value ?? {}, null, 2);
   return (
-    <Field data-invalid={invalid}>
-      <FieldLabel htmlFor={label}>{fieldLabel(label)} (GeoJSON)</FieldLabel>
-      <Textarea
-        id={label}
-        aria-invalid={invalid}
-        value={text}
-        onChange={(e) => {
-          try {
-            const parsed: unknown = JSON.parse(e.target.value);
-            onChange(
-              parsed && typeof parsed === "object" && !Array.isArray(parsed)
-                ? parsed
-                : e.target.value,
-            );
-          } catch {
-            onChange(e.target.value);
-          }
-        }}
-      />
-      {invalid && <p role="alert">Enter a valid JSON object.</p>}
-    </Field>
+    <TextareaField
+      id={id}
+      label={`${fieldLabel(label)} (GeoJSON)`}
+      optional={optional}
+      error={invalid ? "Enter a valid JSON object." : error}
+      value={text}
+      onChange={(e) => {
+        try {
+          const parsed: unknown = JSON.parse(e.target.value);
+          onChange(
+            parsed && typeof parsed === "object" && !Array.isArray(parsed)
+              ? parsed
+              : e.target.value,
+          );
+        } catch {
+          onChange(e.target.value);
+        }
+      }}
+    />
   );
 }

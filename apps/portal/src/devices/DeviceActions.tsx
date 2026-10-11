@@ -24,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@iot-os/ui/components/dialog"
-import { FieldDescription, FieldGroup, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
+import { FieldDescription, FieldError, FieldGroup, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
@@ -177,9 +177,7 @@ export function EditDetails({
                   </Button>
                 </div>
               ))}
-              {fieldError(error, "attributes") && (
-                <p role="alert" className="text-sm text-destructive">{fieldError(error, "attributes")}</p>
-              )}
+              <FieldError>{fieldError(error, "attributes")}</FieldError>
               <div>
                 <Button type="button" variant="outline" size="sm" disabled={attributes.fields.length >= 30} onClick={() => attributes.append({ key: "", value: "" })}>
                   Add attribute

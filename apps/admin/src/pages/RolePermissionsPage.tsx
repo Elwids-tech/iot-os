@@ -17,8 +17,12 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@iot-os/ui/components/empty"
-import { Input } from "@iot-os/ui/components/input"
-import { Label } from "@iot-os/ui/components/label"
+import {
+  FilterBar,
+  FilterCount,
+  FilterField,
+  FilterSearch,
+} from "@iot-os/ui/components/filter-bar"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { PermissionMatrix } from "@iot-os/ui/components/permission-matrix"
 import { Popover, PopoverContent, PopoverTrigger } from "@iot-os/ui/components/popover"
@@ -308,54 +312,53 @@ export function RolePermissionsPage() {
         heading={<RoleSwitcher role={role} />}
         meta={`${role.organization.name} · ${role.is_default ? "Default" : "Custom"} role · ${selectedPermissionNames.size} of ${role.permissions.length} selected`}
       >
-        <form
-          onSubmit={submitSearch}
-          role="search"
-          className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
-        >
-          <Label className="sr-only" htmlFor="permission-search">
-            Search permissions
-          </Label>
-          <Input
-            id="permission-search"
-            name="search"
-            type="search"
-            autoComplete="off"
-            placeholder="Permission or key"
-            value={draftSearch}
-            onChange={(event) => setDraftSearch(event.target.value)}
-            className="h-7 w-full min-w-0 sm:w-64"
-          />
-          <Label className="sr-only" htmlFor="permission-group-filter">
-            Filter by permission group
-          </Label>
-          <Select value={group} onValueChange={selectGroup}>
-            <SelectTrigger id="permission-group-filter" size="sm" className="min-w-0 flex-1 sm:w-48 sm:flex-none">
-              <SelectValue placeholder="All permission groups" />
-            </SelectTrigger>
-            <SelectContent position="popper">
-              <SelectGroup>
-                <SelectItem value="all">All permission groups</SelectItem>
-                {groupNames.map((groupName) => (
-                  <SelectItem key={groupName} value={groupName}>
-                    {permissionGroupLabel(groupName)}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <Button type="submit" size="sm" variant="outline">
-            Search
-          </Button>
-          {search || group !== "all" ? (
-            <Button type="button" size="sm" variant="ghost" onClick={clearFilters}>
-              Clear
+        <form onSubmit={submitSearch} role="search" className="flex min-w-0 flex-1">
+          <FilterBar>
+            <FilterSearch
+              id="permission-search"
+              name="search"
+              label="Search permissions"
+              autoComplete="off"
+              placeholder="Permission or key"
+              value={draftSearch}
+              onChange={(event) => setDraftSearch(event.target.value)}
+            />
+            <FilterField
+              label="Filter by permission group"
+              id="permission-group-filter"
+              className="min-w-0 flex-1 sm:w-48 sm:flex-none"
+            >
+              {(id) => (
+                <Select value={group} onValueChange={selectGroup}>
+                  <SelectTrigger id={id} className="w-full">
+                    <SelectValue placeholder="All permission groups" />
+                  </SelectTrigger>
+                  <SelectContent position="popper">
+                    <SelectGroup>
+                      <SelectItem value="all">All permission groups</SelectItem>
+                      {groupNames.map((groupName) => (
+                        <SelectItem key={groupName} value={groupName}>
+                          {permissionGroupLabel(groupName)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              )}
+            </FilterField>
+            <Button type="submit" size="sm" variant="outline">
+              Search
             </Button>
-          ) : null}
+            {search || group !== "all" ? (
+              <Button type="button" size="sm" variant="ghost" onClick={clearFilters}>
+                Clear
+              </Button>
+            ) : null}
+            <FilterCount className="whitespace-nowrap">
+              {visibleCount} of {role.permissions.length} permissions
+            </FilterCount>
+          </FilterBar>
         </form>
-        <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-          {visibleCount} of {role.permissions.length} permissions
-        </span>
       </PageHeader>
 
       <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">

@@ -2,10 +2,8 @@ import {
   createContext,
   useContext,
   useEffect,
-  useId,
   useRef,
   useState,
-  type ComponentProps,
   type ReactNode,
 } from "react"
 import { toast } from "sonner"
@@ -16,21 +14,6 @@ import {
   AlertTitle,
 } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
-import {
-  Field,
-  FieldLabel,
-  FieldError,
-  FieldDescription,
-} from "@iot-os/ui/components/field"
-import { Input } from "@iot-os/ui/components/input"
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-} from "@iot-os/ui/components/select"
 import {
   Sheet,
   SheetContent,
@@ -48,7 +31,14 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from "@iot-os/ui/components/alert-dialog"
-import { CircleAlertIcon, CloudOffIcon } from "lucide-react"
+import {
+  CheckIcon,
+  CircleAlertIcon,
+  CloudOffIcon,
+  Loader2Icon,
+  RefreshCwIcon,
+} from "lucide-react"
+import { cn } from "@iot-os/ui/lib/utils"
 
 /** The device runtime didn't answer; RuntimeStatusBanner already explains the outage page-wide. */
 export function isRuntimeUnavailable(error: unknown): boolean {
@@ -90,6 +80,45 @@ export function fieldError(error: unknown, field: string): string | undefined {
   const payload = error.payload as { errors?: Record<string, string[]> } | null
   return payload?.errors?.[field]?.join(" ")
 }
+/**
+ * A query that failed to load: says what could not load and offers a retry.
+ * RequestError stays for mutations ("Action needs attention").
+ */
+export function LoadError({
+  error,
+  what = "this page",
+  onRetry,
+  busy,
+}: {
+  error: unknown
+  what?: string
+  onRetry?: () => unknown
+  busy?: boolean
+}) {
+  if (!error) return null
+  if (isRuntimeUnavailable(error))
+    return (
+      <div role="status" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+        <CloudOffIcon className="size-4 shrink-0" aria-hidden="true" />
+        <span>Live data is unavailable right now.</span>
+      </div>
+    )
+  return (
+    <Alert variant="destructive">
+      <CircleAlertIcon />
+      <AlertTitle>Could not load {what}</AlertTitle>
+      <AlertDescription>
+        <p>{errorMessage(error)}</p>
+        {onRetry && (
+          <Button type="button" variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void onRetry()}>
+            <RefreshCwIcon data-icon="inline-start" className={cn(busy && "animate-spin")} aria-hidden="true" />
+            Try again
+          </Button>
+        )}
+      </AlertDescription>
+    </Alert>
+  )
+}
 export function RequestError({
   error,
   children,
@@ -118,91 +147,25 @@ export function RequestError({
     </Alert>
   )
 }
-export function TextField({
-  label,
-  help,
-  error,
-  ...props
-}: ComponentProps<typeof Input> & {
-  label: string
-  help?: string
-  error?: string
-}) {
-  const generated = useId()
-  const id = props.id ?? generated
-  return (
-    <Field data-invalid={Boolean(error)}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Input
-        {...props}
-        id={id}
-        aria-invalid={Boolean(error)}
-        aria-describedby={
-          [help && id + "-help", error && id + "-error"]
-            .filter(Boolean)
-            .join(" ") || undefined
-        }
-      />
-      {help && <FieldDescription id={id + "-help"}>{help}</FieldDescription>}
-      {error && <FieldError id={id + "-error"}>{error}</FieldError>}
-    </Field>
-  )
-}
-export function Choice({
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-  help,
-  error,
-}: {
-  label: string
-  value: string
-  options: Array<{ value: string; label: string }>
-  onChange: (value: string) => void
-  disabled?: boolean
-  help?: string
-  error?: string
-}) {
-  const id = useId()
-  return (
-    <Field data-invalid={Boolean(error)}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select
-        value={value || "__none"}
-        onValueChange={(next) => onChange(next === "__none" ? "" : next)}
-        disabled={disabled}
-      >
-        <SelectTrigger
-          id={id}
-          className="w-full"
-          aria-invalid={Boolean(error)}
-          aria-describedby={
-            [help && id + "-help", error && id + "-error"]
-              .filter(Boolean)
-              .join(" ") || undefined
-          }
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {options.map((option) => (
-              <SelectItem key={option.value} value={option.value || "__none"}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-      {help && <FieldDescription id={id + "-help"}>{help}</FieldDescription>}
-      {error && <FieldError id={id + "-error"}>{error}</FieldError>}
-    </Field>
-  )
-}
+// The labelled fields live in the shared form kit; these names stay for existing callers.
+export { TextField, SelectField as Choice } from "@iot-os/ui/components/form-fields"
 /** Set by EditorSheet: asks "Discard unsaved changes?" before running `close`. */
 const SheetDiscard = createContext<((close: () => void) => void) | null>(null)
+/** True for two seconds after `busy` falls while the form is clean: the save landed. */
+function useJustSaved(dirty: boolean, busy: boolean) {
+  const [saved, setSaved] = useState(false)
+  const wasBusy = useRef(busy)
+  useEffect(() => {
+    if (wasBusy.current && !busy && !dirty) setSaved(true)
+    wasBusy.current = busy
+  }, [busy, dirty])
+  useEffect(() => {
+    if (!saved) return
+    const timer = window.setTimeout(() => setSaved(false), 2000)
+    return () => window.clearTimeout(timer)
+  }, [saved])
+  return saved && !dirty
+}
 export function SaveBar({
   dirty,
   busy,
@@ -218,13 +181,18 @@ export function SaveBar({
 }) {
   // Inside an EditorSheet, Cancel uses the same discard guard as closing the sheet (N7).
   const discard = useContext(SheetDiscard)
+  const saved = useJustSaved(dirty, busy)
   return (
     <div
       ref={keepToastsAbove}
       className="sticky bottom-0 flex w-full flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4"
     >
-      <span className="text-xs text-muted-foreground" role="status">
-        {busy ? "Saving…" : dirty ? "Unsaved changes" : "No unsaved changes"}
+      <span
+        className={cn("flex items-center gap-1.5 text-xs text-muted-foreground", saved && "text-success")}
+        role="status"
+      >
+        {saved && <CheckIcon className="size-3.5" aria-hidden="true" />}
+        {busy ? "Saving…" : dirty ? "Unsaved changes" : saved ? "Saved" : "No unsaved changes"}
       </span>
       <div className="flex gap-2">
         <Button
@@ -236,6 +204,7 @@ export function SaveBar({
           Cancel
         </Button>
         <Button type="submit" disabled={!dirty || busy || disabled}>
+          {busy && <Loader2Icon data-icon="inline-start" className="animate-spin" aria-hidden="true" />}
           {busy ? "Saving…" : label}
         </Button>
       </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useQuery,
   useQueryClient,
@@ -20,20 +20,12 @@ import type {
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
 import { PageHeader } from "@iot-os/ui/components/page-header";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldContent,
-  FieldTitle,
-} from "@iot-os/ui/components/field";
+import { ChoiceCard } from "@iot-os/ui/components/choice-card";
+import { Field, FieldError, FieldGroup } from "@iot-os/ui/components/field";
 import { Input } from "@iot-os/ui/components/input";
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from "@iot-os/ui/components/radio-group";
+import { RadioGroup } from "@iot-os/ui/components/radio-group";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
+import { Stepper } from "@iot-os/ui/components/stepper";
 import {
   Alert,
   AlertDescription,
@@ -59,7 +51,7 @@ import {
 import { Badge } from "@iot-os/ui/components/badge";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { api } from "../lib/api";
-import { RequestError } from "../components/forms";
+import { RequestError, TextField } from "../components/forms";
 import {
   Age,
   DevicePages,
@@ -88,6 +80,17 @@ const emptyForm = (): Form => ({
   source: "",
   requestUuid: crypto.randomUUID(),
 });
+/** The wizard's four stops, named the way its own titles and buttons name them. */
+const STEPS = [
+  { label: "Device" },
+  { label: "Connection details" },
+  { label: "Check connection" },
+  { label: "Activate" },
+];
+/** First-step fields reported as missing once Continue is pressed. */
+type StepErrors = Partial<
+  Record<"profile" | "name" | "gateway" | "source", string>
+>;
 const valueText = (v: unknown) =>
   v == null
     ? "No value yet"
@@ -136,6 +139,7 @@ function DeviceOnboardingForm() {
     [source, setSource] = useState<DiscoveryCandidate | null>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState<unknown>(null);
+  const [errors, setErrors] = useState<StepErrors>({});
   const lock = useRef(false);
   // A remembered adapter choice falls back once the organization turns out not to have adapters.
   const mode =
@@ -267,6 +271,30 @@ function DeviceOnboardingForm() {
   }, [form, deviceUuid, storageKey]);
   function update(patch: Partial<Form>) {
     setForm((f) => ({ ...f, ...patch, requestUuid: crypto.randomUUID() }));
+    // A field's error clears as soon as it is edited; a new mode starts clean.
+    setErrors((current) => {
+      if (patch.mode) return {};
+      const next = { ...current };
+      for (const key of Object.keys(patch) as Array<keyof StepErrors>)
+        delete next[key];
+      return next;
+    });
+  }
+  /** Names each missing first-step field under the field itself; true when Continue may proceed. */
+  function validate() {
+    const missing: StepErrors = {};
+    if (!form.profile) missing.profile = "Choose a device profile.";
+    else if (profile.data && !profile.data.revision)
+      missing.profile = "This profile has no published version yet.";
+    if (!form.name.trim()) missing.name = "Enter a name for this device.";
+    if (mode === "gateway") {
+      if (!form.gateway)
+        missing.gateway = "Choose the gateway this device connects through.";
+      if (!form.source.trim())
+        missing.source = "Enter the device ID used on the gateway.";
+    }
+    setErrors(missing);
+    return Object.keys(missing).length === 0;
   }
   function go(next: number) {
     setError(null);
@@ -434,25 +462,22 @@ function DeviceOnboardingForm() {
         title={setup?.device.name ?? "Add device"}
         back={{ to: devicePath(org), label: "Devices" }}
         actions={
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={() => {
-                if (deviceUuid)
-                  navigate(devicePath(org, deviceUuid) + "/connectivity");
-                else navigate(devicePath(org));
-              }}
-            >
-              Save and exit
-            </Button>
-            <span className="whitespace-nowrap text-xs text-muted-foreground">
-              Step {step} of 4
-            </span>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => {
+              if (deviceUuid)
+                navigate(devicePath(org, deviceUuid) + "/connectivity");
+              else navigate(devicePath(org));
+            }}
+          >
+            Save and exit
+          </Button>
         }
-      />
+      >
+        <Stepper steps={STEPS} current={step} />
+      </PageHeader>
       <div className="mx-auto grid w-full max-w-6xl lg:grid-cols-[minmax(0,1fr)_260px]">
         <section
           className="flex min-w-0 flex-col gap-7 p-5 md:p-8 lg:p-10"
@@ -495,15 +520,40 @@ function DeviceOnboardingForm() {
                 className="flex w-full flex-col gap-3"
                 aria-label="How the device sends data"
               >
-                <ConnectionChoice value="direct" checked={mode === "direct"} disabled={!capabilities.connections} title="It speaks Sparkplug B" description="Your hardware publishes Sparkplug B over MQTT directly to IoT OS." />
-                <ConnectionChoice value="gateway" checked={mode === "gateway"} title="Through a gateway" description="A registered gateway connects this device along with others." />
+                <ChoiceCard
+                  type="radio"
+                  value="direct"
+                  checked={mode === "direct"}
+                  disabled={!capabilities.connections}
+                  title="It speaks Sparkplug B"
+                  description="Your hardware publishes Sparkplug B over MQTT directly to IoT OS."
+                />
+                <ChoiceCard
+                  type="radio"
+                  value="gateway"
+                  checked={mode === "gateway"}
+                  title="Through a gateway"
+                  description="A registered gateway connects this device along with others."
+                />
                 {adaptersEnabled && (
-                  <ConnectionChoice value="adapter" checked={mode === "adapter"} title="Manufacturer MQTT / JSON" description="Your hardware sends its manufacturer’s own MQTT or JSON messages. A device adapter translates them." />
+                  <ChoiceCard
+                    type="radio"
+                    value="adapter"
+                    checked={mode === "adapter"}
+                    title="Manufacturer MQTT / JSON"
+                    description="Your hardware sends its manufacturer’s own MQTT or JSON messages. A device adapter translates them."
+                  />
                 )}
-                <ConnectionChoice
+                <ChoiceCard
+                  type="radio"
                   value="discovery"
                   checked={mode === "discovery"}
-                  title={<>It’s already sending data{!!waiting && <Badge variant="info">{waiting} waiting</Badge>}</>}
+                  title="It’s already sending data"
+                  badge={
+                    waiting ? (
+                      <Badge variant="info">{waiting} waiting</Badge>
+                    ) : undefined
+                  }
                   description="Pick a source that reports through a gateway but isn’t a device yet."
                 />
               </RadioGroup>
@@ -554,34 +604,37 @@ function DeviceOnboardingForm() {
               {(mode === "direct" || mode === "gateway") && (
               <>
               <FieldGroup>
-                <SearchableSelect
-                  label="Device profile"
-                  value={form.profile}
-                  selectedLabel={profile.data?.name}
-                  options={(profiles.data?.data ?? [])
-                    .filter((p) => p.revision > 0)
-                    .map((p) => ({ value: p.uuid, label: p.name }))}
-                  search={profileSearch}
-                  onSearchChange={(v) => {
-                    setProfileSearch(v);
-                    setProfilePage(1);
-                  }}
-                  onChange={(v) => update({ profile: v })}
-                  loading={profiles.isFetching}
-                  page={profilePage}
-                  hasNextPage={
-                    !!profiles.data &&
-                    profiles.data.meta.current_page <
-                      profiles.data.meta.last_page
-                  }
-                  onPageChange={setProfilePage}
-                  help={
-                    artifact.data
-                      ? `Version ${artifact.data.revision} is live. A profile defines measurements and their units.`
-                      : "Choose a published profile. Draft profiles cannot be used yet."
-                  }
-                  emptyText="No published profiles found."
-                />
+                <Field data-invalid={!!errors.profile}>
+                  <SearchableSelect
+                    label="Device profile"
+                    value={form.profile}
+                    selectedLabel={profile.data?.name}
+                    options={(profiles.data?.data ?? [])
+                      .filter((p) => p.revision > 0)
+                      .map((p) => ({ value: p.uuid, label: p.name }))}
+                    search={profileSearch}
+                    onSearchChange={(v) => {
+                      setProfileSearch(v);
+                      setProfilePage(1);
+                    }}
+                    onChange={(v) => update({ profile: v })}
+                    loading={profiles.isFetching}
+                    page={profilePage}
+                    hasNextPage={
+                      !!profiles.data &&
+                      profiles.data.meta.current_page <
+                        profiles.data.meta.last_page
+                    }
+                    onPageChange={setProfilePage}
+                    help={
+                      artifact.data
+                        ? `Version ${artifact.data.revision} is live. A profile defines measurements and their units.`
+                        : "Choose a published profile. Draft profiles cannot be used yet."
+                    }
+                    emptyText="No published profiles found."
+                  />
+                  {errors.profile && <FieldError>{errors.profile}</FieldError>}
+                </Field>
                 <Link
                   to={profileSetupPath(org)}
                   className="text-sm text-primary underline-offset-4 hover:underline"
@@ -591,59 +644,55 @@ function DeviceOnboardingForm() {
                 <RequestError
                   error={profiles.error ?? profile.error ?? artifact.error}
                 />
-                <Field>
-                  <FieldLabel htmlFor="onboarding-name">Device name</FieldLabel>
-                  <Input
-                    id="onboarding-name"
-                    value={form.name}
-                    onChange={(e) => update({ name: e.target.value })}
-                    placeholder="For example, Workshop water meter"
-                    maxLength={255}
-                  />
-                  <FieldDescription>
-                    A recognizable name for this individual device.
-                  </FieldDescription>
-                </Field>
+                <TextField
+                  id="onboarding-name"
+                  label="Device name"
+                  value={form.name}
+                  onChange={(e) => update({ name: e.target.value })}
+                  placeholder="For example, Workshop water meter"
+                  maxLength={255}
+                  help="A recognizable name for this individual device."
+                  error={errors.name}
+                />
                 {mode === "gateway" && (
                   <>
-                    <SearchableSelect
-                      label="Gateway"
-                      value={form.gateway}
-                      options={(gateways.data?.data ?? []).map((g) => ({
-                        value: g.uuid,
-                        label: g.name,
-                      }))}
-                      search={gatewaySearch}
-                      onSearchChange={(v) => {
-                        setGatewaySearch(v);
-                        setGatewayPage(1);
-                      }}
-                      onChange={(v) => update({ gateway: v })}
-                      loading={gateways.isFetching}
-                      page={gatewayPage}
-                      hasNextPage={
-                        !!gateways.data &&
-                        gateways.data.meta.current_page <
-                          gateways.data.meta.last_page
-                      }
-                      onPageChange={setGatewayPage}
-                    />
-                    <RequestError error={gateways.error} />
-                    <Field>
-                      <FieldLabel htmlFor="source-id">
-                        Device ID on gateway
-                      </FieldLabel>
-                      <Input
-                        id="source-id"
-                        value={form.source}
-                        onChange={(e) => update({ source: e.target.value })}
-                        placeholder="water-meter"
+                    <Field data-invalid={!!errors.gateway}>
+                      <SearchableSelect
+                        label="Gateway"
+                        value={form.gateway}
+                        options={(gateways.data?.data ?? []).map((g) => ({
+                          value: g.uuid,
+                          label: g.name,
+                        }))}
+                        search={gatewaySearch}
+                        onSearchChange={(v) => {
+                          setGatewaySearch(v);
+                          setGatewayPage(1);
+                        }}
+                        onChange={(v) => update({ gateway: v })}
+                        loading={gateways.isFetching}
+                        page={gatewayPage}
+                        hasNextPage={
+                          !!gateways.data &&
+                          gateways.data.meta.current_page <
+                            gateways.data.meta.last_page
+                        }
+                        onPageChange={setGatewayPage}
                       />
-                      <FieldDescription>
-                        Must match the Device ID in your gateway’s Sparkplug
-                        messages.
-                      </FieldDescription>
+                      {errors.gateway && (
+                        <FieldError>{errors.gateway}</FieldError>
+                      )}
                     </Field>
+                    <RequestError error={gateways.error} />
+                    <TextField
+                      id="source-id"
+                      label="Device ID on gateway"
+                      value={form.source}
+                      onChange={(e) => update({ source: e.target.value })}
+                      placeholder="water-meter"
+                      help="Must match the Device ID in your gateway’s Sparkplug messages."
+                      error={errors.source}
+                    />
                   </>
                 )}
               </FieldGroup>
@@ -652,13 +701,11 @@ function DeviceOnboardingForm() {
                   disabled={
                     busy ||
                     !capabilities.manage ||
-                    (mode === "direct" && !capabilities.connections) ||
-                    !form.name.trim() ||
-                    !artifact.data ||
-                    (mode === "gateway" &&
-                      (!form.gateway || !form.source.trim()))
+                    (mode === "direct" && !capabilities.connections)
                   }
-                  onClick={() => void start()}
+                  onClick={() => {
+                    if (validate()) void start();
+                  }}
                 >
                   {busy ? "Saving setup…" : "Continue"}
                 </Button>
@@ -955,10 +1002,12 @@ function DeviceOnboardingForm() {
           )}
         </section>
         <aside className="flex flex-col gap-4 border-t bg-muted/20 p-5 md:p-8 lg:border-l lg:border-t-0">
-          <h2 className="text-sm font-semibold">{help[0]}</h2>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {help[1]}
-          </p>
+          <div className="flex flex-col gap-1">
+            <h2 className="skin-label text-sm font-semibold">{help[0]}</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {help[1]}
+            </p>
+          </div>
           {setup && (
             <>
               <Separator />
@@ -976,41 +1025,6 @@ function DeviceOnboardingForm() {
         </aside>
       </div>
     </>
-  );
-}
-
-/** One radio card; the radio is named by its title and described by its description. */
-function ConnectionChoice({
-  value,
-  checked,
-  disabled = false,
-  title,
-  description,
-}: {
-  value: Form["mode"];
-  checked: boolean;
-  disabled?: boolean;
-  title: ReactNode;
-  description: string;
-}) {
-  const id = `connection-${value}`;
-  return (
-    <FieldLabel htmlFor={id}>
-      <Field orientation="horizontal" data-disabled={disabled}>
-        <RadioGroupItem
-          id={id}
-          value={value}
-          disabled={disabled}
-          data-checked={checked ? "" : undefined}
-          aria-labelledby={`${id}-title`}
-          aria-describedby={`${id}-description`}
-        />
-        <FieldContent>
-          <FieldTitle id={`${id}-title`}>{title}</FieldTitle>
-          <FieldDescription id={`${id}-description`}>{description}</FieldDescription>
-        </FieldContent>
-      </Field>
-    </FieldLabel>
   );
 }
 
@@ -1038,7 +1052,7 @@ function WaitingSources({
   return (
     <section aria-labelledby="waiting-sources" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="waiting-sources" className="text-sm font-semibold">
+        <h2 id="waiting-sources" className="skin-label text-sm font-semibold">
           Sources waiting to be added
         </h2>
         <Input
@@ -1186,7 +1200,9 @@ export function DeviceConnectivity({
       {query.data ? (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Connection settings</h2>
+            <h2 className="skin-label text-sm font-semibold">
+              Connection settings
+            </h2>
             {query.data.device.lifecycle === "registered" && (
               <Button asChild>
                 <Link to={onboardingPath(org, deviceUuid) + "?step=3"}>
@@ -1207,11 +1223,15 @@ export function DeviceConnectivity({
         </>
       ) : (
         <>
-          <h2 className="text-lg font-semibold">Gateway connection</h2>
-          <p className="text-sm text-muted-foreground">
-            This device was configured through Discovery. Its gateway manages
-            MQTT access.
-          </p>
+          <div className="flex flex-col gap-1">
+            <h2 className="skin-label text-sm font-semibold">
+              Gateway connection
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              This device was configured through Discovery. Its gateway manages
+              MQTT access.
+            </p>
+          </div>
           <Button variant="outline" asChild>
             <Link to={`/organizations/${org}/gateways`}>Open gateways</Link>
           </Button>

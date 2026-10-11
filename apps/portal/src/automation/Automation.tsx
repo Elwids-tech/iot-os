@@ -12,7 +12,7 @@ import {
   type Resource,
   type WorkflowNode,
 } from "@iot-os/workflow-editor";
-import { OctagonXIcon, PlusIcon, Redo2Icon, Undo2Icon } from "lucide-react";
+import { OctagonXIcon, PlusIcon, Redo2Icon, SparklesIcon, Undo2Icon } from "lucide-react";
 import { Button } from "@iot-os/ui/components/button";
 import { Badge } from "@iot-os/ui/components/badge";
 import {
@@ -74,6 +74,8 @@ import { DeviceStateConfig, DeviceStateReview } from "./DeviceStateConfig";
 import { commandGrants } from "./device-state";
 import { activationUnavailableReason } from "./activation";
 import { WorkflowAssistant } from "./WorkflowAssistant";
+import { usePanel } from "../panel/context";
+import type { ExecutionSelection } from "./execution-evidence";
 import { ExecutionTimeline } from "./ExecutionTimeline";
 import { SimulationPanel } from "./SimulationPanel";
 import { defaultSamples, nodeOutcomes, simulationSteps, type SimResult } from "./simulation";
@@ -422,6 +424,9 @@ function Workspace() {
 function Editor({ org, id }: { org: string; id: string }) {
   const [tab, setTab] = useState("editor");
   const [evidenceTarget, setEvidenceTarget] = useState<(EvidenceTarget & { sequence: number })>();
+  // A recorded evaluation the assistant explains instead of the draft; cleared from the panel.
+  const [explain, setExplain] = useState<ExecutionSelection>();
+  const panel = usePanel();
   function showEvidence(target: EvidenceTarget) {
     setTab("execution");
     setEvidenceTarget(current => ({ ...target, sequence: (current?.sequence ?? 0) + 1 }));
@@ -689,7 +694,7 @@ function Editor({ org, id }: { org: string; id: string }) {
               <TooltipContent>Redo</TooltipContent>
             </Tooltip>
           </div>
-          <WorkflowAssistant org={org} editorId={id} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={nodeTypes} disabled={busy || (id !== "new" && !saved)} onApply={change} onEvidence={showEvidence} size="sm" />
+          <WorkflowAssistant org={org} editorId={id} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={nodeTypes} disabled={busy || (id !== "new" && !saved)} onApply={change} onEvidence={showEvidence} execution={explain} onClearExecution={() => setExplain(undefined)} size="sm" />
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {live?.applied_deployment_uuid && (
               <Button
@@ -956,7 +961,7 @@ function Editor({ org, id }: { org: string; id: string }) {
                 </Table>
               </CardContent>
             </Card>
-            <ExecutionTimeline key={saved?.uuid ?? "unsaved"} org={org} workflowId={saved?.uuid} registry={nodeTypes} evidenceTarget={evidenceTarget} renderAssistant={evaluation => <WorkflowAssistant key={evaluation.id} org={org} editorId={id} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={nodeTypes} disabled={busy || !saved} onApply={change} execution={evaluation} onEvidence={showEvidence} />} />
+            <ExecutionTimeline key={saved?.uuid ?? "unsaved"} org={org} workflowId={saved?.uuid} registry={nodeTypes} evidenceTarget={evidenceTarget} renderAssistant={evaluation => <Button variant="outline" size="sm" disabled={busy || !saved} aria-pressed={explain?.id === evaluation.id} onClick={() => { setExplain(evaluation); panel.openPanel("ask") }}><SparklesIcon data-icon="inline-start" />Explain this execution</Button>} />
             </div>
           </TabsContent>
         </Tabs>

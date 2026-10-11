@@ -12,15 +12,8 @@ import {
   DialogTitle,
 } from "@iot-os/ui/components/dialog"
 import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
+import { SelectField } from "@iot-os/ui/components/form-fields"
 import { Input } from "@iot-os/ui/components/input"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@iot-os/ui/components/select"
 import { AlertCircleIcon, SendIcon } from "lucide-react"
 import { toast } from "sonner"
 import { apiClient } from "../lib/api-client"
@@ -167,23 +160,17 @@ export function InviteUserDialog({
               />
               <FieldError errors={errors.email?.map((message) => ({ message }))} />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="invite-organization">Organization</FieldLabel>
-              <Select value={organizationUuid} onValueChange={setOrganizationUuid}>
-                <SelectTrigger id="invite-organization">
-                  <SelectValue placeholder="Select an organization" />
-                </SelectTrigger>
-                <SelectContent position="popper">
-                  <SelectGroup>
-                    {organizations.map((organization) => (
-                      <SelectItem key={organization.uuid} value={organization.uuid}>
-                        {organization.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
+            <SelectField
+              id="invite-organization"
+              label="Organization"
+              value={organizationUuid}
+              onChange={setOrganizationUuid}
+              placeholder="Select an organization"
+              options={organizations.map((organization) => ({
+                value: organization.uuid,
+                label: organization.name,
+              }))}
+            />
             <FieldSet data-invalid={Boolean(errors.role_ids?.length)}>
               <FieldLegend variant="label">Roles</FieldLegend>
               {!organizationUuid ? (

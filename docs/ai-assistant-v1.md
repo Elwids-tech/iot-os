@@ -4,7 +4,7 @@ Status: implemented and locally verified on 2026-09-08. Scope is a personal assi
 
 ## Experience
 
-Open **Assistant** from the portal header. The desktop panel stays open across navigation; mobile uses a sheet. Start a new profile conversation or open a profile and choose **Improve the profile I’m viewing**. Each conversation has one fixed target and belongs to its creator and organization. Switching organization cannot retarget an existing conversation.
+Open **Assistant** from the sidebar footer. It opens the shared workspace panel on its **Ask** tab (a docked rail from 1280 px, a sheet below), where the assistant for the current page lives: on device-profile pages and the Add device wizard that is the profile assistant described here; in the automation editor it is the workflow assistant; elsewhere Ask answers usage questions from the guides. A **Usage help** toggle keeps guide answers one click away while a page assistant is showing. The panel stays open across navigation. Start a new profile conversation or open a profile and choose **Improve the profile I’m viewing**. Each conversation has one fixed target and belongs to its creator and organization. Switching organization cannot retarget an existing conversation.
 
 Describe the device, paste sample data, or attach documentation. Required questions come first, followed by questions needed for requested features and optional details. Question cards offer suggestions, free text, **I don’t know yet**, and optional **Skip for now**. The agent asks up to three related questions at a time. Extracted source facts retain provenance and uncertainty so subsequent sections can use the same documentation without repeated file processing.
 

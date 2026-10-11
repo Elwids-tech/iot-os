@@ -1,7 +1,10 @@
 # Automation configuration assistant
 
-Open **AI assistant** in an automation editor to explain the current draft or
-describe a new behavior. The assistant can inspect the node registry, applied
+Open **AI assistant** in an automation editor (or the sidebar **Assistant**
+control while the editor is open) to explain the current draft or describe a
+new behavior. The conversation lives in the shared workspace panel's **Ask**
+tab, so it keeps the editor's draft and evidence handlers while the panel
+stays open across the editor's own tabs. The assistant can inspect the node registry, applied
 device configurations, controllable settings, and saved geofences. It reuses the
 profile assistant's configured OpenAI provider, queue, budget, cancellation,
 private conversation storage, and recovery path.
@@ -41,7 +44,9 @@ uploads are unchanged.
 In **Execution → Execution timeline**, select an evaluation and choose
 **Explain this execution**. The assistant describes its deployed generation and
 revision, decisive conditions, suppressed actions, and recorded delivery outcome.
-The button starts the explanation; follow-up questions use the same evaluation.
+The button opens the workspace panel on a conversation for that evaluation and
+starts the explanation; follow-up questions use the same evaluation, and **Back
+to the draft conversation** returns to the editable draft's conversation.
 
 The server fetches evidence through the authorized timeline API and stores a
 snapshot with each assistant run. It does not trust client-supplied execution

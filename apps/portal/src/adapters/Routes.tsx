@@ -625,8 +625,8 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                         />
                       </Field>
                       <Field>
-                        <FieldLabel htmlFor="adapter-ca">
-                          Custom CA certificate (optional)
+                        <FieldLabel htmlFor="adapter-ca" optional>
+                          Custom CA certificate
                         </FieldLabel>
                         <Textarea
                           id="adapter-ca"

@@ -68,7 +68,9 @@ export default function ConsumptionPanel({ org, widget, view, window, onZoom, pr
     const radius = Math.min(theme.radius, 4)
     const axis = axisStyle(theme)
     return {
+      // First render grows the bars in; later refreshes swap values without passing through intermediate sizes.
       animation: !theme.reducedMotion,
+      animationDurationUpdate: 0,
       grid: { left: 4, right: 8, top: 20, bottom: 4, containLabel: true },
       xAxis: {
         type: "category",

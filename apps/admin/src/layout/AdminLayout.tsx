@@ -15,6 +15,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarCollapse,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -127,6 +128,7 @@ function AdminSidebar({
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
+          <SidebarCollapse />
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild

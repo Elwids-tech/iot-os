@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@iot-os/ui/components/popover"
-import { Field, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import {
   ToggleGroup,
@@ -194,11 +194,7 @@ export function TimeControls({
               {view.timezone === "utc" ? "UTC" : `Browser time (${zone})`}. Up
               to {MAX_ABSOLUTE_DAYS} days; device retention may be shorter.
             </p>
-            {error && (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
+            {error && <FieldError>{error}</FieldError>}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel

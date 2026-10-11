@@ -33,7 +33,7 @@ export function GeofenceConfig({ org, node, update }: { org: string; node: Workf
       <FieldDescription>{error || "Paste a Polygon, GeoJSON Feature, or geofence configuration containing geometry."}</FieldDescription>
     </Field>
     <Button variant="outline" disabled={Boolean(error)} onClick={async () => {
-      try { await navigator.clipboard.writeText(JSON.stringify(parseGeofenceGeometry(value), null, 2)); toast.success("Geometry JSON copied.") } catch { toast.error("Could not copy. Select the JSON and copy it manually.") }
+      try { await navigator.clipboard.writeText(JSON.stringify(parseGeofenceGeometry(value), null, 2)); toast.success("Geometry JSON copied") } catch { toast.error("Could not copy. Select the JSON and copy it manually") }
     }}>Copy geometry JSON</Button>
   </>
 }

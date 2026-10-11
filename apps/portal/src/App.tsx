@@ -57,6 +57,7 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
+  SidebarCollapse,
   SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
@@ -102,6 +103,7 @@ import {
 } from "lucide-react"
 import { api } from "./lib/api"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
+import { PanelProvider, usePanel } from "./panel/context"
 import { TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
 import { RuntimeStatusBanner, RuntimeStatusProvider } from "./components/RuntimeStatus"
@@ -118,7 +120,7 @@ const MembersPage = lazy(() => import("./members/Members").then((module) => ({ d
 const RoleRoutes = lazy(() => import("./members/Roles"))
 const NotificationCenter = lazy(() => import("./notifications/NotificationCenter"))
 const HelpPanel = lazy(() => import("./help/HelpPanel"))
-const AssistantPanel = lazy(() => import("./assistant/AssistantPanel"))
+const ProfileAssistantBody = lazy(() => import("./assistant/AssistantPanel"))
 const ProfileWorkspace = lazy(() =>
   import("./profiles/ProfileWorkspace").then((module) => ({
     default: module.ProfileWorkspace,
@@ -301,11 +303,27 @@ function Session() {
   )
 }
 
-/** Placeholder while a lazily loaded page's code arrives; pages add their own padding under PageHeader. */
+/**
+ * Placeholder while a lazily loaded page's code arrives. It mirrors the page
+ * shell (header row, filter row, list rows) so the real page replaces it in
+ * place instead of popping in under a blank block.
+ */
 function PageFallback() {
   return (
-    <div className="p-4 md:p-6">
-      <Skeleton className="h-80 w-full" />
+    <div aria-busy="true" aria-label="Loading page" role="status">
+      <div className="flex min-h-14 items-center gap-3 border-b px-4 py-2 md:px-6">
+        <Skeleton className="h-5 w-36" />
+        <Skeleton className="ml-auto h-8 w-24" />
+      </div>
+      <div className="flex flex-col gap-3 p-4 md:p-6">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-8 w-28" />
+        </div>
+        {Array.from({ length: 5 }, (_, index) => (
+          <Skeleton key={index} className="h-9 w-full" />
+        ))}
+      </div>
     </div>
   )
 }
@@ -655,6 +673,7 @@ function PortalSidebar({
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
+          <SidebarCollapse />
           {organization && <SidebarMenuItem>
             <SidebarMenuButton tooltip="Help" aria-expanded={helpOpen} onClick={() => { onHelp(); closeMobile() }} className="text-muted-foreground hover:text-foreground">
               <BookOpenIcon /><span className="group-data-[collapsible=icon]:sr-only">Help</span>
@@ -724,6 +743,14 @@ function PortalSidebar({
 }
 
 function PortalShell({ user }: { user: AuthenticatedUser }) {
+  return (
+    <PanelProvider>
+      <PortalShellContent user={user} />
+    </PanelProvider>
+  )
+}
+
+function PortalShellContent({ user }: { user: AuthenticatedUser }) {
   const params = useParams()
   const org = user.organizations.find(
     (item) => item.uuid === params.organizationUuid,
@@ -733,13 +760,15 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
   const signedOut = useSignedOut()
   const { dirty } = useDirtyContext()
   const [logoutConfirm, setLogoutConfirm] = useState(false)
-  const [activePanel, setActivePanel] = useState<"assistant" | "help" | null>(null)
-  const assistantOpen = activePanel === "assistant"
-  const helpOpen = activePanel === "help"
-  const [helpLoaded, setHelpLoaded] = useState(false)
+  const panel = usePanel()
+  const assistantOpen = panel.open && panel.tab === "ask"
+  const helpOpen = panel.open && panel.tab !== "ask"
+  // The panel's code loads on first open and then stays mounted, so conversations and drafts survive closing it.
+  const [panelLoaded, setPanelLoaded] = useState(false)
+  useEffect(() => {
+    if (panel.open) setPanelLoaded(true)
+  }, [panel.open])
   const [helpOverride, setHelpOverride] = useState<string>()
-  const [assistantLoaded, setAssistantLoaded] = useState(false)
-  const [askRequest, setAskRequest] = useState(0)
   const [logoutError, setLogoutError] = useState<unknown>(null)
   async function logout() {
     try {
@@ -759,28 +788,17 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
   }, [org?.uuid, user.id])
   // "/organizations/{org}/{section}/..." keeps its section when switching organization (N1).
   const section = location.pathname.split("/")[3] || "home"
-  const openHelp = () => { setHelpLoaded(true); setActivePanel(current => current === "help" ? null : "help") }
-  // One Assistant entry point: profile authoring where profiles are built, the
-  // workflow assistant inside the automation editor, and Ask Help elsewhere.
-  const openAssistant = () => {
-    const [, , , page, resource] = location.pathname.split("/")
-    const claimed = page === "automation" && resource && !window.dispatchEvent(new Event("iot-open-automation-assistant", { cancelable: true }))
-    if (claimed) {
-      setActivePanel(null)
-    } else if (page === "device-profiles" || (page === "devices" && resource === "onboard")) {
-      setAssistantLoaded(true)
-      setActivePanel(current => current === "assistant" ? null : "assistant")
-    } else {
-      setHelpLoaded(true)
-      setAskRequest(Date.now())
-      setActivePanel("help")
-    }
-  }
+  const openHelp = () => panel.togglePanel("page")
+  // One Assistant control everywhere: the panel's Ask tab shows the assistant for the
+  // current page (profile authoring, the automation editor's slot, or usage help).
+  const openAssistant = () => panel.togglePanel("ask")
+  const [, , , page, resource] = location.pathname.split("/")
+  const profileContext = page === "device-profiles" || (page === "devices" && resource === "onboard")
   const helpContext = helpOverride ?? helpContextForPath(location.pathname)
   const helpIntegration = useMemo(() => org ? {
     trigger: <Button variant="ghost" size="sm" aria-expanded={helpOpen} onClick={openHelp}><BookOpenIcon data-icon="inline-start" />Help</Button>,
     onContextChange: setHelpOverride,
-  } : null, [org?.uuid, helpOpen])
+  } : null, [org?.uuid, helpOpen, panel])
 
   return (
     <TooltipProvider>
@@ -801,9 +819,9 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
         />
         <SidebarInset
           className={cn(
-            "min-w-0",
+            "min-w-0 transition-[padding] duration-200 ease-out",
             // Below xl the assistant overlays the page; from xl it docks beside it.
-            (assistantOpen || helpOpen) && org && "xl:pr-[440px]",
+            panel.open && org && "xl:pr-[440px]",
           )}
         >
           {logoutError ? (
@@ -816,25 +834,35 @@ function PortalShell({ user }: { user: AuthenticatedUser }) {
           ) : (
             <>
               {org && <RuntimeStatusBanner />}
-              <Outlet />
+              {/* Keyed by section so moving between areas fades the new page in; routes inside a section keep their state. */}
+              <div
+                key={section}
+                className="flex min-h-0 flex-1 flex-col animate-in fade-in-0 duration-150"
+              >
+                <Outlet />
+              </div>
             </>
           )}
         </SidebarInset>
-        {org && assistantLoaded && (
+        {org && panelLoaded && (
           <Suspense fallback={null}>
-            <AssistantPanel
+            <HelpPanel
               key={org.uuid}
               org={org.uuid}
               organizationName={org.name}
-              viewedProfile={params.profileUuid}
-              open={assistantOpen}
-              onClose={() => setActivePanel(null)}
+              context={helpContext}
+              profileAssistant={
+                profileContext ? (
+                  <ProfileAssistantBody
+                    org={org.uuid}
+                    organizationName={org.name}
+                    viewedProfile={params.profileUuid}
+                  />
+                ) : null
+              }
             />
           </Suspense>
         )}
-        {org && helpLoaded && <Suspense fallback={null}>
-          <HelpPanel key={org.uuid} org={org.uuid} organizationName={org.name} context={helpContext} open={helpOpen} onClose={() => setActivePanel(null)} askRequest={askRequest} />
-        </Suspense>}
         <Confirm
           open={logoutConfirm}
           title="Sign out without saving?"

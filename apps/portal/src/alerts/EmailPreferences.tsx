@@ -17,13 +17,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@iot-os/ui/components/card";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-  FieldTitle,
-} from "@iot-os/ui/components/field";
+import { FieldTitle } from "@iot-os/ui/components/field";
+import { SwitchField } from "@iot-os/ui/components/form-fields";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { StatusMark } from "@iot-os/ui/components/status-mark";
 import { Switch } from "@iot-os/ui/components/switch";
@@ -118,20 +113,15 @@ export function EmailPreferences() {
               </CardAction>
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
-              <Field orientation="horizontal">
-                <FieldContent>
-                  <FieldLabel htmlFor="all-alert-emails">Allow alert emails</FieldLabel>
-                  <FieldDescription>
-                    The master switch overrides every email subscription, including queued alert emails.
-                  </FieldDescription>
-                </FieldContent>
-                <Switch
-                  id="all-alert-emails"
-                  checked={data.email_enabled}
-                  disabled={save.isPending}
-                  onCheckedChange={(email_enabled) => save.mutate({ ...data, email_enabled })}
-                />
-              </Field>
+              <SwitchField
+                align="end"
+                id="all-alert-emails"
+                label="Allow alert emails"
+                description="The master switch overrides every email subscription, including queued alert emails."
+                checked={data.email_enabled}
+                disabled={save.isPending}
+                onCheckedChange={(email_enabled) => save.mutate({ ...data, email_enabled })}
+              />
               <Table aria-label="Notification preferences grid">
                 <TableHeader>
                   <TableRow>

@@ -29,7 +29,11 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@iot-os/ui/components/empty"
-import { Input } from "@iot-os/ui/components/input"
+import {
+  FilterBar,
+  FilterCount,
+  FilterSearch,
+} from "@iot-os/ui/components/filter-bar"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import {
   Popover,
@@ -52,7 +56,6 @@ import {
   FolderIcon,
   MoreHorizontalIcon,
   PlusIcon,
-  SearchIcon,
   StarIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -404,22 +407,17 @@ export function DashboardLibrary({
                 </Button>
               </div>
             ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative w-full sm:w-64">
-                  <SearchIcon className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    aria-label="Search dashboards"
-                    placeholder="Search name, tag or device"
-                    className="h-8 pl-8"
-                    value={search}
-                    onChange={(e) =>
-                      setParams(patch(params, { q: e.target.value || null }), {
-                        replace: true,
-                      })
-                    }
-                  />
-                </div>
+              <FilterBar>
+                <FilterSearch
+                  label="Search dashboards"
+                  placeholder="Search name, tag or device"
+                  value={search}
+                  onChange={(e) =>
+                    setParams(patch(params, { q: e.target.value || null }), {
+                      replace: true,
+                    })
+                  }
+                />
                 <FilterMenu
                   label="Tags"
                   options={allTags.map((t) => ({ value: t, label: t }))}
@@ -438,7 +436,7 @@ export function DashboardLibrary({
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline">
+                    <Button variant="outline">
                       Sort: {SORTS[sort]}
                       <ChevronDownIcon data-icon="inline-end" />
                     </Button>
@@ -460,10 +458,10 @@ export function DashboardLibrary({
                     </DropdownMenuRadioGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <span className="ml-auto text-sm text-muted-foreground tabular-nums">
+                <FilterCount>
                   {rows.length} {rows.length === 1 ? "dashboard" : "dashboards"}
-                </span>
-              </div>
+                </FilterCount>
+              </FilterBar>
             )}
             <RequestError error={query.error} />
             {query.error && (
@@ -770,7 +768,7 @@ function FilterMenu({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button variant="outline">
           {label}
           {selected.length > 0 && (
             <span className="tabular-nums text-muted-foreground">

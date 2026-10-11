@@ -4,7 +4,7 @@ import type { DeviceProfileParameter } from "@iot-os/api-client"
 import type { Workflow, WorkflowNode } from "@iot-os/workflow-editor"
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Slider } from "@iot-os/ui/components/slider"
@@ -70,16 +70,20 @@ function SettingValue({ parameter, value, onChange }: { parameter: DeviceProfile
   const edit = (text: string) => {
     try { onChange(parseControlValue(parameter, text)) } catch { onChange(text) }
   }
+  const label = `${parameter.label}${parameter.unit ? ` (${parameter.unit})` : ""}`
+  // The searchable picker labels itself; every other control takes the field label.
+  const searchable = spec.kind === "options" && (spec.optionControl === "searchable_select" || (spec.optionControl !== "toggle_group" && spec.options!.length > 7))
   return <Field data-invalid={Boolean(error)}>
-    <FieldLabel htmlFor={id}>{parameter.label}{parameter.unit ? ` (${parameter.unit})` : ""}</FieldLabel>
+    {searchable ?
+      <SearchableSelect label={label} value={text} search={search} onSearchChange={setSearch} options={spec.options!.filter(o => String(o).toLowerCase().includes(search.toLowerCase())).map(o => ({ value: String(o), label: String(o) }))} onChange={edit} /> :
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>}
     {spec.kind === "switch" && <div className="flex items-center gap-3"><Switch id={id} checked={value === true} onCheckedChange={onChange} /><span>{value === true ? "On" : "Off"}</span></div>}
-    {spec.kind === "options" && (spec.optionControl === "searchable_select" || (spec.optionControl !== "toggle_group" && spec.options!.length > 7) ?
-      <SearchableSelect label={`${parameter.label} value`} value={text} search={search} onSearchChange={setSearch} options={spec.options!.filter(o => String(o).toLowerCase().includes(search.toLowerCase())).map(o => ({ value: String(o), label: String(o) }))} onChange={edit} /> :
-      <ToggleGroup type="single" variant="outline" aria-label={parameter.label} value={text} onValueChange={next => { if (next) edit(next) }} className="flex-wrap">{spec.options!.map(o => <ToggleGroupItem key={String(o)} value={String(o)} aria-label={String(o)}>{String(o)}</ToggleGroupItem>)}</ToggleGroup>)}
+    {spec.kind === "options" && !searchable &&
+      <ToggleGroup type="single" variant="outline" aria-label={parameter.label} value={text} onValueChange={next => { if (next) edit(next) }} className="flex-wrap">{spec.options!.map(o => <ToggleGroupItem key={String(o)} value={String(o)} aria-label={String(o)}>{String(o)}</ToggleGroupItem>)}</ToggleGroup>}
     {spec.kind === "slider" && <Slider aria-label={`${parameter.label} slider`} min={spec.min} max={spec.max} step={spec.step} value={[typeof value === "number" ? value : spec.min!]} onValueChange={([next]) => onChange(next)} />}
-    {spec.kind === "color" && <Input type="color" aria-label={`${parameter.label} picker`} value={/^#[0-9a-f]{6}$/i.test(text) ? text : "#000000"} onChange={e => edit(e.target.value.toUpperCase())} className="h-10 w-20" />}
-    {["slider", "number", "color", "text"].includes(spec.kind) && <Input id={id} aria-invalid={Boolean(error)} type={["slider", "number"].includes(spec.kind) ? "number" : "text"} min={spec.min} max={spec.max} step={spec.step ?? "any"} value={text} onChange={e => edit(e.target.value)} />}
-    {error && <FieldDescription role="alert">{error}</FieldDescription>}
+    {spec.kind === "color" && <Input type="color" aria-label={`${parameter.label} picker`} value={/^#[0-9a-f]{6}$/i.test(text) ? text : "#000000"} onChange={e => edit(e.target.value.toUpperCase())} />}
+    {["slider", "number", "color", "text"].includes(spec.kind) && <Input id={id} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} type={["slider", "number"].includes(spec.kind) ? "number" : "text"} min={spec.min} max={spec.max} step={spec.step ?? "any"} value={text} onChange={e => edit(e.target.value)} />}
+    {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
   </Field>
 }
 
