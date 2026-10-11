@@ -19,6 +19,7 @@ final class CommandSettings
         foreach ($settings as $binding => $value) {
             $commands[] = ['binding' => $binding, 'value' => $value, 'cooldown_seconds' => $config['cooldown_seconds'] ?? null, 'ttl_seconds' => $config['ttl_seconds'] ?? null];
         }
+
         return $commands;
     }
 }

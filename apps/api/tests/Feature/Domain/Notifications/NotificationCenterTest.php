@@ -13,6 +13,7 @@ use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 final class NotificationCenterTest extends TestCase
@@ -107,7 +108,7 @@ final class NotificationCenterTest extends TestCase
         $member = User::where('email', 'acme.member@example.test')->firstOrFail();
         $other = Organization::where('slug', '!=', 'acme-manufacturing')->firstOrFail();
         $event = NotificationEvent::firstOrFail()->replicate();
-        $event->forceFill(['uuid' => (string) \Illuminate\Support\Str::uuid(), 'event_key' => str_repeat('b', 64), 'source' => 'workflow', 'organization_id' => $other->id])->save();
+        $event->forceFill(['uuid' => (string) Str::uuid(), 'event_key' => str_repeat('b', 64), 'source' => 'workflow', 'organization_id' => $other->id])->save();
         $this->actingAs($member, 'sanctum')->getJson('/api/v1/notifications/events')->assertJsonPath('meta.total', 0);
         $prefs = $this->getJson('/api/v1/notifications/preferences')->json('data');
         $prefs['grid']['service']['critical'] = true;
@@ -120,7 +121,7 @@ final class NotificationCenterTest extends TestCase
         $acme = Organization::where('slug', 'acme-manufacturing')->firstOrFail();
         $northstar = Organization::where('slug', 'northstar-utilities')->firstOrFail();
         $base = NotificationEvent::firstOrFail();
-        $workflow = fn (Organization $org, string $key, bool $active) => $base->replicate()->forceFill(['uuid' => (string) \Illuminate\Support\Str::uuid(), 'event_key' => hash('sha256', $key), 'incident_key' => hash('sha256', $key), 'source' => 'workflow', 'severity' => 'warning', 'status' => 'firing', 'active' => $active, 'organization_id' => $org->id])->save();
+        $workflow = fn (Organization $org, string $key, bool $active) => $base->replicate()->forceFill(['uuid' => (string) Str::uuid(), 'event_key' => hash('sha256', $key), 'incident_key' => hash('sha256', $key), 'source' => 'workflow', 'severity' => 'warning', 'status' => 'firing', 'active' => $active, 'organization_id' => $org->id])->save();
         $workflow($acme, 'acme-active', true);
         $workflow($acme, 'acme-cleared', false);
         $workflow($northstar, 'northstar-active', true);

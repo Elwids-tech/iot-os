@@ -1,7 +1,9 @@
 <?php
 
+use App\Domain\Automation\Console\AutomationWorker;
 use App\Domain\DeviceProfiles\Exceptions\ProfileDraftConflictException;
 use App\Domain\DeviceProfiles\Exceptions\ProfileValidationException;
+use App\Domain\Help\Console\ValidateHelp;
 use App\Domain\Integrations\Console\WebhookWorker;
 use App\Http\Middleware\OperationRequestLog;
 use App\Http\Middleware\TrustDeploymentProxies;
@@ -18,7 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withCommands([WebhookWorker::class, \App\Domain\Automation\Console\AutomationWorker::class, \App\Domain\Help\Console\ValidateHelp::class])
+    ->withCommands([WebhookWorker::class, AutomationWorker::class, ValidateHelp::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->replace(TrustProxies::class, TrustDeploymentProxies::class);

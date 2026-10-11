@@ -6,6 +6,9 @@ namespace App\Domain\Shared\Http\Resources;
 
 use App\Domain\Administration\Services\OrganizationAdministrationAuthorization;
 use App\Domain\Administration\Services\OrganizationGrants;
+use App\Domain\Dashboards\Services\DashboardAccess;
+use App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization;
+use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Shared\Models\User;
 use App\Domain\Shared\Permissions\OrganizationPermission;
 use Illuminate\Http\Request;
@@ -26,9 +29,9 @@ final class OrganizationResource extends JsonResource
             'slug' => $this->slug,
             'users_count' => $this->whenCounted('users'),
             'capabilities' => $this->when($user instanceof User, fn (): array => [
-                'device_profiles' => app(\App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization::class)->capabilities($user, $this->resource),
-                'devices' => app(\App\Domain\Devices\Services\DeviceAuthorization::class)->capabilities($user, $this->resource),
-                'dashboards' => app(\App\Domain\Dashboards\Services\DashboardAccess::class)->capabilities($user, $this->resource),
+                'device_profiles' => app(DeviceProfileAuthorization::class)->capabilities($user, $this->resource),
+                'devices' => app(DeviceAuthorization::class)->capabilities($user, $this->resource),
+                'dashboards' => app(DashboardAccess::class)->capabilities($user, $this->resource),
                 'manage_administration' => app(OrganizationAdministrationAuthorization::class)->allows(
                     $user,
                     $this->resource,

@@ -9,11 +9,13 @@ use App\Domain\Assistant\Jobs\RunAssistant;
 use App\Domain\Assistant\Models\AssistantConversation;
 use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Tools\WorkflowAssistantTools;
+use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -26,7 +28,9 @@ final class WorkflowAssistantTest extends TestCase
     use RefreshDatabase;
 
     private Organization $org;
+
     private string $base;
+
     private array $empty = ['schema_version' => 'automation-workflow.v2', 'bindings' => [], 'nodes' => [], 'edges' => []];
 
     protected function setUp(): void
@@ -46,6 +50,7 @@ final class WorkflowAssistantTest extends TestCase
     private function conversation(): AssistantConversation
     {
         $id = $this->postJson($this->base.'/conversations', ['scope' => 'automation'])->assertCreated()->json('data.id');
+
         return AssistantConversation::findOrFail($id);
     }
 
@@ -161,12 +166,13 @@ final class WorkflowAssistantTest extends TestCase
         $this->assertArrayNotHasKey('value', $config);
         $this->assertSame(['alarm_enabled' => true, 'alarm_volume' => 20], $config['settings']);
     }
+
     private function executionFixture(): array
     {
         $actor = User::where('is_super_admin', true)->firstOrFail();
         $graph = [...$this->empty, 'nodes' => [['id' => 'threshold', 'type' => 'compare.v1', 'config' => ['operator' => 'gt', 'value' => 25]]]];
         $workflow = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Execution test', 'workflow' => $graph, 'definition' => $graph, 'definition_hash' => str_repeat('a', 64), 'updated_by' => $actor->id]);
-        $deployment = \App\Domain\Automation\Models\Deployment::create([
+        $deployment = Deployment::create([
             'automation_workflow_id' => $workflow->id, 'generation' => 1, 'draft_revision' => 1, 'target' => 'active',
             'definition' => $graph, 'definition_hash' => str_repeat('a', 64), 'command_grants' => [],
             'status' => 'succeeded', 'created_by' => $actor->id, 'created_at' => now(),
@@ -180,6 +186,7 @@ final class WorkflowAssistantTest extends TestCase
             'trace' => [['node_id' => 'threshold', 'status' => 'not_matched', 'reason' => 'Condition is false.',
                 'inputs' => ['in' => ['known' => true, 'value' => 20]], 'outputs' => ['out' => ['known' => true, 'value' => false]]]],
         ];
+
         return [$workflow, $conversation, $entry];
     }
 
@@ -231,13 +238,12 @@ final class WorkflowAssistantTest extends TestCase
         $this->postJson($url, [...$input, 'execution_id' => '-1'])->assertUnprocessable();
         $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
         $this->postJson('/api/v1/organizations/'.$other->uuid.'/assistant/conversations/'.$conversation->id.'/messages', $input)->assertNotFound();
-        $entry['operation_uuid'] = \App\Domain\Automation\Models\Deployment::firstOrFail()->uuid;
-        Http::swap(new \Illuminate\Http\Client\Factory());
+        $entry['operation_uuid'] = Deployment::firstOrFail()->uuid;
+        Http::swap(new Factory);
         Http::fake(['*/internal/dag/timeline*' => Http::response(['data' => $entry])]);
         config(['assistant.max_context_characters' => 100]);
         $this->postJson($url, $input)->assertUnprocessable();
         $this->assertDatabaseCount('assistant_runs', 0);
         Queue::assertNothingPushed();
     }
-
 }

@@ -9,6 +9,7 @@ use App\Domain\Automation\Services\DagAuthoring;
 use App\Domain\Automation\Services\DagAuthorization;
 use App\Domain\Automation\Services\DagDeployment;
 use App\Domain\Automation\Services\DagDirectory;
+use App\Domain\Automation\Services\DagTimeline;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceCommand;
 use App\Domain\Devices\Permissions\DevicePermission;
@@ -151,7 +152,8 @@ final class DagController
         if ($evaluation !== null) {
             validator(['evaluation' => $evaluation], ['evaluation' => 'required|integer|min:1|max:9223372036854775807'])->validate();
         }
-        return app(\App\Domain\Automation\Services\DagTimeline::class)->read($organization, $workflow, isset($input['before']) ? (string) $input['before'] : null, $evaluation);
+
+        return app(DagTimeline::class)->read($organization, $workflow, isset($input['before']) ? (string) $input['before'] : null, $evaluation);
     }
 
     public function settings(Request $r, Organization $organization): array
@@ -198,13 +200,16 @@ final class DagController
             });
         }
         $page = $query->orderBy('id')->paginate(25, ['*'], 'page', $r->integer('page', 1));
+
         return ['data' => $page->getCollection()->map(function ($device) use ($controllable) {
             $c = $device->configurations()->where('uuid', $device->applied_configuration_uuid)->first();
             $p = $c ? json_decode($c->definition['profile_canonical_json'], true) : [];
             $parameters = collect($p['parameters'] ?? [])->filter(function ($p) use ($c, $controllable) {
                 $mapping = collect($c->definition['mappings'] ?? [])->firstWhere('parameter_uuid', $p['uuid']);
+
                 return $mapping && (! $controllable || (($p['accepts_command'] ?? false) && ($p['reports_state'] ?? false) && ($mapping['command_metric'] ?? null)));
             })->values();
+
             return ['device_uuid' => $device->uuid, 'name' => $device->name, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => $device->deployment_generation, 'parameters' => $parameters];
         }), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];
     }

@@ -15,6 +15,7 @@ use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -138,8 +139,9 @@ final class DagTest extends TestCase
         DB::transaction(fn () => $actions->accept($intent));
         $this->putJson($this->url.'/dag/settings', ['enabled' => true, 'stopped' => true, 'revision' => 1])->assertOk();
         $actions->tick($intent['id']);
-        $this->assertDatabaseHas('automation_actions',['id' => $intent['id'], 'status' => 'cancelled']);
+        $this->assertDatabaseHas('automation_actions', ['id' => $intent['id'], 'status' => 'cancelled']);
     }
+
     public function test_timeline_uses_deployed_snapshot_and_exact_intent_evidence(): void
     {
         $w = $this->draft();
@@ -170,7 +172,7 @@ final class DagTest extends TestCase
             'trace' => [['node_id' => 'compare', 'status' => 'matched', 'inputs' => [], 'outputs' => []]],
             'intent_ids' => [$id, $pending], 'trace_truncated' => false,
         ];
-        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::swap(new Factory);
         Http::fake(['*/internal/dag/timeline*' => Http::response(['data' => $entry])]);
         $edited = $graph;
         $edited['nodes'][1]['config']['value'] = 99;
@@ -184,7 +186,7 @@ final class DagTest extends TestCase
             ->assertJsonPath('data.actions.0.status', 'observed')
             ->assertJsonPath('data.actions.0.command', null)
             ->assertJsonPath('data.actions.1.status', 'awaiting_dispatch');
-        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::swap(new Factory);
         Http::fake(['*/internal/dag/timeline*' => Http::response(['data' => [$entry], 'next_cursor' => '17', 'retention_limit' => 1000])]);
         $this->getJson($base.'?before=18')->assertOk()->assertJsonPath('next_cursor', '17');
         Http::assertSent(fn ($request) => str_contains($request->url(), 'before=18'));
@@ -193,7 +195,7 @@ final class DagTest extends TestCase
         $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
         $this->getJson('/api/v1/organizations/'.$other->uuid.'/workflows/'.$workflow->uuid.'/timeline')->assertNotFound();
         $entry['operation_uuid'] = (string) Str::uuid();
-        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::swap(new Factory);
         Http::fake(['*/internal/dag/timeline*' => Http::response(['data' => $entry])]);
         $this->getJson($base.'/17')->assertNotFound();
     }
@@ -231,7 +233,10 @@ final class DagTest extends TestCase
         $actions = app(DagActions::class);
         foreach ($input['command_grants'] as $g) {
             $intent = ['id' => hash('sha256', 'multi-'.$g['binding']), 'operation_uuid' => $d->uuid, 'organization_uuid' => $this->org->uuid, 'workflow_uuid' => $w['uuid'], 'node_id' => 'command', 'kind' => 'action.command.v1', 'config' => ['binding' => $g['binding'], 'value' => $g['value'], 'cooldown_seconds' => 60, 'ttl_seconds' => 30], 'expires_at' => now()->addSeconds(30)->toIso8601String(), 'occurred_at' => now()->toIso8601String(), 'trigger' => 'episode:1:'.$g['binding']];
-            DB::transaction(function () use ($actions, $intent) { $actions->accept($intent); $actions->accept($intent); });
+            DB::transaction(function () use ($actions, $intent) {
+                $actions->accept($intent);
+                $actions->accept($intent);
+            });
             $actions->tick($intent['id']);
             $record = DB::table('automation_actions')->where('id', $intent['id'])->first();
             $this->assertNotNull($record->command_uuid, $record->diagnostic ?? 'No command');

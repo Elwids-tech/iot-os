@@ -7,6 +7,7 @@ namespace App\Domain\Automation\Services;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\DeviceAudit;
+use App\Domain\Devices\Services\ParameterValue;
 use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Support\Facades\DB;
@@ -46,7 +47,7 @@ final class DagAuthoring
                 $mapping = collect($configuration->definition['mappings'] ?? [])->firstWhere('parameter_uuid', $binding['parameter_uuid']);
                 abort_unless(($parameter['accepts_command'] ?? false) && ($parameter['reports_state'] ?? false) && ($mapping['command_metric'] ?? null), 422, 'Setting has no approved command mapping.');
                 foreach ($commandValues[$binding['role']] as $value) {
-                    app(\App\Domain\Devices\Services\ParameterValue::class)->validate($parameter, $value);
+                    app(ParameterValue::class)->validate($parameter, $value);
                 }
             }
         }

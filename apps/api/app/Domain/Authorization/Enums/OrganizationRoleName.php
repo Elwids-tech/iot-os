@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Authorization\Enums;
 
 use App\Domain\Authorization\Permissions\RolePermission;
+use App\Domain\Automation\Permissions\WorkflowPermission;
 use App\Domain\Dashboards\Permissions\DashboardPermission;
 use App\Domain\DeviceProfiles\Permissions\DeviceProfilePermission;
 use App\Domain\Devices\Permissions\DevicePermission;
@@ -38,14 +39,14 @@ enum OrganizationRoleName: string
                 ...array_map(static fn ($permission): string => $permission->value, RolePermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, DeviceProfilePermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, DevicePermission::cases()),
-                ...array_map(static fn ($permission): string => $permission->value, \App\Domain\Automation\Permissions\WorkflowPermission::cases()),
+                ...array_map(static fn ($permission): string => $permission->value, WorkflowPermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, DashboardPermission::cases()),
             ],
             self::MODERATOR => [
                 DevicePermission::VIEW->value,
                 DashboardPermission::VIEW->value,
                 DashboardPermission::CREATE->value,
-                \App\Domain\Automation\Permissions\WorkflowPermission::VIEW->value,
+                WorkflowPermission::VIEW->value,
                 OrganizationPermission::VIEW->value,
                 UserPermission::VIEW_ANY->value,
                 UserPermission::VIEW->value,
@@ -56,7 +57,7 @@ enum OrganizationRoleName: string
             self::MEMBER => [
                 DevicePermission::VIEW->value,
                 DashboardPermission::VIEW->value,
-                \App\Domain\Automation\Permissions\WorkflowPermission::VIEW->value,
+                WorkflowPermission::VIEW->value,
                 OrganizationPermission::VIEW->value,
                 DeviceProfilePermission::VIEW_ANY->value,
                 DeviceProfilePermission::VIEW->value,

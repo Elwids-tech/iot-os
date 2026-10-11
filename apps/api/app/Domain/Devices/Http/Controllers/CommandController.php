@@ -42,6 +42,7 @@ final class CommandController
 
         return response()->json(['data' => DeviceView::command($this->commands->send($device, $values, $request->user()->id))], 201);
     }
+
     public function confirm(Request $request, Organization $organization, Device $device, DeviceCommand $command): array
     {
         $this->authorization->authorize($request->user(), DevicePermission::COMMAND, $organization, $device);

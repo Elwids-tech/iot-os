@@ -7,11 +7,13 @@ namespace App\Domain\Devices\Services;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceCommand;
 use App\Domain\Devices\Models\DeviceConfiguration;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
 final class DeviceCommandService
 {
     public function __construct(private readonly RuntimeClient $runtime, private readonly ParameterValue $values) {}
+
     /** An intentional control interaction prepares and confirms one audited request. */
     public function send(Device $device, array $values, int $actor): DeviceCommand
     {
@@ -23,11 +25,13 @@ final class DeviceCommandService
     }
 
     /** Only the durable automation dispatcher calls this after checking its immutable grant. */
-    public function sendAutomation(Device $device, array $values, int $actor, \Carbon\CarbonInterface $deadline, string $actionId): DeviceCommand
+    public function sendAutomation(Device $device, array $values, int $actor, CarbonInterface $deadline, string $actionId): DeviceCommand
     {
         abort_unless($deadline->isFuture(), 409, 'Automation action expired.');
+
         return DB::transaction(function () use ($device, $values, $actor, $deadline, $actionId) {
             $command = $this->prepare($device, $values, $actor);
+
             return $this->confirm($device, $command, $actor, $deadline, $actionId);
         });
     }
@@ -81,7 +85,7 @@ final class DeviceCommandService
         });
     }
 
-    public function confirm(Device $device, DeviceCommand $command, int $actor, ?\Carbon\CarbonInterface $deadline = null, ?string $actionId = null): DeviceCommand
+    public function confirm(Device $device, DeviceCommand $command, int $actor, ?CarbonInterface $deadline = null, ?string $actionId = null): DeviceCommand
     {
         return DB::transaction(function () use ($device, $command, $actor, $deadline, $actionId) {
             $locked = Device::whereKey($device->id)->lockForUpdate()->firstOrFail();
@@ -101,7 +105,7 @@ final class DeviceCommandService
                 DeviceAudit::enqueue('device.command.v1', ['command_uuid' => $command->uuid, 'generation' => $locked->deployment_generation, 'organization_uuid' => $locked->organization->uuid,
                     'device_uuid' => $locked->uuid, 'configuration_uuid' => $configuration->uuid, 'parameter_uuid' => $command->parameter_uuid,
                     'value' => $command->value, 'confirmed_at' => $command->confirmed_at->toIso8601String(), 'expires_at' => $command->expires_at->toIso8601String(),
-                    'session_id' => $check['session_id'] ?? null, ...($actionId ? ['automation_action_id'=>$actionId] : [])]);
+                    'session_id' => $check['session_id'] ?? null, ...($actionId ? ['automation_action_id' => $actionId] : [])]);
             }
             DeviceAudit::record('command.confirmed', $locked->organization_id, $actor, $command->uuid, ['status' => $command->status]);
 

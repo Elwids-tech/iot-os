@@ -8,6 +8,7 @@ use App\Domain\Automation\Mail\AlertEmail;
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Automation\Models\AlertDelivery;
 use App\Domain\Devices\Services\DeviceAuthorization;
+use App\Domain\Notifications\Services\Preferences;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -25,7 +26,11 @@ final class DeliverAlertEmail implements ShouldQueue
     public int $timeout = 30;
 
     public int $generation = 0;
-    public function __construct(public readonly string $deliveryUuid, int $generation = 0) { $this->generation = $generation; }
+
+    public function __construct(public readonly string $deliveryUuid, int $generation = 0)
+    {
+        $this->generation = $generation;
+    }
 
     public function retryUntil(): \DateTimeInterface
     {
@@ -53,7 +58,7 @@ final class DeliverAlertEmail implements ShouldQueue
             $reason = null;
             if (! $allowed) {
                 $reason = 'Recipient access is no longer valid.';
-            } elseif (! \App\Domain\Notifications\Services\Preferences::allows($user, 'workflow', $delivery->type === 'cleared' ? 'recovery' : 'warning')) {
+            } elseif (! Preferences::allows($user, 'workflow', $delivery->type === 'cleared' ? 'recovery' : 'warning')) {
                 $reason = 'Recipient email preferences are disabled.';
             } elseif (! ($settings['enabled'] ?? false) || ! in_array($delivery->recipient_id, $settings['recipient_ids'] ?? [], true) || ($delivery->type === 'cleared' && ! ($settings['notify_on_clear'] ?? false))) {
                 $reason = 'Notification subscription was removed or disabled.';

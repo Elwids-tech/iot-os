@@ -1,4 +1,5 @@
 <?php
+
 return [
     'queue_connection' => env('IOT_ADAPTER_QUEUE_CONNECTION', 'database'),
     'enabled' => (bool) env('IOT_ADAPTERS_ENABLED', false),

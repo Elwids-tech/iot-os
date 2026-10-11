@@ -8,7 +8,6 @@ use App\Domain\Administration\Http\Requests\AcceptOrganizationInvitationRequest;
 use App\Domain\Administration\Services\OrganizationInvitationManager;
 use App\Domain\Authentication\Http\Resources\AuthenticatedUserResource;
 use App\Domain\Shared\Models\User;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
 
