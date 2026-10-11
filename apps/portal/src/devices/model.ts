@@ -23,6 +23,8 @@ export type DeviceHealth = {
   tone: StatusTone
   label: string
 }
+// Derived from lifecycle, presence, deployment and freshness together, not one API status.
+// ui-check: allow local-status-map
 const health: Record<DeviceHealth["key"], [StatusTone, string]> = {
   archived: ["muted", "Archived"],
   failed: ["critical", "Configuration failed"],

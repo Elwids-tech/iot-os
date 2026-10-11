@@ -1,3 +1,4 @@
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import type { Measurement } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
@@ -29,7 +30,6 @@ import {
 import { displayStates, stateFor, TONE_COLOR, type StateTone } from "./profileDisplay"
 import { useDevices, useHistory, useLatest, useNow } from "./panelData"
 import {
-  Age,
   BandMark,
   formatReading,
   presenceLabel,
@@ -207,7 +207,7 @@ export function StatusPanel({
               </TableCell>
               <TableCell className="hidden text-right text-muted-foreground @sm:table-cell">
                 {row.measurement && !row.simulated && (
-                  <Age at={readingTime(row.measurement)} now={now} timezone={view.timezone} />
+                  <RelativeTime bare className="font-mono" at={readingTime(row.measurement)} now={now} timezone={view.timezone} />
                 )}
               </TableCell>
             </TableRow>
@@ -300,7 +300,7 @@ export function StatusPanel({
                     row.presence && row.presence !== "online" ? `Device ${presenceLabel(row.presence).toLowerCase()}.` : null,
                   ].filter(Boolean).join(" ") || undefined}
                 >
-                  <Age at={readingTime(measurement)} now={now} timezone={view.timezone} />
+                  <RelativeTime bare className="font-mono" at={readingTime(measurement)} now={now} timezone={view.timezone} />
                   {" ago"}
                 </p>
               ) : (
@@ -392,7 +392,7 @@ function Freshness({
       </StatusMark>
       <span>
         {healthy ? "updated " : retained ? "last valid value received " : "last reading "}
-        <Age at={newest} now={now} timezone={timezone} />
+        <RelativeTime bare className="font-mono" at={newest} now={now} timezone={timezone} />
         {" ago"}
       </span>
       {offline && <span>· Device offline</span>}

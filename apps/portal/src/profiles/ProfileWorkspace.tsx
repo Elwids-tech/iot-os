@@ -23,7 +23,9 @@ import {
   TableCell,
 } from "@iot-os/ui/components/table"
 import { JsonEditor } from "@iot-os/ui/components/json-editor"
-import { PageHeader } from "@iot-os/ui/components/page-header"
+import { Panel, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
+import { EntityPage } from "@iot-os/ui/templates/entity-page"
+import { BoxesIcon } from "lucide-react"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { formatAge, formatDateTime } from "@iot-os/ui/lib/format"
 import {
@@ -105,27 +107,29 @@ function Workspace() {
       activationMode="manual"
       className="gap-0"
     >
-      <PageHeader
+      <EntityPage
         title={profile.name}
+        icon={<BoxesIcon />}
+        code={
+          <>
+            {profile.category && (
+              <span className="font-sans" title={profile.category}>
+                {categoryLabel(profile.category)} ·{" "}
+              </span>
+            )}
+            {profile.code}
+          </>
+        }
         back={{
           to: keep("/organizations/" + studio.org + "/device-profiles"),
           label: "Device profiles",
         }}
-        meta={
-          <>
-            {profile.category && (
-              <span title={profile.category}>
-                {categoryLabel(profile.category)} ·{" "}
-              </span>
-            )}
-            <span className="font-mono text-xs">{profile.code}</span>
-          </>
-        }
         actions={
           <>
-            {profile.revision > 0 && deviceCapabilities.manage && !returnTo && <Button asChild variant="outline"><Link to={`/organizations/${studio.org}/devices/onboard?profile=${profile.uuid}`}>Connect a device</Link></Button>}
+            {profile.revision > 0 && deviceCapabilities.manage && !returnTo && <Button asChild size="sm" variant="outline"><Link to={`/organizations/${studio.org}/devices/onboard?profile=${profile.uuid}`}>Connect a device</Link></Button>}
             {studio.capabilities.validate && (
               <Button
+                size="sm"
                 variant="outline"
                 disabled={check.isFetching || studio.busy || studio.blocked}
                 onClick={() => void check.validate()}
@@ -136,6 +140,7 @@ function Workspace() {
             {studio.capabilities.publish && (
               <span title={blocker ?? undefined}>
                 <Button
+                  size="sm"
                   variant={unchanged ? "outline" : "default"}
                   disabled={Boolean(blocker)}
                   onClick={() => setConfirm(true)}
@@ -146,11 +151,8 @@ function Workspace() {
             )}
           </>
         }
-      >
-        <div className="flex w-full min-w-0 flex-col">
-          <p
-            className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1 text-sm text-muted-foreground [&>span+span]:before:mr-2 [&>span+span]:before:content-['·']"
-          >
+        status={
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground [&>span+span]:before:mr-2 [&>span+span]:before:content-['·']">
             <span>
               {profile.status === "archived" ? (
                 <StatusMark tone="muted">Archived</StatusMark>
@@ -187,34 +189,33 @@ function Workspace() {
                 </Link>
               </span>
             )}
-          </p>
-          <TabsList
-            variant="line"
-            aria-label="Profile sections"
-            className="max-w-full justify-start overflow-x-auto scrollbar-none"
-          >
+</div>
+        }
+        tabs={
+          <TabsList variant="line" aria-label="Profile sections" className="justify-start px-1">
             {sections.map((item) => (
               <TabsTrigger key={item.key} value={item.key} className="flex-none">
                 {item.label}
               </TabsTrigger>
             ))}
           </TabsList>
-        </div>
-      </PageHeader>
-      {returnTo && <DeviceSetupBanner returnTo={returnTo} profile={profile} />}
-      <TabsContent value={current} className="min-w-0 p-4 md:p-6">
-        {current === "overview" ? (
-          <Overview key={profile.uuid} />
-        ) : current === "parameters" ? (
-          <ParametersSection />
-        ) : current === "calculations" ? (
-          <CalculationsSection />
-        ) : current === "alarms" ? (
-          <AlarmsSection />
-        ) : (
-          <ReviewSection />
-        )}
-      </TabsContent>
+        }
+        notices={returnTo && <DeviceSetupBanner returnTo={returnTo} profile={profile} />}
+      >
+        <TabsContent value={current} className="min-w-0">
+          {current === "overview" ? (
+            <Overview key={profile.uuid} />
+          ) : current === "parameters" ? (
+            <ParametersSection />
+          ) : current === "calculations" ? (
+            <CalculationsSection />
+          ) : current === "alarms" ? (
+            <AlarmsSection />
+          ) : (
+            <ReviewSection />
+          )}
+        </TabsContent>
+      </EntityPage>
       <Confirm
         open={confirm}
         title={"Publish as version " + next + "?"}
@@ -265,11 +266,11 @@ function Overview() {
       studio.blocked
   useUnsaved(form.formState.isDirty)
   return (
-    <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(0,42rem)_18rem]">
-      <section aria-labelledby="profile-details" className="min-w-0">
-        <h2 id="profile-details" className="mb-4 text-sm font-semibold">
-          Details
-        </h2>
+    <div className="grid min-w-0 items-start gap-(--panel-gap) xl:grid-cols-[minmax(0,48rem)_var(--rail-width)]">
+      <Panel aria-labelledby="profile-details">
+        <PanelHeader>
+          <PanelTitle id="profile-details">Details</PanelTitle>
+        </PanelHeader>
         <form
           onSubmit={form.handleSubmit(async (input) => {
             try {
@@ -297,7 +298,7 @@ function Overview() {
             }
           })}
         >
-          <FieldGroup className="pb-4">
+          <FieldGroup className="p-4">
             <TextField
               label="Profile name"
               error={fieldError(error, "name")}
@@ -374,11 +375,11 @@ function Overview() {
             }}
           />
         </form>
-      </section>
-      <section aria-labelledby="profile-contents">
-        <h2 id="profile-contents" className="mb-2 text-sm font-semibold">
-          Draft contents
-        </h2>
+      </Panel>
+      <Panel aria-labelledby="profile-contents">
+        <PanelHeader>
+          <PanelTitle id="profile-contents">Draft contents</PanelTitle>
+        </PanelHeader>
         <Table>
           <TableBody>
             {[
@@ -399,7 +400,7 @@ function Overview() {
             ))}
           </TableBody>
         </Table>
-      </section>
+      </Panel>
     </div>
   )
 }

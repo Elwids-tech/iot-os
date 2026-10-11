@@ -8,22 +8,25 @@ import type {
   DeviceDirectoryMeta,
 } from "@iot-os/api-client"
 import { configurationProfile } from "@iot-os/api-client"
-import { Badge } from "@iot-os/ui/components/badge"
 import { Button } from "@iot-os/ui/components/button"
+import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { Pager } from "@iot-os/ui/components/pager"
 import {
-  Empty,
-  EmptyContent,
-  EmptyHeader,
-  EmptyTitle,
-  EmptyDescription,
-} from "@iot-os/ui/components/empty"
-import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark"
+  Panel,
+  PanelActions,
+  PanelContent,
+  PanelDescription,
+  PanelHeader,
+  PanelTitle,
+} from "@iot-os/ui/components/panel"
+import { StatusMark } from "@iot-os/ui/components/status-mark"
+import { cn } from "@iot-os/ui/lib/utils"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@iot-os/ui/components/tooltip"
-import { formatAge, formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
+import { formatNumber } from "@iot-os/ui/lib/format"
 import { api } from "../lib/api"
 import { deviceHealth, healthDetails, type Freshness } from "./model"
 
@@ -35,68 +38,12 @@ const denied: DeviceCapabilities = {
   command: false,
 }
 
-/** One status map for devices, sources, connections, readings and commands: [tone, label]. */
-const statuses: Record<string, [StatusTone, string]> = {
-  stored: ["good", "Stored"],
-  decoded: ["muted", "Decoded"],
-  suspended: ["warning", "Suspended"],
-  storage_retry: ["warning", "Storage retry"],
-  handoff_failed: ["critical", "Handoff failed"],
-  discarded: ["muted", "Discarded"],
-  duplicate: ["muted", "Duplicate"],
-  online: ["good", "Online"],
-  offline: ["critical", "Offline"],
-  unseen: ["muted", "Not seen yet"],
-  unknown: ["muted", "Connection unknown"],
-  registered: ["muted", "Registered"],
-  active: ["good", "Active"],
-  deactivated: ["muted", "Deactivated"],
-  archived: ["muted", "Archived"],
-  idle: ["muted", "Not configured"],
-  pending: ["warning", "Pending"],
-  applied: ["good", "Applied"],
-  failed: ["critical", "Failed"],
-  inactive: ["muted", "Inactive"],
-  good: ["good", "Good"],
-  stale: ["warning", "Stale"],
-  invalid: ["critical", "Invalid"],
-  approved: ["good", "Approved"],
-  rejected: ["muted", "Ignored"],
-  ready: ["good", "Ready"],
-  provisioning: ["muted", "Not provisioned"],
-  succeeded: ["good", "Succeeded"],
-  prepared: ["commanded", "Prepared"],
-  sent: ["commanded", "Sent"],
-  observed: ["good", "Target state observed"],
-  already_at_target: ["good", "Already at target"],
-  timed_out: ["critical", "Timed out"],
-  uncertain: ["critical", "Uncertain"],
-  cancelled: ["muted", "Cancelled"],
-}
-export function deviceStatus(value: string): [StatusTone, string] {
-  const normalized = value.trim().toLowerCase()
-  return (
-    statuses[normalized] ?? [
-      "muted",
-      normalized.charAt(0).toUpperCase() + normalized.slice(1).replaceAll("_", " "),
-    ]
-  )
-}
-export function DeviceStatus({ value }: { value: string }) {
-  const [tone, label] = deviceStatus(value)
-  return <StatusMark tone={tone}>{label}</StatusMark>
-}
-
-const badgeVariants = {
-  good: "success",
-  warning: "warning",
-  critical: "destructive",
-  info: "info",
-  muted: "outline",
-  commanded: "info",
-} as const
-/** One health state for a device; lifecycle, connection and configuration on hover or focus. */
-export function HealthBadge({
+/**
+ * One health state for a device as a status mark; lifecycle, connection,
+ * last seen and configuration on hover or focus. Lists pass `recentMs:
+ * Infinity` and show freshness in its own column instead of "no recent data".
+ */
+export function HealthStatus({
   device,
   freshness,
   className,
@@ -109,13 +56,13 @@ export function HealthBadge({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant={badgeVariants[tone]} tabIndex={0} className={className}>
+        <StatusMark tone={tone} tabIndex={0} className={cn("rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}>
           {label}
-        </Badge>
+        </StatusMark>
       </TooltipTrigger>
       <TooltipContent>
         <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5">
-          {healthDetails(device, freshness).map(([name, value]) => (
+          {healthDetails(device).map(([name, value]) => (
             <div key={name} className="contents">
               <dt className="opacity-70">{name}</dt>
               <dd>{value}</dd>
@@ -140,22 +87,7 @@ export function useDeviceOrganization() {
   }
 }
 
-/** Relative age with the absolute time on hover; "Never" when missing. */
-export function Age({
-  value,
-  never = "Never",
-}: {
-  value: string | null | undefined
-  never?: string
-}) {
-  if (!value) return <span className="text-muted-foreground">{never}</span>
-  return (
-    <time dateTime={value} title={formatDateTime(value)} className="tabular-nums">
-      {formatAge(value)} ago
-    </time>
-  )
-}
-
+/** Adapter over the kit EmptyState for device-area panels. */
 export function DeviceEmpty({
   title,
   description,
@@ -165,18 +97,10 @@ export function DeviceEmpty({
   description?: string
   children?: ReactNode
 }) {
-  return (
-    <Empty className="border-0 p-6 md:p-8">
-      <EmptyHeader>
-        <EmptyTitle>{title}</EmptyTitle>
-        {description && <EmptyDescription>{description}</EmptyDescription>}
-      </EmptyHeader>
-      {children && <EmptyContent>{children}</EmptyContent>}
-    </Empty>
-  )
+  return <EmptyState inset title={title} description={description} action={children} />
 }
 
-/** A titled region on a page; `meta` sits after the title and `actions` on the right. */
+/** A titled panel on a device page; `meta` sits after the title and `actions` on the right. */
 export function Section({
   title,
   meta,
@@ -191,16 +115,14 @@ export function Section({
   className?: string
 }) {
   return (
-    <section className={className}>
-      <div className="mb-2 flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="skin-label text-sm font-semibold">{title}</h2>
-        {meta && <span className="text-sm text-muted-foreground">{meta}</span>}
-        {actions && (
-          <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
-        )}
-      </div>
-      {children}
-    </section>
+    <Panel className={className}>
+      <PanelHeader>
+        <PanelTitle>{title}</PanelTitle>
+        {meta && <PanelDescription className="text-body">{meta}</PanelDescription>}
+        {actions && <PanelActions className="flex-wrap">{actions}</PanelActions>}
+      </PanelHeader>
+      <PanelContent>{children}</PanelContent>
+    </Panel>
   )
 }
 
@@ -223,7 +145,9 @@ export const devicePath = (org: string, device = "") =>
 export const profilePath = (org: string, profile: string) =>
   `/organizations/${encodeURIComponent(org)}/device-profiles/${encodeURIComponent(profile)}`
 export const gatewayPath = (org: string, gateway?: string) =>
-  `/organizations/${encodeURIComponent(org)}/gateways${gateway ? "?gateway=" + encodeURIComponent(gateway) : ""}`
+  `/organizations/${encodeURIComponent(org)}/gateways${gateway ? "/" + encodeURIComponent(gateway) : ""}`
+export const connectionsPath = (org: string) =>
+  `/organizations/${encodeURIComponent(org)}/connections`
 export const discoveryPath = (org: string, gateway?: string) =>
   `/organizations/${encodeURIComponent(org)}/discovery${gateway ? "?gateway=" + encodeURIComponent(gateway) : ""}`
 
@@ -263,6 +187,7 @@ export function formatReading(value: unknown, precision?: number) {
 export const configurationRevision = (device: DeviceDetail, uuid: string | null) =>
   uuid ? device.configurations?.find((c) => c.uuid === uuid)?.revision : undefined
 
+/** Adapter over the kit Pager for device-area lists that page on the server. */
 export function DevicePages({
   meta,
   onPage,
@@ -272,31 +197,14 @@ export function DevicePages({
   onPage: (page: number) => void
   label?: string
 }) {
-  if (!meta || meta.last_page < 2) return null
+  if (!meta) return null
   return (
-    <nav
-      aria-label={label + " pages"}
-      className="mt-3 flex items-center justify-end gap-2"
-    >
-      <span className="mr-2 text-sm text-muted-foreground">
-        Page {meta.current_page} of {meta.last_page}
-      </span>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={meta.current_page === 1}
-        onClick={() => onPage(meta.current_page - 1)}
-      >
-        Previous
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={meta.current_page === meta.last_page}
-        onClick={() => onPage(meta.current_page + 1)}
-      >
-        Next
-      </Button>
-    </nav>
+    <Pager
+      className="mt-3 justify-end"
+      page={meta.current_page}
+      pageCount={meta.last_page}
+      label={label + " pages"}
+      onPageChange={onPage}
+    />
   )
 }

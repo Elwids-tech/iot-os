@@ -588,16 +588,18 @@ test("keeps user search and organization filters in the URL", async ({ page }) =
   await mockApi(page)
   await page.goto("/users")
 
+  // Search applies as you type.
   await page.getByRole("searchbox", { name: "Search" }).fill("Shared")
-  await page.getByRole("button", { name: "Search" }).click()
 
   await expect(page).toHaveURL(/search=Shared/)
   await expect(page.getByRole("row", { name: /Shared Operations Admin/ })).toBeVisible()
   await expect(page.getByRole("row", { name: /Acme Member/ })).toHaveCount(0)
 
-  await page.getByRole("button", { name: "Clear" }).click()
-  await page.getByRole("combobox", { name: "Filter by organization" }).click()
+  await page.getByRole("searchbox", { name: "Search" }).fill("")
+  await page.getByRole("button", { name: "Filters" }).click()
+  await page.getByRole("combobox", { name: "Organization" }).click()
   await page.getByRole("option", { name: "Northstar Utilities" }).click()
+  await page.keyboard.press("Escape")
 
   await expect(page).toHaveURL(new RegExp(`organization=${organizations[1].uuid}`))
   await expect(page.getByRole("row", { name: /Northstar Member/ })).toBeVisible()
@@ -765,14 +767,16 @@ test("invites a user and revokes the pending invitation", async ({ page, console
   await page.getByRole("button", { name: "Send invitation" }).click()
 
   await expect(page.getByText("Invitation sent to invitee@example.test")).toBeVisible()
-  await expect(page.getByRole("cell", { name: "invitee@example.test" })).toBeVisible()
+  await expect(page.getByRole("cell", { name: "invitee@example.test", exact: true })).toBeVisible()
 
-  await page.getByRole("button", { name: "Revoke" }).first().click()
+  await page.getByRole("button", { name: "Actions for invitee@example.test" }).click()
+  await page.getByRole("menuitem", { name: "Revoke" }).click()
   await page.getByRole("button", { name: "Revoke invitation" }).click()
   await expect(page.getByRole("alertdialog")).toBeHidden()
   await expect(page.getByText("revoked").first()).toBeVisible()
 
-  await page.getByRole("button", { name: "Resend" }).first().click()
+  await page.getByRole("button", { name: "Actions for pending@example.test" }).click()
+  await page.getByRole("menuitem", { name: "Resend" }).click()
   await page.getByRole("button", { name: "Resend invitation" }).click()
   await expect(page.getByText("Invitation sent to pending@example.test")).toBeVisible()
 
@@ -793,7 +797,8 @@ test("creates and edits an organization", async ({ page, consoleMessages }) => {
   await expect(page.getByText("Harbor Logistics created")).toBeVisible()
   await expect(page.getByRole("row", { name: /Harbor Logistics/ })).toBeVisible()
 
-  await page.getByRole("button", { name: "Edit Harbor Logistics" }).click()
+  await page.getByRole("button", { name: "Actions for Harbor Logistics" }).click()
+  await page.getByRole("menuitem", { name: "Edit organization" }).click()
   await page.getByRole("textbox", { name: "Slug" }).fill("acme-manufacturing")
   await page.getByRole("button", { name: "Save organization" }).click()
   await expect(page.getByText("The slug has already been taken.")).toBeVisible()
@@ -813,7 +818,8 @@ test("restricts an organization's available permissions after confirming removal
   await mockApi(page)
   await page.goto("/organizations")
 
-  await page.getByRole("link", { name: "Available permissions for Acme Manufacturing" }).click()
+  await page.getByRole("button", { name: "Actions for Acme Manufacturing" }).click()
+  await page.getByRole("menuitem", { name: "Available permissions" }).click()
   await expect(page.getByRole("heading", { name: "Available permissions" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "All permissions" })).toBeChecked()
   await expect(page.getByRole("checkbox", { name: "List members" })).toBeDisabled()
@@ -890,7 +896,8 @@ test("asks before discarding organization and member role edits", async ({ page 
   await guard.getByRole("button", { name: "Discard changes" }).click()
   await expect(dialog).toBeHidden()
 
-  await page.getByRole("button", { name: "Edit Acme Manufacturing" }).click()
+  await page.getByRole("button", { name: "Actions for Acme Manufacturing" }).click()
+  await page.getByRole("menuitem", { name: "Edit organization" }).click()
   await expect(page.getByRole("dialog", { name: "Edit organization" })).toBeVisible()
   await page.keyboard.press("Escape")
   await expect(page.getByRole("dialog", { name: "Edit organization" })).toBeHidden()

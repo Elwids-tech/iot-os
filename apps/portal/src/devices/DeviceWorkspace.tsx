@@ -1,3 +1,6 @@
+import { statusOf } from "@iot-os/ui/lib/status"
+import { Status } from "@iot-os/ui/components/status-mark"
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -11,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@iot-os/ui/components/dropdown-menu"
 import { PageHeader } from "@iot-os/ui/components/page-header"
+import { EntityPage } from "@iot-os/ui/templates/entity-page"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
 import {
   Tabs,
@@ -24,15 +28,13 @@ import {
   AlertTitle,
   AlertDescription,
 } from "@iot-os/ui/components/alert"
-import { EllipsisIcon, PlusIcon } from "lucide-react"
+import { CpuIcon, EllipsisIcon, PlusIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { RequestError, Confirm } from "../components/forms"
 import {
-  Age,
   configurationRevision,
-  DeviceStatus,
   devicePath,
-  deviceStatus,
+  Section,
   useDeviceOrganization,
 } from "./shared"
 import { useDeviceLifecycle } from "./DeviceLifecycleAction"
@@ -47,15 +49,23 @@ import { DeviceControls } from "../controls/DeviceControls"
 import { DeviceConnectivity } from "./DeviceOnboarding"
 
 const HistorySection = lazy(() => import("./HistorySection"))
+/** Five tabs. Data answers "what did it report", Control "what did we tell it". */
 const sections = {
   overview: "Overview",
-  measurements: "Measurements",
-  history: "History",
+  data: "Data",
+  control: "Control",
   configuration: "Configuration",
   connectivity: "Connectivity",
-  controls: "Controls",
-  commands: "Command log",
 } as const
+/** Older links keep working: they open the tab that now holds their content. */
+const aliases: Record<string, keyof typeof sections> = {
+  measurements: "data",
+  history: "data",
+  controls: "control",
+  commands: "control",
+}
+export const deviceTab = (section: string): keyof typeof sections =>
+  aliases[section] ?? (section in sections ? (section as keyof typeof sections) : "overview")
 export type DeviceOperation = <T>(operation: () => Promise<T>) => Promise<T>
 export function DeviceWorkspace() {
   const { org, capabilities } = useDeviceOrganization(),
@@ -187,7 +197,8 @@ export function DeviceWorkspace() {
     <Workspace
       org={org}
       device={query.data}
-      section={section in sections ? section : "overview"}
+      section={deviceTab(section)}
+      anchor={section}
       onSection={(value) => navigate(devicePath(org, deviceUuid) + "/" + value)}
       capabilities={capabilities}
       run={run}
@@ -203,6 +214,7 @@ function Workspace({
   org,
   device,
   section,
+  anchor,
   onSection,
   capabilities,
   run,
@@ -214,6 +226,8 @@ function Workspace({
   org: string
   device: DeviceDetail
   section: string
+  /** The section named in the URL; older links scroll to their part of a merged tab. */
+  anchor: string
   onSection: (value: string) => void
   capabilities: ReturnType<typeof useDeviceOrganization>["capabilities"]
   run: DeviceOperation
@@ -250,12 +264,21 @@ function Workspace({
     capabilities.manage && !archived,
     capabilities.activate && lifecycle.action,
   ].some(Boolean)
+  // /history and /commands open the merged tab and bring their panel into view.
+  useEffect(() => {
+    if (anchor !== "history" && anchor !== "commands") return
+    const frame = requestAnimationFrame(() =>
+      document.getElementById("device-" + anchor)?.scrollIntoView({ block: "start" }),
+    )
+    return () => cancelAnimationFrame(frame)
+  }, [anchor])
   return (
     <Tabs value={section} onValueChange={onSection} className="gap-0">
-      <PageHeader
+      <EntityPage
         title={device.name}
+        icon={<CpuIcon />}
+        code={device.code}
         back={{ to: devicePath(org), label: "Devices" }}
-        meta={<span className="font-mono">{device.code}</span>}
         actions={
           <>
             {capabilities.manage && !archived && (
@@ -301,9 +324,8 @@ function Workspace({
             )}
           </>
         }
-      >
-        <StateLine device={device} />
-        <div className="-mx-1 w-full overflow-x-auto scrollbar-none">
+        status={<StateLine device={device} />}
+        tabs={
           <TabsList variant="line" className="justify-start px-1">
             {Object.entries(sections).map(([value, label]) => (
               <TabsTrigger key={value} value={value} className="flex-none">
@@ -311,30 +333,48 @@ function Workspace({
               </TabsTrigger>
             ))}
           </TabsList>
-        </div>
-      </PageHeader>
-      <div className="flex flex-col gap-4 p-4 md:p-6">
-        <RequestError error={error} />
-        {device.diagnostic && (
-          <Alert>
-            <AlertTitle>Device needs attention</AlertTitle>
-            <AlertDescription>{device.diagnostic}</AlertDescription>
-          </Alert>
-        )}
-        {lifecycle.status}
+        }
+        notices={
+          <>
+            <RequestError error={error} />
+            {device.diagnostic && (
+              <Alert>
+                <AlertTitle>Device needs attention</AlertTitle>
+                <AlertDescription>{device.diagnostic}</AlertDescription>
+              </Alert>
+            )}
+            {lifecycle.status}
+          </>
+        }
+      >
         <TabsContent value="overview">
           <DeviceOverview org={org} device={device} editable={capabilities.manage} onAddToDashboard={addParameter} />
         </TabsContent>
-        <TabsContent value="connectivity">
-          <DeviceConnectivity org={org} deviceUuid={device.uuid} />
-        </TabsContent>
-        <TabsContent value="measurements">
+        <TabsContent value="data" className="flex flex-col gap-(--panel-gap)">
           <MeasurementsSection org={org} device={device} onAddToDashboard={addParameter} />
+          <div id="device-history" className="scroll-mt-4">
+            <Suspense fallback={<Skeleton className="h-80 w-full" />}>
+              <HistorySection org={org} device={device} />
+            </Suspense>
+          </div>
         </TabsContent>
-        <TabsContent value="history">
-          <Suspense fallback={<Skeleton className="h-80 w-full" />}>
-            <HistorySection org={org} device={device} />
-          </Suspense>
+        <TabsContent value="control" className="flex flex-col gap-(--panel-gap)">
+          <Section title="Controls">
+            <DeviceControls
+              org={org}
+              deviceUuid={device.uuid}
+              allowed={capabilities.command && !unconfirmed && !busy}
+            />
+          </Section>
+          <div id="device-commands" className="scroll-mt-4">
+            <CommandsSection
+              org={org}
+              device={device}
+              allowed={capabilities.command && !unconfirmed}
+              run={run}
+              busy={locked}
+            />
+          </div>
         </TabsContent>
         <TabsContent value="configuration">
           <ConfigurationSection
@@ -346,23 +386,10 @@ function Workspace({
             busy={locked}
           />
         </TabsContent>
-        <TabsContent value="controls">
-          <DeviceControls
-            org={org}
-            deviceUuid={device.uuid}
-            allowed={capabilities.command && !unconfirmed && !busy}
-          />
+        <TabsContent value="connectivity">
+          <DeviceConnectivity org={org} deviceUuid={device.uuid} />
         </TabsContent>
-        <TabsContent value="commands">
-          <CommandsSection
-            org={org}
-            device={device}
-            allowed={capabilities.command && !unconfirmed}
-            run={run}
-            busy={locked}
-          />
-        </TabsContent>
-      </div>
+      </EntityPage>
       {lifecycle.dialog}
       {dialog === "details" && (
         <EditDetails
@@ -421,7 +448,7 @@ function StateLine({ device }: { device: DeviceDetail }) {
   const applied = configurationRevision(device, device.applied_configuration_uuid),
     desired = configurationRevision(device, device.desired_configuration_uuid),
     working = configurationRevision(device, device.last_applied_configuration_uuid)
-  const [tone] = deviceStatus(device.deployment_status)
+  const { tone } = statusOf(device.deployment_status)
   const running = device.configurations?.find(
     (c) =>
       c.uuid ===
@@ -441,26 +468,16 @@ function StateLine({ device }: { device: DeviceDetail }) {
           : working !== undefined
             ? `Last working configuration rev ${working}`
             : "Not configured"
-  const dot = (
-    <span aria-hidden="true" className="text-muted-foreground">
-      ·
-    </span>
-  )
   return (
-    <p className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 py-1 text-sm">
-      <DeviceStatus value={device.lifecycle} />
+    <>
+      <Status value={device.lifecycle} />
       {device.lifecycle !== "deactivated" && device.lifecycle !== "archived" && (
-        <>
-          {dot}
-          <StatusMark tone={connection.tone}>{connection.label}</StatusMark>
-        </>
+        <StatusMark tone={connection.tone}>{connection.label}</StatusMark>
       )}
-      {dot}
       <StatusMark tone={tone}>{configuration}</StatusMark>
-      {dot}
       <span className="text-muted-foreground">
-        Last seen <Age value={device.last_seen_at} never="never" />
+        Last seen <RelativeTime at={device.last_seen_at} never="never" />
       </span>
-    </p>
+    </>
   )
 }

@@ -16,6 +16,7 @@ import {
   type DashboardWidget,
 } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
+import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { usePanelGap } from "@iot-os/ui/components/skin"
 import {
@@ -54,7 +55,6 @@ import {
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Field, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
-import { Badge } from "@iot-os/ui/components/badge"
 import { Toggle } from "@iot-os/ui/components/toggle"
 import {
   Popover,
@@ -987,7 +987,7 @@ export function DashboardWorkspace({
               {panels}
             </span>
             {draft && (
-              <Badge variant="outline">{dirty ? "Unsaved changes" : "Editing"}</Badge>
+              <StatusMark tone={dirty ? "warning" : "info"}>{dirty ? "Unsaved changes" : "Editing"}</StatusMark>
             )}
           </span>
         }

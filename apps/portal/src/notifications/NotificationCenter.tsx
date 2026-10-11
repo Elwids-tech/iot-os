@@ -5,8 +5,8 @@ import { EmailPreferences } from "../alerts/EmailPreferences"
 import { legacyNotificationPath } from "../alerts/model"
 
 /**
- * The notification center moved into Alerts (Event log and Email preferences tabs).
- * Old links land there; without any organization only the personal email preferences remain.
+ * The notification center moved: events to Alerts → Event log, preferences to Settings → Email
+ * preferences. Old links land there; without any organization only the personal email preferences remain.
  */
 export default function NotificationCenter() {
   const { organizationUuid } = useParams()

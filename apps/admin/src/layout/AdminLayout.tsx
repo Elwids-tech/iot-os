@@ -150,7 +150,7 @@ function AdminSidebar({
                 >
                   <span
                     aria-hidden="true"
-                    className="grid size-5 shrink-0 place-items-center rounded-sm bg-muted text-[10px] font-semibold text-foreground"
+                    className="grid size-5 shrink-0 place-items-center rounded-sm bg-muted text-micro font-semibold text-foreground"
                   >
                     {initials(user.name)}
                   </span>

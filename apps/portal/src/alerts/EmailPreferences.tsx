@@ -9,15 +9,15 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert";
 import { Badge } from "@iot-os/ui/components/badge";
 import { Button } from "@iot-os/ui/components/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@iot-os/ui/components/card";
 import { FieldTitle } from "@iot-os/ui/components/field";
+import {
+  Panel,
+  PanelActions,
+  PanelContent,
+  PanelDescription,
+  PanelHeader,
+  PanelTitle,
+} from "@iot-os/ui/components/panel";
 import { SwitchField } from "@iot-os/ui/components/form-fields";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { StatusMark } from "@iot-os/ui/components/status-mark";
@@ -32,7 +32,6 @@ import {
 } from "@iot-os/ui/components/table";
 import { api } from "../lib/api";
 import { RequestError } from "../components/forms";
-import { Inbox } from "./Inbox";
 
 export const sources: Record<NotificationSource, { label: string; description: string }> = {
   workflow: { label: "Workflow alerts", description: "Device and automation conditions in your organizations." },
@@ -50,16 +49,6 @@ export const labels: Record<NotificationLevel, string> = {
 export const variants = { critical: "destructive", warning: "warning", info: "info", recovery: "success" } as const;
 export const tones = { critical: "critical", warning: "warning", info: "info", recovery: "good" } as const;
 const preferenceKey = ["notification-preferences"];
-
-export function EmailPreferencesPage() {
-  return (
-    <Inbox tab="preferences">
-      <div className="flex flex-col gap-6 p-4 md:p-6">
-        <EmailPreferences />
-      </div>
-    </Inbox>
-  );
-}
 
 /** Personal email preferences across all organizations, saved on every change. */
 export function EmailPreferences() {
@@ -95,13 +84,13 @@ export function EmailPreferences() {
         <Skeleton className="h-64 w-full" />
       ) : (
         data && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Email preferences</CardTitle>
-              <CardDescription>
+          <Panel>
+            <PanelHeader>
+              <PanelTitle>Alert emails</PanelTitle>
+              <PanelDescription>
                 These settings apply to your account across all organizations. Changes save immediately.
-              </CardDescription>
-              <CardAction>
+              </PanelDescription>
+              <PanelActions>
                 <Button
                   variant="outline"
                   disabled={save.isPending || !data.email_enabled}
@@ -110,9 +99,9 @@ export function EmailPreferences() {
                   <MailXIcon data-icon="inline-start" />
                   Turn off all emails
                 </Button>
-              </CardAction>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-6">
+              </PanelActions>
+            </PanelHeader>
+            <PanelContent className="flex flex-col gap-6">
               <SwitchField
                 align="end"
                 id="all-alert-emails"
@@ -141,9 +130,9 @@ export function EmailPreferences() {
                       <TableRow key={source}>
                         <TableCell className="min-w-52 whitespace-normal">
                           <FieldTitle>{sources[source].label}</FieldTitle>
-                          <p className="mt-1 text-sm text-muted-foreground">{sources[source].description}</p>
+                          <p className="mt-1 text-meta text-muted-foreground">{sources[source].description}</p>
                           {!available && (
-                            <p className="mt-1 text-xs text-muted-foreground">Platform operator access required.</p>
+                            <p className="mt-1 text-meta text-muted-foreground">Platform operator access required.</p>
                           )}
                         </TableCell>
                         {levels.map((level) => (
@@ -171,17 +160,17 @@ export function EmailPreferences() {
                   })}
                 </TableBody>
               </Table>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-body text-muted-foreground">
                 Email choices are retained while the master switch is off. Workflow emails also require the
-                workflow to list you as a recipient in Notification settings. Password reset and account
+                workflow to list you as a recipient in Settings → Notifications. Password reset and account
                 invitation emails are separate.
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-meta text-muted-foreground">
                 The independent watchdog refreshes these settings every minute and uses its last saved settings
                 during an outage.
               </p>
-            </CardContent>
-          </Card>
+            </PanelContent>
+          </Panel>
         )
       )}
     </>

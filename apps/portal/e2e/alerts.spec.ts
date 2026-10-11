@@ -7,6 +7,7 @@ const meter = "18b842d4-dbe9-44b7-a82f-8409bf314d02";
 const geofence = "18b842d4-dbe9-44b7-a82f-8409bf314f01";
 const voltage = "18b842d4-dbe9-44b7-a82f-8409bf314f02";
 const base = `/organizations/${org}/alerts`;
+const settings = `/organizations/${org}/settings/notifications`;
 const now = Date.now();
 const ago = (minutes: number) => new Date(now - minutes * 60000).toISOString();
 const members = [
@@ -465,10 +466,14 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
   await expect(page.getByLabel("Unacknowledged only")).toBeChecked();
   await expect(page).toHaveURL(/acknowledged=0/);
   await expect(episodes).toHaveCount(2);
+  // Device and workflow live in the Filters popover; the button counts active ones.
+  await page.getByRole("button", { name: "Filters" }).click();
   await pick(page, "Device", "GPS tracker");
   await expect(page).toHaveURL(new RegExp(`device=${gps}`));
   await pick(page, "Workflow", "GPS demo geofence");
   await expect(page).toHaveURL(new RegExp(`workflow=${geofence}`));
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Filters, 2 active" })).toBeVisible();
   await expect
     .poll(() =>
       state.queries.some(
@@ -503,7 +508,7 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
   await expect(detail.getByRole("link", { name: "Energy" })).toHaveCount(0);
   await expect(
     detail.getByRole("link", { name: "GPS demo geofence", exact: true }),
-  ).toHaveAttribute("href", `${base}/notifications/${geofence}`);
+  ).toHaveAttribute("href", `${settings}/${geofence}`);
 
   await detail.getByRole("button", { name: "Acknowledge alert" }).click();
   await expect(detail.getByText("Acknowledged by Manager")).toBeVisible();
@@ -544,13 +549,18 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
 });
 
-test("notification settings list the email state and disable a workflow after confirming", async ({
+test("notification settings live in Settings, list the email state and disable a workflow after confirming", async ({
   page,
 }) => {
   const { state, errors } = await setup(page);
   await page.goto(base);
   await page.getByRole("link", { name: "Notification settings" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Notification settings" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`${settings}$`));
+  await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Settings sections" }).getByRole("link", { name: "Notifications" }),
+  ).toHaveAttribute("aria-current", "page");
   const row = page.getByRole("row", { name: /GPS demo geofence/ });
   await expect(row).toContainText("Active");
   await expect(row).toContainText("On");
@@ -559,6 +569,12 @@ test("notification settings list the email state and disable a workflow after co
   await expect(page.getByRole("row", { name: /Phase voltage band/ })).toContainText("Off");
 
   await page.getByRole("link", { name: "GPS demo geofence", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`${settings}/${geofence}$`));
+  await expect(page.getByRole("heading", { level: 1, name: "GPS demo geofence" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /alerts?$/ })).toHaveAttribute(
+    "href",
+    `${base}?condition=all&workflow=${geofence}`,
+  );
   const detail = page.getByRole("region", { name: "Workflow notifications" });
   await expect(detail.getByText("Draft revision 2")).toBeVisible();
   await expect(detail.getByRole("button", { name: "Activate" })).toBeDisabled();
@@ -583,6 +599,8 @@ test("notification settings list the email state and disable a workflow after co
   await detail.getByRole("button", { name: "Save notification settings" }).click();
   await expect(detail.getByText("Notification settings saved.")).toBeVisible();
   expect(state.saved).toMatchObject({ notify_on_clear: false, recipient_ids: [1] });
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+  await page.getByRole("link", { name: "Back to Notifications" }).click();
   await expect(row).toContainText("No email");
 
   expect(errors).toEqual([]);
@@ -593,7 +611,7 @@ test("a lost deployment response is resolved before retrying, so it is never sen
   page,
 }) => {
   const { state, errors } = await setup(page);
-  await page.goto(`${base}/notifications/${geofence}`);
+  await page.goto(`${settings}/${geofence}`);
   // CSS locator: the open dialog hides the page from the accessibility tree.
   const detail = page.locator("section[aria-label='Workflow notifications']");
   await detail.getByRole("button", { name: "Disable workflow" }).click();
@@ -614,7 +632,7 @@ test("a lost deployment response is resolved before retrying, so it is never sen
 
 test("after our operation settles, polling follows another user's operation", async ({ page }) => {
   const { state } = await setup(page);
-  await page.goto(`${base}/notifications/${geofence}`);
+  await page.goto(`${settings}/${geofence}`);
   const detail = page.getByRole("region", { name: "Workflow notifications" });
   await detail.getByRole("button", { name: "Disable workflow" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Disable workflow" }).click();
@@ -629,21 +647,6 @@ test("after our operation settles, polling follows another user's operation", as
 
 test("drafts survive crossing the 1280px layout breakpoint", async ({ page }) => {
   const { errors } = await setup(page);
-  await page.goto(`${base}/notifications/${geofence}`);
-  const onClear = page.getByLabel("Email when the condition clears");
-  await onClear.click();
-  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
-  await page.setViewportSize({ width: 1000, height: 900 });
-  await expect(page.getByRole("heading", { level: 1, name: "GPS demo geofence" })).toBeVisible();
-  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
-  await expect(onClear).not.toBeChecked();
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await expect(onClear).not.toBeChecked();
-  await expect(page.getByRole("table", { name: "Workflows" })).toBeVisible();
-  await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Save notification settings" }).click();
-  await expect(page.getByText("Notification settings saved.")).toBeVisible();
-
   await page.goto(`${base}/a3`);
   await page.getByLabel("Add a comment").fill("Draft kept across layouts");
   await page.setViewportSize({ width: 1000, height: 900 });
@@ -669,7 +672,7 @@ test("mobile shows one pane at a time without sideways scroll", async ({ page })
   await page.getByRole("link", { name: "Back to Alerts" }).click();
   await expect(page.getByRole("list", { name: "Alert sources" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.goto(`${base}/notifications/${geofence}`);
+  await page.goto(`${settings}/${geofence}`);
   await expect(page.getByRole("heading", { level: 1, name: "GPS demo geofence" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
@@ -689,7 +692,9 @@ test("viewers read alerts without management actions", async ({ page }) => {
   await expect(detail.getByRole("button", { name: /Acknowledge all cleared/ })).toHaveCount(0);
   await expect(page.getByRole("checkbox", { name: /^Select/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Acknowledge selected/ })).toHaveCount(0);
+  // The old address redirects into Settings, which explains the missing access.
   await page.goto(`${base}/notifications`);
+  await expect(page).toHaveURL(new RegExp(`${settings}$`));
   await expect(page.getByText("Settings unavailable")).toBeVisible();
 });
 
@@ -729,7 +734,7 @@ test("acknowledges whole sources after confirming and single selected alerts dir
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
 });
 
-test("the event log and email preferences live in Alerts and the notification center redirects there", async ({
+test("the event log lives in Alerts, email preferences in Settings, and old links redirect", async ({
   page,
 }) => {
   const { state, errors } = await setup(page);
@@ -751,8 +756,10 @@ test("the event log and email preferences live in Alerts and the notification ce
   await expect(log).toContainText("Active");
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
 
-  await page.getByRole("tab", { name: "Email preferences" }).click();
-  await expect(page).toHaveURL(new RegExp(`${base}/preferences$`));
+  await expect(page.getByRole("tab", { name: "Email preferences" })).toHaveCount(0);
+  await page.goto(`${base}/preferences`);
+  await expect(page).toHaveURL(new RegExp(`/organizations/${org}/settings/email$`));
+  await expect(page.getByRole("heading", { name: "Email preferences" })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Cleared" })).toBeVisible();
   await page.getByRole("button", { name: "Turn off all emails" }).click();
   await expect(page.getByText("All alert emails are off")).toBeVisible();
@@ -760,6 +767,9 @@ test("the event log and email preferences live in Alerts and the notification ce
   await expect(page.getByRole("button", { name: "Turn off all emails" })).toBeDisabled();
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
 
+  await page.goto(`/organizations/${org}/notifications?tab=preferences`);
+  await expect(page).toHaveURL(new RegExp(`/organizations/${org}/settings/email$`));
+  await page.goto(`${base}/events`);
   await page.getByRole("tab", { name: "Alerts" }).click();
   await expect(page).toHaveURL(new RegExp(`${base}$`));
   await expect(page.getByRole("list", { name: "Alert sources" })).toBeVisible();

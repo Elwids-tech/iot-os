@@ -156,7 +156,7 @@ export function StateHistoryVisualization({
               <span
                 key={`${segment.from}:${index}`}
                 className={cn(
-                  "min-w-px border-r border-black/10 last:border-r-0",
+                  "min-w-px border-r border-foreground/10 last:border-r-0",
                   (!segment.known ||
                     (colour && !validHexColor(segment.value))) &&
                     "history-unknown",
@@ -213,7 +213,7 @@ export function StateHistoryVisualization({
             <Badge variant="outline" className="gap-1.5">
               <span
                 aria-hidden
-                className="history-unknown size-3 rounded-sm border bg-slate-400"
+                className="history-unknown size-3 rounded-sm border bg-muted-foreground/60"
               />
               Invalid value
             </Badge>

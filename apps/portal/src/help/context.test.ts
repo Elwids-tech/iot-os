@@ -39,6 +39,14 @@ describe("Help context", () => {
     expect(helpContextForPath("/organizations/private-org/members")).toBe("members");
     expect(helpContextForPath("/organizations/private-org/roles")).toBe("roles");
     expect(helpContextForPath("/organizations/private-org/roles/42")).toBe("roles.editor");
+    expect(helpContextForPath("/organizations/private-org/settings/members")).toBe("members");
+    expect(helpContextForPath("/organizations/private-org/settings/roles")).toBe("roles");
+    expect(helpContextForPath("/organizations/private-org/settings/roles/42")).toBe("roles.editor");
+    expect(helpContextForPath("/organizations/private-org/settings/notifications")).toBe("alerts.notifications");
+    expect(
+      helpContextForPath("/organizations/private-org/settings/notifications/private-workflow"),
+    ).toBe("alerts.notifications.workflow");
+    expect(helpContextForPath("/organizations/private-org/settings/email")).toBe("alerts.preferences");
   });
   it("uses section overviews for unsupported tabs and getting started outside a workspace", () => {
     expect(

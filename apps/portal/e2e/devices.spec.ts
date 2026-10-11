@@ -143,6 +143,8 @@ const dashboard = {
 
 type Options = {
   devices?: Record<string, any>[]
+  /** The devices API sorts and echoes meta.sort, as servers with list sorting do. */
+  serverSort?: boolean
   details?: Record<string, Record<string, any>>
   /** Pending discovery sources no device has reserved. */
   pending?: number
@@ -157,6 +159,7 @@ async function setup(page: Page, options: Options = {}) {
     errors: [] as string[],
     saved: null as null | Record<string, any>,
     history: [] as URLSearchParams[],
+    sorts: [] as string[],
   }
   page.on("pageerror", (error) => state.errors.push(error.message))
   page.on("console", (message) => {
@@ -189,15 +192,36 @@ async function setup(page: Page, options: Options = {}) {
         },
       })
     if (path.endsWith("/context")) return json({ data: context })
+    if (path.endsWith("/device-profiles"))
+      return json({
+        data: [{ uuid: profileId, code: "three-phase-energy-meter", name: "Three-phase Energy Meter" }],
+        meta: { current_page: 1, last_page: 1, total: 1 },
+      })
     if (path.endsWith("/devices")) {
       const lifecycle = url.searchParams.get("lifecycle")
+      const profileUuid = url.searchParams.get("profile_uuid")
       const rows = (options.devices ?? [meter, idle]).filter(
-        (d) => !lifecycle || d.lifecycle === lifecycle,
+        (d) =>
+          (!lifecycle || d.lifecycle === lifecycle) &&
+          (!profileUuid || d.profile?.uuid === profileUuid),
       )
       const perPage = Number(url.searchParams.get("per_page") ?? 25)
+      if (!options.serverSort)
+        return json({
+          data: rows.slice(0, perPage),
+          meta: { current_page: 1, last_page: 1, total: rows.length },
+        })
+      const sort = url.searchParams.get("sort") ?? "name"
+      if (url.searchParams.get("per_page") !== "1") state.sorts.push(sort)
+      const key = sort.replace(/^-/, "") === "last_seen" ? "last_seen_at" : "name"
+      const sign = sort.startsWith("-") ? -1 : 1
+      // Never-seen devices sort last either way, as the API does.
+      const sorted = [...rows].sort((a, b) =>
+        a[key] === null ? 1 : b[key] === null ? -1 : sign * String(a[key]).localeCompare(String(b[key])),
+      )
       return json({
-        data: rows.slice(0, perPage),
-        meta: { current_page: 1, last_page: 1, total: rows.length },
+        data: sorted.slice(0, perPage),
+        meta: { current_page: 1, last_page: 1, total: rows.length, sort },
       })
     }
     const one = /\/devices\/([^/]+)$/.exec(path)?.[1]
@@ -355,7 +379,7 @@ test("device directory links profiles and gateways and counts by lifecycle", asy
   )
   await expect(row.getByRole("link", { name: "Simulator gateway" })).toHaveAttribute(
     "href",
-    `${base}/gateways?gateway=${gatewayId}`,
+    `${base}/gateways/${gatewayId}`,
   )
   await expect(row.getByText("Online", { exact: true })).toBeVisible()
   await lifecycle.getByRole("radio", { name: "Registered 1" }).click()
@@ -373,7 +397,7 @@ test("device overview leads with readings and links profile, gateway, dashboards
   await expect(page.getByRole("heading", { name: "Energy Meter Simulator", level: 1 })).toBeVisible()
   await expect(page.getByRole("link", { name: "Back to Devices" })).toHaveAttribute("href", `${base}/devices`)
   await expect(page.getByText("Configuration applied rev 1")).toBeVisible()
-  await expect(page.getByRole("tab", { name: "Command log" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Control" })).toBeVisible()
   const readings = page.getByRole("table").first()
   await expect(readings.getByRole("row", { name: /Voltage L1/ })).toContainText("230.0")
   await expect(readings.getByRole("row", { name: /Imported energy/ })).toContainText("100.263")
@@ -391,7 +415,7 @@ test("device overview leads with readings and links profile, gateway, dashboards
   await expect(summary.getByRole("link", { name: "Other" })).toHaveCount(0)
   await expect(summary.getByRole("link", { name: "Phase voltage band" })).toBeVisible()
   await expect(summary.getByText("1 active")).toBeVisible()
-  await expect(summary.getByText("Target state observed")).toBeVisible()
+  await expect(summary.getByText("Confirmed")).toBeVisible()
   await axe(page)
 
   await page.getByRole("button", { name: "Device actions" }).click()
@@ -430,22 +454,27 @@ test("device overview leads with readings and links profile, gateway, dashboards
 
 test("gateways list their devices and discovery shows a clearable gateway filter", async ({ page }) => {
   const state = await setup(page)
-  await page.goto(`${base}/gateways?gateway=${gatewayId}`)
-  const rail = page.getByRole("complementary", { name: "Selected gateway" })
-  await expect(rail.getByRole("link", { name: "Energy Meter Simulator" })).toBeVisible()
+  // Broker connections have their own page under Connect.
+  await page.goto(`${base}/connections`)
   await expect(page.getByRole("button", { name: "Provision", exact: true })).toBeVisible()
-  await rail.getByRole("button", { name: "Get credentials" }).click()
+  // Links from before the gateway page still open it.
+  await page.goto(`${base}/gateways?gateway=${gatewayId}`)
+  await expect(page).toHaveURL(`${base}/gateways/${gatewayId}`)
+  await expect(page.getByRole("heading", { name: "Simulator gateway", level: 1 })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Energy Meter Simulator" })).toBeVisible()
+  await page.getByRole("button", { name: "Get credentials" }).click()
   await expect(page.getByRole("dialog", { name: "Get gateway credentials" })).toContainText(
     `devices:export-gateway ${gatewayId}`,
   )
   await page.keyboard.press("Escape")
   await axe(page)
+  await page.getByRole("link", { name: "Back to Gateways" }).click()
   await page.getByRole("link", { name: "1 source" }).click()
   await expect(page).toHaveURL(`${base}/discovery?gateway=${gatewayId}`)
   await expect(page.getByText("Gateway: Simulator gateway")).toBeVisible()
   await page.getByLabel("Search discovered sources").fill("met")
   await expect(page).toHaveURL(/search=met/)
-  await page.getByRole("button", { name: "Clear gateway filter" }).click()
+  await page.getByRole("button", { name: "Remove Gateway filter" }).click()
   await expect(page).toHaveURL(`${base}/discovery?search=met`)
   await axe(page)
   await fitsPhone(page)
@@ -468,7 +497,7 @@ test("device directory shows one health status, short codes, pending sources and
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.goto(`${base}/devices`)
   const table = page.getByRole("table")
-  await expect(table.getByRole("columnheader")).toHaveText(["Device", "Status", "Last seen", "Profile", "Gateway"])
+  await expect(table.getByRole("columnheader")).toHaveText(["", "Device", "Status", "Last seen", "Profile", "Gateway", "Actions"])
   const lastSeen = await table.getByRole("columnheader", { name: "Last seen" }).boundingBox()
   expect(lastSeen!.x + lastSeen!.width).toBeLessThanOrEqual(1280)
   await expect(page.getByRole("link", { name: "Manufacturer MQTT device" })).toHaveCount(0)
@@ -476,11 +505,13 @@ test("device directory shows one health status, short codes, pending sources and
 
   const row = table.getByRole("row", { name: /Boiler room sensor/ })
   await expect(row.getByText("device-ef7b…7632")).toHaveAttribute("title", generated.code)
-  await expect(row.getByText("Online · no recent data")).toBeVisible()
+  // Presence and freshness are separate: the status says Online, Last seen says the data is late.
+  await expect(row.getByText("Online", { exact: true })).toBeVisible()
   await expect(row.getByText("5 d ago")).toBeVisible()
+  await expect(row.locator('[data-slot="freshness"]')).toHaveAttribute("data-state", "late")
   await expect(table.getByRole("row", { name: /D1/ }).getByText("Needs configuration")).toBeVisible()
   await expect(table.getByRole("row", { name: /D1/ }).getByText("testing-d1")).toBeVisible()
-  await row.getByText("Online · no recent data").hover()
+  await row.getByText("Online", { exact: true }).hover()
   await expect(page.getByRole("tooltip")).toContainText("LifecycleActive")
   await expect(page.getByRole("tooltip")).toContainText("ConnectionOnline, no recent data")
   await expect(page.getByRole("tooltip")).toContainText("Last seen5 d ago")
@@ -488,23 +519,20 @@ test("device directory shows one health status, short codes, pending sources and
   await page.keyboard.press("Escape")
   await expect(page.getByRole("tooltip")).toHaveCount(0)
 
-  const banner = page.getByRole("alert").filter({ hasText: "data sources" })
-  await expect(banner).toContainText("2 data sources have reported data but aren't devices yet")
-  await expect(banner.getByRole("link", { name: "Review" })).toHaveAttribute("href", `${base}/discovery`)
+  // Waiting sources are a quiet toolbar link to Discovery instead of a banner.
+  await expect(page.getByRole("link", { name: "2 sources waiting in Discovery" })).toHaveAttribute(
+    "href",
+    `${base}/discovery`,
+  )
   await axe(page)
   await page.screenshot({ path: info.outputPath("devices-desktop.png") })
-  await banner.getByRole("button", { name: "Dismiss for this session" }).click()
-  await expect(banner).toHaveCount(0)
-  await page.reload()
-  await expect(table.getByRole("row", { name: /Boiler room sensor/ })).toBeVisible()
-  await expect(page.getByRole("alert").filter({ hasText: "data sources" })).toHaveCount(0)
 
   await page.setViewportSize({ width: 375, height: 812 })
   await expect(page.getByRole("table")).toBeHidden()
   const cards = page.getByRole("list", { name: "Devices" })
   await expect(cards.getByRole("listitem")).toHaveCount(3)
   const card = cards.getByRole("listitem").filter({ hasText: "Boiler room sensor" })
-  await expect(card).toContainText("Online · no recent data")
+  await expect(card).toContainText("Online")
   await expect(card).toContainText("Last seen 5 d ago")
   await expect(card).toContainText("Three-phase Energy Meter")
   await expect(page.getByRole("link", { name: "Add device" })).toBeInViewport()
@@ -514,6 +542,93 @@ test("device directory shows one health status, short codes, pending sources and
   await page.screenshot({ path: info.outputPath("devices-phone.png") })
   await card.getByRole("link", { name: "Boiler room sensor" }).click()
   await expect(page).toHaveURL(`${base}/devices/${generated.uuid}`)
+  expect(state.errors).toEqual([])
+})
+
+test("device table selects and exports rows, hides columns, groups and filters by profile", async ({ page }) => {
+  const state = await setup(page, { devices: [meter, idle, generated] })
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto(`${base}/devices`)
+  const table = page.getByRole("table")
+  await expect(table.getByRole("row", { name: /Boiler room sensor/ })).toBeVisible()
+
+  // Selection opens the bulk bar; Export CSV saves the selected rows.
+  await table.getByRole("checkbox", { name: "Select Energy Meter Simulator" }).click()
+  await table.getByRole("checkbox", { name: "Select Boiler room sensor" }).click()
+  await expect(page.getByText("2 selected")).toBeVisible()
+  const download = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Export CSV" }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toMatch(/^devices-\d{4}-\d{2}-\d{2}\.csv$/)
+  const csv = (await (await file.createReadStream()).toArray()).join("")
+  expect(csv.split("\n")[0]).toBe("Device,Status,Last seen,Profile,Gateway")
+  expect(csv).toContain("Energy Meter Simulator,Online")
+  expect(csv).toContain("Boiler room sensor,Online")
+  await page.getByRole("button", { name: "Clear" }).click()
+  await expect(page.getByText("2 selected")).toHaveCount(0)
+
+  // The column manager hides Gateway and remembers it after a reload.
+  await page.getByRole("button", { name: "Columns" }).click()
+  await page.getByRole("menuitemcheckbox", { name: "Gateway" }).click()
+  await page.keyboard.press("Escape")
+  await expect(table.getByRole("columnheader", { name: "Gateway" })).toHaveCount(0)
+  await page.reload()
+  await expect(table.getByRole("row", { name: /Boiler room sensor/ })).toBeVisible()
+  await expect(table.getByRole("columnheader", { name: "Gateway" })).toHaveCount(0)
+
+  // Grouping by profile puts both metered devices under one header.
+  await page.getByRole("button", { name: "Group" }).click()
+  await page.getByRole("menuitemradio", { name: "Profile" }).click()
+  const group = table.getByRole("button", { name: /Three-phase Energy Meter/ })
+  await expect(group).toContainText("2 devices")
+  await expect(table.getByRole("button", { name: /No profile/ })).toContainText("1 device")
+  await group.click()
+  await expect(table.getByRole("row", { name: /Boiler room sensor/ })).toHaveCount(0)
+  await group.click()
+
+  // A profile filter goes to the URL and shows as a removable chip.
+  await page.getByRole("button", { name: "Filters" }).click()
+  await page.getByRole("combobox", { name: "Profile" }).click()
+  await page.getByRole("option", { name: "Three-phase Energy Meter" }).click()
+  await expect(page).toHaveURL(new RegExp(`profile=${profileId}`))
+  await page.keyboard.press("Escape")
+  const chips = page.getByRole("group", { name: "Active filters" })
+  await expect(chips).toContainText("Profile: Three-phase Energy Meter")
+  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeVisible()
+  await expect(page.getByRole("status").filter({ hasText: "2 devices match" })).toBeVisible()
+  await expect(table.getByRole("row", { name: /D1/ })).toHaveCount(0)
+  await axe(page)
+  await chips.getByRole("button", { name: "Remove Profile filter" }).click()
+  await expect(page).not.toHaveURL(/profile=/)
+  await expect(table.getByRole("row", { name: /D1/ })).toBeVisible()
+  expect(state.errors).toEqual([])
+})
+
+test("device headers sort on the server and keep the sort in the address", async ({ page }) => {
+  const state = await setup(page, { devices: [meter, idle, generated], serverSort: true })
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto(`${base}/devices`)
+  const table = page.getByRole("table")
+  const first = table.getByRole("row").nth(1)
+  await expect(table.getByRole("columnheader", { name: "Device" })).toHaveAttribute("aria-sort", "ascending")
+  await expect(first).toContainText("Boiler room sensor")
+
+  // Oldest first, then newest first; a device never seen stays at the end.
+  await table.getByRole("button", { name: "Last seen" }).click()
+  await expect(page).toHaveURL(/sort=last_seen/)
+  await expect(table.getByRole("columnheader", { name: "Last seen" })).toHaveAttribute("aria-sort", "ascending")
+  await expect(first).toContainText("Boiler room sensor")
+  await expect(table.getByRole("row").last()).toContainText("testing-d1")
+  await table.getByRole("button", { name: "Last seen" }).click()
+  await expect(page).toHaveURL(/sort=-last_seen/)
+  await expect(first).toContainText("Energy Meter Simulator")
+  await expect(table.getByRole("row").last()).toContainText("testing-d1")
+  expect(state.sorts.slice(-2)).toEqual(["last_seen", "-last_seen"])
+
+  // Name ascending is the default, so it leaves the address.
+  await table.getByRole("button", { name: "Device" }).click()
+  await expect(page).not.toHaveURL(/sort=/)
+  await expect(first).toContainText("Boiler room sensor")
   expect(state.errors).toEqual([])
 })
 

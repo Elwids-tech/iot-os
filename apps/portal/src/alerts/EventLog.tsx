@@ -3,21 +3,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { RefreshCwIcon } from "lucide-react";
 import type { NotificationEvent, NotificationSource } from "@iot-os/api-client";
-import { Badge } from "@iot-os/ui/components/badge";
 import { Button } from "@iot-os/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@iot-os/ui/components/card";
 import { FilterBar, FilterSearch } from "@iot-os/ui/components/filter-bar";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@iot-os/ui/components/sheet";
-import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { StatusMark } from "@iot-os/ui/components/status-mark";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@iot-os/ui/components/table";
+import { DataTable } from "@iot-os/ui/components/data-table";
+import { EmptyState } from "@iot-os/ui/components/empty-state";
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group";
 import { formatDateTime } from "@iot-os/ui/lib/format";
 import { api } from "../lib/api";
 import { RequestError } from "../components/forms";
-import { DeviceEmpty, DevicePages, useDeviceOrganization } from "../devices/shared";
+import { useDeviceOrganization } from "../devices/shared";
 import { Inbox } from "./Inbox";
-import { labels, sources, tones, variants } from "./EmailPreferences";
+import { labels, sources, tones } from "./EmailPreferences";
 import { eventState } from "./model";
 
 const severities = ["critical", "warning", "info"] as const;
@@ -168,66 +167,92 @@ export function EventLogPage() {
             </CardContent>
           </Card>
         </div>
-        <RequestError error={events.error} />
-        {events.isPending ? (
-          <Skeleton className="h-64 w-full" />
-        ) : (
-          events.data && (
-            <div>
-              {events.data.data.length ? (
-                <Table aria-label="Event log">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Event</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Severity</TableHead>
-                      <TableHead>State</TableHead>
-                      <TableHead>Occurred</TableHead>
-                      <TableHead className="text-right">Seen</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {events.data.data.map((event) => {
-                      const state = eventState(event);
-                      return (
-                        <TableRow key={event.uuid}>
-                          <TableCell className="max-w-md whitespace-normal">
-                            <Button
-                              variant="link"
-                              className="h-auto max-w-full justify-start px-0 text-left whitespace-normal"
-                              onClick={() => setSelected(event)}
-                            >
-                              {event.title}
-                            </Button>
-                            <p className="truncate text-xs text-muted-foreground">{event.summary}</p>
-                          </TableCell>
-                          <TableCell>
-                            {sources[event.source].label}
-                            <span className="block text-xs text-muted-foreground">{event.service ?? ""}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={variants[event.severity]}>{labels[event.severity]}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <StatusMark tone={state === "Active" ? tones[event.severity] : "muted"}>{state}</StatusMark>
-                          </TableCell>
-                          <TableCell className="text-xs tabular-nums">{formatDateTime(event.occurred_at)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{event.occurrences}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              ) : (
-                <DeviceEmpty
-                  title="No matching events"
-                  description="Alerts and their clears appear here even when all emails are off."
-                />
-              )}
-              <DevicePages meta={events.data.meta} label="Events" onPage={(value) => filter({ page: String(value) })} />
-            </div>
-          )
-        )}
+        <DataTable
+          id="event-log"
+          label="Event log"
+          noun={["event", "events"]}
+          rows={events.data?.data}
+          rowKey={(event) => event.uuid}
+          columns={[
+            {
+              id: "event",
+              header: "Event",
+              mobile: "title",
+              className: "max-w-md whitespace-normal",
+              value: (event) => event.title,
+              cell: (event) => (
+                <>
+                  <Button
+                    variant="link"
+                    className="relative z-10 h-auto max-w-full justify-start px-0 text-left font-medium whitespace-normal text-foreground"
+                    onClick={() => setSelected(event)}
+                  >
+                    {event.title}
+                  </Button>
+                  <p className="truncate text-meta text-muted-foreground">{event.summary}</p>
+                </>
+              ),
+            },
+            {
+              id: "type",
+              header: "Type",
+              value: (event) => sources[event.source].label,
+              cell: (event) => (
+                <>
+                  {sources[event.source].label}
+                  <span className="block text-meta text-muted-foreground">{event.service ?? ""}</span>
+                </>
+              ),
+            },
+            {
+              id: "severity",
+              header: "Severity",
+              mobile: "badge",
+              value: (event) => labels[event.severity],
+              cell: (event) => <StatusMark tone={tones[event.severity]}>{labels[event.severity]}</StatusMark>,
+            },
+            {
+              id: "state",
+              header: "State",
+              value: (event) => eventState(event),
+              cell: (event) => {
+                const state = eventState(event);
+                return <StatusMark tone={state === "Active" ? tones[event.severity] : "muted"}>{state}</StatusMark>;
+              },
+            },
+            {
+              id: "occurred",
+              header: "Occurred",
+              value: (event) => event.occurred_at,
+              cell: (event) => <span className="text-meta tabular-nums">{formatDateTime(event.occurred_at)}</span>,
+            },
+            {
+              id: "seen",
+              header: "Seen",
+              align: "end",
+              value: (event) => event.occurrences,
+              cell: (event) => <span className="tabular-nums">{event.occurrences}</span>,
+            },
+          ]}
+          error={events.error ? <RequestError error={events.error} /> : undefined}
+          filtered={source !== "all" || severity !== "all" || status !== "all" || Boolean(search)}
+          onReset={() => filter({ source: "", severity: "", status: "", search: "" })}
+          pagination={{
+            page: Number(params.get("page") ?? 1),
+            pageSize: 25,
+            total: events.data?.meta.total ?? 0,
+            pageCount: events.data?.meta.last_page,
+            onPageChange: (value) => filter({ page: String(value) }),
+          }}
+          refreshSeconds={15}
+          empty={
+            <EmptyState
+              inset
+              title="No events yet"
+              description="Alerts and their clears appear here even when all emails are off."
+            />
+          }
+        />
       </div>
       <Sheet open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
         <SheetContent className="overflow-y-auto">
@@ -238,7 +263,7 @@ export function EventLogPage() {
           {selected && (
             <div className="flex flex-col gap-4 p-4">
               <div className="flex flex-wrap items-center gap-3">
-                <Badge variant={variants[selected.severity]}>{labels[selected.severity]}</Badge>
+                <StatusMark tone={tones[selected.severity]}>{labels[selected.severity]}</StatusMark>
                 <StatusMark tone={eventState(selected) === "Active" ? tones[selected.severity] : "muted"}>
                   {eventState(selected)}
                 </StatusMark>

@@ -15,6 +15,7 @@ import {
 import { Button } from "@iot-os/ui/components/button"
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
 import { PageHeader } from "@iot-os/ui/components/page-header"
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { PermissionMatrix, permissionChanges } from "@iot-os/ui/components/permission-matrix"
 import { RadioGroup, RadioGroupItem } from "@iot-os/ui/components/radio-group"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
@@ -121,10 +122,12 @@ export function OrganizationPermissionsPage() {
         meta={`${ceiling.organization.name} · ${effective.size} of ${everything.size} permissions`}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
-        <p className="max-w-3xl text-sm text-muted-foreground">
+        <p className="max-w-3xl text-body text-muted-foreground">
           Organization administrators can only grant permissions available here. Organization Admin always has exactly
           this set.
         </p>
+        <Panel>
+          <PanelContent>
         <FieldSet>
           <FieldLegend variant="label">Permissions this organization can use</FieldLegend>
           <RadioGroup
@@ -155,6 +158,8 @@ export function OrganizationPermissionsPage() {
             </Field>
           </RadioGroup>
         </FieldSet>
+          </PanelContent>
+        </Panel>
 
         {saveError ? (
           <Alert variant="destructive">
@@ -164,6 +169,11 @@ export function OrganizationPermissionsPage() {
           </Alert>
         ) : null}
 
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Permissions</PanelTitle>
+          </PanelHeader>
+          <PanelContent>
         <PermissionMatrix
           permissions={ceiling.catalogue}
           selected={effective}
@@ -171,6 +181,8 @@ export function OrganizationPermissionsPage() {
           disabled={!draft.restricted || saving}
           onChange={(selected) => setDraft({ restricted: true, selected })}
         />
+          </PanelContent>
+        </Panel>
       </div>
 
       <div ref={keepToastsAbove} className="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 border-t bg-background px-4 py-3 md:px-6">

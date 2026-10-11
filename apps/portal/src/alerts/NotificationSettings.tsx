@@ -1,5 +1,7 @@
+import { statusOf } from "@iot-os/ui/lib/status";
 import { useEffect, useRef, useState } from "react";
 import {
+  keepPreviousData,
   useMutation,
   useQueries,
   useQuery,
@@ -16,12 +18,16 @@ import {
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
 import { FieldDescription } from "@iot-os/ui/components/field";
-import { FormSection, SwitchField } from "@iot-os/ui/components/form-fields";
+import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table";
+import { EmptyState } from "@iot-os/ui/components/empty-state";
+import { SwitchField } from "@iot-os/ui/components/form-fields";
 import { PageHeader } from "@iot-os/ui/components/page-header";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { keepToastsAbove } from "@iot-os/ui/components/sonner";
-import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark";
+import { Panel, PanelActions, PanelContent, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel";
+import { Status, StatusMark } from "@iot-os/ui/components/status-mark";
+import { CollectionPage } from "@iot-os/ui/templates/collection-page";
 import {
   Table,
   TableBody,
@@ -30,33 +36,25 @@ import {
   TableHeader,
   TableRow,
 } from "@iot-os/ui/components/table";
-import { cn } from "@iot-os/ui/lib/utils";
 import { api } from "../lib/api";
 import { useUnsavedContribution } from "../lib/unsaved";
 import { Confirm, RequestError } from "../components/forms";
-import {
-  DeviceEmpty,
-  DevicePages,
-  useDeviceOrganization,
-} from "../devices/shared";
-import { useWide } from "./shared";
+import { useDeviceOrganization } from "../devices/shared";
 
-/**
- * Workflow list and settings side by side when wide; below 1280px the settings route shows the settings alone.
- * Both layouts are one tree so crossing the breakpoint keeps unsaved settings mounted.
- */
-export function NotificationsPage() {
-  const { workflowUuid: selected } = useParams();
-  const wide = useWide();
-  const narrowDetail = Boolean(selected) && !wide;
+/** Settings → Notifications and its per-workflow pages. */
+export const notificationsPath = (org: string) => `/organizations/${org}/settings/notifications`;
+
+/** Settings → Notifications: every workflow with its email state. Each workflow opens its own page. */
+export function NotificationsList() {
   const { org, capabilities, query: organization } = useDeviceOrganization();
   const [page, setPage] = useState(1);
   const query = useQuery({
     queryKey: ["notification-workflows", org, page],
     queryFn: () => api.notificationWorkflows(org, page),
-    enabled: capabilities.manage && !narrowDetail,
+    enabled: capabilities.manage,
+    placeholderData: keepPreviousData,
   });
-  const rows = narrowDetail ? [] : (query.data?.data ?? []);
+  const rows = query.data?.data ?? [];
   // ponytail: one settings request per listed workflow (25 per page); move email state into the workflow list API if pages grow.
   const settings = useQueries({
     queries: rows.map((workflow) => ({
@@ -64,146 +62,117 @@ export function NotificationsPage() {
       queryFn: () => api.workflowNotifications(org, workflow.uuid),
     })),
   });
+  const email = new Map(rows.map((workflow, index) => [workflow.uuid, settings[index]?.data]));
   const denied = !organization.isPending && !capabilities.manage;
-  const listPath = `/organizations/${org}/alerts/notifications`;
+  const base = notificationsPath(org);
+  const columns: DataColumn<AutomationWorkflow>[] = [
+    {
+      id: "workflow",
+      header: "Workflow",
+      mobile: "title",
+      value: (workflow) => workflow.name,
+      cell: (workflow) => <RowLink to={`${base}/${workflow.uuid}`}>{workflow.name}</RowLink>,
+    },
+    {
+      id: "state",
+      header: "State",
+      mobile: "badge",
+      value: (workflow) => workflow.deployment_status,
+      cell: (workflow) => <Status value={workflow.deployment_status} domain="automation" />,
+    },
+    {
+      id: "email",
+      header: "Email",
+      value: (workflow) => (email.get(workflow.uuid)?.enabled ? "On" : "Off"),
+      cell: (workflow) => {
+        const value = email.get(workflow.uuid);
+        return value ? (
+          <StatusMark tone={value.enabled ? "good" : "muted"}>{value.enabled ? "On" : "Off"}</StatusMark>
+        ) : null;
+      },
+    },
+    {
+      id: "recipients",
+      header: "Recipients",
+      align: "end",
+      value: (workflow) => email.get(workflow.uuid)?.recipient_ids.length,
+      cell: (workflow) => <span className="tabular-nums">{email.get(workflow.uuid)?.recipient_ids.length}</span>,
+    },
+    {
+      id: "clear",
+      header: "On clear",
+      value: (workflow) => {
+        const value = email.get(workflow.uuid);
+        return value && (value.notify_on_clear ? "Email" : "No email");
+      },
+      cell: (workflow) => {
+        const value = email.get(workflow.uuid);
+        return value ? (
+          <span className="text-muted-foreground">{value.notify_on_clear ? "Email" : "No email"}</span>
+        ) : null;
+      },
+    },
+  ];
   return (
-    <>
-      {(!narrowDetail || denied) && (
-        <PageHeader
-          title="Notification settings"
-          back={{ to: `/organizations/${org}/alerts`, label: "Alerts" }}
+    <CollectionPage
+      embedded
+      title="Notifications"
+      helpContext="alerts.notifications"
+      description="Who is emailed when each workflow raises or clears an alert."
+    >
+      {denied ? (
+        <EmptyState
+          title="Settings unavailable"
+          description="You need device management access in this organization."
+        />
+      ) : (
+        <DataTable
+          id="notification-workflows"
+          label="Workflows"
+          noun={["workflow", "workflows"]}
+          rows={organization.isPending ? undefined : query.data?.data}
+          rowKey={(workflow) => workflow.uuid}
+          rowLabel={(workflow) => workflow.name}
+          rowHref={(workflow) => `${base}/${workflow.uuid}`}
+          columns={columns}
+          error={
+            organization.error || query.error ? (
+              <RequestError error={organization.error ?? query.error} />
+            ) : undefined
+          }
+          pagination={{
+            page,
+            pageSize: 25,
+            total: query.data?.meta.total ?? 0,
+            pageCount: query.data?.meta.last_page,
+            onPageChange: setPage,
+          }}
+          empty={
+            <EmptyState
+              inset
+              title="No workflows yet"
+              description="Create an automation before configuring its notifications."
+            />
+          }
         />
       )}
-      {denied ? (
-        <div className="p-4 md:p-6">
-          <DeviceEmpty
-            title="Settings unavailable"
-            description="You need device management access in this organization."
-          />
-        </div>
-      ) : (
-        <div className="flex-1 xl:grid xl:grid-cols-[480px_minmax(0,1fr)]">
-          {!narrowDetail && (
-            <div className="min-w-0 xl:border-r">
-              {(organization.error || query.error) && (
-                <div className="p-4">
-                  <RequestError error={organization.error ?? query.error} />
-                </div>
-              )}
-              {query.isPending || organization.isPending ? (
-                <div className="p-4">
-                  <Skeleton className="h-32 w-full" />
-                </div>
-              ) : rows.length ? (
-                <Table aria-label="Workflows">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="pl-4 md:pl-6">Workflow</TableHead>
-                      <TableHead>State</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead className="text-right max-2xl:hidden">Recipients</TableHead>
-                      <TableHead className="pr-4 max-2xl:hidden md:pr-6">On clear</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((workflow, index) => {
-                      const value = settings[index]?.data;
-                      const [tone, label] = states[workflow.deployment_status] ?? [
-                        "muted",
-                        workflow.deployment_status,
-                      ];
-                      const current = workflow.uuid === selected;
-                      return (
-                        <TableRow
-                          key={workflow.uuid}
-                          data-state={current ? "selected" : undefined}
-                          className={cn(
-                            "relative",
-                            current && "shadow-[inset_2px_0_0_var(--primary)]",
-                          )}
-                        >
-                          <TableCell className="pl-4 md:pl-6">
-                            <Link
-                              to={`/organizations/${org}/alerts/notifications/${workflow.uuid}`}
-                              aria-current={current ? "page" : undefined}
-                              className="font-medium outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
-                            >
-                              {workflow.name}
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            <StatusMark tone={tone}>{label}</StatusMark>
-                          </TableCell>
-                          <TableCell>
-                            {value ? (
-                              <StatusMark tone={value.enabled ? "good" : "muted"}>
-                                {value.enabled ? "On" : "Off"}
-                              </StatusMark>
-                            ) : null}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums max-2xl:hidden">
-                            {value?.recipient_ids.length}
-                          </TableCell>
-                          <TableCell className="pr-4 text-muted-foreground max-2xl:hidden md:pr-6">
-                            {value
-                              ? value.notify_on_clear
-                                ? "Email"
-                                : "No email"
-                              : null}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              ) : !query.error ? (
-                <div className="p-4">
-                  <DeviceEmpty
-                    title="No workflows yet"
-                    description="Create a workflow through the core API before configuring notifications."
-                  />
-                </div>
-              ) : null}
-              <div className="px-4 pb-4 md:px-6">
-                <DevicePages
-                  meta={query.data?.meta}
-                  label="Workflows"
-                  onPage={setPage}
-                />
-              </div>
-            </div>
-          )}
-          {selected ? (
-            <WorkflowSettings
-              key={`${org}:${selected}`}
-              workflow={selected}
-              back={narrowDetail ? listPath : undefined}
-            />
-          ) : wide ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              Select a workflow to change its notifications.
-            </p>
-          ) : null}
-        </div>
-      )}
-    </>
+    </CollectionPage>
   );
 }
 
-const states: Record<WorkflowDeploymentStatus, [StatusTone, string]> = {
-  applied: ["good", "Active"],
-  inactive: ["muted", "Inactive"],
-  pending: ["info", "Pending"],
-  failed: ["critical", "Failed"],
-  suspended: ["warning", "Suspended"],
-};
+/** One workflow's notifications on its own page, opened from Settings → Notifications. */
+export function WorkflowNotificationsPage() {
+  const { org } = useDeviceOrganization();
+  const { workflowUuid = "" } = useParams();
+  return <WorkflowSettings key={`${org}:${workflowUuid}`} workflow={workflowUuid} back={notificationsPath(org)} />;
+}
 
 function WorkflowSettings({
   workflow,
   back,
 }: {
   workflow: string;
-  back?: string;
+  back: string;
 }) {
   const { org, capabilities, query: organization } = useDeviceOrganization();
   const query = useQuery({
@@ -220,28 +189,15 @@ function WorkflowSettings({
   const name = query.data?.workflow_name ?? "Workflow";
   const total = count.data?.meta.total;
   const body = (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-(--panel-gap)">
       <RequestError error={organization.error ?? query.error} />
       {!organization.isPending && !capabilities.manage ? (
-        <DeviceEmpty
+        <EmptyState
           title="Settings unavailable"
           description="You need device management access in this organization."
         />
       ) : query.data ? (
         <>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            {!back && (
-              <h2 className="mr-auto min-w-0 text-base font-semibold">{name}</h2>
-            )}
-            {total !== undefined && (
-              <Link
-                className="text-sm underline underline-offset-4"
-                to={`/organizations/${org}/alerts?condition=all&workflow=${encodeURIComponent(workflow)}`}
-              >
-                {total} {total === 1 ? "alert" : "alerts"}
-              </Link>
-            )}
-          </div>
           <WorkflowState org={org} uuid={workflow} name={name} />
           <SettingsForm org={org} workflow={workflow} initial={query.data} />
         </>
@@ -250,19 +206,22 @@ function WorkflowSettings({
       ) : null}
     </div>
   );
-  // The header comes and goes with the layout; the section stays so the form keeps its draft.
   return (
     <>
-      {back && (
-        <PageHeader
-          title={name}
-          back={{ to: back, label: "Notification settings" }}
-        />
-      )}
-      <section
-        aria-label="Workflow notifications"
-        className="min-w-0 p-4 md:p-6 xl:max-w-3xl"
-      >
+      <PageHeader
+        title={name}
+        back={{ to: back, label: "Notifications" }}
+        actions={
+          total !== undefined && (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={`/organizations/${org}/alerts?condition=all&workflow=${encodeURIComponent(workflow)}`}>
+                {total} {total === 1 ? "alert" : "alerts"}
+              </Link>
+            </Button>
+          )
+        }
+      />
+      <section aria-label="Workflow notifications" className="min-w-0 max-w-form p-4 md:p-6">
         {body}
       </section>
     </>
@@ -389,19 +348,20 @@ function WorkflowState({
         : !canActivate
           ? "Already active"
           : null;
-  const [tone, label] = states[data.deployment_status] ?? [
-    "muted",
-    data.deployment_status,
-  ];
+  const { tone, label } = statusOf(data.deployment_status, "automation");
   return (
-    <FormSection level={2} title="Workflow" className="border-t pt-4">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+    <Panel>
+      <PanelHeader>
+        <PanelTitle>Workflow</PanelTitle>
+      </PanelHeader>
+      <PanelContent className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-body">
         <StatusMark tone={tone}>{label}</StatusMark>
         <span className="text-muted-foreground">
           Draft revision {data.draft_revision}
         </span>
         <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-          {why && <span className="text-xs text-muted-foreground">{why}</span>}
+          {why && <span className="text-meta text-muted-foreground">{why}</span>}
           <Button
             variant="outline"
             disabled={!capabilities.activate || pending || !canDisable}
@@ -451,7 +411,8 @@ function WorkflowState({
         onConfirm={() => deploy("active")}
         onRefresh={() => workflow.refetch()}
       />
-    </FormSection>
+      </PanelContent>
+    </Panel>
   );
 }
 
@@ -493,13 +454,17 @@ function SettingsForm({
   const needsRecipient = draft.enabled && !draft.recipient_ids.length;
   return (
     <form
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-(--panel-gap)"
       onSubmit={(event) => {
         event.preventDefault();
         save.mutate();
       }}
     >
-      <FormSection level={2} title="Email" className="border-t pt-4">
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Email</PanelTitle>
+        </PanelHeader>
+        <PanelContent className="flex flex-col gap-4">
         <SwitchField
           id="email-enabled"
           label="Enable email notifications"
@@ -520,16 +485,18 @@ function SettingsForm({
           Applies to future transitions. Existing episodes are not emailed
           again.
         </FieldDescription>
-      </FormSection>
-      <FormSection level={2}
-        title="Recipients"
-        className="border-t pt-4"
-        actions={
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {draft.recipient_ids.length} of 20
-          </span>
-        }
-      >
+        </PanelContent>
+      </Panel>
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Recipients</PanelTitle>
+          <PanelActions>
+            <span className="text-meta text-muted-foreground tabular-nums">
+              {draft.recipient_ids.length} of 20
+            </span>
+          </PanelActions>
+        </PanelHeader>
+        <PanelContent className="flex flex-col gap-4">
         <SearchableSelect
           label="Add recipient"
           value=""
@@ -616,12 +583,13 @@ function SettingsForm({
             </TableBody>
           </Table>
         ) : (
-          <p className="text-sm text-muted-foreground">No recipients selected.</p>
+          <p className="text-body text-muted-foreground">No recipients selected.</p>
         )}
-      </FormSection>
+        </PanelContent>
+      </Panel>
       <RequestError error={save.error} />
       <div ref={keepToastsAbove} className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t bg-background px-4 py-3 md:-mx-6 md:px-6">
-        <span role="status" className="mr-auto text-sm text-muted-foreground">
+        <span role="status" className="mr-auto text-body text-muted-foreground">
           {save.isPending
             ? "Saving…"
             : dirty

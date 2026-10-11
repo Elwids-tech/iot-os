@@ -1,3 +1,4 @@
+import { Status } from "@iot-os/ui/components/status-mark"
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -17,7 +18,8 @@ import {
 import { Button } from "@iot-os/ui/components/button"
 import { Badge } from "@iot-os/ui/components/badge"
 import { Input } from "@iot-os/ui/components/input"
-import { PageHeader } from "@iot-os/ui/components/page-header"
+import { DraftBar } from "@iot-os/ui/components/draft-bar"
+import { WorkspacePage } from "@iot-os/ui/templates/workspace-page"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import {
   Tabs,
@@ -62,7 +64,6 @@ import { api } from "../lib/api"
 import { Choice, RequestError } from "../components/forms"
 import {
   DeviceEmpty,
-  DeviceStatus,
   formatValue,
   Section,
   useDeviceOrganization,
@@ -218,26 +219,34 @@ function Viewer() {
     setPinned(s)
     setFollow(false)
   }
-  if (access.isPending)
+  if (access.isPending || access.error || !allowed)
     return (
-      <div className="p-6">
-        <Skeleton className="h-20" />
-      </div>
-    )
-  if (access.error) return <RequestError error={access.error} />
-  if (!allowed)
-    return (
-      <DeviceEmpty
-        title="Telemetry access required"
-        description="Device view and manage permissions are required to inspect captured payloads."
-      />
+      <WorkspacePage title="Telemetry viewer">
+        {access.isPending ? (
+          <Skeleton className="h-20" />
+        ) : access.error ? (
+          <RequestError error={access.error} />
+        ) : (
+          <DeviceEmpty
+            title="Telemetry access required"
+            description="Device view and manage permissions are required to inspect captured payloads."
+          />
+        )}
+      </WorkspacePage>
     )
   return (
-    <div className="flex min-w-0 flex-col">
-      <PageHeader
+    <>
+      <WorkspacePage
         helpContext={`telemetry.${tab === "stages" ? "processing" : tab === "ai" ? "troubleshoot" : "live"}`}
         title="Telemetry viewer"
-        meta={<Badge variant="outline">Sparkplug B</Badge>}
+        tools={<span className="text-body text-muted-foreground">Captures a gateway's Sparkplug B stream without changing normal ingestion.</span>}
+        draft={
+          <DraftBar
+            tone={live ? "good" : "muted"}
+            status={live ? "Capturing" : "Not capturing"}
+            revision="Sparkplug B"
+          />
+        }
         actions={
           <>
             <Button
@@ -272,8 +281,7 @@ function Viewer() {
             )}
           </>
         }
-      />
-      <div className="flex flex-col gap-4 p-4 md:p-6">
+      >
         <RequestError
           error={
             start.error ||
@@ -538,7 +546,7 @@ function Viewer() {
                               </TableCell>
                               <TableCell>{s.seq ?? "—"}</TableCell>
                               <TableCell>
-                                <DeviceStatus value={sampleStatus(s)} />
+                                <Status value={sampleStatus(s)} />
                               </TableCell>
                             </TableRow>
                           ))}
@@ -597,7 +605,7 @@ function Viewer() {
             </p>
           </>
         )}
-      </div>
+      </WorkspacePage>
       <Dialog
         open={confirm !== null}
         onOpenChange={(open) => {
@@ -622,6 +630,7 @@ function Viewer() {
               Cancel
             </Button>
             <Button
+              variant={confirm === "suspend" ? "default" : "destructive"}
               disabled={change.isPending}
               onClick={() => confirm && change.mutate(confirm)}
             >
@@ -632,7 +641,7 @@ function Viewer() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }
 
@@ -665,7 +674,7 @@ function Inspector({
         <dd>{sample.birth_session ? "Available" : "Unavailable"}</dd>
         <dt>Result</dt>
         <dd>
-          <DeviceStatus value={sampleStatus(sample)} />
+          <Status value={sampleStatus(sample)} />
         </dd>
       </dl>
       {sample.diagnostic && (
@@ -765,7 +774,7 @@ function Stages({
         <section key={o.device_uuid} className="min-w-0 rounded-md border p-4">
           <Section
             title="Field lineage and values"
-            meta={<DeviceStatus value={o.status} />}
+            meta={<Status value={o.status} />}
           >
             <p className="mb-3 break-all text-xs text-muted-foreground">
               Device {o.device_uuid} · Configuration {o.configuration_uuid}
@@ -803,7 +812,7 @@ function Stages({
                       {formatValue(t.converted)} {t.unit}
                     </TableCell>
                     <TableCell>
-                      <DeviceStatus value={t.quality} />
+                      <Status value={t.quality} />
                       {t.diagnostic && (
                         <p className="max-w-60 text-xs">{t.diagnostic}</p>
                       )}
@@ -899,11 +908,11 @@ function Diagnosis({
                 <dd>{selected.birth_session ? "Resolved" : "Unavailable"}</dd>
                 <dt>Protocol result</dt>
                 <dd>
-                  <DeviceStatus value={selected.status} />
+                  <Status value={selected.status} />
                 </dd>
                 <dt>Production outcome</dt>
                 <dd>
-                  <DeviceStatus value={sampleStatus(selected)} />
+                  <Status value={sampleStatus(selected)} />
                 </dd>
               </dl>
               <p className="mt-4 break-all font-mono text-xs">{selected.id}</p>

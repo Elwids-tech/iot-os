@@ -1,3 +1,5 @@
+import { Status } from "@iot-os/ui/components/status-mark"
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { useQuery } from "@tanstack/react-query"
 import type { DeviceDetail, Measurement } from "@iot-os/api-client"
 import {
@@ -14,9 +16,7 @@ import { LayoutDashboardIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
 import {
-  Age,
   DeviceEmpty,
-  DeviceStatus,
   formatReading,
   parameterPrecisions,
   Section,
@@ -56,7 +56,7 @@ export function MeasurementTable({
               {r.unit && <span className="ml-1 text-muted-foreground">{r.unit}</span>}
             </TableCell>
             <TableCell>
-              <DeviceStatus value={r.quality} />
+              <Status value={r.quality} />
               {r.diagnostic && (
                 <p className="max-w-xs text-xs whitespace-normal text-muted-foreground">
                   {r.diagnostic}
@@ -64,10 +64,10 @@ export function MeasurementTable({
               )}
             </TableCell>
             <TableCell className="text-right">
-              <Age value={r.observed_at} />
+              <RelativeTime at={r.observed_at} />
             </TableCell>
             <TableCell className="text-right">
-              <Age value={r.received_at} />
+              <RelativeTime at={r.received_at} />
             </TableCell>
             {onAdd && (
               <TableCell className="text-right">

@@ -1,3 +1,4 @@
+import { Pager as KitPager } from "@iot-os/ui/components/pager"
 import {
   createContext,
   useContext,
@@ -357,6 +358,7 @@ export function EditorSheet({
   )
 }
 /** "Page N of M" with Previous and Next; the one pager for directory and detail tables (P6). */
+/** Adapter over the kit Pager for forms that page their own lists. */
 export function Pager({
   page,
   pages,
@@ -366,31 +368,7 @@ export function Pager({
   pages: number
   onPage: (page: number) => void
 }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      <span className="mr-auto tabular-nums">
-        Page {page} of {Math.max(1, pages)}
-      </span>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={page <= 1}
-        onClick={() => onPage(page - 1)}
-      >
-        Previous
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={page >= pages}
-        onClick={() => onPage(page + 1)}
-      >
-        Next
-      </Button>
-    </div>
-  )
+  return <KitPager page={page} pageCount={Math.max(1, pages)} onPageChange={onPage} />
 }
 export function parseObject(value: string, nullable = true) {
   const parsed: unknown = JSON.parse(value)

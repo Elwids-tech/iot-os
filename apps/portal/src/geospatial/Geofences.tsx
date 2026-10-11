@@ -3,7 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import type { GeofenceInput, GeofencePolicy } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
-import { PageHeader } from "@iot-os/ui/components/page-header"
+import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table"
+import { DraftBar } from "@iot-os/ui/components/draft-bar"
+import { StatusMark } from "@iot-os/ui/components/status-mark"
+import { statusOf } from "@iot-os/ui/lib/status"
+import { CollectionPage } from "@iot-os/ui/templates/collection-page"
+import { WorkspacePage } from "@iot-os/ui/templates/workspace-page"
 import { Badge } from "@iot-os/ui/components/badge"
 import { Button } from "@iot-os/ui/components/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@iot-os/ui/components/card"
@@ -16,6 +21,8 @@ import { MapPinIcon, PlusIcon, Redo2Icon, SaveIcon, Trash2Icon, Undo2Icon } from
 import { toast } from "sonner"
 import { api } from "../lib/api"
 import { LoadError, RequestError } from "../components/forms"
+import { useDeviceOrganization } from "../devices/shared"
+import { LocationTabs } from "../devices/SitesPage"
 import { closeRing, validateVertices } from "./geometry"
 const LocationMap = lazy(() => import("./LocationMap").then((module) => ({ default: module.LocationMap })))
 
@@ -27,14 +34,83 @@ export default function GeofenceRoutes() {
 
 function GeofenceDirectory() {
   const { organizationUuid = "" } = useParams()
+  const { capabilities } = useDeviceOrganization()
+  const [search, setSearch] = useState("")
   const query = useQuery({ queryKey: ["geofences", organizationUuid], queryFn: () => api.geofences(organizationUuid) })
-  const header = <PageHeader title="Geofences" actions={<Button asChild><Link to="new"><PlusIcon data-icon="inline-start" />New geofence</Link></Button>} />
-  if (query.isPending) return <>{header}<div className="p-4 md:p-6"><Skeleton className="h-80 w-full" /></div></>
-  return <>{header}<main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-6">
-    <LoadError error={query.error} what="geofences" onRetry={() => query.refetch()} busy={query.isFetching} />
-    {!query.data?.data.length ? <EmptyState icon={<MapPinIcon />} title="No geofences yet" description="Draw a polygon and assign GPS devices to start monitoring boundary events." action={<Button asChild><Link to="new"><PlusIcon data-icon="inline-start" />New geofence</Link></Button>} /> :
-      <div className="grid gap-4 md:grid-cols-2">{query.data.data.map((fence) => <Card key={fence.uuid}><CardHeader><CardTitle>{fence.name}</CardTitle><CardDescription>Revision {fence.revision} · {fence.assignments.length} assigned devices</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2">{fence.assignments.map((assignment) => <Badge key={assignment.uuid} variant={assignment.status === "active" ? "secondary" : "outline"}>{assignment.device.name} · {assignment.status}</Badge>)}</CardContent><CardFooter><Button asChild variant="outline"><Link to={fence.uuid}>Open editor</Link></Button></CardFooter></Card>)}</div>}
-  </main></>
+  type Fence = NonNullable<typeof query.data>["data"][number]
+  const columns: DataColumn<Fence>[] = [
+    {
+      id: "geofence",
+      header: "Geofence",
+      mobile: "title",
+      sortable: true,
+      searchable: true,
+      value: (fence) => fence.name,
+      cell: (fence) => <RowLink to={fence.uuid}>{fence.name}</RowLink>,
+    },
+    { id: "revision", header: "Revision", align: "end", value: (fence) => fence.revision, cell: (fence) => <span className="tabular-nums">{fence.revision}</span> },
+    {
+      id: "devices",
+      header: "Assigned devices",
+      className: "max-w-md whitespace-normal",
+      searchable: true,
+      value: (fence) => fence.assignments.map((a) => a.device.name).join(", "),
+      cell: (fence) =>
+        fence.assignments.length ? (
+          <span className="flex flex-wrap gap-x-3 gap-y-1">
+            {fence.assignments.map((assignment) => (
+              <StatusMark
+                key={assignment.uuid}
+                tone={statusOf(assignment.status).tone}
+                title={statusOf(assignment.status).label}
+              >
+                {assignment.device.name}
+              </StatusMark>
+            ))}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">None</span>
+        ),
+    },
+  ]
+  return (
+    <CollectionPage
+      title="Locations"
+      description="Geofences: boundaries that raise events when GPS devices enter or leave them."
+      tabs={<LocationTabs org={organizationUuid} />}
+      actions={
+        capabilities.manage && (
+          <Button size="sm" asChild>
+            <Link to="new">
+              <PlusIcon data-icon="inline-start" />
+              New geofence
+            </Link>
+          </Button>
+        )
+      }
+    >
+      <DataTable
+        id="geofences"
+        label="Geofences"
+        noun={["geofence", "geofences"]}
+        rows={query.data?.data}
+        rowKey={(fence) => fence.uuid}
+        rowHref={(fence) => fence.uuid}
+        columns={columns}
+        defaultSort={[{ id: "geofence", desc: false }]}
+        error={query.error ? <LoadError error={query.error} what="geofences" onRetry={() => query.refetch()} busy={query.isFetching} /> : undefined}
+        search={{ label: "Search geofences", placeholder: "Search name or device", value: search, onChange: setSearch }}
+        empty={
+          <EmptyState
+            inset
+            icon={<MapPinIcon />}
+            title="No geofences yet"
+            description="Draw a polygon and assign GPS devices to start monitoring boundary events."
+          />
+        }
+      />
+    </CollectionPage>
+  )
 }
 
 function GeofenceEditor() {
@@ -77,10 +153,14 @@ function GeofenceEditor() {
   const retry = useMutation({ mutationFn: (item: number) => api.retryGeofenceActivation(organizationUuid, geofenceUuid!, activationUuid!, item),
     onSuccess: (result) => cache.setQueryData(["geofence-activation", organizationUuid, geofenceUuid, activationUuid], result) })
   const back = { to: `/organizations/${organizationUuid}/geofences`, label: "Geofences" }
-  if (existing.isPending && geofenceUuid) return <><PageHeader title="Geofence" back={back} /><div className="p-4 md:p-6"><Skeleton className="h-96 w-full" /></div></>
+  if (existing.isPending && geofenceUuid) return <WorkspacePage title="Geofence" back={back}><Skeleton className="h-96 w-full" /></WorkspacePage>
   return <>
-    <PageHeader title={existing.data ? `Edit ${existing.data.name}` : "New geofence"} back={back} meta={existing.data && <Badge variant="outline">Revision {existing.data.revision}</Badge>}><p className="text-sm text-muted-foreground">Right-click the map to add a point. Drag points to move them; right-click a point to delete it.</p></PageHeader>
-    <main className="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
+    <WorkspacePage
+      title={existing.data ? existing.data.name : "New geofence"}
+      back={back}
+      tools={<p className="text-body text-muted-foreground">Right-click the map to add a point. Drag points to move them; right-click a point to delete it.</p>}
+      draft={<DraftBar tone={existing.data ? "good" : "info"} status={existing.data ? "Active" : "Not saved yet"} revision={existing.data ? `Revision ${existing.data.revision}` : undefined} />}
+    >
     <RequestError error={existing.error ?? bindings.error ?? activation.error ?? events.error ?? save.error ?? retry.error} />
     <div className="grid min-h-[42rem] gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <Suspense fallback={<Skeleton className="h-full w-full" />}><LocationMap devices={[]} editable vertices={vertices} selectedVertex={selectedVertex} onSelectedVertex={setSelectedVertex} onVerticesChange={changeVertices} /></Suspense>
@@ -108,7 +188,7 @@ function GeofenceEditor() {
     {geofenceUuid && <Card><CardHeader><CardTitle>Event history</CardTitle><CardDescription>Boundary crossings and sustained wandering transitions.</CardDescription></CardHeader><CardContent>
       {!events.data?.data.length ? <p className="text-muted-foreground text-sm">No geofence events have been recorded yet.</p> : <div className="grid gap-2">{events.data.data.map((event) => <div className="flex flex-wrap items-center gap-2 rounded-md border p-3" key={event.uuid}><Badge variant="outline">{event.type.replaceAll("_", " ")}</Badge><span className="text-sm">{bindings.data?.data.find((binding) => binding.device_uuid === event.device_uuid)?.device_name ?? event.device_uuid}</span><time className="text-muted-foreground ml-auto text-xs" dateTime={event.occurred_at}>{new Date(event.occurred_at).toLocaleString()}</time></div>)}</div>}
     </CardContent></Card>}
-    </main>
+    </WorkspacePage>
   </>
 }
 

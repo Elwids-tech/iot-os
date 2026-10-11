@@ -61,12 +61,12 @@ describe("Event log vocabulary", () => {
     expect(eventState({ status: "firing", active: false })).toBe("Cleared");
     expect(eventState({ status: "resolved", active: false })).toBe("Cleared");
   });
-  it("redirects notification center links into the alerts inbox", () => {
+  it("redirects notification center links into the event log and Settings", () => {
     expect(
       legacyNotificationPath("org-1", new URLSearchParams("status=resolved&source=service")),
     ).toBe("/organizations/org-1/alerts/events?status=cleared&source=service");
     expect(legacyNotificationPath("org-1", new URLSearchParams("tab=preferences&page=3"))).toBe(
-      "/organizations/org-1/alerts/preferences",
+      "/organizations/org-1/settings/email",
     );
   });
 });

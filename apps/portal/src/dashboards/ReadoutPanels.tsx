@@ -1,3 +1,4 @@
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { Link } from "react-router-dom"
 import type {
   DashboardBand,
@@ -19,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@iot-os/ui/components/table"
-import { formatAge, formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
+import { formatNumber } from "@iot-os/ui/lib/format"
 import { RequestError } from "../components/forms"
 import { devicePath, formatValue } from "../devices/shared"
 import {
@@ -59,26 +60,6 @@ export function BandMark({ band }: { band: DashboardBand }) {
 export const showBand = (source: DashboardSource, band: DashboardBand) =>
   source.thresholds.length > 0 || band.label !== source.base.label
 
-/** Relative age with the absolute time on hover. */
-export function Age({
-  at,
-  now,
-  timezone,
-}: {
-  at: string
-  now: number
-  timezone: DashboardView["timezone"]
-}) {
-  return (
-    <time
-      dateTime={at}
-      title={formatDateTime(at, timezone) + (timezone === "utc" ? " UTC" : "")}
-      className="font-mono tabular-nums"
-    >
-      {formatAge(at, now)}
-    </time>
-  )
-}
 
 export const presenceTone = (presence?: string): StatusTone =>
   presence === "online" ? "good" : presence === "offline" ? "critical" : "muted"
@@ -219,7 +200,7 @@ export function GaugePanel({ org, widget, view }: PanelProps) {
             <div className="flex justify-between font-mono text-xs text-muted-foreground tabular-nums">
               <span>{formatNumber(min)}</span>
               {reading && (
-                <Age at={readingTime(reading)} now={now} timezone={view.timezone} />
+                <RelativeTime bare className="font-mono" at={readingTime(reading)} now={now} timezone={view.timezone} />
               )}
               <span>{formatNumber(max)}</span>
             </div>
@@ -291,7 +272,7 @@ export function TablePanel({ org, widget, view }: PanelProps) {
             </TableCell>
             <TableCell className="hidden text-right text-muted-foreground @md:table-cell">
               {reading && (
-                <Age at={readingTime(reading)} now={now} timezone={view.timezone} />
+                <RelativeTime bare className="font-mono" at={readingTime(reading)} now={now} timezone={view.timezone} />
               )}
             </TableCell>
           </TableRow>
@@ -362,7 +343,7 @@ export function DeviceHealthPanel({ org, widget, view }: PanelProps) {
               )}
               <span className="w-14 text-right text-xs text-muted-foreground">
                 {device?.last_seen_at && (
-                  <Age at={device.last_seen_at} now={now} timezone={view.timezone} />
+                  <RelativeTime bare className="font-mono" at={device.last_seen_at} now={now} timezone={view.timezone} />
                 )}
               </span>
             </li>

@@ -1,3 +1,5 @@
+import { Status } from "@iot-os/ui/components/status-mark"
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { lazy, Suspense, useMemo, useState, type ReactNode } from "react"
 import { Badge } from "@iot-os/ui/components/badge"
 import { Link } from "react-router-dom"
@@ -40,10 +42,8 @@ import {
   locationParameters,
 } from "./model"
 import {
-  Age,
   deviceProfile,
   devicePath,
-  DeviceStatus,
   formatReading,
   formatValue,
   gatewayPath,
@@ -196,7 +196,7 @@ function LatestReadout({
             "Retained readings, ingestion is off"
           ) : readings.length && lastReading ? (
             <>
-              Last reading <Age value={lastReading} />
+              Last reading <RelativeTime at={lastReading} />
             </>
           ) : undefined
         }
@@ -226,7 +226,7 @@ function LatestReadout({
             {lastReading && (
               <>
                 {" "}
-                Last reading <Age value={lastReading} />.
+                Last reading <RelativeTime at={lastReading} />.
               </>
             )}
           </p>
@@ -265,10 +265,10 @@ function LatestReadout({
                     )}
                   </TableCell>
                   <TableCell title={r.diagnostic || undefined}>
-                    <DeviceStatus value={r.quality} />
+                    <Status value={r.quality} />
                   </TableCell>
                   <TableCell className="text-right">
-                    <Age value={r.observed_at} />
+                    <RelativeTime at={r.observed_at} />
                   </TableCell>
                   {onAdd && (
                     <TableCell className="text-right">
@@ -289,7 +289,7 @@ function LatestReadout({
           </Table>
         ) : latest.isError ? null : device.last_seen_at ? (
           <p className="text-sm text-muted-foreground">
-            No current readings. Last seen <Age value={device.last_seen_at} />.
+            No current readings. Last seen <RelativeTime at={device.last_seen_at} />.
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">
@@ -672,11 +672,11 @@ function DeviceAlerts({ org, device }: { org: string; device: DeviceDetail }) {
                   {count === 1 ? "1 occurrence" : `${count.toLocaleString()} occurrences`}
                   {latest.condition === "active" && latest.activated_at ? (
                     <>
-                      {" "}· active since <Age value={latest.activated_at} />
+                      {" "}· active since <RelativeTime at={latest.activated_at} />
                     </>
                   ) : latest.cleared_at ? (
                     <>
-                      {" "}· last cleared <Age value={latest.cleared_at} />
+                      {" "}· last cleared <RelativeTime at={latest.cleared_at} />
                     </>
                   ) : null}
                 </p>
@@ -755,7 +755,7 @@ function DeviceLocation({ org, device }: { org: string; device: DeviceDetail }) 
         position ? (
           <>
             {position.stale ? "Stale position" : "Last position"}{" "}
-            <Age value={position.observed_at} />
+            <RelativeTime at={position.observed_at} />
           </>
         ) : undefined
       }
@@ -819,11 +819,11 @@ function RecentCommands({ org, device }: { org: string; device: DeviceDetail }) 
                   <span className="font-mono">{formatValue(c.value)}</span>
                 </span>
                 <span className="shrink-0 text-muted-foreground">
-                  <Age value={c.created_at} />
+                  <RelativeTime at={c.created_at} />
                 </span>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
-                <DeviceStatus value={c.status} />
+                <Status value={c.status} />
                 <span className="truncate">· {c.actor_name}</span>
               </div>
             </li>

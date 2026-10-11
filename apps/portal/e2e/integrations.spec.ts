@@ -163,7 +163,7 @@ async function setup(page: Page, manage = true) {
 async function create(page: Page) {
   await page.goto(base);
   await page
-    .getByRole("button", { name: "Create application", exact: true })
+    .getByRole("button", { name: "New application", exact: true })
     .click();
   await page.getByLabel("Application name").fill("Field application");
   for (const name of [
@@ -208,7 +208,7 @@ test("manager creates grants, handles secrets, webhook retries, conflicts and re
   await expect(page.getByLabel("Application token value")).toHaveValue(
     "fixture-secret-token",
   );
-  // The list sits beside the detail at this width, so leave through the sidebar.
+  // Leave through the sidebar; the unsaved secret guard must still ask.
   await page.getByRole("link", { name: "Dashboards", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toContainText(
     "Leave without saving?",
@@ -314,7 +314,9 @@ test("a one-time secret survives crossing the 1280px layout breakpoint", async (
     "fixture-secret-token",
   );
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await expect(page.getByRole("list", { name: "Applications" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Field application" }),
+  ).toBeVisible();
   await expect(page.getByLabel("Application token value")).toHaveValue(
     "fixture-secret-token",
   );
@@ -327,7 +329,7 @@ test("viewer cannot open management tools", async ({ page }) => {
     page.getByText("Integrations unavailable", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Create application", exact: true }),
+    page.getByRole("button", { name: "New application", exact: true }),
   ).toHaveCount(0);
 });
 

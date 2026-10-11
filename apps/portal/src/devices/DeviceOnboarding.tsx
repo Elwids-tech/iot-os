@@ -1,3 +1,4 @@
+import { RelativeTime } from "@iot-os/ui/components/freshness";
 import { useEffect, useRef, useState } from "react";
 import {
   useQuery,
@@ -53,7 +54,6 @@ import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { RequestError, TextField } from "../components/forms";
 import {
-  Age,
   DevicePages,
   discoveryPath,
   metricCount,
@@ -1090,7 +1090,7 @@ function WaitingSources({
                   {metricCount(c.metrics.length)}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Age value={c.last_seen_at} />
+                  <RelativeTime at={c.last_seen_at} />
                 </TableCell>
                 <TableCell className="text-right">
                   <Button
