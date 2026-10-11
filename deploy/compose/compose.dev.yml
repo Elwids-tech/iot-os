@@ -4,7 +4,8 @@ name: ${IOT_COMPOSE_PROJECT_NAME:-iot-os-dev}
 # and the Node-RED editor have development credentials or none, so they must
 # not be reachable from the LAN. Set IOT_DEV_BIND_ADDRESS=0.0.0.0 to expose
 # them deliberately. Device-facing MQTTS (compose.devices.yml) stays public so
-# hardware on the LAN can connect.
+# hardware on the LAN can connect. A localhost port cannot be shared with a
+# native service, so pick free IOT_*_PORT values (./taskw doctor checks them).
 
 services:
   timescaledb:

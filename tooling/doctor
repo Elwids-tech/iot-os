@@ -44,7 +44,12 @@ check_configured_port() {
   service_name=$3
 
   if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port_value" -sTCP:LISTEN >/dev/null 2>&1; then
-    if command -v docker >/dev/null 2>&1 && docker compose --env-file "$repository_root/.env" -f "$repository_root/deploy/compose/compose.dev.yml" ps --status running --services 2>/dev/null | grep -Fxq "$service_name"; then
+    # Docker publishes through its own proxy; any other listener (a native
+    # Postgres or Redis) prevents the stack from binding the port on localhost.
+    native=$(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | awk 'NR > 1 && $1 !~ /^(com\.docke|docker-pr|vpnkit|Docker)/ { print $1 }' | sort -u | tr '\n' ' ')
+    if [ -n "$native" ]; then
+      fail "$port_name port $port_value is used outside Docker by: $native- choose another port in .env"
+    elif command -v docker >/dev/null 2>&1 && docker compose --env-file "$repository_root/.env" -f "$repository_root/deploy/compose/compose.dev.yml" ps --status running --services 2>/dev/null | grep -Fxq "$service_name"; then
       pass "$port_name port $port_value is owned by the running development stack"
     else
       warn "$port_name port $port_value is already in use; confirm it will not block the development stack."
