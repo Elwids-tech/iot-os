@@ -16,11 +16,17 @@ use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
+use ErrorException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Throwable;
+use TypeError;
+use ValueError;
 
 final class RuntimeController
 {
@@ -94,6 +100,29 @@ final class RuntimeController
             'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1', 'workflow.deployment.v1', 'workflow.suspended.v1', 'workflow.transition.v1', 'workflow.membership.v1', 'automation.intent.v1',
         ])], 'payload' => ['required', 'array']]);
 
+        // The runtime retries 5xx and some 4xx forever and dead-letters other 4xx
+        // (services/runtime/internal/app/deadletter.go). Deterministic failures must
+        // therefore never surface as 500 or 404, or one event blocks every later one.
+        try {
+            return $this->apply($event);
+        } catch (ModelNotFoundException) {
+            // A workflow, deployment or organization deleted after the runtime emitted it.
+            return $this->unknownReference($event);
+        } catch (ErrorException|TypeError|ValueError $exception) {
+            return $this->malformed($event, $exception);
+        } catch (QueryException $exception) {
+            // SQLSTATE classes 22 (data) and 23 (integrity) are properties of the payload;
+            // connection and serialization failures stay retryable.
+            if (! in_array(substr((string) $exception->getCode(), 0, 2), ['22', '23'], true)) {
+                throw $exception;
+            }
+
+            return $this->malformed($event, $exception);
+        }
+    }
+
+    private function apply(array $event): array
+    {
         return DB::transaction(function () use ($event): array {
             if (! DB::table('device_inbox')->insertOrIgnore(['uuid' => $event['uuid'], 'type' => $event['type'], 'received_at' => now()])) {
                 return ['ok' => true, 'duplicate' => true];
@@ -262,5 +291,17 @@ final class RuntimeController
         Log::warning('Runtime event refers to a record that no longer exists.', ['uuid' => $event['uuid'], 'type' => $event['type']]);
 
         return ['ok' => true, 'ignored' => 'unknown_reference'];
+    }
+
+    /**
+     * A payload that can never be processed. 422 makes the runtime dead-letter it
+     * with its context instead of retrying it forever.
+     */
+    private function malformed(array $event, Throwable $exception): never
+    {
+        report($exception);
+        Log::error('Runtime event payload is malformed.', ['uuid' => $event['uuid'], 'type' => $event['type'], 'error' => $exception->getMessage()]);
+
+        abort(422, 'The runtime event payload is malformed.');
     }
 }
