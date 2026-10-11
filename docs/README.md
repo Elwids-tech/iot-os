@@ -40,6 +40,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 - [Testing](dev/testing.md)
 - [Simulators and fixtures](dev/simulators-and-fixtures.md)
 - [Design system](dev/design-system.md)
+- [Spec-driven development](dev/specs.md) (Spec Kit, the [constitution](../.specify/memory/constitution.md), `specs/`)
 - [Gotchas](dev/gotchas.md)
 
 ## Operations

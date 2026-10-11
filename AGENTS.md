@@ -3,8 +3,9 @@
 IoT OS: React portal/admin, Laravel control plane, Go data plane, per-tenant
 adapter runtimes. Read [docs/README.md](docs/README.md) first; decisions are in the
 [ADR index](docs/adr/README.md). The code is the source of truth: when a doc
-disagrees with it, fix the doc. The Spec Kit constitution will live at
-`.specify/memory/constitution.md`.
+disagrees with it, fix the doc. New features follow Spec Kit
+([docs/dev/specs.md](docs/dev/specs.md)); every plan is checked against the
+[constitution](.specify/memory/constitution.md).
 
 ## Repository map
 
