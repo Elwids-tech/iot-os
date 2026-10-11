@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Devices;
 
+use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -47,6 +48,34 @@ final class RuntimeReliabilityTest extends TestCase
         $this->runtimeEvent((string) Str::uuid(), 'retention.cleanup.v1', ['organization_uuid' => (string) Str::uuid(), 'status' => 'completed'])
             ->assertOk()->assertJsonPath('ignored', 'unknown_reference');
         $this->assertSame(3, DB::table('device_inbox')->count());
+    }
+
+    public function test_events_about_deleted_workflows_are_acknowledged_instead_of_retried(): void
+    {
+        $missing = fn () => (string) Str::uuid();
+        $this->runtimeEvent($missing(), 'workflow.membership.v1', ['rule_uuid' => $missing(), 'organization_uuid' => $this->organization->uuid, 'operation_uuid' => $missing()])
+            ->assertOk()->assertJsonPath('ignored', 'unknown_reference');
+        $this->runtimeEvent($missing(), 'automation.intent.v1', [
+            'id' => str_repeat('a', 64), 'operation_uuid' => $missing(), 'organization_uuid' => $missing(), 'workflow_uuid' => $missing(),
+            'node_id' => 'alert-1', 'kind' => 'action.alert.v1', 'expires_at' => now()->addHour()->toIso8601String(),
+            'occurred_at' => now()->toIso8601String(), 'config' => ['severity' => 'warning'],
+        ])->assertOk()->assertJsonPath('ignored', 'unknown_reference');
+    }
+
+    public function test_malformed_payloads_are_rejected_so_the_runtime_dead_letters_them(): void
+    {
+        $connection = SparkplugConnection::create(['organization_id' => $this->organization->id, 'name' => 'Connection', 'group_id' => 'group', 'host_id' => 'host', 'username' => 'user', 'password' => 'secret', 'status' => 'ready']);
+        $malformed = (string) Str::uuid();
+        $this->runtimeEvent($malformed, 'connection.presence.v1', ['connection_uuid' => $connection->uuid])
+            ->assertUnprocessable()->assertJsonPath('message', 'The runtime event payload is malformed.');
+        $this->assertDatabaseMissing('device_inbox', ['uuid' => $malformed]);
+
+        // PostgreSQL rejects a malformed uuid with a data exception (SQLSTATE 22P02):
+        // that is a property of the payload, not an outage, so it must not be retried.
+        $response = $this->runtimeEvent((string) Str::uuid(), 'device.presence.v1', ['device_uuid' => 'not-a-uuid', 'organization_uuid' => $this->organization->uuid, 'presence' => 'online']);
+        DB::connection()->getDriverName() === 'pgsql'
+            ? $response->assertUnprocessable()
+            : $response->assertOk()->assertJsonPath('ignored', 'unknown_reference');
     }
 
     public function test_state_snapshot_uses_a_fixed_number_of_queries(): void
