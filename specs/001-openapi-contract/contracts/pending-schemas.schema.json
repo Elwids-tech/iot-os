@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/openapi/pending-schemas.schema.json",
+  "title": "Pending-schema list",
+  "description": "Operations that may lack a full response schema. Shrink only: CI fails if the list has more entries than on the base branch, if an entry does not exist, if an entry already has a closed schema, or (from phase 3) if an integration operation is listed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["operations"],
+  "properties": {
+    "description": { "type": "string" },
+    "operations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["operation", "domain"],
+        "properties": {
+          "operation": {
+            "description": "METHOD and path exactly as in openapi.json (paths are relative to the /api server).",
+            "type": "string",
+            "pattern": "^(GET|POST|PUT|PATCH|DELETE) /(v1|integration/v1)/\\S*$"
+          },
+          "domain": {
+            "description": "Owning domain under apps/api/app/Domain, used to plan follow-up pull requests.",
+            "type": "string",
+            "pattern": "^[A-Z][A-Za-z]+$"
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "description": "Operations whose response bodies are not yet described. Remove a domain's entries in the pull request that describes it.",
+      "operations": [
+        { "operation": "GET /v1/organizations/{organization}/devices", "domain": "Devices" },
+        { "operation": "GET /v1/organizations/{organization}/telemetry-captures/{capture}", "domain": "Devices" },
+        { "operation": "PUT /v1/organizations/{organization}/workflows/dag/settings", "domain": "Automation" }
+      ]
+    }
+  ]
+}
