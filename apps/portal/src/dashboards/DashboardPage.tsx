@@ -4,7 +4,7 @@ import { PageHeader } from "@iot-os/ui/components/page-header"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
-import { dashboardPath } from "./model"
+import { dashboardPath, withCompactLayouts } from "./model"
 import { DashboardWorkspace } from "./DashboardWorkspace"
 import { DashboardLibrary } from "./LibraryPage"
 
@@ -38,6 +38,8 @@ function DashboardDetail({
   const query = useQuery({
     queryKey: ["dashboard", org, id],
     queryFn: () => api.dashboard(org, id),
+    // Older dashboards may keep gaps from free placement; the editor works on the layout as drawn.
+    select: withCompactLayouts,
     refetchOnWindowFocus: true,
   })
   if (query.data)

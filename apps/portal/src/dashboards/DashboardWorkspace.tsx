@@ -106,6 +106,9 @@ import {
   absoluteError,
   appendLayout,
   cleanLayouts,
+  compactLayouts,
+  GRID_COLUMNS,
+  withCompactLayouts,
   dashboardPath,
   fileName,
   PANEL_LABELS,
@@ -130,7 +133,7 @@ import { definition, downloadJson } from "./importExport"
 
 const Grid = WidthProvider(Responsive)
 const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
-const COLS: Record<string, number> = { lg: 12, md: 10, sm: 6, xs: 1, xxs: 1 }
+const COLS = GRID_COLUMNS
 const ROW_HEIGHT = 48
 const RAIL_KEY = "iot-dashboard-rail"
 // Per-viewer Status display by panel id; absent means fit automatically.
@@ -250,13 +253,13 @@ export function DashboardWorkspace({
       const next = await api.updateDashboard(org, saved.uuid, {
         name: draft.name.trim(),
         widgets: draft.widgets,
-        layouts: cleanLayouts(draft.layouts),
+        layouts: compactLayouts(cleanLayouts(draft.layouts)),
         defaults: draft.defaults,
         revision: base.revision,
       })
       cache.setQueryData(["dashboard", org, saved.uuid], next)
       void cache.invalidateQueries({ queryKey: ["dashboards", org] })
-      setBase(next)
+      setBase(withCompactLayouts(next))
       setDraft(null)
       setSettingsOpen(false)
       setDirty(false)
@@ -485,7 +488,7 @@ export function DashboardWorkspace({
       }
       return {
         ...current,
-        layouts: cleanLayouts({ ...current.layouts, [breakpoint]: next }),
+        layouts: compactLayouts({ ...current.layouts, [breakpoint]: next }),
       }
     })
   }
@@ -608,7 +611,7 @@ export function DashboardWorkspace({
       const currentLayout = responsiveLayouts(current.layouts)[breakpoint] ?? []
       return {
         ...current,
-        layouts: cleanLayouts({
+        layouts: compactLayouts({
           ...current.layouts,
           [breakpoint]: currentLayout.map((item) =>
             item.i === widgetId ? { ...item, h: rows } : item,
@@ -689,8 +692,8 @@ export function DashboardWorkspace({
         className="dashboard-grid"
         autoSize
         isBounded={false}
-        compactType={null}
-        style={draft ? { minHeight: (Math.max(0, ...(gridLayouts[breakpoint] ?? []).map((item) => item.y + item.h)) + 6) * (ROW_HEIGHT + gap) } : undefined}
+        // Panels stick to the panel above or the top, as in Grafana; dragging down only reorders.
+        compactType="vertical"
         layouts={gridLayouts as ResponsiveLayouts}
         breakpoints={BREAKPOINTS}
         cols={COLS}
@@ -1239,7 +1242,7 @@ export function DashboardWorkspace({
                 revision={saved.revision}
                 canManage={canManage}
                 onRestored={(next) => {
-                  setBase(next)
+                  setBase(withCompactLayouts(next))
                   setDialog(null)
                 }}
               />
