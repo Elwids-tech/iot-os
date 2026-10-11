@@ -27,7 +27,8 @@ const episode = await client.alert(alerts.data[0].uuid)
 ```
 
 Keep tokens on your backend, never in frontend bundles. Use the management APIs
-in `docs/application-access.md` to create grants and issue a short-lived token.
+in [integrations](../../docs/features/integrations.md#managing-applications) to
+create grants and issue a short-lived token.
 Each method also accepts an AbortSignal (inside options for list methods).
 `devices`, `alerts` return a page; `device`, `alert` read one authorized resource;
 `allDevices`, `allAlerts` iterate bounded pages. Unknown timestamps stay `null`.
@@ -49,7 +50,7 @@ non-replay of HTTP failures. `examples/read.mjs` is a minimal external consumer.
 
 ## Durable alert events (0.2.0)
 
-Grant both `events:read` and `alerts:read` to the application and token. Use
+Grant `events:read` plus `alerts:read` (or `geofences:read`) to the application and token. Use
 `eventCheckpoint()` before reading current alert state, then `events({cursor,
 limit})` to reconcile and resume. Each page returns `data`, `next_cursor` and
 `has_more`. Store the next cursor atomically with your processed snapshots, even
@@ -66,7 +67,7 @@ transactional database and deduplicate business side effects by event ID.
 The journal begins at deployment with no historical transition backfill. Existing
 alerts are reconciled through the current-state API. Events are retained
 indefinitely for now; configurable retention remains pending. Signed webhook delivery is available separately.
-See the repository's `docs/integration-events.md` for the contract and limits.
+See [the event feed](../../docs/features/integrations.md#event-feed) for the contract and limits.
 
 ## Webhook verification (0.3.0)
 
@@ -87,7 +88,7 @@ The default/max clock-skew window is 300 seconds. This verifies HMAC and the eve
 contract; it does not remember receipts. Deduplicate event IDs durably before
 acknowledging a delivery. Retries can arrive out of order: use a verified webhook
 as a wake-up for the cursor feed when maintaining an ordered projection.
-See `docs/integration-webhooks.md` in the repository for destination policy,
+See [webhooks](../../docs/features/integrations.md#webhooks) for destination policy,
 configuration, key rotation and retries. No SDK package has been registry-published.
 
 ## Telemetry reads (0.4.0)
@@ -104,7 +105,7 @@ const history = await client.telemetryHistory(deviceUuid, {
 History is receipt-time chart aggregation over at most 31 days, clipped by
 retention. Empty data is not zero; latest quality/timestamps must be checked.
 Independent parameter readings are not paired GPS fixes. See
-[the telemetry contract](../../docs/integration-telemetry.md) for bounds and semantics.
+[the telemetry contract](../../docs/features/integrations.md#telemetry-semantics) for bounds and semantics.
 
 ## Raw records and paired location fixes (0.5.0)
 
@@ -116,4 +117,12 @@ reads unaggregated good-quality observations with signed keyset pagination. Chec
 `locationFix(deviceUuid, eventUuid, versionUuid)` resolves stored evidence through
 the selected binding. Incomplete or stale fixes remain unknown; historical fixes
 are not live eligible. Both use the existing `telemetry:read` ability. See
-[raw/location semantics](../../docs/integration-raw-location.md).
+[raw/location semantics](../../docs/features/integrations.md#telemetry-semantics).
+
+## Location map and geofences
+
+`locationMap({deviceUuids, trailWindow, includeTrails, geofenceUuid})` needs
+`locations:read`. `geofences()`, `geofence(id)` and `geofenceActivation(id, batch)`
+need `geofences:read`; `createGeofence`, `updateGeofence` and
+`retryGeofenceActivation` need `geofences:manage` and `geofences:activate` and return
+an activation batch to poll. See [integrations](../../docs/features/integrations.md#integration-api).

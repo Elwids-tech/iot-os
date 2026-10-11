@@ -325,7 +325,7 @@ services:
     volumes:
       - ../monitoring/local/collector.py:/app/collector.py:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ../../docs/staging-incident-runbook.md:/app/runbook.md:ro
+      - ../../docs/ops/incident-runbook.md:/app/runbook.md:ro
     mem_limit: 64m
 
 networks:

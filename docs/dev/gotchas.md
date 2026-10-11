@@ -1,0 +1,72 @@
+# Gotchas
+
+Things that have cost time before. Add to this list when something surprises you.
+
+## Data and API contracts
+
+- **Users have no UUID.** The `users` table has no `uuid` column. Every API
+  endpoint identifies users by integer id (`acknowledged_by`, `recipient_ids`,
+  `created_by`, alert `assignee`, admin and organization member routes), so new
+  user references in API contracts use `user_id`. See
+  [ADR-013](../adr/ADR-013-integer-user-ids.md).
+- **PHPUnit runs on SQLite.** [`apps/api/phpunit.xml`](../../apps/api/phpunit.xml)
+  forces an in-memory SQLite database. SQLite never raises Postgres's `22P02`
+  invalid-UUID error, so a malformed id that would be a 500 on Postgres passes in
+  tests. Assert on the query log, or test against Postgres, when UUID parsing
+  matters.
+
+## Local stack
+
+- **Containers build from source with no bind mounts.** A source edit does
+  nothing to the served app until you rebuild the affected service
+  ([local setup](local-setup.md#rebuild-one-service)).
+- **A git worktree can be served the same way.** Run compose from the worktree
+  with the main checkout's env files:
+  `docker compose --env-file <main>/.env --env-file <main>/.local/devices/devices.env -f deploy/compose/compose.dev.yml -f deploy/compose/compose.app.yml -f deploy/compose/compose.devices.yml up -d --build --no-deps api alerts-worker webhooks-worker assistant-worker automation-worker portal admin`.
+- **Check which files the running stack was started with before rebuilding.**
+  The stack may have been started from another worktree, or with extra overlays
+  (monitoring, adapters) and env files that no longer exist. Read the labels:
+  `docker inspect <container> --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'`
+  (and `com.docker.compose.project.environment_file`). Rebuilding the API family
+  without the adapter env file breaks API to adapter-manager authentication
+  (`IOT_ADAPTER_MANAGER_TOKEN` and `IOT_ADAPTER_HOST_STATE_DIR` are required).
+  `compose.adapters.yml` does not define `portal` or `admin`, so a
+  frontend-only rebuild does not need it.
+- **Rebuilding `api` signs everyone out.** The dev API uses the `file` session
+  driver inside the container ([`compose.app.yml`](../../deploy/compose/compose.app.yml)).
+  This is expected, not a regression.
+- **A fresh worktree has no `apps/api/vendor` and no `.env`.** Clone the main
+  checkout's vendor directory (`cp -Rc`, never a symlink: Composer resolves
+  `__DIR__` through the link and autoloads the main checkout's `app/`), then
+  `composer dump-autoload`. Without `.env`, tests fail with "No application
+  encryption key"; run with a throwaway key:
+  `APP_KEY="base64:$(openssl rand -base64 32)" php artisan test --compact`.
+
+## Browser tests and screenshots
+
+- **Playwright browser version.** If the headless shell pinned by
+  `@playwright/test` is not installed but another build is, point
+  `launchOptions.executablePath` at the installed one
+  (`~/Library/Caches/ms-playwright/chromium_headless_shell-<build>/...`) in a
+  scratch config instead of downloading.
+- **`vite preview` listens on `localhost` (::1).** E2E against it needs
+  `STUDIO_BASE_URL=http://localhost:<port>`, not `127.0.0.1`.
+- **`e2e/studio.spec.ts` needs a live API** at `STUDIO_API_URL` (default
+  `127.0.0.1:8013`, started by `tooling/test-profile-studio.mjs`). Against
+  `vite preview` alone it fails with "Failed to fetch".
+- **Full-page screenshots break dashboards.** Playwright `fullPage` screenshots
+  make react-grid-layout re-measure and collapse panels in the capture. Grow the
+  viewport height instead.
+- **Axe contrast failures whose colours change between runs** are samples taken
+  mid-transition, not token bugs. Wait for
+  `document.getAnimations().length === 0` before running axe, as
+  `devices.spec.ts` and `onboarding.spec.ts` do.
+- **`rtk npx` rewrites to an npm script.** `rtk npx vite build` becomes
+  `npm run vite`. Use `rtk proxy npx vite …` and `rtk proxy npx playwright …`.
+
+## UI
+
+- **Toasts sit bottom-right and pause under the pointer.** A sticky bottom
+  action bar needs `ref={keepToastsAbove}`, and a panel docked to the right edge
+  needs `keepToastsLeftOf`, both from `@iot-os/ui/components/sonner`, or toasts
+  will cover their buttons.
