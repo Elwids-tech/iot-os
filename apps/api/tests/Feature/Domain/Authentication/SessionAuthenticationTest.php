@@ -49,6 +49,40 @@ final class SessionAuthenticationTest extends TestCase
             ->assertJsonPath('data.organizations.0.slug', $organization->slug);
     }
 
+    public function test_repeated_failed_logins_are_throttled_per_account_and_address(): void
+    {
+        $this->withoutMiddleware(ValidateCsrfToken::class);
+        User::factory()->create(['email' => 'operator@example.test', 'password' => 'password']);
+        $attempt = fn (string $email, string $ip = '203.0.113.7') => $this->withServerVariables(['REMOTE_ADDR' => $ip])
+            ->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'wrong-password']);
+
+        foreach (range(1, 5) as $ignored) {
+            $attempt('operator@example.test')->assertUnprocessable();
+        }
+        $attempt('Operator@Example.test ')->assertTooManyRequests()
+            ->assertHeader('Retry-After')
+            ->assertJsonPath('message', fn (string $message) => str_starts_with($message, 'Too many sign-in attempts. Try again in '));
+
+        // Another account from the same address, and the same account from another
+        // address, are unaffected: one attacker cannot lock a real user out everywhere.
+        $attempt('someone@example.test')->assertUnprocessable();
+        $attempt('operator@example.test', '198.51.100.9')->assertUnprocessable();
+    }
+
+    public function test_one_address_cannot_spray_many_accounts(): void
+    {
+        $this->withoutMiddleware(ValidateCsrfToken::class);
+        foreach (range(1, 30) as $n) {
+            $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.8'])->withHeader('Origin', 'http://localhost')
+                ->postJson('/api/v1/auth/login', ['email' => "user{$n}@example.test", 'password' => 'wrong-password'])
+                ->assertUnprocessable();
+        }
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.8'])->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/v1/auth/login', ['email' => 'user31@example.test', 'password' => 'wrong-password'])
+            ->assertTooManyRequests();
+    }
+
     public function test_invalid_credentials_are_rejected(): void
     {
         $this->withoutMiddleware(ValidateCsrfToken::class);

@@ -46,6 +46,9 @@ export function LoginPage({
       if (error instanceof ApiError && error.status === 422) {
         const payload = error.payload as { errors?: FormErrors }
         setErrors(payload.errors ?? { form: "Please check your details and try again." })
+      } else if (error instanceof ApiError && error.status === 429) {
+        const payload = error.payload as { message?: string } | null
+        setErrors({ form: payload?.message ?? "Too many sign-in attempts. Try again in a minute." })
       } else {
         setErrors({ form: "We could not sign you in. Please try again." })
       }

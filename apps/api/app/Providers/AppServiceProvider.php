@@ -52,6 +52,20 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perHour(5)->by('recovery-email:'.hash('sha256', is_string($email) ? Str::lower(trim($email)) : 'invalid')),
             ];
         });
+        // Credential guessing: a few tries per account from one address, and a wider cap per
+        // address. There is deliberately no per-account limit across addresses, which would
+        // let anyone lock a real user out.
+        RateLimiter::for('login', static function (Request $request): array {
+            $email = $request->input('email');
+            $tooMany = static fn (Request $request, array $headers) => response()->json([
+                'message' => 'Too many sign-in attempts. Try again in '.($headers['Retry-After'] ?? 60).' seconds.',
+            ], 429, $headers);
+
+            return [
+                Limit::perMinute(5)->by('login-account:'.hash('sha256', (is_string($email) ? Str::lower(trim($email)) : 'invalid').'|'.$request->ip()))->response($tooMany),
+                Limit::perMinute(30)->by('login-ip:'.$request->ip())->response($tooMany),
+            ];
+        });
         RateLimiter::for('password-reset', static fn (Request $request) => Limit::perMinute(10)->by('reset-ip:'.$request->ip()));
         // Invitations send email, so bound how many one person or one organization can trigger.
         RateLimiter::for('organization-invitations', static function (Request $request): array {
