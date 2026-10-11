@@ -398,7 +398,8 @@ async function chooseParameters(page: Page, labels: RegExp[]) {
 
 test("GPS panels use the full-page editor and long canvas drafts survive kiosk mode", async ({ page }) => {
   const { dashboards, calls, errors } = await setup(page)
-  dashboards[0].layouts.lg![1].y = 24
+  // A long canvas: panels stick to the top, so height comes from a tall panel, not a gap.
+  dashboards[0].layouts.lg![1].h = 30
   await page.route("**/location-bindings", route => route.fulfill({ json: { data: [{ device_uuid: deviceId, device_name: "Field tracker" }] } }))
   await page.route("**/geofences?**", route => route.fulfill({ json: { data: [{ uuid: parameterId, name: "Pasture" }] } }))
   await page.route("**/location-map/query", route => route.fulfill({ json: { data: { devices: [], geofence: null, trail_window: "24h" } } }))
@@ -865,6 +866,35 @@ test("dragging and duplication stay in the draft until Save", async ({
   await expect.poll(() => calls.writes).toBe(1)
   expect(dashboards[0].widgets).toHaveLength(3)
   expect(Object.keys(dashboards[0].layouts)).toContain("md")
+  expect(errors).toEqual([])
+})
+
+test("panels stick to the top or the panel above, so a drag down never strands one", async ({ page }) => {
+  const { dashboards, calls, errors } = await setup(page)
+  // Saved with a gap above the chart, as free placement allowed.
+  dashboards[0].layouts.lg![1].y = 24
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto(basePath + "/first")
+  const status = page.locator("#panel-status")
+  const chart = page.locator("#panel-chart")
+  const top = async (panel: typeof chart) => Math.round((await panel.boundingBox())!.y)
+  await expect(chart).toBeVisible()
+  await expect.poll(() => top(chart)).toBe(await top(status))
+
+  await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
+  const handle = (await chart.getByLabel("Drag panel", { exact: true }).boundingBox())!
+  await page.mouse.move(handle.x + 5, handle.y + 5)
+  await page.mouse.down()
+  await page.mouse.move(handle.x + 5, handle.y + 420, { steps: 14 })
+  await page.mouse.up()
+  // Nothing sits above it, so it returns to the top instead of staying where it was dropped.
+  await expect.poll(() => top(chart)).toBe(await top(status))
+  // Saving any change stores the layout as drawn, without the old gap.
+  await menu(page)
+  await page.getByRole("menuitem", { name: "Duplicate panel", exact: true }).click()
+  await page.getByRole("button", { name: "Save dashboard", exact: true }).click()
+  await expect.poll(() => calls.writes).toBe(1)
+  expect(dashboards[0].layouts.lg?.find((item) => item.i === "chart")?.y).toBe(0)
   expect(errors).toEqual([])
 })
 

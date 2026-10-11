@@ -9,6 +9,7 @@ import type {
   Measurement,
 } from "@iot-os/api-client"
 import { configurationProfile } from "@iot-os/api-client"
+import { verticalCompactor } from "react-grid-layout/core"
 import { csvCell, isColorSource } from "../history/model"
 
 export const DEFAULT_VIEW: DashboardView = {
@@ -405,6 +406,34 @@ export function timeLabel(value: string, timezone: DashboardView["timezone"]) {
     timeZoneName: "short",
   })
 }
+/** Columns per breakpoint of the dashboard grid. */
+export const GRID_COLUMNS: Record<string, number> = { lg: 12, md: 10, sm: 6, xs: 1, xxs: 1 }
+
+/**
+ * Panels float up to the panel above them or to the top of the dashboard, as
+ * in Grafana, so an accidental drag never leaves a panel stranded below a gap.
+ * The grid draws layouts this way; compacting before saving keeps the stored
+ * layout equal to what viewers see, and resolves overlaps by pushing down.
+ */
+export function compactLayouts(layouts: DashboardLayout): DashboardLayout {
+  return Object.fromEntries(
+    Object.entries(layouts).map(([key, items]) => [
+      key,
+      verticalCompactor
+        .compact(
+          (items ?? []).map(({ i, x, y, w, h }) => ({ i, x, y, w, h })),
+          GRID_COLUMNS[key] ?? 12,
+        )
+        .map(({ i, x, y, w, h }) => ({ i, x, y, w, h })),
+    ]),
+  )
+}
+
+/** The dashboard as the grid draws it, for every copy the editor compares or saves. */
+export function withCompactLayouts<T extends { layouts: DashboardLayout }>(dashboard: T): T {
+  return { ...dashboard, layouts: compactLayouts(dashboard.layouts) }
+}
+
 export function cleanLayouts(layouts: DashboardLayout): DashboardLayout {
   return Object.fromEntries(
     Object.entries(layouts).map(([key, items]) => [
@@ -417,17 +446,10 @@ export function cleanLayouts(layouts: DashboardLayout): DashboardLayout {
 /** Scale missing desktop layouts; never replace an explicitly saved breakpoint. */
 export function responsiveLayouts(layouts: DashboardLayout): DashboardLayout {
   const result = cleanLayouts(layouts)
-  const columns: Record<string, number> = {
-    lg: 12,
-    md: 10,
-    sm: 6,
-    xs: 1,
-    xxs: 1,
-  }
   const primary = result.lg ? "lg" : Object.keys(result)[0]
   const original = result[primary] ?? []
-  const originalCols = columns[primary] ?? 12
-  for (const [key, cols] of Object.entries(columns)) {
+  const originalCols = GRID_COLUMNS[primary] ?? 12
+  for (const [key, cols] of Object.entries(GRID_COLUMNS)) {
     if (result[key]) continue
     let row = 0
     result[key] = [...original]
@@ -446,7 +468,7 @@ export function responsiveLayouts(layouts: DashboardLayout): DashboardLayout {
         }
       })
   }
-  return result
+  return compactLayouts(result)
 }
 export function appendLayout(
   layouts: DashboardLayout,
@@ -459,15 +481,15 @@ export function appendLayout(
   return Object.fromEntries(
     entries.map(([key, items]) => {
       const existing = items ?? []
-      const cols =
-        ({ lg: 12, md: 10, sm: 6, xs: 1, xxs: 1 } as Record<string, number>)[
-          key
-        ] ?? 12
+      const cols = GRID_COLUMNS[key] ?? 12
       const w = Math.max(1, Math.floor(cols / 2)),
         h = 6
       if (placement === "bottom") {
-        const y = Math.max(0, ...existing.map((item) => item.y + item.h))
-        return [key, [...existing, { i: id, x: 0, y, w, h }]]
+        // Under the lowest panel, so the grid's upward compaction keeps it at the bottom.
+        const lowest = [...existing].sort((a, b) => b.y + b.h - (a.y + a.h))[0]
+        const y = lowest ? lowest.y + lowest.h : 0
+        const x = lowest ? Math.min(lowest.x, cols - w) : 0
+        return [key, [...existing, { i: id, x, y, w, h }]]
       }
       const rows = [
         ...new Set([0, ...existing.map((item) => item.y + item.h)]),

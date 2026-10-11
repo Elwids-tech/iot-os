@@ -10,6 +10,7 @@ import {
   appliedParameters,
   bandFor,
   cleanLayouts,
+  compactLayouts,
   dateInput,
   DEFAULT_VIEW,
   gaugeSegments,
@@ -193,6 +194,20 @@ describe("configuration and layout", () => {
     expect(result.lg?.[1]).toEqual({ i: "two", x: 0, y: 26, w: 6, h: 6 });
     expect(result.xs?.[1]).toEqual({ i: "two", x: 0, y: 48, w: 1, h: 6 });
     expect(layouts.lg).toHaveLength(1);
+  });
+  it("adds below the lowest panel, in its columns, so compaction keeps it at the bottom", () => {
+    const result = appendLayout(
+      {
+        lg: [
+          { i: "short", x: 0, y: 0, w: 6, h: 6 },
+          { i: "tall", x: 6, y: 0, w: 6, h: 30 },
+        ],
+      },
+      "two",
+      "bottom",
+    );
+    expect(result.lg?.[2]).toEqual({ i: "two", x: 6, y: 30, w: 6, h: 6 });
+    expect(compactLayouts(result).lg?.[2]).toEqual({ i: "two", x: 6, y: 30, w: 6, h: 6 });
   });
 });
 it("bounds concurrent requests and removes aborted queued work", async () => {
@@ -386,3 +401,33 @@ describe("valueBands", () => {
     })
   })
 })
+
+describe("compactLayouts", () => {
+  it("floats panels up to the panel above or the top, as the grid draws them", () => {
+    const layouts = compactLayouts({
+      lg: [
+        { i: "status", x: 0, y: 0, w: 6, h: 6 },
+        // Dragged down by accident: nothing above it, so it returns to the top.
+        { i: "chart", x: 6, y: 24, w: 6, h: 6 },
+        // Under the status panel with a gap: it sticks to the panel above.
+        { i: "table", x: 0, y: 15, w: 6, h: 4 },
+      ],
+      xs: [{ i: "status", x: 0, y: 3, w: 1, h: 6 }],
+    });
+    expect(layouts.lg).toEqual([
+      { i: "status", x: 0, y: 0, w: 6, h: 6 },
+      { i: "chart", x: 6, y: 0, w: 6, h: 6 },
+      { i: "table", x: 0, y: 6, w: 6, h: 4 },
+    ]);
+    expect(layouts.xs).toEqual([{ i: "status", x: 0, y: 0, w: 1, h: 6 }]);
+  });
+  it("pushes an overlapped panel below the one that grew", () => {
+    const layouts = compactLayouts({
+      lg: [
+        { i: "grown", x: 0, y: 0, w: 6, h: 10 },
+        { i: "below", x: 0, y: 6, w: 6, h: 4 },
+      ],
+    });
+    expect(layouts.lg?.find((item) => item.i === "below")?.y).toBe(10);
+  });
+});
