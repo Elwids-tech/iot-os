@@ -1,6 +1,6 @@
 # ADR-004: Node-RED Adapter Runtime
 
-**Status:** Accepted for Phase 1  
+**Status:** Superseded by [ADR-010](ADR-010-per-tenant-adapter-runtimes.md)  
 **Date:** 2026-08-22
 
 ## Context
