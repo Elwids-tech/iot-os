@@ -1,3 +1,4 @@
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { useState, type CSSProperties } from "react"
 import {
   ChartContainer,
@@ -33,7 +34,7 @@ import {
   timeLabel,
 } from "./model"
 import { useDeviceActivity, useDevices, useHistory, useLatest, useNow } from "./panelData"
-import { Age, readingTime } from "./ReadoutPanels"
+import { readingTime } from "./ReadoutPanels"
 import type { PanelProps } from "./registry"
 
 const numericType = (type: string) => ["number", "integer"].includes(type)
@@ -327,7 +328,7 @@ export default function TimeSeriesPanel({
                 <EmptyDescription>
                   {outside ? (
                     <>
-                      Last reading <Age at={last!} now={now} timezone={view.timezone} /> ago.
+                      Last reading <RelativeTime bare className="font-mono" at={last!} now={now} timezone={view.timezone} /> ago.
                     </>
                   ) : (
                     "Choose another range or parameter."

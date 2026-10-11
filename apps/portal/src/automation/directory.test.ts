@@ -23,7 +23,7 @@ describe("automation directory", () => {
   })
   it("labels deployment states with text, not colour alone", () => {
     expect(deploymentState("applied")).toEqual({ tone: "good", label: "Active" })
-    expect(deploymentState("mystery")).toEqual({ tone: "muted", label: "mystery" })
+    expect(deploymentState("mystery")).toEqual({ tone: "muted", label: "Mystery" })
   })
   it("formats recent times relatively", () => {
     const now = Date.parse("2026-10-09T12:00:00Z")

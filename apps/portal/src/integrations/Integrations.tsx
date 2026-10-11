@@ -1,6 +1,7 @@
+import { RelativeTime } from "@iot-os/ui/components/freshness";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Route, Routes, useParams } from "react-router-dom";
+import { Route, Routes, useParams } from "react-router-dom";
 import type {
   IntegrationAbility,
   IntegrationApplication,
@@ -21,6 +22,10 @@ import {
   AlertTitle,
   AlertDescription,
 } from "@iot-os/ui/components/alert";
+import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table";
+import { EmptyState } from "@iot-os/ui/components/empty-state";
+import { CollectionPage } from "@iot-os/ui/templates/collection-page";
+import { EntityPage } from "@iot-os/ui/templates/entity-page";
 import { PageHeader } from "@iot-os/ui/components/page-header";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
@@ -31,7 +36,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@iot-os/ui/components/sheet";
-import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark";
+import { Status, StatusMark } from "@iot-os/ui/components/status-mark";
 import {
   Table,
   TableHeader,
@@ -41,8 +46,7 @@ import {
   TableCell,
 } from "@iot-os/ui/components/table";
 import { formatDateTime } from "@iot-os/ui/lib/format";
-import { cn } from "@iot-os/ui/lib/utils";
-import { CopyIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
+import { CopyIcon, PlugZapIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { useUnsavedContribution } from "../lib/unsaved";
 import { Confirm, RequestError, TextField } from "../components/forms";
@@ -51,7 +55,6 @@ import {
   DevicePages,
   useDeviceOrganization,
 } from "../devices/shared";
-import { Age, useWide } from "../alerts/shared";
 
 const permissions: { value: IntegrationAbility; label: string }[] = [
   { value: "devices:read", label: "Device details" },
@@ -104,10 +107,7 @@ export default function IntegrationRoutes() {
   return (
     <Routes>
       <Route index element={<Directory key={org} org={org} />} />
-      <Route
-        path=":applicationUuid"
-        element={<Directory key={org} org={org} />}
-      />
+      <Route path=":applicationUuid" element={<ApplicationRoute org={org} />} />
     </Routes>
   );
 }
@@ -273,9 +273,6 @@ function GrantFields({
  * one-time secret and unsaved edits mounted.
  */
 function Directory({ org }: { org: string }) {
-  const { applicationUuid: selected } = useParams();
-  const wide = useWide();
-  const narrowDetail = Boolean(selected) && !wide;
   const query = useQuery({
     queryKey: ["integration-applications", org],
     queryFn: () => api.integrationApplications(org),
@@ -285,6 +282,7 @@ function Directory({ org }: { org: string }) {
   const [draft, setDraft] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [search, setSearch] = useState("");
   const edited = JSON.stringify(draft) !== JSON.stringify(blank());
   useUnsavedContribution(creating && (busy || edited));
   const count = query.data?.length ?? 0;
@@ -299,126 +297,98 @@ function Directory({ org }: { org: string }) {
     if (edited) setDiscard(true);
     else close();
   };
+  const path = (app: IntegrationApplication) => `/organizations/${org}/integrations/${app.uuid}`;
+  const columns: DataColumn<IntegrationApplication>[] = [
+    {
+      id: "application",
+      header: "Application",
+      mobile: "title",
+      sortable: true,
+      searchable: true,
+      value: (app) => app.name,
+      cell: (app) => <RowLink to={path(app)}>{app.name}</RowLink>,
+    },
+    {
+      id: "status",
+      header: "Status",
+      mobile: "badge",
+      value: (app) => (app.revoked_at ? "Revoked" : "Active"),
+      cell: (app) =>
+        app.revoked_at ? <StatusMark tone="muted">Revoked</StatusMark> : <StatusMark tone="good">Active</StatusMark>,
+    },
+    { id: "devices", header: "Devices", align: "end", value: (app) => app.device_uuids.length, cell: (app) => <span className="tabular-nums">{app.device_uuids.length}</span> },
+    { id: "permissions", header: "Permissions", align: "end", value: (app) => app.abilities.length, cell: (app) => <span className="tabular-nums">{app.abilities.length}</span> },
+    {
+      id: "token",
+      header: "Token",
+      value: (app) => app.credential?.expires_at ?? null,
+      cell: (app) =>
+        app.revoked_at ? (
+          <span className="text-muted-foreground">
+            Revoked <RelativeTime at={app.revoked_at} never={null} />
+          </span>
+        ) : app.credential ? (
+          <span className="text-muted-foreground">
+            Expires{" "}
+            <time dateTime={app.credential.expires_at} title={formatDateTime(app.credential.expires_at)}>
+              {new Date(app.credential.expires_at).toLocaleDateString()}
+            </time>
+          </span>
+        ) : (
+          <span className="text-muted-foreground">No token issued</span>
+        ),
+    },
+  ];
   return (
     <>
-      {!narrowDetail && (
-        <PageHeader
-          title="Integrations"
-          actions={
-            <>
-              {query.data && (
-                <span className="text-sm text-muted-foreground max-sm:hidden">
-                  {full ? "Limit of 50 applications reached" : `${count} of 50 applications`}
-                </span>
-              )}
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Refresh applications"
-                title="Refresh applications"
-                disabled={query.isFetching}
-                onClick={() => query.refetch()}
-              >
-                <RefreshCwIcon />
-              </Button>
-              <Button
-                disabled={creating || full}
-                title={full ? "Limit of 50 applications reached" : undefined}
-                onClick={() => setCreating(true)}
-              >
-                <PlusIcon data-icon="inline-start" />
-                Create application
-              </Button>
-            </>
+      <CollectionPage
+        title="Integrations"
+        description={query.data ? (full ? "Limit of 50 applications reached" : `${count} of 50 applications`) : undefined}
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Refresh applications"
+              title="Refresh applications"
+              disabled={query.isFetching}
+              onClick={() => query.refetch()}
+            >
+              <RefreshCwIcon />
+            </Button>
+            <Button
+              size="sm"
+              disabled={creating || full}
+              title={full ? "Limit of 50 applications reached" : undefined}
+              onClick={() => setCreating(true)}
+            >
+              <PlusIcon data-icon="inline-start" />
+              New application
+            </Button>
+          </>
+        }
+      >
+        <DataTable
+          id="integration-applications"
+          label="Applications"
+          noun={["application", "applications"]}
+          rows={query.data}
+          rowKey={(app) => app.uuid}
+          rowHref={path}
+          columns={columns}
+          defaultSort={[{ id: "application", desc: false }]}
+          error={query.error ? <RequestError error={query.error} /> : undefined}
+          search={{ label: "Search applications", placeholder: "Search applications", value: search, onChange: setSearch }}
+          empty={
+            <EmptyState
+              inset
+              icon={<PlugZapIcon />}
+              title="No applications yet"
+              description="Create an application, choose its devices, then issue a token for its backend."
+            />
           }
         />
-      )}
-      <div className="flex-1 xl:grid xl:grid-cols-[400px_minmax(0,1fr)]">
-        {!narrowDetail && (
-          <div className="min-w-0 xl:border-r">
-            {query.error && (
-              <div className="p-4">
-                <RequestError error={query.error} />
-              </div>
-            )}
-            {query.isPending ? (
-              <div className="p-4">
-                <Skeleton className="h-32 w-full" />
-              </div>
-            ) : query.data?.length ? (
-              <ul aria-label="Applications" className="border-b">
-                {query.data.map((app) => {
-                  const current = app.uuid === selected;
-                  return (
-                    <li
-                      key={app.uuid}
-                      className={cn(
-                        "relative grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-b px-4 py-3 last:border-b-0 hover:bg-muted/50 md:px-6",
-                        current && "bg-muted shadow-[inset_2px_0_0_var(--primary)]",
-                      )}
-                    >
-                      <Link
-                        to={`/organizations/${org}/integrations/${app.uuid}`}
-                        aria-current={current ? "page" : undefined}
-                        className="truncate font-medium outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
-                      >
-                        {app.name}
-                      </Link>
-                      <span className="text-xs">
-                        {app.revoked_at ? (
-                          <StatusMark tone="muted">Revoked</StatusMark>
-                        ) : (
-                          <StatusMark tone="good">Active</StatusMark>
-                        )}
-                      </span>
-                      <span className="col-span-2 truncate text-xs text-muted-foreground">
-                        {plural(app.device_uuids.length, "device")} ·{" "}
-                        {plural(app.abilities.length, "permission")} ·{" "}
-                        {app.revoked_at ? (
-                          <>
-                            revoked <Age value={app.revoked_at} />
-                          </>
-                        ) : app.credential ? (
-                          <>
-                            token expires{" "}
-                            <time
-                              dateTime={app.credential.expires_at}
-                              title={formatDateTime(app.credential.expires_at)}
-                            >
-                              {new Date(app.credential.expires_at).toLocaleDateString()}
-                            </time>
-                          </>
-                        ) : (
-                          "no token issued"
-                        )}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : !query.error ? (
-              <div className="p-4">
-                <DeviceEmpty
-                  title="No applications yet"
-                  description="Create an application, choose its devices, then issue a token for its backend."
-                />
-              </div>
-            ) : null}
-          </div>
-        )}
-        {selected ? (
-          <Detail
-            key={selected}
-            org={org}
-            id={selected}
-            back={narrowDetail ? `/organizations/${org}/integrations` : undefined}
-          />
-        ) : wide ? (
-          <p className="p-6 text-sm text-muted-foreground">
-            Select an application to manage its access.
-          </p>
-        ) : null}
-      </div>
+      </CollectionPage>
       <Sheet
         open={creating}
         onOpenChange={(open) => {
@@ -497,7 +467,12 @@ function Directory({ org }: { org: string }) {
   );
 }
 
-function Detail({ org, id, back }: { org: string; id: string; back?: string }) {
+function ApplicationRoute({ org }: { org: string }) {
+  const { applicationUuid = "" } = useParams();
+  return <Detail key={applicationUuid} org={org} id={applicationUuid} back={`/organizations/${org}/integrations`} />;
+}
+
+function Detail({ org, id, back }: { org: string; id: string; back: string }) {
   const query = useQuery({
     queryKey: ["integration-detail", org, id],
     queryFn: async () => {
@@ -524,13 +499,10 @@ function Detail({ org, id, back }: { org: string; id: string; back?: string }) {
     </RequestError>
   ) : null;
   if (state)
-    return back ? (
-      <>
-        <PageHeader title="Application" back={{ to: back, label: "Integrations" }} />
-        <div className="p-4 md:p-6">{state}</div>
-      </>
-    ) : (
-      <div className="p-4 md:p-6">{state}</div>
+    return (
+      <EntityPage title="Application" icon={<PlugZapIcon />} back={{ to: back, label: "Integrations" }}>
+        {state}
+      </EntityPage>
     );
   return (
     <Workspace key={org + id} org={org} initial={query.data!} back={back} />
@@ -640,12 +612,6 @@ function Section({
   );
 }
 
-const deliveryTones: Record<string, StatusTone> = {
-  delivered: "good",
-  failed: "critical",
-  pending: "info",
-  cancelled: "muted",
-};
 
 function Workspace({
   org,
@@ -1141,10 +1107,7 @@ function Workspace({
                 {deliveries.data.data.map((item) => (
                   <TableRow key={item.uuid} className="align-top">
                     <TableCell className="whitespace-normal">
-                      <StatusMark tone={deliveryTones[item.status] ?? "muted"}>
-                        {item.status.charAt(0).toUpperCase() +
-                          item.status.slice(1).replaceAll("_", " ")}
-                      </StatusMark>
+                      <Status value={item.status} domain="delivery" />
                       {item.diagnostic && (
                         <span className="block text-xs text-muted-foreground">
                           {item.diagnostic}
@@ -1173,7 +1136,7 @@ function Workspace({
                     <TableCell className="text-muted-foreground">
                       {item.delivered_at ? (
                         <>
-                          Delivered <Age value={item.delivered_at} />
+                          Delivered <RelativeTime at={item.delivered_at} never={null} />
                         </>
                       ) : (
                         <>Deadline {formatDateTime(item.expires_at)}</>
@@ -1284,21 +1247,23 @@ function Workspace({
       />
     </div>
   );
-  // The header comes and goes with the layout; the section stays so its subtree keeps its state.
   return (
-    <>
-      {back && (
-        <PageHeader
-          title={app.name}
-          back={{ to: back, label: "Integrations" }}
-        />
-      )}
-      <section
-        aria-label="Application detail"
-        className="min-w-0 p-4 md:p-6 xl:max-w-4xl"
-      >
+    <EntityPage
+      title={app.name}
+      icon={<PlugZapIcon />}
+      back={back ? { to: back, label: "Integrations" } : undefined}
+      status={
+        <>
+          {app.revoked_at ? <StatusMark tone="muted">Revoked</StatusMark> : <StatusMark tone="good">Active</StatusMark>}
+          <span className="text-muted-foreground">
+            {plural(app.device_uuids.length, "device")} · {plural(app.abilities.length, "permission")}
+          </span>
+        </>
+      }
+    >
+      <section aria-label="Application detail" className="min-w-0 xl:max-w-4xl">
         {body}
       </section>
-    </>
+    </EntityPage>
   );
 }

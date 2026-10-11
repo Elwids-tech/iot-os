@@ -1,21 +1,16 @@
-import { useState } from "react"
-import { Link } from "react-router-dom"
+import { useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { Site, SiteInput } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import { FieldGroup } from "@iot-os/ui/components/field"
-import { PageHeader } from "@iot-os/ui/components/page-header"
-import { Skeleton } from "@iot-os/ui/components/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@iot-os/ui/components/table"
-import { PlusIcon } from "lucide-react"
+import { DataTable, RefLink, type DataColumn } from "@iot-os/ui/components/data-table"
+import { DropdownMenuItem } from "@iot-os/ui/components/dropdown-menu"
+import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { CollectionPage } from "@iot-os/ui/templates/collection-page"
+import { PageTabs } from "@iot-os/ui/components/page-tabs"
+import { Link } from "react-router-dom"
+import { MapPinIcon, PlusIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
 import {
@@ -26,25 +21,90 @@ import {
   TextField,
   fieldError,
 } from "../components/forms"
-import { DeviceEmpty, devicePath, useDeviceOrganization } from "./shared"
+import { devicePath, useDeviceOrganization } from "./shared"
 import { TimezoneField, utcOffset } from "./TimezoneField"
 
 /** Sites give devices a time zone for calendar periods such as days, months and shifts. */
+/** Sites and Geofences are two views of one Locations area. */
+export function LocationTabs({ org }: { org: string }) {
+  return (
+    <PageTabs
+      label="Locations"
+      items={[
+        { to: `/organizations/${org}/sites`, label: "Sites" },
+        { to: `/organizations/${org}/geofences`, label: "Geofences" },
+      ]}
+    />
+  )
+}
+
 export default function SitesPage() {
   const { org, capabilities } = useDeviceOrganization()
   const client = useQueryClient()
   const [editing, setEditing] = useState<Site | "new" | null>(null)
   const [removing, setRemoving] = useState<Site | null>(null)
+  const [search, setSearch] = useState("")
   const sites = useQuery({ queryKey: ["sites", org], queryFn: () => api.sites(org) })
-  const organizationZone = useMutation({
-    mutationFn: (timezone: string) => api.setOrganizationTimezone(org, timezone || null),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["sites", org] }),
-  })
-  const list = sites.data?.data ?? []
+  const columns = useMemo<DataColumn<Site>[]>(
+    () => [
+      {
+        id: "site",
+        header: "Site",
+        mobile: "title",
+        className: "max-w-80",
+        sortable: true,
+        searchable: true,
+        value: (site) => site.name,
+        cell: (site) => (
+          <>
+            <span className="block truncate font-medium">{site.name}</span>
+            {site.address && (
+              <span className="block truncate text-meta text-muted-foreground">{site.address}</span>
+            )}
+          </>
+        ),
+      },
+      {
+        id: "timezone",
+        header: "Time zone",
+        className: "whitespace-nowrap",
+        sortable: true,
+        searchable: true,
+        value: (site) => site.timezone,
+        cell: (site) => (
+          <>
+            {site.timezone.replaceAll("_", " ")}
+            <span className="ml-2 text-meta text-muted-foreground tabular-nums">{utcOffset(site.timezone)}</span>
+          </>
+        ),
+      },
+      {
+        id: "devices",
+        header: "Devices",
+        align: "end",
+        sortable: true,
+        summary: "sum",
+        value: (site) => site.devices_count ?? 0,
+        cell: (site) =>
+          site.devices_count ? (
+            <RefLink
+              className="tabular-nums"
+              to={devicePath(org) + "?site=" + encodeURIComponent(site.uuid)}
+            >
+              {site.devices_count}
+            </RefLink>
+          ) : (
+            <span className="text-muted-foreground tabular-nums">0</span>
+          ),
+      },
+    ],
+    [org],
+  )
   return (
     <>
-      <PageHeader
-        title="Sites"
+      <CollectionPage
+        title="Locations"
+        description="Sites: places whose time zone cuts days, months and shifts for their devices."
         actions={
           capabilities.manage && (
             <Button size="sm" onClick={() => setEditing("new")}>
@@ -53,85 +113,57 @@ export default function SitesPage() {
             </Button>
           )
         }
+        tabs={<LocationTabs org={org} />}
+        notices={
+          <p className="text-body text-muted-foreground">
+            Devices without a site use the organization time zone, set in{" "}
+            <Link className="text-foreground underline underline-offset-4" to={`/organizations/${org}/settings/general`}>
+              Settings
+            </Link>
+            .
+          </p>
+        }
       >
-        <p className="text-sm text-muted-foreground">
-          Daily, monthly and shift totals for a device are cut in its site's time
-          zone, so every viewer sees the same numbers. Times are still shown in
-          each viewer's own time zone.
-        </p>
-      </PageHeader>
-      <div className="flex flex-col gap-6 p-4 md:p-6">
-        <RequestError error={sites.error ?? organizationZone.error} />
-        <div className="max-w-md">
-          <TimezoneField
-            label="Organization time zone"
-            value={sites.data?.organization_timezone ?? ""}
-            allowNone
-            disabled={!capabilities.manage || organizationZone.isPending || sites.isPending}
-            help="Used for devices without a site."
-            onChange={(zone) => organizationZone.mutate(zone)}
-          />
-        </div>
-        {sites.isPending ? (
-          <Skeleton className="h-40 w-full" />
-        ) : list.length ? (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Site</TableHead>
-                  <TableHead>Time zone</TableHead>
-                  <TableHead className="text-right">Devices</TableHead>
-                  {capabilities.manage && <TableHead className="text-right">Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {list.map((site) => (
-                  <TableRow key={site.uuid}>
-                    <TableCell className="max-w-80">
-                      <span className="block truncate font-medium">{site.name}</span>
-                      {site.address && (
-                        <span className="block truncate text-xs text-muted-foreground">{site.address}</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {site.timezone.replaceAll("_", " ")}
-                      <span className="ml-2 text-xs text-muted-foreground tabular-nums">{utcOffset(site.timezone)}</span>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {site.devices_count ? (
-                        <Link
-                          className="text-primary underline-offset-4 hover:underline"
-                          to={devicePath(org) + "?site=" + encodeURIComponent(site.uuid)}
-                        >
-                          {site.devices_count}
-                        </Link>
-                      ) : (
-                        0
-                      )}
-                    </TableCell>
-                    {capabilities.manage && (
-                      <TableCell className="text-right whitespace-nowrap">
-                        <Button variant="ghost" size="sm" onClick={() => setEditing(site)}>
-                          Edit
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setRemoving(site)}>
-                          Delete
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <DeviceEmpty
-            title="No sites yet"
-            description="Add a site for each place whose devices should report days and shifts in its own time zone."
-          />
-        )}
-      </div>
+        <DataTable
+          id="sites"
+          label="Sites"
+          noun={["site", "sites"]}
+          rows={sites.data?.data}
+          rowKey={(site) => site.uuid}
+          rowLabel={(site) => site.name}
+          columns={columns}
+          defaultSort={[{ id: "site", desc: false }]}
+          error={sites.error ? <RequestError error={sites.error} /> : undefined}
+          search={{ label: "Search sites", placeholder: "Search name, address or zone", value: search, onChange: setSearch }}
+          rowActions={
+            capabilities.manage
+              ? (site) => (
+                  <>
+                    <DropdownMenuItem onSelect={() => setEditing(site)}>Edit site</DropdownMenuItem>
+                    <DropdownMenuItem variant="destructive" onSelect={() => setRemoving(site)}>
+                      Delete site
+                    </DropdownMenuItem>
+                  </>
+                )
+              : undefined
+          }
+          empty={
+            <EmptyState
+              inset
+              icon={<MapPinIcon />}
+              title="No sites yet"
+              description="Add a site for each place whose devices should report days and shifts in its own time zone."
+              action={
+                capabilities.manage && (
+                  <Button size="sm" onClick={() => setEditing("new")}>
+                    New site
+                  </Button>
+                )
+              }
+            />
+          }
+        />
+      </CollectionPage>
       {editing && (
         <SiteEditor
           org={org}

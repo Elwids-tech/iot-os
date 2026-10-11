@@ -1,3 +1,4 @@
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import type { ReactNode } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
@@ -5,7 +6,7 @@ import type { OrganizationOverview } from "@iot-os/api-client"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@iot-os/ui/components/card"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark"
+import { Status, StatusMark } from "@iot-os/ui/components/status-mark"
 import { formatAge } from "@iot-os/ui/lib/format"
 import { BellIcon, ChevronRightIcon, CpuIcon, LayoutGridIcon, ScanSearchIcon, StarIcon, WorkflowIcon } from "lucide-react"
 import { api } from "../lib/api"
@@ -101,8 +102,8 @@ export default function HomePage({ organizationName }: { organizationName: strin
                         <li key={command.uuid} className="flex items-center justify-between gap-3">
                           <span className="truncate">{command.device_name ?? "Removed device"}</span>
                           <span className="flex shrink-0 items-center gap-3 text-muted-foreground">
-                            <StatusMark tone={commandTone(command.status)}>{commandLabel(command.status)}</StatusMark>
-                            {command.created_at ? `${formatAge(command.created_at)} ago` : null}
+                            <Status value={command.status} />
+                            <RelativeTime at={command.created_at} never={null} />
                           </span>
                         </li>
                       ))}
@@ -180,16 +181,3 @@ function Row({ to, children }: { to: string; children: ReactNode }) {
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
-const commandLabels: Record<string, [string, StatusTone]> = {
-  observed: ["Confirmed", "good"],
-  already_at_target: ["Already set", "good"],
-  sent: ["Sent", "info"],
-  pending: ["Pending", "info"],
-  failed: ["Failed", "critical"],
-  timed_out: ["Timed out", "critical"],
-  uncertain: ["Uncertain", "warning"],
-  expired: ["Expired", "muted"],
-  cancelled: ["Cancelled", "muted"],
-}
-const commandLabel = (status: string) => commandLabels[status]?.[0] ?? status.replaceAll("_", " ")
-const commandTone = (status: string): StatusTone => commandLabels[status]?.[1] ?? "muted"

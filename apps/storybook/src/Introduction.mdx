@@ -1,0 +1,35 @@
+import { Meta } from "@storybook/addon-docs/blocks"
+
+<Meta title="Introduction" />
+
+# IoT OS design system
+
+The gallery for `@iot-os/ui`. Every component and page template the portal and
+admin use is shown here with fixture data. Use the toolbar to switch theme,
+dark palette and skin; a story should look right in all of them.
+
+## Layers
+
+- **Tokens** live in `packages/ui/src/styles/globals.css`: colours, surfaces and
+  elevation, the type scale, radius, density and motion. Skins and palettes
+  only change token values.
+- **Primitives** are shadcn/ui on Radix. Pages reach for product components
+  before primitives.
+- **Product components** carry the system: `Panel`, `Status` and the status
+  vocabulary, `Freshness` and `RelativeTime`, `EmptyState`, `Pager`,
+  `DataTable`, `ViewsRail`, `PageTabs`, `DraftBar`, `InlineName` and the
+  `CommandPalette`.
+- **Page templates**: Collection, Entity, Inbox, Workspace and Settings.
+  Routes compose a template and never write their own layout.
+
+## Rules
+
+- Content sits in a `Panel`. Only page headers, toolbars and section titles sit
+  on the canvas.
+- Status comes from `statusOf` in `@iot-os/ui/lib/status`. Add values there,
+  never in a local map.
+- Use the named type scale: `text-display`, `text-title`, `text-heading`,
+  `text-body`, `text-meta`, `text-code`, and `text-micro` for initials and
+  count badges only.
+
+The plan and progress live in `plan/tasks/design-system.md`.

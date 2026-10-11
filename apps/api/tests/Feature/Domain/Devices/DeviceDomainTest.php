@@ -386,6 +386,24 @@ final class DeviceDomainTest extends TestCase
         $this->assertNotNull($light);
     }
 
+    public function test_devices_sort_by_an_allowed_column_with_never_seen_devices_last(): void
+    {
+        $old = $this->registered('sort-b-old');
+        $recent = $this->registered('sort-a-recent');
+        $this->registered('sort-c-never');
+        $old->forceFill(['name' => 'Sort B', 'last_seen_at' => now()->subDay()])->save();
+        $recent->forceFill(['name' => 'Sort A', 'last_seen_at' => now()->subMinute()])->save();
+        Device::where('code', 'sort-c-never')->update(['name' => 'Sort C', 'last_seen_at' => null]);
+        $codes = fn (string $sort) => collect($this->getJson($this->prefix.'/devices?per_page=100&search=sort-&sort='.$sort)->assertOk()->assertJsonPath('meta.sort', $sort)->json('data'))->pluck('code')->all();
+
+        $this->assertSame(['sort-a-recent', 'sort-b-old', 'sort-c-never'], $codes('name'));
+        $this->assertSame(['sort-c-never', 'sort-b-old', 'sort-a-recent'], $codes('-name'));
+        $this->assertSame(['sort-a-recent', 'sort-b-old', 'sort-c-never'], $codes('-last_seen'));
+        $this->assertSame(['sort-b-old', 'sort-a-recent', 'sort-c-never'], $codes('last_seen'));
+        $this->getJson($this->prefix.'/devices?search=sort-')->assertOk()->assertJsonPath('meta.sort', 'name');
+        $this->getJson($this->prefix.'/devices?sort=organization_id')->assertUnprocessable()->assertJsonValidationErrors('sort');
+    }
+
     public function test_history_record_and_state_endpoints_proxy_bounded_contracts(): void
     {
         $device = $this->active($this->configured('rgb-light'));

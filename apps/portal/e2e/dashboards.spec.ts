@@ -1275,25 +1275,38 @@ async function downloaded(page: Page, click: () => Promise<void>) {
 test("library views, filters, stars and row actions", async ({ page }) => {
   const { dashboards, writes, calls, errors } = await library(page)
   await page.goto(basePath)
-  const views = page.getByRole("navigation", { name: "Dashboard views" })
+  const views = page.getByRole("radiogroup", { name: "View" })
   const plant = page.getByRole("link", { name: "Plant overview", exact: true })
   const utilities = page.getByRole("link", { name: "Utilities", exact: true })
   await expect(plant).toBeVisible()
   await expect(utilities).toBeVisible()
   await expect(page.getByRole("heading", { name: "Dashboards", level: 1 })).toBeVisible()
+  // The library is a normal collection: views with counts in the toolbar, rows in a panel, no side rail.
+  await expect(page.getByRole("navigation", { name: "Dashboard views" })).toHaveCount(0)
+  await expect(views.getByRole("radio", { name: "All 2" })).toBeChecked()
   const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
   expect(scan.violations).toEqual([])
 
-  await views.getByRole("link", { name: /^Starred/ }).click()
+  await views.getByRole("radio", { name: /^Starred/ }).click()
   await expect(page).toHaveURL(/view=starred/)
   await expect(utilities).toHaveCount(0)
-  await views.getByRole("link", { name: /^Created by me/ }).click()
+  await views.getByRole("radio", { name: /^Created by me/ }).click()
   await expect(plant).toBeVisible()
   await expect(utilities).toHaveCount(0)
-  await views.getByRole("link", { name: /^Unfiled/ }).click()
+  await views.getByRole("radio", { name: /^All/ }).click()
+  await expect(page).not.toHaveURL(/view=/)
+
+  // Folders are a filter like any other, with Unfiled for dashboards outside every folder.
+  await page.getByRole("button", { name: "Filters" }).click()
+  await page.getByRole("combobox", { name: "Folder" }).click()
+  await page.getByRole("option", { name: "Unfiled" }).click()
+  await page.keyboard.press("Escape")
+  await expect(page).toHaveURL(/folder=__unfiled__/)
+  await expect(page.getByRole("group", { name: "Active filters" })).toContainText("Folder: Unfiled")
   await expect(plant).toHaveCount(0)
   await expect(utilities).toBeVisible()
-  await views.getByRole("link", { name: /^All dashboards/ }).click()
+  await page.getByRole("group", { name: "Active filters" }).getByRole("button", { name: "Remove Folder filter" }).click()
+  await expect(plant).toBeVisible()
 
   const search = page.getByRole("searchbox", { name: "Search dashboards" })
   await search.fill("boiler room")
@@ -1302,10 +1315,12 @@ test("library views, filters, stars and row actions", async ({ page }) => {
   await expect(page.getByText("No matching dashboards")).toBeVisible()
   await page.getByRole("button", { name: "Clear filters" }).click()
   await expect(utilities).toBeVisible()
-  await page.getByRole("button", { name: /^Tags/ }).click()
+  await page.getByRole("button", { name: "Filters" }).click()
+  await page.getByRole("combobox", { name: "Tags" }).click()
   await page.getByRole("option", { name: "energy" }).click()
   await page.keyboard.press("Escape")
   await expect(page).toHaveURL(/tag=energy/)
+  await expect(page.getByRole("group", { name: "Active filters" })).toContainText("Tags: energy")
   await expect(utilities).toHaveCount(0)
   await page.goto(basePath + "?sort=name")
 
@@ -1340,7 +1355,7 @@ test("library views, filters, stars and row actions", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Move to folder" }).click()
   await dialog.getByLabel("Folder").fill("Energy")
   await dialog.getByRole("button", { name: "Move" }).click()
-  await expect(views.getByRole("link", { name: /^Energy/ })).toBeVisible()
+  await expect(page.getByRole("row", { name: /Plant overview/ })).toContainText("Energy")
 
   await page.getByRole("button", { name: "Actions for Plant overview" }).click()
   await page.getByRole("menuitem", { name: "Duplicate" }).click()
@@ -1358,7 +1373,7 @@ test("library views, filters, stars and row actions", async ({ page }) => {
   )
   expect(single.data.widgets).toHaveLength(2)
 
-  await page.getByRole("checkbox", { name: "Select all dashboards" }).click()
+  await page.getByRole("checkbox", { name: "Select all rows on this page" }).click()
   await expect(page.getByText("3 selected")).toBeVisible()
   const bulk = await downloaded(page, () =>
     page.getByRole("button", { name: "Export JSON" }).click(),
@@ -1370,8 +1385,8 @@ test("library views, filters, stars and row actions", async ({ page }) => {
   await page.getByRole("button", { name: "Delete dashboards" }).click()
   await expect(page.getByText("No dashboards yet")).toBeVisible()
   expect(dashboards).toHaveLength(0)
-  await expect(page.getByRole("button", { name: "Browse templates" })).toHaveCount(0)
-  await expect(page.getByRole("link", { name: "Browse templates" })).toBeVisible()
+  await page.getByRole("button", { name: "Browse templates" }).click()
+  await expect(page.getByRole("dialog", { name: "New dashboard from a template" })).toBeVisible()
   expect(errors).toEqual([])
 })
 
@@ -1403,7 +1418,16 @@ test("new dashboards from a device profile, a template and imported JSON", async
   ])
   expect(fromProfile.layouts.lg?.map((l) => l.i)).toEqual(fromProfile.widgets.map((w) => w.id))
 
+  // Templates open from the header menu; the old ?view=templates link opens the same picker.
+  await page.goto(basePath)
+  await more.click()
+  await page.getByRole("menuitem", { name: "From template" }).click()
+  const picker = page.getByRole("dialog", { name: "New dashboard from a template" })
+  await expect(picker.getByRole("list", { name: "Templates" }).getByRole("listitem")).toHaveCount(4)
+  await page.keyboard.press("Escape")
   await page.goto(basePath + "?view=templates")
+  await expect(picker).toBeVisible()
+  await expect(page).not.toHaveURL(/view=templates/)
   await page.getByRole("button", { name: "Use template RGB light controls" }).click()
   await expect(dialog.getByRole("list", { name: "Generated panels" })).toHaveCount(0)
   await dialog.getByRole("checkbox", { name: /Boiler room/ }).click()
@@ -1480,9 +1504,8 @@ test("viewers browse the library without create or manage actions", async ({ pag
   await page.goto(basePath + "?view=templates")
   await expect(page.getByRole("link", { name: "Plant overview", exact: true })).toBeVisible()
   await expect(page.getByRole("button", { name: "New dashboard" })).toHaveCount(0)
-  await expect(
-    page.getByRole("navigation", { name: "Dashboard views" }).getByRole("link", { name: /^Templates/ }),
-  ).toHaveCount(0)
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page).not.toHaveURL(/view=templates/)
   await page.getByRole("button", { name: "Actions for Utilities" }).click()
   await expect(page.getByRole("menuitem")).toHaveText(["Open", "Export JSON"])
   await page.keyboard.press("Escape")

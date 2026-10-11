@@ -1,52 +1,28 @@
+import { Status } from "@iot-os/ui/components/status-mark"
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { Link, useSearchParams } from "react-router-dom"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { Link } from "react-router-dom"
 import type { DiscoveryCandidate } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import {
-  FilterBar,
-  FilterCount,
-  FilterSearch,
-} from "@iot-os/ui/components/filter-bar"
-import { PageHeader } from "@iot-os/ui/components/page-header"
-import { Skeleton } from "@iot-os/ui/components/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@iot-os/ui/components/table"
-import { XIcon } from "lucide-react"
+import { DataTable, RefLink, type DataColumn } from "@iot-os/ui/components/data-table"
+import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
+import { CollectionPage } from "@iot-os/ui/templates/collection-page"
+import { InboxIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { RequestError, Confirm } from "../components/forms"
-import {
-  Age,
-  devicePath,
-  DevicePages,
-  DeviceStatus,
-  DeviceEmpty,
-  gatewayPath,
-  useDeviceOrganization,
-} from "./shared"
+import { devicePath, gatewayPath, useDeviceOrganization } from "./shared"
 import { OnboardSource, sourceLabel } from "./OnboardSource"
 
 export function DiscoveryPage() {
   const { org, capabilities } = useDeviceOrganization()
-  const [params, setParams] = useSearchParams(),
-    [page, setPage] = useState(1)
+  const url = useUrlState()
   const [selected, setSelected] = useState<DiscoveryCandidate | null>(null)
   const [review, setReview] = useState<DiscoveryCandidate | null>(null)
-  const search = params.get("search") ?? "",
-    gateway = params.get("gateway") ?? ""
-  function filter(key: string, value: string) {
-    const next = new URLSearchParams(params)
-    if (value) next.set(key, value)
-    else next.delete(key)
-    setParams(next, { replace: true })
-    setPage(1)
-  }
+  const search = url.get("search"),
+    gateway = url.get("gateway"),
+    page = Number(url.get("page") || 1)
   const query = useQuery({
     queryKey: ["discovery-directory", org, search, page, gateway],
     queryFn: () =>
@@ -56,150 +32,128 @@ export function DiscoveryPage() {
         gateway_uuid: gateway || undefined,
         per_page: 25,
       }),
+    placeholderData: keepPreviousData,
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
   })
-  const candidates = query.data?.data ?? []
-  const total = query.data?.meta.total
+  const gateways = useQuery({
+    queryKey: ["gateways", org, "filter-options"],
+    queryFn: () => api.gatewaysPage(org, { per_page: 100 }),
+  })
+  const gatewayOptions = (gateways.data?.data ?? []).map((g) => ({ value: g.uuid, label: g.name }))
+  // A gateway linked from elsewhere may not be on the first page of options; name it from the rows.
+  if (gateway && !gatewayOptions.some((o) => o.value === gateway))
+    gatewayOptions.push({ value: gateway, label: query.data?.data[0]?.gateway.name ?? "Selected gateway" })
+  const columns: DataColumn<DiscoveryCandidate>[] = [
+    {
+      id: "source",
+      header: "Source",
+      mobile: "title",
+      value: (c) => sourceLabel(c),
+      cell: (c) => <span className={c.source_device_id ? "font-mono text-code" : "font-medium"}>{sourceLabel(c)}</span>,
+    },
+    {
+      id: "gateway",
+      header: "Gateway",
+      value: (c) => c.gateway.name,
+      cell: (c) => <RefLink to={gatewayPath(org, c.gateway.uuid)}>{c.gateway.name}</RefLink>,
+    },
+    { id: "state", header: "State", mobile: "badge", value: (c) => c.status, cell: (c) => <Status value={c.status} /> },
+    { id: "metrics", header: "Metrics", align: "end", value: (c) => c.metrics.length, cell: (c) => <span className="tabular-nums">{c.metrics.length}</span> },
+    {
+      id: "device",
+      header: "Device",
+      value: (c) => (c.assigned_device_uuid ? "Onboarded" : c.setup_device_uuid ? "In setup" : "Not onboarded"),
+      cell: (c) =>
+        c.assigned_device_uuid ? (
+          <RefLink to={devicePath(org, c.assigned_device_uuid)}>View device</RefLink>
+        ) : c.setup_device_uuid ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <RefLink to={`${devicePath(org)}/onboard/${encodeURIComponent(c.setup_device_uuid)}?step=3`}>
+              Resume setup
+            </RefLink>
+            {c.status === "rejected" && capabilities.manage && (
+              <Button size="xs" variant="ghost" onClick={() => setReview(c)}>
+                Restore
+              </Button>
+            )}
+          </div>
+        ) : capabilities.manage ? (
+          <div className="relative z-10 flex gap-2">
+            {c.status !== "rejected" && (
+              <Button size="xs" onClick={() => setSelected(c)}>
+                Onboard
+              </Button>
+            )}
+            <Button size="xs" variant="ghost" onClick={() => setReview(c)}>
+              {c.status === "rejected" ? "Restore" : "Ignore"}
+            </Button>
+          </div>
+        ) : (
+          <span className="text-muted-foreground">Not onboarded</span>
+        ),
+    },
+    { id: "last-seen", header: "Last seen", align: "end", value: (c) => c.last_seen_at, cell: (c) => <RelativeTime at={c.last_seen_at} /> },
+  ]
   return (
     <>
-      <PageHeader
+      <CollectionPage
         title="Discovery"
+        description="Sources that gateways announce, waiting to become devices."
         actions={
           <Button asChild variant="outline" size="sm">
             <Link to={gatewayPath(org)}>Gateways</Link>
           </Button>
         }
       >
-        <FilterBar>
-          <FilterSearch
-            label="Search discovered sources"
-            placeholder="Search source or gateway"
-            value={search}
-            onChange={(e) => filter("search", e.target.value)}
-          />
-          {gateway && (
-            <span className="inline-flex h-8 items-center gap-1 rounded-md border pr-0.5 pl-2 text-sm">
-              Gateway: {candidates[0]?.gateway.name ?? "selected"}
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Clear gateway filter"
-                onClick={() => filter("gateway", "")}
-              >
-                <XIcon />
-              </Button>
-            </span>
-          )}
-          {total !== undefined && (
-            <FilterCount>
-              {total === 1 ? "1 source" : `${total} sources`}
-            </FilterCount>
-          )}
-        </FilterBar>
-      </PageHeader>
-      <div className="p-4 md:p-6">
-        <RequestError error={query.error} />
-        {query.isPending ? (
-          <Skeleton className="h-40 w-full" />
-        ) : candidates.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Source</TableHead>
-                <TableHead>Gateway</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead className="text-right">Metrics</TableHead>
-                <TableHead>Device</TableHead>
-                <TableHead className="text-right">Last seen</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {candidates.map((c) => (
-                <TableRow key={c.uuid}>
-                  <TableCell className={c.source_device_id ? "font-mono" : undefined}>
-                    {sourceLabel(c)}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      className="text-primary underline-offset-4 hover:underline"
-                      to={gatewayPath(org, c.gateway.uuid)}
-                    >
-                      {c.gateway.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <DeviceStatus value={c.status} />
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {c.metrics.length}
-                  </TableCell>
-                  <TableCell>
-                    {c.assigned_device_uuid ? (
-                      <Link
-                        className="text-primary underline-offset-4 hover:underline"
-                        to={devicePath(org, c.assigned_device_uuid)}
-                      >
-                        View device
-                      </Link>
-                    ) : c.setup_device_uuid ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                          className="text-primary underline-offset-4 hover:underline"
-                          to={`${devicePath(org)}/onboard/${encodeURIComponent(c.setup_device_uuid)}?step=3`}
-                        >
-                          Resume setup
-                        </Link>
-                        {c.status === "rejected" && capabilities.manage && (
-                          <Button size="xs" variant="ghost" onClick={() => setReview(c)}>
-                            Restore
-                          </Button>
-                        )}
-                      </div>
-                    ) : capabilities.manage ? (
-                      <div className="flex gap-2">
-                        {c.status !== "rejected" && (
-                          <Button size="xs" onClick={() => setSelected(c)}>
-                            Onboard
-                          </Button>
-                        )}
-                        <Button size="xs" variant="ghost" onClick={() => setReview(c)}>
-                          {c.status === "rejected" ? "Restore" : "Ignore"}
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">Not onboarded</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Age value={c.last_seen_at} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : search || gateway ? (
-          <DeviceEmpty title="No matching sources">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setParams(new URLSearchParams(), { replace: true })}
-            >
-              Clear filters
-            </Button>
-          </DeviceEmpty>
-        ) : (
-          <DeviceEmpty
-            title="No sources discovered yet"
-            description="Sources appear here when a registered gateway connects and announces them."
-          />
-        )}
-        <DevicePages
-          meta={query.data?.meta}
-          onPage={setPage}
+        <DataTable
+          id="discovery"
           label="Discovered sources"
+          noun={["source", "sources"]}
+          rows={query.data?.data}
+          rowKey={(c) => c.uuid}
+          rowLabel={(c) => sourceLabel(c)}
+          columns={columns}
+          error={query.error ? <RequestError error={query.error} /> : undefined}
+          search={{
+            label: "Search discovered sources",
+            placeholder: "Search source or gateway",
+            value: search,
+            onChange: (value) => url.set({ search: value }),
+          }}
+          filters={[
+            {
+              id: "gateway",
+              label: "Gateway",
+              options: gatewayOptions,
+              value: gateway ? [gateway] : [],
+              onChange: (value) => url.set({ gateway: value[0] ?? null }),
+            },
+          ]}
+          filtered={Boolean(search || gateway)}
+          onReset={() => url.clear(["search", "gateway"])}
+          groups={[
+            { id: "gateway", label: "Gateway", value: (c) => c.gateway.name },
+            { id: "state", label: "State", value: (c) => c.status },
+          ]}
+          pagination={{
+            page,
+            pageSize: 25,
+            total: query.data?.meta.total ?? 0,
+            pageCount: query.data?.meta.last_page,
+            onPageChange: (next) => url.set({ page: next > 1 ? String(next) : null }),
+          }}
+          refreshSeconds={5}
+          empty={
+            <EmptyState
+              inset
+              icon={<InboxIcon />}
+              title="No sources discovered yet"
+              description="Sources appear here when a registered gateway connects and announces them."
+            />
+          }
         />
-      </div>
+      </CollectionPage>
       {selected && (
         <OnboardSource
           key={selected.uuid}

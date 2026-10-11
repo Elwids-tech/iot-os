@@ -1,4 +1,4 @@
-import type { StatusTone } from "@iot-os/ui/components/status-mark"
+import { statusOf, type Status } from "@iot-os/ui/lib/status"
 
 /** Fields added by `GET …/workflows/dag` for the automation directory. */
 export type DirectorySummary = {
@@ -36,14 +36,8 @@ export function lastActivity(w: DirectorySummary): { label: string; at: string }
   return candidates.sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0]
 }
 
-export function deploymentState(status: string): { tone: StatusTone; label: string } {
-  return ({
-    applied: { tone: "good", label: "Active" },
-    pending: { tone: "info", label: "Pending" },
-    suspended: { tone: "warning", label: "Suspended" },
-    failed: { tone: "critical", label: "Failed" },
-    inactive: { tone: "muted", label: "Inactive" },
-  } as Record<string, { tone: StatusTone; label: string }>)[status] ?? { tone: "muted", label: status }
+export function deploymentState(status: string): Status {
+  return statusOf(status, "automation")
 }
 
 const units: [Intl.RelativeTimeFormatUnit, number][] = [["day", 86400], ["hour", 3600], ["minute", 60]]

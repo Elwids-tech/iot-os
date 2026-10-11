@@ -141,11 +141,13 @@ test("administrators invite people, send the link again and revoke it", async ({
   // The confirmation toast is still fading in, which axe reads as low contrast.
   expect((await new AxeBuilder({ page }).exclude("[data-sonner-toaster]").analyze()).violations).toEqual([])
 
-  await row.getByRole("button", { name: "Send again" }).click()
+  await page.getByRole("button", { name: "Actions for new.person@example.test" }).click()
+  await page.getByRole("menuitem", { name: "Send again" }).click()
   await expect(page.getByText("A new link was sent to new.person@example.test")).toBeVisible()
   expect(state.resent).toBe(1)
 
-  await row.getByRole("button", { name: "Revoke" }).click()
+  await page.getByRole("button", { name: "Actions for new.person@example.test" }).click()
+  await page.getByRole("menuitem", { name: "Revoke" }).click()
   await page.getByRole("alertdialog").getByRole("button", { name: "Revoke invitation" }).click()
   await expect(page.getByText("No open invitations")).toBeVisible()
   expect(errors).toEqual([])
@@ -189,19 +191,19 @@ test("the role editor locks permissions you cannot grant and keeps Organization 
   await page.goto(`${base}/roles`)
   await expect(page.getByRole("row", { name: /Organization Admin/ })).toContainText("Every available permission")
 
-  await page.getByRole("link", { name: "Create role" }).click()
+  await page.getByRole("link", { name: "New role" }).click()
   await page.getByLabel("Role name").fill("Viewers")
   await expect(page.getByRole("checkbox", { name: "Manage devices" })).toBeDisabled()
   await page.getByRole("checkbox", { name: "View devices" }).check()
   await page.getByRole("button", { name: "Create role" }).click()
   await expect(page.getByText("Viewers created")).toBeVisible()
-  await expect(page).toHaveURL(`${base}/roles`)
+  await expect(page).toHaveURL(`${base}/settings/roles`)
   expect(state.roles.at(-1).permissions).toEqual([permission("Device.view")])
 
   await page.getByRole("link", { name: "Viewers" }).click()
   await page.getByRole("button", { name: "Delete role" }).click()
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete role" }).click()
-  await expect(page).toHaveURL(`${base}/roles`)
+  await expect(page).toHaveURL(`${base}/settings/roles`)
   await expect(page.getByText("Viewers deleted")).toBeVisible()
   await expect(page.getByRole("link", { name: "Viewers" })).toHaveCount(0)
 

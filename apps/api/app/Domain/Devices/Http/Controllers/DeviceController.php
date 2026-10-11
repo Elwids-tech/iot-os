@@ -25,10 +25,16 @@ final class DeviceController
 {
     public function __construct(private readonly DeviceAuthorization $authorization, private readonly DeviceConfigurationService $configuration) {}
 
+    /** List sorts: `?sort=last_seen` ascending, `?sort=-last_seen` descending. */
+    private const SORTS = ['name' => 'name', 'code' => 'code', 'last_seen' => 'last_seen_at', 'created' => 'created_at'];
+
     public function index(Request $request, Organization $organization)
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'lifecycle' => ['nullable', Rule::in(['registered', 'active', 'deactivated', 'archived'])], 'profile_uuid' => ['nullable', 'uuid'], 'site_uuid' => ['nullable', 'uuid'], 'tag' => ['nullable', 'string', 'max:32'], 'page' => ['integer', 'min:1'], 'per_page' => ['integer', 'min:1', 'max:100']]);
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'lifecycle' => ['nullable', Rule::in(['registered', 'active', 'deactivated', 'archived'])], 'profile_uuid' => ['nullable', 'uuid'], 'site_uuid' => ['nullable', 'uuid'], 'tag' => ['nullable', 'string', 'max:32'], 'sort' => ['nullable', Rule::in(array_merge(array_keys(self::SORTS), array_map(fn ($key) => '-'.$key, array_keys(self::SORTS))))], 'page' => ['integer', 'min:1'], 'per_page' => ['integer', 'min:1', 'max:100']]);
+        $sort = $filters['sort'] ?? 'name';
+        $column = self::SORTS[ltrim($sort, '-')];
+        $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
         $result = Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile', 'site'])
             ->when($filters['site_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('site', fn ($site) => $site->where('uuid', $uuid)))
             ->when($filters['tag'] ?? null, fn ($q, $tag) => $q->whereJsonContains('tags', trim($tag)))
@@ -38,9 +44,11 @@ final class DeviceController
             ->when($filters['profile_uuid'] ?? null, fn ($q, $uuid) => $q->where(fn ($q) => $q
                 ->whereHas('appliedConfiguration.artifact.profile', fn ($p) => $p->where('uuid', $uuid))
                 ->orWhere(fn ($q) => $q->whereNull('applied_configuration_uuid')->whereHas('lastAppliedConfiguration.artifact.profile', fn ($p) => $p->where('uuid', $uuid)))))
-            ->orderBy('name')->paginate($request->integer('per_page', 25));
+            // Never-seen devices sort last either way; id breaks ties so pages never overlap.
+            ->when($column === 'last_seen_at', fn ($q) => $q->orderByRaw('CASE WHEN last_seen_at IS NULL THEN 1 ELSE 0 END'))
+            ->orderBy($column, $direction)->orderBy('id')->paginate($request->integer('per_page', 25));
 
-        return response()->json(['data' => $result->getCollection()->map(fn ($d) => DeviceView::device($d)), 'meta' => ['current_page' => $result->currentPage(), 'last_page' => $result->lastPage(), 'total' => $result->total()]]);
+        return response()->json(['data' => $result->getCollection()->map(fn ($d) => DeviceView::device($d)), 'meta' => ['current_page' => $result->currentPage(), 'last_page' => $result->lastPage(), 'total' => $result->total(), 'sort' => $sort]]);
     }
 
     private function fields(Organization $organization, ?Device $device = null): array

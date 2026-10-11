@@ -24,6 +24,7 @@ import {
   FilterSearch,
 } from "@iot-os/ui/components/filter-bar"
 import { PageHeader } from "@iot-os/ui/components/page-header"
+import { Panel, PanelContent } from "@iot-os/ui/components/panel"
 import { PermissionMatrix } from "@iot-os/ui/components/permission-matrix"
 import { Popover, PopoverContent, PopoverTrigger } from "@iot-os/ui/components/popover"
 import {
@@ -378,6 +379,8 @@ export function RolePermissionsPage() {
           </Alert>
         ) : null}
 
+        <Panel>
+          <PanelContent>
         {visiblePermissions.length === 0 ? (
           <Empty className="min-h-64 border-0">
             <EmptyHeader>
@@ -401,6 +404,8 @@ export function RolePermissionsPage() {
             onChange={setSelectedPermissionNames}
           />
         )}
+          </PanelContent>
+        </Panel>
       </div>
 
       {role.permissions_editable ? (

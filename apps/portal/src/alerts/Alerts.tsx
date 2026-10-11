@@ -1,3 +1,4 @@
+import { RelativeTime } from "@iot-os/ui/components/freshness";
 import { useState, type ReactNode } from "react";
 import {
   useMutation,
@@ -7,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import {
   Link,
+  Navigate,
   Route,
   Routes,
   useParams,
@@ -19,20 +21,14 @@ import type {
   WorkflowAlertSource,
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@iot-os/ui/components/card";
 import { Checkbox } from "@iot-os/ui/components/checkbox";
 import { Field, FieldLabel } from "@iot-os/ui/components/field";
-import { FilterBar, FilterCount } from "@iot-os/ui/components/filter-bar";
 import { PageHeader } from "@iot-os/ui/components/page-header";
+import { InboxItem, InboxList, InboxPage } from "@iot-os/ui/templates/inbox-page";
+import { Popover, PopoverContent, PopoverTrigger } from "@iot-os/ui/components/popover";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
-import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark";
+import { Status, StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark";
 import {
   Table,
   TableBody,
@@ -52,7 +48,6 @@ import {
   AlertTitle,
 } from "@iot-os/ui/components/alert";
 import { formatAge, formatDateTime } from "@iot-os/ui/lib/format";
-import { cn } from "@iot-os/ui/lib/utils";
 import { api } from "../lib/api";
 import { useUnsavedContribution } from "../lib/unsaved";
 import { Confirm, RequestError } from "../components/forms";
@@ -62,10 +57,10 @@ import {
   devicePath,
   useDeviceOrganization,
 } from "../devices/shared";
-import { NotificationsPage } from "./NotificationSettings";
-import { EmailPreferencesPage } from "./EmailPreferences";
+import { notificationsPath } from "./NotificationSettings";
 import { EventLogPage } from "./EventLog";
 import { Inbox } from "./Inbox";
+import { ListFilterIcon } from "lucide-react";
 import {
   alertDuration,
   alertQuery,
@@ -73,22 +68,27 @@ import {
   conditionOf,
   sourceKey,
 } from "./model";
-import { Age, useWide } from "./shared";
+import { useWide } from "./shared";
 
 export default function AlertRoutes() {
   return (
     <Routes>
       <Route index element={<AlertsPage />} />
       <Route path="events" element={<EventLogPage />} />
-      <Route path="preferences" element={<EmailPreferencesPage />} />
-      <Route path="notifications" element={<NotificationsPage />} />
-      <Route
-        path="notifications/:workflowUuid"
-        element={<NotificationsPage />}
-      />
+      <Route path="preferences" element={<MovedToSettings section="email" />} />
+      <Route path="notifications" element={<MovedToSettings section="notifications" />} />
+      <Route path="notifications/:workflowUuid" element={<MovedToSettings section="notifications" />} />
       <Route path=":alertUuid" element={<AlertsPage />} />
     </Routes>
   );
+}
+
+/** Notification settings and email preferences moved to Settings; old links keep working. */
+function MovedToSettings({ section }: { section: "notifications" | "email" }) {
+  const { org } = useDeviceOrganization();
+  const { workflowUuid } = useParams();
+  const rest = workflowUuid ? `/${encodeURIComponent(workflowUuid)}` : "";
+  return <Navigate replace to={`/organizations/${org}/settings/${section}${rest}`} />;
 }
 
 const conditionMark = (alert: WorkflowAlert) =>
@@ -108,7 +108,7 @@ function AlertMeta({ alert }: { alert: WorkflowAlert }) {
       {alertDuration(alert)}
       {alert.cleared_at && (
         <>
-          , <Age value={alert.cleared_at} />
+          , <RelativeTime at={alert.cleared_at} never={null} />
         </>
       )}
       {" · "}
@@ -137,32 +137,16 @@ function AlertRow({
   children?: ReactNode;
 }) {
   return (
-    <li
-      className={cn(
-        "relative flex gap-3 border-b px-4 py-3 last:border-b-0 hover:bg-muted/50 md:px-6",
-        current && "bg-muted shadow-[inset_2px_0_0_var(--primary)]",
-      )}
-    >
-      {select && <div className="relative z-10 flex h-6 items-center">{select}</div>}
-      <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5">
-        <Link
-          to={to}
-          aria-current={current ? "page" : undefined}
-          className="truncate font-medium outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
-        >
-          {alertTitle(alert)}
-        </Link>
-        <span className="text-xs">{conditionMark(alert)}</span>
-        <span className="col-span-2 truncate text-xs text-muted-foreground">
-          <AlertMeta alert={alert} />
-        </span>
-        {children && (
-          <span className="col-span-2 truncate text-xs text-muted-foreground">
-            {children}
-          </span>
-        )}
-      </div>
-    </li>
+    <InboxItem
+      to={to}
+      title={alertTitle(alert)}
+      tone={alert.cleared_at ? "muted" : alert.acknowledged_at ? "info" : "warning"}
+      current={current}
+      mark={conditionMark(alert)}
+      meta={<AlertMeta alert={alert} />}
+      extra={children}
+      select={select}
+    />
   );
 }
 
@@ -171,6 +155,10 @@ function AlertRow({
  * Both layouts are one tree so crossing the breakpoint keeps the detail (and its comment draft) mounted.
  * Repeats of one workflow on one device are grouped unless the URL asks for individual alerts.
  */
+const segmented = "gap-0 rounded-lg bg-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--border)]";
+const segment =
+  "gap-1.5 rounded-md! px-2.5 text-muted-foreground hover:bg-transparent data-[state=on]:border-transparent data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-panel data-[state=on]:hover:bg-card data-[state=on]:hover:text-foreground";
+
 function AlertsPage() {
   const { alertUuid: selected } = useParams();
   const wide = useWide();
@@ -317,75 +305,104 @@ function AlertsPage() {
         ? ["No cleared alerts", "Alerts appear here once their condition clears."]
         : ["No alerts yet", "Alerts appear when an active workflow's condition changes."];
   const total = query.data?.meta.total;
+  const activeFilters = [params.get("device") && deviceName, params.get("workflow") && workflowName].filter(Boolean).length;
   return (
-    <Inbox
-      tab="alerts"
-      header={!narrowDetail || denied}
-      filters={
-        !denied && (
-          <FilterBar>
-            <ToggleGroup
-              type="single"
-              size="sm"
-              variant="outline"
-              spacing={0}
-              aria-label="Condition"
-              value={condition}
-              onValueChange={(value) => {
-                if (value) change("condition", value === "active" ? null : value);
-              }}
-            >
-              {conditions.map((value, index) => (
-                <ToggleGroupItem key={value} value={value}>
-                  {value === "active" ? "Active" : value === "cleared" ? "Cleared" : "All"}
-                  <span className="tabular-nums opacity-70">
-                    {counts[index].data?.meta.total}
+    <Inbox tab="alerts" header={!narrowDetail || denied}>
+      {denied ? (
+        <div className="p-4 md:p-6">
+          <DeviceEmpty
+            title="Alerts unavailable"
+            description="You need device viewing access in this organization."
+          />
+        </div>
+      ) : (
+        <InboxPage
+          title="Alerts"
+          header={false}
+          wide={wide}
+          showDetail={Boolean(selected)}
+          toolbar={
+            <>
+              <ToggleGroup
+                type="single"
+                size="sm"
+                spacing={0}
+                aria-label="Condition"
+                value={condition}
+                onValueChange={(value) => {
+                  if (value) change("condition", value === "active" ? null : value);
+                }}
+                className={segmented}
+              >
+                {conditions.map((value, index) => (
+                  <ToggleGroupItem key={value} value={value} className={segment}>
+                    {value === "active" ? "Active" : value === "cleared" ? "Cleared" : "All"}
+                    <span className="font-normal text-muted-foreground tabular-nums">
+                      {counts[index].data?.meta.total}
+                    </span>
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <ToggleGroup
+                type="single"
+                size="sm"
+                spacing={0}
+                aria-label="Repeats"
+                value={grouped ? "grouped" : "individual"}
+                onValueChange={(value) => {
+                  if (value) change("view", value === "grouped" ? null : value);
+                }}
+                className={segmented}
+              >
+                <ToggleGroupItem value="grouped" className={segment}>Grouped</ToggleGroupItem>
+                <ToggleGroupItem value="individual" className={segment}>Individual</ToggleGroupItem>
+              </ToggleGroup>
+              <Field orientation="horizontal" className="w-auto">
+                <Checkbox
+                  id="alerts-unacknowledged"
+                  checked={params.get("acknowledged") === "0"}
+                  onCheckedChange={(checked) =>
+                    change("acknowledged", checked === true ? "0" : null)
+                  }
+                />
+                <FieldLabel htmlFor="alerts-unacknowledged" className="font-normal">
+                  Unacknowledged only
+                </FieldLabel>
+              </Field>
+              <Field orientation="horizontal" className="w-auto">
+                <Checkbox
+                  id="alerts-mine"
+                  checked={mine}
+                  onCheckedChange={(checked) =>
+                    change("assignee", checked === true ? "me" : null)
+                  }
+                />
+                <FieldLabel htmlFor="alerts-mine" className="font-normal">
+                  Assigned to me
+                </FieldLabel>
+              </Field>
+              <div className="ml-auto flex items-center gap-2">
+                {total !== undefined && (
+                  <span role="status" className="text-meta text-muted-foreground tabular-nums">
+                    {grouped ? plural(total, "source") : plural(total, "alert")}
                   </span>
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-            <ToggleGroup
-              type="single"
-              size="sm"
-              variant="outline"
-              spacing={0}
-              aria-label="Repeats"
-              value={grouped ? "grouped" : "individual"}
-              onValueChange={(value) => {
-                if (value) change("view", value === "grouped" ? null : value);
-              }}
-            >
-              <ToggleGroupItem value="grouped">Grouped</ToggleGroupItem>
-              <ToggleGroupItem value="individual">Individual</ToggleGroupItem>
-            </ToggleGroup>
-            <Field orientation="horizontal" className="w-auto">
-              <Checkbox
-                id="alerts-unacknowledged"
-                checked={params.get("acknowledged") === "0"}
-                onCheckedChange={(checked) =>
-                  change("acknowledged", checked === true ? "0" : null)
-                }
-              />
-              <FieldLabel htmlFor="alerts-unacknowledged" className="font-normal">
-                Unacknowledged only
-              </FieldLabel>
-            </Field>
-            <Field orientation="horizontal" className="w-auto">
-              <Checkbox
-                id="alerts-mine"
-                checked={mine}
-                onCheckedChange={(checked) =>
-                  change("assignee", checked === true ? "me" : null)
-                }
-              />
-              <FieldLabel htmlFor="alerts-mine" className="font-normal">
-                Assigned to me
-              </FieldLabel>
-            </Field>
+                )}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" aria-label={activeFilters ? `Filters, ${activeFilters} active` : "Filters"}>
+                      <ListFilterIcon data-icon="inline-start" />
+                      Filters
+                      {activeFilters > 0 && (
+                        <span className="grid min-w-4.5 place-items-center rounded-full bg-primary px-1 text-micro leading-4.5 font-semibold text-primary-foreground tabular-nums">
+                          {activeFilters}
+                        </span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80 gap-3 p-3" aria-label="Filter alerts">
             <SearchableSelect
               label="Device"
-              labelHidden
-              className="w-full sm:w-64"
+              className="w-full"
               value={params.get("device") ?? ""}
               selectedLabel={params.get("device") ? deviceName : "All devices"}
               options={[
@@ -408,8 +425,7 @@ function AlertsPage() {
             />
             <SearchableSelect
               label="Workflow"
-              labelHidden
-              className="w-full sm:w-64"
+              className="w-full"
               value={params.get("workflow") ?? ""}
               selectedLabel={params.get("workflow") ? workflowName : "All workflows"}
               options={[
@@ -430,33 +446,23 @@ function AlertsPage() {
               loading={workflows.isFetching}
               onChange={(value) => change("workflow", value)}
             />
-            {total !== undefined && (
-              <FilterCount>
-                {grouped ? plural(total, "source") : plural(total, "alert")}
-              </FilterCount>
-            )}
-          </FilterBar>
-        )
-      }
-    >
-      {denied ? (
-        <div className="p-4 md:p-6">
-          <DeviceEmpty
-            title="Alerts unavailable"
-            description="You need device viewing access in this organization."
-          />
-        </div>
-      ) : (
-        <div className="flex-1 xl:grid xl:grid-cols-[440px_minmax(0,1fr)]">
-          {!narrowDetail && (
-            <div className="min-w-0 xl:border-r">
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </>
+          }
+          notices={
+            <>
               {(organization.error || query.error) && (
-                <div className="p-4">
-                  <RequestError error={organization.error ?? query.error} />
-                </div>
+                <RequestError error={organization.error ?? query.error} />
               )}
+              {!confirm && <RequestError error={acknowledge.error} />}
+            </>
+          }
+          list={
+            <>
               {capabilities.manage && (grouped ? groups : rows).length > 0 && (
-                <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-1.5 md:px-6">
+                <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-b bg-sunken px-4 py-1.5">
                   <Checkbox
                     aria-label={grouped ? "Select every source on this page" : "Select every alert on this page"}
                     disabled={!selectable.length || acknowledge.isPending}
@@ -490,13 +496,12 @@ function AlertsPage() {
                   </Button>
                 </div>
               )}
-              {!confirm && <RequestError error={acknowledge.error} />}
               {query.isPending || organization.isPending ? (
                 <div className="p-4">
                   <Skeleton className="h-48 w-full" />
                 </div>
               ) : shown.length ? (
-                <ul aria-label={grouped ? "Alert sources" : "Alerts"} className="border-b">
+                <InboxList label={grouped ? "Alert sources" : "Alerts"}>
                   {grouped
                     ? groups.map((group) => {
                         const key = sourceKey(group);
@@ -547,7 +552,7 @@ function AlertsPage() {
                           }
                         />
                       ))}
-                </ul>
+                </InboxList>
               ) : !query.error ? (
                 <div className="p-4">
                   <DeviceEmpty title={empty[0]} description={empty[1]} />
@@ -560,7 +565,7 @@ function AlertsPage() {
                   )}
                 </div>
               ) : null}
-              <div className="px-4 pb-4 md:px-6">
+              <div className="border-t px-4 empty:hidden">
                 <DevicePages
                   meta={query.data?.meta}
                   label="Alerts"
@@ -584,19 +589,21 @@ function AlertsPage() {
                 onClose={() => setConfirm(false)}
                 onConfirm={() => acknowledge.mutateAsync()}
               />
-            </div>
-          )}
-          {selected ? (
-            <AlertDetail
-              key={`${org}:${selected}`}
-              id={selected}
-              search={search}
-              back={narrowDetail ? list + search : undefined}
-            />
-          ) : wide ? (
-            <AlertsSummary />
-          ) : null}
-        </div>
+            </>
+          }
+          detail={
+            selected ? (
+              <AlertDetail
+                key={`${org}:${selected}`}
+                id={selected}
+                search={search}
+                back={narrowDetail ? list + search : undefined}
+              />
+            ) : wide ? (
+              <AlertsSummary />
+            ) : null
+          }
+        />
       )}
     </Inbox>
   );
@@ -646,26 +653,22 @@ function AlertsSummary() {
   });
   return (
     <section aria-labelledby="alerts-summary" className="flex max-w-3xl flex-col gap-4 p-4 md:p-6">
-      <h2 id="alerts-summary" className="text-base font-semibold">
+      <h2 id="alerts-summary" className="text-heading">
         Summary
       </h2>
       <div className="grid gap-4 sm:grid-cols-3">
         {figures.map((figure, index) => (
-          <Card key={figure.label} size="sm">
-            <CardHeader>
-              <CardTitle>{figure.label}</CardTitle>
-              <CardDescription>{figure.hint}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link
-                to={figure.to}
-                className="text-3xl font-semibold tabular-nums underline-offset-4 hover:underline"
-                aria-label={`${figure.label}: ${counts[index].data?.meta.total ?? "loading"}`}
-              >
-                {counts[index].data?.meta.total.toLocaleString() ?? "—"}
-              </Link>
-            </CardContent>
-          </Card>
+          <div key={figure.label} className="flex flex-col gap-1 rounded-lg bg-sunken p-3 shadow-[inset_0_0_0_1px_var(--border)]">
+            <span className="text-heading">{figure.label}</span>
+            <span className="text-meta text-muted-foreground">{figure.hint}</span>
+            <Link
+              to={figure.to}
+              className="text-display underline-offset-4 hover:underline"
+              aria-label={`${figure.label}: ${counts[index].data?.meta.total ?? "loading"}`}
+            >
+              {counts[index].data?.meta.total.toLocaleString() ?? "—"}
+            </Link>
+          </div>
         ))}
       </div>
       <p className="text-sm text-muted-foreground">
@@ -794,12 +797,6 @@ function SourceOccurrences({
   );
 }
 
-const deliveryTones: Record<string, StatusTone> = {
-  sent: "good",
-  failed: "critical",
-  pending: "info",
-  cancelled: "muted",
-};
 const sentence = (value: string) =>
   value.charAt(0).toUpperCase() + value.slice(1).replaceAll("_", " ");
 /** Clock time for today, date and time otherwise. */
@@ -913,9 +910,7 @@ function AlertDetail({
   const occurrence = alert ? `Occurrence ${alert.episode}` : undefined;
   // Sections sit under the page h1 when narrow and under the pane's h2 when wide.
   const Heading = back ? "h2" : "h3";
-  const settings = alert
-    ? `/organizations/${org}/alerts/notifications/${alert.workflow_uuid}`
-    : "";
+  const settings = alert ? `${notificationsPath(org)}/${alert.workflow_uuid}` : "";
   const usedIn =
     alert && dashboards.data
       ? dashboards.data.filter((dashboard) =>
@@ -1051,7 +1046,7 @@ function AlertDetail({
                   <StatusMark tone="good">Acknowledged</StatusMark>
                   <span className="block text-xs text-muted-foreground">
                     {alert.acknowledged_by_name ?? "A former member"} ·{" "}
-                    <Age value={alert.acknowledged_at} />
+                    <RelativeTime at={alert.acknowledged_at} never={null} />
                   </span>
                 </>
               ) : (
@@ -1068,7 +1063,7 @@ function AlertDetail({
                 <>
                   {formatDateTime(alert.activated_at)}
                   <span className="block text-xs text-muted-foreground">
-                    <Age value={alert.activated_at} />
+                    <RelativeTime at={alert.activated_at} never={null} />
                   </span>
                 </>
               ) : (
@@ -1197,9 +1192,7 @@ function AlertDetail({
                             {item.type === "activated" ? "Activation" : "Recovery"}
                           </TableCell>
                           <TableCell className="whitespace-normal">
-                            <StatusMark tone={deliveryTones[item.status] ?? "muted"}>
-                              {sentence(item.status)}
-                            </StatusMark>
+                            <Status value={item.status} domain="delivery" />
                             {item.diagnostic && (
                               <span className="block text-xs text-muted-foreground">
                                 {item.diagnostic}
@@ -1210,7 +1203,7 @@ function AlertDetail({
                             {item.attempts}
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground tabular-nums">
-                            {last ? <Age value={last} /> : "None"}
+                            {last ? <RelativeTime at={last} never={null} /> : "None"}
                           </TableCell>
                           <TableCell className="text-right">
                             {item.status === "failed" && (

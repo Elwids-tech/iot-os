@@ -1,60 +1,27 @@
-import { useState } from "react"
+import { RelativeTime } from "@iot-os/ui/components/freshness"
+import { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 import type { Dashboard } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import { Checkbox } from "@iot-os/ui/components/checkbox"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@iot-os/ui/components/command"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@iot-os/ui/components/dropdown-menu"
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@iot-os/ui/components/empty"
-import {
-  FilterBar,
-  FilterCount,
-  FilterSearch,
-} from "@iot-os/ui/components/filter-bar"
-import { PageHeader } from "@iot-os/ui/components/page-header"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@iot-os/ui/components/popover"
-import { Skeleton } from "@iot-os/ui/components/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@iot-os/ui/components/table"
-import { formatAge, formatDateTime } from "@iot-os/ui/lib/format"
+import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table"
+import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { cn } from "@iot-os/ui/lib/utils"
 import {
-  ChevronDownIcon,
-  FolderIcon,
-  MoreHorizontalIcon,
+  CpuIcon,
+  EllipsisIcon,
+  FileUpIcon,
+  LayoutDashboardIcon,
+  LayoutTemplateIcon,
   PlusIcon,
   StarIcon,
   Trash2Icon,
@@ -63,28 +30,30 @@ import { api } from "../lib/api"
 import { Confirm, errorMessage, RequestError } from "../components/forms"
 import { dashboardPath } from "./model"
 import { definition, downloadJson } from "./importExport"
-import { TEMPLATES, type DashboardTemplate } from "./templates"
+import type { DashboardTemplate } from "./templates"
 import {
   BlankDialog,
   DuplicateDialog,
   GenerateDialog,
   ImportDialog,
   SettingsDialog,
+  TemplatesDialog,
 } from "./LibraryDialogs"
 
 const VIEWS = {
-  all: "All dashboards",
+  all: "All",
   starred: "Starred",
   recent: "Recently viewed",
   mine: "Created by me",
-  templates: "Templates",
 } as const
 type View = keyof typeof VIEWS
 const SORTS = { viewed: "Last viewed", name: "Name", updated: "Updated" }
 type Sort = keyof typeof SORTS
+/** Folder filter value for dashboards without a folder; `?folder=` (empty) means the same. */
+const UNFILED = "__unfiled__"
 
 type Open =
-  | { kind: "blank" | "import" | "profile" }
+  | { kind: "blank" | "import" | "profile" | "templates" }
   | { kind: "template"; template: DashboardTemplate }
   | { kind: "settings" | "move" | "duplicate"; uuid: string }
   | { kind: "delete"; uuids: string[] }
@@ -116,14 +85,6 @@ function patch(
   return "?" + next.toString()
 }
 
-function Age({ iso, never = "Never" }: { iso: string | null; never?: string }) {
-  if (!iso) return <span className="text-muted-foreground">{never}</span>
-  return (
-    <time dateTime={iso} title={formatDateTime(iso)}>
-      {formatAge(iso)} ago
-    </time>
-  )
-}
 
 export function DashboardLibrary({
   org,
@@ -145,23 +106,28 @@ export function DashboardLibrary({
     navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [open, setOpen] = useState<Open | null>(null)
-  const [selected, setSelected] = useState<string[]>([])
 
   const rawView = params.get("view")
-  const view: View =
-    rawView && rawView in VIEWS && (rawView !== "templates" || canManage)
-      ? (rawView as View)
-      : "all"
-  const folder = params.get("folder")
+  const view: View = rawView && rawView in VIEWS ? (rawView as View) : "all"
+  // null: any folder; "": dashboards without one.
+  const rawFolder = params.get("folder")
+  const folder = rawFolder === null ? null : rawFolder === UNFILED ? "" : rawFolder
   const search = params.get("q") ?? ""
   const tags = params.getAll("tag")
   const devices = params.getAll("device")
   const rawSort = params.get("sort")
   const sort: Sort = rawSort && rawSort in SORTS ? (rawSort as Sort) : "viewed"
-  const filtered = Boolean(search || tags.length || devices.length)
+  const filtered = Boolean(search || tags.length || devices.length || folder !== null)
+
+  // Templates used to be a view; old links open the template picker instead.
+  useEffect(() => {
+    if (rawView !== "templates") return
+    if (canManage) setOpen({ kind: "templates" })
+    setParams(patch(params, { view: null }), { replace: true })
+  }, [rawView, canManage])
 
   const all = query.data ?? []
-  const byView: Record<Exclude<View, "templates">, Dashboard[]> = {
+  const byView: Record<View, Dashboard[]> = {
     all,
     starred: all.filter((d) => d.starred),
     recent: all.filter((d) => d.last_viewed_at),
@@ -178,7 +144,7 @@ export function DashboardLibrary({
   for (const d of all) for (const [id, name] of devicesOf(d)) allDevices.set(id, name)
 
   const needle = search.trim().toLowerCase()
-  const rows = (view === "templates" ? [] : byView[view])
+  const rows = byView[view]
     .filter((d) => folder === null || (d.folder ?? "") === folder)
     .filter(
       (d) =>
@@ -202,7 +168,6 @@ export function DashboardLibrary({
           : (b.last_viewed_at ?? "").localeCompare(a.last_viewed_at ?? "") ||
             a.name.localeCompare(b.name),
     )
-  const chosen = all.filter((d) => selected.includes(d.uuid))
   const find = (uuid: string) => all.find((d) => d.uuid === uuid)
 
   async function created(dashboard: Dashboard, edit = false) {
@@ -226,458 +191,247 @@ export function DashboardLibrary({
     else downloadJson("dashboards", list.map(definition))
   }
 
-  const navLink = (current: boolean) =>
-    cn(
-      "flex h-8 shrink-0 items-center gap-2 rounded-md px-2 text-sm whitespace-nowrap outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring md:w-full",
-      current && "bg-muted font-medium",
-    )
-  const count = (n: number) => (
-    <span className="ml-auto pl-2 text-xs text-muted-foreground tabular-nums">
-      {n}
-    </span>
-  )
   const deleting = open?.kind === "delete" ? open.uuids.flatMap((id) => find(id) ?? []) : []
   const target = open && "uuid" in open ? find(open.uuid) : undefined
+  const sortState = [{ id: sort, desc: sort !== "name" }]
+  const columns: DataColumn<Dashboard>[] = [
+    {
+      id: "star",
+      header: "Starred",
+      headerHidden: true,
+      hideable: false,
+      mobile: "hidden",
+      className: "w-8",
+      cell: (d) => (
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          aria-label={`Star ${d.name}`}
+          aria-pressed={d.starred}
+          onClick={() => star(d)}
+        >
+          <StarIcon className={cn(d.starred && "fill-current text-warning")} />
+        </Button>
+      ),
+    },
+    {
+      id: "name",
+      header: "Name",
+      mobile: "title",
+      sortable: true,
+      className: "max-w-64 truncate",
+      value: (d) => d.name,
+      cell: (d) => <RowLink to={dashboardPath(org, d.uuid)}>{d.name}</RowLink>,
+    },
+    { id: "folder", header: "Folder", value: (d) => d.folder, cell: (d) => <span className="text-muted-foreground">{d.folder}</span> },
+    {
+      id: "tags",
+      header: "Tags",
+      mobile: "hidden",
+      className: "max-w-32 truncate",
+      value: (d) => d.tags.join(", "),
+      cell: (d) => <span className="text-muted-foreground">{d.tags.join(", ")}</span>,
+    },
+    { id: "panels", header: "Panels", align: "end", mobile: "hidden", value: (d) => d.widgets.length, cell: (d) => <span className="tabular-nums">{d.widgets.length}</span> },
+    { id: "devices", header: "Devices", align: "end", mobile: "hidden", value: (d) => devicesOf(d).size, cell: (d) => <span className="tabular-nums">{devicesOf(d).size}</span> },
+    { id: "owner", header: "Owner", hidden: true, mobile: "hidden", value: (d) => d.created_by_name, cell: (d) => <span className="text-muted-foreground">{d.created_by_name}</span> },
+    { id: "updated", header: "Updated", sortable: true, mobile: "hidden", value: (d) => d.updated_at, cell: (d) => <RelativeTime at={d.updated_at} className="text-muted-foreground" /> },
+    { id: "viewed", header: "Last viewed", sortable: true, value: (d) => d.last_viewed_at, cell: (d) => <RelativeTime at={d.last_viewed_at} className="text-muted-foreground" /> },
+  ]
+  const emptyTitle = !all.length
+    ? "No dashboards yet"
+    : view === "starred"
+      ? "No starred dashboards"
+      : view === "recent"
+        ? "No recently viewed dashboards"
+        : "No dashboards created by you"
 
   return (
     <>
-      <PageHeader
+      <CollectionPage
         title="Dashboards"
         actions={
           canManage && (
-            <div className="flex">
-              <Button
-                className="rounded-r-none"
-                onClick={() => setOpen({ kind: "blank" })}
-              >
-                <PlusIcon data-icon="inline-start" />
-                New dashboard
-              </Button>
+            <>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    size="icon"
-                    className="rounded-l-none border-l-primary-foreground/25"
-                    aria-label="More ways to create a dashboard"
-                  >
-                    <ChevronDownIcon />
+                  <Button variant="ghost" size="icon-sm" aria-label="More ways to create a dashboard">
+                    <EllipsisIcon />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-auto">
-                  <DropdownMenuItem onSelect={() => setOpen({ kind: "blank" })}>
-                    Blank
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() =>
-                      navigate({ search: patch(params, { view: "templates", folder: null }) })
-                    }
-                  >
-                    From template
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onSelect={() => setOpen({ kind: "templates" })}>
+                    <LayoutTemplateIcon />
+                    From template…
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setOpen({ kind: "profile" })}>
-                    From device profile
+                    <CpuIcon />
+                    From device profile…
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setOpen({ kind: "import" })}>
-                    Import JSON
+                    <FileUpIcon />
+                    Import JSON…
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+              <Button size="sm" onClick={() => setOpen({ kind: "blank" })}>
+                <PlusIcon data-icon="inline-start" />
+                New dashboard
+              </Button>
+            </>
           )
         }
-      />
-      <div className="grid gap-4 p-4 md:grid-cols-[11rem_minmax(0,1fr)] md:gap-6 md:p-6">
-        <nav
-          aria-label="Dashboard views"
-          className="flex gap-1 overflow-x-auto scrollbar-none md:flex-col md:overflow-visible"
-        >
-          {(Object.keys(VIEWS) as View[])
-            .filter((v) => v !== "templates" || canManage)
-            .map((v) => {
-              const current = folder === null && view === v
-              return (
-                <Link
-                  key={v}
-                  to={{ search: patch(params, { view: v === "all" ? null : v, folder: null }) }}
-                  aria-current={current ? "page" : undefined}
-                  className={navLink(current)}
-                >
-                  {VIEWS[v]}
-                  {v === "templates"
-                    ? count(TEMPLATES.length)
-                    : v !== "recent" && count(byView[v].length)}
-                </Link>
-              )
-            })}
-          {folders.length > 0 && (
+      >
+        <DataTable
+          id="dashboards"
+          label="Dashboards"
+          noun={["dashboard", "dashboards"]}
+          rows={query.isPending ? undefined : rows}
+          rowKey={(d) => d.uuid}
+          rowLabel={(d) => d.name}
+          rowHref={(d) => dashboardPath(org, d.uuid)}
+          columns={columns}
+          views={{
+            label: "View",
+            value: view,
+            onChange: (value) => setParams(patch(params, { view: value === "all" ? null : value }), { replace: true }),
+            options: (Object.keys(VIEWS) as View[]).map((value) => ({
+              value,
+              label: VIEWS[value],
+              count: query.isPending ? undefined : byView[value].length,
+            })),
+          }}
+          error={
+            query.error ? (
+              <RequestError error={query.error}>
+                <Button variant="outline" onClick={() => query.refetch()}>
+                  Retry dashboards
+                </Button>
+              </RequestError>
+            ) : undefined
+          }
+          search={{
+            label: "Search dashboards",
+            placeholder: "Search name, tag or device",
+            value: search,
+            onChange: (value) => setParams(patch(params, { q: value || null }), { replace: true }),
+          }}
+          filters={[
+            ...(folders.length
+              ? [
+                  {
+                    id: "folder",
+                    label: "Folder",
+                    options: [
+                      ...folders.map((name) => ({ value: name, label: name })),
+                      ...(unfiled ? [{ value: UNFILED, label: "Unfiled" }] : []),
+                    ],
+                    value: folder === null ? [] : [folder || UNFILED],
+                    onChange: (next: string[]) => setParams(patch(params, { folder: next[0] ?? null }), { replace: true }),
+                  },
+                ]
+              : []),
+            {
+              id: "tags",
+              label: "Tags",
+              multiple: true,
+              options: allTags.map((t) => ({ value: t, label: t })),
+              value: tags,
+              onChange: (next) => setParams(patch(params, { tag: next }), { replace: true }),
+            },
+            {
+              id: "device",
+              label: "Device",
+              multiple: true,
+              options: [...allDevices].map(([value, label]) => ({ value, label })),
+              value: devices,
+              onChange: (next) => setParams(patch(params, { device: next }), { replace: true }),
+            },
+          ]}
+          filtered={filtered}
+          onReset={() => setParams(patch(params, { q: null, tag: null, device: null, folder: null }))}
+          sort={{
+            value: sortState,
+            onChange: (next) => {
+              const id = (next[0]?.id ?? "viewed") as Sort
+              setParams(patch(params, { sort: id === "viewed" ? null : id }), { replace: true })
+            },
+          }}
+          groups={[
+            { id: "folder", label: "Folder", value: (d) => d.folder },
+            { id: "owner", label: "Owner", value: (d) => d.created_by_name },
+          ]}
+          selectable
+          bulkActions={({ rows: chosen }) => (
             <>
-              <h2 className="skin-label mt-4 hidden px-2 text-xs text-muted-foreground md:block">
-                Folders
-              </h2>
-              {[...folders, ""].map((name) => {
-                const current = folder === name
-                const n = name ? all.filter((d) => d.folder === name).length : unfiled
-                if (!n) return null
-                return (
-                  <Link
-                    key={name || "unfiled"}
-                    to={{ search: patch(params, { view: null, folder: name }) }}
-                    aria-current={current ? "page" : undefined}
-                    className={navLink(current)}
-                  >
-                    <FolderIcon className="size-4 text-muted-foreground" />
-                    <span className="truncate">{name || "Unfiled"}</span>
-                    {count(n)}
-                  </Link>
-                )
-              })}
+              <Button size="sm" variant="outline" onClick={() => exportRows(chosen)}>
+                Export JSON
+              </Button>
+              {canManage && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setOpen({ kind: "delete", uuids: chosen.map((d) => d.uuid) })}
+                >
+                  <Trash2Icon data-icon="inline-start" />
+                  Delete
+                </Button>
+              )}
             </>
           )}
-        </nav>
-
-        {view === "templates" ? (
-          <section aria-labelledby="templates-heading" className="min-w-0">
-            <h2 id="templates-heading" className="sr-only">
-              Templates
-            </h2>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Template</TableHead>
-                  <TableHead className="hidden md:table-cell">Needs</TableHead>
-                  <TableHead>
-                    <span className="sr-only">Actions</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {TEMPLATES.map((template) => (
-                  <TableRow key={template.id}>
-                    <TableCell className="whitespace-normal">
-                      <div className="font-medium">{template.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {template.creates}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden whitespace-normal text-muted-foreground md:table-cell">
-                      {template.needs}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        aria-label={`Use template ${template.name}`}
-                        onClick={() => setOpen({ kind: "template", template })}
-                      >
-                        Use template
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </section>
-        ) : (
-          <section aria-labelledby="list-heading" className="flex min-w-0 flex-col gap-3">
-            <h2 id="list-heading" className="sr-only">
-              {folder === null ? VIEWS[view] : folder || "Unfiled"}
-            </h2>
-            {chosen.length ? (
-              <div className="flex min-h-8 flex-wrap items-center gap-2">
-                <span className="text-sm font-medium tabular-nums">
-                  {chosen.length} selected
-                </span>
-                <Button size="sm" variant="outline" onClick={() => exportRows(chosen)}>
-                  Export JSON
-                </Button>
-                {canManage && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setOpen({ kind: "delete", uuids: chosen.map((d) => d.uuid) })
-                    }
-                  >
-                    <Trash2Icon data-icon="inline-start" />
+          rowActions={(d) => (
+            <>
+              <DropdownMenuItem asChild>
+                <Link to={dashboardPath(org, d.uuid)}>Open</Link>
+              </DropdownMenuItem>
+              {canManage && (
+                <>
+                  <DropdownMenuItem onSelect={() => setOpen({ kind: "duplicate", uuid: d.uuid })}>Duplicate</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setOpen({ kind: "settings", uuid: d.uuid })}>Settings</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setOpen({ kind: "move", uuid: d.uuid })}>Move to folder</DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuItem onSelect={() => exportRows([d])}>Export JSON</DropdownMenuItem>
+              {canManage && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={() => setOpen({ kind: "delete", uuids: [d.uuid] })}>
                     Delete
-                  </Button>
-                )}
-                <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
-                  Clear selection
-                </Button>
-              </div>
-            ) : (
-              <FilterBar>
-                <FilterSearch
-                  label="Search dashboards"
-                  placeholder="Search name, tag or device"
-                  value={search}
-                  onChange={(e) =>
-                    setParams(patch(params, { q: e.target.value || null }), {
-                      replace: true,
-                    })
-                  }
-                />
-                <FilterMenu
-                  label="Tags"
-                  options={allTags.map((t) => ({ value: t, label: t }))}
-                  selected={tags}
-                  empty="No tags yet"
-                  onChange={(next) => setParams(patch(params, { tag: next }), { replace: true })}
-                />
-                <FilterMenu
-                  label="Device"
-                  options={[...allDevices].map(([value, label]) => ({ value, label }))}
-                  selected={devices}
-                  empty="No devices on these dashboards"
-                  onChange={(next) =>
-                    setParams(patch(params, { device: next }), { replace: true })
-                  }
-                />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
-                      Sort: {SORTS[sort]}
-                      <ChevronDownIcon data-icon="inline-end" />
+                  </DropdownMenuItem>
+                </>
+              )}
+            </>
+          )}
+          empty={
+            <EmptyState
+              inset
+              icon={<LayoutDashboardIcon />}
+              title={emptyTitle}
+              description={
+                !all.length
+                  ? canManage
+                    ? "Start blank, from a template or from a device profile."
+                    : "People who manage devices can create dashboards for this organization."
+                  : undefined
+              }
+              action={
+                !all.length &&
+                canManage && (
+                  <>
+                    <Button size="sm" onClick={() => setOpen({ kind: "blank" })}>
+                      <PlusIcon data-icon="inline-start" />
+                      New dashboard
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuRadioGroup
-                      value={sort}
-                      onValueChange={(next) =>
-                        setParams(patch(params, { sort: next === "viewed" ? null : next }), {
-                          replace: true,
-                        })
-                      }
-                    >
-                      {(Object.keys(SORTS) as Sort[]).map((s) => (
-                        <DropdownMenuRadioItem key={s} value={s}>
-                          {SORTS[s]}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <FilterCount>
-                  {rows.length} {rows.length === 1 ? "dashboard" : "dashboards"}
-                </FilterCount>
-              </FilterBar>
-            )}
-            <RequestError error={query.error} />
-            {query.error && (
-              <Button variant="outline" className="self-start" onClick={() => query.refetch()}>
-                Retry dashboards
-              </Button>
-            )}
-            {query.isPending ? (
-              <Skeleton className="h-64 w-full" />
-            ) : rows.length ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="hidden w-8 sm:table-cell">
-                      <Checkbox
-                        aria-label="Select all dashboards"
-                        checked={
-                          rows.every((d) => selected.includes(d.uuid))
-                            ? true
-                            : rows.some((d) => selected.includes(d.uuid))
-                              ? "indeterminate"
-                              : false
-                        }
-                        onCheckedChange={(checked) =>
-                          setSelected(checked === true ? rows.map((d) => d.uuid) : [])
-                        }
-                      />
-                    </TableHead>
-                    <TableHead className="w-8">
-                      <span className="sr-only">Starred</span>
-                    </TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="hidden sm:table-cell">Folder</TableHead>
-                    <TableHead className="hidden lg:table-cell">Tags</TableHead>
-                    <TableHead className="hidden text-right sm:table-cell">Panels</TableHead>
-                    <TableHead className="hidden text-right sm:table-cell">Devices</TableHead>
-                    <TableHead className="hidden xl:table-cell">Owner</TableHead>
-                    <TableHead className="hidden md:table-cell">Updated</TableHead>
-                    <TableHead>Last viewed</TableHead>
-                    <TableHead className="w-8">
-                      <span className="sr-only">Actions</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((d) => (
-                    <TableRow
-                      key={d.uuid}
-                      data-state={selected.includes(d.uuid) ? "selected" : undefined}
-                    >
-                      <TableCell className="hidden sm:table-cell">
-                        <Checkbox
-                          aria-label={`Select ${d.name}`}
-                          checked={selected.includes(d.uuid)}
-                          onCheckedChange={(checked) =>
-                            setSelected((list) =>
-                              checked === true
-                                ? [...list, d.uuid]
-                                : list.filter((id) => id !== d.uuid),
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="icon-xs"
-                          variant="ghost"
-                          aria-label={`Star ${d.name}`}
-                          aria-pressed={d.starred}
-                          onClick={() => star(d)}
-                        >
-                          <StarIcon
-                            className={cn(d.starred && "fill-current text-warning")}
-                          />
-                        </Button>
-                      </TableCell>
-                      <TableCell className="max-w-64 truncate">
-                        <Link
-                          to={dashboardPath(org, d.uuid)}
-                          className="font-medium underline-offset-4 outline-none hover:underline focus-visible:underline"
-                        >
-                          {d.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="hidden text-muted-foreground sm:table-cell">
-                        {d.folder}
-                      </TableCell>
-                      <TableCell className="hidden max-w-32 truncate text-muted-foreground lg:table-cell">
-                        {d.tags.join(", ")}
-                      </TableCell>
-                      <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                        {d.widgets.length}
-                      </TableCell>
-                      <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                        {devicesOf(d).size}
-                      </TableCell>
-                      <TableCell className="hidden max-w-32 truncate text-muted-foreground xl:table-cell">
-                        {d.created_by_name}
-                      </TableCell>
-                      <TableCell className="hidden text-muted-foreground tabular-nums md:table-cell">
-                        <Age iso={d.updated_at} />
-                      </TableCell>
-                      <TableCell className="text-muted-foreground tabular-nums">
-                        <Age iso={d.last_viewed_at} />
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              size="icon-xs"
-                              variant="ghost"
-                              aria-label={`Actions for ${d.name}`}
-                            >
-                              <MoreHorizontalIcon />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-auto">
-                            <DropdownMenuItem asChild>
-                              <Link to={dashboardPath(org, d.uuid)}>Open</Link>
-                            </DropdownMenuItem>
-                            {canManage && (
-                              <>
-                                <DropdownMenuItem
-                                  onSelect={() => setOpen({ kind: "duplicate", uuid: d.uuid })}
-                                >
-                                  Duplicate
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() => setOpen({ kind: "settings", uuid: d.uuid })}
-                                >
-                                  Settings
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() => setOpen({ kind: "move", uuid: d.uuid })}
-                                >
-                                  Move to folder
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            <DropdownMenuItem onSelect={() => exportRows([d])}>
-                              Export JSON
-                            </DropdownMenuItem>
-                            {canManage && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  onSelect={() => setOpen({ kind: "delete", uuids: [d.uuid] })}
-                                >
-                                  Delete
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              !query.error && (
-                <Empty className="border">
-                  <EmptyHeader>
-                    <EmptyTitle>
-                      {!all.length
-                        ? "No dashboards yet"
-                        : filtered
-                          ? "No matching dashboards"
-                          : view === "starred"
-                            ? "No starred dashboards"
-                            : view === "recent"
-                              ? "No recently viewed dashboards"
-                              : "No dashboards created by you"}
-                    </EmptyTitle>
-                    {!all.length && (
-                      <EmptyDescription>
-                        {canManage
-                          ? "Start blank, from a template or from a device profile."
-                          : "People who manage devices can create dashboards for this organization."}
-                      </EmptyDescription>
-                    )}
-                  </EmptyHeader>
-                  {filtered ? (
-                    <EmptyContent>
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          setParams(patch(params, { q: null, tag: null, device: null }))
-                        }
-                      >
-                        Clear filters
-                      </Button>
-                    </EmptyContent>
-                  ) : (
-                    !all.length &&
-                    canManage && (
-                      <EmptyContent className="flex-row justify-center">
-                        <Button onClick={() => setOpen({ kind: "blank" })}>
-                          <PlusIcon data-icon="inline-start" />
-                          New dashboard
-                        </Button>
-                        <Button variant="outline" asChild>
-                          <Link to={{ search: patch(params, { view: "templates" }) }}>
-                            Browse templates
-                          </Link>
-                        </Button>
-                      </EmptyContent>
-                    )
-                  )}
-                </Empty>
-              )
-            )}
-          </section>
-        )}
-      </div>
+                    <Button size="sm" variant="outline" onClick={() => setOpen({ kind: "templates" })}>
+                      Browse templates
+                    </Button>
+                  </>
+                )
+              }
+            />
+          }
+        />
+      </CollectionPage>
 
       {open?.kind === "blank" && (
         <BlankDialog
@@ -696,6 +450,12 @@ export function DashboardLibrary({
             setOpen(null)
             return cache.invalidateQueries({ queryKey: ["dashboards", org] })
           }}
+        />
+      )}
+      {open?.kind === "templates" && (
+        <TemplatesDialog
+          onUse={(template) => setOpen({ kind: "template", template })}
+          onClose={() => setOpen(null)}
         />
       )}
       {(open?.kind === "profile" || open?.kind === "template") && (
@@ -743,75 +503,10 @@ export function DashboardLibrary({
             deleting.map((d) => api.deleteDashboard(org, d.uuid)),
           )
           const failed = results.find((r) => r.status === "rejected")
-          setSelected((list) => list.filter((id) => !deleting.some((d) => d.uuid === id)))
           await cache.invalidateQueries({ queryKey: ["dashboards", org] })
           if (failed) throw failed.reason
         }}
       />
     </>
-  )
-}
-
-function FilterMenu({
-  label,
-  options,
-  selected,
-  onChange,
-  empty,
-}: {
-  label: string
-  options: { value: string; label: string }[]
-  selected: string[]
-  onChange: (next: string[]) => void
-  empty: string
-}) {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline">
-          {label}
-          {selected.length > 0 && (
-            <span className="tabular-nums text-muted-foreground">
-              {selected.length}
-            </span>
-          )}
-          <ChevronDownIcon data-icon="inline-end" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 p-0" aria-label={label}>
-        <Command>
-          <CommandInput
-            aria-label={`Search ${label.toLowerCase()}`}
-            placeholder={`Search ${label.toLowerCase()}`}
-          />
-          <CommandList aria-label={label}>
-            <CommandEmpty>{options.length ? "No matches" : empty}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => {
-                const checked = selected.includes(option.value)
-                return (
-                  <CommandItem
-                    key={option.value}
-                    value={option.value}
-                    keywords={[option.label]}
-                    aria-checked={checked}
-                    data-checked={checked}
-                    onSelect={() =>
-                      onChange(
-                        checked
-                          ? selected.filter((v) => v !== option.value)
-                          : [...selected, option.value],
-                      )
-                    }
-                  >
-                    {option.label}
-                  </CommandItem>
-                )
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
   )
 }

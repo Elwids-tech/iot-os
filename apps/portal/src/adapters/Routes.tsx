@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import type {
@@ -7,6 +7,11 @@ import type {
   DeviceAdapter,
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
+import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table";
+import { EmptyState } from "@iot-os/ui/components/empty-state";
+import { Status } from "@iot-os/ui/components/status-mark";
+import { CollectionPage } from "@iot-os/ui/templates/collection-page";
+import { PlugIcon, PlusIcon } from "lucide-react";
 import { Badge } from "@iot-os/ui/components/badge";
 import {
   Card,
@@ -22,13 +27,6 @@ import {
   AlertTitle,
 } from "@iot-os/ui/components/alert";
 import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@iot-os/ui/components/empty";
-import {
   Field,
   FieldDescription,
   FieldGroup,
@@ -36,7 +34,9 @@ import {
 } from "@iot-os/ui/components/field";
 import { Input } from "@iot-os/ui/components/input";
 import { Textarea } from "@iot-os/ui/components/textarea";
-import { PageHeader } from "@iot-os/ui/components/page-header";
+import { DraftBar } from "@iot-os/ui/components/draft-bar";
+import { statusOf } from "@iot-os/ui/lib/status";
+import { WorkspacePage } from "@iot-os/ui/templates/workspace-page";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import {
   ToggleGroup,
@@ -114,105 +114,101 @@ function Directory() {
     queryFn: () => api.deviceAdapters(org),
     refetchInterval: 5000,
   });
-  const rows =
-    query.data?.data.filter((a) =>
-      `${a.name} ${a.profile_name}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-    ) ?? [];
+  const manage = Boolean(query.data?.capabilities.manage && query.data.capabilities.connections);
+  const columns = useMemo<DataColumn<AdapterRow>[]>(
+    () => [
+      {
+        id: "adapter",
+        header: "Adapter",
+        mobile: "title",
+        sortable: true,
+        searchable: true,
+        value: (a) => a.name,
+        cell: (a) => <RowLink to={path(org, a.uuid)}>{a.name}</RowLink>,
+      },
+      { id: "type", header: "Device type", sortable: true, searchable: true, value: (a) => a.profile_name, cell: (a) => a.profile_name },
+      {
+        id: "source",
+        header: "Source",
+        mobile: "hidden",
+        value: (a) => sourceLabel(a),
+        cell: (a) => <span className="text-muted-foreground">{sourceLabel(a)}</span>,
+      },
+      {
+        id: "deployment",
+        header: "Deployment",
+        mobile: "badge",
+        sortable: true,
+        value: (a) => a.status,
+        cell: (a) => (
+          <>
+            <Status value={a.status} />
+            {a.diagnostic && <p className="text-meta text-destructive">{a.diagnostic}</p>}
+          </>
+        ),
+      },
+    ],
+    [org],
+  );
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        title="Device adapters"
-        meta="Connect manufacturer MQTT devices using a reusable decoder for each device type."
-        actions={
-          query.data?.capabilities.manage &&
-          query.data.capabilities.connections && (
-            <Button asChild>
-              <Link to={path(org, "new")}>Create adapter</Link>
-            </Button>
-          )
+    <CollectionPage
+      title="Device adapters"
+      description="Decoders for manufacturer MQTT devices, run in your organization's private Node-RED runtime."
+      actions={
+        manage && (
+          <Button size="sm" asChild>
+            <Link to={path(org, "new")}>
+              <PlusIcon data-icon="inline-start" />
+              New adapter
+            </Link>
+          </Button>
+        )
+      }
+    >
+      <DataTable
+        id="device-adapters"
+        label="Device adapters"
+        noun={["adapter", "adapters"]}
+        rows={query.data?.data}
+        rowKey={(a) => a.uuid}
+        rowHref={(a) => path(org, a.uuid)}
+        columns={columns}
+        defaultSort={[{ id: "adapter", desc: false }]}
+        error={query.error ? <RequestError error={query.error} /> : undefined}
+        search={{
+          label: "Search device adapters",
+          placeholder: "Search adapters or device types",
+          value: search,
+          onChange: setSearch,
+        }}
+        groups={[
+          { id: "source", label: "Source", value: sourceLabel },
+          { id: "type", label: "Device type", value: (a) => a.profile_name },
+        ]}
+        refreshSeconds={5}
+        empty={
+          <EmptyState
+            inset
+            icon={<PlugIcon />}
+            title="Connect your first manufacturer device"
+            description="Choose a profile, provide a sample payload, and test how the decoder maps it to platform readings. Topics and MQTT credentials stay isolated to your organization."
+            action={
+              manage && (
+                <Button size="sm" asChild>
+                  <Link to={path(org, "new")}>New adapter</Link>
+                </Button>
+              )
+            }
+          />
         }
       />
-      <Alert>
-        <AlertTitle>Your tenant workspace</AlertTitle>
-        <AlertDescription>
-          Adapters run in your organization’s private Node-RED runtime.
-          Manufacturer topics and MQTT credentials are isolated from other
-          organizations.
-        </AlertDescription>
-      </Alert>
-      <Input
-        aria-label="Search device adapters"
-        placeholder="Search adapters or device types"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <RequestError error={query.error} />
-      {query.isPending ? (
-        <Skeleton className="h-48" />
-      ) : rows.length ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Adapter</TableHead>
-              <TableHead>Device type</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead>Deployment</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((a) => (
-              <TableRow key={a.uuid}>
-                <TableCell>
-                  <Link className="underline" to={path(org, a.uuid)}>
-                    {a.name}
-                  </Link>
-                </TableCell>
-                <TableCell>{a.profile_name}</TableCell>
-                <TableCell>
-                  {a.source.type === "platform"
-                    ? "Tenant MQTT broker"
-                    : "Vendor MQTT broker"}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary">{a.status}</Badge>
-                  {a.diagnostic && (
-                    <p className="text-sm text-destructive">{a.diagnostic}</p>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : (
-        !query.error && (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>
-                {search
-                  ? "No adapters match"
-                  : "Connect your first manufacturer device"}
-              </EmptyTitle>
-              <EmptyDescription>
-                Choose a profile, provide a sample payload, and test how the
-                decoder maps it to platform readings.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              {query.data?.capabilities.manage &&
-                query.data.capabilities.connections && (
-                  <Button asChild>
-                    <Link to={path(org, "new")}>Create adapter</Link>
-                  </Button>
-                )}
-            </EmptyContent>
-          </Empty>
-        )
-      )}
-    </div>
+    </CollectionPage>
   );
 }
+
+type AdapterRow = NonNullable<Awaited<ReturnType<typeof api.deviceAdapters>>>["data"][number];
+const sourceLabel = (a: AdapterRow) =>
+  a.source.type === "platform" ? "Tenant MQTT broker" : "Vendor MQTT broker";
 
 function Existing() {
   const { org } = useDeviceOrganization();
@@ -378,17 +374,31 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
   // status badges say what is running, so the "waiting" text must not linger.
   const deployNotice = "Deployment requested. Waiting for the tenant runtime.";
   const shownNotice = notice === deployNotice && adapter?.status && !pending ? "" : notice;
+  const applied =
+    adapter?.revisions.find((r) => r.uuid === adapter.applied_revision_uuid)?.revision ?? "none";
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        title={adapter ? adapter.name : "Create device adapter"}
-        meta="One tested workflow per device type, with a stable platform device for each activated serial."
-        actions={
-          <Button asChild variant="outline">
-            <Link to={path(org)}>All adapters</Link>
-          </Button>
-        }
-      />
+    <WorkspacePage
+      title={adapter ? adapter.name : "New device adapter"}
+      back={{ to: path(org), label: "Device adapters" }}
+      tools={
+        <p className="text-body text-muted-foreground">
+          One tested workflow per device type, with a stable platform device for each activated serial.
+        </p>
+      }
+      draft={
+        adapter && (
+          <DraftBar
+            tone={statusOf(adapter.status).tone}
+            status={statusOf(adapter.status).label}
+            revision={`Draft ${adapter.draft_revision} · applied ${applied}`}
+            dirty={dirty}
+          >
+            <span>Source {connectionStatus(adapter, "source_connected")}</span>
+            <span>Publisher {connectionStatus(adapter, "upstream_connected")}</span>
+          </DraftBar>
+        )
+      }
+    >
       {!canEdit && (
         <Alert>
           <AlertDescription>
@@ -396,24 +406,6 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
             adapters.
           </AlertDescription>
         </Alert>
-      )}
-      {adapter && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">{adapter.status}</Badge>
-          <Badge variant="outline">Draft {adapter.draft_revision}</Badge>
-          <Badge variant="outline">
-            Applied{" "}
-            {adapter.revisions.find(
-              (r) => r.uuid === adapter.applied_revision_uuid,
-            )?.revision ?? "none"}
-          </Badge>
-          <Badge variant="outline">
-            Source {connectionStatus(adapter, "source_connected")}
-          </Badge>
-          <Badge variant="outline">
-            Publisher {connectionStatus(adapter, "upstream_connected")}
-          </Badge>
-        </div>
       )}
       {dirty && (
         <Alert>
@@ -969,7 +961,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
           )}
         </TabsContent>
       </Tabs>
-    </div>
+    </WorkspacePage>
   );
 }
 

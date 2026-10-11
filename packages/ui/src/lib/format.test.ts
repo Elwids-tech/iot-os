@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatAge, formatDateTime, formatNumber } from "./format"
+import { formatAge, formatDateTime, formatNumber, freshnessState } from "./format"
 
 describe("format", () => {
   const now = Date.parse("2026-09-26T12:00:00Z")
@@ -14,6 +14,14 @@ describe("format", () => {
     expect(formatAge(ago(3 * 86400 + 5), now)).toBe("3 d")
     expect(formatAge(ago(-30), now)).toBe("0 s")
     expect(formatAge("not a date", now)).toBe("")
+  })
+
+  it("rates freshness against twice the expected interval", () => {
+    expect(freshnessState(null, 60, now)).toBe("never")
+    expect(freshnessState("not a date", 60, now)).toBe("never")
+    expect(freshnessState(ago(30), undefined, now)).toBe("unrated")
+    expect(freshnessState(ago(120), 60, now)).toBe("fresh")
+    expect(freshnessState(ago(121), 60, now)).toBe("late")
   })
 
   it("uses the given precision", () => {

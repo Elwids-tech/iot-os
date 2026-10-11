@@ -1,7 +1,8 @@
 import { Scenarios } from "./Scenarios";
+import { Directory } from "./AutomationDirectory";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Route, Routes, useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@iot-os/api-client";
 import {
   WorkflowEditor,
@@ -12,9 +13,8 @@ import {
   type Resource,
   type WorkflowNode,
 } from "@iot-os/workflow-editor";
-import { OctagonXIcon, PlusIcon, Redo2Icon, SparklesIcon, Undo2Icon } from "lucide-react";
+import { Redo2Icon, SparklesIcon, Undo2Icon } from "lucide-react";
 import { Button } from "@iot-os/ui/components/button";
-import { Badge } from "@iot-os/ui/components/badge";
 import {
   Card,
   CardHeader,
@@ -24,18 +24,11 @@ import {
 } from "@iot-os/ui/components/card";
 import { Input } from "@iot-os/ui/components/input";
 import { Field, FieldGroup, FieldLabel } from "@iot-os/ui/components/field";
-import { PageHeader } from "@iot-os/ui/components/page-header";
+import { DraftBar } from "@iot-os/ui/components/draft-bar";
+import { InlineName } from "@iot-os/ui/components/inline-name";
+import { WorkspacePage } from "@iot-os/ui/templates/workspace-page";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert";
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@iot-os/ui/components/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -51,7 +44,6 @@ import {
   TabsContent,
 } from "@iot-os/ui/components/tabs";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
-import { StatusMark } from "@iot-os/ui/components/status-mark";
 import {
   Tooltip,
   TooltipContent,
@@ -79,13 +71,7 @@ import type { ExecutionSelection } from "./execution-evidence";
 import { ExecutionTimeline } from "./ExecutionTimeline";
 import { SimulationPanel } from "./SimulationPanel";
 import { defaultSamples, nodeOutcomes, simulationSteps, type SimResult } from "./simulation";
-import {
-  deploymentState,
-  lastActivity,
-  relativeTime,
-  triggerSummary,
-  type DirectorySummary,
-} from "./directory";
+import { deploymentState } from "./directory";
 import type { EvidenceTarget } from "./execution-evidence";
 
 type Saved = {
@@ -102,7 +88,6 @@ type Saved = {
   applied_deployment_uuid?: string;
   pending_operation_uuid?: string;
 };
-type Settings = { enabled: boolean; stopped: boolean; revision: number };
 type Page<T> = {
   data: T[];
   meta: { current_page: number; last_page: number; total: number };
@@ -124,299 +109,6 @@ export default function AutomationRoutes() {
     </Routes>
   );
 }
-function Directory() {
-  const org = useParams().organizationUuid!;
-  const cache = useQueryClient();
-  const [error, setError] = useState<unknown>();
-  const [busy, setBusy] = useState(false);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const settings = useQuery({
-    queryKey: ["automation-settings", org],
-    queryFn: () => api.automation<{ data: Settings }>(org, "/dag/settings"),
-  });
-  const list = useQuery({
-    queryKey: ["automation-directory", org, search, page],
-    queryFn: () =>
-      api.automation<Page<Saved & DirectorySummary>>(
-        org,
-        `/dag?${new URLSearchParams({ search, page: String(page) })}`,
-      ),
-  });
-  async function change(values: Partial<Settings>) {
-    if (!settings.data) return false;
-    setBusy(true);
-    setError(undefined);
-    try {
-      await api.automation(org, "/dag/settings", "PUT", {
-        ...settings.data.data,
-        ...values,
-      });
-      await cache.invalidateQueries({ queryKey: ["automation-settings", org] });
-      return true;
-    } catch (e) {
-      setError(e);
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
-  const enabled = settings.data?.data.enabled;
-  const stopped = settings.data?.data.stopped;
-  return (
-    <>
-      <PageHeader
-        title="Automations"
-        meta={
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="outline" tabIndex={0}>
-                Preview
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">
-              Device automation is an opt-in preview for this organization.
-              Behaviour and limits may change; test with simulator devices
-              before controlling real equipment.
-            </TooltipContent>
-          </Tooltip>
-        }
-        actions={
-          enabled && (
-            <Button size="sm" asChild>
-              <Link to={url(org, "new")}>
-                <PlusIcon data-icon="inline-start" />
-                Create automation
-              </Link>
-            </Button>
-          )
-        }
-      >
-        <Input
-          aria-label="Search automations"
-          placeholder="Search automations…"
-          className="h-8 max-w-sm"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-        />
-      </PageHeader>
-      <div className="flex flex-col gap-4 p-4 md:p-6">
-        <RequestError error={error ?? settings.error ?? list.error} />
-        {settings.data && !enabled && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Device automations</CardTitle>
-              <CardDescription>
-                Build rules from telemetry, correlate devices, and review
-                actions before activation.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button disabled={busy} onClick={() => void change({ enabled: true })}>
-                Enable automation preview
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-        {stopped && (
-          <Alert variant="destructive">
-            <OctagonXIcon />
-            <AlertTitle>Automation actions are stopped</AlertTitle>
-            <AlertDescription>
-              No automation in this organization can send alerts, events or
-              device commands until you resume. Already dispatched commands may
-              still reach devices.
-            </AlertDescription>
-            <AlertAction>
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => void change({ stopped: false })}>
-                Resume
-              </Button>
-            </AlertAction>
-          </Alert>
-        )}
-        {list.isPending ? (
-          <Skeleton className="h-48 w-full" />
-        ) : list.data?.data.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Automation</TableHead>
-                <TableHead>Trigger</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last activity</TableHead>
-                <TableHead>Last issue</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.data.data.map((w) => {
-                const state = deploymentState(w.deployment_status);
-                const activity = lastActivity(w);
-                const triggers = triggerSummary(w.triggers);
-                const live = w.last_deployment?.target === "active" && w.last_deployment.status === "succeeded" ? w.last_deployment.draft_revision : undefined;
-                return (
-                  <TableRow key={w.uuid}>
-                    <TableCell className="max-w-64">
-                      <Link className="font-medium hover:underline" to={url(org, w.uuid)}>
-                        {w.name}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">
-                        Draft revision {w.draft_revision}
-                        {live !== undefined && live !== w.draft_revision && ` · live revision ${live}`}
-                      </p>
-                    </TableCell>
-                    <TableCell className="max-w-72 whitespace-normal">
-                      {triggers || <span className="text-muted-foreground">No device inputs</span>}
-                    </TableCell>
-                    <TableCell>
-                      <StatusMark tone={state.tone}>{state.label}</StatusMark>
-                    </TableCell>
-                    <TableCell>
-                      {activity ? (
-                        <>
-                          <p>{activity.label}</p>
-                          <time className="text-xs text-muted-foreground" dateTime={activity.at} title={new Date(activity.at).toLocaleString()}>
-                            {relativeTime(activity.at)}
-                          </time>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">None yet</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-72 whitespace-normal">
-                      {w.last_issue ? (
-                        <>
-                          <p className="text-destructive">{w.last_issue.message}</p>
-                          {w.last_issue.at && (
-                            <time className="text-xs text-muted-foreground" dateTime={w.last_issue.at} title={new Date(w.last_issue.at).toLocaleString()}>
-                              {w.last_issue.source === "action" ? "Action" : "Deployment"} · {relativeTime(w.last_issue.at)}
-                            </time>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">None</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {search
-              ? "No automations match this search."
-              : "No automations yet. Create a workflow to begin."}
-          </p>
-        )}
-        {list.data && list.data.meta.last_page > 1 && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Page {page} of {list.data.meta.last_page}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= list.data.meta.last_page}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        )}
-        {enabled && (
-          <EmergencyStop
-            stopped={Boolean(stopped)}
-            busy={busy}
-            onChange={(next) => change({ stopped: next })}
-          />
-        )}
-      </div>
-    </>
-  );
-}
-
-/** Organization-wide stop, kept apart from everyday actions and confirmed before it applies. */
-function EmergencyStop({
-  stopped,
-  busy,
-  onChange,
-}: {
-  stopped: boolean;
-  busy: boolean;
-  onChange: (stopped: boolean) => Promise<boolean>;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  return (
-    <section
-      aria-labelledby="automation-emergency-stop"
-      className="mt-6 flex flex-col gap-3 rounded-lg border border-destructive/40 p-4 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div className="flex flex-col gap-1">
-        <h2 id="automation-emergency-stop" className="text-sm font-medium">
-          Emergency stop
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {stopped
-            ? "Automation actions are stopped. Resuming lets active automations send alerts, events and device commands again."
-            : "Stop every automation in this organization from sending alerts, events or device commands until you resume."}
-        </p>
-      </div>
-      {stopped ? (
-        <Button variant="outline" disabled={busy} onClick={() => void onChange(false)}>
-          Resume automations
-        </Button>
-      ) : (
-        <Button variant="destructive" disabled={busy} onClick={() => setConfirming(true)}>
-          <OctagonXIcon data-icon="inline-start" />
-          Stop all automation actions…
-        </Button>
-      )}
-      <AlertDialog
-        open={confirming}
-        onOpenChange={(open) => {
-          if (!busy) setConfirming(open);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Stop all automation actions?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Every automation in this organization stops sending alerts,
-              integration events and device commands. Queued actions are
-              cancelled now, and new ones are cancelled until you resume.
-              Workflows stay deployed and keep evaluating. Commands already
-              dispatched may still reach devices.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
-            <Button
-              variant="destructive"
-              disabled={busy}
-              onClick={async () => {
-                if (await onChange(true)) setConfirming(false);
-              }}
-            >
-              Stop all actions
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </section>
-  );
-}
-
 function Workspace() {
   const { organizationUuid: org = "", workflowUuid = "new" } = useParams();
   return <Editor key={`${org}:${workflowUuid}`} org={org} id={workflowUuid} />;
@@ -663,39 +355,20 @@ function Editor({ org, id }: { org: string; id: string }) {
   const status = deploymentState(live?.deployment_status ?? "inactive");
   return (
     <>
-      <PageHeader
-        title={name}
+      <WorkspacePage
+        title={name || "Automation"}
+        name={
+          <InlineName
+            id="automation-name"
+            label="Name"
+            value={name}
+            placeholder="Untitled automation"
+            onChange={(e) => setName(e.target.value)}
+          />
+        }
         back={{ to: url(org), label: "Automations" }}
         helpContext={`automation.${tab}`}
-        meta={
-          <span className="flex items-center gap-2">
-            <StatusMark tone={status.tone}>{status.label}</StatusMark>
-            <span>Draft {saved?.draft_revision ?? "unsaved"}</span>
-            {(dirty || layoutDirty) && <Badge variant="secondary">Unsaved changes</Badge>}
-          </span>
-        }
-      >
-        <div className="flex w-full flex-wrap items-center gap-2">
-          <div role="group" aria-label="Undo and redo" className="flex items-center">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="Undo" disabled={!history.length || busy} onClick={undo}>
-                  <Undo2Icon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Undo</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="Redo" disabled={!future.length || busy} onClick={redo}>
-                  <Redo2Icon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Redo</TooltipContent>
-            </Tooltip>
-          </div>
-          <WorkflowAssistant org={org} editorId={id} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={nodeTypes} disabled={busy || (id !== "new" && !saved)} onApply={change} onEvidence={showEvidence} execution={explain} onClearExecution={() => setExplain(undefined)} size="sm" />
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+        actions={<>
             {live?.applied_deployment_uuid && (
               <Button
                 variant="ghost"
@@ -718,10 +391,36 @@ function Editor({ org, id }: { org: string; id: string }) {
             >
               {reactivating ? "Reactivate" : "Review activation"}
             </Button>
+</>}
+        tools={<>          <div role="group" aria-label="Undo and redo" className="flex items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Undo" disabled={!history.length || busy} onClick={undo}>
+                  <Undo2Icon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Undo</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Redo" disabled={!future.length || busy} onClick={redo}>
+                  <Redo2Icon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Redo</TooltipContent>
+            </Tooltip>
           </div>
-        </div>
-      </PageHeader>
-      <div className="flex flex-col gap-4 p-4 md:p-6">
+          <WorkflowAssistant org={org} editorId={id} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={nodeTypes} disabled={busy || (id !== "new" && !saved)} onApply={change} onEvidence={showEvidence} execution={explain} onClearExecution={() => setExplain(undefined)} size="sm" />
+</>}
+        draft={
+          <DraftBar
+            tone={status.tone}
+            status={status.label}
+            revision={`Draft ${saved?.draft_revision ?? "unsaved"}`}
+            dirty={dirty || layoutDirty}
+          />
+        }
+      >
         {activationReason && !busy && <p className="text-sm text-muted-foreground" role="status">{activationReason}</p>}
         <RequestError error={error ?? detail.error} />
         {saved &&
@@ -811,14 +510,6 @@ function Editor({ org, id }: { org: string; id: string }) {
               <AlertDescription>{d.message}</AlertDescription>
             </Alert>
           ))}
-        <Field>
-          <FieldLabel htmlFor="automation-name">Name</FieldLabel>
-          <Input
-            id="automation-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </Field>
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="editor">Editor</TabsTrigger>
@@ -1029,7 +720,7 @@ function Editor({ org, id }: { org: string; id: string }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </WorkspacePage>
     </>
   );
 }

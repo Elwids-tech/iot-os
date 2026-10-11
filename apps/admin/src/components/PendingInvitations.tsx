@@ -11,23 +11,15 @@ import {
 } from "@iot-os/ui/components/alert-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
-import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@iot-os/ui/components/table"
+import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
+import { DropdownMenuItem } from "@iot-os/ui/components/dropdown-menu"
+import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { Status } from "@iot-os/ui/components/status-mark"
 import { formatDateTime } from "@iot-os/ui/lib/format"
-import { AlertCircleIcon } from "lucide-react"
+import { AlertCircleIcon, MailIcon } from "lucide-react"
 import { toast } from "sonner"
 import { apiClient } from "../lib/api-client"
 import { errorMessage, fieldMessages, validationErrors } from "../lib/errors"
-import { countLabel } from "./DirectoryStates"
-import { PaginationControls } from "./PaginationControls"
-
-const statuses: Record<OrganizationInvitation["status"], { tone: StatusTone; label: string }> = {
-  pending: { tone: "info", label: "Pending" },
-  accepted: { tone: "good", label: "Accepted" },
-  revoked: { tone: "muted", label: "Revoked" },
-  expired: { tone: "warning", label: "Expired" },
-}
 
 type InvitationState = {
   data?: PaginatedResponse<OrganizationInvitation>
@@ -92,103 +84,86 @@ export function PendingInvitations({ refreshKey }: { refreshKey: number }) {
     }
   }
 
-  const invitations = state.data?.data
+  const columns: DataColumn<OrganizationInvitation>[] = [
+    { id: "email", header: "Email", mobile: "title", value: (i) => i.email, cell: (i) => <span className="font-medium">{i.email}</span> },
+    { id: "organization", header: "Organization", value: (i) => i.organization.name, cell: (i) => i.organization.name },
+    {
+      id: "roles",
+      header: "Roles",
+      className: "min-w-40 whitespace-normal",
+      value: (i) => i.roles.map((role) => role.display_name).join(", "),
+      cell: (i) => i.roles.map((role) => role.display_name).join(", "),
+    },
+    {
+      id: "expires",
+      header: "Expires",
+      mobile: "hidden",
+      value: (i) => i.expires_at,
+      cell: (i) => <span className="text-muted-foreground tabular-nums">{formatDateTime(i.expires_at)}</span>,
+    },
+    { id: "status", header: "Status", mobile: "badge", value: (i) => i.status, cell: (i) => <Status value={i.status} /> },
+  ]
 
   return (
-    <section aria-labelledby="invitations-heading" className="min-w-0">
-      <div className="mb-2 flex items-center gap-3">
-        <h2 id="invitations-heading" className="text-sm font-semibold">
-          Invitations
-        </h2>
-        {state.data ? (
-          <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-            {countLabel(state.data.meta.total, "invitation", "invitations")}
-          </span>
-        ) : null}
-      </div>
-      {state.error ? (
-        <Alert variant="destructive">
-          <AlertCircleIcon />
-          <AlertTitle>Could not load invitations</AlertTitle>
-          <AlertDescription>Refresh the page and try again.</AlertDescription>
-        </Alert>
-      ) : !invitations ? (
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-        </div>
-      ) : invitations.length === 0 ? (
-        <p className="border-t py-4 text-sm text-muted-foreground">No invitations yet.</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Email</TableHead>
-              <TableHead>Organization</TableHead>
-              <TableHead>Roles</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {invitations.map((invitation) => {
-              const status = statuses[invitation.status]
-              const canResend = invitation.status === "pending" || invitation.status === "expired"
-
-              return (
-                <TableRow key={invitation.uuid}>
-                  <TableCell className="font-medium">{invitation.email}</TableCell>
-                  <TableCell>{invitation.organization.name}</TableCell>
-                  <TableCell className="min-w-40 whitespace-normal">
-                    {invitation.roles.map((role) => role.display_name).join(", ")}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground tabular-nums">
-                    {formatDateTime(invitation.expires_at)}
-                  </TableCell>
-                  <TableCell>
-                    <StatusMark tone={status.tone}>{status.label}</StatusMark>
-                  </TableCell>
-                  <TableCell className="w-0 text-right">
-                    <div className="flex justify-end gap-1">
-                      {canResend ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setActionError(null)
-                            setConfirming({ action: "resend", invitation })
-                          }}
-                        >
-                          Resend
-                        </Button>
-                      ) : null}
-                      {invitation.status === "pending" ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => {
-                            setActionError(null)
-                            setConfirming({ action: "revoke", invitation })
-                          }}
-                        >
-                          Revoke
-                        </Button>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      )}
-      {state.data ? (
-        <PaginationControls meta={state.data.meta} label="Invitations pages" onPage={setPage} />
-      ) : null}
+    <section aria-labelledby="invitations-heading" className="flex min-w-0 flex-col gap-3">
+      <h2 id="invitations-heading" className="skin-label text-heading">
+        Invitations
+      </h2>
+      <DataTable
+        id="admin-invitations"
+        label="Invitations"
+        noun={["invitation", "invitations"]}
+        rows={state.error ? [] : state.data?.data}
+        rowKey={(i) => i.uuid}
+        rowLabel={(i) => i.email}
+        columns={columns}
+        error={
+          state.error ? (
+            <Alert variant="destructive">
+              <AlertCircleIcon />
+              <AlertTitle>Could not load invitations</AlertTitle>
+              <AlertDescription>Refresh the page and try again.</AlertDescription>
+            </Alert>
+          ) : undefined
+        }
+        pagination={{
+          page,
+          pageSize: 25,
+          total: state.data?.meta.total ?? 0,
+          pageCount: state.data?.meta.last_page,
+          onPageChange: setPage,
+        }}
+        rowActions={(invitation) => {
+          const canResend = invitation.status === "pending" || invitation.status === "expired"
+          if (!canResend && invitation.status !== "pending") return null
+          return (
+            <>
+              {canResend && (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setActionError(null)
+                    setConfirming({ action: "resend", invitation })
+                  }}
+                >
+                  Resend
+                </DropdownMenuItem>
+              )}
+              {invitation.status === "pending" && (
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => {
+                    setActionError(null)
+                    setConfirming({ action: "revoke", invitation })
+                  }}
+                >
+                  Revoke
+                </DropdownMenuItem>
+              )}
+            </>
+          )
+        }}
+        empty={<EmptyState inset icon={<MailIcon />} title="No invitations yet" description="Invitations you send appear here." />}
+      />
       <AlertDialog
         open={confirming !== null}
         onOpenChange={(open) => {

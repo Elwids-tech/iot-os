@@ -9,17 +9,18 @@ import {
   TabsTrigger,
 } from "@iot-os/ui/components/tabs";
 import { useDeviceOrganization } from "../devices/shared";
+import { notificationsPath } from "./NotificationSettings";
 
-export type InboxTab = "alerts" | "events" | "preferences";
+export type InboxTab = "alerts" | "events";
 const tabs: Record<InboxTab, string> = {
   alerts: "Alerts",
   events: "Event log",
-  preferences: "Email preferences",
 };
 
 /**
- * The single alerts inbox: alert episodes, the event log (workflow, service monitoring and watchdog events)
- * and personal email preferences. Each tab is a route under /organizations/:org/alerts.
+ * The single alerts inbox: alert episodes and the event log (workflow, service monitoring and watchdog
+ * events). Each tab is a route under /organizations/:org/alerts. Notification settings and email
+ * preferences live in Settings.
  * `header={false}` leaves the page header to the content (the narrow alert detail has its own).
  */
 export function Inbox({
@@ -49,7 +50,7 @@ export function Inbox({
           actions={
             capabilities.manage ? (
               <Button asChild variant="outline">
-                <Link to={`${base}/notifications`}>Notification settings</Link>
+                <Link to={notificationsPath(org)}>Notification settings</Link>
               </Button>
             ) : null
           }

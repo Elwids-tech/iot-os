@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --port 5174",
     "build": "tsc -b && vite build",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit && node ../../packages/ui/scripts/check-ui.mjs src",
     "test": "playwright test",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",

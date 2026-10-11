@@ -8,6 +8,13 @@
   selector belongs in a searchable selector, not a separate search field paired
   with a dropdown. Standalone search fields are appropriate for directory and
   table filters.
+- Build UI from the design system in `@iot-os/ui` (plan:
+  `plan/tasks/design-system.md`, gallery: `apps/storybook`). Lists use
+  `CollectionPage` with `DataTable`; content sits in a `Panel`; status comes from `statusOf`/`Status` in the kit, never a local map;
+  times use `RelativeTime` or `Freshness`; use the named type scale
+  (`text-title`, `text-heading`, `text-meta`...). Add a story for every new kit
+  component. `pnpm --filter @iot-os/portal lint` (and admin) runs `tsc` plus
+  the design system guardrails (`packages/ui/scripts/check-ui.mjs`).
 - Preserve the user's unsaved browser edits when verifying rebuilt pages.
 - Prefix shell commands with `rtk`; use `rtk proxy` when unfiltered output is needed.
 

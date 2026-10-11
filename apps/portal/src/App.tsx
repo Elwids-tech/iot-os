@@ -39,6 +39,7 @@ import {
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { PageHelpContext } from "@iot-os/ui/components/page-help"
 import { helpContextForPath } from "./help/context"
+import { PortalCommandPalette } from "./components/PortalCommandPalette"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -89,15 +90,15 @@ import {
   HouseIcon,
   MailIcon,
   MapPinnedIcon,
+  PlugIcon,
+  SearchIcon,
+  SettingsIcon,
   LayoutGridIcon,
   LogOutIcon,
   RouterIcon,
-  Building2Icon,
   ScanSearchIcon,
-  ShieldCheckIcon,
   ShieldIcon,
   SparklesIcon,
-  UsersIcon,
   WorkflowIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -116,8 +117,7 @@ const AdapterRoutes = lazy(() => import("./adapters/Routes"))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
 const IntegrationRoutes = lazy(() => import("./integrations/Integrations"))
 const AlertRoutes = lazy(() => import("./alerts/Alerts"))
-const MembersPage = lazy(() => import("./members/Members").then((module) => ({ default: module.MembersPage })))
-const RoleRoutes = lazy(() => import("./members/Roles"))
+const SettingsRoutes = lazy(() => import("./settings/Settings"))
 const NotificationCenter = lazy(() => import("./notifications/NotificationCenter"))
 const HelpPanel = lazy(() => import("./help/HelpPanel"))
 const ProfileAssistantBody = lazy(() => import("./assistant/AssistantPanel"))
@@ -256,9 +256,12 @@ function Session() {
           <Route path="organizations/:organizationUuid/alerts/*" element={<Suspense fallback={<PageFallback />}><AlertRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="discovery" /></Suspense>} />
           <Route path="organizations/:organizationUuid/telemetry" element={<Suspense fallback={<PageFallback />}><TelemetryViewer /></Suspense>} />
-          <Route path="organizations/:organizationUuid/members" element={<Suspense fallback={<PageFallback />}><MembersPage /></Suspense>} />
-          <Route path="organizations/:organizationUuid/roles/*" element={<Suspense fallback={<PageFallback />}><RoleRoutes /></Suspense>} />
-                  <Route path="organizations/:organizationUuid/gateways" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="gateways" /></Suspense>} />
+          <Route path="organizations/:organizationUuid/settings/*" element={<Suspense fallback={<PageFallback />}><SettingsRoutes /></Suspense>} />
+          {/* Members and roles moved into Settings; older links still land there. */}
+          <Route path="organizations/:organizationUuid/members" element={<MovedTo from="members" section="settings/members" />} />
+          <Route path="organizations/:organizationUuid/roles/*" element={<MovedTo from="roles" section="settings/roles" />} />
+          <Route path="organizations/:organizationUuid/connections" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="connections" /></Suspense>} />
+                  <Route path="organizations/:organizationUuid/gateways/*" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="gateways" /></Suspense>} />
                   <Route path="organizations/:organizationUuid/sites" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="sites" /></Suspense>} />
           <Route path="organizations/:organizationUuid/dashboards/:dashboardUuid?" element={<DashboardRoute />} />
           <Route path="organizations/:organizationUuid/geofences/*" element={<Suspense fallback={<PageFallback />}><GeofenceRoutes /></Suspense>} />
@@ -441,7 +444,7 @@ function Mark({ text, className }: { text: string; className?: string }) {
     <span
       aria-hidden="true"
       className={cn(
-        "grid size-5 shrink-0 place-items-center rounded-sm text-[10px] font-semibold",
+        "grid size-5 shrink-0 place-items-center rounded-sm text-micro font-semibold",
         className,
       )}
     >
@@ -473,8 +476,19 @@ type NavigationItem = {
   path: string
   label: string
   icon: LucideIcon
+  /** Other sections that light this item, e.g. Geofences under Locations. */
+  also?: string[]
   /** Older payloads without capabilities keep the link; the API still authorizes every request. */
   visible?: (organization: Organization) => boolean
+}
+
+/** Sends an old section URL to where it lives now, keeping the rest of the path and the query. */
+function MovedTo({ from, section }: { from: string; section: string }) {
+  const { organizationUuid = "" } = useParams()
+  const { pathname, search } = useLocation()
+  // The outer routes are a splat, so take the remainder from the path rather than useParams()["*"].
+  const rest = pathname.slice(sectionPath(organizationUuid, from).length)
+  return <Navigate to={`${sectionPath(organizationUuid, section)}${rest}${search}`} replace />
 }
 
 const devicesCan = (permission: "view" | "manage") => (organization: Organization) =>
@@ -489,7 +503,11 @@ const devicesAdministered = (organization: Organization) => devicesCan("view")(o
 const administers = (capability: keyof AdministrationCapabilities) => (organization: Organization) =>
   organization.capabilities?.administration?.[capability] === true
 
-/** Grouped by job: watching the fleet first, building and connecting after. */
+/**
+ * Grouped by job. Monitor: what's happening. Fleet: what you have. Build:
+ * anything with a draft and a publish. Connect: data in and out. Tools and
+ * Settings sit at the foot of the sidebar.
+ */
 const navigationGroups: { label: string; items: NavigationItem[] }[] = [
   {
     label: "Monitor",
@@ -504,8 +522,7 @@ const navigationGroups: { label: string; items: NavigationItem[] }[] = [
     items: [
       { path: "devices", label: "Devices", icon: CpuIcon, visible: devicesCan("view") },
       { path: "gateways", label: "Gateways", icon: RouterIcon, visible: devicesCan("view") },
-      { path: "sites", label: "Sites", icon: Building2Icon, visible: devicesCan("view") },
-      { path: "geofences", label: "Geofences", icon: MapPinnedIcon },
+      { path: "sites", label: "Locations", icon: MapPinnedIcon, also: ["geofences"], visible: devicesCan("view") },
     ],
   },
   {
@@ -513,27 +530,28 @@ const navigationGroups: { label: string; items: NavigationItem[] }[] = [
     items: [
       { path: "automation", label: "Automations", icon: WorkflowIcon },
       { path: "device-profiles", label: "Device profiles", icon: BoxesIcon, visible: profilesEditable },
+      { path: "device-adapters", label: "Device adapters", icon: CableIcon, visible: (organization) => organization.capabilities?.features?.device_adapters === true && devicesCan("manage")(organization) },
     ],
   },
   {
     label: "Connect",
     items: [
       { path: "discovery", label: "Discovery", icon: ScanSearchIcon, visible: devicesCan("manage") },
-      { path: "device-adapters", label: "Device adapters", icon: CableIcon, visible: (organization) => organization.capabilities?.features?.device_adapters === true && devicesCan("manage")(organization) },
       { path: "integrations", label: "Integrations", icon: BlocksIcon, visible: devicesAdministered },
+      { path: "connections", label: "Connections", icon: PlugIcon, visible: devicesCan("view") },
     ],
   },
-  {
-    label: "Diagnostics",
-    items: [{ path: "telemetry", label: "Telemetry viewer", icon: ActivityIcon, visible: devicesAdministered }],
-  },
-  {
-    label: "Organization",
-    items: [
-      { path: "members", label: "Members", icon: UsersIcon, visible: administers("members_view") },
-      { path: "roles", label: "Roles", icon: ShieldCheckIcon, visible: administers("roles_view") },
-    ],
-  },
+]
+const activeFor = (item: NavigationItem, organization: string, pathname: string) =>
+  [item.path, ...(item.also ?? [])].some((path) => {
+    const to = sectionPath(organization, path)
+    return pathname === to || pathname.startsWith(`${to}/`)
+  })
+
+/** Tools and Settings sit at the foot of the sidebar, above help and the account menu. */
+const footerItems: NavigationItem[] = [
+  { path: "telemetry", label: "Telemetry viewer", icon: ActivityIcon, visible: devicesAdministered },
+  { path: "settings", label: "Settings", icon: SettingsIcon, also: ["members", "roles"] },
 ]
 
 const adminUrl =
@@ -549,7 +567,9 @@ function PortalSidebar({
   helpOpen,
   onHelp,
   onSignOut,
+  onSearch,
 }: {
+  onSearch: () => void
   user: AuthenticatedUser
   organization?: Organization
   onOrganization: (uuid: string) => void
@@ -592,7 +612,7 @@ function PortalSidebar({
                 >
                   <Mark
                     text={organization ? initials(organization.name, 1) : "?"}
-                    className="bg-foreground text-[11px] text-background"
+                    className="bg-foreground text-micro text-background"
                   />
                   <span className="truncate group-data-[collapsible=icon]:sr-only">
                     {organization?.name ?? "Choose organization"}
@@ -625,6 +645,26 @@ function PortalSidebar({
       </SidebarHeader>
       <SidebarContent>
         {organization && (
+          <SidebarGroup className="pb-0" role="search" aria-label="Workspace search">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Search or jump to (⌘K)"
+                  onClick={() => {
+                    onSearch()
+                    closeMobile()
+                  }}
+                  className="border bg-background text-muted-foreground shadow-panel hover:text-foreground"
+                >
+                  <SearchIcon />
+                  <span className="group-data-[collapsible=icon]:sr-only">Search or jump to…</span>
+                  <kbd className="ml-auto font-mono text-meta text-muted-foreground group-data-[collapsible=icon]:hidden">⌘K</kbd>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
+        {organization && (
           <nav aria-label="Workspace">
             {navigationGroups.map((group) => {
               const items = group.items.filter((item) => item.visible?.(organization) ?? true)
@@ -642,10 +682,7 @@ function PortalSidebar({
                             <SidebarMenuButton
                               asChild
                               tooltip={item.label}
-                              isActive={
-                                location.pathname === to ||
-                                location.pathname.startsWith(`${to}/`)
-                              }
+                              isActive={activeFor(item, organization.uuid, location.pathname)}
                               className="text-muted-foreground hover:text-foreground data-active:text-foreground"
                             >
                               <NavLink to={to} onClick={closeMobile}>
@@ -668,6 +705,33 @@ function PortalSidebar({
                 </SidebarGroup>
               )
             })}
+          </nav>
+        )}
+        {organization && (
+          <nav aria-label="Tools and settings" className="mt-auto">
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {footerItems
+                  .filter((item) => item.visible?.(organization) ?? true)
+                  .map((item) => (
+                    <SidebarMenuItem key={item.path}>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip={item.label}
+                        isActive={activeFor(item, organization.uuid, location.pathname)}
+                        className="text-muted-foreground hover:text-foreground data-active:text-foreground"
+                      >
+                        <NavLink to={sectionPath(organization.uuid, item.path)} onClick={closeMobile}>
+                          <item.icon />
+                          <span className="group-data-[collapsible=icon]:sr-only">{item.label}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
           </nav>
         )}
       </SidebarContent>
@@ -718,7 +782,7 @@ function PortalSidebar({
                 <AppearanceMenuItems />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to={organization ? sectionPath(organization.uuid, "alerts/preferences") : "/notifications"}><MailIcon />Email preferences</Link>
+                  <Link to={organization ? sectionPath(organization.uuid, "settings/email") : "/notifications"}><MailIcon />Email preferences</Link>
                 </DropdownMenuItem>
                 {user.capabilities.platform_administration && (
                   <DropdownMenuItem asChild>
@@ -800,12 +864,41 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
     onContextChange: setHelpOverride,
   } : null, [org?.uuid, helpOpen, panel])
 
+  // ⌘K / Ctrl+K opens search from anywhere in the workspace.
+  const [searchOpen, setSearchOpen] = useState(false)
+  useEffect(() => {
+    if (!org) return
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault()
+        setSearchOpen((open) => !open)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [org])
+  const palettePages = org
+    ? [...navigationGroups.flatMap((group) => group.items), ...footerItems].filter(
+        (item) => item.visible?.(org) ?? true,
+      )
+    : []
+
   return (
     <TooltipProvider>
+      {org && (
+        <PortalCommandPalette
+          org={org.uuid}
+          pages={palettePages}
+          canManageDevices={devicesCan("manage")(org)}
+          open={searchOpen}
+          onOpenChange={setSearchOpen}
+        />
+      )}
       <PageHelpContext.Provider value={helpIntegration}>
       <RuntimeStatusProvider org={org?.uuid}>
       <SidebarProvider>
         <PortalSidebar
+          onSearch={() => setSearchOpen(true)}
           user={user}
           organization={org}
           onOrganization={(uuid) => navigate(sectionPath(uuid, section))}

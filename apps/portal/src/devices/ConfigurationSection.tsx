@@ -1,3 +1,4 @@
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useSearchParams } from "react-router-dom"
@@ -38,7 +39,6 @@ import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
 import { Choice, SaveBar, RequestError, Confirm } from "../components/forms"
 import {
-  Age,
   configurationRevision,
   DevicePages,
   discoveryPath,
@@ -825,7 +825,7 @@ export function ConfigurationSection({
                   {validation.preview.valid ? "validated" : "has problems"}
                 </StatusMark>
                 <span className="text-muted-foreground">
-                  <Age value={new Date(validationQuery.dataUpdatedAt).toISOString()} />
+                  <RelativeTime at={new Date(validationQuery.dataUpdatedAt).toISOString()} />
                   {dirty && " · save to validate your changes"}
                 </span>
                 <span className="ml-auto text-muted-foreground">
@@ -964,7 +964,7 @@ export function ConfigurationSection({
                         )}
                       </TableCell>
                       <TableCell>
-                        <Age value={c.created_at} />
+                        <RelativeTime at={c.created_at} />
                       </TableCell>
                       <TableCell>
                         {device.applied_configuration_uuid === c.uuid ? (
@@ -1071,7 +1071,7 @@ export function ConfigurationSection({
               </dd>
               <dt className="text-muted-foreground">Last seen</dt>
               <dd>
-                <Age value={candidate.last_seen_at} />
+                <RelativeTime at={candidate.last_seen_at} />
               </dd>
             </dl>
           </Section>

@@ -37,7 +37,9 @@ jobs:
           node-version: '22'
       - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @iot-os/portal --filter @iot-os/admin --filter @iot-os/api-client typecheck
+      - run: pnpm --filter @iot-os/api-client typecheck
+      # Portal and admin lint = typecheck + design system guardrails (packages/ui/scripts/check-ui.mjs).
+      - run: pnpm --filter @iot-os/portal --filter @iot-os/admin lint
       - run: pip install PyYAML
       - run: python3 -m unittest discover -s tooling/release -p 'test_*.py'
       - uses: actions/setup-go@v5

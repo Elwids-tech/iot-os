@@ -5,7 +5,7 @@ export function helpContextForPath(pathname: string): string {
   switch (section) {
     case "devices":
       return resource
-        ? `devices.${["overview", "measurements", "history", "configuration", "controls", "commands"].includes(tab) ? tab : "overview"}`
+        ? `devices.${({ data: "measurements", control: "controls" } as Record<string, string>)[tab] ?? (["overview", "measurements", "history", "configuration", "controls", "commands"].includes(tab) ? tab : "overview")}`
         : "devices";
     case "device-profiles":
       return resource
@@ -27,6 +27,22 @@ export function helpContextForPath(pathname: string): string {
           : resource
             ? "alerts.detail"
             : "alerts";
+    case "settings":
+      return resource === "members"
+        ? "members"
+        : resource === "roles"
+          ? tab
+            ? "roles.editor"
+            : "roles"
+          : resource === "notifications"
+            ? tab
+              ? "alerts.notifications.workflow"
+              : "alerts.notifications"
+            : resource === "email"
+              ? "alerts.preferences"
+              : "getting-started";
+    case "connections":
+      return "gateways";
     case "dashboards":
       return resource ? "dashboards.workspace" : "dashboards";
     case "roles":

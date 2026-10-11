@@ -6,6 +6,18 @@ import type { TenantPermission, TenantRole } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Badge } from "@iot-os/ui/components/badge"
 import { Button } from "@iot-os/ui/components/button"
+import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table"
+import { CollectionPage } from "@iot-os/ui/templates/collection-page"
+import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { EntityPage } from "@iot-os/ui/templates/entity-page"
+import {
+  Panel,
+  PanelContent,
+  PanelDescription,
+  PanelHeader,
+  PanelTitle,
+} from "@iot-os/ui/components/panel"
+import { StatusMark } from "@iot-os/ui/components/status-mark"
 import {
   Empty,
   EmptyDescription,
@@ -16,41 +28,39 @@ import { FieldError } from "@iot-os/ui/components/field"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { PermissionMatrix, permissionChanges } from "@iot-os/ui/components/permission-matrix"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@iot-os/ui/components/table"
-import { LockKeyholeIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { LockKeyholeIcon, PlusIcon, ShieldIcon, Trash2Icon } from "lucide-react"
 import { api } from "../lib/api"
 import { useDirtyContext, useUnsaved } from "../lib/unsaved"
 import { Confirm, RequestError, SaveBar, TextField, fieldError } from "../components/forms"
 import { ADMINISTRATOR_LOCKED, matrixItems, plural, roleSummary } from "./model"
 import { useAdministration, useRoles } from "./shared"
 
+/** Roles live in Settings. */
+export const rolesPath = (org: string) => `/organizations/${org}/settings/roles`
+
+const rolesUnavailable = (
+  <EmptyState
+    icon={<LockKeyholeIcon />}
+    title="Roles unavailable"
+    description="You need permission to view roles in this organization. Ask an organization administrator."
+  />
+)
+
+/** The roles list, shown inside Settings. */
+export function RolesList() {
+  const { org, can, session } = useAdministration()
+  if (session.isPending) return <Skeleton className="h-64 w-full" />
+  if (!can.roles_view) return rolesUnavailable
+  return <RoleDirectory key={org} org={org} />
+}
+
+/** New and existing role editors: full pages that return to Settings → Roles. */
 export default function RoleRoutes() {
   const { org, can, session } = useAdministration()
   if (session.isPending) return <Skeleton className="m-4 h-64 md:m-6" />
-  if (!can.roles_view)
-    return (
-      <>
-        <PageHeader title="Roles" />
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>Roles unavailable</EmptyTitle>
-            <EmptyDescription>
-              You need permission to view roles in this organization. Ask an organization administrator.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </>
-    )
+  if (!can.roles_view) return <div className="p-4 md:p-6">{rolesUnavailable}</div>
   return (
     <Routes>
-      <Route index element={<RoleDirectory key={org} org={org} />} />
       <Route path="new" element={<RoleEditor key={org + "new"} org={org} />} />
       <Route path=":roleId" element={<RoleEditorRoute org={org} />} />
     </Routes>
@@ -60,73 +70,75 @@ export default function RoleRoutes() {
 function RoleDirectory({ org }: { org: string }) {
   const { can } = useAdministration()
   const roles = useRoles(org)
-  const base = `/organizations/${org}/roles`
+  const base = rolesPath(org)
+  const columns = useMemo<DataColumn<TenantRole>[]>(
+    () => [
+      {
+        id: "role",
+        header: "Role",
+        mobile: "title",
+        sortable: true,
+        value: (role) => role.display_name,
+        cell: (role) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <RowLink to={`${base}/${role.id}`}>{role.display_name}</RowLink>
+            {role.is_default && <Badge variant="outline">Built-in</Badge>}
+          </div>
+        ),
+      },
+      {
+        id: "permissions",
+        header: "Permissions",
+        value: (role) => roleSummary(role),
+        cell: (role) => <span className="text-muted-foreground">{roleSummary(role)}</span>,
+      },
+      {
+        id: "members",
+        header: "Members",
+        align: "end",
+        sortable: true,
+        value: (role) => role.members_count ?? 0,
+        cell: (role) => <span className="text-muted-foreground tabular-nums">{role.members_count ?? "—"}</span>,
+      },
+    ],
+    [base],
+  )
   return (
-    <>
-      <PageHeader
-        title="Roles"
-        helpContext="roles"
-        actions={
-          can.roles_create && (
-            <Button asChild>
-              <Link to={`${base}/new`}>
-                <PlusIcon data-icon="inline-start" />
-                Create role
-              </Link>
-            </Button>
-          )
+    <CollectionPage
+      embedded
+      title="Roles"
+      helpContext="roles"
+      description="Members get every permission in each role they hold. Organization Admin always has every permission."
+      actions={
+        can.roles_create && (
+          <Button size="sm" asChild>
+            <Link to={`${base}/new`}>
+              <PlusIcon data-icon="inline-start" />
+              New role
+            </Link>
+          </Button>
+        )
+      }
+    >
+      <DataTable
+        id="roles"
+        label="Roles"
+        noun={["role", "roles"]}
+        rows={roles.data}
+        rowKey={(role) => String(role.id)}
+        rowHref={(role) => `${base}/${role.id}`}
+        columns={columns}
+        error={
+          roles.error ? (
+            <RequestError error={roles.error}>
+              <Button variant="outline" onClick={() => void roles.refetch()}>
+                Retry
+              </Button>
+            </RequestError>
+          ) : undefined
         }
       />
-      <div className="flex flex-col gap-3 p-4 md:p-6">
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          A role bundles permissions. Members get every permission in each role they hold. Organization Admin always has
-          every permission available to this organization.
-        </p>
-        {roles.error ? (
-          <RequestError error={roles.error}>
-            <Button variant="outline" onClick={() => void roles.refetch()}>
-              Retry
-            </Button>
-          </RequestError>
-        ) : roles.isPending ? (
-          <Skeleton className="h-52 w-full" />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Role</TableHead>
-                <TableHead>Permissions</TableHead>
-                <TableHead className="text-right">Members</TableHead>
-                <TableHead>
-                  <span className="sr-only">Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {roles.data.map((role) => (
-                <TableRow key={role.id}>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link className="font-medium text-primary hover:underline" to={`${base}/${role.id}`}>
-                        {role.display_name}
-                      </Link>
-                      {role.is_default && <Badge variant="outline">Built-in</Badge>}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{roleSummary(role)}</TableCell>
-                  <TableCell className="text-right text-muted-foreground tabular-nums">{role.members_count ?? "—"}</TableCell>
-                  <TableCell className="text-right">
-                    <Button asChild size="sm" variant="ghost">
-                      <Link to={`${base}/${role.id}`}>{can.roles_update && role.manageable ? "Edit" : "View"}</Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
-    </>
+    </CollectionPage>
   )
 }
 
@@ -139,7 +151,7 @@ function RoleEditorRoute({ org }: { org: string }) {
   if (!role)
     return (
       <>
-        <PageHeader title="Role not found" back={{ to: `/organizations/${org}/roles`, label: "Roles" }} />
+        <PageHeader title="Role not found" back={{ to: rolesPath(org), label: "Roles" }} />
         <Empty>
           <EmptyHeader>
             <EmptyTitle>This role no longer exists</EmptyTitle>
@@ -156,7 +168,7 @@ function RoleEditor({ org, role }: { org: string; role?: TenantRole }) {
   const { setDirty } = useDirtyContext()
   const cache = useQueryClient()
   const navigate = useNavigate()
-  const base = `/organizations/${org}/roles`
+  const base = rolesPath(org)
   const catalogue = useQuery({
     queryKey: ["role-permissions", org],
     queryFn: () => api.organizationRolePermissions(org),
@@ -209,26 +221,35 @@ function RoleEditor({ org, role }: { org: string; role?: TenantRole }) {
     }
   }
 
-  const title = role ? role.display_name : "Create role"
+  const title = role ? role.display_name : "New role"
   const deletable = role && !role.is_default && can.roles_delete && role.manageable === true
 
   return (
     <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
-      <PageHeader
+      <EntityPage
         title={title}
+        icon={<ShieldIcon />}
         helpContext="roles.editor"
         back={{ to: base, label: "Roles" }}
         actions={
           deletable && (
-            <Button type="button" variant="outline" onClick={() => setDeleting(true)}>
+            <Button type="button" size="sm" variant="outline" onClick={() => setDeleting(true)}>
               <Trash2Icon data-icon="inline-start" />
               Delete role
             </Button>
           )
         }
-      />
-      <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
-        {administrator ? (
+        status={
+          role && (
+            <>
+              {role.is_default ? <StatusMark tone="muted">Built-in</StatusMark> : <StatusMark tone="info">Custom</StatusMark>}
+              <span className="text-muted-foreground">{plural(role.members_count ?? 0, "member")}</span>
+            </>
+          )
+        }
+        className="flex-1"
+        notices={
+          administrator ? (
           <Alert>
             <LockKeyholeIcon />
             <AlertTitle>Permissions follow the organization</AlertTitle>
@@ -246,8 +267,14 @@ function RoleEditor({ org, role }: { org: string; role?: TenantRole }) {
                 : "You can view roles but not change them."}
             </AlertDescription>
           </Alert>
-        ) : null}
-        <div className="max-w-md">
+        ) : null
+        }
+      >
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Details</PanelTitle>
+          </PanelHeader>
+          <PanelContent className="max-w-md">
           <TextField
             label="Role name"
             required
@@ -257,22 +284,22 @@ function RoleEditor({ org, role }: { org: string; role?: TenantRole }) {
             error={fieldError(error, "display_name")}
             onChange={(event) => setName(event.target.value)}
           />
-        </div>
-        <section aria-labelledby="role-permissions-heading" className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-baseline gap-x-3">
-            <h2 id="role-permissions-heading" className="text-sm font-semibold">
-              Permissions
-            </h2>
-            <span className="text-xs text-muted-foreground tabular-nums">
+          </PanelContent>
+        </Panel>
+        <Panel aria-labelledby="role-permissions-heading">
+          <PanelHeader>
+            <PanelTitle id="role-permissions-heading">Permissions</PanelTitle>
+            <PanelDescription className="tabular-nums">
               {plural(selected.size, "permission")} selected
-            </span>
+            </PanelDescription>
             {editable && !administrator && permissions.some((permission) => permission.grantable === false) && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1 text-meta text-muted-foreground">
                 <LockKeyholeIcon aria-hidden="true" className="size-3.5" />
                 Locked permissions are ones you don't hold yourself.
               </span>
             )}
-          </div>
+          </PanelHeader>
+          <PanelContent className="flex flex-col gap-2">
           {catalogue.error ? (
             <RequestError error={catalogue.error} />
           ) : catalogue.isPending ? (
@@ -291,8 +318,9 @@ function RoleEditor({ org, role }: { org: string; role?: TenantRole }) {
           {error && !fieldError(error, "display_name") && !fieldError(error, "permission_names") ? (
             <RequestError error={error} />
           ) : null}
-        </section>
-      </div>
+          </PanelContent>
+        </Panel>
+      </EntityPage>
       {editable && !administrator && (
         <SaveBar
           dirty={dirty}

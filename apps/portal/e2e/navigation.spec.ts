@@ -88,9 +88,10 @@ test("desktop navigation collapses to icon tooltips", async ({ page }) => {
   const labels = sidebar
     .getByRole("navigation", { name: "Workspace" })
     .locator('[data-sidebar="menu-button"] > span')
-  // Home, Dashboards, Alerts · Devices, Gateways, Sites, Geofences · Automations, Device profiles ·
-  // Discovery, Integrations · Telemetry viewer. Device adapters needs the organization feature.
-  await expect(labels).toHaveCount(12)
+  // Home, Dashboards, Alerts · Devices, Gateways, Locations · Automations, Device profiles ·
+  // Discovery, Integrations, Connections. Device adapters needs the organization feature;
+  // Telemetry viewer and Settings sit in the footer group, outside this navigation.
+  await expect(labels).toHaveCount(11)
   for (const label of await labels.all()) {
     await expect(label).toHaveCSS("position", "absolute")
     await expect(label).toHaveCSS("width", "1px")
@@ -262,4 +263,58 @@ test("session recovery offers sign out", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Welcome to your workspace" })).toBeVisible()
   await expect(dialog).toHaveCount(0)
   expect(errors).toEqual([])
+})
+
+test("⌘K jumps to a page and Settings holds general and appearance options", async ({ page }) => {
+  const { errors } = await setup(page)
+  await page.goto(dashboardsPath)
+  await page.keyboard.press("ControlOrMeta+k")
+  const palette = page.getByRole("dialog", { name: "Search or jump to" })
+  await expect(palette).toBeVisible()
+  // Only labels and keywords match: the "Go to" heading's letters must not pull in every page.
+  await palette.getByRole("combobox", { name: "Search or jump to" }).fill("gps")
+  await expect(palette.getByRole("option", { name: "Device profiles" })).toHaveCount(0)
+  await palette.getByRole("combobox", { name: "Search or jump to" }).fill("connec")
+  await expect(palette.getByRole("option", { name: "Connections" })).toBeVisible()
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(`/organizations/${organization}/connections`)
+  await expect(palette).toHaveCount(0)
+
+  // The sidebar button opens the same palette; Settings lives at the foot of the sidebar.
+  await page.getByRole("button", { name: /Search or jump to/ }).click()
+  await expect(palette).toBeVisible()
+  await page.keyboard.press("Escape")
+  await page.getByRole("link", { name: "Settings", exact: true }).click()
+  await expect(page).toHaveURL(`/organizations/${organization}/settings/general`)
+  await expect(page.getByRole("navigation", { name: "Settings sections" })).toBeVisible()
+  await expect(page.getByRole("radiogroup", { name: "Skin" })).toBeVisible()
+  await page.getByRole("radiogroup", { name: "Skin" }).getByRole("radio", { name: "Instrument" }).click()
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "instrument")
+  expect(errors).toEqual([])
+})
+
+test("⌘K selects the top result again when device matches arrive", async ({ page }) => {
+  const { errors } = await setup(page)
+  await page.route(/\/dashboards(\?|$)/, (route) =>
+    route.fulfill({ json: { data: [{ uuid: "dash-gps", name: "GPS and geofence demo", folder: null, tags: [] }] } }),
+  )
+  await page.route(/\/devices\?search=/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await route.fulfill({
+      json: {
+        data: [{ uuid: "dev-gps", name: "GPS Demo Tracker", code: "gps-demo-tracker" }],
+        meta: { current_page: 1, last_page: 1, total: 1 },
+      },
+    })
+  })
+  await page.goto(`/organizations/${organization}/settings/general`)
+  await page.keyboard.press("ControlOrMeta+k")
+  const palette = page.getByRole("dialog", { name: "Search or jump to" })
+  await palette.getByRole("combobox", { name: "Search or jump to" }).fill("gps")
+  // The dashboard matches first; the device arrives later, sorts above it and takes the selection.
+  await expect(palette.getByRole("option", { name: /GPS Demo Tracker/ })).toHaveAttribute("aria-selected", "true")
+  await expect(palette.getByRole("option", { name: /GPS and geofence demo/ })).toHaveAttribute("aria-selected", "false")
+  expect(errors).toEqual([])
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(`/organizations/${organization}/devices/dev-gps`)
 })

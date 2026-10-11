@@ -13,6 +13,7 @@ import { Checkbox } from "@iot-os/ui/components/checkbox"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -40,6 +41,7 @@ import {
 import {
   panelLabel,
   profilePanels,
+  TEMPLATES,
   withLayout,
   type DashboardTemplate,
 } from "./templates"
@@ -484,6 +486,45 @@ async function allDevices(org: string) {
 }
 
 /** Template or device profile: pick devices, preview the generated panels, create. */
+/** Pick a starting point; the next dialog asks for devices, a name and a folder. */
+export function TemplatesDialog({
+  onUse,
+  onClose,
+}: {
+  onUse: (template: DashboardTemplate) => void
+  onClose: () => void
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>New dashboard from a template</DialogTitle>
+          <DialogDescription>Each template builds its panels for the devices you choose next.</DialogDescription>
+        </DialogHeader>
+        <ul aria-label="Templates" className="divide-y rounded-lg border">
+          {TEMPLATES.map((template) => (
+            <li key={template.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+              <div className="flex min-w-0 flex-1 basis-64 flex-col gap-0.5">
+                <span className="text-body font-medium">{template.name}</span>
+                <span className="text-meta text-muted-foreground">{template.creates}</span>
+                <span className="text-meta text-muted-foreground">Needs {template.needs.charAt(0).toLowerCase() + template.needs.slice(1)}</span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label={`Use template ${template.name}`}
+                onClick={() => onUse(template)}
+              >
+                Use template
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function GenerateDialog({
   org,
   template,

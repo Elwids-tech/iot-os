@@ -287,7 +287,7 @@ test("first-time onboarding saves, tests, reviews and protects an unsaved decode
   await expect(
     page.getByRole("button", { name: "Deploy tested revision" }),
   ).toBeDisabled();
-  await page.getByRole("link", { name: "All adapters" }).click();
+  await page.getByRole("link", { name: "Back to Device adapters" }).click();
   await expect(
     page.getByRole("alertdialog", { name: "Leave without saving?" }),
   ).toBeVisible();

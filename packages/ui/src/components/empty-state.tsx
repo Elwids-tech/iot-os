@@ -13,7 +13,7 @@ import {
 /**
  * The one empty state: an icon, a title, one sentence of description and the
  * next step. Copy: "No X yet" with the create action, or "No matching X" with
- * a Clear filters action. `inset` drops the dashed frame when the state sits
+ * a Clear filters action (`action`, or children). `inset` drops the dashed frame when the state sits
  * inside a card or a split pane that already has edges.
  */
 function EmptyState({
@@ -23,6 +23,7 @@ function EmptyState({
   action,
   inset,
   className,
+  children,
   ...props
 }: React.ComponentProps<"div"> & {
   icon?: React.ReactNode
@@ -42,7 +43,9 @@ function EmptyState({
         <EmptyTitle>{title}</EmptyTitle>
         {description && <EmptyDescription>{description}</EmptyDescription>}
       </EmptyHeader>
-      {action && <EmptyContent className="flex-row flex-wrap justify-center">{action}</EmptyContent>}
+      {(action ?? children) && (
+        <EmptyContent className="flex-row flex-wrap justify-center">{action ?? children}</EmptyContent>
+      )}
     </Empty>
   )
 }

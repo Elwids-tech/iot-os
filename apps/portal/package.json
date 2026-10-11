@@ -7,7 +7,7 @@
     "dev": "vite --port 5173 --strictPort",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit && node ../../packages/ui/scripts/check-ui.mjs src",
     "test": "vitest run",
     "test:e2e": "playwright test"
   },

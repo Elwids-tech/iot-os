@@ -1,3 +1,5 @@
+import { Status } from "@iot-os/ui/components/status-mark"
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
@@ -25,9 +27,7 @@ import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
 import { Choice, TextField, RequestError, Confirm } from "../components/forms"
 import {
-  Age,
   DeviceEmpty,
-  DeviceStatus,
   formatValue,
   Section,
 } from "./shared"
@@ -278,7 +278,7 @@ export function CommandsSection({
                   return (
                     <TableRow key={c.uuid}>
                       <TableCell>
-                        <Age value={c.created_at} />
+                        <RelativeTime at={c.created_at} />
                         <p className="text-xs text-muted-foreground">
                           {c.actor_name}
                         </p>
@@ -293,7 +293,7 @@ export function CommandsSection({
                         </p>
                       </TableCell>
                       <TableCell>
-                        <DeviceStatus value={c.status} />
+                        <Status value={c.status} />
                         {c.diagnostic && (
                           <p className="max-w-md text-xs whitespace-normal text-muted-foreground">
                             {c.diagnostic}
@@ -301,9 +301,9 @@ export function CommandsSection({
                         )}
                       </TableCell>
                       <TableCell>
-                        <Age value={c.confirmed_at} never="Not confirmed" />
+                        <RelativeTime at={c.confirmed_at} never="Not confirmed" />
                         <p className="text-xs text-muted-foreground">
-                          <Age value={c.completed_at} never="Not completed" />
+                          <RelativeTime at={c.completed_at} never="Not completed" />
                         </p>
                       </TableCell>
                       <TableCell>

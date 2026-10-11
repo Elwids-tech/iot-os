@@ -1,39 +1,18 @@
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import type { Dashboard, DashboardView, DeviceCommand } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark"
+import { Status, StatusMark } from "@iot-os/ui/components/status-mark"
 import { api } from "../lib/api"
 import { errorMessage } from "../components/forms"
 import { devicePath, formatValue } from "../devices/shared"
 import { appliedParameters } from "./model"
 import { useDeviceActivity, useDevices, useNow } from "./panelData"
-import { Age, presenceLabel, presenceTone } from "./ReadoutPanels"
+import { presenceLabel, presenceTone } from "./ReadoutPanels"
 
-const commandTone: Record<DeviceCommand["status"], StatusTone> = {
-  prepared: "muted",
-  pending: "commanded",
-  sent: "commanded",
-  observed: "good",
-  already_at_target: "good",
-  failed: "critical",
-  timed_out: "critical",
-  uncertain: "warning",
-  cancelled: "muted",
-}
-const commandLabel: Record<DeviceCommand["status"], string> = {
-  prepared: "Prepared",
-  pending: "Applying",
-  sent: "Applying",
-  observed: "Confirmed",
-  already_at_target: "Already set",
-  failed: "Failed",
-  timed_out: "Timed out",
-  uncertain: "Unconfirmed",
-  cancelled: "Cancelled",
-}
 
 /** Devices referenced by panel sources and device health panels. */
 export const dashboardDevices = (dashboard: Dashboard) => [
@@ -109,7 +88,7 @@ export function ContextRail({
                   </StatusMark>
                   {alert.activated_at && (
                     <span className="ml-auto shrink-0 text-xs whitespace-nowrap text-muted-foreground">
-                      <Age at={alert.activated_at} now={now} timezone={timezone} />
+                      <RelativeTime bare className="font-mono" at={alert.activated_at} now={now} timezone={timezone} />
                     </span>
                   )}
                 </div>
@@ -163,13 +142,11 @@ export function ContextRail({
                       <span className="font-mono">{formatValue(command.value)}</span>
                     </span>
                     <span className="ml-auto shrink-0 text-xs whitespace-nowrap text-muted-foreground">
-                      <Age at={command.created_at} now={now} timezone={timezone} />
+                      <RelativeTime bare className="font-mono" at={command.created_at} now={now} timezone={timezone} />
                     </span>
                   </div>
                   <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                    <StatusMark tone={commandTone[command.status]}>
-                      {commandLabel[command.status]}
-                    </StatusMark>
+                    <Status value={command.status} />
                     <span className="truncate">
                       · {command.actor_name} · {deviceName(command.device_uuid)}
                     </span>
@@ -203,7 +180,7 @@ export function ContextRail({
                   </StatusMark>
                   <span className="w-12 text-right text-xs text-muted-foreground">
                     {device?.last_seen_at && (
-                      <Age at={device.last_seen_at} now={now} timezone={timezone} />
+                      <RelativeTime bare className="font-mono" at={device.last_seen_at} now={now} timezone={timezone} />
                     )}
                   </span>
                 </li>

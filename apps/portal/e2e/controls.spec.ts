@@ -195,8 +195,9 @@ test("direct controls preserve actual state, deduplicate edits, and receive loca
   await expect(
     page.getByText("Power updated successfully.", { exact: true }),
   ).toBeAttached()
+  // The command log on the same tab may list earlier confirmations; the controls themselves must not.
   await expect(
-    page.getByText("Target state observed", { exact: true }),
+    page.locator(".device-controls-container").getByText("Confirmed", { exact: true }),
   ).toHaveCount(0)
   await expect(page.getByText("Online", { exact: true })).toHaveAttribute(
     "data-tone",

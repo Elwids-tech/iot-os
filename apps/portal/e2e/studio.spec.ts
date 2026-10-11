@@ -811,14 +811,17 @@ test("directory filters and safe deletion persist after reload", async ({
     .click()
   await page.getByLabel("Search profiles").fill("Disposable")
   await page.getByLabel("Category", { exact: true }).fill("Testing")
-  await choose(page, "Status", "Draft / unpublished changes")
+  await page.getByRole("radiogroup", { name: "Status" }).getByRole("radio", { name: "Draft" }).click()
   await expect(
     page.getByRole("link", { name: "Disposable draft", exact: true }),
   ).toBeVisible()
   await healthy(page)
   await screenshot(page, info, "profile-directory")
   await page
-    .getByRole("button", { name: "Delete Disposable draft", exact: true })
+    .getByRole("button", { name: "Actions for Disposable draft", exact: true })
+    .click()
+  await page
+    .getByRole("menuitem", { name: "Delete Disposable draft", exact: true })
     .click()
   await page
     .getByRole("alertdialog")
