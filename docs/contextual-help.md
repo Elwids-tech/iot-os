@@ -1,6 +1,6 @@
 # Contextual Help
 
-The tenant portal's **Help** button opens a docked panel on desktop and a sheet on smaller screens. **This page** shows the current section/tab guide. **All guides** searches the approved library. **Ask Help** answers usage questions with guide-heading citations when enabled. Explicitly opened articles and conversations survive navigation; organization switching clears private panel drafts. Help does not send resource identifiers, editable forms, telemetry, credentials, or workflow definitions automatically.
+The tenant portal's **Help** button opens the shared workspace panel (titled **Assistant**: a docked rail from 1280 px, a sheet on smaller screens) on its **This page** tab, which shows the current section/tab guide. **All guides** searches the approved library. The **Ask** tab holds the assistant for the current page; where a page has its own assistant (device profiles, the automation editor) a **Usage help** toggle switches Ask to guide-based answers, and everywhere else Ask answers usage questions directly with guide-heading citations when enabled. The sidebar **Assistant** control opens the same panel on Ask. Explicitly opened articles and conversations survive navigation; organization switching clears private panel drafts. Help does not send resource identifiers, editable forms, telemetry, credentials, or workflow definitions automatically.
 
 ## Maintaining articles
 

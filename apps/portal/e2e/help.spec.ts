@@ -222,7 +222,7 @@ test("contextual guidance, citations and panel switching preserve unsaved workfl
   await page.goto(`/organizations/${org}/automation/new`);
   await page.getByLabel("Name", { exact: true }).fill("Unsaved bench workflow");
   await openHelp(page);
-  const help = page.getByRole("complementary", { name: "Help", exact: true });
+  const help = page.getByRole("complementary", { name: "Assistant", exact: true });
   await expect(
     help.getByRole("heading", { name: "Build and activate automations" }),
   ).toBeVisible();
@@ -230,29 +230,37 @@ test("contextual guidance, citations and panel switching preserve unsaved workfl
   await expect(
     help.getByRole("heading", { name: "Simulate a saved workflow" }),
   ).toBeVisible();
-  await help.getByRole("tab", { name: "Ask Help", exact: true }).click();
+  // In the automation editor the Ask tab opens on the workflow assistant; usage help is one toggle away.
+  await help.getByRole("tab", { name: "Ask", exact: true }).click();
+  await expect(
+    help.getByRole("region", { name: "Automation assistant" }),
+  ).toBeVisible();
+  await help.getByRole("radio", { name: "Usage help" }).click();
   await help
     .getByLabel("Ask a usage question")
     .fill("Does simulation send commands?");
-  // In the automation editor the shared Assistant button opens the workflow assistant.
+  // The shared Assistant control returns the Ask tab to the editor's assistant in the same panel.
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "Automation assistant" }),
+    help.getByRole("region", { name: "Automation assistant" }),
   ).toBeVisible();
-  await expect(help).toBeHidden();
+  await expect(help.getByLabel("Ask a usage question")).toBeHidden();
   await page.keyboard.press("Escape");
+  await expect(help).toBeHidden();
   await page
     .locator('[data-slot="page-header"]')
     .first()
     .getByRole("button", { name: "Help", exact: true })
     .click();
+  await help.getByRole("tab", { name: "Ask", exact: true }).click();
+  await help.getByRole("radio", { name: "Usage help" }).click();
   await expect(help.getByLabel("Ask a usage question")).toHaveValue(
     "Does simulation send commands?",
   );
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue(
     "Unsaved bench workflow",
   );
-  await help.getByRole("button", { name: "Ask Help", exact: true }).click();
+  await help.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(
     help.getByText("Review the documented steps, then confirm explicitly.", {
       exact: true,
@@ -272,14 +280,15 @@ test("contextual guidance, citations and panel switching preserve unsaved workfl
     help.getByRole("heading", { name: "Simulate a saved workflow" }),
   ).toHaveCount(1);
   await expect(help.locator('[data-heading="steps"]')).toBeInViewport();
-  await help.getByRole("button", { name: "Back to Ask Help" }).click();
+  await help.getByRole("button", { name: "Back to Ask" }).click();
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue(
     "Unsaved bench workflow",
   );
-  await help.getByRole("button", { name: "Close Help" }).click();
+  await help.getByRole("button", { name: "Close assistant" }).click();
+  await expect(help).toBeHidden();
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "Automation assistant" }),
+    help.getByRole("region", { name: "Automation assistant" }),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -291,7 +300,7 @@ test("mobile Help fits the viewport, supports search and restores keyboard focus
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/organizations/${org}/dashboards`);
   await openHelp(page);
-  const help = page.getByRole("dialog", { name: "Help", exact: true });
+  const help = page.getByRole("dialog", { name: "Assistant", exact: true });
   await expect(
     help.getByRole("heading", { name: "Build and use dashboards" }),
   ).toBeVisible();
@@ -307,9 +316,9 @@ test("mobile Help fits the viewport, supports search and restores keyboard focus
       name: "Define parameters and unit conversions",
     }),
   ).toBeVisible();
-  await help.getByRole("tab", { name: "Ask Help", exact: true }).click();
+  await help.getByRole("tab", { name: "Ask", exact: true }).click();
   await expect(
-    help.getByText("Ask Help unavailable", { exact: true }),
+    help.getByText("Usage help unavailable", { exact: true }),
   ).toBeVisible();
   expect(
     (await new AxeBuilder({ page }).include('[role="dialog"]').analyze())
@@ -359,7 +368,7 @@ test("all sections offer Help; navigation retains an article and organization sw
   }
   await page.goto(`/organizations/${org}/dashboards`);
   await openHelp(page);
-  const help = page.getByRole("complementary", { name: "Help", exact: true });
+  const help = page.getByRole("complementary", { name: "Assistant", exact: true });
   await help.getByRole("tab", { name: "All guides" }).click();
   await help.getByLabel("Search guides").fill("unit conversions");
   await help
@@ -371,12 +380,12 @@ test("all sections offer Help; navigation retains an article and organization sw
       name: "Define parameters and unit conversions",
     }),
   ).toBeVisible();
-  await help.getByRole("tab", { name: "Ask Help", exact: true }).click();
+  await help.getByRole("tab", { name: "Ask", exact: true }).click();
   await help.getByLabel("Ask a usage question").fill("Private Acme draft");
   await page.getByRole("button", { name: "Organization: Acme" }).click();
   await page.getByRole("menuitemradio", { name: "Northstar" }).click();
   await expect(page).toHaveURL(`/organizations/${other}/devices`);
-  await help.getByRole("tab", { name: "Ask Help", exact: true }).click();
+  await help.getByRole("tab", { name: "Ask", exact: true }).click();
   await expect(help.getByLabel("Ask a usage question")).toHaveValue("");
   await expect(
     help.getByText("Guides and usage questions · Northstar"),

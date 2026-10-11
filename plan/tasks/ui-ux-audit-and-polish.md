@@ -1,9 +1,19 @@
 # UI/UX audit and polish plan
 
-Status: proposed, 2026-10-10. This document records an audit of the served
-portal and the shared UI package, and schedules the fixes. Nothing here is
-implemented. Line numbers refer to the `feat/charts-consumption` checkout on the
-audit date.
+Status: in progress on `feat/ui-polish`, 2026-10-10. This document records an
+audit of the served portal and the shared UI package and schedules the fixes.
+Line numbers in the findings refer to the `feat/charts-consumption` checkout on
+the audit date, before the fixes below landed.
+
+## Progress
+
+| Phase | State | Notes |
+| --- | --- | --- |
+| 0. Quick wins | Done, verified in the served portal | Overlay variants, reduced motion, utilities, 3:1 field borders and the inset field look, picker chevron addon, transparent outline buttons, read-only inputs, sidebar collapse control with persisted state, Geofences header, Notification settings overflow, adapter conversation filter, toast copy |
+| 1. Dusk palette | Done, verified | `data-palette` axis, Dusk default, Ink kept, pre-paint, theme-color sync, appearance menu |
+| 2. Form kit | Kit done; migrations in progress | Kit in `packages/ui` (form-fields, filter-bar, stepper, choice-card, FieldLabel `optional`, searchable selector `labelHidden`/`error`). Migrated: every directory filter row, the workflow editor's node forms, device onboarding (Stepper, ChoiceCard, validation on Continue), admin filters. Remaining field migrations are listed in the commit that lands them. |
+| 3. Motion, loading, feedback | Done except the sliding tab indicator and live-list row motion | Panel slide, route fade, collapsible height, readout flash, chart first-render-only animation, page-shaped route fallback, SaveBar spinner and Saved state, LoadError, EmptyState, bottom-right toasts |
+| 4. Assistant | Frontend unification done; backend registry, generic target, audit table, per-org budgets and new tool families remain | One workspace panel (Ask / This page / All guides) with a context line, the page's assistant portalled through a panel slot, the profile assistant as a body, Explain-this-execution inside the same panel, a Usage help toggle, an estimated-cost line |
 
 ## How the audit was done
 

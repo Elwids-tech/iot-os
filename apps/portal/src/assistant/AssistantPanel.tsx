@@ -24,13 +24,6 @@ import {
   AlertTitle,
   AlertDescription,
 } from "@iot-os/ui/components/alert"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@iot-os/ui/components/sheet"
 import { Field, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import {
   InputGroup,
@@ -69,9 +62,7 @@ import {
   SendIcon,
   SquareIcon,
   Trash2Icon,
-  XIcon,
   PaperclipIcon,
-  SparklesIcon,
   CheckIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -80,6 +71,7 @@ import { useDirtyContext } from "../lib/unsaved"
 import { Choice, Confirm, RequestError } from "../components/forms"
 import { ProposalReview } from "./ProposalReview"
 import { applyTextEvents } from "./state"
+import { conversationCost, formatCost } from "./cost"
 
 type Draft = { text: string; sources: string[] }
 const emptyDraft: Draft = { text: "", sources: [] }
@@ -207,26 +199,24 @@ function Questions({
   )
 }
 
-export default function AssistantPanel({
+/**
+ * The device-profile authoring conversation. It is one body of the shared
+ * workspace panel (see help/HelpPanel.tsx), which owns the frame, the tabs,
+ * docking and the close control; this component owns the conversation.
+ */
+export default function ProfileAssistantBody({
   org,
   organizationName,
   viewedProfile,
-  open,
-  onClose,
 }: {
   org: string
   organizationName: string
   viewedProfile?: string
-  open: boolean
-  onClose: () => void
 }) {
   const cache = useQueryClient()
   const { dirty } = useDirtyContext()
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
-  const [mobile, setMobile] = useState(
-    () => window.matchMedia("(max-width: 767px)").matches,
-  )
   const [selected, setSelected] = useState<string | null>(
     () => cache.getQueryData<string>(["assistant-selected", org]) ?? null,
   )
@@ -293,12 +283,6 @@ export default function AssistantPanel({
     const restored = () => setSessionEpoch((value) => value + 1)
     window.addEventListener("iot-session-restored", restored)
     return () => window.removeEventListener("iot-session-restored", restored)
-  }, [])
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 767px)")
-    const change = () => setMobile(media.matches)
-    media.addEventListener("change", change)
-    return () => media.removeEventListener("change", change)
   }, [])
   // Use an isolated cursor per conversation. Polling continues when the panel is closed.
   useEffect(() => {
@@ -632,30 +616,13 @@ export default function AssistantPanel({
       ),
     })
   const content = (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      className="flex h-full min-h-0 flex-col"
+      role="region"
+      aria-label="Profile assistant"
+      title={scope}
+    >
       <div className="flex flex-col gap-3 border-b p-4">
-        {!mobile && (
-          <div className="flex items-center justify-between">
-            <div>
-              <h2
-                id="assistant-title"
-                className="flex items-center gap-2 font-semibold"
-              >
-                <SparklesIcon className="size-4" />
-                Profile assistant
-              </h2>
-              <p className="text-xs text-muted-foreground">{scope}</p>
-            </div>
-            <Button
-              aria-label="Close profile assistant"
-              size="icon"
-              variant="ghost"
-              onClick={onClose}
-            >
-              <XIcon />
-            </Button>
-          </div>
-        )}
         <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
             <SearchableSelect
@@ -959,37 +926,18 @@ export default function AssistantPanel({
         <p className="text-xs text-muted-foreground">
           Selected files are sent to OpenAI. Chats and files stay private until
           you delete them. Check suggested values before saving.
+          {conversationCost(detail?.runs) > 0 && (
+            <span className="tabular-nums">
+              {" "}· Estimated cost of this conversation {formatCost(conversationCost(detail?.runs))}
+            </span>
+          )}
         </p>
       </div>
     </div>
   )
   return (
     <>
-      {mobile ? (
-        <Sheet
-          open={open && !review}
-          onOpenChange={(next) => {
-            if (!next) onClose()
-          }}
-        >
-          <SheetContent className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-full">
-            <SheetHeader className="border-b p-4">
-              <SheetTitle>Profile assistant</SheetTitle>
-              <SheetDescription>{scope}</SheetDescription>
-            </SheetHeader>
-            <div className="min-h-0 flex-1">{content}</div>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <aside
-          inert={!open}
-          data-state={open ? "open" : "closed"}
-          aria-labelledby="assistant-title"
-          className="fixed inset-y-0 right-0 z-20 w-[440px] max-w-full border-l bg-background shadow-lg transition-[transform,visibility] duration-200 ease-out data-closed:invisible data-closed:translate-x-full xl:shadow-none"
-        >
-          {content}
-        </aside>
-      )}
+      {content}
       {review && selected && (
         <ProposalReview
           key={review.id}
