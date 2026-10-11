@@ -485,3 +485,209 @@ decoder is already tolerant (`store.go:120-124`) and Laravel ignores extra keys,
 - **ADR implications.** If the plan chooses protobuf for the envelope or changes the
   unknown-field rule in `contracts/README.md`, record it in an ADR that amends ADR-005
   (canonical model independent of Sparkplug) and relates to ADR-010 and ADR-014.
+
+## 10. Decisions (plan step, 2026-10-11)
+
+Sections 1 to 9 are the inventory. This section records what the plan chose, in the
+Spec Kit format, after the clarification session in [spec.md](spec.md#clarifications).
+Version numbers below are the newest releases known at planning time. The
+implementation pull request confirms each is the newest patch that is at least two
+weeks old and records it exactly (`go.sum`, `composer.lock`).
+
+### D1. Contract language: JSON Schema 2020-12 for every contract in this spec
+
+- **Decision**: All new and corrected contracts are JSON Schema Draft 2020-12 documents
+  with JSON golden examples, like every existing contract in `contracts/`. The canonical
+  envelope is JSON in this spec; a binary encoding is left to the ingestion spec and
+  must keep field names and meanings.
+- **Rationale**: The internal protocol is JSON over HTTP; the repository, CI and
+  reviewers already work with 2020-12 schemas (`tooling/verify-devices-contracts.py:7,16`);
+  JSON examples are readable in review. Protobuf only pays off on the high-volume
+  ingestion path, which no live component uses yet (FR-033).
+- **Alternatives considered**: Protobuf for the envelope now (second toolchain, int64-as-
+  string and camelCase JSON mapping, no consumer yet); TypeSpec, CUE or AsyncAPI as a
+  source language (new toolchain for about 35 contracts).
+
+### D2. Validator libraries, pinned
+
+| Side | Library | Version (pin) | Why | Rejected |
+| --- | --- | --- | --- | --- |
+| Go runtime | `github.com/santhosh-tekuri/jsonschema/v6` | v6.0.x (newest patch ≥ 2 weeks old, at least v6.0.1), exact in `go.mod` | Full Draft 2020-12 including `$dynamicRef` and `unevaluatedProperties`; passes the official JSON-Schema-Test-Suite; compiles schemas once and validates decoded values quickly; pure Go (no cgo, fits the distroless image); detailed error tree with keyword and instance locations, which the tolerant mode needs (D5) | `xeipuuv/gojsonschema` (Draft 7, unmaintained); `qri-io/jsonschema` (stale); `kaptinlin/jsonschema` and `google/jsonschema-go` (younger, smaller track record) |
+| PHP control plane | `opis/json-schema` | ^2.4 constraint, exact patch locked in `composer.lock` | The mature PHP validator with Draft 2020-12 support; structured errors (keyword, data path, sub-errors); schema loader with resolver for `$ref` across files; no extensions beyond `ext-json` | `justinrainbow/json-schema` (Draft 3 to 7 only); `swaggest/json-schema` (Draft 4 to 7) |
+| Python tooling | `jsonschema` | 4.26.0 (already pinned, `tooling/simulators/requirements.txt`) | Cross-language reference in CI; unchanged | — |
+
+Both libraries are **runtime** dependencies, not test-only, because the live checks
+(D5) run in the API and the runtime. Performance budget: schemas are compiled once per
+process (Go at startup; PHP per worker through a static cache), and internal message
+volumes are small (at most about 100 control rows per second, one heartbeat per 10 s,
+presence and workflow events in bursts). The snapshot, up to 32 MiB, is checked off the
+reconciliation path (D5). SC-010 measures the overhead.
+
+### D3. Where schemas live and how examples are organised
+
+- **Layout**: new contracts go in two new directories, following the existing
+  `contracts/<domain>/...` convention:
+  - `contracts/ingestion/v1/`: telemetry envelope, source presence, source
+    announcement, rejection diagnostic, shared `$defs`, and the source mapping
+    document (FR-016).
+  - `contracts/internal/`: the control-plane/runtime protocol: `control/`
+    (control message types), `events/` (runtime event types), `wrappers/` (claim,
+    acknowledgement, event delivery and automation-check requests and responses),
+    `state/` (reconciliation snapshot), `common.schema.json`.
+  Existing contracts stay where they are (`devices/v1/activation`, `devices/v1/command`,
+  `rules/v1/deployment`, `rules/v1/transition`, configurations) so that current readers,
+  tests and docs keep their paths; the catalogue points at them.
+- **Catalogue**: `contracts/internal/catalogue.json` lists every internal contract:
+  contract id, direction, schema path, producer, consumer, deduplication key, fencing
+  fields, reading mode (tolerant or strict), live-check location, and the producer and
+  consumer test files. `contracts/ingestion/v1/catalogue.json` does the same for the
+  envelope family (strict). Together they are the single source for coverage checks
+  (FR-023, FR-027).
+- **File naming**: the file stem is the contract id: `events/device.applied.v1.schema.json`,
+  `device.applied.v1.fixture.json`, `device.applied.v1.cases.json`. The id carries the
+  major version, so a new major is a new file and the old one stays until it is retired.
+- **Examples**: each contract has one canonical valid example (`*.fixture.json`, the
+  existing convention that readers load) and a cases file (`*.cases.json`) in the
+  JSON-Schema-Test-Suite shape: an array of `{description, valid, data}` where every
+  invalid case also names the expected failure `{keyword, instance_location}` so a case
+  cannot pass for the wrong reason. Existing contracts gain a cases file only when this
+  spec touches them.
+- **Checker**: `tooling/verify-devices-contracts.py` becomes a generic walker over every
+  `contracts/**/*.schema.json` (instead of hard-coded directories), keeps its current
+  special checks, validates fixtures and cases, enforces the catalogue rules, and
+  checks that secret-marked fields use placeholder values. The file name is kept so docs
+  and CI stay valid.
+
+### D4. Contract identity and versioning
+
+- Control messages and runtime events: the wire `type` is the contract id
+  (`device.activate.v1`); no wire change.
+- Wrappers and the snapshot: ids `internal.outbox-claim.request.v1`,
+  `internal.outbox-claim.response.v1`, `internal.outbox-ack.request.v1`,
+  `internal.outbox-ack.response.v1`, `internal.runtime-event.response.v1`,
+  `internal.automation-command-check.request.v1`,
+  `internal.automation-command-check.response.v1`, `internal.control-state.v1`. The wire
+  carries no version today and this spec adds none (FR-032); the endpoint implies the
+  version. The synchronisation spec adds an explicit version when it introduces v2.
+- Envelope family: an explicit `schema_version` field (`telemetry.envelope.v1`,
+  `source.presence.v1`, `source.announcement.v1`, `ingestion.rejection.v1`), matching
+  the existing `schema_version` convention (`telemetry.committed.v1`).
+- **Compatibility rules** (enforced by D6):
+  - Within a major version only additive changes: new optional properties, new enum
+    values for internal messages, relaxed limits. Removing or renaming a property,
+    adding a required property, removing an enum value, changing a type or a `const`,
+    or tightening a limit needs a new major id.
+  - Internal messages (tolerant readers): a producer may start sending a new optional
+    field in the same pull request that adds it to the contract.
+  - Envelope family (strict readers): readers ship support for a new version before any
+    producer emits it.
+  - A new major for an internal type is consumed alongside the old one until the
+    queues that can still hold the old type are empty: at least one release, and never
+    less than the seven-day JetStream retention (`control.go:135-147`).
+  - Corrections in this spec (D7) are made before the compatibility check exists, so
+    they need no exception mechanism.
+
+### D5. Live "log and count" checks (FR-031)
+
+- **Where**:
+  - Control plane: a middleware on the `/api/internal/devices` route group, after
+    authentication, that checks the request body of `outbox/claim`, `outbox/{uuid}/ack`,
+    `automation-command-check` and `events` (by `type`). An unknown event type is not
+    checked (the controller already refuses it).
+  - Runtime: `ControlClient.request` checks each response by path (claim, ack,
+    automation check, events); the `devices-control` consumer checks each control
+    message by `type` before `handleControl`; `syncState` hands the raw snapshot to a
+    background checker with one check in flight (a snapshot that arrives while one is
+    being checked is skipped and counted as skipped).
+- **Mode**: tolerant: errors whose keyword is `additionalProperties` or
+  `unevaluatedProperties` are dropped (FR-030). Contract rule: every `oneOf` branch in an
+  internal contract is told apart by a `const` property (for example `schema_version`),
+  never by `additionalProperties`, so dropping those errors cannot change which branch
+  matches; the checker enforces the rule after resolving `$ref`.
+- **On a violation**: one structured warning log (`contract.violation`) with side,
+  contract id, message identity, and up to ten `{keyword, instance_location}` pairs;
+  never values, payload fragments or secrets. Then processing continues unchanged. Any
+  exception inside the check is caught, logged as `contract.check_failed` and counted.
+- **Counts**:
+  - Runtime: in-memory counters since start, reported in `GET /internal/status` under
+    `contracts: {enabled, violations_since_start: {<contract id>: n}, check_failures_since_start, snapshot_checks_skipped}`
+    next to the existing `dead_letters` block (`http.go:116-120`). Operators already see
+    this through `RuntimeStatus::diagnostics()`.
+  - Control plane: a `contract_violations` table keyed by (side, contract id) with
+    `count`, `first_seen_at`, `last_seen_at`, `last_message_id`, `last_locations`; one
+    upsert per violation, so it never grows beyond the catalogue size.
+  - Both exported by `App\Support\Operations::metrics()` as
+    `iot_contract_violations_total{side,contract}` and
+    `iot_contract_check_failures_total{side}` on the existing `/internal/ops/metrics`
+    endpoint; the runtime's counts are read from `/internal/status` the way
+    `dag_consumer_healthy` is today. Labels come only from the catalogue (anything else
+    is `contract="unknown"`), so cardinality is bounded and carries no tenant data.
+  - A `php artisan devices:contract-violations` command prints both sides for operators
+    and for the quickstart.
+- **Switch**: `IOT_CONTRACT_CHECKS` (`on` by default, `off` disables the live checks)
+  on both sides, for incident response and for the SC-010 overhead measurement.
+- **Contract files at runtime**: the API image already copies `contracts/` to
+  `/var/contracts` and resolves `config('devices.contracts_path')`
+  (`apps/api/config/devices.php:16-17`). The runtime image gains `COPY contracts
+  /contracts` and an `IOT_CONTRACTS_PATH` setting (default `/contracts`, tests use the
+  repository path). If the files are missing or fail to compile, the runtime starts
+  normally with `contracts.enabled=false` and logs once; checks never block startup.
+- **Rationale**: owner answer Q2; uses the existing status, metrics and logging
+  surfaces; no new infrastructure; no change to acknowledgement, retry or dead-letter
+  paths.
+- **Alternatives considered**: refusing invalid content (deferred to later specs);
+  Redis counters (Redis is unused in the stack); per-request in-memory PHP counters
+  (lost between PHP workers).
+
+### D6. Enforcement in tests and CI
+
+- **Producer tests (closed schemas)**: the control plane validates each outbox row it
+  writes, the claim, acknowledgement, event and automation-check responses, and the
+  snapshot; the runtime validates each runtime event it writes to its outbox and each
+  request body it sends.
+- **Consumer tests**: every valid fixture and case is consumed successfully by the real
+  handler; every invalid case raises the violation count by one without changing the
+  outcome (FR-025, FR-026); unsupported types are refused as today (FR-031).
+- **Coverage**: the checker fails if a catalogue entry lacks a schema, fixture, cases
+  with at least one valid and one invalid case, or test files that mention its id; Go
+  and PHP tests compare the catalogue with the types in code (Go: control and event type
+  constants plus an AST scan for stray type literals; PHP: the event type list in
+  `RuntimeController` and the types passed to `DeviceAudit::enqueue`).
+- **Compatibility**: `tooling/contracts/compat.py` compares every changed schema with
+  its copy on `origin/main`: all of main's valid examples must still validate, and the
+  structural rules in D4 must hold, unless the contract id is new. It also fails when a
+  schema changes without its fixture or cases changing. The CI `tooling` job fetches
+  `main` for this.
+- **Seeded-fault exercise (SC-003)**: a scripted run of at least ten mutations
+  (schema, fixture and producer) recorded in the pull request that adds the
+  compatibility check.
+
+### D7. Drift corrections (FR-022)
+
+Correct the contracts to today's output; change no producer.
+
+| Contract | Correction |
+| --- | --- |
+| `events/v1/telemetry-committed` | Reading gains optional `installation_uuid`, `adapter_revision_uuid` (uuid) and `manufacturer_serial` (string, 1 to 128) |
+| `devices/v1/telemetry` | Top level gains required `generation` (integer ≥ 1) and optional `capture_id`; `definition` accepts configuration v1 or v2; reading gains the three provenance fields, optional `last_valid_received_at` and `counter_event`, and `data_type` adds `enum` |
+| `devices/v1/activation` | Payload gains required `organization_uuid`, `device_uuid`, `operation_uuid` (both producers always send them); message gains optional `lease_token` |
+| `devices/v1/command` | Gains required `generation` (integer ≥ 1); `session_id` becomes string (min length 1) or null |
+| `devices/v1` and `v2/configuration` | Gain optional `adapter {installation_uuid, adapter_uuid, manufacturer_serial}`, closed |
+
+Each correction is preceded in the same pull request by the producer test that fails
+against the old schema, which demonstrates SC-007.
+
+### D8. Canonical envelope reference reader
+
+A Go package `services/runtime/internal/ingestion/envelope` provides typed structs, a
+strict reader that returns either the envelope or an `ingestion.rejection.v1`
+diagnostic, the semantic checks JSON Schema cannot express (unique parameter and
+observation time, 1 MiB size, identity basis rules, announcement hash), and the
+deterministic message identity function. No live code calls it in this spec (FR-033);
+the ingestion spec wires it in.
+
+### D9. Decision record
+
+The unknown-field policy, live report-only checks and validator choices change the
+contract rules in `contracts/README.md`, so the first implementation pull request adds
+**ADR-015: Internal contract validation and evolution**, relating to ADR-005 and ADR-014.

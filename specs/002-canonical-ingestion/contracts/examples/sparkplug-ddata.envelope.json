@@ -1,0 +1,45 @@
+{
+  "schema_version": "telemetry.envelope.v1",
+  "message_id": "fc85961c-f880-581e-8d1f-a605359cfa61",
+  "identity": {
+    "basis": "session_sequence",
+    "session": "fixtures/meter-gateway:0",
+    "sequence": 1,
+    "source_timestamp": "2024-04-05T19:23:20.000Z"
+  },
+  "trusted": {
+    "organization_uuid": "90000000-0000-4000-8000-000000000003",
+    "ingress": {
+      "kind": "broker_connection",
+      "uuid": "90000000-0000-4000-8000-000000000005"
+    }
+  },
+  "source": {
+    "protocol": "sparkplug_b",
+    "address": {
+      "scheme": "sparkplug",
+      "group_id": "fixtures",
+      "edge_node_id": "meter-gateway",
+      "device_id": "meter"
+    }
+  },
+  "provenance": {
+    "transport": "mqtt",
+    "topic": "spBv1.0/fixtures/DDATA/meter-gateway/meter",
+    "qos": 0,
+    "retained": false
+  },
+  "received_at": "2024-04-05T19:23:20.120Z",
+  "observed_at": "2024-04-05T19:23:20.000Z",
+  "values": [
+    {
+      "name": "Voltage L1",
+      "type": "number",
+      "value": 232.0,
+      "quality": "good",
+      "observed_at": "2024-04-05T19:23:20.000Z",
+      "time_source": "source",
+      "historical": false
+    }
+  ]
+}

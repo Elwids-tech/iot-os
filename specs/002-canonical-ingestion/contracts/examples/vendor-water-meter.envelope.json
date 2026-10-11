@@ -1,0 +1,64 @@
+{
+  "schema_version": "telemetry.envelope.v1",
+  "message_id": "2afe37eb-5305-515f-87cf-7ac60fd8decf",
+  "identity": {
+    "basis": "source_message_id",
+    "source_message_id": "msg-000184"
+  },
+  "trusted": {
+    "organization_uuid": "90000000-0000-4000-8000-000000000003",
+    "ingress": {
+      "kind": "adapter_deployment",
+      "uuid": "90000000-0000-4000-8000-0000000000a1"
+    },
+    "adapter": {
+      "adapter_uuid": "90000000-0000-4000-8000-0000000000a2",
+      "revision_uuid": "90000000-0000-4000-8000-0000000000a3"
+    },
+    "installation_uuid": "90000000-0000-4000-8000-0000000000a4",
+    "device": {
+      "device_uuid": "90000000-0000-4000-8000-000000000002",
+      "basis": "binding"
+    }
+  },
+  "source": {
+    "protocol": "vendor_mqtt",
+    "address": {
+      "scheme": "device_key",
+      "key": "WM-1042"
+    }
+  },
+  "provenance": {
+    "transport": "mqtt",
+    "topic": "acme/water/WM-1042/up",
+    "qos": 1,
+    "retained": false
+  },
+  "received_at": "2026-10-11T08:00:00.250Z",
+  "values": [
+    {
+      "name": "flow_rate",
+      "type": "number",
+      "value": 12,
+      "quality": "good",
+      "unit": {
+        "symbol": "L/min",
+        "custom": false
+      },
+      "time_source": "receipt",
+      "historical": false
+    },
+    {
+      "name": "total_volume",
+      "type": "number",
+      "value": 8400,
+      "quality": "good",
+      "unit": {
+        "symbol": "L",
+        "custom": false
+      },
+      "time_source": "receipt",
+      "historical": false
+    }
+  ]
+}

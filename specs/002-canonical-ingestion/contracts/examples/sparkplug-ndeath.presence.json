@@ -1,0 +1,33 @@
+{
+  "schema_version": "source.presence.v1",
+  "message_id": "deb8999c-c826-587b-82c8-9716219c231a",
+  "identity": {
+    "basis": "ingress_assigned"
+  },
+  "trusted": {
+    "organization_uuid": "90000000-0000-4000-8000-000000000003",
+    "ingress": {
+      "kind": "broker_connection",
+      "uuid": "90000000-0000-4000-8000-000000000005"
+    }
+  },
+  "source": {
+    "protocol": "sparkplug_b",
+    "address": {
+      "scheme": "sparkplug",
+      "group_id": "fixtures",
+      "edge_node_id": "meter-gateway",
+      "device_id": ""
+    }
+  },
+  "provenance": {
+    "transport": "mqtt",
+    "topic": "spBv1.0/fixtures/NDEATH/meter-gateway",
+    "qos": 1,
+    "retained": false
+  },
+  "received_at": "2024-04-05T19:30:00.000Z",
+  "presence": "offline",
+  "reason": "NDEATH with matching bdSeq",
+  "session": "fixtures/meter-gateway:0"
+}
