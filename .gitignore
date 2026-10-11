@@ -28,3 +28,6 @@ deploy/compose/data/
 
 # Private adapter verification and manager state
 .local/adapter-*/
+
+# Storybook build output
+storybook-static/

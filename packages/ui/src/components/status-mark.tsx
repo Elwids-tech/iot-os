@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { statusOf, type StatusDomain } from "@iot-os/ui/lib/status"
 import { cn } from "@iot-os/ui/lib/utils"
 
 const tones = {
@@ -30,5 +31,22 @@ export function StatusMark({
       <span aria-hidden="true" className={cn("size-2 shrink-0", tones[tone])} />
       {children}
     </span>
+  )
+}
+
+/** A raw status value through the shared vocabulary in lib/status. */
+export function Status({
+  value,
+  domain,
+  ...props
+}: Omit<React.ComponentProps<"span">, "children"> & {
+  value: string | null | undefined
+  domain?: StatusDomain
+}) {
+  const { tone, label } = statusOf(value, domain)
+  return (
+    <StatusMark tone={tone} {...props}>
+      {label}
+    </StatusMark>
   )
 }

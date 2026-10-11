@@ -9,6 +9,24 @@ export function formatAge(iso: string, now: number = Date.now()): string {
   return `${Math.floor(seconds / 86400)} d`
 }
 
+export type FreshnessState = "fresh" | "late" | "never" | "unrated"
+
+/**
+ * How recent a timestamp is against an expected reporting interval: late once
+ * it is older than twice the interval. Without an interval there is no rating.
+ */
+export function freshnessState(
+  iso: string | null | undefined,
+  expectedSeconds?: number | null,
+  now: number = Date.now(),
+): FreshnessState {
+  if (!iso) return "never"
+  const time = Date.parse(iso)
+  if (Number.isNaN(time)) return "never"
+  if (!expectedSeconds || expectedSeconds <= 0) return "unrated"
+  return now - time > expectedSeconds * 2000 ? "late" : "fresh"
+}
+
 /** Locale number with exactly `precision` decimals when given (profile display.precision), up to 3 otherwise. */
 export function formatNumber(value: number, precision?: number): string {
   if (!Number.isFinite(value)) return ""
