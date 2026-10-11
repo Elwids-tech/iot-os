@@ -8,6 +8,16 @@
 
 **Input**: User description: "The platform is sold as API-first, but its public HTTP API has no machine-readable contract. `contracts/openapi/` was removed as empty; `packages/api-client` is a ~2,000-line hand-written TypeScript client that casts every response (`return payload as T`) across ~255 routes; the integration SDK (`packages/integration-sdk`) duplicates types for the external `integration/v1` API; drift has already caused bugs (for example users are referenced by integer `user_id`, never uuid — ADR-013). Some endpoints pass the Go runtime's internal response shape straight through to clients (e.g. telemetry capture). Outcome wanted: a machine-readable description of the public HTTP API that is produced from (or verified against) the Laravel application itself, kept in the repo, checked in CI so that an API change without a matching contract change fails the build, and used to generate the TypeScript types used by `packages/api-client` and `packages/integration-sdk`. Start with the external `integration/v1` API (third-party applications, bearer tokens, abilities) and the tenant `api/v1` endpoints the portal and admin use; internal runtime endpoints (`/api/internal/...`) are out of scope (spec 002 covers internal contracts). Must not change any endpoint's behaviour or break existing portal/admin/SDK call sites; error formats, pagination envelopes, authentication schemes and abilities must be described accurately. Published human-readable API reference for integrators is desirable."
 
+## Clarifications
+
+### Session 2026-10-11
+
+- Q: How complete must the checked `api/v1` response schemas be before this spec is done? → A: A checked inventory of all 229 `api/v1` operations (method, path, authentication, parameters, status codes), plus full checked response schemas for the account and public, platform-administration, Administration and Device-profile operations (74). CI blocks any new operation without a full schema; the remaining domains follow in small pull requests.
+- Q: Should the published reference cover only the integration API, or also the session-only `api/v1`? → A: Publish the integration API reference; build the `api/v1` reference for developers only, unpublished.
+- Q: When a pull request makes a breaking change to `integration/v1`, should CI always fail it, or allow a reviewed exception? → A: Fail unless the pull request records a reviewed exception with a reason and an SDK version bump.
+- Q: How should responses passed straight through from the runtime be described? → A: Exactly as returned today, marked runtime-shaped.
+- Q: When the SDK receives an event type newer than the contract it was built from, what should it do? → A: Return it as an "unknown" event whose envelope is checked and whose payload is untyped; release the SDK as a minor version.
+
 ## User Scenarios & Testing *(mandatory)*
 
 **Who is involved**
@@ -89,22 +99,28 @@ use: 228 routes carrying 229 operations — 5 that need no sign-in (sign-in, pas
 recovery and reset, invitation lookup and acceptance), 6 account-level operations
 (profile, sign-out, unit catalogue, personal notification preferences and events), 199
 organization operations across 12 domains, and 19 platform-administration operations.
-The same verification and CI gate as the integration API apply.
+Every one of them is in a checked inventory (method, path, authentication, parameters,
+status codes). The 74 account and public, platform-administration, Administration and
+Device-profile operations also get full checked response schemas. The other 155 are on
+a pending-schema list that can only shrink, and their domains follow in small pull
+requests after this spec.
 
 **Why this priority**: The portal and admin are the largest API consumers and where the
 hand-written client drifts. It is lower than P1 because no third party can call this API
 and it is roughly twelve times larger.
 
 **Independent Test**: The route inventory check reports zero undescribed and zero
-orphaned `api/v1` operations, and response verification passes for the agreed
-completeness bar (see FR-019).
+orphaned `api/v1` operations, response verification passes for the 74 fully described
+operations, and adding an operation that has no full schema and is not on the pending
+list fails CI.
 
 **Acceptance Scenarios**:
 
-1. **Given** the contract, **When** a developer looks up any organization operation, **Then** it states that the caller must be a member of the organization in the path (404 for an unknown organization, 403 for a non-member) and the permission the operation requires where the platform declares one.
+1. **Given** the contract, **When** a developer looks up any organization operation, **Then** it states that the caller must be a member of the organization in the path (404 for an unknown organization, 403 for a non-member); for a fully described operation it also states the tenant permissions the operation checks.
 2. **Given** the contract, **When** a developer looks up `PUT alerts/{alert}/assignee`, **Then** the body field `user_id` is an integer, as is every other user reference (ADR-013).
-3. **Given** the contract, **When** a developer looks up a list operation, **Then** it shows the pagination envelope that operation actually returns (full metadata with links, compact metadata, cursor, or unpaginated), not a single generic envelope.
-4. **Given** the contract, **When** a developer looks up `GET telemetry-captures/{capture}`, **Then** the response is described exactly as returned today and marked as runtime-shaped.
+3. **Given** the contract, **When** a developer looks up a fully described list operation, **Then** it shows the pagination envelope that operation actually returns (full metadata with links, compact metadata, cursor, or unpaginated), not a single generic envelope.
+4. **Given** an operation on the pending-schema list, such as `GET telemetry-captures/{capture}`, **When** a developer looks it up, **Then** it shows the method, path, authentication, parameters and status codes and says its response schema is pending; when the Devices domain's schemas land, the response is described exactly as returned today and marked runtime-shaped.
+5. **Given** a new `api/v1` operation without a full response schema, **When** CI runs, **Then** it fails, because only operations already on the pending list may lack one.
 
 ---
 
@@ -122,34 +138,38 @@ Story 3.
 
 **Independent Test**: The client library and SDK type-check, portal and admin build and
 pass their unit tests, the SDK and `apps/vertical-demo` tests pass, and no hand-written
-type for a described payload remains. The SDK accepts an `automation.triggered.v1`
-event.
+type remains for a fully described payload. The SDK accepts an `automation.triggered.v1`
+event and returns an event type missing from its contract as an unknown event.
 
 **Acceptance Scenarios**:
 
 1. **Given** generated types, **When** the portal and admin are built, **Then** no call site needs changing, except where a hand-written type was wrong against real responses; each such correction is recorded in the drift log.
-2. **Given** the SDK built on generated types, **When** it receives an `automation.triggered.v1` event from the feed or a webhook, **Then** it returns the event instead of raising a contract error.
-3. **Given** the portal's generic automation calls (22 call sites that declare their own response types), **When** this story is done, **Then** their response types come from the contract.
+2. **Given** the SDK built on generated types, **When** it receives an `automation.triggered.v1` event from the feed or a webhook, **Then** it returns the event, typed from the contract, instead of raising a contract error.
+3. **Given** the SDK receives an event whose envelope is a valid `integration-event.v1` but whose `type` is not in the contract it was built from, **When** it reads the feed or verifies a webhook, **Then** it returns an unknown event (envelope checked, `data` untyped) so the consumer can skip it and keep advancing its cursor; an envelope with an unsupported `schema_version` is still rejected.
+4. **Given** a client-library method for an operation on the pending-schema list, **When** this story is done, **Then** it keeps its hand-written type until the operation leaves the list, and its type then comes from the contract.
 
 ---
 
 ### User Story 5 - Integrators can read a published API reference (Priority: P4)
 
-An integrator reads a human-readable reference, generated from the contract, that shows
-each operation's purpose, authentication, ability or permission, parameters, examples,
-errors and rate limits, without reading source code.
+An integrator reads a human-readable reference for the integration API, generated from
+the contract, that shows each operation's purpose, authentication, ability, parameters,
+examples, errors and rate limits, without reading source code. Platform developers can
+build a second reference that covers `api/v1`; it is not published.
 
 **Why this priority**: Desirable rather than required; it is a rendering of the
 contract, so it adds little risk once the contract is correct.
 
-**Independent Test**: The reference builds from the repository without a running
-platform, and for any integration operation a reader can find the required abilities,
+**Independent Test**: Both references build from the repository without a running
+platform; the published one contains the 18 integration operations and no `api/v1`
+operation, and for any integration operation a reader can find the required abilities,
 parameters and error responses.
 
 **Acceptance Scenarios**:
 
-1. **Given** a contract change merged to main, **When** the reference is rebuilt, **Then** it reflects the change with no separate manual edit.
-2. **Given** the reference, **When** an integrator opens the event feed, **Then** it explains cursors, checkpoints and the event envelope with an example.
+1. **Given** a contract change merged to main, **When** the references are rebuilt, **Then** they reflect the change with no separate manual edit.
+2. **Given** the published reference, **When** an integrator opens the event feed, **Then** it explains cursors, checkpoints and the event envelope with an example.
+3. **Given** the published reference, **When** anyone searches it for an `api/v1` path, **Then** there is none.
 
 ---
 
@@ -204,6 +224,18 @@ parameters and error responses.
 - **A client header the platform ignores**: the client library sends
   `X-Organization-UUID` on every request; no platform code reads it. The contract does
   not describe it as a parameter.
+- **Operations whose response schema is pending**: the 155 `api/v1` operations outside
+  the first 74 have method, path, authentication, parameters and status codes in the
+  contract, but an open success body. A test that receives a status the contract does
+  not list for them still fails; their body is not checked until their domain leaves
+  the pending list.
+- **An event type newer than the SDK**: a feed page or webhook carrying a valid
+  `integration-event.v1` envelope with an unrecognised `type` yields an unknown event
+  from the SDK rather than an error, so the consumer's cursor keeps moving. An
+  unrecognised `schema_version` is still an error.
+- **A breaking integration change that is intended**: for example correcting a field
+  the contract described wrongly. It passes only with a recorded, reviewed exception and
+  an SDK version bump in the same pull request.
 
 ## Requirements *(mandatory)*
 
@@ -214,13 +246,13 @@ parameters and error responses.
 - **FR-001**: The repository MUST contain one machine-readable description of the platform's public HTTP API (the "contract"), in an industry-standard API description format that documentation and type-generation tools can read, stored under `contracts/` beside the existing cross-language contracts.
 - **FR-002**: The contract MUST describe every operation registered under `/api/integration/v1/` (18 operations) and `/api/v1/` (229 operations on 228 routes), grouped by audience: integration (application tokens), account and public, organization (tenant), and platform administration.
 - **FR-003**: The contract MUST NOT describe the internal endpoints under `/api/internal/` (9 routes, covered by spec 002) or the operational routes outside `/api` (`/`, `/up`, `/health/ready`, `/internal/ops/metrics`, `/storage/*`), and the checks MUST NOT report them as drift. The anti-forgery bootstrap route used by session sign-in MUST be described as part of the session authentication scheme.
-- **FR-004**: Each operation MUST state its method and path; path parameters with the format the platform enforces (UUID, integer, slug pattern or opaque token), noting that malformed identifiers return 404; query parameters with types, defaults and bounds; the request body (JSON or multipart) with required fields, types and validated bounds; and every success status (200, 201, 202, 204) and error status it can return, each with its body and relevant headers.
+- **FR-004**: Each operation MUST state its method and path; path parameters with the format the platform enforces (UUID, integer, slug pattern or opaque token), noting that malformed identifiers return 404; query parameters with types, defaults and bounds; the request body (JSON or multipart) with required fields, types and validated bounds; and every success status (200, 201, 202, 204) and error status it can return. Each fully described operation (every integration operation and the 74 `api/v1` operations named in FR-019) MUST also give the body schema and relevant headers for each status; an operation on the pending-schema list (FR-019a) may leave its success body open.
 
 **Authentication, authorisation and limits**
 
 - **FR-005**: The contract MUST describe the two client authentication schemes: (a) the first-party browser session (session cookie plus anti-forgery token header; 401 without a session, 419 for an expired anti-forgery token), and (b) the application bearer token for the integration API, which the platform rejects on every other route and which is the only credential integration routes accept (session cookies and user tokens are ignored there). The 5 operations that need no authentication MUST be marked as such.
 - **FR-006**: Each integration operation MUST state its required ability from the closed set of 8 (`devices:read`, `alerts:read`, `events:read`, `telemetry:read`, `locations:read`, `geofences:read`, `geofences:manage`, `geofences:activate`), that the ability must be granted on both the application and the token, the compound rules (`events:read` also needs `alerts:read` or `geofences:read`; `geofences:activate` also needs `geofences:manage`), and the meaning of 401 (missing, invalid, expired or revoked token), 403 (ability not granted) and 404 (another organization or a resource not granted to the application).
-- **FR-007**: Each organization operation MUST state that the caller must belong to the organization in the path (404 unknown organization, 403 non-member) and the tenant permission or permissions the operation checks (for example `Device.view` and `Device.manage` for application management), with 403 when one is missing. Each platform-administration operation MUST state the platform permission it requires (`manage-organizations` or `manage-retention` where the route declares it; the check the operation itself makes otherwise, as for the two platform-team operations).
+- **FR-007**: Each organization operation MUST state that the caller must belong to the organization in the path (404 unknown organization, 403 non-member); each fully described organization operation MUST also state the tenant permission or permissions it checks (for example `Device.view` and `Device.manage` for application management), with 403 when one is missing. Each platform-administration operation MUST state the platform permission it requires (`manage-organizations` or `manage-retention` where the route declares it; the check the operation itself makes otherwise, as for the two platform-team operations).
 - **FR-008**: The contract MUST state the rate limits that apply to each operation — integration: 60 per minute per application and 240 per minute per source address; `api/v1`: the per-route limits on password recovery and reset, invitations, onboarding, telemetry captures, assistant conversations, messages and uploads, adapter tests, connection tests, deploys and credentials, and application management (30 per minute) — and the 429 response with `Retry-After`. It MUST state `Cache-Control: no-store` on integration responses to authenticated requests and on application token issuance.
 
 **Shared conventions, described as they are**
@@ -230,7 +262,7 @@ parameters and error responses.
 - **FR-011**: Resource identifiers MUST be described as UUID strings and user references as integers (`id` in the profile, `user_id`, `acknowledged_by`, `assigned_to`, `created_by`, `recipient_ids`, member ids), per ADR-013. An automated check MUST fail if any user reference is described as anything other than an integer.
 - **FR-012**: Asynchronous operations (device lifecycle, workflow deployment, adapter deployment, geofence activation) MUST describe the 202 response, the operation or batch to poll and the operation that polls it; client-supplied idempotency keys and the 409 on reuse for a different request; and optimistic-concurrency fields (`revision`, `draft_revision`, `expected_revision`) with the 409 on a stale write.
 - **FR-013**: Non-JSON responses and uploads (connection-kit archive, assistant source download, assistant source upload) MUST be described by content type, headers and parts.
-- **FR-014**: Operations whose response body is the device runtime's own shape passed through by the control plane MUST be described exactly as returned today and marked as runtime-shaped, so a later spec can stabilise them. At the time of writing these are the four telemetry-capture operations that call the runtime (list, start, show, action), the location fix `data` in the integration API, and the device entries of both location-map queries.
+- **FR-014**: Operations whose response body is the device runtime's own shape passed through by the control plane MUST be described exactly as returned today and marked as runtime-shaped, so a later spec can stabilise them. At the time of writing these are the location fix `data` and the location-map device entries in the integration API (described in this spec), and the four telemetry-capture operations that call the runtime (list, start, show, action) and the tenant location-map query (described when the Devices and Geospatial domains leave the pending list).
 - **FR-015**: Where a payload already has a versioned schema in `contracts/` (`location-binding.v1`, `location-fix.v1`, `automation-workflow.v2`, the unit catalogue), the contract MUST reference that schema instead of restating it.
 - **FR-016**: The contract MUST describe the `integration-event.v1` envelope used by the event feed and webhook deliveries, every event type the platform emits (eight today: `alert.activated.v1`, `alert.cleared.v1`, `alert.acknowledged.v1`, `geofence.entered.v1`, `geofence.exited.v1`, `geofence.wandering_started.v1`, `geofence.wandering_resolved.v1`, `automation.triggered.v1`) with each type's `data`, and the webhook delivery request (signature, timestamp and delivery-id headers and body).
 - **FR-017**: Integration API response objects MUST be described as allowing additional fields, matching the contracts rule that additive fields stay within a major version; required fields and nullability MUST match the platform.
@@ -238,24 +270,25 @@ parameters and error responses.
 **Verification and enforcement**
 
 - **FR-018**: An automated check MUST compare the platform's registered routes under the in-scope prefixes with the contract and fail when a route has no described operation, a described operation has no route, or the method, path, path constraints, authentication scheme or required ability differ.
-- **FR-019**: An automated check MUST exercise described operations against the real application and fail when a response's status, headers or body does not conform. For every integration operation it MUST verify a success response and the 401, 403 and 404 responses, plus 422 where the operation accepts input. For `api/v1` operations: [NEEDS CLARIFICATION: Must all 229 `api/v1` operations have full, verified response schemas before this spec is done, or is a verified inventory (method, path, authentication, parameters, status codes) for all 229 plus verified response schemas for an agreed first set of domains acceptable, with the rest tracked as follow-up?]
+- **FR-019**: An automated check MUST exercise described operations against the real application and fail when a response's status, headers or body does not conform. For every integration operation it MUST verify a success response and the 401, 403 and 404 responses, plus 422 where the operation accepts input. For `api/v1` it MUST verify at least one success response for each of the 74 fully described operations — 11 account and public, 19 platform administration, 13 Administration and 30 Device-profile organization operations, and the organization context — and, for every `api/v1` operation the test suite exercises, that the returned status is one the contract lists.
+- **FR-019a**: Operations without a full response schema MUST be named in a pending-schema list kept with the contract. At the start it holds the 155 remaining `api/v1` organization operations (Devices 47, Automation 42, Device adapters 17, Dashboards 13, Assistant 12, Geospatial 10, application management 10, Help 3, Overview 1). The checks MUST fail when an operation lacks a full schema and is not on the list, when the list names an operation that does not exist or already has a full schema, or when the list has more entries than on the main branch. No integration operation may be on the list. Each remaining domain leaves the list in its own small pull request after this spec, adding its schemas and response checks.
 - **FR-020**: Request descriptions MUST be verified against what the platform accepts and rejects (required fields, types, bounds), so that a validation change without a contract change fails.
 - **FR-021**: These checks MUST run on every pull request as part of the existing required CI and MUST report each failure with the operation, the status and the specific difference.
 - **FR-022**: A contract change with no matching platform change MUST fail the same checks.
-- **FR-023**: For the integration API, the checks MUST classify contract changes against the main branch as additive or breaking (removed operation; removed or renamed field; narrowed type; new required input; changed ability, authentication or status code) and MUST fail on a breaking change, following the contracts rule that a breaking change needs a new version.
+- **FR-023**: For the integration API, the checks MUST classify contract changes against the main branch as additive or breaking (removed operation; removed or renamed field; narrowed type; new required input; changed ability, authentication or status code) and MUST fail on a breaking change unless the same pull request records an exception that names each breaking change and gives a reason, the exception is reviewed in that pull request, and the SDK version is bumped. Without an exception, the contracts rule applies: a breaking change needs a new version.
 - **FR-024**: Breaking changes to `api/v1` are allowed when the contract and the client library change in the same pull request (constitution principle IV); the checks MUST still report them as breaking.
 
 **Client and SDK types**
 
-- **FR-025**: Type definitions for every described request and response payload MUST be generated from the contract and used by `packages/api-client` and `packages/integration-sdk`; hand-written duplicates of those types MUST be removed or turned into aliases of the generated types.
+- **FR-025**: Type definitions for every described payload (the request bodies of all operations and the response bodies of fully described operations) MUST be generated from the contract and used by `packages/api-client` and `packages/integration-sdk`; hand-written duplicates of those types MUST be removed or turned into aliases of the generated types.
 - **FR-026**: The checks MUST fail when generated types are out of date with the contract.
 - **FR-027**: The client library's public methods MUST keep their names, parameters and result shapes, so portal and admin compile and behave without call-site changes. Where a hand-written type is wrong against real responses, the type is corrected (never the platform) and the discrepancy is recorded in the drift log.
-- **FR-028**: The responses of the portal's generic automation call path (22 call sites that declare their own response types) MUST be typed from the contract.
-- **FR-029**: The SDK's public surface (client class, method names, options, error classes and exported type names) MUST stay backward compatible and be released as a minor version; it MUST keep its runtime response validation, redirect rejection and no-retry behaviour; and its accepted event types MUST come from the contract, so it accepts `automation.triggered.v1`.
+- **FR-028**: When the Automation domain leaves the pending-schema list, the responses of the portal's generic automation call path (22 call sites that declare their own response types) MUST be typed from the contract; until then they keep their local types.
+- **FR-029**: The SDK's public surface (client class, method names, options, error classes and exported type names) MUST stay backward compatible and be released as a minor version; it MUST keep its runtime response validation, redirect rejection and no-retry behaviour; and its known event types MUST come from the contract, so it accepts `automation.triggered.v1`. An event whose `integration-event.v1` envelope is valid but whose `type` is not in that contract MUST be returned as an unknown event (envelope fields checked, `data` untyped) from both the feed and webhook verification, instead of raising a contract error; an unsupported `schema_version` MUST still be rejected.
 
 **Reference and documentation**
 
-- **FR-030**: A human-readable reference MUST be generated from the contract (never maintained separately) for [NEEDS CLARIFICATION: Should the published reference cover only the integration API, or also the session-only `api/v1` used by the portal and admin?], showing each operation's authentication, ability or permission, parameters, examples, errors and rate limits, and MUST build from the repository without a running platform.
+- **FR-030**: Two human-readable references MUST be generated from the contract (never maintained separately): a published one covering only the integration API, and a developer one covering `api/v1` that MUST NOT be published. Both show each operation's authentication, ability or permission, parameters, examples, errors and rate limits, and both MUST build from the repository without a running platform.
 - **FR-031**: Documentation that says no description exists MUST change in the same pull request to point to the contract and explain how to change it: `docs/reference/api.md`, `contracts/README.md`, `docs/architecture/overview.md`, `docs/features/integrations.md`, `docs/roadmap.md`, `packages/api-client/README.md` and `packages/integration-sdk/README.md`.
 - **FR-032**: The contract MUST carry a version for the integration API, and the SDK MUST record which contract version its types were generated from.
 
@@ -266,7 +299,9 @@ parameters and error responses.
 ### Key Entities *(include if feature involves data)*
 
 - **Contract**: the single description of the public API. Has a version, audience groups, operations and shared components (authentication schemes, error and pagination envelopes, identifier formats, event envelope).
-- **Operation**: one method on one path. Belongs to an audience group; has an authentication scheme, a required ability or permission, parameters, a request body, responses by status, rate limits, and flags (asynchronous, runtime-shaped, no first-party caller).
+- **Operation**: one method on one path. Belongs to an audience group; has an authentication scheme, a required ability or permission, parameters, a request body, responses by status, rate limits, and flags (asynchronous, runtime-shaped, no first-party caller, schema pending).
+- **Pending-schema list**: the operations that may lack a full response schema; 155 entries at the start, never more than on the main branch.
+- **Breaking-change exception**: a record, added in the pull request that makes an intended breaking change to the integration API, naming each change, its reason and the SDK version it ships in.
 - **Authentication scheme**: first-party session (cookie plus anti-forgery token) or application bearer token (one active token per application, valid 1–90 days, abilities a subset of the application's grants).
 - **Ability**: one of 8 named grants on an application and its token, with two compound rules.
 - **Shared envelope**: a reusable response shape — the error variants, the pagination variants and the `integration-event.v1` envelope.
@@ -280,11 +315,11 @@ parameters and error responses.
 ### Measurable Outcomes
 
 - **SC-001**: All 18 integration operations are in the contract, and for 100% of them the success response and the 401, 403 and 404 responses (plus 422 where input is accepted) are verified against the platform's real responses.
-- **SC-002**: All 229 `api/v1` operations (228 routes: 5 public, 6 account-level, 198 organization routes carrying 199 operations, 19 platform administration) are in the contract with method, path, authentication and parameters, and the route inventory check reports 0 undescribed and 0 orphaned operations; response-schema completeness meets the bar agreed for FR-019.
-- **SC-003**: In a seeded drift exercise of at least 8 changes — a new route, a removed route, a changed path constraint, a renamed response field, a changed field type, a new required request field, a changed integration ability, and a contract-only edit — the pull-request checks fail on all 8 and name the affected operation; a matching platform-and-contract change passes.
-- **SC-004**: 0 hand-written type declarations remain in the client library or the SDK for payloads the contract describes (today the client library exports 194 hand-written types and the SDK declares its own set).
+- **SC-002**: All 229 `api/v1` operations (228 routes: 5 public, 6 account-level, 198 organization routes carrying 199 operations, 19 platform administration) are in the contract with method, path, authentication, parameters and status codes, and the route inventory check reports 0 undescribed and 0 orphaned operations. The 74 fully described operations have checked response schemas; the other 155 are on the pending-schema list, which never has more entries than on the main branch.
+- **SC-003**: In a seeded drift exercise of at least 10 changes — a new route, a removed route, a changed path constraint, a renamed response field, a changed field type, a new required request field, a changed integration ability, a contract-only edit, a new `api/v1` operation without a full schema, and a pending-list entry added — the pull-request checks fail on all of them and name the affected operation. A matching platform-and-contract change passes, as does an intended breaking integration change that carries a recorded exception and an SDK version bump.
+- **SC-004**: 0 hand-written type declarations remain in the client library or the SDK for payloads the contract fully describes (today the client library exports 194 hand-written types and the SDK declares its own set).
 - **SC-005**: Behaviour is unchanged: the existing API feature tests (52 files), the client-library, portal and admin type checks and unit tests, the SDK tests and the mocked portal end-to-end tests all pass with no change to any expected response, and the registered route list for the in-scope prefixes is identical before and after.
-- **SC-006**: The SDK accepts 8 of the 8 event types the platform emits (7 of 8 today), proven by a test that takes the list from the contract.
+- **SC-006**: The SDK accepts 8 of the 8 event types the platform emits (7 of 8 today), proven by a test that takes the list from the contract, and returns an event type missing from the contract as an unknown event in 100% of tested cases (feed and webhook), with no contract error.
 - **SC-007**: 100% of user references in the contract are integers, and the automated check finds 0 exceptions.
 - **SC-008**: The contract checks add no more than 3 minutes to the wall-clock time of the pull-request checks.
 - **SC-009**: A developer who has not seen the source can find, for any integration operation, its required abilities, parameters, error responses and rate limits in the published reference alone; checked by a reviewer outside the API work on at least 3 operations, including the event feed.
@@ -300,14 +335,18 @@ parameters and error responses.
   bearer tokens and application tokens are rejected there), so its contract serves
   first-party clients and platform developers. It is still described in full, including
   routes without a first-party caller, because they are reachable.
-- **Reference hosting**: the reference is a static build from the repository (for
-  example a CI artefact or a docs page). Serving it from the production API would add a
-  route and is not assumed.
+- **Reference hosting**: both references are static builds from the repository. The
+  integration reference may be published (where is the owner's choice and outside this
+  spec); the `api/v1` reference stays a developer artefact. Serving either from the
+  production API would add a route and is not assumed.
 - **Breaking changes**: the integration API follows the existing `contracts/README.md`
-  rule (additive within v1; breaking needs a new version). Whether an acknowledged
-  exception path is allowed is an open question for `/speckit-clarify`.
-- **Runtime-shaped responses** are described as they are, not redesigned; stabilising
-  them belongs with spec 002 (internal contracts) or a later spec.
+  rule (additive within v1; breaking needs a new version), except where a pull request
+  records a reviewed exception and bumps the SDK version (FR-023).
+- **Runtime-shaped responses** are described exactly as they are, not redesigned;
+  stabilising them belongs with spec 002 (internal contracts) or a later spec.
+- **Pending domains**: the 155 operations on the pending-schema list are described in
+  small follow-up pull requests, one or two domains each, after this spec's own pull
+  requests. They document existing behaviour only.
 - **Code is the source of truth** (constitution, Governance): where documentation
   disagrees with the code — for example the single pagination envelope in
   `docs/reference/api.md` — the contract follows the code and the documentation is
@@ -323,7 +362,9 @@ parameters and error responses.
 - `/api/internal/*` (spec 002) and the operational routes outside `/api`.
 - Generating the client library's methods or request mechanics (cookies, anti-forgery
   token, the session-expired event, base URL); only types are generated.
-- Publishing the SDK to a package registry, or the reference to a public website.
+- Publishing the SDK to a package registry, or the integration reference to a public
+  website, and publishing the `api/v1` reference anywhere.
+- Full response schemas for the 155 pending operations (follow-up pull requests).
 - Validating the portal's mocked end-to-end fixtures against the contract. Recommended as
   a follow-up: commit `430c9dd` fixed alert fixtures that still used non-UUID ids after
   the platform started rejecting them.
