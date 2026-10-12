@@ -738,10 +738,17 @@ hand-written filters.
 ### D4. Permissions resolved once
 
 **Decision**: A `PermissionSnapshot` per principal and organization is built on first
-use and memoized in the context. For a user it costs 3 queries: membership (reused
-from D2) and the roles and direct permissions under the organization's team, via one
-`getAllPermissions()`. For an application it is the abilities held by both the
-application and the token. For the platform principal it is the declared work.
+use and memoized in the context. For a user it costs 2 queries:
+
+- One query reads membership and the role ids together (`organization_user` left
+  joined to `model_has_roles` for the organization's team). `EnterOrganization` makes
+  this query when it builds the snapshot, so membership is not checked twice.
+- One query reads the direct permissions under the team (`model_has_permissions`).
+
+The permissions of each role come from the permission package's cached
+role-permission registry, which costs no query per request after the cache is warm.
+For an application, the snapshot is the abilities held by both the application and
+the token. For the platform principal, it is the declared work.
 
 The seven domain services (`DeviceAuthorization`, `DeviceProfileAuthorization`,
 `DagAuthorization`, `DashboardAccess`, `HelpAccess`, `AssistantAccess` and
@@ -757,8 +764,8 @@ Endpoints that span organizations (`/me`, the notification centre, recipient lis
 call `snapshotFor($organization)` once per organization, and `/me` batch-loads the
 user's memberships and roles in one pass.
 
-**Rationale**: A request costs 3 authorization queries instead of 4 to 10 or more
-(SC-004). Super-administrator evaluation (D7) happens in one place. Outcomes stay the
+**Rationale**: A request costs 2 authorization queries instead of 4 to 10 or more,
+which meets SC-004's "at most half" for reading a device. Super-administrator evaluation (D7) happens in one place. Outcomes stay the
 same because the snapshot uses the same permission package calls.
 
 **Alternatives considered**:

@@ -608,9 +608,11 @@ does not belong to is gone.
 - **Hand-written checks.** Duplicated organization and parent checks may be removed
   where structural confinement covers them. Business rules (states, revisions, limits)
   stay.
-- **Platform-wide work is limited to what exists.** That is the list in research
-  section 10, plus platform administration routes, signing in and the notification
-  centre. Adding to the list requires a declaration with a reason.
+- **Platform-wide work is limited to what exists.** That is the work listed in
+  research section 10, plus platform administration routes, signing in, the
+  notification centre, operations metrics, console commands, seeding, backfills and
+  test fixtures. The plan's declaration list (data-model.md section 4) is
+  authoritative, and adding to it requires a declaration with a reason.
 - **Out of scope.**
   - Database-level row security, a possible later defence in depth that could reuse
     the organization context. It is not cheap today (research section 9.6).

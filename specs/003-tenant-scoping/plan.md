@@ -28,7 +28,7 @@ There are seven parts:
   bypass sites go.
 - **Event abilities.** Integration event types follow abilities in the feed and
   webhooks (Q1).
-- **The walker.** A route walker driven by the router and the OpenAPI contract
+- **The walker** (the spec's isolation check). A route walker driven by the router and the OpenAPI contract
   (spec 001) proves all of this on all 217 tenant operations. It lands first, with a
   known-gaps ratchet, and its self-test proves it catches a removed scope.
 
@@ -61,8 +61,9 @@ access, no `is_super_admin` bypass) and a snapshot equivalence test.
 
 **Performance Goals**:
 
-- Authorization runs at most one snapshot per principal and organization: 3 queries,
-  against 4 to 10 or more today (SC-004).
+- Authorization runs at most one snapshot per principal and organization: 2 queries
+  (membership with role ids, then direct permissions; role permissions come from the
+  package's cache), against 4 to 10 or more today (SC-004).
 - Global scopes add one indexed condition; parent scopes add one `EXISTS` on an
   indexed foreign key.
 - The walker adds under 3 minutes to the CI suite.

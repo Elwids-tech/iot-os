@@ -86,10 +86,10 @@ from A's records) and sends it as `A.admin`, or for integration operations with
 | C1 | **Foreign path record.** Replace one record parameter with B's record of the same kind, then with a random identifier. | Same status, and same JSON body after replacing the substituted identifier with `<id>`. B's checksum is unchanged. |
 | C2 | **Non-member.** `A.admin` calls B's operation with B's records (and, as a variant, A's records). | Equal to the response for `unknownOrganization` (same status and body). |
 | C3 | **Leakage.** For every 2xx response to A. | No B marker and no B identifier appears anywhere in the body. |
-| C4 | **Foreign reference.** For each reference field from the fixture, set B's record, then a random identifier. | Same status and body after replacement. B's checksum is unchanged. |
+| C4 | **Foreign reference.** For each reference field from the fixture, set B's record, then a random identifier; for a list field, replace one element. | Same status and body after replacement, and that response differs from the response with A's own reference (which proves the field was reached). B's checksum is unchanged. |
 | C5 | **Foreign application** (integration only). `B.app`'s token on A's operation. | 404 with the not-found body |
 | C6 | **Ungranted device** (integration only). `A.narrowApp` on its ungranted device. | 404 for device operations; the device's events and records are absent from lists, the feed and webhooks |
-| C7 | **Missing ability** (integration only). A token that lacks the operation's `x-abilities`. | 403 |
+| C7 | **Missing ability** (integration only). A token that lacks the operation's `x-abilities`. | 403. A portal session cookie on an integration operation, and an integration token on a portal operation, both get 401 (FR-025). |
 | C8 | **Event abilities** (feed and webhooks; added in PR 11). | Rules in [event-abilities.md](event-abilities.md) |
 
 **B's checksum** is an ordered hash of every row, in every table with an organization
@@ -141,9 +141,12 @@ change.
   operations that bind or reference the kind, and assert at least one failure.
 - For each entry point (portal middleware, integration middleware), remove it from
   one test-only route and assert a failure.
-- A test-only route group under `api/v1/organizations/{organization}/__isolation`
-  (registered only in the testing environment, with matching test-only contract
-  operations) reads a record through a raw unscoped query and must fail C1.
+- The self-test registers test-only routes at runtime under
+  `api/v1/organizations/{organization}/__isolation`. They are not in the contract, so
+  the self-test opts out of the G4 check with `#[WithoutContractCheck('test-only
+  routes for the isolation self-test')]`. One route reads a record through a raw
+  unscoped query and must fail C1. After PR 4, one route uses only structural scoping,
+  with no hand-written check, and must pass C1 to C4 (SC-006).
 
 ## Environment
 

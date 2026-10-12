@@ -64,8 +64,8 @@ stored identifiers (FR-018).
 | Field | Type | Source |
 | --- | --- | --- |
 | `organizationId` | int | context |
-| `member` | bool | `organization_user` (the query `EnterOrganization` already ran) |
-| `permissions` | `array<string, true>` | `getAllPermissions()` under the organization's team (roles and direct permissions): 2 queries |
+| `member` | bool | Query 1: `organization_user` left joined to `model_has_roles` for the organization's team (membership and role ids together) |
+| `permissions` | `array<string, true>` | The role permissions from the package's cached role-permission registry (no query), plus query 2: direct permissions from `model_has_permissions` for the team |
 | `grant` | bool | `PlatformAdministration.act-in-organizations` held through platform roles (PR 10) |
 | `grantUsed` | `array<string, true>` | Permissions allowed only because of `grant`; written to `platform_access_events` when the context ends |
 | `abilities` | `array<string, true>` | Applications only: abilities held by both the application and the token |
