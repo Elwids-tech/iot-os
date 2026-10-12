@@ -98,6 +98,7 @@
             ]
           },
           "conversion_mode": {
+            "description": "How the incoming conversion was chosen. Laravel's configuration compiler always sends it; configurations written by the GPS demo seeder omit it. The runtime reads an absent value as profile.",
             "enum": [
               "profile",
               "custom",
@@ -105,6 +106,7 @@
             ]
           },
           "ingress_conversion": {
+            "description": "The effective incoming conversion, null when none applies. Laravel's configuration compiler always sends it; the GPS demo seeder's configurations omit it, and the runtime drops it when null as it re-encodes a definition for the internal telemetry message. Absent means null.",
             "$ref": "#/$defs/ingress_conversion"
           }
         },
@@ -113,12 +115,35 @@
           "metric",
           "datatype",
           "command_metric",
-          "command_datatype",
-          "conversion_mode",
-          "ingress_conversion"
+          "command_datatype"
         ],
         "additionalProperties": false
       }
+    },
+    "adapter": {
+      "description": "Adapter-backed devices only: the hardware installation this configuration was compiled for, written by Laravel from platform enrollment, never from the vendor payload. The runtime accepts adapter readings only when their metric provenance names installation_uuid, and copies the binding into each reading.",
+      "type": "object",
+      "properties": {
+        "installation_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "adapter_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manufacturer_serial": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "installation_uuid",
+        "adapter_uuid",
+        "manufacturer_serial"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
