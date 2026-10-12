@@ -1,0 +1,249 @@
+# Integration events: the `integration-event.v1` envelope with every type the platform
+# emits, the event feed's page and checkpoint, the 409 a grant change causes, and the
+# signed webhook delivery. The feed operations themselves are in integration.yaml.
+# Writers: App\Domain\Integrations\Services\EventJournal (alerts),
+# App\Domain\Geospatial\Services\GeofenceEventJournal (geofences),
+# App\Domain\Automation\Services\DagActions (automation.triggered.v1); readers:
+# EventController (feed) and WebhookDispatch (webhooks), which build the same envelope.
+# Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    IntegrationEventType:
+      type: string
+      description: Every event type the platform emits today. New types may be added within v1.
+      enum:
+        - alert.activated.v1
+        - alert.cleared.v1
+        - alert.acknowledged.v1
+        - geofence.entered.v1
+        - geofence.exited.v1
+        - geofence.wandering_started.v1
+        - geofence.wandering_resolved.v1
+        - automation.triggered.v1
+    IntegrationEvent:
+      type: object
+      description: >-
+        `integration-event.v1`: one entry of the organization's event journal, from the
+        feed or a webhook. `data` is a snapshot taken when the event was written; apply
+        it as authoritative. Journal order is commit order, not event time. The same
+        `id` can arrive more than once.
+      required: [id, schema_version, type, occurred_at, recorded_at, data]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Stable across feed reads, webhook retries and redelivery.
+        schema_version:
+          const: integration-event.v1
+        type:
+          $ref: '#/components/schemas/IntegrationEventType'
+        occurred_at:
+          type: string
+          format: date-time
+          description: When the source transition happened.
+        recorded_at:
+          type: string
+          format: date-time
+          description: When the event was written to the journal (not its commit time).
+      oneOf:
+        - $ref: '#/components/schemas/AlertIntegrationEvent'
+        - $ref: '#/components/schemas/GeofenceIntegrationEvent'
+        - $ref: '#/components/schemas/AutomationTriggeredIntegrationEvent'
+      discriminator:
+        propertyName: type
+        mapping:
+          alert.activated.v1: '#/components/schemas/AlertIntegrationEvent'
+          alert.cleared.v1: '#/components/schemas/AlertIntegrationEvent'
+          alert.acknowledged.v1: '#/components/schemas/AlertIntegrationEvent'
+          geofence.entered.v1: '#/components/schemas/GeofenceIntegrationEvent'
+          geofence.exited.v1: '#/components/schemas/GeofenceIntegrationEvent'
+          geofence.wandering_started.v1: '#/components/schemas/GeofenceIntegrationEvent'
+          geofence.wandering_resolved.v1: '#/components/schemas/GeofenceIntegrationEvent'
+          automation.triggered.v1: '#/components/schemas/AutomationTriggeredIntegrationEvent'
+    AlertIntegrationEvent:
+      type: object
+      description: An alert was activated, cleared or acknowledged; `data` is the alert snapshot.
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [alert.activated.v1, alert.cleared.v1, alert.acknowledged.v1]
+        data:
+          $ref: '#/components/schemas/IntegrationAlert'
+    GeofenceIntegrationEvent:
+      type: object
+      description: >-
+        A device entered or left a geofence (`entered`, `exited`), or its geofence rule
+        activated or cleared (`wandering_started`, `wandering_resolved`).
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [geofence.entered.v1, geofence.exited.v1, geofence.wandering_started.v1, geofence.wandering_resolved.v1]
+        data:
+          $ref: '#/components/schemas/GeofenceEventSnapshot'
+    AutomationTriggeredIntegrationEvent:
+      type: object
+      description: A workflow's `action.event.v1` node fired.
+      required: [type, data]
+      properties:
+        type:
+          const: automation.triggered.v1
+        data:
+          $ref: '#/components/schemas/AutomationTriggered'
+    GeofenceEventSnapshot:
+      type: object
+      required: [uuid, geofence_uuid, geofence_name, assignment_uuid, device_uuid, type, source_event_uuid, occurred_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: The geofence event's own UUID.
+        geofence_uuid:
+          type: string
+          format: uuid
+        geofence_name:
+          type: string
+        assignment_uuid:
+          type: string
+          format: uuid
+        device_uuid:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [entered, exited, wandering_started, wandering_resolved]
+        source_event_uuid:
+          type: [string, 'null']
+          format: uuid
+          description: The telemetry event that caused the transition, when there was one.
+        occurred_at:
+          type: string
+          format: date-time
+    AutomationTriggered:
+      type: object
+      required: [workflow_uuid, action_id, name, node_id]
+      properties:
+        workflow_uuid:
+          type: string
+          format: uuid
+        action_id:
+          type: string
+          description: The action's identity, stable across retries.
+        name:
+          type: string
+          description: The event name configured on the node.
+        node_id:
+          type: string
+    EventPage:
+      type: object
+      description: >-
+        A page of the event feed. Continue from `next_cursor` while `has_more` is true;
+        when it is false, poll again later from `next_cursor`.
+      required: [data, next_cursor, has_more]
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/IntegrationEvent'
+        next_cursor:
+          type: string
+          minLength: 1
+          description: Save it even when `data` is empty; it moves past skipped events.
+        has_more:
+          type: boolean
+    EventCheckpoint:
+      type: object
+      required: [cursor]
+      properties:
+        cursor:
+          type: string
+          minLength: 1
+  responses:
+    GrantChanged:
+      description: >-
+        The cursor can no longer be used: the application's grants changed, or the
+        event history changed. Rebuild the projection from a fresh checkpoint.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+webhooks:
+  integrationEvent:
+    post:
+      summary: Signed delivery of one integration event
+      description: >-
+        Sent to the application's webhook endpoint (HTTPS on port 443, one per
+        application, which must grant `events:read` and `alerts:read`) for each event on
+        its granted devices, in journal order, one delivery at a time and at most one
+        send per second per endpoint. The body is the same envelope the feed returns.
+
+
+        **Signature.** `X-Iot-Signature` is `v1=` followed by the hex HMAC-SHA256 of
+        `X-Iot-Timestamp + "." + X-Iot-Delivery-Id + "." + raw body`, keyed with the
+        endpoint's signing secret. Verify it over the raw bytes before parsing, reject
+        a timestamp more than 300 seconds from your clock, and deduplicate by event `id`
+        before returning 2xx: a valid signature can be replayed.
+
+
+        **Retries.** A 2xx response confirms delivery. Timeouts (3 s to connect, 5 s to
+        transfer), network errors, 408, 425, 429 and 5xx are retried after 10 s, 30 s,
+        2 min and 10 min, up to five attempts within 24 hours; any other status,
+        including a redirect, fails the delivery at once. A delivery that is still
+        being retried holds back newer ones for that endpoint. Saving the endpoint
+        rotates the secret, cancels pending deliveries and starts at the current head
+        of the journal; recover gaps through the feed. Revoking the application or
+        changing its grants disables the endpoint.
+      x-audience: integration
+      security: []
+      parameters:
+        - name: X-Iot-Delivery-Id
+          in: header
+          required: true
+          description: The delivery's UUID, the same on every attempt.
+          schema:
+            type: string
+            format: uuid
+        - name: X-Iot-Timestamp
+          in: header
+          required: true
+          description: Unix seconds when this attempt was signed.
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+        - name: X-Iot-Signature
+          in: header
+          required: true
+          description: '`v1=<hex HMAC-SHA256>`.'
+          schema:
+            type: string
+            pattern: '^v1=[a-f0-9]{64}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrationEvent'
+            example:
+              id: 0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e
+              schema_version: integration-event.v1
+              type: geofence.exited.v1
+              occurred_at: '2026-10-12T08:10:00+00:00'
+              recorded_at: '2026-10-12T08:10:01+00:00'
+              data:
+                uuid: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+                geofence_uuid: 1e2d3c4b-5a69-4788-9a6b-5c4d3e2f1a0b
+                geofence_name: North paddock
+                assignment_uuid: 4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f
+                device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                type: exited
+                source_event_uuid: 5d6e7f8a-9b0c-4d1e-8f2a-3b4c5d6e7f8a
+                occurred_at: '2026-10-12T08:09:58Z'
+      responses:
+        2XX:
+          description: Delivered. Return it only after recording the event `id`.
+        default:
+          description: >-
+            Not delivered. 408, 425, 429 and 5xx are retried; any other status fails the
+            delivery.

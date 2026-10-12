@@ -64,7 +64,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "A page of alerts.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -113,6 +118,8 @@
             "key": "application"
           }
         ],
+        "summary": "List alerts on granted devices",
+        "description": "Alert episodes whose workflow is bound to a granted device, ordered by creation. Current state, not a snapshot; build a projection with the event feed.",
         "x-schema-status": "pending"
       }
     },
@@ -146,7 +153,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "The alert.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -192,6 +204,8 @@
             "key": "application"
           }
         ],
+        "summary": "Read an alert",
+        "description": "404 when the alert's device is not granted to the application.",
         "x-schema-status": "pending"
       }
     },
@@ -237,7 +251,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "A page of devices.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -286,6 +305,8 @@
             "key": "application"
           }
         ],
+        "summary": "List granted devices",
+        "description": "The devices granted to the application, ordered by creation. Current state, not a snapshot.",
         "x-schema-status": "pending"
       }
     },
@@ -319,7 +340,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "The device.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -365,6 +391,8 @@
             "key": "application"
           }
         ],
+        "summary": "Read a granted device",
+        "description": "404 when the device is not granted to the application.",
         "x-schema-status": "pending"
       }
     },
@@ -416,7 +444,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "A page of binding versions.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -465,6 +498,8 @@
             "key": "application"
           }
         ],
+        "summary": "List a device's location bindings",
+        "description": "The approved, immutable `location-binding.v1` bindings active for a granted device, ordered by creation.",
         "x-schema-status": "pending"
       }
     },
@@ -517,7 +552,13 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "The fix resolved through the selected binding.",
+            "x-runtime-shaped": true,
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -540,6 +581,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/RuntimeUnavailable"
           }
         },
         "security": [
@@ -566,6 +610,8 @@
             "key": "application"
           }
         ],
+        "summary": "Resolve a stored event to a location fix",
+        "description": "Resolves one stored telemetry event through the selected binding (`version_uuid` from the bindings list) with the same resolver as geofencing. `data` is the device runtime's `location-fix.v1` output, unchanged. 404 when the binding or the event is not found in retention; 422 when the runtime rejects the read (under `errors.runtime`); 503 when it is unavailable.",
         "x-schema-status": "pending"
       }
     },
@@ -638,7 +684,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "`telemetry-history.v1`.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -661,6 +712,12 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/RuntimeUnavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/RangeTimeout"
           }
         },
         "security": [
@@ -687,6 +744,8 @@
             "key": "application"
           }
         ],
+        "summary": "Read bucketed telemetry history",
+        "description": "Readings of one parameter selected and bucketed by receipt time, inclusive bounds, at most 31 days and `max_points` 10 to 1000 (default 500). Bounds are clipped to the organization's retention and reported back. 422 for an invalid window, or (under `errors.runtime`) when the runtime rejects the range, for example more than 2000 resulting points; 503 when the runtime is unavailable; 504 when the range takes longer than the runtime's limit.",
         "x-schema-status": "pending"
       }
     },
@@ -720,7 +779,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "`telemetry-latest.v1`.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -769,6 +833,8 @@
             "key": "application"
           }
         ],
+        "summary": "Read the latest telemetry of a granted device",
+        "description": "Retained latest values with their quality and timestamps, from the device runtime. 503 when the runtime is not configured or unavailable; never an empty result in its place.",
         "x-schema-status": "pending"
       }
     },
@@ -858,7 +924,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "`telemetry-records.v1`.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -881,6 +952,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/RuntimeUnavailable"
           }
         },
         "security": [
@@ -907,6 +981,8 @@
             "key": "application"
           }
         ],
+        "summary": "Read raw telemetry records",
+        "description": "Unaggregated good-quality observations of one parameter (diagnostics excluded), newest first, in pages of `page_size` 1 to 100 (default 50) up to a total `limit` of 1 to 5000 (default 500). The window is at most 31 days. `cursor` is signed and bound to the query; pass `meta.next_cursor` with the same query. 422 for an invalid window or a cursor the runtime rejects (under `errors.runtime`); 503 when the runtime is unavailable.",
         "x-schema-status": "pending"
       }
     },
@@ -950,7 +1026,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "A page of events in commit order.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -969,29 +1050,10 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "An error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "description": "Error overview.",
-                      "examples": [
-                        "Event history changed. Rebuild the projection from a fresh checkpoint."
-                      ]
-                    }
-                  },
-                  "required": [
-                    "message"
-                  ]
-                }
-              }
-            }
+            "$ref": "#/components/responses/GrantChanged"
           },
           "422": {
-            "$ref": "#/components/responses/ValidationFailed"
+            "$ref": "#/components/responses/Unprocessable"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -1006,6 +1068,12 @@
         "x-abilities": {
           "all": [
             "events:read"
+          ],
+          "any_of": [
+            [
+              "alerts:read",
+              "geofences:read"
+            ]
           ]
         },
         "x-organization-scoped": true,
@@ -1021,6 +1089,8 @@
             "key": "application"
           }
         ],
+        "summary": "Read the event feed",
+        "description": "`integration-event.v1` envelopes after `cursor` (from the start of the journal without one), in commit order, `limit` 1 to 100 (default 100). Pages skip events for devices not granted to the application, so save `next_cursor` even from an empty page. The feed is at least once: deduplicate by event `id`. Cursors are encrypted and bound to the organization, the application and its grant revision; a token rotation keeps them. Needs `events:read` and either `alerts:read` or `geofences:read`, each on both the application and the token. 409 after a grant change (rebuild from a fresh checkpoint); 422 for invalid input, an unreadable cursor or another application's cursor.",
         "x-schema-status": "pending"
       }
     },
@@ -1044,7 +1114,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "A cursor at the head of the journal.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1075,6 +1150,12 @@
         "x-abilities": {
           "all": [
             "events:read"
+          ],
+          "any_of": [
+            [
+              "alerts:read",
+              "geofences:read"
+            ]
           ]
         },
         "x-organization-scoped": true,
@@ -1090,6 +1171,8 @@
             "key": "application"
           }
         ],
+        "summary": "Take an event feed checkpoint",
+        "description": "A cursor at the current head of the organization's event journal. Take it before reading current state (for example every alert page), then read the feed from it. Needs `events:read` and either `alerts:read` or `geofences:read`, each on both the application and the token.",
         "x-schema-status": "pending"
       }
     },
@@ -1113,7 +1196,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "The geofences.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1159,6 +1247,8 @@
             "key": "application"
           }
         ],
+        "summary": "List geofences with granted devices",
+        "description": "Geofences that have at least one granted device assigned, ordered by name, each with only the granted devices' assignments. Not paginated.",
         "x-schema-status": "pending"
       },
       "post": {
@@ -1180,7 +1270,12 @@
         ],
         "responses": {
           "202": {
-            "description": "",
+            "description": "Saved; the activation is under way. Poll `activation`.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1198,8 +1293,17 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/RuntimeUnavailable"
           }
         },
         "security": [
@@ -1210,7 +1314,8 @@
         "x-audience": "integration",
         "x-abilities": {
           "all": [
-            "geofences:activate"
+            "geofences:activate",
+            "geofences:manage"
           ]
         },
         "x-organization-scoped": true,
@@ -1226,6 +1331,68 @@
             "key": "application"
           }
         ],
+        "summary": "Create a geofence and activate it",
+        "description": "Saves a new geofence (revision 1) with one workflow per assigned device, then starts their activation and returns 202 with the activation to poll. Needs `geofences:activate` and `geofences:manage`. Idempotent on `operation_uuid`. 403 when an assigned device is not granted; 404 when an assigned device has no location binding; 409 when `operation_uuid` was used for a different request or `expected_revision` is not 0; 422 for invalid input, or when the runtime rejects the geofence (a message, or `errors.runtime`); 503 when the runtime is unavailable.",
+        "x-async": {
+          "poll": "GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}",
+          "key": "operation_uuid"
+        },
+        "x-concurrency": {
+          "field": "expected_revision"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeofenceInput"
+              },
+              "example": {
+                "operation_uuid": "9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a",
+                "expected_revision": 0,
+                "name": "North paddock",
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -114.01,
+                        50.99
+                      ],
+                      [
+                        -113.99,
+                        50.99
+                      ],
+                      [
+                        -113.99,
+                        51.01
+                      ],
+                      [
+                        -114.01,
+                        51.01
+                      ],
+                      [
+                        -114.01,
+                        50.99
+                      ]
+                    ]
+                  ]
+                },
+                "assignments": [
+                  {
+                    "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                    "policy": {
+                      "outside_for_seconds": 60,
+                      "max_gap_seconds": 45,
+                      "minimum_samples": 2,
+                      "uncertainty_metres": 2
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
         "x-schema-status": "pending"
       }
     },
@@ -1259,7 +1426,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "The geofence, with only the granted devices' assignments.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1305,6 +1477,8 @@
             "key": "application"
           }
         ],
+        "summary": "Read a geofence",
+        "description": "404 when no granted device is assigned to the geofence.",
         "x-schema-status": "pending"
       },
       "put": {
@@ -1336,7 +1510,12 @@
         ],
         "responses": {
           "202": {
-            "description": "",
+            "description": "Saved; the activation is under way. Poll `activation`.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1354,8 +1533,17 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/RuntimeUnavailable"
           }
         },
         "security": [
@@ -1366,7 +1554,8 @@
         "x-audience": "integration",
         "x-abilities": {
           "all": [
-            "geofences:activate"
+            "geofences:activate",
+            "geofences:manage"
           ]
         },
         "x-organization-scoped": true,
@@ -1382,6 +1571,68 @@
             "key": "application"
           }
         ],
+        "summary": "Update a geofence and activate it",
+        "description": "Saves a new revision of the geofence (name, geometry and the full set of assignments; devices left out are removed), then starts the activation and returns 202 with the activation to poll. Needs `geofences:activate` and `geofences:manage`. Idempotent on `operation_uuid`. 403 when the geofence has an assignment outside the application's grant or an assigned device is not granted; 404 when an assigned device has no location binding; 409 when `expected_revision` is stale or `operation_uuid` was used for a different request; 422 for invalid input, or when the runtime rejects the geofence; 503 when the runtime is unavailable.",
+        "x-async": {
+          "poll": "GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}",
+          "key": "operation_uuid"
+        },
+        "x-concurrency": {
+          "field": "expected_revision"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeofenceInput"
+              },
+              "example": {
+                "operation_uuid": "0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d",
+                "expected_revision": 1,
+                "name": "North paddock",
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -114.02,
+                        50.99
+                      ],
+                      [
+                        -113.99,
+                        50.99
+                      ],
+                      [
+                        -113.99,
+                        51.01
+                      ],
+                      [
+                        -114.02,
+                        51.01
+                      ],
+                      [
+                        -114.02,
+                        50.99
+                      ]
+                    ]
+                  ]
+                },
+                "assignments": [
+                  {
+                    "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                    "policy": {
+                      "outside_for_seconds": 120,
+                      "max_gap_seconds": 45,
+                      "minimum_samples": 2,
+                      "uncertainty_metres": 2
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
         "x-schema-status": "pending"
       }
     },
@@ -1425,7 +1676,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "The activation.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1471,6 +1727,8 @@
             "key": "application"
           }
         ],
+        "summary": "Read a geofence activation",
+        "description": "The activation batch a save returned, with each item's status taken from its workflow deployment. Poll until `status` is `succeeded` or `partial_failure`. 403 when the geofence has an assignment outside the application's grant.",
         "x-schema-status": "pending"
       }
     },
@@ -1524,7 +1782,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "The activation, with the item pending again.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1542,6 +1805,12 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
@@ -1554,7 +1823,8 @@
         "x-audience": "integration",
         "x-abilities": {
           "all": [
-            "geofences:activate"
+            "geofences:activate",
+            "geofences:manage"
           ]
         },
         "x-organization-scoped": true,
@@ -1570,6 +1840,11 @@
             "key": "application"
           }
         ],
+        "summary": "Retry a failed activation item",
+        "description": "Starts a new workflow deployment for one failed item and returns the activation. Needs `geofences:activate` and `geofences:manage`. 403 when the geofence has an assignment outside the application's grant; 409 when the item has not failed; 422 when the runtime rejects the activation (under `errors.runtime`).",
+        "x-async": {
+          "poll": "GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}"
+        },
         "x-schema-status": "pending"
       }
     },
@@ -1639,7 +1914,13 @@
         },
         "responses": {
           "200": {
-            "description": "",
+            "description": "`location-map.v1`. Entries in `data.devices` are runtime-shaped.",
+            "x-runtime-shaped": true,
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1662,6 +1943,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/RuntimeUnavailable"
           }
         },
         "security": [
@@ -1688,6 +1972,8 @@
             "key": "application"
           }
         ],
+        "summary": "Query current positions and trails",
+        "description": "Positions, geofence condition and optional trails (last 1h, 6h, 24h or 7d) of 1 to 100 granted devices. Device entries are the device runtime's output with four fields added by the control plane. 403 when a requested device is not granted; 422 for invalid input or when the runtime rejects the query (under `errors.runtime`); 503 when the runtime is unavailable.",
         "x-schema-status": "pending"
       }
     },
@@ -19173,8 +19459,94 @@
       }
     }
   },
+  "webhooks": {
+    "integrationEvent": {
+      "post": {
+        "summary": "Signed delivery of one integration event",
+        "description": "Sent to the application's webhook endpoint (HTTPS on port 443, one per application, which must grant `events:read` and `alerts:read`) for each event on its granted devices, in journal order, one delivery at a time and at most one send per second per endpoint. The body is the same envelope the feed returns.\n\n**Signature.** `X-Iot-Signature` is `v1=` followed by the hex HMAC-SHA256 of `X-Iot-Timestamp + \".\" + X-Iot-Delivery-Id + \".\" + raw body`, keyed with the endpoint's signing secret. Verify it over the raw bytes before parsing, reject a timestamp more than 300 seconds from your clock, and deduplicate by event `id` before returning 2xx: a valid signature can be replayed.\n\n**Retries.** A 2xx response confirms delivery. Timeouts (3 s to connect, 5 s to transfer), network errors, 408, 425, 429 and 5xx are retried after 10 s, 30 s, 2 min and 10 min, up to five attempts within 24 hours; any other status, including a redirect, fails the delivery at once. A delivery that is still being retried holds back newer ones for that endpoint. Saving the endpoint rotates the secret, cancels pending deliveries and starts at the current head of the journal; recover gaps through the feed. Revoking the application or changing its grants disables the endpoint.",
+        "x-audience": "integration",
+        "security": [],
+        "parameters": [
+          {
+            "name": "X-Iot-Delivery-Id",
+            "in": "header",
+            "required": true,
+            "description": "The delivery's UUID, the same on every attempt.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Iot-Timestamp",
+            "in": "header",
+            "required": true,
+            "description": "Unix seconds when this attempt was signed.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          },
+          {
+            "name": "X-Iot-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`v1=<hex HMAC-SHA256>`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^v1=[a-f0-9]{64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationEvent"
+              },
+              "example": {
+                "id": "0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e",
+                "schema_version": "integration-event.v1",
+                "type": "geofence.exited.v1",
+                "occurred_at": "2026-10-12T08:10:00+00:00",
+                "recorded_at": "2026-10-12T08:10:01+00:00",
+                "data": {
+                  "uuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+                  "geofence_uuid": "1e2d3c4b-5a69-4788-9a6b-5c4d3e2f1a0b",
+                  "geofence_name": "North paddock",
+                  "assignment_uuid": "4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+                  "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                  "type": "exited",
+                  "source_event_uuid": "5d6e7f8a-9b0c-4d1e-8f2a-3b4c5d6e7f8a",
+                  "occurred_at": "2026-10-12T08:09:58Z"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Delivered. Return it only after recording the event `id`."
+          },
+          "default": {
+            "description": "Not delivered. 408, 425, 429 and 5xx are retried; any other status fails the delivery."
+          }
+        }
+      }
+    }
+  },
   "components": {
     "headers": {
+      "NoStore": {
+        "description": "Responses to authenticated integration requests are never cached. The header also carries `private`.",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "(^|[ ,])no-store([ ,]|$)"
+        },
+        "example": "no-store, private"
+      },
       "RetryAfter": {
         "description": "Seconds to wait before retrying.",
         "required": true,
@@ -19217,6 +19589,16 @@
       },
       "Forbidden": {
         "description": "The caller is not allowed: not a member of the organization, missing a tenant or platform permission, or (integration API) an ability not granted on both the application and the token.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorMessage"
+            }
+          }
+        }
+      },
+      "GrantChanged": {
+        "description": "The cursor can no longer be used: the application's grants changed, or the event history changed. Rebuild the projection from a fresh checkpoint.",
         "content": {
           "application/json": {
             "schema": {
@@ -19346,6 +19728,69 @@
         },
         "title": "AcceptOrganizationInvitationRequest"
       },
+      "AlertIntegrationEvent": {
+        "type": "object",
+        "description": "An alert was activated, cleared or acknowledged; `data` is the alert snapshot.",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "alert.activated.v1",
+              "alert.cleared.v1",
+              "alert.acknowledged.v1"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/IntegrationAlert"
+          }
+        }
+      },
+      "AutomationTriggered": {
+        "type": "object",
+        "required": [
+          "workflow_uuid",
+          "action_id",
+          "name",
+          "node_id"
+        ],
+        "properties": {
+          "workflow_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action_id": {
+            "type": "string",
+            "description": "The action's identity, stable across retries."
+          },
+          "name": {
+            "type": "string",
+            "description": "The event name configured on the node."
+          },
+          "node_id": {
+            "type": "string"
+          }
+        }
+      },
+      "AutomationTriggeredIntegrationEvent": {
+        "type": "object",
+        "description": "A workflow's `action.event.v1` node fired.",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "const": "automation.triggered.v1"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AutomationTriggered"
+          }
+        }
+      },
       "CompactPage": {
         "type": "object",
         "description": "Compact page metadata used by most paginated lists. Combine with `allOf` and an object that describes `data`. Some operations add fields to `meta`.",
@@ -19406,6 +19851,44 @@
           }
         }
       },
+      "EventCheckpoint": {
+        "type": "object",
+        "required": [
+          "cursor"
+        ],
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "EventPage": {
+        "type": "object",
+        "description": "A page of the event feed. Continue from `next_cursor` while `has_more` is true; when it is false, poll again later from `next_cursor`.",
+        "required": [
+          "data",
+          "next_cursor",
+          "has_more"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/IntegrationEvent"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Save it even when `data` is empty; it moves past skipped events."
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
       "ForgotPasswordRequest": {
         "type": "object",
         "properties": {
@@ -19419,6 +19902,915 @@
           "email"
         ],
         "title": "ForgotPasswordRequest"
+      },
+      "GeoPosition": {
+        "type": "array",
+        "description": "`[longitude, latitude]`.",
+        "minItems": 2,
+        "maxItems": 2,
+        "prefixItems": [
+          {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          {
+            "type": "number",
+            "minimum": -75,
+            "maximum": 75
+          }
+        ],
+        "items": false
+      },
+      "GeofenceActivationBatch": {
+        "type": "object",
+        "description": "The activation of one geofence revision: one item per assignment to activate or remove. Poll it until `status` is no longer `pending`.",
+        "required": [
+          "uuid",
+          "geofence_revision",
+          "status",
+          "created_at",
+          "updated_at",
+          "items"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The `operation_uuid` the client sent."
+          },
+          "geofence_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "partial_failure",
+              "succeeded"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "assignment_uuid",
+                "device_uuid",
+                "operation_uuid",
+                "target",
+                "status",
+                "diagnostic"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Pass as `item` to retry a failed item."
+                },
+                "assignment_uuid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "device_uuid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "operation_uuid": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "The workflow deployment that applies this item."
+                },
+                "target": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "inactive"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "description": "`pending`, `succeeded` or `failed`, following the workflow deployment."
+                },
+                "diagnostic": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "GeofenceAssignment": {
+        "type": "object",
+        "description": "One device assigned to the geofence, with its own workflow.",
+        "required": [
+          "uuid",
+          "policy",
+          "desired_geofence_revision",
+          "applied_geofence_revision",
+          "status",
+          "diagnostic",
+          "device",
+          "workflow_uuid",
+          "deployment_status"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/GeofencePolicy"
+          },
+          "desired_geofence_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "applied_geofence_revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "description": "`pending`, `active`, `failed` or `removing`."
+          },
+          "diagnostic": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "device": {
+            "type": "object",
+            "required": [
+              "uuid",
+              "name",
+              "code"
+            ],
+            "properties": {
+              "uuid": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              }
+            }
+          },
+          "workflow_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deployment_status": {
+            "type": "string",
+            "description": "The assignment workflow's deployment status, for example `pending`, `active` or `inactive`."
+          }
+        }
+      },
+      "GeofenceEventSnapshot": {
+        "type": "object",
+        "required": [
+          "uuid",
+          "geofence_uuid",
+          "geofence_name",
+          "assignment_uuid",
+          "device_uuid",
+          "type",
+          "source_event_uuid",
+          "occurred_at"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The geofence event's own UUID."
+          },
+          "geofence_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "geofence_name": {
+            "type": "string"
+          },
+          "assignment_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "device_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "entered",
+              "exited",
+              "wandering_started",
+              "wandering_resolved"
+            ]
+          },
+          "source_event_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The telemetry event that caused the transition, when there was one."
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GeofenceGeometry": {
+        "type": "object",
+        "description": "A GeoJSON Polygon with one ring of 4 to 257 positions.",
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "properties": {
+          "type": {
+            "const": "Polygon"
+          },
+          "coordinates": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 257,
+              "items": {
+                "$ref": "#/components/schemas/GeoPosition"
+              }
+            }
+          }
+        }
+      },
+      "GeofenceInput": {
+        "type": "object",
+        "description": "A geofence to save and activate. Every assigned device must be granted to the application and have a location binding.",
+        "required": [
+          "operation_uuid",
+          "name",
+          "geometry",
+          "assignments"
+        ],
+        "properties": {
+          "operation_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Idempotency key and the activation's UUID. Repeating the same request returns the same result; reusing it for a different request returns 409."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The revision the client last read; a stale value returns 409. Defaults to 0 when creating (which must stay 0) and to the current revision when updating."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geometry": {
+            "description": "Only `type` and `coordinates`; any other member is rejected.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GeofenceGeometry"
+              }
+            ],
+            "unevaluatedProperties": false
+          },
+          "assignments": {
+            "type": "array",
+            "description": "Devices to assign; each `device_uuid` at most once. Devices left out are removed.",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "required": [
+                "device_uuid",
+                "policy"
+              ],
+              "properties": {
+                "device_uuid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "policy": {
+                  "$ref": "#/components/schemas/GeofencePolicy"
+                }
+              }
+            }
+          }
+        }
+      },
+      "GeofenceIntegrationEvent": {
+        "type": "object",
+        "description": "A device entered or left a geofence (`entered`, `exited`), or its geofence rule activated or cleared (`wandering_started`, `wandering_resolved`).",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "geofence.entered.v1",
+              "geofence.exited.v1",
+              "geofence.wandering_started.v1",
+              "geofence.wandering_resolved.v1"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/GeofenceEventSnapshot"
+          }
+        }
+      },
+      "GeofencePolicy": {
+        "type": "object",
+        "description": "When a device counts as wandering outside the geofence.",
+        "required": [
+          "outside_for_seconds",
+          "max_gap_seconds",
+          "minimum_samples",
+          "uncertainty_metres"
+        ],
+        "properties": {
+          "outside_for_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86400
+          },
+          "max_gap_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+          },
+          "minimum_samples": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "uncertainty_metres": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          }
+        }
+      },
+      "GeofenceSaved": {
+        "type": "object",
+        "description": "The saved geofence and the activation to poll.",
+        "required": [
+          "data",
+          "activation"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IntegrationGeofence"
+          },
+          "activation": {
+            "$ref": "#/components/schemas/GeofenceActivationBatch"
+          }
+        }
+      },
+      "IntegrationAbility": {
+        "type": "string",
+        "description": "An ability granted to an application and to its token; an operation needs it on both. `events:read` also needs `alerts:read` or `geofences:read`; `geofences:activate` also needs `geofences:manage`.",
+        "enum": [
+          "devices:read",
+          "alerts:read",
+          "events:read",
+          "telemetry:read",
+          "locations:read",
+          "geofences:read",
+          "geofences:manage",
+          "geofences:activate"
+        ]
+      },
+      "IntegrationAlert": {
+        "type": "object",
+        "description": "A snapshot of one alert episode. The same object is the `data` of the `alert.*.v1` events.",
+        "required": [
+          "uuid",
+          "episode",
+          "condition",
+          "activated_at",
+          "cleared_at",
+          "acknowledged_at",
+          "workflow_uuid",
+          "workflow_name",
+          "device_uuid",
+          "execution_stopped_reason"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "episode": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "condition": {
+            "type": "string",
+            "enum": [
+              "active",
+              "cleared"
+            ]
+          },
+          "activated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cleared_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "acknowledged_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "workflow_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workflow_name": {
+            "type": "string"
+          },
+          "device_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "execution_stopped_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the alert's workflow stopped evaluating, for example `binding_changed`."
+          }
+        }
+      },
+      "IntegrationDevice": {
+        "type": "object",
+        "description": "A device granted to the application.",
+        "required": [
+          "uuid",
+          "code",
+          "name",
+          "lifecycle",
+          "presence",
+          "last_seen_at"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string",
+            "description": "Lifecycle state, for example `registered`, `active`, `deactivated` or `archived`."
+          },
+          "presence": {
+            "type": "string",
+            "description": "`online`, `offline`, `unseen`, or `unknown` when the runtime's last online report is more than 20 seconds old. Presence is separate from data quality."
+          },
+          "last_seen_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "IntegrationEvent": {
+        "type": "object",
+        "description": "`integration-event.v1`: one entry of the organization's event journal, from the feed or a webhook. `data` is a snapshot taken when the event was written; apply it as authoritative. Journal order is commit order, not event time. The same `id` can arrive more than once.",
+        "required": [
+          "id",
+          "schema_version",
+          "type",
+          "occurred_at",
+          "recorded_at",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable across feed reads, webhook retries and redelivery."
+          },
+          "schema_version": {
+            "const": "integration-event.v1"
+          },
+          "type": {
+            "$ref": "#/components/schemas/IntegrationEventType"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the source transition happened."
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the event was written to the journal (not its commit time)."
+          }
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AlertIntegrationEvent"
+          },
+          {
+            "$ref": "#/components/schemas/GeofenceIntegrationEvent"
+          },
+          {
+            "$ref": "#/components/schemas/AutomationTriggeredIntegrationEvent"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "alert.activated.v1": "#/components/schemas/AlertIntegrationEvent",
+            "alert.cleared.v1": "#/components/schemas/AlertIntegrationEvent",
+            "alert.acknowledged.v1": "#/components/schemas/AlertIntegrationEvent",
+            "geofence.entered.v1": "#/components/schemas/GeofenceIntegrationEvent",
+            "geofence.exited.v1": "#/components/schemas/GeofenceIntegrationEvent",
+            "geofence.wandering_started.v1": "#/components/schemas/GeofenceIntegrationEvent",
+            "geofence.wandering_resolved.v1": "#/components/schemas/GeofenceIntegrationEvent",
+            "automation.triggered.v1": "#/components/schemas/AutomationTriggeredIntegrationEvent"
+          }
+        }
+      },
+      "IntegrationEventType": {
+        "type": "string",
+        "description": "Every event type the platform emits today. New types may be added within v1.",
+        "enum": [
+          "alert.activated.v1",
+          "alert.cleared.v1",
+          "alert.acknowledged.v1",
+          "geofence.entered.v1",
+          "geofence.exited.v1",
+          "geofence.wandering_started.v1",
+          "geofence.wandering_resolved.v1",
+          "automation.triggered.v1"
+        ]
+      },
+      "IntegrationGeofence": {
+        "type": "object",
+        "description": "A geofence, with only the assignments of devices granted to the application.",
+        "required": [
+          "uuid",
+          "name",
+          "geometry",
+          "revision",
+          "created_at",
+          "updated_at",
+          "assignments"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/GeofenceGeometry"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeofenceAssignment"
+            }
+          }
+        }
+      },
+      "LocationBindingVersion": {
+        "type": "object",
+        "description": "An approved, immutable location binding and the version that carries it.",
+        "required": [
+          "version_uuid",
+          "binding"
+        ],
+        "properties": {
+          "version_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Pass as `version_uuid` to read a fix through this binding."
+          },
+          "binding": {
+            "$ref": "../location/v1/binding.schema.json"
+          }
+        }
+      },
+      "LocationMap": {
+        "type": "object",
+        "description": "`location-map.v1`: positions and trails of the requested devices.",
+        "required": [
+          "schema_version",
+          "trail_window",
+          "geofence",
+          "devices"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "location-map.v1"
+          },
+          "trail_window": {
+            "type": "string",
+            "enum": [
+              "1h",
+              "6h",
+              "24h",
+              "7d"
+            ]
+          },
+          "geofence": {
+            "description": "The geofence named by `geofence_uuid`, or `null`.",
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "uuid",
+                  "name",
+                  "geometry",
+                  "revision"
+                ],
+                "properties": {
+                  "uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "geometry": {
+                    "$ref": "#/components/schemas/GeofenceGeometry"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "devices": {
+            "type": "array",
+            "description": "One entry per requested device that has a location binding.",
+            "items": {
+              "$ref": "#/components/schemas/LocationMapDevice"
+            }
+          }
+        }
+      },
+      "LocationMapDevice": {
+        "type": "object",
+        "description": "The device runtime's map entry, passed through unchanged, plus `wandering`, `active_alert`, `assignment_status` and `deployment_status` added by the control plane.",
+        "required": [
+          "device_uuid",
+          "device_name",
+          "binding_uuid",
+          "latest",
+          "condition",
+          "active",
+          "geometry",
+          "trail",
+          "wandering",
+          "active_alert",
+          "assignment_status",
+          "deployment_status"
+        ],
+        "properties": {
+          "device_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "device_name": {
+            "type": "string"
+          },
+          "binding_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "latest": {
+            "description": "The latest fix through the device's binding, or `null` when there is none in retention.",
+            "anyOf": [
+              {
+                "$ref": "../location/v1/fix.schema.json"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "condition": {
+            "type": "string",
+            "enum": [
+              "inside",
+              "outside",
+              "unknown"
+            ],
+            "description": "`unknown` unless the latest fix is live-eligible."
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Whether the geofence rule's condition is active."
+          },
+          "geometry": {
+            "description": "The geofence geometry of the device's active rule, or `null`.",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeofenceGeometry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trail": {
+            "type": "object",
+            "required": [
+              "segments",
+              "sampled"
+            ],
+            "properties": {
+              "segments": {
+                "type": "array",
+                "description": "Runs of valid fixes; a gap longer than twice the binding's `max_age_seconds` starts a new segment. Empty unless trails were requested.",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "event_id",
+                      "observed_at",
+                      "received_at",
+                      "historical",
+                      "point"
+                    ],
+                    "properties": {
+                      "event_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "observed_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "received_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "historical": {
+                        "type": "boolean"
+                      },
+                      "point": {
+                        "$ref": "#/components/schemas/LocationPoint"
+                      }
+                    }
+                  }
+                }
+              },
+              "sampled": {
+                "type": "boolean",
+                "description": "Whether the trail was thinned to at most 200 points."
+              }
+            }
+          },
+          "wandering": {
+            "type": "boolean",
+            "description": "Whether the device's geofence workflow has an active alert."
+          },
+          "active_alert": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "uuid",
+                  "activated_at"
+                ],
+                "properties": {
+                  "uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "activated_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assignment_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The geofence assignment's status, or `null` when the device has no assignment."
+          },
+          "deployment_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The assignment workflow's deployment status, or `null`."
+          }
+        }
+      },
+      "LocationPoint": {
+        "type": "object",
+        "required": [
+          "latitude",
+          "longitude",
+          "accuracy_metres"
+        ],
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "accuracy_metres": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          }
+        }
       },
       "LoginRequest": {
         "type": "object",
@@ -19947,6 +21339,370 @@
           "is_platform_administrator"
         ],
         "title": "SyncPlatformUserRoleRequest"
+      },
+      "TelemetryHistory": {
+        "type": "object",
+        "description": "`telemetry-history.v1`: readings bucketed by receipt time, one series per configuration, data type and unit. Empty means no observations, not zero.",
+        "required": [
+          "schema_version",
+          "device_uuid",
+          "parameter_uuid",
+          "retention_days",
+          "from",
+          "to",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "telemetry-history.v1"
+          },
+          "device_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parameter_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "retention_days": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The window actually read, clipped to retention; `null` when the clipped window is empty."
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "configuration_uuid",
+                "unit",
+                "data_type",
+                "points"
+              ],
+              "properties": {
+                "configuration_uuid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "unit": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "data_type": {
+                  "type": "string"
+                },
+                "points": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TelemetryHistoryPoint"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "TelemetryHistoryPoint": {
+        "type": "object",
+        "required": [
+          "at",
+          "value",
+          "count"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the bucket, by receipt time."
+          },
+          "value": {
+            "$ref": "#/components/schemas/TelemetryValue"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TelemetryLatest": {
+        "type": "object",
+        "description": "`telemetry-latest.v1`: the retained latest value of each parameter.",
+        "required": [
+          "schema_version",
+          "device_uuid",
+          "configuration_uuid",
+          "presence",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "telemetry-latest.v1"
+          },
+          "device_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "configuration_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The applied configuration, else the last one the runtime confirmed."
+          },
+          "presence": {
+            "type": "string",
+            "description": "`online`, `offline` or `unknown`."
+          },
+          "data": {
+            "type": "array",
+            "description": "Empty for a device without a configuration, never zeros.",
+            "items": {
+              "$ref": "#/components/schemas/TelemetryReading"
+            }
+          }
+        }
+      },
+      "TelemetryReading": {
+        "type": "object",
+        "required": [
+          "parameter_uuid",
+          "key",
+          "label",
+          "data_type",
+          "unit",
+          "value",
+          "quality",
+          "observed_at",
+          "received_at",
+          "historical"
+        ],
+        "properties": {
+          "parameter_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "data_type": {
+            "type": "string",
+            "description": "`boolean`, `integer`, `number`, `string`, `timestamp` or `bytes`."
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value": {
+            "$ref": "#/components/schemas/TelemetryValue"
+          },
+          "quality": {
+            "type": "string",
+            "description": "`good`, `invalid` or `stale`; `inactive` when ingestion is disabled and the last valid reading is retained. Receiving it does not make a value fresh."
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_valid_received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timestamp_source": {
+            "type": "string",
+            "description": "`source`, `receipt`, `corrected_future` or `derived`."
+          },
+          "historical": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TelemetryRecord": {
+        "type": "object",
+        "required": [
+          "event_uuid",
+          "configuration_uuid",
+          "parameter_uuid",
+          "received_at",
+          "observed_at",
+          "data_type",
+          "unit",
+          "value",
+          "quality",
+          "timestamp_source",
+          "historical"
+        ],
+        "properties": {
+          "event_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "configuration_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parameter_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data_type": {
+            "type": "string"
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value": {
+            "$ref": "#/components/schemas/TelemetryValue"
+          },
+          "quality": {
+            "type": "string"
+          },
+          "timestamp_source": {
+            "type": "string"
+          },
+          "historical": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TelemetryRecords": {
+        "type": "object",
+        "description": "`telemetry-records.v1`: unaggregated good-quality observations, newest first by `(received_at, event_uuid)`. Not a complete export.",
+        "required": [
+          "schema_version",
+          "device_uuid",
+          "parameter_uuid",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "telemetry-records.v1"
+          },
+          "device_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parameter_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "data": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/TelemetryRecord"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": [
+              "from",
+              "to",
+              "limit",
+              "page_size",
+              "returned",
+              "consumed",
+              "next_cursor",
+              "has_more",
+              "limit_reached"
+            ],
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The window actually read, clipped to retention."
+              },
+              "to": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5000
+              },
+              "page_size": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "returned": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "consumed": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Records read so far across pages, up to `limit`."
+              },
+              "next_cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Pass as `cursor` with the same query for the next page; `null` on the last page."
+              },
+              "has_more": {
+                "type": "boolean"
+              },
+              "limit_reached": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "TelemetryValue": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ],
+        "description": "A reading's value; its type follows the parameter's `data_type`."
       },
       "UpdateDeviceProfileRequest": {
         "type": "object",

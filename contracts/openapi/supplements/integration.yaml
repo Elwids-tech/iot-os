@@ -1,15 +1,1516 @@
-# Integration API operations.
+# Integration API operations (/integration/v1): payload components and the responses
+# of all 18 operations. The event envelope, the event feed's page and the webhook are
+# in integration-events.yaml.
 #
-# Statuses the code returns that inference missed, found by the response checks in
-# the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
-# Success bodies stay pending until the domain is described.
+# Bodies are described as the platform returns them today (FR-033); objects allow
+# additional properties, because additive fields stay within v1 (FR-017). Runtime
+# output passed through unchanged is marked `x-runtime-shaped` on its response.
+# Request rules Scramble cannot read from helper methods are described with parameter
+# attributes on the actions (query) or here (geofence request body). Discrepancies are
+# recorded in specs/001-openapi-contract/drift-log.md.
 # Format: ../meta/supplement.schema.json.
+components:
+  headers:
+    NoStore:
+      description: >-
+        Responses to authenticated integration requests are never cached. The header
+        also carries `private`.
+      required: true
+      schema:
+        type: string
+        pattern: '(^|[ ,])no-store([ ,]|$)'
+      example: no-store, private
+  schemas:
+    IntegrationAbility:
+      type: string
+      description: >-
+        An ability granted to an application and to its token; an operation needs it on
+        both. `events:read` also needs `alerts:read` or `geofences:read`;
+        `geofences:activate` also needs `geofences:manage`.
+      enum:
+        - devices:read
+        - alerts:read
+        - events:read
+        - telemetry:read
+        - locations:read
+        - geofences:read
+        - geofences:manage
+        - geofences:activate
+    IntegrationDevice:
+      type: object
+      description: A device granted to the application.
+      required: [uuid, code, name, lifecycle, presence, last_seen_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        lifecycle:
+          type: string
+          description: Lifecycle state, for example `registered`, `active`, `deactivated` or `archived`.
+        presence:
+          type: string
+          description: >-
+            `online`, `offline`, `unseen`, or `unknown` when the runtime's last online
+            report is more than 20 seconds old. Presence is separate from data quality.
+        last_seen_at:
+          type: [string, 'null']
+          format: date-time
+    IntegrationAlert:
+      type: object
+      description: >-
+        A snapshot of one alert episode. The same object is the `data` of the
+        `alert.*.v1` events.
+      required: [uuid, episode, condition, activated_at, cleared_at, acknowledged_at, workflow_uuid, workflow_name, device_uuid, execution_stopped_reason]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        episode:
+          type: integer
+          minimum: 1
+        condition:
+          type: string
+          enum: [active, cleared]
+        activated_at:
+          type: [string, 'null']
+          format: date-time
+        cleared_at:
+          type: [string, 'null']
+          format: date-time
+        acknowledged_at:
+          type: [string, 'null']
+          format: date-time
+        workflow_uuid:
+          type: string
+          format: uuid
+        workflow_name:
+          type: string
+        device_uuid:
+          type: string
+          format: uuid
+        execution_stopped_reason:
+          type: [string, 'null']
+          description: Why the alert's workflow stopped evaluating, for example `binding_changed`.
+    TelemetryValue:
+      type: [string, number, boolean, 'null']
+      description: A reading's value; its type follows the parameter's `data_type`.
+    TelemetryReading:
+      type: object
+      required: [parameter_uuid, key, label, data_type, unit, value, quality, observed_at, received_at, historical]
+      properties:
+        parameter_uuid:
+          type: string
+          format: uuid
+        key:
+          type: string
+        label:
+          type: string
+        data_type:
+          type: string
+          description: '`boolean`, `integer`, `number`, `string`, `timestamp` or `bytes`.'
+        unit:
+          type: [string, 'null']
+        value:
+          $ref: '#/components/schemas/TelemetryValue'
+        quality:
+          type: string
+          description: >-
+            `good`, `invalid` or `stale`; `inactive` when ingestion is disabled and the
+            last valid reading is retained. Receiving it does not make a value fresh.
+        observed_at:
+          type: string
+          format: date-time
+        received_at:
+          type: string
+          format: date-time
+        last_valid_received_at:
+          type: string
+          format: date-time
+        timestamp_source:
+          type: string
+          description: '`source`, `receipt`, `corrected_future` or `derived`.'
+        historical:
+          type: boolean
+    TelemetryLatest:
+      type: object
+      description: '`telemetry-latest.v1`: the retained latest value of each parameter.'
+      required: [schema_version, device_uuid, configuration_uuid, presence, data]
+      properties:
+        schema_version:
+          const: telemetry-latest.v1
+        device_uuid:
+          type: string
+          format: uuid
+        configuration_uuid:
+          type: [string, 'null']
+          format: uuid
+          description: The applied configuration, else the last one the runtime confirmed.
+        presence:
+          type: string
+          description: '`online`, `offline` or `unknown`.'
+        data:
+          type: array
+          description: Empty for a device without a configuration, never zeros.
+          items:
+            $ref: '#/components/schemas/TelemetryReading'
+    TelemetryHistoryPoint:
+      type: object
+      required: [at, value, count]
+      properties:
+        at:
+          type: string
+          format: date-time
+          description: Start of the bucket, by receipt time.
+        value:
+          $ref: '#/components/schemas/TelemetryValue'
+        min:
+          type: number
+        max:
+          type: number
+        count:
+          type: integer
+          minimum: 0
+    TelemetryHistory:
+      type: object
+      description: >-
+        `telemetry-history.v1`: readings bucketed by receipt time, one series per
+        configuration, data type and unit. Empty means no observations, not zero.
+      required: [schema_version, device_uuid, parameter_uuid, retention_days, from, to, data]
+      properties:
+        schema_version:
+          const: telemetry-history.v1
+        device_uuid:
+          type: string
+          format: uuid
+        parameter_uuid:
+          type: string
+          format: uuid
+        retention_days:
+          type: integer
+          minimum: 1
+        from:
+          type: [string, 'null']
+          format: date-time
+          description: The window actually read, clipped to retention; `null` when the clipped window is empty.
+        to:
+          type: [string, 'null']
+          format: date-time
+        data:
+          type: array
+          items:
+            type: object
+            required: [configuration_uuid, unit, data_type, points]
+            properties:
+              configuration_uuid:
+                type: string
+                format: uuid
+              unit:
+                type: [string, 'null']
+              data_type:
+                type: string
+              points:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TelemetryHistoryPoint'
+    TelemetryRecord:
+      type: object
+      required: [event_uuid, configuration_uuid, parameter_uuid, received_at, observed_at, data_type, unit, value, quality, timestamp_source, historical]
+      properties:
+        event_uuid:
+          type: string
+          format: uuid
+        configuration_uuid:
+          type: string
+          format: uuid
+        parameter_uuid:
+          type: string
+          format: uuid
+        received_at:
+          type: string
+          format: date-time
+        observed_at:
+          type: string
+          format: date-time
+        data_type:
+          type: string
+        unit:
+          type: [string, 'null']
+        value:
+          $ref: '#/components/schemas/TelemetryValue'
+        quality:
+          type: string
+        timestamp_source:
+          type: string
+        historical:
+          type: boolean
+    TelemetryRecords:
+      type: object
+      description: >-
+        `telemetry-records.v1`: unaggregated good-quality observations, newest first by
+        `(received_at, event_uuid)`. Not a complete export.
+      required: [schema_version, device_uuid, parameter_uuid, data, meta]
+      properties:
+        schema_version:
+          const: telemetry-records.v1
+        device_uuid:
+          type: string
+          format: uuid
+        parameter_uuid:
+          type: string
+          format: uuid
+        data:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/TelemetryRecord'
+        meta:
+          type: object
+          required: [from, to, limit, page_size, returned, consumed, next_cursor, has_more, limit_reached]
+          properties:
+            from:
+              type: string
+              format: date-time
+              description: The window actually read, clipped to retention.
+            to:
+              type: string
+              format: date-time
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 5000
+            page_size:
+              type: integer
+              minimum: 1
+              maximum: 100
+            returned:
+              type: integer
+              minimum: 0
+            consumed:
+              type: integer
+              minimum: 0
+              description: Records read so far across pages, up to `limit`.
+            next_cursor:
+              type: [string, 'null']
+              description: Pass as `cursor` with the same query for the next page; `null` on the last page.
+            has_more:
+              type: boolean
+            limit_reached:
+              type: boolean
+    LocationBindingVersion:
+      type: object
+      description: An approved, immutable location binding and the version that carries it.
+      required: [version_uuid, binding]
+      properties:
+        version_uuid:
+          type: string
+          format: uuid
+          description: Pass as `version_uuid` to read a fix through this binding.
+        binding:
+          $ref: '../location/v1/binding.schema.json'
+    LocationPoint:
+      type: object
+      required: [latitude, longitude, accuracy_metres]
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        accuracy_metres:
+          type: [number, 'null']
+          minimum: 0
+    GeoPosition:
+      type: array
+      description: '`[longitude, latitude]`.'
+      minItems: 2
+      maxItems: 2
+      prefixItems:
+        - type: number
+          minimum: -180
+          maximum: 180
+        - type: number
+          minimum: -75
+          maximum: 75
+      items: false
+    GeofenceGeometry:
+      type: object
+      description: A GeoJSON Polygon with one ring of 4 to 257 positions.
+      required: [type, coordinates]
+      properties:
+        type:
+          const: Polygon
+        coordinates:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: array
+            minItems: 4
+            maxItems: 257
+            items:
+              $ref: '#/components/schemas/GeoPosition'
+    GeofencePolicy:
+      type: object
+      description: When a device counts as wandering outside the geofence.
+      required: [outside_for_seconds, max_gap_seconds, minimum_samples, uncertainty_metres]
+      properties:
+        outside_for_seconds:
+          type: integer
+          minimum: 0
+          maximum: 86400
+        max_gap_seconds:
+          type: integer
+          minimum: 1
+          maximum: 86400
+        minimum_samples:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        uncertainty_metres:
+          type: number
+          minimum: 0
+          maximum: 100000
+    GeofenceAssignment:
+      type: object
+      description: One device assigned to the geofence, with its own workflow.
+      required: [uuid, policy, desired_geofence_revision, applied_geofence_revision, status, diagnostic, device, workflow_uuid, deployment_status]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        policy:
+          $ref: '#/components/schemas/GeofencePolicy'
+        desired_geofence_revision:
+          type: integer
+          minimum: 1
+        applied_geofence_revision:
+          type: [integer, 'null']
+          minimum: 1
+        status:
+          type: string
+          description: '`pending`, `active`, `failed` or `removing`.'
+        diagnostic:
+          type: [string, 'null']
+        device:
+          type: object
+          required: [uuid, name, code]
+          properties:
+            uuid:
+              type: string
+              format: uuid
+            name:
+              type: string
+            code:
+              type: string
+        workflow_uuid:
+          type: string
+          format: uuid
+        deployment_status:
+          type: string
+          description: The assignment workflow's deployment status, for example `pending`, `active` or `inactive`.
+    IntegrationGeofence:
+      type: object
+      description: A geofence, with only the assignments of devices granted to the application.
+      required: [uuid, name, geometry, revision, created_at, updated_at, assignments]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+        geometry:
+          $ref: '#/components/schemas/GeofenceGeometry'
+        revision:
+          type: integer
+          minimum: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        assignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeofenceAssignment'
+    GeofenceActivationBatch:
+      type: object
+      description: >-
+        The activation of one geofence revision: one item per assignment to activate or
+        remove. Poll it until `status` is no longer `pending`.
+      required: [uuid, geofence_revision, status, created_at, updated_at, items]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: The `operation_uuid` the client sent.
+        geofence_revision:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum: [pending, partial_failure, succeeded]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, assignment_uuid, device_uuid, operation_uuid, target, status, diagnostic]
+            properties:
+              id:
+                type: integer
+                minimum: 1
+                description: Pass as `item` to retry a failed item.
+              assignment_uuid:
+                type: string
+                format: uuid
+              device_uuid:
+                type: string
+                format: uuid
+              operation_uuid:
+                type: string
+                format: uuid
+                description: The workflow deployment that applies this item.
+              target:
+                type: string
+                enum: [active, inactive]
+              status:
+                type: string
+                description: '`pending`, `succeeded` or `failed`, following the workflow deployment.'
+              diagnostic:
+                type: [string, 'null']
+    GeofenceSaved:
+      type: object
+      description: The saved geofence and the activation to poll.
+      required: [data, activation]
+      properties:
+        data:
+          $ref: '#/components/schemas/IntegrationGeofence'
+        activation:
+          $ref: '#/components/schemas/GeofenceActivationBatch'
+    GeofenceInput:
+      type: object
+      description: >-
+        A geofence to save and activate. Every assigned device must be granted to the
+        application and have a location binding.
+      required: [operation_uuid, name, geometry, assignments]
+      properties:
+        operation_uuid:
+          type: string
+          format: uuid
+          description: >-
+            Idempotency key and the activation's UUID. Repeating the same request
+            returns the same result; reusing it for a different request returns 409.
+        expected_revision:
+          type: integer
+          minimum: 0
+          description: >-
+            The revision the client last read; a stale value returns 409. Defaults to 0
+            when creating (which must stay 0) and to the current revision when updating.
+        name:
+          type: string
+          maxLength: 255
+        geometry:
+          description: Only `type` and `coordinates`; any other member is rejected.
+          allOf:
+            - $ref: '#/components/schemas/GeofenceGeometry'
+          unevaluatedProperties: false
+        assignments:
+          type: array
+          description: Devices to assign; each `device_uuid` at most once. Devices left out are removed.
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [device_uuid, policy]
+            properties:
+              device_uuid:
+                type: string
+                format: uuid
+              policy:
+                $ref: '#/components/schemas/GeofencePolicy'
+    LocationMapDevice:
+      type: object
+      description: >-
+        The device runtime's map entry, passed through unchanged, plus `wandering`,
+        `active_alert`, `assignment_status` and `deployment_status` added by the control
+        plane.
+      required: [device_uuid, device_name, binding_uuid, latest, condition, active, geometry, trail, wandering, active_alert, assignment_status, deployment_status]
+      properties:
+        device_uuid:
+          type: string
+          format: uuid
+        device_name:
+          type: string
+        binding_uuid:
+          type: string
+          format: uuid
+        latest:
+          description: The latest fix through the device's binding, or `null` when there is none in retention.
+          anyOf:
+            - $ref: '../location/v1/fix.schema.json'
+            - type: 'null'
+        condition:
+          type: string
+          enum: [inside, outside, unknown]
+          description: '`unknown` unless the latest fix is live-eligible.'
+        active:
+          type: boolean
+          description: Whether the geofence rule's condition is active.
+        geometry:
+          description: The geofence geometry of the device's active rule, or `null`.
+          anyOf:
+            - $ref: '#/components/schemas/GeofenceGeometry'
+            - type: 'null'
+        trail:
+          type: object
+          required: [segments, sampled]
+          properties:
+            segments:
+              type: array
+              description: Runs of valid fixes; a gap longer than twice the binding's `max_age_seconds` starts a new segment. Empty unless trails were requested.
+              items:
+                type: array
+                items:
+                  type: object
+                  required: [event_id, observed_at, received_at, historical, point]
+                  properties:
+                    event_id:
+                      type: string
+                      format: uuid
+                    observed_at:
+                      type: [string, 'null']
+                      format: date-time
+                    received_at:
+                      type: [string, 'null']
+                      format: date-time
+                    historical:
+                      type: boolean
+                    point:
+                      $ref: '#/components/schemas/LocationPoint'
+            sampled:
+              type: boolean
+              description: Whether the trail was thinned to at most 200 points.
+        wandering:
+          type: boolean
+          description: Whether the device's geofence workflow has an active alert.
+        active_alert:
+          anyOf:
+            - type: object
+              required: [uuid, activated_at]
+              properties:
+                uuid:
+                  type: string
+                  format: uuid
+                activated_at:
+                  type: [string, 'null']
+                  format: date-time
+            - type: 'null'
+        assignment_status:
+          type: [string, 'null']
+          description: The geofence assignment's status, or `null` when the device has no assignment.
+        deployment_status:
+          type: [string, 'null']
+          description: The assignment workflow's deployment status, or `null`.
+    LocationMap:
+      type: object
+      description: '`location-map.v1`: positions and trails of the requested devices.'
+      required: [schema_version, trail_window, geofence, devices]
+      properties:
+        schema_version:
+          const: location-map.v1
+        trail_window:
+          type: string
+          enum: [1h, 6h, 24h, 7d]
+        geofence:
+          description: The geofence named by `geofence_uuid`, or `null`.
+          anyOf:
+            - type: object
+              required: [uuid, name, geometry, revision]
+              properties:
+                uuid:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                geometry:
+                  $ref: '#/components/schemas/GeofenceGeometry'
+                revision:
+                  type: integer
+                  minimum: 1
+            - type: 'null'
+        devices:
+          type: array
+          description: One entry per requested device that has a location binding.
+          items:
+            $ref: '#/components/schemas/LocationMapDevice'
 operations:
   GET /integration/v1/organizations/{organization}/devices:
+    summary: List granted devices
+    description: >-
+      The devices granted to the application, ordered by creation. Current state, not a
+      snapshot.
     responses:
+      '200':
+        description: A page of devices.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/CompactPage'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      maxItems: 100
+                      items:
+                        $ref: '#/components/schemas/IntegrationDevice'
+            example:
+              data:
+                - uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                  code: tracker-017
+                  name: Herd tracker 17
+                  lifecycle: active
+                  presence: online
+                  last_seen_at: '2026-10-12T08:14:52.000000Z'
+              meta:
+                current_page: 1
+                last_page: 1
+                total: 1
       '422':
         $ref: '#/components/responses/ValidationFailed'
-  GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/latest:
+  GET /integration/v1/organizations/{organization}/devices/{uuid}:
+    summary: Read a granted device
+    description: 404 when the device is not granted to the application.
     responses:
+      '200':
+        description: The device.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/IntegrationDevice'
+            example:
+              data:
+                uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                code: tracker-017
+                name: Herd tracker 17
+                lifecycle: active
+                presence: unknown
+                last_seen_at: '2026-10-12T08:14:52.000000Z'
+  GET /integration/v1/organizations/{organization}/alerts:
+    summary: List alerts on granted devices
+    description: >-
+      Alert episodes whose workflow is bound to a granted device, ordered by creation.
+      Current state, not a snapshot; build a projection with the event feed.
+    responses:
+      '200':
+        description: A page of alerts.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/CompactPage'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      maxItems: 100
+                      items:
+                        $ref: '#/components/schemas/IntegrationAlert'
+            example:
+              data:
+                - uuid: 7c9e2a41-1d3b-4f5e-8a6c-2b4d6f8a0c1e
+                  episode: 3
+                  condition: active
+                  activated_at: '2026-10-12T07:58:10.000000Z'
+                  cleared_at: null
+                  acknowledged_at: null
+                  workflow_uuid: 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                  workflow_name: North paddock — Herd tracker 17
+                  device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                  execution_stopped_reason: null
+              meta:
+                current_page: 1
+                last_page: 1
+                total: 1
+  GET /integration/v1/organizations/{organization}/alerts/{uuid}:
+    summary: Read an alert
+    description: 404 when the alert's device is not granted to the application.
+    responses:
+      '200':
+        description: The alert.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/IntegrationAlert'
+            example:
+              data:
+                uuid: 7c9e2a41-1d3b-4f5e-8a6c-2b4d6f8a0c1e
+                episode: 3
+                condition: cleared
+                activated_at: '2026-10-12T07:58:10.000000Z'
+                cleared_at: '2026-10-12T08:20:45.000000Z'
+                acknowledged_at: '2026-10-12T08:02:00.000000Z'
+                workflow_uuid: 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                workflow_name: North paddock — Herd tracker 17
+                device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                execution_stopped_reason: null
+  GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/latest:
+    summary: Read the latest telemetry of a granted device
+    description: >-
+      Retained latest values with their quality and timestamps, from the device
+      runtime. 503 when the runtime is not configured or unavailable; never an empty
+      result in its place.
+    responses:
+      '200':
+        description: '`telemetry-latest.v1`.'
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryLatest'
+            example:
+              schema_version: telemetry-latest.v1
+              device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+              configuration_uuid: 8e7d6c5b-4a39-4281-9f0e-1d2c3b4a5968
+              presence: online
+              data:
+                - parameter_uuid: 6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a
+                  key: battery
+                  label: Battery
+                  data_type: number
+                  unit: '%'
+                  value: 87.5
+                  quality: good
+                  observed_at: '2026-10-12T08:14:50Z'
+                  received_at: '2026-10-12T08:14:52Z'
+                  timestamp_source: source
+                  historical: false
       '503':
         $ref: '#/components/responses/RuntimeUnavailable'
+  GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/history:
+    summary: Read bucketed telemetry history
+    description: >-
+      Readings of one parameter selected and bucketed by receipt time, inclusive
+      bounds, at most 31 days and `max_points` 10 to 1000 (default 500). Bounds are
+      clipped to the organization's retention and reported back. 422 for an invalid
+      window, or (under `errors.runtime`) when the runtime rejects the range, for
+      example more than 2000 resulting points; 503 when the runtime is unavailable;
+      504 when the range takes longer than the runtime's limit.
+    responses:
+      '200':
+        description: '`telemetry-history.v1`.'
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryHistory'
+            example:
+              schema_version: telemetry-history.v1
+              device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+              parameter_uuid: 6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a
+              retention_days: 30
+              from: '2026-10-11T00:00:00Z'
+              to: '2026-10-12T00:00:00Z'
+              data:
+                - configuration_uuid: 8e7d6c5b-4a39-4281-9f0e-1d2c3b4a5968
+                  unit: '%'
+                  data_type: number
+                  points:
+                    - at: '2026-10-11T00:00:00Z'
+                      value: 91.2
+                      min: 90.8
+                      max: 91.5
+                      count: 12
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+      '503':
+        $ref: '#/components/responses/RuntimeUnavailable'
+      '504':
+        $ref: '#/components/responses/RangeTimeout'
+  GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/records:
+    summary: Read raw telemetry records
+    description: >-
+      Unaggregated good-quality observations of one parameter (diagnostics excluded),
+      newest first, in pages of `page_size` 1 to 100 (default 50) up to a total `limit`
+      of 1 to 5000 (default 500). The window is at most 31 days. `cursor` is signed and
+      bound to the query; pass `meta.next_cursor` with the same query. 422 for an
+      invalid window or a cursor the runtime rejects (under `errors.runtime`); 503 when
+      the runtime is unavailable.
+    responses:
+      '200':
+        description: '`telemetry-records.v1`.'
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryRecords'
+            example:
+              schema_version: telemetry-records.v1
+              device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+              parameter_uuid: 6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a
+              data:
+                - event_uuid: 0d9c8b7a-6f5e-4d3c-8b2a-19f8e7d6c5b4
+                  configuration_uuid: 8e7d6c5b-4a39-4281-9f0e-1d2c3b4a5968
+                  parameter_uuid: 6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a
+                  received_at: '2026-10-11T23:59:52Z'
+                  observed_at: '2026-10-11T23:59:50Z'
+                  data_type: number
+                  unit: '%'
+                  value: 91.1
+                  quality: good
+                  timestamp_source: source
+                  historical: false
+              meta:
+                from: '2026-10-11T00:00:00Z'
+                to: '2026-10-12T00:00:00Z'
+                limit: 500
+                page_size: 1
+                returned: 1
+                consumed: 1
+                next_cursor: eyJ2IjoxLCJyIjoiMjAyNi0xMC0xMVQyMzo1OTo1MloifQ.c2lnbmF0dXJl
+                has_more: true
+                limit_reached: false
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+      '503':
+        $ref: '#/components/responses/RuntimeUnavailable'
+  GET /integration/v1/organizations/{organization}/devices/{uuid}/location-bindings:
+    summary: List a device's location bindings
+    description: >-
+      The approved, immutable `location-binding.v1` bindings active for a granted
+      device, ordered by creation.
+    responses:
+      '200':
+        description: A page of binding versions.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/CompactPage'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      maxItems: 100
+                      items:
+                        $ref: '#/components/schemas/LocationBindingVersion'
+            example:
+              data:
+                - version_uuid: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+                  binding:
+                    schema_version: location-binding.v1
+                    uuid: 00000000-0000-4000-8000-000000000001
+                    revision: 1
+                    organization_uuid: 00000000-0000-4000-8000-000000000002
+                    device_uuid: 00000000-0000-4000-8000-000000000003
+                    configuration_uuid: 00000000-0000-4000-8000-000000000004
+                    generation: 1
+                    latitude_parameter_uuid: 00000000-0000-4000-8000-000000000005
+                    longitude_parameter_uuid: 00000000-0000-4000-8000-000000000006
+                    accuracy_parameter_uuid: 00000000-0000-4000-8000-000000000007
+                    pairing: same_event
+                    max_age_seconds: 90
+                    max_future_skew_seconds: 5
+                    allow_unknown_accuracy: true
+              meta:
+                current_page: 1
+                last_page: 1
+                total: 1
+  GET /integration/v1/organizations/{organization}/devices/{uuid}/locations/{event}:
+    summary: Resolve a stored event to a location fix
+    description: >-
+      Resolves one stored telemetry event through the selected binding (`version_uuid`
+      from the bindings list) with the same resolver as geofencing. `data` is the
+      device runtime's `location-fix.v1` output, unchanged. 404 when the binding or the
+      event is not found in retention; 422 when the runtime rejects the read (under
+      `errors.runtime`); 503 when it is unavailable.
+    responses:
+      '200':
+        description: The fix resolved through the selected binding.
+        x-runtime-shaped: true
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version_uuid, data]
+              properties:
+                version_uuid:
+                  type: string
+                  format: uuid
+                data:
+                  $ref: '../location/v1/fix.schema.json'
+            example:
+              version_uuid: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+              data:
+                schema_version: location-fix.v1
+                binding_uuid: 00000000-0000-4000-8000-000000000001
+                binding_revision: 1
+                event_id: 00000000-0000-4000-8000-000000000065
+                organization_uuid: 00000000-0000-4000-8000-000000000002
+                device_uuid: 00000000-0000-4000-8000-000000000003
+                configuration_uuid: 00000000-0000-4000-8000-000000000004
+                generation: 1
+                evaluated_at: '2026-09-25T00:00:32Z'
+                observed_at: '2026-09-25T00:00:30Z'
+                received_at: '2026-09-25T00:00:31Z'
+                timestamp_source: source
+                historical: false
+                status: valid
+                reason: eligible
+                live_eligible: true
+                point:
+                  latitude: 51.0
+                  longitude: -114.0
+                  accuracy_metres: 5
+      '503':
+        $ref: '#/components/responses/RuntimeUnavailable'
+  POST /integration/v1/organizations/{organization}/location-map/query:
+    summary: Query current positions and trails
+    description: >-
+      Positions, geofence condition and optional trails (last 1h, 6h, 24h or 7d) of 1
+      to 100 granted devices. Device entries are the device runtime's output with four
+      fields added by the control plane. 403 when a requested device is not granted;
+      422 for invalid input or when the runtime rejects the query (under
+      `errors.runtime`); 503 when the runtime is unavailable.
+    responses:
+      '200':
+        description: '`location-map.v1`. Entries in `data.devices` are runtime-shaped.'
+        x-runtime-shaped: true
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/LocationMap'
+            example:
+              data:
+                schema_version: location-map.v1
+                trail_window: 24h
+                geofence: null
+                devices:
+                  - device_uuid: 00000000-0000-4000-8000-000000000003
+                    device_name: Herd tracker 17
+                    binding_uuid: 00000000-0000-4000-8000-000000000001
+                    latest: null
+                    condition: unknown
+                    active: false
+                    geometry: null
+                    trail:
+                      segments: []
+                      sampled: false
+                    wandering: false
+                    active_alert: null
+                    assignment_status: active
+                    deployment_status: active
+      '503':
+        $ref: '#/components/responses/RuntimeUnavailable'
+  GET /integration/v1/organizations/{organization}/geofences:
+    summary: List geofences with granted devices
+    description: >-
+      Geofences that have at least one granted device assigned, ordered by name, each
+      with only the granted devices' assignments. Not paginated.
+    responses:
+      '200':
+        description: The geofences.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/IntegrationGeofence'
+            example:
+              data:
+                - uuid: 1e2d3c4b-5a69-4788-9a6b-5c4d3e2f1a0b
+                  name: North paddock
+                  geometry:
+                    type: Polygon
+                    coordinates:
+                      - - [-114.01, 50.99]
+                        - [-113.99, 50.99]
+                        - [-113.99, 51.01]
+                        - [-114.01, 51.01]
+                        - [-114.01, 50.99]
+                  revision: 2
+                  created_at: '2026-10-01T09:00:00.000000Z'
+                  updated_at: '2026-10-12T08:00:00.000000Z'
+                  assignments:
+                    - uuid: 4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f
+                      policy:
+                        outside_for_seconds: 60
+                        max_gap_seconds: 45
+                        minimum_samples: 2
+                        uncertainty_metres: 2
+                      desired_geofence_revision: 2
+                      applied_geofence_revision: 2
+                      status: active
+                      diagnostic: null
+                      device:
+                        uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                        name: Herd tracker 17
+                        code: tracker-017
+                      workflow_uuid: 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                      deployment_status: active
+  GET /integration/v1/organizations/{organization}/geofences/{uuid}:
+    summary: Read a geofence
+    description: 404 when no granted device is assigned to the geofence.
+    responses:
+      '200':
+        description: The geofence, with only the granted devices' assignments.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/IntegrationGeofence'
+            example:
+              data:
+                uuid: 1e2d3c4b-5a69-4788-9a6b-5c4d3e2f1a0b
+                name: North paddock
+                geometry:
+                  type: Polygon
+                  coordinates:
+                    - - [-114.01, 50.99]
+                      - [-113.99, 50.99]
+                      - [-113.99, 51.01]
+                      - [-114.01, 51.01]
+                      - [-114.01, 50.99]
+                revision: 2
+                created_at: '2026-10-01T09:00:00.000000Z'
+                updated_at: '2026-10-12T08:00:00.000000Z'
+                assignments: []
+  POST /integration/v1/organizations/{organization}/geofences:
+    summary: Create a geofence and activate it
+    description: >-
+      Saves a new geofence (revision 1) with one workflow per assigned device, then
+      starts their activation and returns 202 with the activation to poll. Needs
+      `geofences:activate` and `geofences:manage`. Idempotent on `operation_uuid`.
+      403 when an assigned device is not granted; 404 when an assigned device has no
+      location binding; 409 when `operation_uuid` was used for a different request or
+      `expected_revision` is not 0; 422 for invalid input, or when the runtime rejects
+      the geofence (a message, or `errors.runtime`); 503 when the runtime is
+      unavailable.
+    x-abilities:
+      all: [geofences:activate, geofences:manage]
+    x-async:
+      poll: GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}
+      key: operation_uuid
+    x-concurrency:
+      field: expected_revision
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GeofenceInput'
+          example:
+            operation_uuid: 9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a
+            expected_revision: 0
+            name: North paddock
+            geometry:
+              type: Polygon
+              coordinates:
+                - - [-114.01, 50.99]
+                  - [-113.99, 50.99]
+                  - [-113.99, 51.01]
+                  - [-114.01, 51.01]
+                  - [-114.01, 50.99]
+            assignments:
+              - device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                policy:
+                  outside_for_seconds: 60
+                  max_gap_seconds: 45
+                  minimum_samples: 2
+                  uncertainty_metres: 2
+    responses:
+      '202':
+        description: Saved; the activation is under way. Poll `activation`.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeofenceSaved'
+            example:
+              data:
+                uuid: 1e2d3c4b-5a69-4788-9a6b-5c4d3e2f1a0b
+                name: North paddock
+                geometry:
+                  type: Polygon
+                  coordinates:
+                    - - [-114.01, 50.99]
+                      - [-113.99, 50.99]
+                      - [-113.99, 51.01]
+                      - [-114.01, 51.01]
+                      - [-114.01, 50.99]
+                revision: 1
+                created_at: '2026-10-12T08:00:00.000000Z'
+                updated_at: '2026-10-12T08:00:00.000000Z'
+                assignments:
+                  - uuid: 4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f
+                    policy:
+                      outside_for_seconds: 60
+                      max_gap_seconds: 45
+                      minimum_samples: 2
+                      uncertainty_metres: 2
+                    desired_geofence_revision: 1
+                    applied_geofence_revision: null
+                    status: pending
+                    diagnostic: null
+                    device:
+                      uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                      name: Herd tracker 17
+                      code: tracker-017
+                    workflow_uuid: 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                    deployment_status: pending
+              activation:
+                uuid: 9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a
+                geofence_revision: 1
+                status: pending
+                created_at: '2026-10-12T08:00:00.000000Z'
+                updated_at: '2026-10-12T08:00:00.000000Z'
+                items:
+                  - id: 41
+                    assignment_uuid: 4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f
+                    device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                    operation_uuid: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                    target: active
+                    status: pending
+                    diagnostic: null
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+      '503':
+        $ref: '#/components/responses/RuntimeUnavailable'
+  PUT /integration/v1/organizations/{organization}/geofences/{uuid}:
+    summary: Update a geofence and activate it
+    description: >-
+      Saves a new revision of the geofence (name, geometry and the full set of
+      assignments; devices left out are removed), then starts the activation and
+      returns 202 with the activation to poll. Needs `geofences:activate` and
+      `geofences:manage`. Idempotent on `operation_uuid`. 403 when the geofence has an
+      assignment outside the application's grant or an assigned device is not granted;
+      404 when an assigned device has no location binding; 409 when
+      `expected_revision` is stale or `operation_uuid` was used for a different
+      request; 422 for invalid input, or when the runtime rejects the geofence; 503 when
+      the runtime is unavailable.
+    x-abilities:
+      all: [geofences:activate, geofences:manage]
+    x-async:
+      poll: GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}
+      key: operation_uuid
+    x-concurrency:
+      field: expected_revision
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GeofenceInput'
+          example:
+            operation_uuid: 0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d
+            expected_revision: 1
+            name: North paddock
+            geometry:
+              type: Polygon
+              coordinates:
+                - - [-114.02, 50.99]
+                  - [-113.99, 50.99]
+                  - [-113.99, 51.01]
+                  - [-114.02, 51.01]
+                  - [-114.02, 50.99]
+            assignments:
+              - device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                policy:
+                  outside_for_seconds: 120
+                  max_gap_seconds: 45
+                  minimum_samples: 2
+                  uncertainty_metres: 2
+    responses:
+      '202':
+        description: Saved; the activation is under way. Poll `activation`.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeofenceSaved'
+            example:
+              data:
+                uuid: 1e2d3c4b-5a69-4788-9a6b-5c4d3e2f1a0b
+                name: North paddock
+                geometry:
+                  type: Polygon
+                  coordinates:
+                    - - [-114.02, 50.99]
+                      - [-113.99, 50.99]
+                      - [-113.99, 51.01]
+                      - [-114.02, 51.01]
+                      - [-114.02, 50.99]
+                revision: 2
+                created_at: '2026-10-01T09:00:00.000000Z'
+                updated_at: '2026-10-12T08:00:00.000000Z'
+                assignments:
+                  - uuid: 4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f
+                    policy:
+                      outside_for_seconds: 120
+                      max_gap_seconds: 45
+                      minimum_samples: 2
+                      uncertainty_metres: 2
+                    desired_geofence_revision: 2
+                    applied_geofence_revision: 1
+                    status: pending
+                    diagnostic: null
+                    device:
+                      uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                      name: Herd tracker 17
+                      code: tracker-017
+                    workflow_uuid: 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                    deployment_status: pending
+              activation:
+                uuid: 0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d
+                geofence_revision: 2
+                status: pending
+                created_at: '2026-10-12T08:00:00.000000Z'
+                updated_at: '2026-10-12T08:00:00.000000Z'
+                items:
+                  - id: 42
+                    assignment_uuid: 4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f
+                    device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                    operation_uuid: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+                    target: active
+                    status: pending
+                    diagnostic: null
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+      '503':
+        $ref: '#/components/responses/RuntimeUnavailable'
+  GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}:
+    summary: Read a geofence activation
+    description: >-
+      The activation batch a save returned, with each item's status taken from its
+      workflow deployment. Poll until `status` is `succeeded` or `partial_failure`.
+      403 when the geofence has an assignment outside the application's grant.
+    responses:
+      '200':
+        description: The activation.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/GeofenceActivationBatch'
+            example:
+              data:
+                uuid: 9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a
+                geofence_revision: 1
+                status: partial_failure
+                created_at: '2026-10-12T08:00:00.000000Z'
+                updated_at: '2026-10-12T08:00:05.000000Z'
+                items:
+                  - id: 41
+                    assignment_uuid: 4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f
+                    device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                    operation_uuid: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                    target: active
+                    status: failed
+                    diagnostic: Activate against the currently applied device configuration and generation.
+  POST /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}/items/{item}/retry:
+    summary: Retry a failed activation item
+    description: >-
+      Starts a new workflow deployment for one failed item and returns the activation.
+      Needs `geofences:activate` and `geofences:manage`. 403 when the geofence has an
+      assignment outside the application's grant; 409 when the item has not failed;
+      422 when the runtime rejects the activation (under `errors.runtime`).
+    x-abilities:
+      all: [geofences:activate, geofences:manage]
+    x-async:
+      poll: GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}
+    responses:
+      '200':
+        description: The activation, with the item pending again.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/GeofenceActivationBatch'
+            example:
+              data:
+                uuid: 9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a
+                geofence_revision: 1
+                status: pending
+                created_at: '2026-10-12T08:00:00.000000Z'
+                updated_at: '2026-10-12T08:05:00.000000Z'
+                items:
+                  - id: 41
+                    assignment_uuid: 4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f
+                    device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                    operation_uuid: c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f
+                    target: active
+                    status: pending
+                    diagnostic: null
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  GET /integration/v1/organizations/{organization}/events/checkpoint:
+    summary: Take an event feed checkpoint
+    description: >-
+      A cursor at the current head of the organization's event journal. Take it before
+      reading current state (for example every alert page), then read the feed from it.
+      Needs `events:read` and either `alerts:read` or `geofences:read`, each on both the
+      application and the token.
+    x-abilities:
+      all: [events:read]
+      any_of: [[alerts:read, geofences:read]]
+    responses:
+      '200':
+        description: A cursor at the head of the journal.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventCheckpoint'
+            example:
+              cursor: eyJpdiI6IlZ3dE1oUnRkWjBTeUtmZz09IiwidmFsdWUiOiJjdXJzb3IifQ==
+  GET /integration/v1/organizations/{organization}/events:
+    summary: Read the event feed
+    description: >-
+      `integration-event.v1` envelopes after `cursor` (from the start of the journal
+      without one), in commit order, `limit` 1 to 100 (default 100). Pages skip events
+      for devices not granted to the application, so save `next_cursor` even from an
+      empty page. The feed is at least once: deduplicate by event `id`. Cursors are
+      encrypted and bound to the organization, the application and its grant revision;
+      a token rotation keeps them. Needs `events:read` and either `alerts:read` or
+      `geofences:read`, each on both the application and the token. 409 after a grant
+      change (rebuild from a fresh checkpoint); 422 for invalid input, an unreadable
+      cursor or another application's cursor.
+    x-abilities:
+      all: [events:read]
+      any_of: [[alerts:read, geofences:read]]
+    responses:
+      '200':
+        description: A page of events in commit order.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventPage'
+            example:
+              data:
+                - id: e4f5a6b7-c8d9-4e0f-9a1b-2c3d4e5f6a7b
+                  schema_version: integration-event.v1
+                  type: alert.activated.v1
+                  occurred_at: '2026-10-12T07:58:10+00:00'
+                  recorded_at: '2026-10-12T07:58:11+00:00'
+                  data:
+                    uuid: 7c9e2a41-1d3b-4f5e-8a6c-2b4d6f8a0c1e
+                    episode: 3
+                    condition: active
+                    activated_at: '2026-10-12T07:58:10.000000Z'
+                    cleared_at: null
+                    acknowledged_at: null
+                    workflow_uuid: 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                    workflow_name: North paddock — Herd tracker 17
+                    device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                    execution_stopped_reason: null
+                - id: f5a6b7c8-d9e0-4f1a-8b2c-3d4e5f6a7b8c
+                  schema_version: integration-event.v1
+                  type: automation.triggered.v1
+                  occurred_at: '2026-10-12T08:01:00+00:00'
+                  recorded_at: '2026-10-12T08:01:01+00:00'
+                  data:
+                    workflow_uuid: 6b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8d9e
+                    action_id: 8f14e45fceea167a5a36dedd4bea2543
+                    name: Notify the yard
+                    node_id: notify
+              next_cursor: eyJpdiI6IlZ3dE1oUnRkWjBTeUtmZz09IiwidmFsdWUiOiJuZXh0In0=
+              has_more: false
+      '409':
+        $ref: '#/components/responses/GrantChanged'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
