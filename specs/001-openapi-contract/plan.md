@@ -22,7 +22,8 @@ Redoc references are built: the integration one may be published; the `api/v1` o
 for developers only.
 
 No endpoint changes behaviour. The work lands in nine pull requests of one to four days
-each, about 18 to 22 engineer-days in total. The 155 `api/v1` operations whose bodies stay
+each, about 19 to 24 engineer-days in total (sizes of PRs 6 and 7 raised after the
+PR 1 inference spike, research "R1 spike results"). The 155 `api/v1` operations whose bodies stay
 pending are described afterwards in about six small follow-up pull requests. Decisions
 and versions are in [research.md](research.md).
 
@@ -78,7 +79,7 @@ marked NEEDS CLARIFICATION.
 | VII | Durable, idempotent messaging | Any messaging change? | Pass (not affected) | Pass: unknown event types no longer stop a consumer's cursor. |
 | VIII | One design system | Any UI built outside `@iot-os/ui`? | Justified deviation | Justified deviation: the references are static Redoc pages, generated developer documentation rather than product UI (Complexity Tracking). |
 | IX | Done means verified where it runs | CI on PostgreSQL, rebuilt containers, exercised in the running app? | Pass | Pass: each pull request lists its container rebuilds (`api` for PHP and contract changes; `portal` and `admin` for client-library types and for any change to the root `package.json` or `pnpm-lock.yaml`, which their images install from; the `vertical-demo` image for SDK changes) and checks that the route list is unchanged and `/docs/api` is absent. |
-| — | Decisions are ADRs | Is a lasting decision recorded? | Action | Pass: phase 1 adds ADR-015 (contract generated from Laravel, checked by tests, enforced in CI). |
+| — | Decisions are ADRs | Is a lasting decision recorded? | Action | Pass: phase 1 adds ADR-016 (contract generated from Laravel, checked by tests, enforced in CI). |
 | — | Small, reviewable changes | Can each pull request be reviewed alone? | Pass | Pass: nine pull requests, generated files kept separate from hand-written ones in each diff (Complexity Tracking: one spec, several pull requests). |
 
 **Result**: passes, with two justified deviations in Complexity Tracking and owner
@@ -107,6 +108,8 @@ specs/001-openapi-contract/
 apps/api/
 ├── app/Support/Contract/
 │   ├── ContractServiceProvider.php     # registered only when Scramble is installed
+│   ├── ContractExporter.php            # Scramble on a private migrated SQLite database, then the transformers (PR 1 spike)
+│   ├── PathConstraintTransformer.php   # route wheres → path parameter formats (PR 1 spike)
 │   ├── SecurityTransformer.php         # middleware → security, x-audience, x-abilities, limits, shared errors
 │   ├── SupplementTransformer.php       # merges supplements, shared components, pending list
 │   ├── PendingSchemas.php
@@ -134,7 +137,7 @@ packages/integration-sdk/src/generated/contract.ts
 packages/api-client/src/generated/contract.ts
 tooling/contract/                       # breaking.mjs, types.mjs, tests and fixtures
 .github/workflows/ci.yml                # API job steps; new Contract job
-docs/adr/ADR-015-public-api-contract.md
+docs/adr/ADR-016-public-api-contract.md
 ```
 
 **Structure Decision**: PHP pieces live in `apps/api/app/Support/Contract` because they
@@ -150,13 +153,13 @@ hand-written lines (generated files excluded) and engineer-days.
 
 | # | Pull request | Stories / requirements | Depends on | Size |
 | --- | --- | --- | --- | --- |
-| 1 | **Contract skeleton and export check.** Half-day inference spike first. Scramble (dev) with routes limited to `api/v1` and `api/integration/v1`, default routes off; security transformer; shared components; `contract:export --check`; `contract:check`; route inventory test; `openapi.json` committed with all 247 operations pending; CI API job steps; ADR-015; `contracts/README.md` and `docs/reference/api.md` updated. | US2 (G1, G2, G3), FR-001 to FR-008, FR-018, FR-020 to FR-022 | — | M: ~900 lines, 2–3 days |
+| 1 | **Contract skeleton and export check.** Half-day inference spike first. Scramble (dev) with routes limited to `api/v1` and `api/integration/v1`, default routes off; security transformer; shared components; `contract:export --check`; `contract:check`; route inventory test; `openapi.json` committed with all 247 operations pending; CI API job steps; ADR-016 (ADR-015 went to spec 002); `contracts/README.md` and `docs/reference/api.md` updated. | US2 (G1, G2, G3), FR-001 to FR-008, FR-018, FR-020 to FR-022 | — | M: ~900 lines, 2–3 days |
 | 2 | **Response checks in the suite.** opis checker on `RequestHandled`; status checks for every operation; coverage recorder and `contract:coverage`; opt-out attribute; undocumented statuses found by the suite fixed in supplements; drift log started. | FR-019 (mechanism), G4 | 1 | M: ~600 lines, 2 days |
 | 3 | **Integration API fully described.** `supplements/integration.yaml` (responses, abilities, rate limits, event envelope with 8 types, webhook, `$ref`s to location schemas, runtime-shaped marks, examples); data-driven 401/403/404/422 tests and 2xx gaps; 18 operations leave the pending list (247 → 229); rule "no integration operation pending" on; `info.version` 1.0.0; `docs/features/integrations.md` links the contract. | US1, FR-009 to FR-017, FR-019, SC-001 | 2 | L: ~1,300 lines, 3–4 days (can split reads / writes and events) |
 | 4 | **Contract job: lint, bundles, breaking-change gate.** `redocly.yaml` with both APIs and lint rules; user-id plugin; `tooling/contract/breaking.mjs` with tests; exception ledger and SDK-version and `info.version` checks; `api/v1` report; `oasdiff` pin in `tooling/versions.env`; `./taskw contract:check`; seeded drift exercise run and recorded. | US2 (G5, G7, G8), FR-011, FR-023, FR-024, FR-032, SC-003, SC-007 | 1 (meaningful after 3) | M: ~700 lines, 2 days |
 | 5 | **SDK on generated types (0.6.0).** `pnpm contract:types` for the SDK; aliases; `INTEGRATION_EVENT_TYPES`, `CONTRACT_VERSION`; unknown events in `events()` and `verifyWebhook()`; tests; README and release notes; roadmap item "SDK event types" closed; G6 for the SDK. | US4 (SDK), FR-025, FR-026, FR-029, SC-006 | 3, 4 | M: ~500 lines, 2 days |
-| 6 | **Account, platform-admin and Administration operations (44).** Check inference, supplement hand-built bodies (notifications, retention, platform team), `x-permissions`; 2xx coverage; 44 leave the list (229 → 185). | US3 (part), FR-007, FR-019 | 2 | M: ~700 lines, 2–3 days |
-| 7 | **Device-profile operations (30).** Mostly resource-backed; profile validation and draft-conflict error variants; artifacts; 30 leave the list (185 → 155). | US3 (rest), SC-002 | 2 | M: ~500 lines, 2 days |
+| 6 | **Account, platform-admin and Administration operations (44).** Check inference, supplement hand-built bodies (notifications, retention, platform team), `x-permissions`; 2xx coverage; 44 leave the list (229 → 185). | US3 (part), FR-007, FR-019 | 2 | M: ~950 lines, 3–4 days (spike: 31 of 40 bodies need supplements) |
+| 7 | **Device-profile operations (30).** Mostly resource-backed; profile validation and draft-conflict error variants; artifacts; 30 leave the list (185 → 155). | US3 (rest), SC-002 | 2 | M: ~650 lines, 2–3 days (spike: 20 of 30 bodies open in part) |
 | 8 | **Client library on generated types.** `pnpm contract:types` for the client library; aliases for the 74 operations' types and all request bodies; drift log; README; G6 for the client library; rebuild portal and admin and smoke-test. | US4 (client), FR-025, FR-027, SC-004 | 4, 6, 7 | M: ~600 lines, 2–3 days |
 | 9 | **References and documentation.** `pnpm contract:docs`, G9, artefact upload; `dist/` ignored; `docs/architecture/overview.md`, `docs/roadmap.md` (OpenAPI item closed, follow-up domains listed), `docs/dev/specs.md`; SC-009 reviewer check; drift log closed. | US5, FR-030, FR-031 | 3, 4 | S: ~250 lines, 1 day |
 
