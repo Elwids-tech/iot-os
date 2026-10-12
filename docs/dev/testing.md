@@ -118,10 +118,11 @@ route Laravel matched, so there is nothing to call in a test:
 
 - the status must be one the operation documents;
 - for an operation not on `contracts/openapi/pending-schemas.json`, documented
-  required headers (such as `Retry-After` on 429) must be present and the body must
-  match the documented content type and JSON schema (opis/json-schema, JSON Schema
-  2020-12; `../` references resolve into `contracts/`). Pending operations get the
-  status check only.
+  required headers (such as `Retry-After` on 429) must be present, documented headers
+  must match their schema (`Cache-Control` containing `no-store` on integration
+  responses), and the body must match the documented content type and JSON schema
+  (opis/json-schema, JSON Schema 2020-12; `../` references resolve into
+  `contracts/`). Pending operations get the status check only.
 
 A mismatch fails the test that made the request, naming the operation, status and
 JSON pointer:

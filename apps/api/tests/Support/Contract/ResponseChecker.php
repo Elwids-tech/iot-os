@@ -12,8 +12,10 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Gate G4 for one response (specs/001-openapi-contract/contracts/ci-gate.md): the status
  * is documented; for a fully described operation the documented required headers are
- * present and the body matches the documented content type and JSON schema. An operation
- * on the pending-schema list (`x-schema-status: pending`) gets the status check only.
+ * present, documented headers match their schema (`Retry-After` an integer,
+ * `Cache-Control` containing `no-store`), and the body matches the documented content
+ * type and JSON schema. An operation on the pending-schema list
+ * (`x-schema-status: pending`) gets the status check only.
  *
  * The operation comes from the route Laravel matched, whose method and URI template are
  * the contract's method and path, so there is no path matching to get wrong.
@@ -58,9 +60,18 @@ final class ResponseChecker
         }
 
         $failures = [];
-        foreach ($this->document->requiredHeaders($documented['response'], $documented['pointer']) as $header) {
-            if (! $response->headers->has($header)) {
-                $failures[] = $this->failure($key, $status, "required header {$header} is missing", self::FIX_BODY);
+        foreach ($this->document->headers($documented['response'], $documented['pointer']) as $header) {
+            $value = $response->headers->get($header['name']);
+            if ($value === null) {
+                if ($header['required']) {
+                    $failures[] = $this->failure($key, $status, "required header {$header['name']} is missing", self::FIX_BODY);
+                }
+
+                continue;
+            }
+            $problem = $header['schema'] === null ? null : $this->document->validateHeader($value, $header['schema']);
+            if ($problem !== null) {
+                $failures[] = $this->failure($key, $status, "header {$header['name']}: {$problem}", self::FIX_BODY);
             }
         }
         $body = $this->checkBody($documented['response'], $documented['pointer'], $response);
