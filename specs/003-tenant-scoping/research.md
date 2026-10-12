@@ -1,6 +1,6 @@
 # Research: Structural Tenant Scoping
 
-**Feature**: [spec.md](spec.md) | **Date**: 2026-10-11 | **Baseline**: `main` at `51b1604`
+**Feature**: [spec.md](spec.md) | **Plan**: [plan.md](plan.md) | **Date**: 2026-10-11, decisions added 2026-10-12 | **Baseline**: `main` at `51b1604` (inventory), `fd980fb` (decisions)
 
 A factual inventory of how the control plane (`apps/api`) keeps one organization's
 data away from another today: where the organization is resolved, how membership and
@@ -10,8 +10,10 @@ what the existing tests prove. Paths are relative to `apps/api/` unless they sta
 with another top-level directory, and line numbers refer to the baseline commit.
 Route counts come from `php artisan route:list --json -v` on the baseline. Query
 counts come from a throwaway test run against the seeded demo organizations on
-SQLite with the array cache (not committed). Section 9 lists options for the plan
-step; nothing in this note is a decision.
+SQLite with the array cache (not committed). Sections 1 to 12 are the inventory
+written for the specify step. Section 9 lists the options that were open at the
+time. Section 13 records the plan step's decisions, which supersede section 9, in
+the form Decision / Rationale / Alternatives.
 
 Two roadmap items are this feature: **Central tenant scoping** and **Event feed
 scoping** (`docs/roadmap.md:43-45,60-63`). The related **Module boundaries** item,
@@ -43,7 +45,15 @@ requests (`docs/roadmap.md:46-49`), stays separate.
    an authenticated user who knows the UUID of an organization they do not belong to
    can tell whether any device UUID exists anywhere on the platform (403 if it
    exists, 404 if it does not). This was measured, and it applies to all 29 bound
-   model types.
+   model types. **Members get a second signal (measured, debug off):** naming another
+   organization's device returns `404 {"message": ""}`, because `DeviceAuthorization`
+   calls `abort(404)`. A device that does not exist returns
+   `404 {"message": "No query results for model [App\\Domain\\Devices\\Models\\Device] <uuid>"}`,
+   from Laravel's `ModelNotFoundException` rendering
+   (`vendor/laravel/framework/src/Illuminate/Foundation/Exceptions/Handler.php:773,1142-1143`).
+   The bodies differ, and the second leaks a class name. The portal shows its friendly
+   "This isn't available" text only for an empty or `Not Found` message
+   (`apps/portal/src/components/forms.tsx:63-64`).
 3. **The organization-switching block is copied into 9 files in `app/`**: 7 on the
    request path and 2 in maintenance code. It also appears in 3 seeders and 6 test
    files (section 4). The 7 request-path copies differ. Some reload the user's role
@@ -425,7 +435,7 @@ organization and `grant_revision`, and a grant change invalidates them with 409
 cursor contract: changing abilities already bumps `grant_revision`
 (`ApplicationController.php:61`).
 
-## 9. Options for the plan step (not decisions)
+## 9. Options for the plan step (superseded by section 13)
 
 ### 9.1 One context per request or job
 
@@ -544,6 +554,7 @@ jobs.
 | --- | --- | --- |
 | Event feed and webhooks deliver event types the application holds no read ability for (8.3), as documented | Medium (exposure inside one organization, not across organizations) | Owner decision (clarification Q1). Until then, it is documented behaviour. |
 | Existence signal across organizations: binding before membership (key finding 2) | Low (needs another organization's UUID and a guessed or leaked record UUID; reveals existence only) | Fixed structurally by this feature; a small early fix is possible (9.2) |
+| Existence signal for members: a foreign record's 404 body (`""`) differs from a missing record's (`No query results for model [...] <uuid>`) (key finding 2) | Low (needs a leaked record UUID) | Fixed by D10: one not-found body for every tenant 404 |
 | Global idempotency keys answer 409 instead of 404 for another organization's key (5.5) | Low | Covered by this feature's indistinguishability requirement |
 | `is_super_admin` is mass-assignable (7) | Latent | Make it guarded when platform administration becomes a grant |
 | Super administrators can act, including sending device commands, in every organization without membership (7) | By design today | This feature makes it explicit |
@@ -551,3 +562,439 @@ jobs.
 No unchecked tenant record, no request path that trusts a payload's organization,
 and no route that misses its organization check was found. Nothing here needs a fix
 before this feature lands.
+
+## 13. Plan decisions (2026-10-12)
+
+These decisions resolve the plan's open questions after the clarification session
+(spec.md, "Clarifications"). They supersede the options in section 9. Paths are
+relative to `apps/api/` unless stated otherwise.
+
+### Summary of decisions
+
+| # | Concern | Decision |
+| --- | --- | --- |
+| D1 | Where the organization lives | One scoped `OrganizationContext` per request, job, scheduled step and tool call; `run()` is the only switching mechanism |
+| D2 | When it is established | `EnterOrganization` middleware runs before route binding; non-members get not found |
+| D3 | How records are confined | Global scopes on organization-owned models **and** scoped route bindings for parent chains, plus a scoped query helper and a scoped validation rule |
+| D4 | How permissions are resolved | One `PermissionSnapshot` per principal and organization, reused by the existing domain services |
+| D5 | Work outside requests | Jobs declare their organization and principal; workers, scheduler, runtime and seeders declare platform work; tool calls refresh the snapshot |
+| D6 | The proof | A route walker driven by the router and the OpenAPI contract, reusing the response checker |
+| D7 | Super administrators | An explicit platform permission through a `super-administrator` platform role, recorded per request in `platform_access_events` |
+| D8 | Integration events | An `IntegrationEventType` enum maps each type to its ability; the feed and webhooks filter by it |
+| D9 | Not-found responses | One body, `{"message": "Not Found"}`, for every tenant 404 |
+| D10 | Client-chosen request identifiers | Scoped lookups; a collision with another organization is answered like a reuse within the organization |
+| D11 | Row-level security | Deferred; the context provides the value a later policy would read |
+| D12 | Decision record | ADR-017 in PR 2 |
+
+No new dependency is needed. Everything uses Laravel 13.35, `spatie/laravel-permission`
+7.4.2, Sanctum 4.3 and the spec 001 contract tooling already in the repository.
+
+### D1. One organization context
+
+**Decision**: Add `App\Domain\Authorization\Tenancy\OrganizationContext`, registered with
+`$this->app->scoped()`. It holds:
+
+- the organization, or none;
+- the principal (`Principal`: a user, an integration application with its token, or the
+  platform with a `PlatformWork` case);
+- the mode (organization, platform, or none);
+- the memoized `PermissionSnapshot` objects (D4), keyed by organization.
+
+Its methods:
+
+- `run(Organization, Principal, Closure)` is the only switching mechanism (FR-016). It
+  sets the permission registrar's team, swaps the context, and restores both in
+  `finally`.
+- `platform(PlatformWork, Closure)` runs declared platform-wide work.
+- `organization()` throws `MissingOrganizationContext` when there is none (FR-004).
+- `snapshot()` and `snapshotFor(Organization)` return permission snapshots.
+
+The queue worker already forgets scoped instances before each job
+(`vendor/laravel/framework/src/Illuminate/Queue/QueueServiceProvider.php:263`). A
+`JobProcessing` listener also resets the registrar's team to null and asserts that no
+context is active, so nothing carries from one job to the next (FR-022).
+
+**Rationale**: It gives one place to switch, replacing the 9 copies in `app/` and 3 in
+seeders. Tenant code fails closed when there is no context. The context lives exactly
+one request or job, as `PublishedParameters` already does (`app/Providers/AppServiceProvider.php:30`).
+
+**Alternatives considered**:
+
+- **Laravel's `Context` facade alone.** It propagates into jobs implicitly
+  (`Illuminate/Log/Context/ContextServiceProvider.php`), so a job would inherit the
+  requester as its principal, which is wrong for work that acts for someone else (an
+  alert email acts for its recipient). It is also untyped.
+- **The permission package's team resolver.** It covers permissions but not records.
+- **Keeping per-service switching.** That is the status quo.
+
+### D2. Entering the context before route binding
+
+**Decision**: An `EnterOrganization` middleware (alias `organization`) replaces
+`ResolveOrganizationContext` on every portal tenant route group, including the 13
+organization administration routes that have no middleware today. It is placed in the
+priority list right after `AuthenticatesRequests`
+(`$middleware->appendToPriorityList(AuthenticatesRequests::class, EnterOrganization::class)`
+in `bootstrap/app.php`), so it runs before `SubstituteBindings`.
+
+It works in this order:
+
+1. Read the raw `{organization}` value and load the organization.
+2. Check membership, or the platform grant (D7).
+3. Enter the context for the request and restore it afterwards. This matters in tests,
+   where one application instance serves many requests.
+4. Put the model back with `$route->setParameter()`. Implicit binding then skips it
+   (`ImplicitRouteBinding.php:36-38`).
+
+An unknown organization, a non-member and a malformed value all receive the D9
+not-found response (Q3, FR-003).
+
+`AuthenticateApplication` gets the same priority and enters the context with the
+application principal. Extending `OrganizationRouteParametersTest`, a route test
+asserts that every `api/(integration/)?v1/organizations/{organization}` route carries
+exactly one of the two middlewares, and that `api/v1/admin/...` routes carry neither.
+
+**Rationale**: Checking membership before any record lookup removes the non-member
+existence signal (finding 2) and gives Q3's 404 in one place. Explicit middleware on
+each group, plus a test, is easier to review than a global middleware that guesses
+which routes are tenant routes: `api/v1/admin/organizations/{organization}` is a
+platform route.
+
+**Alternatives considered**:
+
+- **A global `api` middleware acting on any `{organization}` parameter.** It would
+  catch platform routes and depend on naming.
+- **Keeping binding first and only scoping the bindings.** That confines records but
+  leaves the organization-level signal.
+
+### D3. Confining records: global scopes and scoped bindings
+
+**Decision**: Combine five mechanisms, each giving one guarantee.
+
+1. **`BelongsToOrganization` trait on the 23 organization-owned models.** These are
+   the 26 models with an organization column minus three: the permission package's
+   `Role` (team-keyed and loaded across teams by the package's cache),
+   `TelemetryRetentionSetting` (platform-managed, with a shared default row) and
+   `NotificationEvent` (a feed that spans organizations, with platform rows). The
+   full classification is in [data-model.md](data-model.md). The trait adds
+   `OrganizationScope`, which filters by
+   `<table>.organization_id = <context organization>` in organization mode, applies no
+   filter in declared platform mode, and throws `MissingOrganizationContext` with no
+   context. A `creating` hook fills `organization_id` from the context and refuses a
+   different value, and an `updating` hook refuses any change to it (FR-012).
+   `device_profiles` has a nullable organization column, so its platform rows are
+   hidden automatically (FR-011). `RetentionService` stays the only reader of
+   `TelemetryRetentionSetting`. The notification centre keeps its explicit filter by
+   per-organization snapshot (D4).
+2. **`BelongsToOrganizationThrough` trait on child models looked up directly by
+   identifier from input.** These are `DeviceCommand`, `DeviceOperation`,
+   `DeviceConfiguration`, `Deployment`, `Scenario`, `DashboardRevision`,
+   `AlertDelivery`, `WebhookDelivery`, `DeviceProfileArtifact`, the profile children,
+   the assistant children, `AdapterProposal` and `AdapterRevision`. It adds a
+   `whereHas(<parent relation>)` scope, so the parent's organization scope applies.
+   Children reached only through an already-scoped parent need nothing.
+3. **`->scopeBindings()` on every tenant route group.** `Organization` gains relations
+   named after the route parameters (`devices`, `profiles`, `workflows`, `adapters`,
+   `dashboards`, `conversations`, `applications`, `alerts`, `geofences`, `sites`,
+   `connections`, `gateways`, `candidates`, `invitations`, and `members` over the user
+   pivot). Parents gain theirs: profile → parameters, groups, alarms and bindings;
+   device → commands; adapter → candidates, credentials and proposals; conversation →
+   proposals, runs and sources; workflow → scenarios; geofence → batches. Where a
+   parameter name and a relation differ, the parent overrides
+   `childRouteBindingRelationshipName`. Laravel resolves each bound child through the
+   parameter before it (`ImplicitRouteBinding.php:48-60`), which implements FR-007
+   and replaces the 23 parent checks.
+4. **`TenantTable::query($table)` for raw access.** About 50 of the 136
+   `DB::table(...)` calls address the 9 tables with an organization column
+   (`automation_actions`, `automation_settings`, `integration_streams`,
+   `integration_events`, `geofence_events`, `device_audit_events`, ...). These go
+   through a helper that applies the same rule. An architecture test fails on
+   `DB::table('<table with an organization column>')` outside declared platform work.
+5. **`TenantRecord::exists(Model::class, 'uuid')` validation rule.** It queries
+   through Eloquent, so the scopes apply, and it replaces `Rule::exists` for
+   references. A foreign reference and an unknown one get the same message (FR-008).
+   Laravel's `exists` rule uses the query builder, which ignores global scopes.
+
+`Role` stays scoped by `OrganizationRoleManager` and by scoped bindings
+(`organization->roles()`). `User` is never scoped; `{member}` binds through the
+organization's users. The walker (D6) proves both.
+
+**Rationale**: Once the context exists before binding (D2), global scopes confine
+every Eloquent query: implicit binding, body references, lists and counts (FR-005,
+FR-008, FR-010). Implicit binding goes through `resolveRouteBindingQuery`, so the
+scopes apply to it. Scoped bindings add the parent integrity a per-organization scope
+cannot give: a parameter of profile P1 requested under profile P2, both in the same
+organization. Together they replace the 165 hand-written binding checks and the 127
+hand-written filters.
+
+**Alternatives considered**:
+
+- **Scoped bindings only.** They cover path parameters but not body references,
+  lists or lookups inside services.
+- **Global scopes only.** They miss parent integrity.
+- **Adding `organization_id` to the 58 child tables.** That is a large migration and
+  backfill. It is deferred, and it would also be groundwork for row-level security.
+- **Row-level security.** Deferred (section 9.6).
+
+### D4. Permissions resolved once
+
+**Decision**: A `PermissionSnapshot` per principal and organization is built on first
+use and memoized in the context. For a user it costs 3 queries: membership (reused
+from D2) and the roles and direct permissions under the organization's team, via one
+`getAllPermissions()`. For an application it is the abilities held by both the
+application and the token. For the platform principal it is the declared work.
+
+The seven domain services (`DeviceAuthorization`, `DeviceProfileAuthorization`,
+`DagAuthorization`, `DashboardAccess`, `HelpAccess`, `AssistantAccess` and
+`OrganizationAdministrationAuthorization`) keep their public methods and outcomes.
+They read the snapshot instead of switching teams, dropping relations and querying
+membership. They remain the single definition per record kind (FR-017), and the
+dormant `DeviceProfilePolicy` is deleted.
+
+Tenant permission abilities checked with `$user->can()` resolve through gates defined
+over the snapshot. The permission package's `register_permission_check_method` is
+turned off (`config/permission.php:121`), so no check reads an ambient team.
+Endpoints that span organizations (`/me`, the notification centre, recipient lists)
+call `snapshotFor($organization)` once per organization, and `/me` batch-loads the
+user's memberships and roles in one pass.
+
+**Rationale**: A request costs 3 authorization queries instead of 4 to 10 or more
+(SC-004). Super-administrator evaluation (D7) happens in one place. Outcomes stay the
+same because the snapshot uses the same permission package calls.
+
+**Alternatives considered**:
+
+- **Caching permissions across requests.** It would go stale after a role change,
+  which FR-015 forbids.
+- **One policy per tenant model.** That is 26 classes of churn; with ownership
+  structural, they would only restate permission names.
+
+### D5. Work outside requests
+
+**Decision**:
+
+- **Queued jobs.** A tenant job implements `RunsInOrganization`, exposing its
+  organization and principal from its own data, captured when it is created
+  (FR-018). The job middleware `EnterOrganizationForJob` re-establishes the
+  principal's access when the job runs; a person who has lost access ends the job
+  with no side effects, as today (FR-019). A job that spans organizations implements
+  `PlatformWide` and returns a `PlatformWork` case instead. An architecture test
+  requires every `ShouldQueue` class to implement exactly one of the two (SC-007).
+  The assignments:
+  - `RunAssistant`: the conversation's organization and owner.
+  - `DeliverAlertEmail`: the alert's organization and the recipient.
+  - `DeployAdapter`: the adapter's organization and the platform principal
+    `adapter-deployment`.
+  - `DeliverNotificationEmail`: platform work `operator-notifications`.
+  - `PasswordResetNotification`: platform work `account`.
+- **Workers.** `automation:work` and `integrations:webhooks-work` declare platform
+  work for their scans across organizations. Each item then runs inside
+  `run($organization, $principal)`: the deployment's creator, or the integration
+  application.
+- **Scheduler, console commands, seeders and backfills.** These run under declared
+  platform work and use `run()` wherever they act as one organization. This replaces
+  the switching copies in `BootstrapStaging`, `DashboardPermissionBackfill` and the
+  3 seeders.
+- **Runtime.** Inbound events and `/internal/devices/state` declare platform work
+  `runtime-sync`. Once an event's identities match the stored relationships (rules
+  unchanged), the handler updates the organization's records inside
+  `run($organization, Principal::platform(RuntimeEvents))`.
+- **Assistant tools.** `RunAssistant` runs in the conversation's context. Each tool
+  call refreshes the snapshot, so access lost between calls applies at the next call
+  (FR-015). The synthetic requests the workflow tools build run inside that context,
+  so the controllers they call are confined structurally. Restructuring module
+  boundaries stays out of scope.
+- **Declarations.** The `PlatformWork` enum is the list FR-021 asks for. Each case
+  carries its reason and is listed in [contracts/organization-context.md](contracts/organization-context.md).
+
+**Rationale**: An explicit principal never inherits the requester's identity into work
+that acts for someone else. The middleware keeps jobs small. An enum can be listed and
+tested.
+
+**Alternatives considered**:
+
+- **Implicit propagation through Laravel's `Context`.** It would give alert emails
+  the wrong principal.
+- **Checks written into each job.** That is the status quo.
+
+### D6. The isolation walker
+
+**Decision**: `tests/Feature/Isolation/TenantIsolationTest.php`, with support classes in
+`tests/Support/Isolation/`. The full rules are in
+[contracts/isolation-walker.md](contracts/isolation-walker.md).
+
+- **Which operations it checks.** The router's operations (`ContractRoutes::index()`)
+  that the contract marks `x-organization-scoped`: 217 today on 216 routes.
+  `RouteInventoryTest` already keeps the router and the contract in step.
+- **The world it builds.** `IsolationWorld` seeds organizations A and B and an
+  unknown organization UUID. Each organization gets an Organization Admin member, a
+  member without permissions, one record of every kind from the `RecordKinds`
+  registry (route parameter → factory, parent chain, a marker string), and two
+  integration applications: one with every ability and device, one missing an ability
+  and a device.
+- **The five checks per operation.**
+  1. Path substitution: each record parameter is replaced in turn by B's record and
+     by a random identifier. The two responses must be equal, and B's rows must be
+     unchanged (a checksum of B's rows before and after).
+  2. Non-member: A's member calls B's operation, and the response must equal the
+     unknown-organization response.
+  3. Leakage: every response to A is scanned for B's markers and identifiers.
+  4. Body and query references: for each field the contract declares for the
+     operation that names a record kind, B's and a random identifier are substituted
+     into a valid request from `tests/Support/Isolation/requests/`. A declared
+     reference field with no request fixture fails the walker (FR-030).
+  5. Integration: B's application on A's operations gets 404. A's application on an
+     ungranted device gets 404, and the feed and webhooks never include that device.
+     A token without the operation's ability gets 403.
+- **Comparison.** The statuses are equal, and the bodies are equal once the
+  substituted identifier is replaced by a placeholder.
+- **Contract checks come for free.** Every walker request also passes the existing G4
+  response check (`tests/TestCase.php:42-52`), so every isolation status must be
+  documented, and the coverage recorder sees the 403 and 404 pairs.
+- **Known gaps** (`tests/Support/Isolation/known-gaps.php`) list the failures expected
+  at PR 1. A listed gap that passes, or an unlisted failure, fails the walker, so the
+  list can only shrink.
+- **Exemptions** (`tests/Support/Isolation/exemptions.php`) list routes that serve
+  shared data or platform work, each with its reason (FR-031).
+- **Self-test.** `TenantIsolationSelfTest` disables one record kind's scope, or one
+  entry point's context, at a time through a testing-only hook. It also adds
+  test-only routes that lack a check. Each case must make the walker fail (FR-033,
+  SC-003).
+- **Test environment.** Runtime and adapter-manager calls are faked with
+  `Http::fake()` plus `preventStrayRequests()`, queues are faked, and rate limiting is
+  off for the walker. It runs in the existing PHP suite; CI's PostgreSQL job is
+  authoritative (FR-032). The time budget is under 3 minutes.
+
+**Rationale**: It reuses spec 001's router index, contract and response checker.
+Comparing a foreign identifier with a random one is the definition of "indistinguishable",
+so no per-route expectation needs writing. The marker scan proves lists. Request
+fixtures are needed only where a body must reach the reference.
+
+**Alternatives considered**:
+
+- **Hand-written isolation tests per domain.** That is the status quo, and it misses
+  routes.
+- **Generating request bodies from the contract.** All 247 operations are still
+  pending with open bodies, so most generated requests would stop at 422 before
+  reaching the reference.
+- **Fuzzing.** It is not deterministic enough for a gate.
+
+### D7. The explicit platform grant
+
+**Decision**:
+
+- **The grant.** A new platform permission, `PlatformAdministration.act-in-organizations`,
+  is held through a new system platform role, `super-administrator`, which also holds
+  every other platform permission. The grant is kept out of the
+  `platform-administrator` role's bundle (`app/Domain/Authorization/Enums/PlatformRoleName.php`).
+- **Who holds it.** A data migration assigns the role to every user with
+  `is_super_admin = true`, and `deployment:administrator` and the staging bootstrap
+  assign it to the users they create.
+- **How it is evaluated.**
+  - A non-member who holds the grant gets every tenant permission, including
+    permissions outside the organization's ceiling, as today.
+  - A member gets their roles, plus the grant only where those roles fall short.
+  - `EnterOrganization` admits a non-member who holds the grant.
+- **How it is recorded.** Each request, job or tool call that relied on the grant
+  writes one `platform_access_events` row when it ends ([data-model.md](data-model.md),
+  [contracts/platform-access.md](contracts/platform-access.md)). This meets FR-028's
+  "reads are recorded at most once per request". A daily scheduled task prunes rows
+  older than the retention period.
+- **What is removed.** The 12 service short-circuits, the one in the middleware, the
+  one in `PlatformAuthorization::allows` (`:19`) and `Gate::before` (`AppServiceProvider.php:82`).
+  `is_super_admin` remains as the platform-team identity (platform team management,
+  operator notifications), grants nothing by itself, and leaves `#[Fillable]`.
+- **Tests.** Tests that act as a super administrator move to members, or act
+  explicitly as a grant holder.
+
+**Rationale**: It answers Q2: the same capabilities, explicit and recorded. A
+platform role reuses the existing platform-role model and admin screens. A dedicated
+table keeps platform access queryable and gives it its own retention.
+
+**Alternatives considered**:
+
+- **Keeping `is_super_admin` as the grant.** It is still a flag, not a permission.
+- **Reusing `device_audit_events`.** It mixes platform access into device history and
+  cannot aggregate per request.
+- **Read-only access with elevation.** The owner deferred it as later hardening.
+
+### D8. Event types follow abilities
+
+**Decision**:
+
+- **The map.** An `IntegrationEventType` enum lists the 8 types with the ability each
+  needs: `alert.*` needs `alerts:read`, `geofence.*` needs `geofences:read`, and
+  `automation.triggered.v1` needs `events:read` only. The three writers
+  (`EventJournal`, `GeofenceEventJournal`, `DagActions::journal`) take the enum, and a
+  test asserts that every type written is in it.
+- **The feed.** The query adds `whereIn('type', readableTypes(application, token))`,
+  using abilities held on both.
+- **Webhooks.** The scan uses the application's abilities, and the send-time re-check
+  cancels a pending delivery whose type is no longer readable.
+- **What stays.** The conditions for reaching the feed and configuring a webhook. The
+  cursor format, because skipped types advance the position the way ungranted devices
+  already do.
+- **Contract, docs and release notes.** The `GET events` description in
+  `contracts/openapi/supplements/integration.yaml`, `docs/features/integrations.md:125`
+  and `docs/reference/events.md`, plus a release note for integrators. The rules are
+  in [contracts/event-abilities.md](contracts/event-abilities.md).
+
+**Rationale**: It answers Q1, and the enum forces a new event type to declare its
+ability.
+
+**Alternatives considered**:
+
+- **Filtering the feed only.** Webhooks would still deliver every type.
+- **Per-type opt-in.** It is new API surface.
+
+### D9. One not-found response
+
+**Decision**: On `api/*` routes, every 404 renders as `{"message": "Not Found"}`
+(Laravel's status text), through one renderer in `bootstrap/app.php`. That includes a
+`ModelNotFoundException`, a failed scoped binding, a non-member, an unknown
+organization and a bare `abort(404)`. Domain code that returns 404 with a custom
+message for a tenant reason switches to the uniform body. The contract changes too:
+the shared `NotFound` and `Forbidden` descriptions in
+`contracts/openapi/supplements/shared.yaml`, and the meaning of `x-organization-scoped`
+(non-member: 403 becomes 404), are regenerated with `contract:export`.
+`docs/features/access.md:48` and `docs/reference/api.md` change with them.
+
+**Rationale**: SC-002 requires identical bodies. The portal already shows its
+friendly message for `Not Found` (`apps/portal/src/components/forms.tsx:63-64`), and
+the class-name leak disappears.
+
+**Alternatives considered**:
+
+- **Keeping Laravel's model message.** It leaks class names and repeats the requested
+  identifier, and differs whenever any path aborts by hand.
+
+### D10. Client-chosen request identifiers (FR-009)
+
+**Decision**: `operation_uuid` and `request_uuid` lookups are scoped (D3). A key that
+exists only in another organization surfaces as a unique-constraint violation on
+insert. It is caught and answered exactly like a key the organization itself used for
+a different request: 409, same body. The 404 and 409 answers that different paths give
+today converge on that one response.
+
+**Rationale**: These identifiers are globally unique, and they double as public
+identifiers (operation polling, runtime messages). Making them unique per organization
+would change successful responses (FR-034).
+
+**Residual**: An unused key succeeds, while a key used anywhere returns 409. Telling
+the two apart requires already knowing the other organization's random UUID. The plan
+asks the owner to accept this reading of FR-009.
+
+**Alternatives considered**:
+
+- **A per-organization key namespace.** It changes the identifiers returned to
+  clients.
+
+### D11. Row-level security deferred
+
+Section 9.6 stands. `OrganizationContext::run()` is the natural place to issue
+`SET LOCAL app.organization_id` later, so a future policy can reuse the context
+without redesign.
+
+### D12. Decision record
+
+PR 2 adds ADR-017, "Structural tenant scoping", recording D1 to D4, D9 and the
+row-level security deferral, and linking this research.
