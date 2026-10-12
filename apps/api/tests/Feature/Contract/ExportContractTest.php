@@ -49,6 +49,25 @@ final class ExportContractTest extends TestCase
         app(ContractExporter::class)->export();
     }
 
+    public function test_a_supplement_cannot_replace_an_inferred_request_body(): void
+    {
+        $copy = $this->useContractCopy();
+        file_put_contents($copy.'/supplements/zz-body.yaml', <<<'YAML'
+            operations:
+              POST /integration/v1/organizations/{organization}/location-map/query:
+                requestBody:
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+            YAML);
+
+        $this->expectException(ContractException::class);
+        $this->expectExceptionMessage('already has a request body inferred from its validation rules');
+
+        app(ContractExporter::class)->export();
+    }
+
     public function test_check_mode_names_an_operation_edited_by_hand(): void
     {
         $copy = $this->useContractCopy();

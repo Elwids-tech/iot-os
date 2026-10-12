@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://iot-os.local/contracts/openapi/supplement.schema.json",
   "title": "Contract supplement",
-  "description": "Hand-written additions merged into the generated contract by the export. A supplement may describe responses, add components, examples, webhooks and x- fields; it may not add or remove operations (an operation key that matches no route fails the export).",
+  "description": "Hand-written additions merged into the generated contract by the export. A supplement may describe responses, request bodies the export could not infer, components, examples, webhooks and x- fields; it may not add or remove operations (an operation key that matches no route fails the export).",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -39,6 +39,10 @@
       "properties": {
         "summary": { "type": "string" },
         "description": { "type": "string" },
+        "requestBody": {
+          "description": "The request body, only where the export inferred none (rules read in a helper the generator does not follow); a supplement may not replace an inferred body.",
+          "type": "object"
+        },
         "responses": {
           "description": "Per status; replaces the inferred response for that status. Use $ref to components.responses for shared errors.",
           "type": "object",
