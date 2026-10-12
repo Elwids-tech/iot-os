@@ -5,7 +5,22 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/contracts/contractstest"
 )
+
+// A committed event for adapter readings carries their provenance and must conform
+// to telemetry.committed.v1 as the relay publishes it (spec 002 T030, SC-007).
+func TestCommittedAdapterReadingsConformToTheContract(t *testing.T) {
+	event := ProjectCommitted(adapterTelemetry(t))
+	event.Sequence = "42" // the relay sets it from the outbox sequence (storage.CommittedPending)
+	for _, r := range event.Readings {
+		if r.InstallationUUID != meterInstallation || r.AdapterRevisionUUID != meterRevision || r.ManufacturerSerial != "WM-1042" {
+			t.Fatalf("committed reading lacks adapter provenance: %+v", r)
+		}
+	}
+	contractstest.AssertProduced(t, "events/v1/telemetry-committed.schema.json", event)
+}
 
 func TestCommittedProjectionMatchesSharedContract(t *testing.T) {
 	raw, err := os.ReadFile("../../../../contracts/devices/v1/telemetry.fixture.json")
