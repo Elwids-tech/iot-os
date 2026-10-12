@@ -1,0 +1,159 @@
+[
+  {
+    "description": "confirmed when the runtime's command check reported no source session",
+    "valid": true,
+    "data": {
+      "command_uuid": "90000000-0000-4000-8000-000000000008",
+      "generation": 1,
+      "device_uuid": "90000000-0000-4000-8000-000000000002",
+      "organization_uuid": "90000000-0000-4000-8000-000000000003",
+      "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+      "parameter_uuid": "90000000-0000-4000-8000-000000000009",
+      "value": true,
+      "session_id": null,
+      "confirmed_at": "2026-09-06T00:00:00Z",
+      "expires_at": "2026-09-06T00:00:30Z"
+    }
+  },
+  {
+    "description": "an automation command, with the times Laravel writes (ISO 8601 with an offset)",
+    "valid": true,
+    "data": {
+      "command_uuid": "90000000-0000-4000-8000-000000000008",
+      "generation": 4,
+      "device_uuid": "90000000-0000-4000-8000-000000000002",
+      "organization_uuid": "90000000-0000-4000-8000-000000000003",
+      "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+      "parameter_uuid": "90000000-0000-4000-8000-000000000009",
+      "value": "blink",
+      "session_id": "90000000-0000-4000-8000-000000000005/meter-gateway:0:1757116800000:1757116800000000000",
+      "confirmed_at": "2026-09-06T00:00:00+00:00",
+      "expires_at": "2026-09-06T00:00:30+00:00",
+      "automation_action_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  {
+    "description": "missing generation",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": ""
+    },
+    "data": {
+      "command_uuid": "90000000-0000-4000-8000-000000000008",
+      "device_uuid": "90000000-0000-4000-8000-000000000002",
+      "organization_uuid": "90000000-0000-4000-8000-000000000003",
+      "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+      "parameter_uuid": "90000000-0000-4000-8000-000000000009",
+      "value": true,
+      "session_id": "fixture-session",
+      "confirmed_at": "2026-09-06T00:00:00Z",
+      "expires_at": "2026-09-06T00:00:30Z"
+    }
+  },
+  {
+    "description": "generation zero",
+    "valid": false,
+    "error": {
+      "keyword": "minimum",
+      "instance_location": "/generation"
+    },
+    "data": {
+      "command_uuid": "90000000-0000-4000-8000-000000000008",
+      "generation": 0,
+      "device_uuid": "90000000-0000-4000-8000-000000000002",
+      "organization_uuid": "90000000-0000-4000-8000-000000000003",
+      "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+      "parameter_uuid": "90000000-0000-4000-8000-000000000009",
+      "value": true,
+      "session_id": "fixture-session",
+      "confirmed_at": "2026-09-06T00:00:00Z",
+      "expires_at": "2026-09-06T00:00:30Z"
+    }
+  },
+  {
+    "description": "an empty session",
+    "valid": false,
+    "error": {
+      "keyword": "minLength",
+      "instance_location": "/session_id"
+    },
+    "data": {
+      "command_uuid": "90000000-0000-4000-8000-000000000008",
+      "generation": 1,
+      "device_uuid": "90000000-0000-4000-8000-000000000002",
+      "organization_uuid": "90000000-0000-4000-8000-000000000003",
+      "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+      "parameter_uuid": "90000000-0000-4000-8000-000000000009",
+      "value": true,
+      "session_id": "",
+      "confirmed_at": "2026-09-06T00:00:00Z",
+      "expires_at": "2026-09-06T00:00:30Z"
+    }
+  },
+  {
+    "description": "an automation action id that is not 64 lowercase hex characters",
+    "valid": false,
+    "error": {
+      "keyword": "pattern",
+      "instance_location": "/automation_action_id"
+    },
+    "data": {
+      "command_uuid": "90000000-0000-4000-8000-000000000008",
+      "generation": 1,
+      "device_uuid": "90000000-0000-4000-8000-000000000002",
+      "organization_uuid": "90000000-0000-4000-8000-000000000003",
+      "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+      "parameter_uuid": "90000000-0000-4000-8000-000000000009",
+      "value": true,
+      "session_id": "fixture-session",
+      "confirmed_at": "2026-09-06T00:00:00Z",
+      "expires_at": "2026-09-06T00:00:30Z",
+      "automation_action_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+  },
+  {
+    "description": "an object value",
+    "valid": false,
+    "error": {
+      "keyword": "type",
+      "instance_location": "/value"
+    },
+    "data": {
+      "command_uuid": "90000000-0000-4000-8000-000000000008",
+      "generation": 1,
+      "device_uuid": "90000000-0000-4000-8000-000000000002",
+      "organization_uuid": "90000000-0000-4000-8000-000000000003",
+      "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+      "parameter_uuid": "90000000-0000-4000-8000-000000000009",
+      "value": {
+        "brightness": 8
+      },
+      "session_id": "fixture-session",
+      "confirmed_at": "2026-09-06T00:00:00Z",
+      "expires_at": "2026-09-06T00:00:30Z"
+    }
+  },
+  {
+    "description": "a field a newer producer adds",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {
+      "keyword": "additionalProperties",
+      "instance_location": ""
+    },
+    "data": {
+      "command_uuid": "90000000-0000-4000-8000-000000000008",
+      "generation": 1,
+      "device_uuid": "90000000-0000-4000-8000-000000000002",
+      "organization_uuid": "90000000-0000-4000-8000-000000000003",
+      "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+      "parameter_uuid": "90000000-0000-4000-8000-000000000009",
+      "value": true,
+      "session_id": "fixture-session",
+      "confirmed_at": "2026-09-06T00:00:00Z",
+      "expires_at": "2026-09-06T00:00:30Z",
+      "requested_by": 7
+    }
+  }
+]
