@@ -100,7 +100,7 @@ dependency approval (decision 1) blocks T001, T023, T043 and T064.
 - [X] T039 [US1] Remove the 18 integration operations from contracts/openapi/pending-schemas.json (247 → 229), turn on the T013 and T028 integration flags, re-export contracts/openapi/openapi.json
 - [X] T040 [US1] Record integration discrepancies (docs, SDK types, inference) in specs/001-openapi-contract/drift-log.md
 - [X] T041 [P] [US1] Update docs/features/integrations.md to name the contract as the authority for the integration API and link it
-- [ ] T042 [US1] Verify PR 3: quickstart.md B1 passes; rebuild `api`
+- [X] T042 [US1] Verify PR 3: quickstart.md B1 passes; rebuild `api`
 
 **Checkpoint**: MVP. The integration contract is complete and enforced.
 
