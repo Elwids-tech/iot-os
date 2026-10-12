@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/internal/catalogue.schema.json",
+  "title": "Contract catalogue",
+  "description": "A catalogue of message contracts: internal/catalogue.json for the control-plane and runtime protocol (reading tolerant) and ingestion/v1/catalogue.json for the canonical envelope family (reading strict). tooling/verify-devices-contracts.py also checks that each id is unique across catalogues, that the schema, fixture and cases files exist, that the cases hold at least one valid and one invalid example, and that every listed test file exists and mentions the id.",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/entry"
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Contract id: the wire type for control messages and runtime events, internal.<name>.v<major> for wrappers and the snapshot, the schema_version value for the envelope family.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*\\.v[1-9][0-9]*$",
+          "maxLength": 128
+        },
+        "group": {
+          "description": "control, event, wrapper or state for internal messages; envelope for the canonical envelope family.",
+          "enum": [
+            "control",
+            "event",
+            "wrapper",
+            "state",
+            "envelope"
+          ]
+        },
+        "schema": {
+          "description": "Schema path under contracts/.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*(/[a-z0-9][a-z0-9._-]*)*\\.schema\\.json$"
+        },
+        "producer": {
+          "$ref": "#/$defs/side"
+        },
+        "consumer": {
+          "$ref": "#/$defs/side"
+        },
+        "dedup": {
+          "description": "The field consumers deduplicate on, or none.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "fences": {
+          "description": "Fields consumers compare to drop stale messages.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "uniqueItems": true
+        },
+        "reading": {
+          "description": "tolerant: consumers ignore unknown fields (internal messages). strict: readers reject them (envelope family).",
+          "enum": [
+            "tolerant",
+            "strict"
+          ]
+        },
+        "live_check": {
+          "description": "Where the running system checks the contract, as <side>:<location>, or none.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "producer_tests": {
+          "$ref": "#/$defs/test_files"
+        },
+        "consumer_tests": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/test_files"
+            },
+            {
+              "minItems": 1
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "group",
+        "schema",
+        "producer",
+        "consumer",
+        "dedup",
+        "fences",
+        "reading",
+        "live_check",
+        "producer_tests",
+        "consumer_tests"
+      ],
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "group": {
+            "const": "envelope"
+          }
+        },
+        "required": [
+          "group"
+        ]
+      },
+      "else": {
+        "properties": {
+          "producer_tests": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "side": {
+      "enum": [
+        "control_plane",
+        "runtime",
+        "adapter",
+        "ingestion"
+      ]
+    },
+    "test_files": {
+      "description": "Test files from the repository root.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$"
+      },
+      "uniqueItems": true
+    }
+  }
+}

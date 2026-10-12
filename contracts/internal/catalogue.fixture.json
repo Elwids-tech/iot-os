@@ -1,0 +1,38 @@
+[
+  {
+    "id": "device.applied.v1",
+    "group": "event",
+    "schema": "internal/events/device.applied.v1.schema.json",
+    "producer": "runtime",
+    "consumer": "control_plane",
+    "dedup": "uuid",
+    "fences": [
+      "generation",
+      "operation_uuid",
+      "configuration_uuid"
+    ],
+    "reading": "tolerant",
+    "live_check": "control_plane:events",
+    "producer_tests": [
+      "services/runtime/internal/storage/contracts_events_integration_test.go"
+    ],
+    "consumer_tests": [
+      "apps/api/tests/Feature/Domain/Devices/Contracts/RuntimeEventConsumerTest.php"
+    ]
+  },
+  {
+    "id": "telemetry.envelope.v1",
+    "group": "envelope",
+    "schema": "ingestion/v1/telemetry.envelope.v1.schema.json",
+    "producer": "adapter",
+    "consumer": "ingestion",
+    "dedup": "message_id",
+    "fences": [],
+    "reading": "strict",
+    "live_check": "none",
+    "producer_tests": [],
+    "consumer_tests": [
+      "services/runtime/internal/ingestion/envelope/reader_test.go"
+    ]
+  }
+]

@@ -15,7 +15,8 @@ Passing tests and typechecks do not update what Docker serves.
 | Go only | `./taskw runtime:test` | |
 | Portal/admin only | `pnpm --filter @iot-os/portal lint`, `pnpm --filter @iot-os/portal test` | Same for `@iot-os/admin` |
 | Help articles | `cd apps/api && php artisan help:validate` | Also runs in API image builds |
-| Contract fixtures | `.local/devices/python/bin/python tooling/verify-devices-contracts.py` | JSON Schema validation of every contract fixture |
+| Contracts | `.local/devices/python/bin/python tooling/verify-devices-contracts.py` | Schemas, fixtures, cases and catalogues ([contract checker](#contract-checker)) |
+| Contract checker tests | `python3 -m unittest discover -s tooling/contracts -p 'test_*.py'` | Needs `jsonschema==4.26.0` |
 | Release tooling | `python3 -m unittest discover -s tooling/release -p 'test_*.py'` | Needs PyYAML |
 | Adapters | `npm test --prefix services/adapters` | Decoder sandbox and flow generation |
 
@@ -24,6 +25,37 @@ runs on `v*` tags and manual dispatch: PHP tests, api-client typecheck,
 portal/admin lint, release-tooling tests, Go tests, the adapter sandbox and live
 protocol test, and the Mosquitto acceptance check, then builds the release
 images. Run the relevant subset locally before you push.
+
+## Contract checker
+
+[`tooling/verify-devices-contracts.py`](../../tooling/verify-devices-contracts.py)
+checks [`contracts/`](../../contracts/README.md) and prints counts per directory.
+It finds every `*.schema.json` under a `v<N>/` directory or `contracts/internal/`
+and validates only files that have a schema beside them: `<stem>.fixture.json` and
+`<stem>.cases.json`. Fixtures without a schema (`expressions.fixture.json`,
+`conversions.fixture.json`, `simulation.expected.json`) are checked by the Go and
+PHP tests instead. For each schema it checks that:
+
+- the schema is Draft 2020-12, its `$id` is its path, and every `$ref` resolves;
+- the fixture validates against the closed schema; a schema with only `$defs` needs
+  none;
+- each case validates as labelled. A valid case passes the closed schema. An
+  invalid case fails only on the `keyword` and `instance_location` it names, and in
+  tolerant mode as well; a `tolerant_valid` case fails closed and passes once
+  unknown-field errors are dropped; a reader-code case (envelope family) is valid
+  against the schema;
+- `oneOf` branches are told apart by a required `const` or by disjoint types;
+- values of properties marked `"$comment": "secret"` start with `placeholder-`.
+
+Each catalogue entry (`contracts/internal/catalogue.json`,
+`contracts/ingestion/v1/catalogue.json`) needs its schema, a fixture, a cases file
+with at least one valid and one invalid case, and producer and consumer test files
+that exist and mention its id. The repository-specific checks still run: the
+committed-telemetry negative cases, the configuration profile hash, the command
+expiry and the pinned Sparkplug proto hash. The formats are in
+[contracts/README.md](../../contracts/README.md#cases-files); `--root` points the
+checker at another checkout. Its unit tests are in
+[`tooling/contracts`](../../tooling/contracts) and run in CI.
 
 ## Laravel
 
