@@ -28,6 +28,11 @@ return [
         // contract:check fails when an integration operation is on the pending-schema
         // list. Off until every integration operation is described (tasks.md T039).
         'forbid_pending_integration' => false,
+
+        // contract:coverage requires a 2xx, 401, 403 and 404 (plus 422 with input) for
+        // every integration operation. Off until every integration operation is
+        // described (tasks.md T039).
+        'require_integration_coverage' => false,
     ],
 
     /*
