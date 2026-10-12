@@ -18,6 +18,7 @@ use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\GpsUseCaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -100,6 +101,22 @@ final class DriftedControlMessageTest extends TestCase
             'generation' => $device->fresh()->deployment_generation, 'operation_uuid' => $operation, 'uncertain_command_uuids' => []])->assertOk();
         $this->postJson($path.'/lifecycle', ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'active', 'expected_generation' => $device->fresh()->deployment_generation])->assertAccepted();
         $this->assertActivationConforms($this->claimed('device.activate.v1', $device), 'resume');
+    }
+
+    /**
+     * The GPS demo trackers' stored configurations predate conversion modes; resuming
+     * one (as devices:activate-staging does) sends that definition unchanged.
+     */
+    public function test_resuming_a_gps_demo_tracker_conforms(): void
+    {
+        $this->seed(GpsUseCaseSeeder::class);
+        $device = Device::where('code', GpsUseCaseSeeder::DEVICE_CODE)->firstOrFail();
+        $this->postJson($this->prefix.'/devices/'.$device->uuid.'/lifecycle', ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'active', 'expected_generation' => 0])->assertAccepted();
+
+        $activation = $this->claimed('device.activate.v1', $device);
+        $this->assertObjectNotHasProperty('conversion_mode', $activation->payload->definition->mappings[0]);
+        $this->assertProduced(self::CONFIGURATION_V2, $activation->payload->definition, 'GPS demo tracker definition');
+        $this->assertActivationConforms($activation, 'GPS demo tracker resume');
     }
 
     public function test_command_payloads_with_and_without_a_source_session_conform(): void
