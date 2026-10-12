@@ -1,0 +1,10 @@
+# The contract's version. It versions the integration API: 1.MINOR.PATCH, raised in the
+# pull request that changes an integration operation (research R10). Format:
+# ../meta/supplement.schema.json.
+info:
+  version: 1.0.0
+  description: >-
+    The public HTTP API of IoT OS: the integration API (`/integration/v1`, application
+    tokens) and the first-party API (`/v1`, browser sessions). `info.version` follows
+    `1.MINOR.PATCH`, the integration API version. Generated from the Laravel
+    application by `php artisan contract:export`; never edit `openapi.json` by hand.

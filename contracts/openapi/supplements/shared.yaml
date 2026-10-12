@@ -1,0 +1,242 @@
+# Components every domain uses: the two authentication schemes, the error and pagination
+# envelopes, and the shared error responses that App\Support\Contract\SecurityTransformer
+# attaches from each route's middleware. Format: ../meta/supplement.schema.json.
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: iot-os-session
+      description: |-
+        First-party browser session (portal and admin) through Laravel Sanctum.
+
+        1. `GET /sanctum/csrf-cookie` (outside `/api`) sets the `XSRF-TOKEN` cookie.
+        2. `POST /api/v1/auth/login` signs in and sets the session cookie. Its name comes
+           from `SESSION_COOKIE`, by default the slug of `APP_NAME` plus `-session`
+           (`iot-os-session` in the release profile).
+        3. Every later request sends the session cookie; unsafe methods (POST, PUT,
+           PATCH, DELETE) also send the `XSRF-TOKEN` value in the `X-XSRF-TOKEN` header.
+
+        401 without a valid session; 419 when the anti-forgery token is missing or has
+        expired (fetch `/sanctum/csrf-cookie` again). Application tokens are rejected on
+        these operations.
+    applicationToken:
+      type: http
+      scheme: bearer
+      description: |-
+        Application token for the integration API (`/integration/v1`) only, sent as
+        `Authorization: Bearer <token>`. An organization administrator issues it for one
+        application; each application has one active token, valid for 1 to 90 days, whose
+        abilities are a subset of the application's grants. Session cookies and personal
+        user tokens are ignored on integration operations.
+
+        401 when the token is missing, invalid, expired or revoked; 403 when an ability
+        the operation needs is not granted on both the application and the token; 404
+        for another organization or a resource not granted to the application.
+  schemas:
+    ErrorMessage:
+      type: object
+      description: The body of most error responses.
+      required: [message]
+      properties:
+        message:
+          type: string
+    ValidationError:
+      type: object
+      description: 422 for input that failed validation.
+      required: [message, errors]
+      properties:
+        message:
+          type: string
+          description: The first error, followed by a count of the others.
+        errors:
+          type: object
+          description: >-
+            Messages per field, keyed by the field's dotted path. A rejection by the
+            device runtime appears under `runtime`.
+          properties:
+            runtime:
+              type: array
+              items:
+                type: string
+          additionalProperties:
+            type: array
+            items:
+              type: string
+    ProfileValidationError:
+      type: object
+      description: 422 for a device profile that failed validation or compilation.
+      required: [message, diagnostics]
+      properties:
+        message:
+          type: string
+        diagnostics:
+          type: array
+          items:
+            type: object
+            required: [code, message, pointer]
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+              pointer:
+                type: string
+                description: JSON pointer into the profile definition.
+    DraftConflictError:
+      type: object
+      description: 409 when a device-profile draft changed since the caller read it.
+      required: [message, code]
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+          const: profile.draft_conflict
+    CompactPage:
+      type: object
+      description: >-
+        Compact page metadata used by most paginated lists. Combine with `allOf` and an
+        object that describes `data`. Some operations add fields to `meta`.
+      required: [meta]
+      properties:
+        meta:
+          type: object
+          required: [current_page, last_page, total]
+          properties:
+            current_page:
+              type: integer
+              minimum: 1
+            last_page:
+              type: integer
+              minimum: 1
+            total:
+              type: integer
+              minimum: 0
+    ResourcePage:
+      type: object
+      description: >-
+        Full page metadata and links, returned by paginated API resource collections.
+        Combine with `allOf` and an object that describes `data`.
+      required: [links, meta]
+      properties:
+        links:
+          type: object
+          required: [first, last, prev, next]
+          properties:
+            first:
+              type: [string, 'null']
+            last:
+              type: [string, 'null']
+            prev:
+              type: [string, 'null']
+            next:
+              type: [string, 'null']
+        meta:
+          type: object
+          required: [current_page, from, last_page, links, path, per_page, to, total]
+          properties:
+            current_page:
+              type: integer
+              minimum: 1
+            from:
+              type: [integer, 'null']
+            last_page:
+              type: integer
+              minimum: 1
+            links:
+              type: array
+              items:
+                type: object
+                required: [url, label, active]
+                properties:
+                  url:
+                    type: [string, 'null']
+                  label:
+                    type: string
+                  active:
+                    type: boolean
+            path:
+              type: [string, 'null']
+            per_page:
+              type: integer
+            to:
+              type: [integer, 'null']
+            total:
+              type: integer
+              minimum: 0
+  headers:
+    RetryAfter:
+      description: Seconds to wait before retrying.
+      required: true
+      schema:
+        type: integer
+        minimum: 0
+  responses:
+    Unauthenticated:
+      description: >-
+        No valid credentials: no session (first-party API), or a missing, invalid,
+        expired or revoked application token (integration API).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    CsrfExpired:
+      description: >-
+        The anti-forgery token is missing or has expired. Fetch `GET /sanctum/csrf-cookie`
+        again and retry.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    Forbidden:
+      description: >-
+        The caller is not allowed: not a member of the organization, missing a tenant or
+        platform permission, or (integration API) an ability not granted on both the
+        application and the token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    NotFound:
+      description: >-
+        Not found: an unknown organization or resource, a resource in another
+        organization or not granted to the application, or a malformed identifier (the
+        route does not match).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    Conflict:
+      description: The request conflicts with the current state, for example a stale revision.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    ValidationFailed:
+      description: The input failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    TooManyRequests:
+      description: A rate limit was reached; see `x-rate-limits` on the operation.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    RuntimeUnavailable:
+      description: The device runtime is not configured, unavailable, or could not complete the request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    RangeTimeout:
+      description: A range read took longer than the runtime's limit. Choose a shorter range.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'

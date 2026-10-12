@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/openapi/breaking-exceptions.schema.json",
+  "title": "Breaking-change exception ledger",
+  "description": "Append-only record of intended breaking changes to the integration API. Only entries added in the current pull request can excuse its breaking changes; each such entry must match a change oasdiff reports, and the SDK version must be higher than on the base branch and equal to sdk_version.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["exceptions"],
+  "properties": {
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "change", "reason", "sdk_version", "added_on"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[a-z0-9-]+$"
+          },
+          "change": {
+            "description": "The change as oasdiff prints it with --format singleline: METHOD /path followed by the change text. Matched case-insensitively after collapsing whitespace.",
+            "type": "string",
+            "minLength": 10
+          },
+          "reason": {
+            "description": "Why the break is acceptable and how integrators are told.",
+            "type": "string",
+            "minLength": 20
+          },
+          "sdk_version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+          },
+          "added_on": { "type": "string", "format": "date" }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "exceptions": [
+        {
+          "id": "2026-11-alert-episode-integer",
+          "change": "GET /integration/v1/organizations/{organization}/alerts/{uuid} changed the response property 'data/episode' type/format from 'string'/'' to 'integer'/''",
+          "reason": "The contract described episode as a string by mistake; the platform has always sent an integer and the SDK already validated it as one. Noted in the SDK 0.7.0 release notes.",
+          "sdk_version": "0.7.0",
+          "added_on": "2026-11-02"
+        }
+      ]
+    }
+  ]
+}

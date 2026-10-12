@@ -13,6 +13,12 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 final class AuthenticateApplication
 {
+    /**
+     * Requests per minute per application, on top of the route's per-address limit.
+     * The public contract states it (App\Support\Contract\SecurityTransformer).
+     */
+    public const REQUESTS_PER_MINUTE = 60;
+
     public function handle(Request $request, Closure $next, string $ability)
     {
         // Neither cookies nor personal user tokens grant machine access.
@@ -32,7 +38,7 @@ final class AuthenticateApplication
             abort_unless(in_array('geofences:manage', $application->abilities, true) && in_array('geofences:manage', $token->abilities, true), 403, 'Geofence management access is required for activation.');
         }
         $key = 'integration-application:'.$application->uuid;
-        if (! RateLimiter::attempt($key, 60, fn () => true, 60)) {
+        if (! RateLimiter::attempt($key, self::REQUESTS_PER_MINUTE, fn () => true, 60)) {
             return response()->json(['message' => 'Application rate limit exceeded.'], 429)->header('Retry-After', (string) RateLimiter::availableIn($key));
         }
         $request->attributes->set('integration_application', $application);
