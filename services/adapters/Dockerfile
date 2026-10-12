@@ -19,3 +19,8 @@ WORKDIR /usr/src/node-red
 # options. Wrapping them in `npm start --` made red.js ignore --settings, and the
 # platform adapter nodes never loaded.
 CMD ["--settings", "/opt/iot-adapter/runtime-settings.cjs"]
+# The base image's healthcheck reads /data/settings.js, which this image never
+# uses, so every tenant runtime reported unhealthy. Any HTTP answer from the
+# token-protected admin API (401 without a token) means Node-RED is serving.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:1880/flows',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
