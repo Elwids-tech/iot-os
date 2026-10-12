@@ -66,7 +66,7 @@ dependency approval (decision 1) blocks T001, T023, T043 and T064.
 - [X] T019 [P] Write docs/adr/ADR-016-public-api-contract.md (contract generated from Laravel with supplements, checked by tests, enforced in CI) and list it in docs/adr/README.md
 - [X] T020 [P] Update contracts/README.md (add the `openapi` row; remove "Public HTTP API" from "Not contracts here") and docs/reference/api.md (the contract exists, where it lives, how to change it, link to the quickstart)
 - [X] T021 [P] Add to docs/dev/gotchas.md: generator pins change output and upgrades need their own pull request; never edit openapi.json by hand; PostgreSQL and SQLite serialise some values differently
-- [ ] T022 Verify PR 1: `php artisan route:list --json --path=api` gives the same `api/v1` and `api/integration/v1` routes as main; rebuild `api` following .agents/skills/local-container-verification/SKILL.md; confirm `/docs/api` returns 404 and portal sign-in still works
+- [X] T022 Verify PR 1: `php artisan route:list --json --path=api` gives the same `api/v1` and `api/integration/v1` routes as main; rebuild `api` following .agents/skills/local-container-verification/SKILL.md; confirm `/docs/api` returns 404 and portal sign-in still works
 
 ### PR 2: response checks in the suite
 
