@@ -88,19 +88,19 @@ dependency approval (decision 1) blocks T001, T023, T043 and T064.
 
 **Goal**: All 18 integration operations fully described and checked on every pull request.
 
-**Independent Test**: quickstart.md B1: `php artisan test --compact --filter=Contract && php artisan contract:coverage` passes, and coverage lists a 2xx, 401, 403 and 404 (plus 422 where there is input) for all 18 operations.
+**Independent Test**: quickstart.md B1: the contract, integration and geospatial tests then `php artisan contract:coverage` pass, and coverage lists a 2xx, 401, 403 and 404 (plus 422 where there is input) for all 18 operations.
 
-- [ ] T032 [P] [US1] Add integration payload components to contracts/openapi/supplements/integration.yaml: `IntegrationDevice`, `IntegrationAlert` (`episode` integer ≥ 1, `condition` `active`|`cleared`), `TelemetryLatest` (`telemetry-latest.v1`), `TelemetryHistory` (`telemetry-history.v1`), `TelemetryRecords` (`telemetry-records.v1` with its `meta` fields), `LocationBindingVersion` (`{version_uuid, binding: $ref ../location/v1/binding.schema.json}`) and the `IntegrationAbility` enum of 8 values; objects allow additional properties (FR-017)
-- [ ] T033 [P] [US1] Add event components to contracts/openapi/supplements/integration-events.yaml: `IntegrationEvent` (envelope with `type` enum of the 8 types and per-type `data`: alert snapshot, geofence event, `automation.triggered.v1` `{workflow_uuid, action_id, name, node_id}`), `EventPage` (`{data, next_cursor, has_more}`), `EventCheckpoint`, and the `GrantChanged` 409 response
-- [ ] T034 [US1] Patch the 14 integration read operations in contracts/openapi/supplements/integration.yaml: responses, summaries, `x-abilities.any_of` for `GET events` and `GET events/checkpoint`, the `Cache-Control: no-store` header, cursor and limit bounds, examples; check each operation's request parameters against its validation and, where Scramble misses one, add a Scramble parameter attribute in the controller plus a 422 case in T037
-- [ ] T035 [US1] Patch the 4 integration write operations and the location fix in contracts/openapi/supplements/integration.yaml: location-map query (device entries `x-runtime-shaped`); geofence create and update (202 `{data, activation}`, `x-abilities.all: [geofences:activate, geofences:manage]`, `x-async` polling the activation, `x-concurrency: expected_revision`); activation item retry; location fix (`data` `$ref ../location/v1/fix.schema.json`, `x-runtime-shaped`); check request parameters as in T034
-- [ ] T036 [US1] Add `webhooks.integrationEvent` to contracts/openapi/supplements/integration-events.yaml: headers `X-Iot-Delivery-Id`, `X-Iot-Timestamp` and `X-Iot-Signature: v1=<hex>`, body `IntegrationEvent`, retry and ordering rules in the description, `x-audience: integration`
-- [ ] T037 [US1] Write apps/api/tests/Feature/Contract/IntegrationContractTest.php: data providers over the 18 operations for 401 (no token), 403 (token without the ability, including both compound rules), 404 (another organization) and 422 for operations with input
-- [ ] T038 [US1] Fill the 2xx gaps that `contract:coverage` reports, in apps/api/tests/Feature/Domain/Integrations/*Test.php and apps/api/tests/Feature/Domain/Geospatial/GeofenceTest.php; location-fix runtime fakes use contracts/location/v1/fix.fixture.json
-- [ ] T039 [US1] Remove the 18 integration operations from contracts/openapi/pending-schemas.json (247 → 229), turn on the T013 and T028 integration flags, re-export contracts/openapi/openapi.json
-- [ ] T040 [US1] Record integration discrepancies (docs, SDK types, inference) in specs/001-openapi-contract/drift-log.md
-- [ ] T041 [P] [US1] Update docs/features/integrations.md to name the contract as the authority for the integration API and link it
-- [ ] T042 [US1] Verify PR 3: quickstart.md B1 passes; rebuild `api`
+- [X] T032 [P] [US1] Add integration payload components to contracts/openapi/supplements/integration.yaml: `IntegrationDevice`, `IntegrationAlert` (`episode` integer ≥ 1, `condition` `active`|`cleared`), `TelemetryLatest` (`telemetry-latest.v1`), `TelemetryHistory` (`telemetry-history.v1`), `TelemetryRecords` (`telemetry-records.v1` with its `meta` fields), `LocationBindingVersion` (`{version_uuid, binding: $ref ../location/v1/binding.schema.json}`) and the `IntegrationAbility` enum of 8 values; objects allow additional properties (FR-017)
+- [X] T033 [P] [US1] Add event components to contracts/openapi/supplements/integration-events.yaml: `IntegrationEvent` (envelope with `type` enum of the 8 types and per-type `data`: alert snapshot, geofence event, `automation.triggered.v1` `{workflow_uuid, action_id, name, node_id}`), `EventPage` (`{data, next_cursor, has_more}`), `EventCheckpoint`, and the `GrantChanged` 409 response
+- [X] T034 [US1] Patch the 14 integration read operations in contracts/openapi/supplements/integration.yaml: responses, summaries, `x-abilities.any_of` for `GET events` and `GET events/checkpoint`, the `Cache-Control: no-store` header, cursor and limit bounds, examples; check each operation's request parameters against its validation and, where Scramble misses one, add a Scramble parameter attribute in the controller plus a 422 case in T037
+- [X] T035 [US1] Patch the 4 integration write operations and the location fix in contracts/openapi/supplements/integration.yaml: location-map query (device entries `x-runtime-shaped`); geofence create and update (202 `{data, activation}`, `x-abilities.all: [geofences:activate, geofences:manage]`, `x-async` polling the activation, `x-concurrency: expected_revision`); activation item retry; location fix (`data` `$ref ../location/v1/fix.schema.json`, `x-runtime-shaped`); check request parameters as in T034
+- [X] T036 [US1] Add `webhooks.integrationEvent` to contracts/openapi/supplements/integration-events.yaml: headers `X-Iot-Delivery-Id`, `X-Iot-Timestamp` and `X-Iot-Signature: v1=<hex>`, body `IntegrationEvent`, retry and ordering rules in the description, `x-audience: integration`
+- [X] T037 [US1] Write apps/api/tests/Feature/Contract/IntegrationContractTest.php: data providers over the 18 operations for 401 (no token), 403 (token without the ability, including both compound rules), 404 (another organization) and 422 for operations with input
+- [X] T038 [US1] Fill the 2xx gaps that `contract:coverage` reports, in apps/api/tests/Feature/Domain/Integrations/*Test.php and apps/api/tests/Feature/Domain/Geospatial/GeofenceTest.php; location-fix runtime fakes use contracts/location/v1/fix.fixture.json
+- [X] T039 [US1] Remove the 18 integration operations from contracts/openapi/pending-schemas.json (247 → 229), turn on the T013 and T028 integration flags, re-export contracts/openapi/openapi.json
+- [X] T040 [US1] Record integration discrepancies (docs, SDK types, inference) in specs/001-openapi-contract/drift-log.md
+- [X] T041 [P] [US1] Update docs/features/integrations.md to name the contract as the authority for the integration API and link it
+- [X] T042 [US1] Verify PR 3: quickstart.md B1 passes; rebuild `api`
 
 **Checkpoint**: MVP. The integration contract is complete and enforced.
 
@@ -242,7 +242,7 @@ PR1 (Setup + Foundational part 1) ──▶ PR2 (Foundational part 2) ──▶ 
 
 ```bash
 Task: "Add integration payload components to contracts/openapi/supplements/integration.yaml (T032)"
-Task: "Add event components to contracts/openapi/supplements/integration.yaml (T033)"
+Task: "Add event components to contracts/openapi/supplements/integration-events.yaml (T033)"
 Task: "Update docs/features/integrations.md to name the contract as the authority (T041)"
 ```
 

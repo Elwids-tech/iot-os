@@ -86,3 +86,74 @@ are checked; their bodies are checked when their domain leaves the pending list.
 | `PUT /v1/organizations/{organization}/workflows/{workflow}/notifications` | inference | 409 from a conflict check in the action | `409: Conflict` in `supplements/automation.yaml` | spec 001 PR 2 |
 | `POST /v1/organizations/{organization}/workflows/{workflow}/scenarios` | inference | Always 201 (the status comes from a ternary); only 200 was inferred, and that inferred 200 is never returned | `201` added; the stale 200 goes when Automation is described in `supplements/automation.yaml` | spec 001 PR 2 |
 | `PUT /v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}` | inference | 409 from a conflict check in the action | `409: Conflict` in `supplements/automation.yaml` | spec 001 PR 2 |
+
+## PR 3: the integration API
+
+All 18 integration operations are fully described in `supplements/integration.yaml` and
+`supplements/integration-events.yaml` and left the pending list (247 → 229). Every
+success response now has a golden example that `IntegrationContractTest` validates
+against its schema, and every response the suite produces is checked against the
+contract, headers included. Findings by kind:
+
+- **Request rules inference missed (6 operations).** Rules read in helper methods:
+  `pagination()` (`page` 1 to 100000, `per_page` 1 to 100), `window()`
+  (`parameter_uuid`, `from`, `to`) and `input()` (the whole geofence body). Query
+  parameters are described with Scramble `#[QueryParameter]` attributes on the actions
+  (metadata only). The geofence body needs number bounds and a closed `geometry`
+  object, which attributes cannot state, so it is a supplement `requestBody`; the
+  export now refuses a supplement body where Scramble inferred one, so a supplement can
+  never hide rules read from code.
+- **Bodies inference got wrong or left open (18 operations).** Compact-page `meta`
+  fields as strings, the location fix `data` as a string, telemetry items, geofence
+  geometry and location-map devices open: all replaced by supplement schemas.
+- **Statuses inference missed.** The device runtime's 503 and 504, conflicts from the
+  geofence service, `abort(422)` with a message only, and the event feed's 409 for a
+  grant change (inferred as an anonymous inline error, now the shared `GrantChanged`).
+- **Runtime-shaped bodies.** The location fix `data` (`location-fix.v1`, referenced from
+  `contracts/location/v1/fix.schema.json`) and the location-map device entries are
+  described as returned and marked `x-runtime-shaped` on their responses.
+- **Test fakes that did not match the runtime.** `ApplicationTest`'s latest-telemetry,
+  records and location-fix fakes returned fragments the runtime never sends (readings
+  without `key`, `label`, `observed_at`; records `meta` with 2 of its 9 fields; a fix
+  that was `[]`), and its location-binding fixture had 3 of the 14 binding fields. They
+  now return the runtime's fields and the `contracts/location/v1` golden fixtures; no
+  expected response changed.
+
+| Operation | Source | Discrepancy | Resolution | Pull request |
+| --- | --- | --- | --- | --- |
+| `GET /integration/v1/organizations/{organization}/devices` | inference | `page` missing and `per_page` unbounded (rules in `pagination()`) | `#[QueryParameter]` attributes on `ReadController::devices` | spec 001 PR 3 |
+| `GET /integration/v1/organizations/{organization}/alerts` | inference | `page` missing and `per_page` unbounded (rules in `pagination()`) | `#[QueryParameter]` attributes on `ReadController::alerts` | spec 001 PR 3 |
+| `GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/history` | inference | Required `parameter_uuid`, `from`, `to` missing (rules in `window()`); 503 and 504 from the runtime missing | Attributes on `TelemetryController::history`; `503: RuntimeUnavailable`, `504: RangeTimeout` in `supplements/integration.yaml` | spec 001 PR 3 |
+| `GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/records` | inference | Required `parameter_uuid`, `from`, `to` missing (rules in `window()`); 503 missing | Attributes on `TelemetryController::records`; `503: RuntimeUnavailable` | spec 001 PR 3 |
+| `GET /integration/v1/organizations/{organization}/devices/{uuid}/locations/{event}` | inference | `data` inferred as a string; 503 missing | `data` references `location/v1/fix.schema.json`, `x-runtime-shaped`; `503: RuntimeUnavailable` | spec 001 PR 3 |
+| `POST /integration/v1/organizations/{organization}/location-map/query` | inference | Device entries open; 503 missing | `LocationMapDevice` (runtime fields plus the four the control plane adds), `x-runtime-shaped`; `503: RuntimeUnavailable` | spec 001 PR 3 |
+| `POST /integration/v1/organizations/{organization}/geofences` | inference | No request body (rules in `input()`); 409, 422 (message or field errors) and 503 missing | `GeofenceInput` request body in the supplement; `409: Conflict`, `422: Unprocessable`, `503: RuntimeUnavailable` | spec 001 PR 3 |
+| `PUT /integration/v1/organizations/{organization}/geofences/{uuid}` | inference | No request body (rules in `input()`); 409, 422 and 503 missing | As for `POST geofences` | spec 001 PR 3 |
+| `POST /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}/items/{item}/retry` | inference | 409 (item not failed) and 422 (runtime rejection) missing | `409: Conflict`, `422: ValidationFailed` | spec 001 PR 3 |
+| `GET /integration/v1/organizations/{organization}/events` | inference | 409 inferred as an anonymous inline error; 422 described as field errors only, but `abort(422)` for an unreadable or foreign cursor returns a message only | `409: GrantChanged`; `422: Unprocessable` | spec 001 PR 3 |
+| `GET /integration/v1/organizations/{organization}/events` | sdk type | `IntegrationEvent.type` lacks `automation.triggered.v1`, which the platform emits | Contract lists all eight types; the SDK takes them from the contract in PR 5 (roadmap "SDK event types") | spec 001 PR 3 (SDK: PR 5) |
+| `POST /integration/v1/organizations/{organization}/location-map/query` | sdk type | `LocationMapSnapshot.geofence` typed as a full `Geofence`; the platform returns `{uuid, name, geometry, revision}`. Device entries lack `geometry`, `wandering`, `active_alert`, `assignment_status` and `deployment_status` | Contract follows the platform; SDK types generated from it in PR 5 | spec 001 PR 3 (SDK: PR 5) |
+| `GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}` | sdk type | `GeofenceActivationBatch` lacks `created_at` and `updated_at`; item `target` typed `string` (the platform sends `active` or `inactive`) | Contract follows the platform; SDK types generated from it in PR 5 | spec 001 PR 3 (SDK: PR 5) |
+| `POST /integration/v1/organizations/{organization}/geofences` | sdk type | `GeofenceInput.expected_revision` required; the platform defaults it (0 on create, the current revision on update) | Contract marks it optional with its defaults; SDK types generated in PR 5 | spec 001 PR 3 (SDK: PR 5) |
+| `GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/history` | docs | Spec acceptance scenario 1 and `docs/features/integrations.md` list 503 but not 504; the runtime returns 504 for a range cut off at its limit and Laravel passes it on | Contract lists both; integrations doc corrected | spec 001 PR 3 |
+| `GET /integration/v1/organizations/{organization}/geofences` | docs | `docs/features/integrations.md` says lists return `{data, meta}`; the geofence list is not paginated and is ordered by name | Contract describes `{data}`; integrations doc corrected | spec 001 PR 3 |
+
+### Platform issues found, not fixed (FR-033)
+
+Recorded for separate changes; the contract describes today's behaviour.
+
+1. **A runtime rejection during geofence activation escapes after the save.**
+   `GeofenceService::dispatch()` catches `HttpExceptionInterface` only. When the runtime
+   rejects the activation snapshot with 422, `RuntimeClient` throws a
+   `ValidationException`, which escapes after the geofence and batch were committed: the
+   client gets 422 for a saved geofence, the remaining items are never dispatched and
+   stay `pending`, and a pending item cannot be retried (retry needs `failed`). A
+   `ModelNotFoundException` (for example a bound device that no longer exists) escapes
+   the same way as 404. Affects
+   `POST geofences`, `PUT geofences/{uuid}` and the item retry, in the integration and
+   tenant APIs.
+2. **Numeric strings pass the geofence rules.** `numeric` and `integer` accept `"51.0"`
+   and `"1"`, which are stored and returned as strings, so a geofence saved that way
+   returns string coordinates, unlike the contract's numbers. A string
+   `expected_revision` also fails the strict revision comparison and returns 409 for a
+   current revision. First-party clients and the SDK send numbers.

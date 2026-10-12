@@ -53,13 +53,17 @@ final class CheckContractTest extends TestCase
             ->assertExitCode(1);
     }
 
-    public function test_listed_integration_operations_fail_once_the_rule_is_on(): void
+    public function test_a_listed_integration_operation_fails(): void
     {
-        $this->useContractCopy();
-        config(['scramble.contract.forbid_pending_integration' => true]);
+        $this->rewritePending(static function (array $entries): array {
+            $entries[] = ['operation' => 'GET /integration/v1/organizations/{organization}/devices', 'domain' => 'Integrations'];
+            usort($entries, static fn (array $a, array $b): int => strcmp($a['operation'], $b['operation']));
+
+            return $entries;
+        });
 
         $this->artisan('contract:check')
-            ->expectsOutputToContain('integration operations must be fully described, never pending')
+            ->expectsOutputToContain('contract G3: GET /integration/v1/organizations/{organization}/devices: integration operations must be fully described, never pending')
             ->assertExitCode(1);
     }
 

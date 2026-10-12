@@ -98,6 +98,17 @@ final class ResponseCheckerTest extends TestCase
         $this->assertSame([], $present?->failures);
     }
 
+    public function test_a_documented_header_must_match_its_schema(): void
+    {
+        $retryAfter = $this->check('GET', self::THING, new JsonResponse(['message' => 'Too Many Attempts.'], 429, ['Retry-After' => 'soon']));
+        $cached = $this->check('GET', 'api/v1/cached', new JsonResponse(['ok' => true]));
+        $noStore = $this->check('GET', 'api/v1/cached', new JsonResponse(['ok' => true], 200, ['Cache-Control' => 'no-store']));
+
+        $this->assertStringContainsString('429: header Retry-After: expected integer, got string', $retryAfter?->failures[0] ?? '');
+        $this->assertStringContainsString('200: header Cache-Control: ', $cached?->failures[0] ?? '');
+        $this->assertSame([], $noStore?->failures, 'Symfony sends "no-store, private", which contains no-store');
+    }
+
     public function test_bodies_and_content_types_the_contract_does_not_describe_fail(): void
     {
         $html = $this->check('GET', self::THING, new Response('<p>hi</p>', 200, ['Content-Type' => 'text/html; charset=UTF-8']));
@@ -191,6 +202,13 @@ final class ResponseCheckerTest extends TestCase
                 '/v1/ranges' => ['get' => ['responses' => [
                     '5XX' => ['description' => 'Any server error.', 'content' => $errorMessage],
                     'default' => ['description' => 'Anything else.', 'content' => $errorMessage],
+                ]]],
+                '/v1/cached' => ['get' => ['responses' => [
+                    '200' => [
+                        'description' => 'Never cached.',
+                        'headers' => ['Cache-Control' => ['required' => true, 'schema' => ['type' => 'string', 'pattern' => '(^|[ ,])no-store([ ,]|$)']]],
+                        'content' => ['application/json' => ['schema' => ['type' => 'object', 'properties' => ['ok' => ['type' => 'boolean']]]]],
+                    ],
                 ]]],
                 '/v1/pending' => ['get' => [
                     'responses' => [

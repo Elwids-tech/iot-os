@@ -9,10 +9,15 @@ use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Integrations\Services\AlertSnapshot;
 use App\Domain\Shared\Models\Organization;
+use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\Request;
 
 final class ReadController
 {
+    // Scramble does not read the rules in pagination(); these describe them in the
+    // public contract (contracts/openapi). Keep them in step with pagination().
+    #[QueryParameter('page', description: 'Page number.', type: 'int<1, 100000>', default: 1)]
+    #[QueryParameter('per_page', description: 'Items per page.', type: 'int<1, 100>', default: 25)]
     public function devices(Request $request, Organization $organization): array
     {
         $this->pagination($request);
@@ -26,6 +31,10 @@ final class ReadController
         return ['data' => $this->deviceView($this->deviceQuery($request, $organization)->where('uuid', $uuid)->firstOrFail())];
     }
 
+    // Scramble does not read the rules in pagination(); these describe them in the
+    // public contract (contracts/openapi). Keep them in step with pagination().
+    #[QueryParameter('page', description: 'Page number.', type: 'int<1, 100000>', default: 1)]
+    #[QueryParameter('per_page', description: 'Items per page.', type: 'int<1, 100>', default: 25)]
     public function alerts(Request $request, Organization $organization): array
     {
         $this->pagination($request);

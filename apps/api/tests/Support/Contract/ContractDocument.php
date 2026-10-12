@@ -156,23 +156,55 @@ final class ContractDocument
     }
 
     /**
-     * Headers a response documents as required, with `$ref`s followed. `Content-Type` is
-     * left out, as OpenAPI says.
+     * Headers a response documents, with `$ref`s followed: whether each is required and
+     * the pointer to its schema. `Content-Type` is left out, as OpenAPI says.
      *
      * @param  array<string, mixed>  $response
-     * @return list<string>
+     * @return list<array{name: string, required: bool, schema: string|null}>
      */
-    public function requiredHeaders(array $response, string $pointer): array
+    public function headers(array $response, string $pointer): array
     {
-        $required = [];
+        $headers = [];
         foreach ($response['headers'] ?? [] as $name => $header) {
-            [$header] = $this->follow($header, $pointer.'/headers/'.self::segment((string) $name));
-            if (strtolower((string) $name) !== 'content-type' && ($header['required'] ?? false) === true) {
-                $required[] = (string) $name;
+            [$header, $headerPointer] = $this->follow($header, $pointer.'/headers/'.self::segment((string) $name));
+            if (strtolower((string) $name) === 'content-type') {
+                continue;
+            }
+            $headers[] = [
+                'name' => (string) $name,
+                'required' => ($header['required'] ?? false) === true,
+                'schema' => isset($header['schema']) ? $headerPointer.'/schema' : null,
+            ];
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Validates a header value against its schema. Header values are strings on the wire,
+     * so a numeric value is also tried as a number (`Retry-After: 30` against an integer).
+     *
+     * @return string|null null when valid, otherwise the difference
+     */
+    public function validateHeader(string $value, string $schemaPointer): ?string
+    {
+        $problems = [];
+        foreach (is_numeric($value) ? [$value, $value + 0] : [$value] as $candidate) {
+            $problem = $this->validate($candidate, $schemaPointer);
+            if ($problem === null) {
+                return null;
+            }
+            $problems[] = preg_replace('#^/: #', '', $problem) ?? $problem;
+        }
+
+        // A type mismatch on one reading says less than a bound or pattern on the other.
+        foreach ($problems as $problem) {
+            if (! str_starts_with($problem, 'expected ')) {
+                return $problem;
             }
         }
 
-        return $required;
+        return $problems[0];
     }
 
     /**

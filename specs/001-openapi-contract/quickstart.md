@@ -34,6 +34,9 @@ that prove the feature works. Commands are run from the repository root unless a
    components (`ErrorMessage`, `ValidationError`, `CompactPage`, …) and `$ref` existing
    schemas in `contracts/` instead of copying them. User ids are integers (ADR-013).
    A new operation cannot be added to `pending-schemas.json`: that list only shrinks.
+   Validation in a helper method is invisible to the export: describe query parameters
+   with Scramble's `#[QueryParameter]` attribute on the action, and a request body the
+   export cannot infer with `requestBody` in the supplement.
 4. **Test it.** Your feature test's responses are checked against the contract
    automatically.
 
@@ -43,8 +46,9 @@ that prove the feature works. Commands are run from the repository root unless a
 
    A mismatch fails the test that made the request and names the JSON pointer.
    Integration operations need a 2xx, 401, 403 and 404 (and 422 when they take
-   input); add your operation to the data provider in
-   `tests/Feature/Contract/IntegrationContractTest.php`.
+   input); add your operation to `OPERATIONS` (and, with input, `INVALID_INPUT`) in
+   `tests/Feature/Contract/IntegrationContractTest.php`, and give its success response
+   an example.
 5. **Regenerate types and check everything.**
 
    ```bash
@@ -68,11 +72,14 @@ that prove the feature works. Commands are run from the repository root unless a
 ### B1. The integration contract is complete and checked (Story 1, SC-001)
 
 ```bash
-cd apps/api && php artisan test --compact --filter=Contract && php artisan contract:coverage
+cd apps/api && php artisan test --compact tests/Feature/Contract tests/Feature/Domain/Integrations tests/Feature/Domain/Geospatial && php artisan contract:coverage
 ```
 
-Expected: pass; the coverage report lists 18 integration operations, each with 2xx,
-401, 403 and 404 (and 422 where it takes input).
+Expected: pass; the coverage report has 78 required pairs, all checked: a 2xx, 401,
+403 and 404 for each of the 18 integration operations, and a 422 for the 6 with a
+request body or a required query parameter. The success responses come from the
+domain tests, so `--filter=Contract` alone is not enough; once `api/v1` operations
+are fully described (PR 6 on), run the whole suite before `contract:coverage`.
 
 ### B2. Seeded drift fails (Story 2, SC-003)
 

@@ -12,7 +12,8 @@ use Symfony\Component\Yaml\Exception\ParseException;
  *
  * A supplement adds components, patches operations keyed `METHOD /path` and adds
  * webhooks. It cannot add operations: a key that matches no generated operation fails
- * the export. Pending operations get open success bodies and `x-schema-status: pending`,
+ * the export. It may describe a request body only where inference found none (rules
+ * read in a helper Scramble does not follow), so it never hides inferred rules. Pending operations get open success bodies and `x-schema-status: pending`,
  * and inferred components that nothing references any more are dropped.
  */
 final class SupplementTransformer
@@ -70,6 +71,9 @@ final class SupplementTransformer
                 $method = strtolower($method);
                 if (! isset($document['paths'][$path][$method])) {
                     throw new ContractException("{$name}: \"{$key}\" matches no generated operation. A supplement describes existing routes; it cannot add operations.");
+                }
+                if (is_array($patch) && isset($patch['requestBody'], $document['paths'][$path][$method]['requestBody'])) {
+                    throw new ContractException("{$name}: \"{$key}\" already has a request body inferred from its validation rules; a supplement describes only a body the export cannot see.");
                 }
                 $document['paths'][$path][$method] = $this->patch($document['paths'][$path][$method], is_array($patch) ? $patch : []);
             }

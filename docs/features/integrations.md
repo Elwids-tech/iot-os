@@ -68,11 +68,21 @@ Management API under `/api/v1/organizations/{organization}/applications`
 
 ## Integration API
 
+The [public API contract](../../contracts/openapi/openapi.json) is the authority for
+the integration API: every operation, parameter, limit, ability, response body, error
+and header, the event envelope and the webhook delivery, generated from the code and
+checked against real responses on every pull request
+([API reference](../reference/api.md#contract)). Its `info.version` versions the
+integration API. This page explains how the API behaves; where the two differ, the
+contract (which follows the code) is right.
+
 Base: `/api/integration/v1/organizations/{organization}` with
 `Authorization: Bearer <application token>`. Use HTTPS; the SDK allows HTTP only
 on loopback. Errors: 401 missing, expired or revoked credentials; 403 missing
-ability; 404 foreign organization or ungranted resource; 422 invalid input; 503
-runtime unavailable (never an empty result).
+ability; 404 foreign organization or ungranted resource; 409 a stale revision, a
+reused operation UUID or (event feed) a grant change; 422 invalid input; 503 runtime
+unavailable (never an empty result); 504 a history range the runtime could not read
+in time. Responses to authenticated requests carry `Cache-Control: no-store`.
 
 | Method and path | Ability | Contract |
 | --- | --- | --- |
@@ -88,8 +98,10 @@ runtime unavailable (never an empty result).
 | `GET geofences`, `GET geofences/{uuid}`, `GET geofences/{uuid}/activations/{batch}` | `geofences:read` | Geofences filtered to granted devices; activation status |
 | `POST geofences`, `PUT geofences/{uuid}`, `POST .../items/{item}/retry` | `geofences:activate` (+ `geofences:manage`) | Save and activate (202), retry a failed item |
 
-Lists return `{data, meta: {current_page, last_page, total}}`, ordered by creation,
-`per_page` 1–100. They are current state, not snapshots.
+Device, alert and location-binding lists return
+`{data, meta: {current_page, last_page, total}}`, ordered by creation, `page` 1–100000
+and `per_page` 1–100. The geofence list is not paginated and is ordered by name. Lists
+are current state, not snapshots.
 
 ### Telemetry semantics
 

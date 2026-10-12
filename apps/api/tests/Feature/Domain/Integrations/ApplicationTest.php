@@ -61,6 +61,16 @@ final class ApplicationTest extends TestCase
         return $this->api($this->admin, 'POST', $this->manage.'/'.$app['uuid'].'/token', ['revision' => $app['revision'], 'abilities' => $abilities, 'expires_in_days' => 1])->assertCreated()->json('data');
     }
 
+    /**
+     * A golden fixture from contracts/, so runtime fakes return what the runtime returns.
+     *
+     * @return array<string, mixed>
+     */
+    private function contractFixture(string $path): array
+    {
+        return json_decode((string) file_get_contents(config('devices.contracts_path').'/'.$path), true, 512, JSON_THROW_ON_ERROR);
+    }
+
     public function test_scopes_and_portal_separation(): void
     {
         $issued = $this->token($this->create());
@@ -139,7 +149,11 @@ final class ApplicationTest extends TestCase
     {
         config(['devices.runtime_token' => 'test', 'devices.runtime_url' => 'http://runtime']);
         Http::fake(['*' => Http::sequence()->push([
-            'data' => [['parameter_uuid' => $this->device->uuid, 'value' => null, 'quality' => 'stale', 'internal_secret' => 'hidden']],
+            'data' => [[
+                'parameter_uuid' => $this->device->uuid, 'key' => 'battery', 'label' => 'Battery', 'data_type' => 'number', 'unit' => '%',
+                'value' => null, 'quality' => 'stale', 'observed_at' => '2026-09-01T00:00:00Z', 'received_at' => '2026-09-01T00:00:01Z',
+                'historical' => false, 'internal_secret' => 'hidden',
+            ]],
             'presence' => 'offline', 'internal_secret' => 'hidden',
         ])->push([], 503)]);
         $app = $this->api($this->admin, 'POST', $this->manage, ['name' => 'Telemetry', 'device_uuids' => [$this->device->uuid], 'abilities' => ['telemetry:read']])->assertCreated()->json('data');
@@ -176,7 +190,14 @@ final class ApplicationTest extends TestCase
     public function test_raw_records_and_location_binding_scope(): void
     {
         config(['devices.runtime_token' => 'test', 'devices.runtime_url' => 'http://runtime']);
-        Http::fake(['*' => Http::response(['data' => [], 'meta' => ['has_more' => false, 'next_cursor' => null], 'found' => true])]);
+        // Runtime output as the runtime returns it; the fix is the location-fix.v1 golden fixture.
+        Http::fake([
+            '*/internal/measurements/records*' => Http::response(['data' => [], 'meta' => [
+                'from' => '2026-09-01T00:00:00Z', 'to' => '2026-09-02T00:00:00Z', 'limit' => 2, 'page_size' => 1,
+                'returned' => 0, 'consumed' => 0, 'next_cursor' => null, 'has_more' => false, 'limit_reached' => false,
+            ]]),
+            '*/internal/locations/read' => Http::response(['found' => true, 'data' => $this->contractFixture('location/v1/fix.fixture.json')]),
+        ]);
         $app = $this->api($this->admin, 'POST', $this->manage, ['name' => 'Raw telemetry', 'device_uuids' => [$this->device->uuid], 'abilities' => ['telemetry:read']])->assertCreated()->json('data');
         $issued = $this->token($app, ['telemetry:read']);
         $base = $this->read.'/devices/'.$this->device->uuid;
@@ -187,7 +208,7 @@ final class ApplicationTest extends TestCase
             $this->api($issued['token'], 'GET', $base.'/telemetry/records?'.http_build_query([...$query, ...$invalid]))->assertUnprocessable();
         }
         $workflow = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Location', 'workflow' => [], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => User::where('is_super_admin', true)->firstOrFail()->id]);
-        $version = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $workflow->updated_by, 'created_at' => now(), 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('a', 64), 'definition' => ['binding' => ['schema_version' => 'location-binding.v1', 'organization_uuid' => $this->org->uuid, 'device_uuid' => $this->device->uuid], 'private' => 'hidden']]);
+        $version = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $workflow->updated_by, 'created_at' => now(), 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('a', 64), 'definition' => ['binding' => ['organization_uuid' => $this->org->uuid, 'device_uuid' => $this->device->uuid] + $this->contractFixture('location/v1/binding.fixture.json'), 'private' => 'hidden']]);
         $this->api($issued['token'], 'GET', $base.'/location-bindings')->assertOk()->assertJsonPath('data.0.version_uuid', $version->uuid)->assertJsonMissing(['private' => 'hidden']);
         $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.$version->uuid)->assertOk();
         $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.Str::uuid())->assertNotFound();

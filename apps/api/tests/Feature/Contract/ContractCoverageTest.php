@@ -20,12 +20,24 @@ final class ContractCoverageTest extends TestCase
 
     private const LOCATION_MAP = 'POST /integration/v1/organizations/{organization}/location-map/query';
 
-    public function test_an_empty_record_passes_while_every_operation_is_pending(): void
+    public function test_an_empty_record_passes_while_nothing_is_required(): void
     {
+        config(['scramble.contract.require_integration_coverage' => false]);
+
         $this->artisan('contract:coverage', ['--file' => $this->record([])])
             ->expectsOutputToContain('0 required pairs, all checked.')
-            ->expectsOutputToContain('Integration pairs are not required yet')
+            ->expectsOutputToContain('Integration pairs are not required')
             ->assertExitCode(0);
+    }
+
+    public function test_an_empty_record_misses_every_integration_pair(): void
+    {
+        // 18 operations need a 2xx, 401, 403 and 404; the 6 with a body or a required
+        // query parameter also need a 422.
+        $this->artisan('contract:coverage', ['--file' => $this->record([])])
+            ->expectsOutputToContain('contract G4: '.self::LOCATION_MAP.' 422: never checked by the suite')
+            ->expectsOutputToContain('78 required pairs, 78 never checked.')
+            ->assertExitCode(1);
     }
 
     public function test_a_missing_record_fails(): void
@@ -55,6 +67,7 @@ final class ContractCoverageTest extends TestCase
 
     public function test_a_checked_success_response_covers_a_fully_described_operation(): void
     {
+        config(['scramble.contract.require_integration_coverage' => false]);
         $this->describe('GET /v1/me');
 
         $this->artisan('contract:coverage', ['--file' => $this->record([['GET /v1/me', 200]])])
@@ -62,9 +75,8 @@ final class ContractCoverageTest extends TestCase
             ->assertExitCode(0);
     }
 
-    public function test_integration_operations_need_a_success_401_403_404_and_422_with_input_once_required(): void
+    public function test_integration_operations_need_a_success_401_403_404_and_422_with_input(): void
     {
-        config(['scramble.contract.require_integration_coverage' => true]);
         $file = $this->record([
             [self::DEVICES, 200], [self::DEVICES, 401], [self::DEVICES, 403],
             [self::LOCATION_MAP, 200], [self::LOCATION_MAP, 401], [self::LOCATION_MAP, 403], [self::LOCATION_MAP, 404],
@@ -80,6 +92,7 @@ final class ContractCoverageTest extends TestCase
 
     public function test_opt_outs_are_counted_and_listed_with_their_reasons(): void
     {
+        config(['scramble.contract.require_integration_coverage' => false]);
         $file = $this->record([], skipped: [['test' => 'Tests\\Feature\\ExampleTest::test_teapot', 'reason' => 'Returns 418 on purpose.']]);
 
         $this->artisan('contract:coverage', ['--file' => $file])

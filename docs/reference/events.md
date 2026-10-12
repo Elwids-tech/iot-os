@@ -134,7 +134,10 @@ for trusted services (it mixes organizations), not a tenant API.
 
 `integration-event.v1` envelopes in the per-organization journal
 (`integration_events`), read through `GET /api/integration/v1/.../events` and
-delivered by webhooks ([integrations](../features/integrations.md#event-feed)).
+delivered by webhooks ([integrations](../features/integrations.md#event-feed)). The
+[public API contract](../../contracts/openapi/openapi.json) describes the envelope,
+each type's `data` (`IntegrationEvent`) and the signed delivery
+(`webhooks.integrationEvent`).
 
 ```ts
 {

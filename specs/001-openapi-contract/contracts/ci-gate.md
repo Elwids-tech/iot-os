@@ -68,8 +68,9 @@ Exit code 0 means pass and 1 means fail.
 
 - **Per request** (inside the test that made it): for each response from an in-scope
   route, the status must be documented; for a non-pending operation, the JSON body must
-  validate against the documented schema and documented required headers must be
-  present. A failure fails that test with
+  validate against the documented schema, documented required headers must be
+  present, and documented headers must match their schema (a numeric value is also
+  read as a number). A failure fails that test with
   `contract G4: GET /v1/... 200: /data/0/uuid: expected string, got null`.
 - **Opt-out**: `#[WithoutContractCheck('reason')]` on a test method; counted and listed.
 - **Coverage** (`contract:coverage`, after the suite) fails when a required pair was

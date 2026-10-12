@@ -26,7 +26,8 @@ platform permission and rate limits
 - **Pending bodies.** Operations listed in `contracts/openapi/pending-schemas.json` have
   open success bodies (`x-schema-status: pending`); everything else about them is
   described. The list only shrinks: a new operation needs a described response, either
-  inferred or in a supplement.
+  inferred or in a supplement. The 18 integration operations are fully described, each
+  success response with an example, and can never be listed.
 - **Checked in CI** (API job): `php artisan contract:export --check` fails when the
   committed file is not a fresh export, `php artisan contract:check --base=origin/main`
   fails on an undescribed body or a longer pending list, and
@@ -38,8 +39,8 @@ platform permission and rate limits
   the test that made the request. `php artisan contract:coverage`, run after the
   suite, fails when a required status was never checked (a success response for
   every fully described operation; a success, 401, 403, 404 and, with input, 422 for
-  every integration operation once the integration API is described). Details and
-  the opt-out are in [testing](../dev/testing.md#api-contract-checks). A difference
+  every integration operation). Details and the opt-out are in
+  [testing](../dev/testing.md#api-contract-checks). A difference
   is resolved in the contract, never by changing the platform, and recorded in the
   [drift log](../../specs/001-openapi-contract/drift-log.md).
 
