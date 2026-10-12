@@ -22,11 +22,16 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Tests\Support\Contract\WithoutContractCheck;
 use Tests\TestCase;
 
 final class GeofenceTest extends TestCase
 {
     use RefreshDatabase;
+
+    private const RING = [[-114.01, 50.99], [-113.99, 50.99], [-113.99, 51.01], [-114.01, 51.01], [-114.01, 50.99]];
+
+    private const POLICY = ['outside_for_seconds' => 60, 'max_gap_seconds' => 45, 'minimum_samples' => 2, 'uncertainty_metres' => 2.5];
 
     private Organization $organization;
 
@@ -243,6 +248,61 @@ final class GeofenceTest extends TestCase
         $this->postJson($this->url.'/activations/'.$response['activation']['uuid'].'/items/'.$item['id'].'/retry')->assertOk()
             ->assertJsonPath('data.items.0.status', 'failed')
             ->assertJsonPath('data.items.0.diagnostic', 'The geofence assignment for this activation no longer exists.');
+    }
+
+    public function test_numeric_strings_are_stored_as_numbers_and_a_string_revision_is_compared_as_an_integer(): void
+    {
+        $input = [...$this->stringInput((string) Str::uuid()), 'expected_revision' => '1'];
+
+        $response = $this->putJson($this->url, $input)->assertAccepted()->assertJsonPath('data.revision', 2);
+
+        $this->assertSame(self::RING, $response->json('data.geometry.coordinates.0'));
+        $this->assertSame(self::RING, $this->fence->fresh()->geometry['coordinates'][0]);
+        $this->assertCount(3, $response->json('data.assignments'));
+        foreach ($response->json('data.assignments') as $assignment) {
+            $this->assertSameJsonDocument(self::POLICY, $assignment['policy']);
+        }
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/internal/workflows/compile')
+            && $request['workflow']['nodes'][1]['config']['geometry']['coordinates'][0] === self::RING
+            && $request['workflow']['nodes'][2]['config']['minimum_samples'] === self::POLICY['minimum_samples']);
+    }
+
+    public function test_integration_numeric_strings_are_stored_as_numbers_and_a_string_revision_is_compared_as_an_integer(): void
+    {
+        [$token, $geofences] = $this->integrationClient();
+        $input = [...$this->stringInput((string) Str::uuid()), 'name' => 'Integration boundary', 'expected_revision' => '0'];
+
+        $created = $this->withToken($token)->postJson($geofences, $input)->assertAccepted()->assertJsonPath('data.revision', 1);
+        $this->assertSame(self::RING, $created->json('data.geometry.coordinates.0'));
+        $this->assertSameJsonDocument(self::POLICY, $created->json('data.assignments.0.policy'));
+
+        $this->withToken($token)->putJson($geofences.'/'.$created->json('data.uuid'), [...$input, 'operation_uuid' => (string) Str::uuid(), 'expected_revision' => '1'])
+            ->assertAccepted()->assertJsonPath('data.revision', 2);
+    }
+
+    #[WithoutContractCheck('Geofence validation errors (422) are not in the contract yet; spec 001 PR 3 documents them for the integration API.')]
+    public function test_non_numeric_strings_still_fail_geofence_validation(): void
+    {
+        $input = $this->input((string) Str::uuid());
+        $input['expected_revision'] = 'one';
+        $input['geometry']['coordinates'][0][1][1] = 'north';
+        $input['assignments'][0]['policy']['minimum_samples'] = 'two';
+        $input['assignments'][0]['policy']['uncertainty_metres'] = '2m';
+        $errors = ['expected_revision', 'geometry.coordinates.0.1.1', 'assignments.0.policy.minimum_samples', 'assignments.0.policy.uncertainty_metres'];
+
+        $this->putJson($this->url, $input)->assertUnprocessable()->assertJsonValidationErrors($errors);
+        [$token, $geofences] = $this->integrationClient();
+        $this->withToken($token)->postJson($geofences, $input)->assertUnprocessable()->assertJsonValidationErrors($errors);
+    }
+
+    /** A valid request with every coordinate and policy value sent as a JSON string. */
+    private function stringInput(string $operation): array
+    {
+        $strings = fn (array $values): array => array_map(fn (int|float $value): string => (string) $value, $values);
+
+        return [...$this->input($operation),
+            'geometry' => ['type' => 'Polygon', 'coordinates' => [array_map($strings, self::RING)]],
+            'assignments' => array_map(fn (string $uuid) => ['device_uuid' => $uuid, 'policy' => $strings(self::POLICY)], GpsUseCaseSeeder::deviceUuids())];
     }
 
     /** Lets the activation snapshot of the seeded workflow pass the applied-configuration check. */

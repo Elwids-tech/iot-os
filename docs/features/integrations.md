@@ -117,7 +117,8 @@ itself, the request returns 422 and nothing is saved. After the save, an item th
 runtime rejects, or that cannot be requested (its device or assignment is gone, or
 the runtime is unreachable), is `failed` with a `diagnostic`; the other items are
 still requested. Retry a failed item with `POST .../items/{item}/retry`; a pending
-item cannot be retried.
+item cannot be retried. Coordinates and policy values may be sent as numeric
+strings; they are stored and returned as numbers.
 
 ### Event feed
 

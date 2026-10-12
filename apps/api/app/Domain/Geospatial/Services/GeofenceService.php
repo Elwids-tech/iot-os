@@ -27,6 +27,7 @@ final class GeofenceService
 
     public function saveAndActivate(Organization $organization, ?Geofence $fence, array $input, ?int $actor, ?string $application = null): array
     {
+        $input = $this->numbers($input);
         $requestHash = $this->requestHash($fence, $input);
         if ($existing = $this->existingBatch($organization, $fence, $input['operation_uuid'], $requestHash, $actor, $application)) {
             $existingFence = Geofence::where('organization_id', $organization->id)->findOrFail($existing->geofence_id);
@@ -225,6 +226,23 @@ final class GeofenceService
                     'max_gap_seconds' => $policy['max_gap_seconds'], 'minimum_samples' => $policy['minimum_samples']]],
                 ['id' => '3', 'type' => 'alert.condition.v1', 'config' => (object) []],
             ], 'edges' => [['source' => '0', 'target' => '1'], ['source' => '1', 'target' => '2'], ['source' => '2', 'target' => '3']]];
+    }
+
+    /**
+     * The rules accept numeric strings ("51.5", "60"); store, hash and compare numbers.
+     * Numbers pass through unchanged, so their request hash is unchanged.
+     */
+    private function numbers(array $input): array
+    {
+        $number = fn (mixed $value): mixed => is_string($value) ? $value + 0 : $value;
+        $input['expected_revision'] = (int) $input['expected_revision'];
+        $input['geometry']['coordinates'] = array_map(fn (array $ring): array => array_map(
+            fn (array $position): array => array_map($number, $position), $ring), $input['geometry']['coordinates']);
+        foreach ($input['assignments'] as $index => $assignment) {
+            $input['assignments'][$index]['policy'] = array_map($number, $assignment['policy']);
+        }
+
+        return $input;
     }
 
     private function requestHash(?Geofence $fence, array $input): string

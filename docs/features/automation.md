@@ -177,7 +177,8 @@ deployed; removed assignments are disabled
 A saved geofence is always reported as saved: an item the runtime rejects, or that
 cannot be requested (its device or assignment is gone, or the runtime is
 unreachable), is marked failed with a diagnostic, the other items are still
-requested, and failed items can be retried. Writes need `Device.manage` and
+requested, and failed items can be retried. Coordinates and policy values sent as
+numeric strings are stored as numbers. Writes need `Device.manage` and
 `Device.activate`; reads need `Device.view`. Map style: set `IOT_MAP_STYLE_URL`
 (Docker) or `VITE_MAP_STYLE_URL`; without it development uses the OpenStreetMap
 raster fallback with attribution.
