@@ -9,7 +9,8 @@
 `taskw` at the repository root always prefers the pinned local Task binary.
 
 Everything else here is described in the docs: test harnesses (`test-*.mjs`) and
-verification scripts (`verify-*`) and the contract checker's tests (`contracts/`) in
+verification scripts (`verify-*`), the contract checker's tests (`contracts/`) and the
+documentation link checker (`docs/`) in
 [testing](../docs/dev/testing.md);
 `simulators/` in [simulators and fixtures](../docs/dev/simulators-and-fixtures.md);
 `hardware/` in [hardware](../docs/hardware/waveshare-audio-board.md); `release/` in
