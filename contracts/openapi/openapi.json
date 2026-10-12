@@ -40,11 +40,25 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "page",
             "in": "query",
+            "description": "Page number.",
             "schema": {
               "type": "integer",
-              "default": 25
+              "default": 1,
+              "minimum": 1,
+              "maximum": 100000
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "minimum": 1,
+              "maximum": 100
             }
           }
         ],
@@ -199,11 +213,25 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "page",
             "in": "query",
+            "description": "Page number.",
             "schema": {
               "type": "integer",
-              "default": 25
+              "default": 1,
+              "minimum": 1,
+              "maximum": 100000
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "minimum": 1,
+              "maximum": 100
             }
           }
         ],
@@ -576,6 +604,36 @@
               "minimum": 10,
               "maximum": 1000
             }
+          },
+          {
+            "name": "parameter_uuid",
+            "in": "query",
+            "required": true,
+            "description": "The parameter to read.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "description": "Start of the window: RFC 3339 with seconds and `Z` or a `±hh:mm` offset.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "description": "End of the window, after `from` and at most 31 days later: RFC 3339 with seconds and `Z` or a `±hh:mm` offset.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         ],
         "responses": {
@@ -765,6 +823,36 @@
             "schema": {
               "type": "string",
               "maxLength": 512
+            }
+          },
+          {
+            "name": "parameter_uuid",
+            "in": "query",
+            "required": true,
+            "description": "The parameter to read.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "description": "Start of the window: RFC 3339 with seconds and `Z` or a `±hh:mm` offset.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "description": "End of the window, after `from` and at most 31 days later: RFC 3339 with seconds and `Z` or a `±hh:mm` offset.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
             }
           }
         ],

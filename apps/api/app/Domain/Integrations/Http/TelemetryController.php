@@ -9,6 +9,7 @@ use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
+use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
@@ -40,6 +41,11 @@ final class TelemetryController
             ]), $result['data'] ?? [])];
     }
 
+    // Scramble does not read the rules in window(); these describe them in the public
+    // contract (contracts/openapi). Keep them in step with window().
+    #[QueryParameter('parameter_uuid', description: 'The parameter to read.', required: true, type: 'string', format: 'uuid')]
+    #[QueryParameter('from', description: 'Start of the window: RFC 3339 with seconds and `Z` or a `±hh:mm` offset.', required: true, type: 'string', format: 'date-time')]
+    #[QueryParameter('to', description: 'End of the window, after `from` and at most 31 days later: RFC 3339 with seconds and `Z` or a `±hh:mm` offset.', required: true, type: 'string', format: 'date-time')]
     public function records(Request $request, Organization $organization, string $uuid): array
     {
         $device = $this->device($request, $organization, $uuid);
@@ -78,6 +84,11 @@ final class TelemetryController
         return $values;
     }
 
+    // Scramble does not read the rules in window(); these describe them in the public
+    // contract (contracts/openapi). Keep them in step with window().
+    #[QueryParameter('parameter_uuid', description: 'The parameter to read.', required: true, type: 'string', format: 'uuid')]
+    #[QueryParameter('from', description: 'Start of the window: RFC 3339 with seconds and `Z` or a `±hh:mm` offset.', required: true, type: 'string', format: 'date-time')]
+    #[QueryParameter('to', description: 'End of the window, after `from` and at most 31 days later: RFC 3339 with seconds and `Z` or a `±hh:mm` offset.', required: true, type: 'string', format: 'date-time')]
     public function history(Request $request, Organization $organization, string $uuid): array
     {
         $device = $this->device($request, $organization, $uuid);
