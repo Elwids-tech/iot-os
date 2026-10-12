@@ -1,14 +1,33 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://iot-os.local/contracts/devices/v1/telemetry.schema.json",
+  "description": "Internal telemetry message: mapped readings of one device from one source packet, published by runtime ingestion on iot.telemetry.device (stream IOT_DEVICE_TELEMETRY, Nats-Msg-Id = uuid, a random UUID per packet). Producer and consumer: the runtime (devices-storage). At least once; storage deduplicates by uuid in device_runtime.telemetry_outbox. Fences: generation and definition.configuration_uuid against the active definition. Not read by Laravel.",
   "type": "object",
   "properties": {
     "uuid": {
       "type": "string",
       "format": "uuid"
     },
+    "capture_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Present while a telemetry capture records the source packet; storage reports the outcome to that capture."
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The device deployment generation the runtime ingested under; storage drops the message unless the device is still active at this generation."
+    },
     "definition": {
-      "$ref": "configuration.schema.json"
+      "description": "The runtime's copy of the active device configuration, re-encoded from Go. It omits a mapping's ingress_conversion when that is null.",
+      "oneOf": [
+        {
+          "$ref": "configuration.schema.json"
+        },
+        {
+          "$ref": "../v2/configuration.schema.json"
+        }
+      ]
     },
     "session_id": {
       "type": "string",
@@ -39,7 +58,8 @@
               "number",
               "string",
               "timestamp",
-              "bytes"
+              "bytes",
+              "enum"
             ]
           },
           "unit": {
@@ -84,6 +104,34 @@
               "corrected_future",
               "derived"
             ]
+          },
+          "installation_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Adapter devices only: the enrolled installation, copied from the definition's adapter binding when the metric's provenance matches it."
+          },
+          "adapter_revision_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Adapter devices only: the adapter revision the managed publisher reported in the metric's properties."
+          },
+          "manufacturer_serial": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Adapter devices only: copied from the definition's adapter binding."
+          },
+          "last_valid_received_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Part of the runtime's reading shape, set on stored latest values when a reading is not good; ingestion does not set it today."
+          },
+          "counter_event": {
+            "description": "Set when a monotonic counter fell below its previous value: a rollover when the profile's rollover point explains it, otherwise a reset. The reading stays good and starts a new segment.",
+            "enum": [
+              "reset",
+              "rollover"
+            ]
           }
         },
         "required": [
@@ -104,6 +152,7 @@
   },
   "required": [
     "uuid",
+    "generation",
     "definition",
     "session_id",
     "readings"

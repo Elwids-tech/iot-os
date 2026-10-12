@@ -43,6 +43,12 @@ Things that have cost time before. Add to this list when something surprises you
   contract data with `CompliantValidator` (as the API response checks in
   `apps/api/tests/Support/Contract` do), and percent-encode `{` and `}` in JSON
   pointers into OpenAPI paths.
+- **The runtime re-encodes device definitions.** `devices.Definition` and
+  `devices.Mapping` use `omitempty`, so a definition the runtime sends on (the
+  internal telemetry message) drops a null `ingress_conversion`, and Go reads an
+  absent `conversion_mode` as `profile`. Write a contract for what each producer
+  actually sends: configuration v2 makes both mapping fields optional for this
+  reason, and the GPS demo seeder's configurations omit both.
 
 ## Local stack
 

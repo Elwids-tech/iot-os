@@ -107,6 +107,31 @@
         ],
         "additionalProperties": false
       }
+    },
+    "adapter": {
+      "description": "Adapter-backed devices only: the hardware installation this configuration was compiled for, written by Laravel from platform enrollment, never from the vendor payload. The runtime accepts adapter readings only when their metric provenance names installation_uuid, and copies the binding into each reading.",
+      "type": "object",
+      "properties": {
+        "installation_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "adapter_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manufacturer_serial": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "installation_uuid",
+        "adapter_uuid",
+        "manufacturer_serial"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

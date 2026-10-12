@@ -1,11 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://iot-os.local/contracts/devices/v1/command.schema.json",
+  "description": "Payload of device.command.v1: set one writable parameter of an active device. Producer: control plane (DeviceCommandService::confirm, for direct and automation commands), through the outbox claim. Consumer: runtime devices-control (handleControl, dispatch). At least once; the runtime deduplicates by command_uuid. Fences: generation, the applied configuration_uuid and session_id. The message around it is {uuid, type, payload, lease_token?}.",
   "type": "object",
   "properties": {
     "command_uuid": {
       "type": "string",
       "format": "uuid"
+    },
+    "generation": {
+      "description": "The device deployment generation the command was confirmed under; the runtime cancels a command whose generation is not the device's current one.",
+      "type": "integer",
+      "minimum": 1
     },
     "device_uuid": {
       "type": "string",
@@ -32,7 +38,11 @@
       ]
     },
     "session_id": {
-      "type": "string",
+      "description": "The source session the runtime's command check reported at confirmation, or null when it reported none. The runtime fails the command when the source session at dispatch differs; it reads null as an empty session, which never matches.",
+      "type": [
+        "string",
+        "null"
+      ],
       "minLength": 1
     },
     "confirmed_at": {
@@ -50,6 +60,7 @@
   },
   "required": [
     "command_uuid",
+    "generation",
     "device_uuid",
     "organization_uuid",
     "configuration_uuid",

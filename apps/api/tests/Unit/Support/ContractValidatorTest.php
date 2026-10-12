@@ -106,16 +106,6 @@ final class ContractValidatorTest extends TestCase
         $this->assertSame(ContractMode::Tolerant, $registry->reading('internal/catalogue.schema.json'));
     }
 
-    public function test_a_schema_without_an_id_is_found_by_path_and_derived_id(): void
-    {
-        // devices/v1/activation.schema.json (device.activate.v1) has no $id until spec 002 T035.
-        $validator = new ContractValidator(self::contracts());
-        $fixture = (string) file_get_contents(self::contractsRoot().'/devices/v1/activation.fixture.json');
-        foreach (['devices/v1/activation.schema.json', ContractRegistry::ID_BASE.'devices/v1/activation.schema.json'] as $reference) {
-            $this->assertSame([], $validator->validateJson($reference, $fixture, ContractMode::Strict), $reference);
-        }
-    }
-
     public function test_assert_produced_names_the_contract_keyword_path_and_missing_field(): void
     {
         $entry = [
@@ -217,6 +207,33 @@ final class ContractValidatorTest extends TestCase
         $this->assertSame(['unevaluatedProperties@'], $this->check($validator, $path, $unevaluated, ContractMode::Strict));
         $this->assertSame([], $this->check($validator, $path, $both, ContractMode::Tolerant));
         $this->assertSame([], $this->check($validator, $path, $unevaluated, ContractMode::Tolerant));
+    }
+
+    /**
+     * Every repository schema has an $id since spec 002 T035, so the derived one is
+     * proved on a tree: a schema without $id is named by its path, by the $id the
+     * checker assumes, and by a relative $ref from another file.
+     */
+    public function test_a_schema_without_an_id_is_found_by_path_and_derived_id(): void
+    {
+        $anonymous = $this->counter('alpha/v1/thing.schema.json');
+        unset($anonymous['$id']);
+        $wrapper = 'internal/events/thing.wrapped.v1.schema.json';
+        $validator = $this->validator([
+            'alpha/v1/thing.schema.json' => $anonymous,
+            $wrapper => $this->schemaAt($wrapper, [
+                'type' => 'object',
+                'properties' => ['thing' => ['$ref' => '../../alpha/v1/thing.schema.json']],
+                'required' => ['thing'],
+                'additionalProperties' => false,
+            ]),
+        ]);
+
+        foreach (['alpha/v1/thing.schema.json', ContractRegistry::ID_BASE.'alpha/v1/thing.schema.json'] as $reference) {
+            $this->assertSame([], $this->check($validator, $reference, '{"count":1}', ContractMode::Strict), $reference);
+            $this->assertSame(['required@'], $this->check($validator, $reference, '{}', ContractMode::Strict), $reference);
+        }
+        $this->assertSame(['required@/thing'], $this->check($validator, $wrapper, '{"thing":{}}', ContractMode::Strict));
     }
 
     public function test_only_the_false_form_in_schema_positions_is_dropped(): void

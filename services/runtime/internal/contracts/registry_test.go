@@ -110,21 +110,6 @@ func TestCatalogueEntriesResolveWithTheirReading(t *testing.T) {
 	}
 }
 
-func TestASchemaWithoutAnIDIsFoundByPathAndDerivedID(t *testing.T) {
-	// devices/v1/activation.schema.json (device.activate.v1) has no $id until spec 002 T035.
-	registry := contractstest.Registry(t)
-	raw, err := os.ReadFile(filepath.Join(registry.Root(), "devices/v1/activation.fixture.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, reference := range []string{"devices/v1/activation.schema.json", contracts.IDBase + "devices/v1/activation.schema.json"} {
-		violations, err := registry.ValidateJSON(reference, raw, contracts.Strict)
-		if err != nil || len(violations) > 0 {
-			t.Fatalf("%s: %v %v", reference, violations, err)
-		}
-	}
-}
-
 func TestAssertProducedNamesTheContractKeywordLocationAndMissingField(t *testing.T) {
 	entry := map[string]any{
 		"id": "device.applied.v1", "group": "event", "schema": "internal/events/device.applied.v1.schema.json",
@@ -341,6 +326,35 @@ func TestTolerantReadingAppliesInsideReferencedFilesAndToUnevaluatedProperties(t
 	}
 	if got := validate(t, registry, relative, data, contracts.Tolerant); len(got) != 0 {
 		t.Fatalf("tolerant: %s", pairs(got))
+	}
+}
+
+// Every repository schema has an $id since spec 002 T035, so the derived one is
+// proved on a tree: a schema without $id is named by its path, by the $id the
+// checker assumes, and by a relative $ref from another file.
+func TestASchemaWithoutAnIDIsFoundByPathAndDerivedID(t *testing.T) {
+	tr := newTree(t)
+	anonymous := counter("alpha/v1/thing.schema.json")
+	delete(anonymous, "$id")
+	tr.json("alpha/v1/thing.schema.json", anonymous)
+	wrapper := "internal/events/thing.wrapped.v1.schema.json"
+	tr.json(wrapper, schemaAt(wrapper, map[string]any{
+		"type":                 "object",
+		"properties":           map[string]any{"thing": map[string]any{"$ref": "../../alpha/v1/thing.schema.json"}},
+		"required":             []string{"thing"},
+		"additionalProperties": false,
+	}))
+	registry := tr.load()
+	for _, reference := range []string{"alpha/v1/thing.schema.json", contracts.IDBase + "alpha/v1/thing.schema.json"} {
+		if got := validate(t, registry, reference, `{"count":1}`, contracts.Strict); len(got) != 0 {
+			t.Fatalf("%s: %s", reference, pairs(got))
+		}
+		if got := pairs(validate(t, registry, reference, `{}`, contracts.Strict)); got != "required@" {
+			t.Fatalf("%s: %s", reference, got)
+		}
+	}
+	if got := pairs(validate(t, registry, wrapper, `{"thing":{}}`, contracts.Strict)); got != "required@/thing" {
+		t.Fatalf("a $ref to the derived id: %s", got)
 	}
 }
 
