@@ -51,7 +51,7 @@ description: "Task list for spec 002: canonical telemetry and internal event con
 - [X] T013 [P] PHP test helpers in apps/api/tests/Support/AssertsContracts.php: `assertProduced($id, $value)` (failure message names the contract id and each failing keyword and data path) and `contractCases($id)`
 - [X] T014 [P] Go registry tests in services/runtime/internal/contracts/registry_test.go: every existing fixture validates strictly; every case matches its verdict in both modes; a missing contracts root yields a disabled registry, not an error
 - [X] T015 [P] PHP validator tests in apps/api/tests/Unit/Support/ContractValidatorTest.php: same assertions as T014 for the PHP side
-- [ ] T016 Copy contracts into the runtime image (`COPY contracts /contracts`, `ENV IOT_CONTRACTS_PATH=/contracts`) in deploy/docker/runtime/Dockerfile; rebuild `runtime` and `api` and confirm both start normally (quickstart step C.5 rebuild command)
+- [X] T016 Copy contracts into the runtime image (`COPY contracts /contracts`, `ENV IOT_CONTRACTS_PATH=/contracts`) in deploy/docker/runtime/Dockerfile; rebuild `runtime` and `api` and confirm both start normally (quickstart step C.5 rebuild command)
 
 **Checkpoint**: both registries validate every existing fixture; images build and start; no behaviour change.
 
