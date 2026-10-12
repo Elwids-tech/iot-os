@@ -52,6 +52,16 @@ today changes as a result.
   organization). It must be declared as such.
 - **Isolation check**: the automated proof described in User Story 1.
 
+## Clarifications
+
+### Session 2026-10-12
+
+- Q: Should each integration event type require its matching read ability in the feed and in webhooks? → A: Yes. Alert events need alert read access, geofence events need geofence read access, and automation-triggered events need only feed access; webhooks filter the same way.
+- Q: What may a super administrator do inside an organization they don't belong to? → A: Everything they can do today, through an explicit platform grant that is evaluated like any other permission and recorded; no bypass. Read-only access with elevation is later hardening.
+- Q: Should a non-member of an existing organization get the same not-found response as for an organization that doesn't exist? → A: Yes. This replaces today's documented refusal for non-members.
+- Q: Should the route walker also substitute other-organization identifiers into body and query reference fields? → A: Yes, for the path identifiers plus the reference fields that the published API contract declares for each route.
+- Q: Should structural scoping be enforced as soon as it lands, or run first in a report-only mode? → A: Enforce as soon as it lands, guarded by the isolation check, the existing suite, and the listed and tested background work of SC-007.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Every tenant route is proven to keep organizations apart (Priority: P1)
@@ -69,10 +79,11 @@ habit into a standing guarantee, and it catches the "single forgotten check" tha
 motivates this feature. It also has value on its own: it can run against today's
 system before anything else changes, and it then guards every later step.
 
-**Independent Test**: Run the check against the current system. It passes, apart
-from the low-severity existence signal recorded in research, which is listed as a
-known gap until User Story 2 removes it. Then remove one hand-written ownership
-check. The check fails and names the affected route.
+**Independent Test**: Run the check against the current system. It passes apart
+from two known gaps, which stay listed until User Story 2 closes them: the
+low-severity existence signal recorded in research, and the non-member refusal that
+FR-003 replaces with not found. Then remove one hand-written ownership check. The
+check fails and names the affected route.
 
 **Acceptance Scenarios**:
 
@@ -83,8 +94,9 @@ check. The check fails and names the affected route.
    response is the same as the response for an identifier that does not exist, and
    none of B's records has changed.
 2. **Given** a person who is a member of A only, **When** the check calls each tenant
-   route of B, **Then** every call is refused, nothing of B is returned, and nothing
-   of B changes.
+   route of B, **Then** every call receives the same not-found response as a call
+   for an organization that does not exist, nothing of B is returned, and nothing of
+   B changes.
 3. **Given** list, search, count and summary routes of A, **When** B holds records that
    would match the same filters, **Then** none of B's records appear in A's results
    or affect A's totals.
@@ -127,9 +139,10 @@ unchanged.
    routes, **Then** they receive the not-found response that a nonexistent
    identifier produces, whatever their permissions.
 2. **Given** a person who is not a member of A, **When** they name an existing record
-   in a route of A, and then a random identifier in the same route, **Then** the two
-   responses are identical (today the first is refused and the second is not found,
-   which reveals that the record exists somewhere).
+   in a route of A, then a random identifier in the same route, then the same route
+   of an organization that does not exist, **Then** all three responses are the same
+   not-found response. Today the first is refused and the others are not found, which
+   reveals both that A exists and that the record exists somewhere.
 3. **Given** a child record, such as a parameter of profile P1, **When** it is requested
    through a different parent (profile P2) in the same organization or in another
    one, **Then** it is not found.
@@ -193,7 +206,7 @@ applies to every integration route, to the event feed and to webhooks.
 
 **Why this priority**: Integration applications are external parties, and their
 abilities are the contract the organization agreed to share. Organization and
-device confinement already hold. What is open is whether event types follow
+device confinement already hold. What changes is that event types now follow
 abilities (FR-024).
 
 **Independent Test**: Create applications with different combinations of abilities
@@ -210,11 +223,17 @@ application.
    never include its events.
 3. **Given** an application that holds an ability but whose token does not, **When**
    it calls a route that needs that ability, **Then** it is forbidden.
-4. **Given** an application with feed access but without alert read access, **When**
-   alert events occur on its granted devices, **Then** delivery follows FR-024.
-5. **Given** an application whose grants change, **When** it reads the feed with an
+4. **Given** an application with feed access and geofence read access but without
+   alert read access, **When** alert, geofence and automation events occur on its
+   granted devices, **Then** its feed delivers the geofence and automation events
+   and never the alert events.
+5. **Given** a webhook application with feed and alert read access but without
+   geofence read access, **When** geofence events occur on its granted devices,
+   **Then** no webhook delivery is created for them, and a delivery that is already
+   pending for such an event is cancelled before it is sent.
+6. **Given** an application whose grants change, **When** it reads the feed with an
    earlier position, **Then** it is told to rebuild from a fresh position, as today.
-6. **Given** an integration credential, **When** it is presented to a portal route,
+7. **Given** an integration credential, **When** it is presented to a portal route,
    **Then** it does not authenticate, as today.
 
 ---
@@ -270,14 +289,15 @@ exercise. It changes no visible behaviour, so it comes last.
 
 **Independent Test**: Run every platform administrator journey (organizations,
 permission ceilings, users, invitations, role templates, platform team, retention,
-and opening an organization from the portal). They behave as specified in FR-027.
+and opening an organization from the portal). They behave exactly as today.
 Remove the explicit grant from a test account, and its access to organizations it
 does not belong to is gone.
 
 **Acceptance Scenarios**:
 
 1. **Given** a super administrator, **When** they open an organization they do not
-   belong to, **Then** they can do what FR-027 specifies, no more.
+   belong to, **Then** they can do everything they can do today, and each decision
+   that relies on their platform grant is recorded.
 2. **Given** a platform administrator who may manage organizations but is not a super
    administrator, **When** they manage an organization's members, roles and
    invitations, **Then** it works as today.
@@ -293,8 +313,10 @@ does not belong to is gone.
 
 - **Foreign record in the path.** Same response as a nonexistent identifier: same
   status, same error body, no side effect and no audit entry that names the foreign
-  record. This also holds for non-members, so a request reveals nothing about
-  whether a record exists in any organization.
+  record. Non-members receive the not-found response of an organization that does
+  not exist, so a request reveals neither whether the organization exists nor
+  whether a record exists in any organization. A member who lacks a permission is
+  still refused, as today.
 - **Child under the wrong parent.** A child named through a parent it does not
   belong to is not found, even when both are in the acting organization.
 - **Partly foreign reference lists.** A list of references with some foreign or
@@ -322,10 +344,13 @@ does not belong to is gone.
   today. A mismatch is an unknown reference.
 - **Malformed identifiers.** These are not found before any lookup, as today.
 - **A super administrator who is also a member.** Inside organizations they belong
-  to, their member roles apply as for anyone else. The platform grant only matters in
-  organizations they do not belong to.
+  to, their member roles apply as for anyone else, and only decisions their roles
+  would deny rely on the platform grant and are recorded (FR-027, FR-028).
 - **Integration application revoked or regranted while reading.** The next call is
   refused or told to rebuild from a fresh position, as today.
+- **Events from before the ability filter.** Once the filter is in place, it applies
+  to everything an application reads, including events recorded earlier. A reader
+  that resumes from an earlier position skips the types it may not read.
 
 ## Requirements *(mandatory)*
 
@@ -344,10 +369,11 @@ does not belong to is gone.
   check membership themselves today.
 - **FR-003**: Membership MUST be confirmed before any record named in the request is
   looked up and before any permission is evaluated. A person who is not a member of
-  an existing organization MUST receive
-  [NEEDS CLARIFICATION: a refusal (as documented today), or the same not-found
-  response as an organization that does not exist?] and the response MUST be
-  identical whatever records the request names.
+  an existing organization MUST receive the same not-found response as for an
+  organization that does not exist, whatever records the request names. This applies
+  to the portal, organization administration and integration routes alike. It
+  replaces the refusal that the access documentation describes today; platform
+  access under FR-027 is the only exception.
 - **FR-004**: Work that reads or changes tenant-owned records without an organization
   context MUST refuse to run, unless it is declared platform-wide (FR-021).
 
@@ -425,11 +451,15 @@ does not belong to is gone.
   its token hold. Another organization or an ungranted device is "not found"; a
   missing ability is "forbidden" (as today).
 - **FR-024**: The event feed and webhooks MUST deliver an event to an application only
-  for its granted devices and
-  [NEEDS CLARIFICATION: should each event type require its matching read ability
-  (alert events need alert read access, geofence events need geofence read access),
-  or does feed access plus either read ability keep covering every event type, as
-  today and as documented?]
+  when it concerns one of the application's granted devices and the application holds
+  the read ability for the event's type. Alert events need alert read access,
+  geofence events need geofence read access, and automation-triggered events need
+  only feed access. An event type added later MUST declare its required ability
+  before it can be delivered. The conditions for reaching the feed and configuring a
+  webhook stay as today. Skipped events advance the reader's position like other
+  skipped events. A webhook delivery that no longer qualifies is cancelled before it
+  is sent. This changes documented integration behaviour, so the integration
+  documentation and the event reference MUST change with it.
 - **FR-025**: Integration credentials MUST NOT authenticate portal routes, and portal
   sessions MUST NOT authenticate integration routes (as today).
 
@@ -441,13 +471,16 @@ does not belong to is gone.
   explicit platform permissions evaluated by the same decision point as tenant
   permissions, not from a blanket bypass of membership and permission checks.
 - **FR-027**: In an organization they do not belong to, a super administrator MUST be
-  able to do
-  [NEEDS CLARIFICATION: everything they can do today, but through an explicit
-  platform grant; read-only by default, with explicit elevation for changes; or
-  nothing, outside the platform administration routes?]
-- **FR-028**: Any authorization decision that relies on platform access inside an
-  organization MUST be recognisable as such in the platform's logs or audit records,
-  so that cross-organization access is never silent.
+  able to do everything they can do today, including changes and device commands.
+  This access MUST come from an explicit platform grant, held by super administrators
+  and evaluated by the same decision point as every other permission, not from a
+  bypass. Removing the grant removes the access. A super administrator who is a
+  member of an organization acts there with their member roles as well, and the
+  grant applies only where those roles fall short.
+- **FR-028**: Every authorization decision that relies on platform access inside an
+  organization MUST be recorded, with the person, the organization, the action and
+  when it happened, so that cross-organization access is never silent. Reads are
+  recorded at most once per request.
 
 **Isolation check**
 
@@ -456,7 +489,8 @@ does not belong to is gone.
   and method, using two organizations, it MUST prove that:
   - another organization's records named in the path give the same response as
     nonexistent identifiers;
-  - non-members are refused identically, whatever the request names;
+  - non-members get the same not-found response as for an organization that does
+    not exist, whatever the request names;
   - no record of the other organization appears in the response or changes;
   - for integration routes, an application of the other organization, a token that
     lacks the route's ability, and an ungranted device are each handled as FR-023
@@ -541,7 +575,13 @@ does not belong to is gone.
 - **SC-008**: Exactly one mechanism runs a step "as organization X", down from 9
   separate implementations in application code.
 - **SC-009**: Every platform administrator journey listed in Story 6 succeeds as
-  specified, with zero regressions in the platform administration routes.
+  today, with zero regressions in the platform administration routes. 100% of
+  decisions that rely on the platform grant inside an organization are recorded.
+- **SC-010**: Across every combination of integration abilities, the feed and webhooks
+  deliver zero events of a type whose read ability the application lacks, and every
+  event the application may read for its granted devices.
+- **SC-011**: For non-members, every tenant route returns a response
+  indistinguishable from the response for an organization that does not exist.
 
 ## Assumptions
 
@@ -557,10 +597,14 @@ does not belong to is gone.
 - **Body references.** The isolation check proves body and query references for the
   fields the published API contract declares (FR-030). Fields it does not declare are
   covered by the same structural confinement and by domain tests.
-- **Rollout.** Structural scoping is enforced as soon as it lands. The isolation check
-  and the existing suite guard it, with no report-only phase. A legitimate request
-  never names another organization's records, so only cross-organization requests are
-  newly refused.
+- **Rollout.** Structural scoping is enforced as soon as it lands, with no report-only
+  phase. The isolation check, the existing suite, and the listed and tested background
+  work of SC-007 guard it. A legitimate request never names another organization's
+  records, so only cross-organization requests are newly refused.
+- **Documented behaviour that changes.** Non-members now receive not found instead
+  of a refusal (FR-003). `docs/features/access.md` and the published API description
+  change with it. Event delivery now follows abilities (FR-024), so
+  `docs/features/integrations.md` and the event reference change with it.
 - **Hand-written checks.** Duplicated organization and parent checks may be removed
   where structural confinement covers them. Business rules (states, revisions, limits)
   stay.
@@ -579,6 +623,8 @@ does not belong to is gone.
     logic or assistant tools composing requests. That is a separate roadmap item;
     FR-020 only requires that such paths stay confined.
   - New integration abilities, except event delivery under FR-024.
+  - Read-only access for super administrators with explicit elevation for changes,
+    which is later hardening on top of the explicit grant.
 - **Dependencies.** The published API contract from spec 001 supplies request shapes
   and reference fields to the isolation check. Continuous integration already runs
   the suite on the production storage engine.
