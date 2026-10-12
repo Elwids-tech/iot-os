@@ -2,7 +2,9 @@
 """Validate the versioned contracts in contracts/ without relying on any runtime's serializer.
 
 Every *.schema.json under a contracts/**/v<N>/ directory or contracts/internal/ is
-checked, so a new contract directory needs no change here:
+checked, so a new contract directory needs no change here. contracts/openapi/ is
+skipped: the HTTP API description and its tooling schemas have their own gate,
+`php artisan contract:check` (ADR-016).
 
 - the schema is Draft 2020-12, its $id is its path under contracts/ (assumed when
   absent), and every $ref resolves;
@@ -179,6 +181,16 @@ class Contract:
         return set(self.schema) <= DEFINITION_KEYS
 
 
+# Directories with their own gate. The OpenAPI description, its supplements and the
+# schemas of its tooling files are checked by `php artisan contract:check` (ADR-016);
+# they are not messages exchanged between components.
+SEPARATELY_CHECKED = ("openapi",)
+
+
+def separately_checked(parts):
+    return bool(parts) and parts[0] in SEPARATELY_CHECKED
+
+
 def checked_directory(parts):
     return bool(parts) and (parts[0] == "internal" or any(VERSION_DIRECTORY.fullmatch(part) for part in parts))
 
@@ -203,12 +215,16 @@ class Checker:
 
     def discover(self):
         for path in sorted(self.contracts_root.rglob("*.schema.json")):
+            if separately_checked(path.parent.relative_to(self.contracts_root).parts):
+                continue
             if checked_directory(path.parent.relative_to(self.contracts_root).parts):
                 self.contracts.append(Contract(path, self.contracts_root))
             else:
                 self.report.fail(path, "schemas live under a v<N>/ directory or contracts/internal/, where this checker finds them")
         stems = {(contract.path.parent, contract.stem) for contract in self.contracts}
         for path in sorted(self.contracts_root.rglob("*.cases.json")):
+            if separately_checked(path.parent.relative_to(self.contracts_root).parts):
+                continue
             stem = path.name.removesuffix(".cases.json")
             if (path.parent, stem) not in stems:
                 self.report.fail(path, f"no {stem}.schema.json in a checked directory beside this cases file")

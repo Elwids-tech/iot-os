@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/openapi/supplement.schema.json",
+  "title": "Contract supplement",
+  "description": "Hand-written additions merged into the generated contract by the export. A supplement may describe responses, add components, examples, webhooks and x- fields; it may not add or remove operations (an operation key that matches no route fails the export).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "info": {
+      "description": "Only in info.yaml.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version"],
+      "properties": {
+        "version": { "type": "string", "pattern": "^1\\.[0-9]+\\.[0-9]+$" },
+        "description": { "type": "string" }
+      }
+    },
+    "components": {
+      "description": "OpenAPI components objects (schemas, responses, headers, examples, parameters; securitySchemes only in shared.yaml). Names must not collide with inferred components.",
+      "type": "object",
+      "propertyNames": { "enum": ["schemas", "responses", "headers", "examples", "parameters", "securitySchemes"] },
+      "additionalProperties": { "type": "object" }
+    },
+    "operations": {
+      "type": "object",
+      "propertyNames": { "pattern": "^(GET|POST|PUT|PATCH|DELETE) /(v1|integration/v1)/\\S*$" },
+      "additionalProperties": { "$ref": "#/$defs/operationPatch" }
+    },
+    "webhooks": {
+      "description": "OpenAPI 3.1 webhooks (integration only); each operation must carry x-audience: integration.",
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "operationPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string" },
+        "description": { "type": "string" },
+        "responses": {
+          "description": "Per status; replaces the inferred response for that status. Use $ref to components.responses for shared errors.",
+          "type": "object",
+          "propertyNames": { "pattern": "^[1-5][0-9]{2}$" },
+          "additionalProperties": { "type": "object" }
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      }
+    }
+  },
+  "examples": [
+    {
+      "operations": {
+        "GET /integration/v1/organizations/{organization}/events": {
+          "summary": "Read the event feed after a cursor",
+          "x-abilities": { "all": ["events:read"], "any_of": [["alerts:read", "geofences:read"]] },
+          "responses": {
+            "200": {
+              "description": "A page of events in commit order.",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EventPage" } } }
+            },
+            "409": { "$ref": "#/components/responses/GrantChanged" },
+            "422": { "$ref": "#/components/responses/ValidationFailed" }
+          }
+        },
+        "GET /integration/v1/organizations/{organization}/devices/{uuid}/locations/{event}": {
+          "responses": {
+            "200": {
+              "description": "The fix resolved through the selected binding.",
+              "x-runtime-shaped": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "required": ["version_uuid", "data"],
+                    "properties": {
+                      "version_uuid": { "type": "string", "format": "uuid" },
+                      "data": { "$ref": "../location/v1/fix.schema.json" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -18,6 +18,8 @@ node_modules/
 .turbo/
 coverage/
 dist/
+# Contract bundles and API references, built in CI and never committed.
+contracts/openapi/dist/
 *.tsbuildinfo
 playwright-report/
 test-results/

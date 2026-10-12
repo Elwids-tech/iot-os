@@ -17,9 +17,9 @@
       }
     },
     "components": {
-      "description": "OpenAPI components objects (schemas, responses, headers, examples, parameters). Names must not collide with inferred components.",
+      "description": "OpenAPI components objects (schemas, responses, headers, examples, parameters; securitySchemes only in shared.yaml). Names must not collide with inferred components.",
       "type": "object",
-      "propertyNames": { "enum": ["schemas", "responses", "headers", "examples", "parameters"] },
+      "propertyNames": { "enum": ["schemas", "responses", "headers", "examples", "parameters", "securitySchemes"] },
       "additionalProperties": { "type": "object" }
     },
     "operations": {

@@ -159,6 +159,14 @@ class Discovery(unittest.TestCase):
         [error] = tree.errors()
         self.assertIn("contracts/loose/thing.schema.json", error)
 
+    def test_the_openapi_directory_is_left_to_its_own_gate(self):
+        # contracts/openapi/ holds the HTTP API description and schemas for its tooling
+        # files; `php artisan contract:check` checks them, not this script.
+        tree = Tree(self)
+        tree.json("openapi/meta/supplement.schema.json", {"type": "object"})
+        tree.json("openapi/meta/supplement.cases.json", {"cases": []})
+        self.assertEqual([], tree.errors())
+
     def test_an_id_that_does_not_match_the_path_is_refused(self):
         tree = Tree(self)
         tree.contract("alpha/v1/thing", counter_schema("alpha/v1/elsewhere.schema.json"), {"count": 1})

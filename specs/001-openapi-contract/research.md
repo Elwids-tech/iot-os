@@ -290,3 +290,61 @@ job; the Contract job finishes before the API job). SC-008 allows 3.
 it visible (job summary and annotations). Whether to also require a code owner's
 approval for `contracts/openapi/breaking-exceptions.json` through a `CODEOWNERS` file
 (none exists today) is left to the owner; see the plan's open decisions.
+
+## R1 spike results (PR 1 spike, 2026-10-11)
+
+Scramble 0.13.47 exported the application on branch `feat/001-contract-skeleton` (main
+at `4ce84fa`) with the T004 configuration: `api_path` `api`, a route resolver keeping
+`api/v1/*` and `api/integration/v1/*`, default routes off. Figures below come from that
+export compared with `php artisan route:list --json` and the controllers.
+
+**Verdict: Scramble serves the plan.** Route groups, the `auth:sanctum` and
+`AuthenticateApplication:<ability>` middleware and named limiters are all readable from
+each route (`Router::gatherRouteMiddleware`), so the security transformer needs nothing
+from Scramble's inference. The gaps below are handled inside PR 1 or were already
+planned as supplements; none changes the approach.
+
+### What it inferred well
+
+- **Inventory**: 247 operations for 247 in-scope route methods (18 integration, 229
+  `api/v1`); every path template equals the route URI, so `METHOD /path` keys match the
+  router exactly. The default method resolver documents only the first method of a
+  route, which would have dropped `PUT workflows/dag/settings`; the provider resolves
+  every method except HEAD.
+- **Request input from form requests and inline `validate()`**: the form requests and
+  inline rules of the 92 operations checked, with types, bounds and enums
+  (for example `cursor` `maxLength 4096`, `limit` 1 to 100, `max_points` 10 to 1000,
+  `trail_window` enum, `device_uuids` uuid items).
+- **Success statuses**: right for all 92 operations (200, 201, 202, 204), including the
+  202 of geofence create and update.
+- **401 on session routes**: on all 224 `auth:sanctum` operations. **404**: on 225 of
+  247 operations (route model binding and `firstOrFail`).
+- **Speed**: about 3 seconds for the whole application, against a 60-second budget.
+
+### What it missed or got wrong
+
+| Area | Finding | Handling |
+| --- | --- | --- |
+| Database | Model inference reads the database schema. On an unmigrated database the export differs by 13,951 lines; migrated PostgreSQL and migrated SQLite exports are byte-identical. | `contract:export` migrates a private in-memory SQLite connection before generating, so the output does not depend on the developer's database. |
+| Path constraints | Route `wheres` are ignored: none of the 247 operations carries `whereUuid`, `whereNumber` or `where`; 9 get `format: uuid` from a model's route key. R1's claim that path constraints are inferred was wrong. | `PathConstraintTransformer` (PR 1) writes each route's constraints into its path parameters, so G1 catches a changed constraint (quickstart B2, change 3). |
+| Validation in helper methods (integration) | 6 of 18 operations miss rules: `GET devices` and `GET alerts` (`pagination()`: `page` 1 to 100000, `per_page` 1 to 100), `GET telemetry/history` and `GET telemetry/records` (`window()`: required `parameter_uuid`, `from`, `to`), `POST geofences` and `PUT geofences/{uuid}` (`input()`: the whole body, so no request body at all). The other 12 are right. | Scramble parameter attributes in PR 3 (T034, T035), as planned. |
+| Unvalidated query reads (first 74) | `per_page` and `search` read with `$request->query()` are missing on `GET members`, `GET invitations` (`per_page` only) and `GET admin/{invitations,organizations,platform-team,roles,users}`; `organization` is missing on `GET admin/roles` and `GET admin/users` (7 operations). | Parameter attributes in PR 6 (T054 to T056). |
+| Shared form requests on DELETE (first 74) | `DELETE alarm-templates/{alarm}` and `DELETE parameters/{parameter}` reuse the upsert form request, so every upsert field appears as an optional query parameter. It is what the code validates, but misleading. | Review in PR 7 (T060). |
+| Rule evaluation (pending domains) | `PUT dashboards/{dashboard}/access` loses all request rules (`private const MAX_SHARES`); `DeviceController@index` `sort` and `ApplicationController@rotate` `abilities.*` lose one `Rule::in(self::…)` rule each. Scramble writes the error into the operation description with an absolute path. | The export strips the checkout path from descriptions; the rules are fixed when those domains leave the pending list. |
+| Integration errors | No 401, 403 (ability), 419 or 429 for any integration operation: they come from `AuthenticateApplication` and `throttle`. 422 is missing where rules are missed; 503 and 504 (runtime) are never inferred. | Security transformer (PR 1) for 401, 403, 404, 419, 429; supplements (PR 3) for 503 and 504. |
+| Integration bodies | 9 of 18 success bodies are open in part (telemetry `data` items, geofence geometry, location-map devices); the other 9 have wrong leaf types (compact-page `meta` fields as strings, location-fix `data` as a string). | All 18 are supplemented in PR 3, as planned. |
+| First 74 bodies | 12 are 204 with no body. Of the other 62: 11 are closed and plausibly typed; 15 rely on a resource whose model Scramble cannot infer (JR001 on 9 resource classes, so `GET /v1/me` has `id: string` and string `capabilities`); 36 are open in part, mostly JSON columns cast to arrays (profile `definition`, `extensions`, `validation_logic`, notification `grid`). | 51 of 62 (82%) need a supplement or a `@mixin` docblock on the resource, against the "about half" assumed. Sizes of PR 6 and PR 7 updated in [plan.md](plan.md). |
+| 403 and 419 on session routes | 403 only where the controller visibly aborts or authorizes (32 of 44 first-74 organization operations, 42 of 155 pending ones, all 19 platform-administration ones through `can:`); 419 never. | Security transformer adds 403 to every organization-scoped, ability or `can:` operation and 419 to every unsafe `api/v1` operation. |
+
+### Other observations
+
+- Without `Scramble::ignoreDefaultRoutes()` the application gains `GET docs/api` and
+  `GET docs/api.json`; Scramble's development tools would add
+  `GET _scramble/dev-tools/devtools.js` whenever `APP_DEBUG` is on, so
+  `config/scramble.php` turns them off. With both, the route list has the same 262
+  routes as main.
+- Scramble passes `servers` through `url()`, which makes them absolute and dependent on
+  `APP_URL`; the export writes `servers: [{url: /api}]` itself.
+- PR 1 validates supplements and the pending list against `contracts/openapi/meta/`
+  (T010, T013), which needs a JSON Schema validator, so the `opis/json-schema` 2.6.0
+  dev dependency planned for PR 2 (T023) arrives in PR 1.

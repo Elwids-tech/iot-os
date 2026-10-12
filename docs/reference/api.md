@@ -1,11 +1,42 @@
 # API surface
 
 The Laravel API is the only public API ([ADR-002](../adr/ADR-002-laravel-control-plane.md)).
-There is **no OpenAPI description**; routes live with their domain in
-`apps/api/app/Domain/*/routes*`, loaded from
-[`apps/api/routes/api.php`](../../apps/api/routes/api.php) (all under `/api`), and
-the TypeScript client [`packages/api-client`](../../packages/api-client) is written
-by hand. Feature pages document endpoints in detail; this page maps the groups.
+Routes live with their domain in `apps/api/app/Domain/*/routes*`, loaded from
+[`apps/api/routes/api.php`](../../apps/api/routes/api.php) (all under `/api`). The
+[contract](#contract) describes `/api/v1` and `/api/integration/v1` operation by
+operation; the TypeScript client [`packages/api-client`](../../packages/api-client) is
+still written by hand. Feature pages document endpoints in detail; this page maps the
+groups.
+
+## Contract
+
+[`contracts/openapi/openapi.json`](../../contracts/openapi) is the OpenAPI 3.1
+description of every operation under `/api/v1` and `/api/integration/v1`
+([ADR-016](../adr/ADR-016-public-api-contract.md)). `/api/internal` and the routes
+outside `/api` are not in it. Each operation states its parameters and path
+constraints, request body, status codes, security scheme (`session` or
+`applicationToken`), `x-audience`, integration abilities, organization scoping,
+platform permission and rate limits
+([extensions](../../specs/001-openapi-contract/contracts/openapi-extensions.md)).
+
+- **Generated, never edited by hand.** `cd apps/api && php artisan contract:export`
+  rebuilds it from the routes, validation rules and resources (Scramble) plus the
+  hand-written supplements in `contracts/openapi/supplements/`. Run it after changing a
+  route, middleware, validation rule or resource, and commit the result with the code.
+- **Pending bodies.** Operations listed in `contracts/openapi/pending-schemas.json` have
+  open success bodies (`x-schema-status: pending`); everything else about them is
+  described. The list only shrinks: a new operation needs a described response, either
+  inferred or in a supplement.
+- **Checked in CI** (API job): `php artisan contract:export --check` fails when the
+  committed file is not a fresh export, `php artisan contract:check --base=origin/main`
+  fails on an undescribed body or a longer pending list, and
+  `tests/Feature/Contract/RouteInventoryTest.php` fails when routes and operations
+  disagree.
+
+The workflow for changing an endpoint is in the
+[spec 001 quickstart](../../specs/001-openapi-contract/quickstart.md#part-a-adding-or-changing-an-endpoint);
+the steps for generated types and breaking-change checks arrive with later spec 001
+pull requests.
 
 ## Route groups
 
@@ -63,10 +94,11 @@ by hand. Feature pages document endpoints in detail; this page maps the groups.
 - **Capabilities.** `GET /api/v1/me` and the organization context return
   capability flags the UI uses to show or hide features. They are hints; the API
   enforces permissions itself.
-- **Rate limits.** Login has no throttle. Password recovery, invitations,
-  onboarding, telemetry captures, assistant messages, adapter tests and deploys,
-  application management (30/min) and the integration API (60/min per application,
-  240/min per IP) are throttled per route.
+- **Rate limits.** Sign-in (5/min per account and address, 30/min per address),
+  password recovery, invitations, onboarding, telemetry captures, assistant
+  messages, adapter tests and deploys, application management (30/min) and the
+  integration API (60/min per application, 240/min per IP) are throttled per route.
+  The contract lists each operation's limits in `x-rate-limits`.
 
 ## Internal runtime API
 
