@@ -15,8 +15,10 @@ use App\Domain\Geospatial\Models\GeofenceActivationBatch;
 use App\Domain\Geospatial\Models\GeofenceAssignment;
 use App\Domain\Geospatial\Models\LocationBinding;
 use App\Domain\Shared\Models\Organization;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 final class GeofenceService
@@ -25,6 +27,7 @@ final class GeofenceService
 
     public function saveAndActivate(Organization $organization, ?Geofence $fence, array $input, ?int $actor, ?string $application = null): array
     {
+        $input = $this->numbers($input);
         $requestHash = $this->requestHash($fence, $input);
         if ($existing = $this->existingBatch($organization, $fence, $input['operation_uuid'], $requestHash, $actor, $application)) {
             $existingFence = Geofence::where('organization_id', $organization->id)->findOrFail($existing->geofence_id);
@@ -121,16 +124,22 @@ final class GeofenceService
         $items = DB::table('geofence_activation_items')->where('geofence_activation_batch_id', $batch->id)
             ->when($onlyItem, fn ($query) => $query->where('id', $onlyItem))->get();
         foreach ($items as $item) {
-            $assignment = GeofenceAssignment::findOrFail($item->geofence_assignment_id);
-            $workflow = Workflow::findOrFail($assignment->automation_workflow_id);
+            $assignment = null;
             try {
+                $assignment = GeofenceAssignment::findOrFail($item->geofence_assignment_id);
+                $workflow = Workflow::findOrFail($assignment->automation_workflow_id);
                 app(WorkflowDeploymentService::class)->request($workflow, ['operation_uuid' => $item->operation_uuid,
                     'target_state' => $item->target, 'draft_revision' => $workflow->draft_revision,
                     'expected_generation' => $workflow->deployment_generation], $batch->created_by ?? $workflow->updated_by);
-            } catch (HttpExceptionInterface $error) {
+            } catch (HttpExceptionInterface|ValidationException|ModelNotFoundException $error) {
+                // Nothing was requested (the deployment transaction rolled back): the item
+                // fails with the reason, the rest are still requested, and it can be retried.
+                $diagnostic = $error instanceof ModelNotFoundException
+                    ? 'The '.Str::snake(class_basename($error->getModel()), ' ').' for this activation no longer exists.'
+                    : $error->getMessage();
                 DB::table('geofence_activation_items')->where('id', $item->id)->update(['status' => 'failed',
-                    'diagnostic' => $error->getMessage(), 'updated_at' => now()]);
-                $assignment->update(['status' => 'failed', 'diagnostic' => $error->getMessage()]);
+                    'diagnostic' => $diagnostic, 'updated_at' => now()]);
+                $assignment?->update(['status' => 'failed', 'diagnostic' => $diagnostic]);
             }
         }
     }
@@ -217,6 +226,23 @@ final class GeofenceService
                     'max_gap_seconds' => $policy['max_gap_seconds'], 'minimum_samples' => $policy['minimum_samples']]],
                 ['id' => '3', 'type' => 'alert.condition.v1', 'config' => (object) []],
             ], 'edges' => [['source' => '0', 'target' => '1'], ['source' => '1', 'target' => '2'], ['source' => '2', 'target' => '3']]];
+    }
+
+    /**
+     * The rules accept numeric strings ("51.5", "60"); store, hash and compare numbers.
+     * Numbers pass through unchanged, so their request hash is unchanged.
+     */
+    private function numbers(array $input): array
+    {
+        $number = fn (mixed $value): mixed => is_string($value) ? $value + 0 : $value;
+        $input['expected_revision'] = (int) $input['expected_revision'];
+        $input['geometry']['coordinates'] = array_map(fn (array $ring): array => array_map(
+            fn (array $position): array => array_map($number, $position), $ring), $input['geometry']['coordinates']);
+        foreach ($input['assignments'] as $index => $assignment) {
+            $input['assignments'][$index]['policy'] = array_map($number, $assignment['policy']);
+        }
+
+        return $input;
     }
 
     private function requestHash(?Geofence $fence, array $input): string
