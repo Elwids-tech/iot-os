@@ -63,6 +63,10 @@ jobs:
           printf 'APP_KEY=%s\n' "$test_key" >> "$GITHUB_ENV"
       - run: vendor/bin/pint --test
       - run: php artisan help:validate
+      # Public API contract (specs/001-openapi-contract): G1 export is fresh, G3 pending list only shrinks.
+      - run: git fetch --depth=1 origin main
+      - run: php artisan contract:export --check
+      - run: php artisan contract:check --base=origin/main
       - run: php artisan test --compact
 
   runtime:
