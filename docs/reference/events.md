@@ -20,7 +20,7 @@ file storage, limits retention, a **seven-day maximum age** and **discard-new**.
 | --- | --- | --- | --- | --- |
 | `IOT_DEVICE_CONTROL` | `iot.control.<type>` | Laravel outbox rows claimed by the runtime | 64 MiB → 64 MiB | `IOT_NATS_CONTROL_MAX_BYTES` |
 | `IOT_DEVICE_EVENTS` | `iot.runtime.<type>` | Runtime events on their way to Laravel | 256 MiB → 4 GiB | `IOT_NATS_EVENTS_MAX_BYTES` |
-| `IOT_DEVICE_TELEMETRY` | `iot.telemetry.>` (published as `iot.telemetry.device`) | Mapped readings before storage | 768 MiB → 12 GiB | `IOT_NATS_TELEMETRY_MAX_BYTES` |
+| `IOT_DEVICE_TELEMETRY` | `iot.telemetry.>` (published as `iot.telemetry.device`) | Mapped readings before storage ([schema](../../contracts/devices/v1/telemetry.schema.json)) | 768 MiB → 12 GiB | `IOT_NATS_TELEMETRY_MAX_BYTES` |
 | `IOT_COMMITTED_TELEMETRY` | `iot.committed.telemetry.v1` | Readings after they are stored | 768 MiB → 4 GiB | `IOT_NATS_COMMITTED_MAX_BYTES` |
 | `IOT_DEAD_LETTERS` | `iot.deadletter.<consumer>` | Messages a consumer could not process | | |
 
@@ -58,9 +58,23 @@ republished to `IOT_DEVICE_CONTROL`, then acknowledged.
 | `connection.changed.v1` | Broker provisioning | Re-read `GET /api/internal/devices/state` |
 | `settings.retention.changed.v1` | Retention change | No-op; retention is read from state |
 
-Payload schemas: [`contracts/devices/v1`](../../contracts/devices/v1) (activation,
-command), [`contracts/devices/v2`](../../contracts/devices/v2) (configuration),
-[`contracts/rules`](../../contracts/rules) (deployments, workflows).
+Contracts, each with a fixture and cases:
+
+- `device.activate.v1`, the whole message with its optional `lease_token`:
+  [`devices/v1/activation.schema.json`](../../contracts/devices/v1/activation.schema.json).
+- The `device.command.v1` payload, with `generation` and a `session_id` that is
+  null when the command check reported no session:
+  [`devices/v1/command.schema.json`](../../contracts/devices/v1/command.schema.json).
+- Inline definitions: [`device-configuration.v1`](../../contracts/devices/v1/configuration.schema.json)
+  and [`device-configuration.v2`](../../contracts/devices/v2/configuration.schema.json),
+  with an `adapter` binding for adapter-backed devices.
+- Deployments and workflows: [`contracts/rules`](../../contracts/rules).
+
+The other control messages have no contract yet. Laravel's producer test
+([`DriftedControlMessageTest`](../../apps/api/tests/Feature/Domain/Devices/Contracts/DriftedControlMessageTest.php))
+asserts claimed rows against these schemas, and the runtime's
+[`contracts_drift_test.go`](../../services/runtime/internal/app/contracts_drift_test.go)
+feeds every example through its decoders.
 
 ## Runtime events (Go → Laravel)
 
@@ -99,6 +113,8 @@ for trusted services (it mixes organizations), not a tenant API.
   reading has `parameter_uuid`, `key`, `data_type`, `unit`, `value`, `quality`
   (`good` = observation, otherwise a stored diagnostic), optional `diagnostic`,
   `observed_at`, `received_at`, `historical` and optional `timestamp_source`.
+  Readings of adapter devices also carry `installation_uuid`,
+  `adapter_revision_uuid` and `manufacturer_serial`.
 - Written to `device_runtime.telemetry_outbox` in the same transaction as the
   readings; rejected configurations, empty packets and rolled-back writes publish
   nothing. A relay publishes up to 100 rows at a time with the event ID as

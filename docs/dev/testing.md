@@ -84,6 +84,11 @@ the schema: the envelope reader, not the schema, refuses it.
 [`registry_test.go`](../../services/runtime/internal/contracts/registry_test.go) and
 [`ContractValidatorTest`](../../apps/api/tests/Unit/Support/ContractValidatorTest.php)
 check every fixture and case in both modes on each side.
+Producer and consumer tests that use them live next to the code they exercise, for
+example [`DriftedControlMessageTest`](../../apps/api/tests/Feature/Domain/Devices/Contracts/DriftedControlMessageTest.php)
+(control messages Laravel writes) and
+[`contracts_drift_test.go`](../../services/runtime/internal/app/contracts_drift_test.go)
+(the runtime decoding every accepted example).
 
 ## Laravel
 
