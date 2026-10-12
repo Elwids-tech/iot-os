@@ -1,0 +1,203 @@
+[
+  {
+    "description": "an empty catalogue",
+    "valid": true,
+    "data": []
+  },
+  {
+    "description": "an envelope-family entry without producer tests while nothing produces the envelope",
+    "valid": true,
+    "data": [
+      {
+        "id": "telemetry.envelope.v1",
+        "group": "envelope",
+        "schema": "ingestion/v1/telemetry.envelope.v1.schema.json",
+        "producer": "adapter",
+        "consumer": "ingestion",
+        "dedup": "message_id",
+        "fences": [],
+        "reading": "strict",
+        "live_check": "none",
+        "producer_tests": [],
+        "consumer_tests": [
+          "services/runtime/internal/ingestion/envelope/reader_test.go"
+        ]
+      }
+    ]
+  },
+  {
+    "description": "an internal entry without producer tests",
+    "valid": false,
+    "error": {
+      "keyword": "minItems",
+      "instance_location": "/0/producer_tests"
+    },
+    "data": [
+      {
+        "id": "device.applied.v1",
+        "group": "event",
+        "schema": "internal/events/device.applied.v1.schema.json",
+        "producer": "runtime",
+        "consumer": "control_plane",
+        "dedup": "uuid",
+        "fences": [
+          "generation",
+          "operation_uuid",
+          "configuration_uuid"
+        ],
+        "reading": "tolerant",
+        "live_check": "control_plane:events",
+        "producer_tests": [],
+        "consumer_tests": [
+          "apps/api/tests/Feature/Domain/Devices/Contracts/RuntimeEventConsumerTest.php"
+        ]
+      }
+    ]
+  },
+  {
+    "description": "an entry without consumer tests",
+    "valid": false,
+    "error": {
+      "keyword": "minItems",
+      "instance_location": "/0/consumer_tests"
+    },
+    "data": [
+      {
+        "id": "telemetry.envelope.v1",
+        "group": "envelope",
+        "schema": "ingestion/v1/telemetry.envelope.v1.schema.json",
+        "producer": "adapter",
+        "consumer": "ingestion",
+        "dedup": "message_id",
+        "fences": [],
+        "reading": "strict",
+        "live_check": "none",
+        "producer_tests": [],
+        "consumer_tests": []
+      }
+    ]
+  },
+  {
+    "description": "an unknown group",
+    "valid": false,
+    "error": {
+      "keyword": "enum",
+      "instance_location": "/0/group"
+    },
+    "data": [
+      {
+        "id": "device.applied.v1",
+        "group": "query",
+        "schema": "internal/events/device.applied.v1.schema.json",
+        "producer": "runtime",
+        "consumer": "control_plane",
+        "dedup": "uuid",
+        "fences": [
+          "generation",
+          "operation_uuid",
+          "configuration_uuid"
+        ],
+        "reading": "tolerant",
+        "live_check": "control_plane:events",
+        "producer_tests": [
+          "services/runtime/internal/storage/contracts_events_integration_test.go"
+        ],
+        "consumer_tests": [
+          "apps/api/tests/Feature/Domain/Devices/Contracts/RuntimeEventConsumerTest.php"
+        ]
+      }
+    ]
+  },
+  {
+    "description": "an id without a major version",
+    "valid": false,
+    "error": {
+      "keyword": "pattern",
+      "instance_location": "/0/id"
+    },
+    "data": [
+      {
+        "id": "device.applied",
+        "group": "event",
+        "schema": "internal/events/device.applied.v1.schema.json",
+        "producer": "runtime",
+        "consumer": "control_plane",
+        "dedup": "uuid",
+        "fences": [
+          "generation",
+          "operation_uuid",
+          "configuration_uuid"
+        ],
+        "reading": "tolerant",
+        "live_check": "control_plane:events",
+        "producer_tests": [
+          "services/runtime/internal/storage/contracts_events_integration_test.go"
+        ],
+        "consumer_tests": [
+          "apps/api/tests/Feature/Domain/Devices/Contracts/RuntimeEventConsumerTest.php"
+        ]
+      }
+    ]
+  },
+  {
+    "description": "a schema path that leaves contracts/",
+    "valid": false,
+    "error": {
+      "keyword": "pattern",
+      "instance_location": "/0/schema"
+    },
+    "data": [
+      {
+        "id": "device.applied.v1",
+        "group": "event",
+        "schema": "../apps/api/schema.schema.json",
+        "producer": "runtime",
+        "consumer": "control_plane",
+        "dedup": "uuid",
+        "fences": [
+          "generation",
+          "operation_uuid",
+          "configuration_uuid"
+        ],
+        "reading": "tolerant",
+        "live_check": "control_plane:events",
+        "producer_tests": [
+          "services/runtime/internal/storage/contracts_events_integration_test.go"
+        ],
+        "consumer_tests": [
+          "apps/api/tests/Feature/Domain/Devices/Contracts/RuntimeEventConsumerTest.php"
+        ]
+      }
+    ]
+  },
+  {
+    "description": "an entry without a reading mode",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": "/0"
+    },
+    "data": [
+      {
+        "id": "device.applied.v1",
+        "group": "event",
+        "schema": "internal/events/device.applied.v1.schema.json",
+        "producer": "runtime",
+        "consumer": "control_plane",
+        "dedup": "uuid",
+        "fences": [
+          "generation",
+          "operation_uuid",
+          "configuration_uuid"
+        ],
+        "live_check": "control_plane:events",
+        "producer_tests": [
+          "services/runtime/internal/storage/contracts_events_integration_test.go"
+        ],
+        "consumer_tests": [
+          "apps/api/tests/Feature/Domain/Devices/Contracts/RuntimeEventConsumerTest.php"
+        ]
+      }
+    ]
+  }
+]

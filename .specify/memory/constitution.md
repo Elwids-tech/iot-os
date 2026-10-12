@@ -123,9 +123,11 @@ docs/dev/simulators-and-fixtures.md.
   `/speckit-plan` → `/speckit-tasks` → `/speckit-analyze` → `/speckit-implement` →
   `/speckit-converge` (`$speckit-…` in Codex). Bug fixes and chores that change no
   behaviour or contract do not need a spec.
-- **Specs are history:** each feature lives in `specs/NNN-name/`. After its pull request
-  merges, the folder is frozen. Lasting behaviour moves to `docs/features` or
-  `docs/reference`, and decisions become ADRs. A later change gets a new spec.
+- **Specs are history:** each feature lives in `specs/NNN-name/`. The spec and plan merge
+  first; implementation then lands in the pull requests the plan lists, each ticking its
+  tasks. When the last of them merges, the folder is frozen. Lasting behaviour moves to
+  `docs/features` or `docs/reference`, and decisions become ADRs. A later change gets a
+  new spec.
 - **Pull request gates:** CI (`.github/workflows/ci.yml`) is green; docs change in the
   same pull request as the behaviour they describe; contract, ADR and test updates
   follow principles IV and IX; the change has been verified in the rebuilt stack.
@@ -145,4 +147,4 @@ expanding one, PATCH for wording. Reviewers and `/speckit-plan` check new work
 against these principles; violations are either fixed or justified in the plan's
 Complexity Tracking table.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-11
+**Version**: 1.0.1 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-11

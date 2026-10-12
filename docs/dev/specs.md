@@ -31,12 +31,17 @@ Run these in Claude Code as `/speckit-<name>` or in Codex as `$speckit-<name>`:
 The active feature is recorded in `.specify/feature.json` (ignored, per checkout), not
 derived from the git branch, so branch names stay free-form.
 
-## After merge
+## Delivery and freezing
 
-Specs are history. Once a feature's pull request merges, its `specs/` folder is
-frozen. Move lasting behaviour into [`docs/features`](../features) or
-[`docs/reference`](../reference) in the same pull request, and record any decision as
-an [ADR](../adr/README.md). A later change to the feature gets a new spec.
+The spec, plan and tasks merge first, in one documents-only pull request; merging it
+accepts the plan. Implementation then lands in the small pull requests the plan lists.
+Each one ticks the tasks it completes in `tasks.md` and updates the docs its behaviour
+changes.
+
+Specs are history. When a feature's last implementation pull request merges, its
+`specs/` folder is frozen. By then lasting behaviour lives in
+[`docs/features`](../features) or [`docs/reference`](../reference), and any decision is
+recorded as an [ADR](../adr/README.md). A later change to the feature gets a new spec.
 
 Candidate specs are listed under **Next** in the [roadmap](../roadmap.md); the first
 is the OpenAPI description of the public and integration APIs.

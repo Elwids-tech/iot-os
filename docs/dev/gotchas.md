@@ -31,6 +31,12 @@ Things that have cost time before. Add to this list when something surprises you
   order, booleans read back from raw queries). CI runs the suite on PostgreSQL and is
   authoritative; describe what PostgreSQL returns in the contract, and check a
   surprising local result against PostgreSQL before changing a schema.
+- **Extended Python validators stop at a `$ref` into another file.** jsonschema
+  picks the validator class from a referenced document's `$schema`, so a
+  `validators.extend` subclass (the contract checker's tolerant and secret modes)
+  silently becomes plain `Draft202012Validator` inside every other contract. The
+  checker validates copies of the schemas without `$schema`; do the same in any new
+  Python tooling that extends a validator.
 
 ## Local stack
 

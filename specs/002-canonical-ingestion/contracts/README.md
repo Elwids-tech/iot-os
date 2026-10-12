@@ -91,7 +91,7 @@ JSON-Schema-Test-Suite shape, one array per contract:
 
 ## Catalogue format
 
-See [data-model.md §7.4](../data-model.md#74-catalogue-entry-contractsinternalcatalogue.json).
+See [data-model.md §7.4](../data-model.md#74-catalogue-entry-contractsinternalcataloguejson).
 A sketch of one entry:
 
 ```json
