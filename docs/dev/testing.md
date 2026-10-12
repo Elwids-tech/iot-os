@@ -57,6 +57,29 @@ expiry and the pinned Sparkplug proto hash. The formats are in
 checker at another checkout. Its unit tests are in
 [`tooling/contracts`](../../tooling/contracts) and run in CI.
 
+## Contract assertions
+
+The Go and PHP suites validate messages with the services' contract registries
+([contracts/README.md](../../contracts/README.md#validators-in-the-services)),
+always against the repository's `contracts/` directory. A contract is named by its
+catalogue id (`device.applied.v1`), its schema path (`devices/v1/command.schema.json`)
+or its `$id`.
+
+| Need | Go (`internal/contracts/contractstest`) | PHP (`use Tests\Support\AssertsContracts;`) |
+| --- | --- | --- |
+| What a producer sends conforms to the closed schema | `contractstest.AssertProduced(t, id, value)` | `$this->assertProduced($id, $value)`, or `assertProducedJson($id, $body)` for a raw body |
+| Every example with its expected verdict | `contractstest.Cases(t, id)`: the fixture, then each case; `c.Accepted(contracts.Strict)` / `contracts.Tolerant` | `self::contractCases($id)`, keyed by name for a data provider; `$case->accepted(ContractMode::Strict)` |
+| Validate directly | `contractstest.Registry(t).Validate(id, value, mode)` | `(new ContractValidator)->validate($id, $value, $mode)` |
+
+A failed producer assertion names the contract and each failing keyword and
+location, for example `required at /payload (missing generation)`. PHP values are
+judged by their JSON encoding, where an empty array is `[]`; assert a raw body when
+an empty object matters. A reader-code case (envelope family) counts as accepted by
+the schema: the envelope reader, not the schema, refuses it.
+[`registry_test.go`](../../services/runtime/internal/contracts/registry_test.go) and
+[`ContractValidatorTest`](../../apps/api/tests/Unit/Support/ContractValidatorTest.php)
+check every fixture and case in both modes on each side.
+
 ## Laravel
 
 [`phpunit.xml`](../../apps/api/phpunit.xml) forces SQLite `:memory:`, and
