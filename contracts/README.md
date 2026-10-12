@@ -149,6 +149,42 @@ the cases lack a valid or an invalid example (a `tolerant_valid` case does not c
 as invalid), or when a listed test file does not exist or does not mention the id. Envelope-family entries may leave
 `producer_tests` empty while no component produces the envelope.
 
+## Validators in the services
+
+The runtime and the control plane each hold a registry of these contracts, built on
+the validators [ADR-015](../docs/adr/ADR-015-internal-contract-validation.md) names:
+
+| Side | Code | Library | Contracts root |
+| --- | --- | --- | --- |
+| Runtime | [`internal/contracts`](../services/runtime/internal/contracts/registry.go) | `github.com/santhosh-tekuri/jsonschema/v6` v6.0.3 | `IOT_CONTRACTS_PATH`, default `/contracts` (the runtime image copies `contracts/` there) |
+| Control plane | [`App\Support\Contracts`](../apps/api/app/Support/Contracts/ContractRegistry.php) | `opis/json-schema` 2.6.0 | `config('devices.contracts_path')`: the checkout locally, `/var/contracts` in images |
+
+- Both load the two catalogues and the same schemas as the checker (every
+  `*.schema.json` under a `v<N>/` directory or `internal/`, never `openapi/`), and
+  resolve `$ref` across files by `$id`. A schema without `$id` gets its path.
+- A contract is named by its catalogue id, its schema path under `contracts/`, or
+  its `$id`. `reading` comes from the catalogue; a schema no catalogue lists is read
+  strictly under `ingestion/` and tolerantly elsewhere.
+- **Strict** validates the schema as written. **Tolerant** validates copies of the
+  schemas without `additionalProperties: false` and `unevaluatedProperties: false`,
+  so `oneOf`, `anyOf`, `not` and `if` are evaluated again without the unknown-field
+  rules (a `oneOf` branch that failed only on an unknown field matches), as the
+  checker's tolerant mode does. Filtering those errors out of a strict result would
+  leave the `oneOf` failure behind.
+- A result is a list of `{keyword, instance_location}` pairs, plus the `missing`
+  property names of a `required` failure, taken from the schema. It never carries
+  values. `date`, `date-time` and `uuid` formats are asserted; the checker in CI
+  asserts `date` and `uuid` only, so a case that must fail on a malformed time uses
+  a `pattern`.
+- A missing contracts root gives a disabled registry instead of an error. The
+  runtime compiles every schema once at load and disables the registry, with the
+  reason, if one fails; the control plane parses each schema on first use and keeps
+  one registry per contracts root for the life of the PHP process.
+- Test helpers: `contractstest.AssertProduced` and `contractstest.Cases` in Go,
+  `Tests\Support\AssertsContracts` in PHP ([testing](../docs/dev/testing.md#contract-assertions)).
+  Nothing in the running services calls the registries yet; the live
+  log-and-count checks come with spec 002 PR 9.
+
 ## Not contracts here
 
 - **Canonical ingestion.** No canonical telemetry envelope or native JSON ingestion

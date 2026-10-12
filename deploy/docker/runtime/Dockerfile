@@ -10,4 +10,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /runtime /runtime
 COPY --from=build /committed-consumer /committed-consumer
 COPY --from=build /broker-admin /broker-admin
+# Message contracts for the runtime's contract registry (spec 002, ADR-015).
+COPY contracts /contracts
+ENV IOT_CONTRACTS_PATH=/contracts
 ENTRYPOINT ["/runtime"]
