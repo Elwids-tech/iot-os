@@ -30,6 +30,7 @@ the code as evidence.
 | [ADR-012](ADR-012-design-system-and-charts.md) | One design-system kit on shadcn/Radix with templates and guardrails; ECharts for charts | Accepted |
 | [ADR-013](ADR-013-integer-user-ids.md) | Users are identified by integer id in API contracts | Accepted |
 | [ADR-014](ADR-014-control-plane-data-plane-http-integration.md) | Laravel and Go integrate over internal HTTP with outboxes; JetStream stays inside Go | Accepted |
+| [ADR-016](ADR-016-public-api-contract.md) | The public API contract is generated from Laravel, supplemented by hand and enforced in CI | Accepted |
 
 ## Template
 
