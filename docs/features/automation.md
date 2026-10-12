@@ -174,10 +174,13 @@ devices with location bindings. Saving creates one activation batch: for each
 assignment, a v1 workflow named "{fence} — {device}" is compiled, saved and
 deployed; removed assignments are disabled
 ([`GeofenceService`](../../apps/api/app/Domain/Geospatial/Services/GeofenceService.php)).
-Failed items can be retried. Writes need `Device.manage` and `Device.activate`;
-reads need `Device.view`. Map style: set `IOT_MAP_STYLE_URL` (Docker) or
-`VITE_MAP_STYLE_URL`; without it development uses the OpenStreetMap raster
-fallback with attribution.
+A saved geofence is always reported as saved: an item the runtime rejects, or that
+cannot be requested (its device or assignment is gone, or the runtime is
+unreachable), is marked failed with a diagnostic, the other items are still
+requested, and failed items can be retried. Writes need `Device.manage` and
+`Device.activate`; reads need `Device.view`. Map style: set `IOT_MAP_STYLE_URL`
+(Docker) or `VITE_MAP_STYLE_URL`; without it development uses the OpenStreetMap
+raster fallback with attribution.
 
 Polygon rules (`geofence-rule.v1`): GeoJSON `[longitude, latitude]`, one closed
 simple ring of 3–256 vertices, no holes or self-intersections, at least 1 m² and

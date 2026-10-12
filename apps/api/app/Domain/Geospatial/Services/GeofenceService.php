@@ -15,8 +15,10 @@ use App\Domain\Geospatial\Models\GeofenceActivationBatch;
 use App\Domain\Geospatial\Models\GeofenceAssignment;
 use App\Domain\Geospatial\Models\LocationBinding;
 use App\Domain\Shared\Models\Organization;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 final class GeofenceService
@@ -121,16 +123,22 @@ final class GeofenceService
         $items = DB::table('geofence_activation_items')->where('geofence_activation_batch_id', $batch->id)
             ->when($onlyItem, fn ($query) => $query->where('id', $onlyItem))->get();
         foreach ($items as $item) {
-            $assignment = GeofenceAssignment::findOrFail($item->geofence_assignment_id);
-            $workflow = Workflow::findOrFail($assignment->automation_workflow_id);
+            $assignment = null;
             try {
+                $assignment = GeofenceAssignment::findOrFail($item->geofence_assignment_id);
+                $workflow = Workflow::findOrFail($assignment->automation_workflow_id);
                 app(WorkflowDeploymentService::class)->request($workflow, ['operation_uuid' => $item->operation_uuid,
                     'target_state' => $item->target, 'draft_revision' => $workflow->draft_revision,
                     'expected_generation' => $workflow->deployment_generation], $batch->created_by ?? $workflow->updated_by);
-            } catch (HttpExceptionInterface $error) {
+            } catch (HttpExceptionInterface|ValidationException|ModelNotFoundException $error) {
+                // Nothing was requested (the deployment transaction rolled back): the item
+                // fails with the reason, the rest are still requested, and it can be retried.
+                $diagnostic = $error instanceof ModelNotFoundException
+                    ? 'The '.Str::snake(class_basename($error->getModel()), ' ').' for this activation no longer exists.'
+                    : $error->getMessage();
                 DB::table('geofence_activation_items')->where('id', $item->id)->update(['status' => 'failed',
-                    'diagnostic' => $error->getMessage(), 'updated_at' => now()]);
-                $assignment->update(['status' => 'failed', 'diagnostic' => $error->getMessage()]);
+                    'diagnostic' => $diagnostic, 'updated_at' => now()]);
+                $assignment?->update(['status' => 'failed', 'diagnostic' => $diagnostic]);
             }
         }
     }

@@ -36,6 +36,9 @@ final class GeofenceTest extends TestCase
 
     private ?array $runtimeMap = null;
 
+    /** Answers the runtime's compile of an activation snapshot; null accepts it. */
+    private ?\Closure $activation = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -49,6 +52,12 @@ final class GeofenceTest extends TestCase
         Http::fake(function (Request $request) {
             if ($this->runtimeMap !== null && str_ends_with($request->url(), '/internal/locations/map')) {
                 return Http::response($this->runtimeMap);
+            }
+            // An activation snapshot carries its activation item's operation UUID as its version.
+            $version = $request['workflow']['version_uuid'] ?? null;
+            if ($this->activation && $version && DB::table('geofence_activation_items')->where('operation_uuid', $version)->exists()
+                && ($response = ($this->activation)()) !== null) {
+                return $response;
             }
             $definition = Workflow::where('uuid', GpsUseCaseSeeder::WORKFLOW_UUID)->firstOrFail()->definition;
 
@@ -160,6 +169,99 @@ final class GeofenceTest extends TestCase
         $this->assertDatabaseMissing('geofence_assignments', ['id' => $removed->id]);
         $this->assertDatabaseHas('geofence_activation_items', ['id' => $item['id'], 'geofence_assignment_id' => null,
             'assignment_uuid' => $removed->uuid, 'device_uuid' => $device->uuid]);
+    }
+
+    public function test_a_runtime_rejection_during_activation_fails_that_item_and_the_item_can_be_retried(): void
+    {
+        $this->makeDeviceActivatable();
+        $rejections = 1;
+        $this->activation = function () use (&$rejections) {
+            return $rejections-- > 0 ? Http::response(['message' => 'The runtime rejected this snapshot.'], 422) : null;
+        };
+
+        $response = $this->putJson($this->url, $this->input((string) Str::uuid()))->assertAccepted()
+            ->assertJsonPath('data.revision', 2)
+            ->assertJsonPath('activation.items.0.status', 'failed')
+            ->assertJsonPath('activation.items.0.diagnostic', 'The runtime rejected this snapshot.')
+            ->json();
+        $failed = $response['activation']['items'][0];
+        $this->assertDatabaseHas('geofence_assignments', ['uuid' => $failed['assignment_uuid'], 'status' => 'failed',
+            'diagnostic' => 'The runtime rejected this snapshot.']);
+        // The rejection did not stop the other items from being requested.
+        foreach (array_slice($response['activation']['items'], 1) as $item) {
+            $this->assertSame('pending', $item['status']);
+            $this->assertTrue(Deployment::where('uuid', $item['operation_uuid'])->exists());
+        }
+
+        $this->postJson($this->url.'/activations/'.$response['activation']['uuid'].'/items/'.$failed['id'].'/retry')->assertOk()
+            ->assertJsonPath('data.items.0.status', 'pending');
+        $this->assertTrue(Deployment::where('uuid', DB::table('geofence_activation_items')->where('id', $failed['id'])->value('operation_uuid'))->exists());
+    }
+
+    public function test_integration_activation_failures_keep_the_saved_geofence_and_stay_retryable(): void
+    {
+        $this->makeDeviceActivatable();
+        $this->activation = fn () => Http::response(['message' => 'The runtime rejected this snapshot.'], 422);
+        [$token, $geofences] = $this->integrationClient();
+
+        $created = $this->withToken($token)->postJson($geofences, [...$this->input((string) Str::uuid()), 'name' => 'Integration boundary', 'expected_revision' => 0])
+            ->assertAccepted()->assertJsonPath('data.revision', 1)->assertJsonPath('activation.status', 'partial_failure')->json();
+        $this->assertCount(3, $created['activation']['items']);
+        foreach ($created['activation']['items'] as $item) {
+            $this->assertSame(['failed', 'The runtime rejected this snapshot.'], [$item['status'], $item['diagnostic']]);
+        }
+        $retry = $geofences.'/'.$created['data']['uuid'].'/activations/'.$created['activation']['uuid'].'/items/'.$created['activation']['items'][0]['id'].'/retry';
+
+        // Still rejected: the item fails again instead of staying pending.
+        $this->withToken($token)->postJson($retry)->assertOk()
+            ->assertJsonPath('data.items.0.status', 'failed')->assertJsonPath('data.items.0.diagnostic', 'The runtime rejected this snapshot.');
+        // An unreachable runtime fails the item too, so it can be retried later.
+        $this->activation = fn () => Http::failedConnection();
+        $this->withToken($token)->postJson($retry)->assertOk()
+            ->assertJsonPath('data.items.0.status', 'failed')->assertJsonPath('data.items.0.diagnostic', 'The device runtime is unavailable.');
+        $this->activation = null;
+        $this->withToken($token)->postJson($retry)->assertOk()->assertJsonPath('data.items.0.status', 'pending');
+    }
+
+    public function test_activation_items_whose_device_or_assignment_is_gone_fail_with_a_diagnostic(): void
+    {
+        // The activation snapshot binds a device that no longer exists in the organization.
+        $seeded = Workflow::where('uuid', GpsUseCaseSeeder::WORKFLOW_UUID)->firstOrFail();
+        $definition = $seeded->definition;
+        $definition['binding']['device_uuid'] = (string) Str::uuid();
+        $seeded->update(['definition' => $definition]);
+
+        $response = $this->putJson($this->url, $this->input((string) Str::uuid()))->assertAccepted()
+            ->assertJsonPath('data.revision', 2)->assertJsonPath('activation.status', 'partial_failure')->json();
+        foreach ($response['activation']['items'] as $item) {
+            $this->assertSame(['failed', 'The device for this activation no longer exists.'], [$item['status'], $item['diagnostic']]);
+        }
+
+        // A later deactivation removed the assignment of a failed item.
+        $item = $response['activation']['items'][0];
+        DB::table('geofence_activation_items')->where('id', $item['id'])->update(['geofence_assignment_id' => null]);
+        $this->postJson($this->url.'/activations/'.$response['activation']['uuid'].'/items/'.$item['id'].'/retry')->assertOk()
+            ->assertJsonPath('data.items.0.status', 'failed')
+            ->assertJsonPath('data.items.0.diagnostic', 'The geofence assignment for this activation no longer exists.');
+    }
+
+    /** Lets the activation snapshot of the seeded workflow pass the applied-configuration check. */
+    private function makeDeviceActivatable(): void
+    {
+        $binding = Workflow::where('uuid', GpsUseCaseSeeder::WORKFLOW_UUID)->firstOrFail()->definition['binding'];
+        Device::where('uuid', $binding['device_uuid'])->update(['lifecycle' => 'active', 'deployment_status' => 'applied',
+            'applied_configuration_uuid' => $binding['configuration_uuid'], 'deployment_generation' => $binding['generation']]);
+    }
+
+    /** @return array{string, string} an integration token granted every GPS device, and the geofence collection URL */
+    private function integrationClient(): array
+    {
+        $admin = User::where('is_super_admin', true)->firstOrFail()->createToken('admin')->plainTextToken;
+        $token = $this->applicationToken($admin, '/api/v1/organizations/'.$this->organization->uuid.'/applications',
+            GpsUseCaseSeeder::deviceUuids(), ['geofences:read', 'geofences:manage', 'geofences:activate']);
+        Auth::forgetGuards();
+
+        return [$token, '/api/integration/v1/organizations/'.$this->organization->uuid.'/geofences'];
     }
 
     private function input(string $operation): array

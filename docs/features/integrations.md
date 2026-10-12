@@ -109,6 +109,16 @@ Lists return `{data, meta: {current_page, last_page, total}}`, ordered by creati
   Consumers cannot submit coordinates or evaluation time; independent latest
   values are never paired into a fix.
 
+### Geofence activation
+
+`POST geofences` and `PUT geofences/{uuid}` return 202 once the geofence is saved,
+with an activation batch of one item per device. If the runtime rejects the geofence
+itself, the request returns 422 and nothing is saved. After the save, an item the
+runtime rejects, or that cannot be requested (its device or assignment is gone, or
+the runtime is unreachable), is `failed` with a `diagnostic`; the other items are
+still requested. Retry a failed item with `POST .../items/{item}/retry`; a pending
+item cannot be retried.
+
 ### Event feed
 
 The feed is an ordered, per-organization journal of `integration-event.v1`
