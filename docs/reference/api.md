@@ -32,6 +32,16 @@ platform permission and rate limits
   fails on an undescribed body or a longer pending list, and
   `tests/Feature/Contract/RouteInventoryTest.php` fails when routes and operations
   disagree.
+- **Real responses are checked.** Every response the PHP suite receives from these
+  routes must have a documented status; for an operation that is not pending, its
+  required headers and its JSON body must match the contract too. A mismatch fails
+  the test that made the request. `php artisan contract:coverage`, run after the
+  suite, fails when a required status was never checked (a success response for
+  every fully described operation; a success, 401, 403, 404 and, with input, 422 for
+  every integration operation once the integration API is described). Details and
+  the opt-out are in [testing](../dev/testing.md#api-contract-checks). A difference
+  is resolved in the contract, never by changing the platform, and recorded in the
+  [drift log](../../specs/001-openapi-contract/drift-log.md).
 
 The workflow for changing an endpoint is in the
 [spec 001 quickstart](../../specs/001-openapi-contract/quickstart.md#part-a-adding-or-changing-an-endpoint);
