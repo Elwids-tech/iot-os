@@ -1,0 +1,31 @@
+# Device-profile operations.
+#
+# Statuses the code returns that inference missed, found by the response checks in
+# the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
+# Success bodies stay pending until the domain is described.
+# Format: ../meta/supplement.schema.json.
+operations:
+  DELETE /v1/organizations/{organization}/device-profiles/{profile}:
+    responses:
+      '409':
+        $ref: '#/components/responses/DraftConflict'
+  PATCH /v1/organizations/{organization}/device-profiles/{profile}:
+    responses:
+      '409':
+        $ref: '#/components/responses/DraftConflict'
+  POST /v1/organizations/{organization}/device-profiles/{profile}/calculations:
+    responses:
+      '409':
+        $ref: '#/components/responses/DraftConflict'
+  POST /v1/organizations/{organization}/device-profiles/{profile}/compile:
+    responses:
+      '409':
+        $ref: '#/components/responses/DraftConflict'
+  PUT /v1/organizations/{organization}/device-profiles/{profile}/group-order:
+    responses:
+      '409':
+        $ref: '#/components/responses/DraftConflict'
+  POST /v1/organizations/{organization}/device-profiles/{profile}/validate:
+    responses:
+      '409':
+        $ref: '#/components/responses/DraftConflict'

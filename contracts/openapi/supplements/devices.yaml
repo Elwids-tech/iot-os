@@ -1,0 +1,82 @@
+# Devices operations.
+#
+# Statuses the code returns that inference missed, found by the response checks in
+# the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
+# Success bodies stay pending until the domain is described.
+# Format: ../meta/supplement.schema.json.
+operations:
+  POST /v1/organizations/{organization}/device-onboardings:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  PATCH /v1/organizations/{organization}/devices/{device}:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/devices/{device}/archive:
+    responses:
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+  POST /v1/organizations/{organization}/devices/{device}/commands:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/devices/{device}/commands/send:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '503':
+        $ref: '#/components/responses/RuntimeUnavailable'
+  POST /v1/organizations/{organization}/devices/{device}/commands/{command}/confirm:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  PUT /v1/organizations/{organization}/devices/{device}/configuration:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/devices/{device}/connection-kit:
+    responses:
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'
+  POST /v1/organizations/{organization}/devices/{device}/lifecycle:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  GET /v1/organizations/{organization}/devices/{device}/measurements/history:
+    responses:
+      '503':
+        $ref: '#/components/responses/RuntimeUnavailable'
+  GET /v1/organizations/{organization}/devices/{device}/measurements/state-history:
+    responses:
+      '504':
+        $ref: '#/components/responses/RangeTimeout'
+  POST /v1/organizations/{organization}/devices/{device}/onboarding/provision:
+    responses:
+      '202':
+        description: Provisioning started but has not finished; the body shows the setup as it is now. Call again to continue.
+        content:
+          application/json:
+            schema: {}
+  POST /v1/organizations/{organization}/devices/{device}/validate:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  GET /v1/organizations/{organization}/discovery-candidates:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  POST /v1/organizations/{organization}/gateways/{gateway}/provision:
+    responses:
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'
+  POST /v1/organizations/{organization}/sites:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  POST /v1/organizations/{organization}/telemetry-captures/{capture}/diagnose:
+    responses:
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'
