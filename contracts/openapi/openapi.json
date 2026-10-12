@@ -73,7 +73,47 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/CompactPage"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "data"
+                      ],
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "maxItems": 100,
+                          "items": {
+                            "$ref": "#/components/schemas/IntegrationAlert"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "data": [
+                    {
+                      "uuid": "7c9e2a41-1d3b-4f5e-8a6c-2b4d6f8a0c1e",
+                      "episode": 3,
+                      "condition": "active",
+                      "activated_at": "2026-10-12T07:58:10.000000Z",
+                      "cleared_at": null,
+                      "acknowledged_at": null,
+                      "workflow_uuid": "5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                      "workflow_name": "North paddock — Herd tracker 17",
+                      "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                      "execution_stopped_reason": null
+                    }
+                  ],
+                  "meta": {
+                    "current_page": 1,
+                    "last_page": 1,
+                    "total": 1
+                  }
                 }
               }
             }
@@ -119,8 +159,7 @@
           }
         ],
         "summary": "List alerts on granted devices",
-        "description": "Alert episodes whose workflow is bound to a granted device, ordered by creation. Current state, not a snapshot; build a projection with the event feed.",
-        "x-schema-status": "pending"
+        "description": "Alert episodes whose workflow is bound to a granted device, ordered by creation. Current state, not a snapshot; build a projection with the event feed."
       }
     },
     "/integration/v1/organizations/{organization}/alerts/{uuid}": {
@@ -162,7 +201,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/IntegrationAlert"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "uuid": "7c9e2a41-1d3b-4f5e-8a6c-2b4d6f8a0c1e",
+                    "episode": 3,
+                    "condition": "cleared",
+                    "activated_at": "2026-10-12T07:58:10.000000Z",
+                    "cleared_at": "2026-10-12T08:20:45.000000Z",
+                    "acknowledged_at": "2026-10-12T08:02:00.000000Z",
+                    "workflow_uuid": "5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                    "workflow_name": "North paddock — Herd tracker 17",
+                    "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                    "execution_stopped_reason": null
+                  }
                 }
               }
             }
@@ -205,8 +266,7 @@
           }
         ],
         "summary": "Read an alert",
-        "description": "404 when the alert's device is not granted to the application.",
-        "x-schema-status": "pending"
+        "description": "404 when the alert's device is not granted to the application."
       }
     },
     "/integration/v1/organizations/{organization}/devices": {
@@ -260,7 +320,43 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/CompactPage"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "data"
+                      ],
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "maxItems": 100,
+                          "items": {
+                            "$ref": "#/components/schemas/IntegrationDevice"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "data": [
+                    {
+                      "uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                      "code": "tracker-017",
+                      "name": "Herd tracker 17",
+                      "lifecycle": "active",
+                      "presence": "online",
+                      "last_seen_at": "2026-10-12T08:14:52.000000Z"
+                    }
+                  ],
+                  "meta": {
+                    "current_page": 1,
+                    "last_page": 1,
+                    "total": 1
+                  }
                 }
               }
             }
@@ -306,8 +402,7 @@
           }
         ],
         "summary": "List granted devices",
-        "description": "The devices granted to the application, ordered by creation. Current state, not a snapshot.",
-        "x-schema-status": "pending"
+        "description": "The devices granted to the application, ordered by creation. Current state, not a snapshot."
       }
     },
     "/integration/v1/organizations/{organization}/devices/{uuid}": {
@@ -349,7 +444,25 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/IntegrationDevice"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                    "code": "tracker-017",
+                    "name": "Herd tracker 17",
+                    "lifecycle": "active",
+                    "presence": "unknown",
+                    "last_seen_at": "2026-10-12T08:14:52.000000Z"
+                  }
                 }
               }
             }
@@ -392,8 +505,7 @@
           }
         ],
         "summary": "Read a granted device",
-        "description": "404 when the device is not granted to the application.",
-        "x-schema-status": "pending"
+        "description": "404 when the device is not granted to the application."
       }
     },
     "/integration/v1/organizations/{organization}/devices/{uuid}/location-bindings": {
@@ -453,7 +565,54 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/CompactPage"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "data"
+                      ],
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "maxItems": 100,
+                          "items": {
+                            "$ref": "#/components/schemas/LocationBindingVersion"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "data": [
+                    {
+                      "version_uuid": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+                      "binding": {
+                        "schema_version": "location-binding.v1",
+                        "uuid": "00000000-0000-4000-8000-000000000001",
+                        "revision": 1,
+                        "organization_uuid": "00000000-0000-4000-8000-000000000002",
+                        "device_uuid": "00000000-0000-4000-8000-000000000003",
+                        "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+                        "generation": 1,
+                        "latitude_parameter_uuid": "00000000-0000-4000-8000-000000000005",
+                        "longitude_parameter_uuid": "00000000-0000-4000-8000-000000000006",
+                        "accuracy_parameter_uuid": "00000000-0000-4000-8000-000000000007",
+                        "pairing": "same_event",
+                        "max_age_seconds": 90,
+                        "max_future_skew_seconds": 5,
+                        "allow_unknown_accuracy": true
+                      }
+                    }
+                  ],
+                  "meta": {
+                    "current_page": 1,
+                    "last_page": 1,
+                    "total": 1
+                  }
                 }
               }
             }
@@ -499,8 +658,7 @@
           }
         ],
         "summary": "List a device's location bindings",
-        "description": "The approved, immutable `location-binding.v1` bindings active for a granted device, ordered by creation.",
-        "x-schema-status": "pending"
+        "description": "The approved, immutable `location-binding.v1` bindings active for a granted device, ordered by creation."
       }
     },
     "/integration/v1/organizations/{organization}/devices/{uuid}/locations/{event}": {
@@ -562,7 +720,46 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "type": "object",
+                  "required": [
+                    "version_uuid",
+                    "data"
+                  ],
+                  "properties": {
+                    "version_uuid": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "data": {
+                      "$ref": "../location/v1/fix.schema.json"
+                    }
+                  }
+                },
+                "example": {
+                  "version_uuid": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+                  "data": {
+                    "schema_version": "location-fix.v1",
+                    "binding_uuid": "00000000-0000-4000-8000-000000000001",
+                    "binding_revision": 1,
+                    "event_id": "00000000-0000-4000-8000-000000000065",
+                    "organization_uuid": "00000000-0000-4000-8000-000000000002",
+                    "device_uuid": "00000000-0000-4000-8000-000000000003",
+                    "configuration_uuid": "00000000-0000-4000-8000-000000000004",
+                    "generation": 1,
+                    "evaluated_at": "2026-09-25T00:00:32Z",
+                    "observed_at": "2026-09-25T00:00:30Z",
+                    "received_at": "2026-09-25T00:00:31Z",
+                    "timestamp_source": "source",
+                    "historical": false,
+                    "status": "valid",
+                    "reason": "eligible",
+                    "live_eligible": true,
+                    "point": {
+                      "latitude": 51,
+                      "longitude": -114,
+                      "accuracy_metres": 5
+                    }
+                  }
                 }
               }
             }
@@ -611,8 +808,7 @@
           }
         ],
         "summary": "Resolve a stored event to a location fix",
-        "description": "Resolves one stored telemetry event through the selected binding (`version_uuid` from the bindings list) with the same resolver as geofencing. `data` is the device runtime's `location-fix.v1` output, unchanged. 404 when the binding or the event is not found in retention; 422 when the runtime rejects the read (under `errors.runtime`); 503 when it is unavailable.",
-        "x-schema-status": "pending"
+        "description": "Resolves one stored telemetry event through the selected binding (`version_uuid` from the bindings list) with the same resolver as geofencing. `data` is the device runtime's `location-fix.v1` output, unchanged. 404 when the binding or the event is not found in retention; 422 when the runtime rejects the read (under `errors.runtime`); 503 when it is unavailable."
       }
     },
     "/integration/v1/organizations/{organization}/devices/{uuid}/telemetry/history": {
@@ -693,7 +889,31 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "$ref": "#/components/schemas/TelemetryHistory"
+                },
+                "example": {
+                  "schema_version": "telemetry-history.v1",
+                  "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                  "parameter_uuid": "6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+                  "retention_days": 30,
+                  "from": "2026-10-11T00:00:00Z",
+                  "to": "2026-10-12T00:00:00Z",
+                  "data": [
+                    {
+                      "configuration_uuid": "8e7d6c5b-4a39-4281-9f0e-1d2c3b4a5968",
+                      "unit": "%",
+                      "data_type": "number",
+                      "points": [
+                        {
+                          "at": "2026-10-11T00:00:00Z",
+                          "value": 91.2,
+                          "min": 90.8,
+                          "max": 91.5,
+                          "count": 12
+                        }
+                      ]
+                    }
+                  ]
                 }
               }
             }
@@ -745,8 +965,7 @@
           }
         ],
         "summary": "Read bucketed telemetry history",
-        "description": "Readings of one parameter selected and bucketed by receipt time, inclusive bounds, at most 31 days and `max_points` 10 to 1000 (default 500). Bounds are clipped to the organization's retention and reported back. 422 for an invalid window, or (under `errors.runtime`) when the runtime rejects the range, for example more than 2000 resulting points; 503 when the runtime is unavailable; 504 when the range takes longer than the runtime's limit.",
-        "x-schema-status": "pending"
+        "description": "Readings of one parameter selected and bucketed by receipt time, inclusive bounds, at most 31 days and `max_points` 10 to 1000 (default 500). Bounds are clipped to the organization's retention and reported back. 422 for an invalid window, or (under `errors.runtime`) when the runtime rejects the range, for example more than 2000 resulting points; 503 when the runtime is unavailable; 504 when the range takes longer than the runtime's limit."
       }
     },
     "/integration/v1/organizations/{organization}/devices/{uuid}/telemetry/latest": {
@@ -788,7 +1007,28 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "$ref": "#/components/schemas/TelemetryLatest"
+                },
+                "example": {
+                  "schema_version": "telemetry-latest.v1",
+                  "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                  "configuration_uuid": "8e7d6c5b-4a39-4281-9f0e-1d2c3b4a5968",
+                  "presence": "online",
+                  "data": [
+                    {
+                      "parameter_uuid": "6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+                      "key": "battery",
+                      "label": "Battery",
+                      "data_type": "number",
+                      "unit": "%",
+                      "value": 87.5,
+                      "quality": "good",
+                      "observed_at": "2026-10-12T08:14:50Z",
+                      "received_at": "2026-10-12T08:14:52Z",
+                      "timestamp_source": "source",
+                      "historical": false
+                    }
+                  ]
                 }
               }
             }
@@ -834,8 +1074,7 @@
           }
         ],
         "summary": "Read the latest telemetry of a granted device",
-        "description": "Retained latest values with their quality and timestamps, from the device runtime. 503 when the runtime is not configured or unavailable; never an empty result in its place.",
-        "x-schema-status": "pending"
+        "description": "Retained latest values with their quality and timestamps, from the device runtime. 503 when the runtime is not configured or unavailable; never an empty result in its place."
       }
     },
     "/integration/v1/organizations/{organization}/devices/{uuid}/telemetry/records": {
@@ -933,7 +1172,38 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "$ref": "#/components/schemas/TelemetryRecords"
+                },
+                "example": {
+                  "schema_version": "telemetry-records.v1",
+                  "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                  "parameter_uuid": "6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+                  "data": [
+                    {
+                      "event_uuid": "0d9c8b7a-6f5e-4d3c-8b2a-19f8e7d6c5b4",
+                      "configuration_uuid": "8e7d6c5b-4a39-4281-9f0e-1d2c3b4a5968",
+                      "parameter_uuid": "6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+                      "received_at": "2026-10-11T23:59:52Z",
+                      "observed_at": "2026-10-11T23:59:50Z",
+                      "data_type": "number",
+                      "unit": "%",
+                      "value": 91.1,
+                      "quality": "good",
+                      "timestamp_source": "source",
+                      "historical": false
+                    }
+                  ],
+                  "meta": {
+                    "from": "2026-10-11T00:00:00Z",
+                    "to": "2026-10-12T00:00:00Z",
+                    "limit": 500,
+                    "page_size": 1,
+                    "returned": 1,
+                    "consumed": 1,
+                    "next_cursor": "eyJ2IjoxLCJyIjoiMjAyNi0xMC0xMVQyMzo1OTo1MloifQ.c2lnbmF0dXJl",
+                    "has_more": true,
+                    "limit_reached": false
+                  }
                 }
               }
             }
@@ -982,8 +1252,7 @@
           }
         ],
         "summary": "Read raw telemetry records",
-        "description": "Unaggregated good-quality observations of one parameter (diagnostics excluded), newest first, in pages of `page_size` 1 to 100 (default 50) up to a total `limit` of 1 to 5000 (default 500). The window is at most 31 days. `cursor` is signed and bound to the query; pass `meta.next_cursor` with the same query. 422 for an invalid window or a cursor the runtime rejects (under `errors.runtime`); 503 when the runtime is unavailable.",
-        "x-schema-status": "pending"
+        "description": "Unaggregated good-quality observations of one parameter (diagnostics excluded), newest first, in pages of `page_size` 1 to 100 (default 50) up to a total `limit` of 1 to 5000 (default 500). The window is at most 31 days. `cursor` is signed and bound to the query; pass `meta.next_cursor` with the same query. 422 for an invalid window or a cursor the runtime rejects (under `errors.runtime`); 503 when the runtime is unavailable."
       }
     },
     "/integration/v1/organizations/{organization}/events": {
@@ -1035,7 +1304,45 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "$ref": "#/components/schemas/EventPage"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "e4f5a6b7-c8d9-4e0f-9a1b-2c3d4e5f6a7b",
+                      "schema_version": "integration-event.v1",
+                      "type": "alert.activated.v1",
+                      "occurred_at": "2026-10-12T07:58:10+00:00",
+                      "recorded_at": "2026-10-12T07:58:11+00:00",
+                      "data": {
+                        "uuid": "7c9e2a41-1d3b-4f5e-8a6c-2b4d6f8a0c1e",
+                        "episode": 3,
+                        "condition": "active",
+                        "activated_at": "2026-10-12T07:58:10.000000Z",
+                        "cleared_at": null,
+                        "acknowledged_at": null,
+                        "workflow_uuid": "5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                        "workflow_name": "North paddock — Herd tracker 17",
+                        "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                        "execution_stopped_reason": null
+                      }
+                    },
+                    {
+                      "id": "f5a6b7c8-d9e0-4f1a-8b2c-3d4e5f6a7b8c",
+                      "schema_version": "integration-event.v1",
+                      "type": "automation.triggered.v1",
+                      "occurred_at": "2026-10-12T08:01:00+00:00",
+                      "recorded_at": "2026-10-12T08:01:01+00:00",
+                      "data": {
+                        "workflow_uuid": "6b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8d9e",
+                        "action_id": "8f14e45fceea167a5a36dedd4bea2543",
+                        "name": "Notify the yard",
+                        "node_id": "notify"
+                      }
+                    }
+                  ],
+                  "next_cursor": "eyJpdiI6IlZ3dE1oUnRkWjBTeUtmZz09IiwidmFsdWUiOiJuZXh0In0=",
+                  "has_more": false
                 }
               }
             }
@@ -1090,8 +1397,7 @@
           }
         ],
         "summary": "Read the event feed",
-        "description": "`integration-event.v1` envelopes after `cursor` (from the start of the journal without one), in commit order, `limit` 1 to 100 (default 100). Pages skip events for devices not granted to the application, so save `next_cursor` even from an empty page. The feed is at least once: deduplicate by event `id`. Cursors are encrypted and bound to the organization, the application and its grant revision; a token rotation keeps them. Needs `events:read` and either `alerts:read` or `geofences:read`, each on both the application and the token. 409 after a grant change (rebuild from a fresh checkpoint); 422 for invalid input, an unreadable cursor or another application's cursor.",
-        "x-schema-status": "pending"
+        "description": "`integration-event.v1` envelopes after `cursor` (from the start of the journal without one), in commit order, `limit` 1 to 100 (default 100). Pages skip events for devices not granted to the application, so save `next_cursor` even from an empty page. The feed is at least once: deduplicate by event `id`. Cursors are encrypted and bound to the organization, the application and its grant revision; a token rotation keeps them. Needs `events:read` and either `alerts:read` or `geofences:read`, each on both the application and the token. 409 after a grant change (rebuild from a fresh checkpoint); 422 for invalid input, an unreadable cursor or another application's cursor."
       }
     },
     "/integration/v1/organizations/{organization}/events/checkpoint": {
@@ -1123,7 +1429,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "$ref": "#/components/schemas/EventCheckpoint"
+                },
+                "example": {
+                  "cursor": "eyJpdiI6IlZ3dE1oUnRkWjBTeUtmZz09IiwidmFsdWUiOiJjdXJzb3IifQ=="
                 }
               }
             }
@@ -1172,8 +1481,7 @@
           }
         ],
         "summary": "Take an event feed checkpoint",
-        "description": "A cursor at the current head of the organization's event journal. Take it before reading current state (for example every alert page), then read the feed from it. Needs `events:read` and either `alerts:read` or `geofences:read`, each on both the application and the token.",
-        "x-schema-status": "pending"
+        "description": "A cursor at the current head of the organization's event journal. Take it before reading current state (for example every alert page), then read the feed from it. Needs `events:read` and either `alerts:read` or `geofences:read`, each on both the application and the token."
       }
     },
     "/integration/v1/organizations/{organization}/geofences": {
@@ -1205,7 +1513,78 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IntegrationGeofence"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "uuid": "1e2d3c4b-5a69-4788-9a6b-5c4d3e2f1a0b",
+                      "name": "North paddock",
+                      "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                          [
+                            [
+                              -114.01,
+                              50.99
+                            ],
+                            [
+                              -113.99,
+                              50.99
+                            ],
+                            [
+                              -113.99,
+                              51.01
+                            ],
+                            [
+                              -114.01,
+                              51.01
+                            ],
+                            [
+                              -114.01,
+                              50.99
+                            ]
+                          ]
+                        ]
+                      },
+                      "revision": 2,
+                      "created_at": "2026-10-01T09:00:00.000000Z",
+                      "updated_at": "2026-10-12T08:00:00.000000Z",
+                      "assignments": [
+                        {
+                          "uuid": "4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+                          "policy": {
+                            "outside_for_seconds": 60,
+                            "max_gap_seconds": 45,
+                            "minimum_samples": 2,
+                            "uncertainty_metres": 2
+                          },
+                          "desired_geofence_revision": 2,
+                          "applied_geofence_revision": 2,
+                          "status": "active",
+                          "diagnostic": null,
+                          "device": {
+                            "uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                            "name": "Herd tracker 17",
+                            "code": "tracker-017"
+                          },
+                          "workflow_uuid": "5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                          "deployment_status": "active"
+                        }
+                      ]
+                    }
+                  ]
                 }
               }
             }
@@ -1248,8 +1627,7 @@
           }
         ],
         "summary": "List geofences with granted devices",
-        "description": "Geofences that have at least one granted device assigned, ordered by name, each with only the granted devices' assignments. Not paginated.",
-        "x-schema-status": "pending"
+        "description": "Geofences that have at least one granted device assigned, ordered by name, each with only the granted devices' assignments. Not paginated."
       },
       "post": {
         "operationId": "geospatial.store",
@@ -1279,7 +1657,83 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "$ref": "#/components/schemas/GeofenceSaved"
+                },
+                "example": {
+                  "data": {
+                    "uuid": "1e2d3c4b-5a69-4788-9a6b-5c4d3e2f1a0b",
+                    "name": "North paddock",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [
+                        [
+                          [
+                            -114.01,
+                            50.99
+                          ],
+                          [
+                            -113.99,
+                            50.99
+                          ],
+                          [
+                            -113.99,
+                            51.01
+                          ],
+                          [
+                            -114.01,
+                            51.01
+                          ],
+                          [
+                            -114.01,
+                            50.99
+                          ]
+                        ]
+                      ]
+                    },
+                    "revision": 1,
+                    "created_at": "2026-10-12T08:00:00.000000Z",
+                    "updated_at": "2026-10-12T08:00:00.000000Z",
+                    "assignments": [
+                      {
+                        "uuid": "4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+                        "policy": {
+                          "outside_for_seconds": 60,
+                          "max_gap_seconds": 45,
+                          "minimum_samples": 2,
+                          "uncertainty_metres": 2
+                        },
+                        "desired_geofence_revision": 1,
+                        "applied_geofence_revision": null,
+                        "status": "pending",
+                        "diagnostic": null,
+                        "device": {
+                          "uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                          "name": "Herd tracker 17",
+                          "code": "tracker-017"
+                        },
+                        "workflow_uuid": "5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                        "deployment_status": "pending"
+                      }
+                    ]
+                  },
+                  "activation": {
+                    "uuid": "9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a",
+                    "geofence_revision": 1,
+                    "status": "pending",
+                    "created_at": "2026-10-12T08:00:00.000000Z",
+                    "updated_at": "2026-10-12T08:00:00.000000Z",
+                    "items": [
+                      {
+                        "id": 41,
+                        "assignment_uuid": "4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+                        "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                        "operation_uuid": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+                        "target": "active",
+                        "status": "pending",
+                        "diagnostic": null
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -1392,8 +1846,7 @@
               }
             }
           }
-        },
-        "x-schema-status": "pending"
+        }
       }
     },
     "/integration/v1/organizations/{organization}/geofences/{uuid}": {
@@ -1435,7 +1888,52 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/IntegrationGeofence"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "uuid": "1e2d3c4b-5a69-4788-9a6b-5c4d3e2f1a0b",
+                    "name": "North paddock",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [
+                        [
+                          [
+                            -114.01,
+                            50.99
+                          ],
+                          [
+                            -113.99,
+                            50.99
+                          ],
+                          [
+                            -113.99,
+                            51.01
+                          ],
+                          [
+                            -114.01,
+                            51.01
+                          ],
+                          [
+                            -114.01,
+                            50.99
+                          ]
+                        ]
+                      ]
+                    },
+                    "revision": 2,
+                    "created_at": "2026-10-01T09:00:00.000000Z",
+                    "updated_at": "2026-10-12T08:00:00.000000Z",
+                    "assignments": []
+                  }
                 }
               }
             }
@@ -1478,8 +1976,7 @@
           }
         ],
         "summary": "Read a geofence",
-        "description": "404 when no granted device is assigned to the geofence.",
-        "x-schema-status": "pending"
+        "description": "404 when no granted device is assigned to the geofence."
       },
       "put": {
         "operationId": "geospatial.update",
@@ -1519,7 +2016,83 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "$ref": "#/components/schemas/GeofenceSaved"
+                },
+                "example": {
+                  "data": {
+                    "uuid": "1e2d3c4b-5a69-4788-9a6b-5c4d3e2f1a0b",
+                    "name": "North paddock",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [
+                        [
+                          [
+                            -114.02,
+                            50.99
+                          ],
+                          [
+                            -113.99,
+                            50.99
+                          ],
+                          [
+                            -113.99,
+                            51.01
+                          ],
+                          [
+                            -114.02,
+                            51.01
+                          ],
+                          [
+                            -114.02,
+                            50.99
+                          ]
+                        ]
+                      ]
+                    },
+                    "revision": 2,
+                    "created_at": "2026-10-01T09:00:00.000000Z",
+                    "updated_at": "2026-10-12T08:00:00.000000Z",
+                    "assignments": [
+                      {
+                        "uuid": "4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+                        "policy": {
+                          "outside_for_seconds": 120,
+                          "max_gap_seconds": 45,
+                          "minimum_samples": 2,
+                          "uncertainty_metres": 2
+                        },
+                        "desired_geofence_revision": 2,
+                        "applied_geofence_revision": 1,
+                        "status": "pending",
+                        "diagnostic": null,
+                        "device": {
+                          "uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                          "name": "Herd tracker 17",
+                          "code": "tracker-017"
+                        },
+                        "workflow_uuid": "5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                        "deployment_status": "pending"
+                      }
+                    ]
+                  },
+                  "activation": {
+                    "uuid": "0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d",
+                    "geofence_revision": 2,
+                    "status": "pending",
+                    "created_at": "2026-10-12T08:00:00.000000Z",
+                    "updated_at": "2026-10-12T08:00:00.000000Z",
+                    "items": [
+                      {
+                        "id": 42,
+                        "assignment_uuid": "4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+                        "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                        "operation_uuid": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+                        "target": "active",
+                        "status": "pending",
+                        "diagnostic": null
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -1632,8 +2205,7 @@
               }
             }
           }
-        },
-        "x-schema-status": "pending"
+        }
       }
     },
     "/integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}": {
@@ -1685,7 +2257,35 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/GeofenceActivationBatch"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "uuid": "9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a",
+                    "geofence_revision": 1,
+                    "status": "partial_failure",
+                    "created_at": "2026-10-12T08:00:00.000000Z",
+                    "updated_at": "2026-10-12T08:00:05.000000Z",
+                    "items": [
+                      {
+                        "id": 41,
+                        "assignment_uuid": "4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+                        "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                        "operation_uuid": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+                        "target": "active",
+                        "status": "failed",
+                        "diagnostic": "Activate against the currently applied device configuration and generation."
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -1728,8 +2328,7 @@
           }
         ],
         "summary": "Read a geofence activation",
-        "description": "The activation batch a save returned, with each item's status taken from its workflow deployment. Poll until `status` is `succeeded` or `partial_failure`. 403 when the geofence has an assignment outside the application's grant.",
-        "x-schema-status": "pending"
+        "description": "The activation batch a save returned, with each item's status taken from its workflow deployment. Poll until `status` is `succeeded` or `partial_failure`. 403 when the geofence has an assignment outside the application's grant."
       }
     },
     "/integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}/items/{item}/retry": {
@@ -1791,7 +2390,35 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/GeofenceActivationBatch"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "uuid": "9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a",
+                    "geofence_revision": 1,
+                    "status": "pending",
+                    "created_at": "2026-10-12T08:00:00.000000Z",
+                    "updated_at": "2026-10-12T08:05:00.000000Z",
+                    "items": [
+                      {
+                        "id": 41,
+                        "assignment_uuid": "4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+                        "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                        "operation_uuid": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f",
+                        "target": "active",
+                        "status": "pending",
+                        "diagnostic": null
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -1844,8 +2471,7 @@
         "description": "Starts a new workflow deployment for one failed item and returns the activation. Needs `geofences:activate` and `geofences:manage`. 403 when the geofence has an assignment outside the application's grant; 409 when the item has not failed; 422 when the runtime rejects the activation (under `errors.runtime`).",
         "x-async": {
           "poll": "GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}"
-        },
-        "x-schema-status": "pending"
+        }
       }
     },
     "/integration/v1/organizations/{organization}/location-map/query": {
@@ -1924,7 +2550,41 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/LocationMap"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "schema_version": "location-map.v1",
+                    "trail_window": "24h",
+                    "geofence": null,
+                    "devices": [
+                      {
+                        "device_uuid": "00000000-0000-4000-8000-000000000003",
+                        "device_name": "Herd tracker 17",
+                        "binding_uuid": "00000000-0000-4000-8000-000000000001",
+                        "latest": null,
+                        "condition": "unknown",
+                        "active": false,
+                        "geometry": null,
+                        "trail": {
+                          "segments": [],
+                          "sampled": false
+                        },
+                        "wandering": false,
+                        "active_alert": null,
+                        "assignment_status": "active",
+                        "deployment_status": "active"
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -1973,8 +2633,7 @@
           }
         ],
         "summary": "Query current positions and trails",
-        "description": "Positions, geofence condition and optional trails (last 1h, 6h, 24h or 7d) of 1 to 100 granted devices. Device entries are the device runtime's output with four fields added by the control plane. 403 when a requested device is not granted; 422 for invalid input or when the runtime rejects the query (under `errors.runtime`); 503 when the runtime is unavailable.",
-        "x-schema-status": "pending"
+        "description": "Positions, geofence condition and optional trails (last 1h, 6h, 24h or 7d) of 1 to 100 granted devices. Device entries are the device runtime's output with four fields added by the control plane. 403 when a requested device is not granted; 422 for invalid input or when the runtime rejects the query (under `errors.runtime`); 503 when the runtime is unavailable."
       }
     },
     "/v1/admin/invitations": {

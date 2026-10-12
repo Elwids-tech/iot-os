@@ -21,6 +21,7 @@ use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\Contract\ContractDocument;
 use Tests\TestCase;
 
 final class WebhookTest extends TestCase
@@ -99,10 +100,17 @@ final class WebhookTest extends TestCase
         $this->assertSame('pending', $delivery->status);
         $this->assertDatabaseCount('integration_webhook_deliveries', 1);
         $this->travel(11)->seconds();
-        $transport->shouldReceive('send')->once()->withArgs(fn ($url, $target, $body, $id, $secret) => $id === $uuid && json_decode($body, true)['id'] === DB::table('integration_events')->value('uuid'))->andReturn(204);
+        $sent = null;
+        $transport->shouldReceive('send')->once()->withArgs(function ($url, $target, $body, $id, $secret) use ($uuid, &$sent): bool {
+            $sent = $body;
+
+            return $id === $uuid && json_decode($body, true)['id'] === DB::table('integration_events')->value('uuid');
+        })->andReturn(204);
         $worker->tick($hook->id);
         $worker->tick($hook->id);
         $this->assertSame('delivered', $delivery->fresh()->status);
+        // The body is the contract's integration-event.v1 envelope (webhooks.integrationEvent).
+        $this->assertNull(ContractDocument::committed()->validate(json_decode((string) $sent, false), ContractDocument::pointer(['components', 'schemas', 'IntegrationEvent'])));
         $this->assertDatabaseCount('integration_webhook_attempts', 2);
         $this->api('GET', $this->url.'/deliveries')->assertOk()->assertJsonPath('data.0.history.1.http_status', 204);
     }

@@ -131,6 +131,50 @@ final class GeofenceTest extends TestCase
         $this->withToken($outsideGrant)->putJson($integration, $this->input((string) Str::uuid()))->assertForbidden();
     }
 
+    public function test_integration_reads_updates_polls_and_retries_a_geofence(): void
+    {
+        $token = $this->integrationToken(['geofences:read', 'geofences:manage', 'geofences:activate']);
+        $integration = '/api/integration/v1/organizations/'.$this->organization->uuid.'/geofences';
+
+        $this->integration($token)->getJson($integration)->assertOk()
+            ->assertJsonPath('data.0.uuid', $this->fence->uuid)->assertJsonCount(3, 'data.0.assignments')
+            ->assertHeader('Cache-Control', 'no-store, private');
+        $this->integration($token)->getJson($integration.'/'.$this->fence->uuid)->assertOk()->assertJsonPath('data.revision', 1);
+
+        $saved = $this->integration($token)->putJson($integration.'/'.$this->fence->uuid, $this->input((string) Str::uuid()))->assertAccepted()
+            ->assertJsonPath('data.revision', 2)->assertJsonPath('activation.status', 'partial_failure')->json();
+        $activation = $integration.'/'.$this->fence->uuid.'/activations/'.$saved['activation']['uuid'];
+        $this->integration($token)->getJson($activation)->assertOk()->assertJsonPath('data.uuid', $saved['activation']['uuid']);
+
+        $failed = collect($saved['activation']['items'])->firstWhere('status', 'failed');
+        $this->integration($token)->postJson($activation.'/items/'.$failed['id'].'/retry')->assertOk()
+            ->assertJsonPath('data.uuid', $saved['activation']['uuid']);
+    }
+
+    public function test_integration_creates_a_geofence_and_queries_the_location_map(): void
+    {
+        $token = $this->integrationToken(['geofences:manage', 'geofences:activate', 'locations:read']);
+        $operation = (string) Str::uuid();
+
+        $this->integration($token)->postJson('/api/integration/v1/organizations/'.$this->organization->uuid.'/geofences', [...$this->input($operation), 'expected_revision' => 0, 'name' => 'Second boundary'])
+            ->assertAccepted()->assertJsonPath('data.revision', 1)->assertJsonPath('data.name', 'Second boundary')
+            ->assertJsonPath('activation.uuid', $operation);
+
+        $assignment = GeofenceAssignment::where('geofence_id', $this->fence->id)->firstOrFail();
+        $binding = LocationBinding::findOrFail($assignment->device_location_binding_id);
+        $fix = json_decode((string) file_get_contents(config('devices.contracts_path').'/location/v1/fix.fixture.json'), true, 512, JSON_THROW_ON_ERROR);
+        // The runtime's map entry, field for field (services/runtime/internal/app/location_map.go).
+        $this->runtimeMap = ['evaluated_at' => '2026-09-25T00:00:32Z', 'devices' => [['device_uuid' => GpsUseCaseSeeder::DEVICE_UUID,
+            'device_name' => 'GPS Demo Tracker', 'binding_uuid' => $binding->uuid, 'latest' => $fix, 'condition' => 'inside', 'active' => false,
+            'geometry' => $this->fence->geometry, 'trail' => ['segments' => [[['event_id' => $fix['event_id'], 'observed_at' => $fix['observed_at'],
+                'received_at' => $fix['received_at'], 'historical' => false, 'point' => $fix['point']]]], 'sampled' => false]]]];
+
+        $this->integration($token)->postJson('/api/integration/v1/organizations/'.$this->organization->uuid.'/location-map/query', [
+            'device_uuids' => [GpsUseCaseSeeder::DEVICE_UUID], 'trail_window' => '6h', 'include_trails' => true, 'geofence_uuid' => $this->fence->uuid,
+        ])->assertOk()->assertJsonPath('data.schema_version', 'location-map.v1')->assertJsonPath('data.geofence.uuid', $this->fence->uuid)
+            ->assertJsonPath('data.devices.0.assignment_status', $assignment->status)->assertJsonPath('data.devices.0.wandering', false);
+    }
+
     public function test_assignment_is_deleted_only_after_successful_deactivation_and_batch_history_survives(): void
     {
         $actor = User::where('is_super_admin', true)->firstOrFail();
@@ -169,6 +213,25 @@ final class GeofenceTest extends TestCase
         return ['operation_uuid' => $operation, 'expected_revision' => 1, 'name' => 'GPS Demo Boundary',
             'geometry' => $this->fence->geometry,
             'assignments' => array_map(fn (string $uuid) => ['device_uuid' => $uuid, 'policy' => $assignment->policy], GpsUseCaseSeeder::deviceUuids())];
+    }
+
+    /**
+     * An application token for every GPS demo device.
+     *
+     * @param  list<string>  $abilities
+     */
+    private function integrationToken(array $abilities): string
+    {
+        $admin = User::where('is_super_admin', true)->firstOrFail()->createToken('admin')->plainTextToken;
+
+        return $this->applicationToken($admin, '/api/v1/organizations/'.$this->organization->uuid.'/applications', GpsUseCaseSeeder::deviceUuids(), $abilities);
+    }
+
+    private function integration(string $token): self
+    {
+        Auth::forgetGuards();
+
+        return $this->withToken($token);
     }
 
     private function applicationToken(string $admin, string $manage, array $devices, array $abilities): string

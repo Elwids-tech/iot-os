@@ -16,9 +16,9 @@ use JsonException;
  * required (operation, status) pair must have been checked at least once.
  *
  * - every fully described `api/v1` operation: a 2xx;
- * - every integration operation, once `scramble.contract.require_integration_coverage`
- *   is on: a 2xx, 401, 403 and 404, plus 422 when it takes a request body or a required
- *   query parameter.
+ * - every integration operation: a 2xx, 401, 403 and 404, plus 422 when it takes a
+ *   request body or a required query parameter (`scramble.contract.require_integration_coverage`
+ *   turns this off; it is on).
  *
  * It reads the record Tests\Support\Contract\CoverageRecorder writes during
  * `php artisan test`, and lists the tests that opted out with #[WithoutContractCheck].
@@ -131,7 +131,7 @@ final class ContractCoverage extends Command
             ? "{$required} required pairs, all checked."
             : "{$required} required pairs, {$this->failures} never checked.");
         if (! $requireIntegration) {
-            $this->line('Integration pairs are not required yet (scramble.contract.require_integration_coverage is off until the integration API is described).');
+            $this->line('Integration pairs are not required (scramble.contract.require_integration_coverage is off).');
         }
     }
 
