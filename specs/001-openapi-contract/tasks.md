@@ -78,7 +78,7 @@ dependency approval (decision 1) blocks T001, T023, T043 and T064.
 - [X] T028 Implement `contract:coverage` in apps/api/app/Support/Contract/Console/ContractCoverage.php with the required pairs from research R8 ("every integration operation: one 2xx, 401, 403 and 404, plus 422 when it has a request body or a required query parameter"; "every fully described `api/v1` operation: one 2xx"); integration requirements behind a flag that starts off
 - [X] T029 Run the suite on PostgreSQL; add every undocumented status the suite produces to the matching supplement; create specs/001-openapi-contract/drift-log.md with the columns Operation, Source, Discrepancy, Resolution, Pull request and record what was found
 - [X] T030 Add `php artisan contract:coverage` after `php artisan test --compact` in the API job of .github/workflows/ci.yml
-- [ ] T031 Verify PR 2: the suite passes on PostgreSQL in CI and on SQLite locally; rebuild `api`
+- [X] T031 Verify PR 2: the suite passes on PostgreSQL in CI and on SQLite locally; rebuild `api`
 
 **Checkpoint**: Export, inventory, ratchet and response checks run in CI with all 247 operations pending.
 
