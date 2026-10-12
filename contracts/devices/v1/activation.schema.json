@@ -1,5 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/devices/v1/activation.schema.json",
+  "description": "device.activate.v1: apply a device configuration for a deployment generation. Producer: control plane (DeviceAudit::enqueue from DeviceConfigurationService::activate for configure and rollback, and DeviceLifecycleService::request for resume), claimed through POST /api/internal/devices/outbox/claim and republished on iot.control.device.activate.v1. Consumer: runtime devices-control (handleControl), which reads definition, generation and operation_uuid. At least once; deduplicate by uuid (the outbox row, Nats-Msg-Id). Fences: generation and operation_uuid.",
   "type": "object",
   "properties": {
     "uuid": {
@@ -12,9 +14,21 @@
     "payload": {
       "type": "object",
       "properties": {
+        "organization_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "device_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
         "generation": {
           "type": "integer",
           "minimum": 1
+        },
+        "operation_uuid": {
+          "type": "string",
+          "format": "uuid"
         },
         "definition": {
           "oneOf": [
@@ -28,10 +42,18 @@
         }
       },
       "required": [
+        "organization_uuid",
+        "device_uuid",
         "generation",
+        "operation_uuid",
         "definition"
       ],
       "additionalProperties": false
+    },
+    "lease_token": {
+      "description": "The claim lease: present on rows returned by POST /api/internal/devices/outbox/claim and in the message the runtime republishes; the runtime sends it back to acknowledge the row. Absent on a row that was never claimed.",
+      "type": "string",
+      "format": "uuid"
     }
   },
   "required": [

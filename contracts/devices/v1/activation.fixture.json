@@ -2,7 +2,10 @@
   "uuid": "90000000-0000-4000-8000-000000000007",
   "type": "device.activate.v1",
   "payload": {
+    "organization_uuid": "90000000-0000-4000-8000-000000000003",
+    "device_uuid": "90000000-0000-4000-8000-000000000002",
     "generation": 1,
+    "operation_uuid": "90000000-0000-4000-8000-000000000010",
     "definition": {
       "schema_version": "device-configuration.v1",
       "configuration_uuid": "90000000-0000-4000-8000-000000000001",
@@ -57,5 +60,6 @@
         }
       ]
     }
-  }
+  },
+  "lease_token": "90000000-0000-4000-8000-000000000011"
 }
