@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://iot-os.local/contracts/events/v1/telemetry-committed.schema.json",
+  "description": "telemetry.committed.v1: readings after telemetry storage commits, published by the runtime's committed relay on iot.committed.telemetry.v1. Producer: runtime (devices-storage writes device_runtime.telemetry_outbox; the relay sets sequence). Consumers: workflow-evaluator-v1 and other trusted services such as cmd/committed-consumer. At least once; deduplicate by event_id. Readings of adapter devices carry installation_uuid, adapter_revision_uuid and manufacturer_serial when their provenance matches the adapter binding.",
   "type": "object",
   "properties": {
     "schema_version": {
@@ -102,6 +103,22 @@
               "corrected_future",
               "derived"
             ]
+          },
+          "installation_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Adapter devices only: the enrolled installation, from the device's adapter binding, when the reading's provenance matches it."
+          },
+          "adapter_revision_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Adapter devices only: the adapter revision the managed publisher reported for the metric."
+          },
+          "manufacturer_serial": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Adapter devices only: the physical source's serial from the adapter binding."
           }
         },
         "required": [

@@ -1,0 +1,307 @@
+[
+  {
+    "description": "readings of an adapter device carry the installation, adapter revision and manufacturer serial",
+    "valid": true,
+    "data": {
+      "schema_version": "telemetry.committed.v1",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "telemetry_id": "30000000-0000-4000-8000-00000000000b",
+      "sequence": "42",
+      "organization_uuid": "30000000-0000-4000-8000-000000000001",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 3.25,
+          "quality": "good",
+          "diagnostic": "Counter reset detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "data_type": "enum",
+          "unit": null,
+          "value": "open",
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "an adapter reading that failed profile validation keeps its provenance",
+    "valid": true,
+    "data": {
+      "schema_version": "telemetry.committed.v1",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "telemetry_id": "30000000-0000-4000-8000-00000000000b",
+      "sequence": "42",
+      "organization_uuid": "30000000-0000-4000-8000-000000000001",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "data_type": "enum",
+          "unit": null,
+          "value": null,
+          "quality": "invalid",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "diagnostic": "Valve must be open or closed."
+        }
+      ]
+    }
+  },
+  {
+    "description": "an empty manufacturer serial",
+    "valid": false,
+    "error": {
+      "keyword": "minLength",
+      "instance_location": "/readings/0/manufacturer_serial"
+    },
+    "data": {
+      "schema_version": "telemetry.committed.v1",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "telemetry_id": "30000000-0000-4000-8000-00000000000b",
+      "sequence": "42",
+      "organization_uuid": "30000000-0000-4000-8000-000000000001",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "a manufacturer serial longer than 128 characters",
+    "valid": false,
+    "error": {
+      "keyword": "maxLength",
+      "instance_location": "/readings/0/manufacturer_serial"
+    },
+    "data": {
+      "schema_version": "telemetry.committed.v1",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "telemetry_id": "30000000-0000-4000-8000-00000000000b",
+      "sequence": "42",
+      "organization_uuid": "30000000-0000-4000-8000-000000000001",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "an installation that is not a UUID",
+    "valid": false,
+    "error": {
+      "keyword": "format",
+      "instance_location": "/readings/0/installation_uuid"
+    },
+    "data": {
+      "schema_version": "telemetry.committed.v1",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "telemetry_id": "30000000-0000-4000-8000-00000000000b",
+      "sequence": "42",
+      "organization_uuid": "30000000-0000-4000-8000-000000000001",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "installation_uuid": "installation-7",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "an adapter revision that is not a UUID",
+    "valid": false,
+    "error": {
+      "keyword": "format",
+      "instance_location": "/readings/0/adapter_revision_uuid"
+    },
+    "data": {
+      "schema_version": "telemetry.committed.v1",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "telemetry_id": "30000000-0000-4000-8000-00000000000b",
+      "sequence": "42",
+      "organization_uuid": "30000000-0000-4000-8000-000000000001",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "revision-9",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "missing generation",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": ""
+    },
+    "data": {
+      "schema_version": "telemetry.committed.v1",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "telemetry_id": "30000000-0000-4000-8000-00000000000b",
+      "sequence": "42",
+      "organization_uuid": "30000000-0000-4000-8000-000000000001",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "a reading field a newer producer adds",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {
+      "keyword": "additionalProperties",
+      "instance_location": "/readings/0"
+    },
+    "data": {
+      "schema_version": "telemetry.committed.v1",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "telemetry_id": "30000000-0000-4000-8000-00000000000b",
+      "sequence": "42",
+      "organization_uuid": "30000000-0000-4000-8000-000000000001",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008"
+        }
+      ]
+    }
+  }
+]
