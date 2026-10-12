@@ -14,6 +14,12 @@ Things that have cost time before. Add to this list when something surprises you
   invalid-UUID error, so a malformed id that would be a 500 on Postgres passes in
   tests. Assert on the query log, or test against Postgres, when UUID parsing
   matters.
+- **Extended Python validators stop at a `$ref` into another file.** jsonschema
+  picks the validator class from a referenced document's `$schema`, so a
+  `validators.extend` subclass (the contract checker's tolerant and secret modes)
+  silently becomes plain `Draft202012Validator` inside every other contract. The
+  checker validates copies of the schemas without `$schema`; do the same in any new
+  Python tooling that extends a validator.
 
 ## Local stack
 
