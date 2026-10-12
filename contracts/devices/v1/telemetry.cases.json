@@ -1,0 +1,1277 @@
+[
+  {
+    "description": "an adapter device's message during a capture: v2 definition with an adapter binding, provenance on every reading, an enum reading and a counter reset",
+    "valid": true,
+    "data": {
+      "capture_id": "30000000-0000-4000-8000-00000000000a",
+      "generation": 2,
+      "uuid": "30000000-0000-4000-8000-00000000000b",
+      "definition": {
+        "adapter": {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+          "manufacturer_serial": "WM-1042"
+        },
+        "schema_version": "device-configuration.v2",
+        "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+        "device_uuid": "30000000-0000-4000-8000-000000000002",
+        "organization_uuid": "30000000-0000-4000-8000-000000000001",
+        "profile_artifact_uuid": "30000000-0000-4000-8000-000000000004",
+        "profile_hash": "f2e088ddb2c16a28b4257902135662fb5f4c34db5bf6d79f8cbd021c77d92a1d",
+        "profile_canonical_json": "{\"alarm_templates\":[],\"calculations\":[],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"flow_rate\",\"kind\":\"measurement\",\"label\":\"Flow rate\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L/min\",\"uuid\":\"31000000-0000-4000-8000-000000000001\",\"validation\":null},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"total_volume\",\"kind\":\"counter\",\"label\":\"Total volume\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L\",\"uuid\":\"31000000-0000-4000-8000-000000000002\",\"validation\":null},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"enum\",\"display\":{\"widget\":\"badge\"},\"format\":null,\"key\":\"valve_state\",\"kind\":\"state\",\"label\":\"Valve\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":null,\"uuid\":\"31000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"valve_state_unknown\",\"engine\":\"json_logic\",\"message\":\"Valve must be open or closed.\",\"rule\":{\"in\":[{\"var\":\"value\"},[\"open\",\"closed\"]]}}}],\"profile\":{\"category\":\"water-metering\",\"code\":\"water-meter\",\"name\":\"Water meter\",\"revision\":1,\"uuid\":\"31000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "30000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "30000000-0000-4000-8000-000000000006",
+          "group_id": "adapters-30000000-0000-4000-8000-000000000001",
+          "edge_node_id": "adapter-30000000-0000-4000-8000-000000000008",
+          "device_id": "src-5e4683e4ae7135e8fa858e45aa0c8a9f"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+            "metric": "flow_rate",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+            "metric": "total_volume",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+            "metric": "valve_state",
+            "datatype": "String",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "30000000-0000-4000-8000-000000000005/adapter-30000000-0000-4000-8000-000000000008:3:1760256000000:1760256000123456789",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "label": "Flow rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "label": "Total volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 3.25,
+          "quality": "good",
+          "diagnostic": "Counter reset detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "counter_event": "reset"
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "label": "Valve",
+          "data_type": "enum",
+          "unit": null,
+          "value": "open",
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "a counter rollover and an enum value the profile refuses, outside a capture",
+    "valid": true,
+    "data": {
+      "generation": 2,
+      "uuid": "30000000-0000-4000-8000-00000000000c",
+      "definition": {
+        "adapter": {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+          "manufacturer_serial": "WM-1042"
+        },
+        "schema_version": "device-configuration.v2",
+        "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+        "device_uuid": "30000000-0000-4000-8000-000000000002",
+        "organization_uuid": "30000000-0000-4000-8000-000000000001",
+        "profile_artifact_uuid": "30000000-0000-4000-8000-000000000004",
+        "profile_hash": "f2e088ddb2c16a28b4257902135662fb5f4c34db5bf6d79f8cbd021c77d92a1d",
+        "profile_canonical_json": "{\"alarm_templates\":[],\"calculations\":[],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"flow_rate\",\"kind\":\"measurement\",\"label\":\"Flow rate\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L/min\",\"uuid\":\"31000000-0000-4000-8000-000000000001\",\"validation\":null},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"total_volume\",\"kind\":\"counter\",\"label\":\"Total volume\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L\",\"uuid\":\"31000000-0000-4000-8000-000000000002\",\"validation\":null},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"enum\",\"display\":{\"widget\":\"badge\"},\"format\":null,\"key\":\"valve_state\",\"kind\":\"state\",\"label\":\"Valve\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":null,\"uuid\":\"31000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"valve_state_unknown\",\"engine\":\"json_logic\",\"message\":\"Valve must be open or closed.\",\"rule\":{\"in\":[{\"var\":\"value\"},[\"open\",\"closed\"]]}}}],\"profile\":{\"category\":\"water-metering\",\"code\":\"water-meter\",\"name\":\"Water meter\",\"revision\":1,\"uuid\":\"31000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "30000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "30000000-0000-4000-8000-000000000006",
+          "group_id": "adapters-30000000-0000-4000-8000-000000000001",
+          "edge_node_id": "adapter-30000000-0000-4000-8000-000000000008",
+          "device_id": "src-5e4683e4ae7135e8fa858e45aa0c8a9f"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+            "metric": "flow_rate",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+            "metric": "total_volume",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+            "metric": "valve_state",
+            "datatype": "String",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "30000000-0000-4000-8000-000000000005/adapter-30000000-0000-4000-8000-000000000008:3:1760256000000:1760256000123456789",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "label": "Total volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 15,
+          "quality": "good",
+          "diagnostic": "Counter rollover detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T08:01:00Z",
+          "timestamp_source": "receipt",
+          "received_at": "2026-10-12T08:01:00Z",
+          "historical": false,
+          "counter_event": "rollover"
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "label": "Valve",
+          "data_type": "enum",
+          "unit": null,
+          "value": null,
+          "quality": "invalid",
+          "diagnostic": "Valve must be open or closed.",
+          "observed_at": "2026-10-12T08:01:00Z",
+          "timestamp_source": "receipt",
+          "received_at": "2026-10-12T08:01:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "a historical sample with a source timestamp",
+    "valid": true,
+    "data": {
+      "uuid": "90000000-0000-4000-8000-000000000009",
+      "generation": 1,
+      "definition": {
+        "schema_version": "device-configuration.v1",
+        "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+        "device_uuid": "90000000-0000-4000-8000-000000000002",
+        "organization_uuid": "90000000-0000-4000-8000-000000000003",
+        "profile_artifact_uuid": "90000000-0000-4000-8000-000000000004",
+        "profile_hash": "98e09f5717bbdfb68a24135d678c979a0621385cef993545e208619b9acefb91",
+        "profile_canonical_json": "{\"alarm_templates\":[{\"code\":\"meter-stale\",\"condition\":{\"max_age_seconds\":300},\"enabled_by_default\":true,\"name\":\"Meter staleness\",\"parameters\":[{\"parameter_uuid\":\"20000000-0000-4000-8000-000000000001\",\"role\":\"subject\"}],\"severity\":\"warning\",\"type\":\"staleness\",\"uuid\":\"20000000-0000-4000-8000-000000000020\"}],\"calculations\":[{\"engine\":\"json_logic\",\"expression\":{\"/\":[{\"+\":[{\"var\":\"l1\"},{\"var\":\"l2\"},{\"var\":\"l3\"}]},3]},\"failure_policy\":\"mark_invalid\",\"inputs\":[{\"alias\":\"l1\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000001\"},{\"alias\":\"l2\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000002\"},{\"alias\":\"l3\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000003\"}],\"target_parameter_uuid\":\"20000000-0000-4000-8000-000000000010\",\"trigger\":\"on_input_change\"}],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l1\",\"kind\":\"measurement\",\"label\":\"Voltage L1\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000001\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l2\",\"kind\":\"measurement\",\"label\":\"Voltage L2\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000002\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l3\",\"kind\":\"measurement\",\"label\":\"Voltage L3\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"energy.imported\",\"kind\":\"counter\",\"label\":\"Imported energy\",\"reporting\":null,\"reports_state\":true,\"unit\":\"kWh\",\"uuid\":\"20000000-0000-4000-8000-000000000004\",\"validation\":{\"diagnostic_code\":\"energy_invalid\",\"engine\":\"json_logic\",\"message\":\"Energy must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"energy.exported\",\"kind\":\"counter\",\"label\":\"Exported energy\",\"reporting\":null,\"reports_state\":true,\"unit\":\"kWh\",\"uuid\":\"20000000-0000-4000-8000-000000000005\",\"validation\":{\"diagnostic_code\":\"energy_invalid\",\"engine\":\"json_logic\",\"message\":\"Energy must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.average\",\"kind\":\"derived\",\"label\":\"Average voltage\",\"reporting\":null,\"reports_state\":false,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000010\",\"validation\":null}],\"profile\":{\"category\":\"energy-metering\",\"code\":\"three-phase-energy-meter\",\"name\":\"Three-phase Energy Meter\",\"revision\":1,\"uuid\":\"20000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "90000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "90000000-0000-4000-8000-000000000006",
+          "group_id": "fixtures",
+          "edge_node_id": "meter-gateway",
+          "device_id": "meter"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "parameter_uuid": "20000000-0000-4000-8000-000000000001",
+            "metric": "Voltage L1",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "parameter_uuid": "20000000-0000-4000-8000-000000000002",
+            "metric": "Voltage L2",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "parameter_uuid": "20000000-0000-4000-8000-000000000003",
+            "metric": "Voltage L3",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "parameter_uuid": "20000000-0000-4000-8000-000000000004",
+            "metric": "Imported energy",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "parameter_uuid": "20000000-0000-4000-8000-000000000005",
+            "metric": "Exported energy",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "fixture-session",
+      "readings": [
+        {
+          "parameter_uuid": "20000000-0000-4000-8000-000000000001",
+          "key": "voltage.l1",
+          "label": "Voltage L1",
+          "data_type": "number",
+          "unit": "V",
+          "value": 230,
+          "quality": "good",
+          "observed_at": "2026-09-05T23:50:00Z",
+          "received_at": "2026-09-06T00:00:01Z",
+          "historical": true,
+          "timestamp_source": "source"
+        }
+      ]
+    }
+  },
+  {
+    "description": "a reading in the shape of a stored latest value, with last_valid_received_at",
+    "valid": true,
+    "data": {
+      "uuid": "90000000-0000-4000-8000-000000000009",
+      "generation": 1,
+      "definition": {
+        "schema_version": "device-configuration.v1",
+        "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+        "device_uuid": "90000000-0000-4000-8000-000000000002",
+        "organization_uuid": "90000000-0000-4000-8000-000000000003",
+        "profile_artifact_uuid": "90000000-0000-4000-8000-000000000004",
+        "profile_hash": "98e09f5717bbdfb68a24135d678c979a0621385cef993545e208619b9acefb91",
+        "profile_canonical_json": "{\"alarm_templates\":[{\"code\":\"meter-stale\",\"condition\":{\"max_age_seconds\":300},\"enabled_by_default\":true,\"name\":\"Meter staleness\",\"parameters\":[{\"parameter_uuid\":\"20000000-0000-4000-8000-000000000001\",\"role\":\"subject\"}],\"severity\":\"warning\",\"type\":\"staleness\",\"uuid\":\"20000000-0000-4000-8000-000000000020\"}],\"calculations\":[{\"engine\":\"json_logic\",\"expression\":{\"/\":[{\"+\":[{\"var\":\"l1\"},{\"var\":\"l2\"},{\"var\":\"l3\"}]},3]},\"failure_policy\":\"mark_invalid\",\"inputs\":[{\"alias\":\"l1\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000001\"},{\"alias\":\"l2\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000002\"},{\"alias\":\"l3\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000003\"}],\"target_parameter_uuid\":\"20000000-0000-4000-8000-000000000010\",\"trigger\":\"on_input_change\"}],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l1\",\"kind\":\"measurement\",\"label\":\"Voltage L1\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000001\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l2\",\"kind\":\"measurement\",\"label\":\"Voltage L2\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000002\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l3\",\"kind\":\"measurement\",\"label\":\"Voltage L3\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"energy.imported\",\"kind\":\"counter\",\"label\":\"Imported energy\",\"reporting\":null,\"reports_state\":true,\"unit\":\"kWh\",\"uuid\":\"20000000-0000-4000-8000-000000000004\",\"validation\":{\"diagnostic_code\":\"energy_invalid\",\"engine\":\"json_logic\",\"message\":\"Energy must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"energy.exported\",\"kind\":\"counter\",\"label\":\"Exported energy\",\"reporting\":null,\"reports_state\":true,\"unit\":\"kWh\",\"uuid\":\"20000000-0000-4000-8000-000000000005\",\"validation\":{\"diagnostic_code\":\"energy_invalid\",\"engine\":\"json_logic\",\"message\":\"Energy must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.average\",\"kind\":\"derived\",\"label\":\"Average voltage\",\"reporting\":null,\"reports_state\":false,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000010\",\"validation\":null}],\"profile\":{\"category\":\"energy-metering\",\"code\":\"three-phase-energy-meter\",\"name\":\"Three-phase Energy Meter\",\"revision\":1,\"uuid\":\"20000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "90000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "90000000-0000-4000-8000-000000000006",
+          "group_id": "fixtures",
+          "edge_node_id": "meter-gateway",
+          "device_id": "meter"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "parameter_uuid": "20000000-0000-4000-8000-000000000001",
+            "metric": "Voltage L1",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "parameter_uuid": "20000000-0000-4000-8000-000000000002",
+            "metric": "Voltage L2",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "parameter_uuid": "20000000-0000-4000-8000-000000000003",
+            "metric": "Voltage L3",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "parameter_uuid": "20000000-0000-4000-8000-000000000004",
+            "metric": "Imported energy",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "parameter_uuid": "20000000-0000-4000-8000-000000000005",
+            "metric": "Exported energy",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "fixture-session",
+      "readings": [
+        {
+          "parameter_uuid": "20000000-0000-4000-8000-000000000001",
+          "key": "voltage.l1",
+          "label": "Voltage L1",
+          "data_type": "number",
+          "unit": "V",
+          "value": null,
+          "quality": "invalid",
+          "observed_at": "2026-09-06T00:00:00Z",
+          "received_at": "2026-09-06T00:00:01Z",
+          "historical": false,
+          "diagnostic": "Voltage must not be negative.",
+          "timestamp_source": "receipt",
+          "last_valid_received_at": "2026-09-05T23:59:01Z"
+        }
+      ]
+    }
+  },
+  {
+    "description": "missing generation",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": ""
+    },
+    "data": {
+      "capture_id": "30000000-0000-4000-8000-00000000000a",
+      "uuid": "30000000-0000-4000-8000-00000000000b",
+      "definition": {
+        "adapter": {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+          "manufacturer_serial": "WM-1042"
+        },
+        "schema_version": "device-configuration.v2",
+        "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+        "device_uuid": "30000000-0000-4000-8000-000000000002",
+        "organization_uuid": "30000000-0000-4000-8000-000000000001",
+        "profile_artifact_uuid": "30000000-0000-4000-8000-000000000004",
+        "profile_hash": "f2e088ddb2c16a28b4257902135662fb5f4c34db5bf6d79f8cbd021c77d92a1d",
+        "profile_canonical_json": "{\"alarm_templates\":[],\"calculations\":[],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"flow_rate\",\"kind\":\"measurement\",\"label\":\"Flow rate\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L/min\",\"uuid\":\"31000000-0000-4000-8000-000000000001\",\"validation\":null},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"total_volume\",\"kind\":\"counter\",\"label\":\"Total volume\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L\",\"uuid\":\"31000000-0000-4000-8000-000000000002\",\"validation\":null},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"enum\",\"display\":{\"widget\":\"badge\"},\"format\":null,\"key\":\"valve_state\",\"kind\":\"state\",\"label\":\"Valve\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":null,\"uuid\":\"31000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"valve_state_unknown\",\"engine\":\"json_logic\",\"message\":\"Valve must be open or closed.\",\"rule\":{\"in\":[{\"var\":\"value\"},[\"open\",\"closed\"]]}}}],\"profile\":{\"category\":\"water-metering\",\"code\":\"water-meter\",\"name\":\"Water meter\",\"revision\":1,\"uuid\":\"31000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "30000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "30000000-0000-4000-8000-000000000006",
+          "group_id": "adapters-30000000-0000-4000-8000-000000000001",
+          "edge_node_id": "adapter-30000000-0000-4000-8000-000000000008",
+          "device_id": "src-5e4683e4ae7135e8fa858e45aa0c8a9f"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+            "metric": "flow_rate",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+            "metric": "total_volume",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+            "metric": "valve_state",
+            "datatype": "String",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "30000000-0000-4000-8000-000000000005/adapter-30000000-0000-4000-8000-000000000008:3:1760256000000:1760256000123456789",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "label": "Flow rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "label": "Total volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 3.25,
+          "quality": "good",
+          "diagnostic": "Counter reset detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "counter_event": "reset"
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "label": "Valve",
+          "data_type": "enum",
+          "unit": null,
+          "value": "open",
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "generation zero, before any activation",
+    "valid": false,
+    "error": {
+      "keyword": "minimum",
+      "instance_location": "/generation"
+    },
+    "data": {
+      "capture_id": "30000000-0000-4000-8000-00000000000a",
+      "generation": 0,
+      "uuid": "30000000-0000-4000-8000-00000000000b",
+      "definition": {
+        "adapter": {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+          "manufacturer_serial": "WM-1042"
+        },
+        "schema_version": "device-configuration.v2",
+        "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+        "device_uuid": "30000000-0000-4000-8000-000000000002",
+        "organization_uuid": "30000000-0000-4000-8000-000000000001",
+        "profile_artifact_uuid": "30000000-0000-4000-8000-000000000004",
+        "profile_hash": "f2e088ddb2c16a28b4257902135662fb5f4c34db5bf6d79f8cbd021c77d92a1d",
+        "profile_canonical_json": "{\"alarm_templates\":[],\"calculations\":[],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"flow_rate\",\"kind\":\"measurement\",\"label\":\"Flow rate\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L/min\",\"uuid\":\"31000000-0000-4000-8000-000000000001\",\"validation\":null},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"total_volume\",\"kind\":\"counter\",\"label\":\"Total volume\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L\",\"uuid\":\"31000000-0000-4000-8000-000000000002\",\"validation\":null},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"enum\",\"display\":{\"widget\":\"badge\"},\"format\":null,\"key\":\"valve_state\",\"kind\":\"state\",\"label\":\"Valve\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":null,\"uuid\":\"31000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"valve_state_unknown\",\"engine\":\"json_logic\",\"message\":\"Valve must be open or closed.\",\"rule\":{\"in\":[{\"var\":\"value\"},[\"open\",\"closed\"]]}}}],\"profile\":{\"category\":\"water-metering\",\"code\":\"water-meter\",\"name\":\"Water meter\",\"revision\":1,\"uuid\":\"31000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "30000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "30000000-0000-4000-8000-000000000006",
+          "group_id": "adapters-30000000-0000-4000-8000-000000000001",
+          "edge_node_id": "adapter-30000000-0000-4000-8000-000000000008",
+          "device_id": "src-5e4683e4ae7135e8fa858e45aa0c8a9f"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+            "metric": "flow_rate",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+            "metric": "total_volume",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+            "metric": "valve_state",
+            "datatype": "String",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "30000000-0000-4000-8000-000000000005/adapter-30000000-0000-4000-8000-000000000008:3:1760256000000:1760256000123456789",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "label": "Flow rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "label": "Total volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 3.25,
+          "quality": "good",
+          "diagnostic": "Counter reset detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "counter_event": "reset"
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "label": "Valve",
+          "data_type": "enum",
+          "unit": null,
+          "value": "open",
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "a capture id that is not a UUID",
+    "valid": false,
+    "error": {
+      "keyword": "format",
+      "instance_location": "/capture_id"
+    },
+    "data": {
+      "capture_id": "capture-1",
+      "generation": 2,
+      "uuid": "30000000-0000-4000-8000-00000000000b",
+      "definition": {
+        "adapter": {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+          "manufacturer_serial": "WM-1042"
+        },
+        "schema_version": "device-configuration.v2",
+        "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+        "device_uuid": "30000000-0000-4000-8000-000000000002",
+        "organization_uuid": "30000000-0000-4000-8000-000000000001",
+        "profile_artifact_uuid": "30000000-0000-4000-8000-000000000004",
+        "profile_hash": "f2e088ddb2c16a28b4257902135662fb5f4c34db5bf6d79f8cbd021c77d92a1d",
+        "profile_canonical_json": "{\"alarm_templates\":[],\"calculations\":[],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"flow_rate\",\"kind\":\"measurement\",\"label\":\"Flow rate\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L/min\",\"uuid\":\"31000000-0000-4000-8000-000000000001\",\"validation\":null},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"total_volume\",\"kind\":\"counter\",\"label\":\"Total volume\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L\",\"uuid\":\"31000000-0000-4000-8000-000000000002\",\"validation\":null},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"enum\",\"display\":{\"widget\":\"badge\"},\"format\":null,\"key\":\"valve_state\",\"kind\":\"state\",\"label\":\"Valve\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":null,\"uuid\":\"31000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"valve_state_unknown\",\"engine\":\"json_logic\",\"message\":\"Valve must be open or closed.\",\"rule\":{\"in\":[{\"var\":\"value\"},[\"open\",\"closed\"]]}}}],\"profile\":{\"category\":\"water-metering\",\"code\":\"water-meter\",\"name\":\"Water meter\",\"revision\":1,\"uuid\":\"31000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "30000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "30000000-0000-4000-8000-000000000006",
+          "group_id": "adapters-30000000-0000-4000-8000-000000000001",
+          "edge_node_id": "adapter-30000000-0000-4000-8000-000000000008",
+          "device_id": "src-5e4683e4ae7135e8fa858e45aa0c8a9f"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+            "metric": "flow_rate",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+            "metric": "total_volume",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+            "metric": "valve_state",
+            "datatype": "String",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "30000000-0000-4000-8000-000000000005/adapter-30000000-0000-4000-8000-000000000008:3:1760256000000:1760256000123456789",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "label": "Flow rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "label": "Total volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 3.25,
+          "quality": "good",
+          "diagnostic": "Counter reset detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "counter_event": "reset"
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "label": "Valve",
+          "data_type": "enum",
+          "unit": null,
+          "value": "open",
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "a definition of an unknown configuration version",
+    "valid": false,
+    "error": {
+      "keyword": "oneOf",
+      "instance_location": "/definition"
+    },
+    "data": {
+      "capture_id": "30000000-0000-4000-8000-00000000000a",
+      "generation": 2,
+      "uuid": "30000000-0000-4000-8000-00000000000b",
+      "definition": {
+        "adapter": {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+          "manufacturer_serial": "WM-1042"
+        },
+        "schema_version": "device-configuration.v3",
+        "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+        "device_uuid": "30000000-0000-4000-8000-000000000002",
+        "organization_uuid": "30000000-0000-4000-8000-000000000001",
+        "profile_artifact_uuid": "30000000-0000-4000-8000-000000000004",
+        "profile_hash": "f2e088ddb2c16a28b4257902135662fb5f4c34db5bf6d79f8cbd021c77d92a1d",
+        "profile_canonical_json": "{\"alarm_templates\":[],\"calculations\":[],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"flow_rate\",\"kind\":\"measurement\",\"label\":\"Flow rate\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L/min\",\"uuid\":\"31000000-0000-4000-8000-000000000001\",\"validation\":null},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"total_volume\",\"kind\":\"counter\",\"label\":\"Total volume\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L\",\"uuid\":\"31000000-0000-4000-8000-000000000002\",\"validation\":null},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"enum\",\"display\":{\"widget\":\"badge\"},\"format\":null,\"key\":\"valve_state\",\"kind\":\"state\",\"label\":\"Valve\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":null,\"uuid\":\"31000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"valve_state_unknown\",\"engine\":\"json_logic\",\"message\":\"Valve must be open or closed.\",\"rule\":{\"in\":[{\"var\":\"value\"},[\"open\",\"closed\"]]}}}],\"profile\":{\"category\":\"water-metering\",\"code\":\"water-meter\",\"name\":\"Water meter\",\"revision\":1,\"uuid\":\"31000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "30000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "30000000-0000-4000-8000-000000000006",
+          "group_id": "adapters-30000000-0000-4000-8000-000000000001",
+          "edge_node_id": "adapter-30000000-0000-4000-8000-000000000008",
+          "device_id": "src-5e4683e4ae7135e8fa858e45aa0c8a9f"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+            "metric": "flow_rate",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+            "metric": "total_volume",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+            "metric": "valve_state",
+            "datatype": "String",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "30000000-0000-4000-8000-000000000005/adapter-30000000-0000-4000-8000-000000000008:3:1760256000000:1760256000123456789",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "label": "Flow rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "label": "Total volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 3.25,
+          "quality": "good",
+          "diagnostic": "Counter reset detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "counter_event": "reset"
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "label": "Valve",
+          "data_type": "enum",
+          "unit": null,
+          "value": "open",
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "an unknown counter event",
+    "valid": false,
+    "error": {
+      "keyword": "enum",
+      "instance_location": "/readings/1/counter_event"
+    },
+    "data": {
+      "capture_id": "30000000-0000-4000-8000-00000000000a",
+      "generation": 2,
+      "uuid": "30000000-0000-4000-8000-00000000000b",
+      "definition": {
+        "adapter": {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+          "manufacturer_serial": "WM-1042"
+        },
+        "schema_version": "device-configuration.v2",
+        "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+        "device_uuid": "30000000-0000-4000-8000-000000000002",
+        "organization_uuid": "30000000-0000-4000-8000-000000000001",
+        "profile_artifact_uuid": "30000000-0000-4000-8000-000000000004",
+        "profile_hash": "f2e088ddb2c16a28b4257902135662fb5f4c34db5bf6d79f8cbd021c77d92a1d",
+        "profile_canonical_json": "{\"alarm_templates\":[],\"calculations\":[],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"flow_rate\",\"kind\":\"measurement\",\"label\":\"Flow rate\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L/min\",\"uuid\":\"31000000-0000-4000-8000-000000000001\",\"validation\":null},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"total_volume\",\"kind\":\"counter\",\"label\":\"Total volume\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L\",\"uuid\":\"31000000-0000-4000-8000-000000000002\",\"validation\":null},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"enum\",\"display\":{\"widget\":\"badge\"},\"format\":null,\"key\":\"valve_state\",\"kind\":\"state\",\"label\":\"Valve\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":null,\"uuid\":\"31000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"valve_state_unknown\",\"engine\":\"json_logic\",\"message\":\"Valve must be open or closed.\",\"rule\":{\"in\":[{\"var\":\"value\"},[\"open\",\"closed\"]]}}}],\"profile\":{\"category\":\"water-metering\",\"code\":\"water-meter\",\"name\":\"Water meter\",\"revision\":1,\"uuid\":\"31000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "30000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "30000000-0000-4000-8000-000000000006",
+          "group_id": "adapters-30000000-0000-4000-8000-000000000001",
+          "edge_node_id": "adapter-30000000-0000-4000-8000-000000000008",
+          "device_id": "src-5e4683e4ae7135e8fa858e45aa0c8a9f"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+            "metric": "flow_rate",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+            "metric": "total_volume",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+            "metric": "valve_state",
+            "datatype": "String",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "30000000-0000-4000-8000-000000000005/adapter-30000000-0000-4000-8000-000000000008:3:1760256000000:1760256000123456789",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "label": "Flow rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "label": "Total volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 3.25,
+          "quality": "good",
+          "diagnostic": "Counter reset detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "counter_event": "wrap"
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "label": "Valve",
+          "data_type": "enum",
+          "unit": null,
+          "value": "open",
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "a data type no profile has",
+    "valid": false,
+    "error": {
+      "keyword": "enum",
+      "instance_location": "/readings/2/data_type"
+    },
+    "data": {
+      "capture_id": "30000000-0000-4000-8000-00000000000a",
+      "generation": 2,
+      "uuid": "30000000-0000-4000-8000-00000000000b",
+      "definition": {
+        "adapter": {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+          "manufacturer_serial": "WM-1042"
+        },
+        "schema_version": "device-configuration.v2",
+        "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+        "device_uuid": "30000000-0000-4000-8000-000000000002",
+        "organization_uuid": "30000000-0000-4000-8000-000000000001",
+        "profile_artifact_uuid": "30000000-0000-4000-8000-000000000004",
+        "profile_hash": "f2e088ddb2c16a28b4257902135662fb5f4c34db5bf6d79f8cbd021c77d92a1d",
+        "profile_canonical_json": "{\"alarm_templates\":[],\"calculations\":[],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"flow_rate\",\"kind\":\"measurement\",\"label\":\"Flow rate\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L/min\",\"uuid\":\"31000000-0000-4000-8000-000000000001\",\"validation\":null},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"total_volume\",\"kind\":\"counter\",\"label\":\"Total volume\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L\",\"uuid\":\"31000000-0000-4000-8000-000000000002\",\"validation\":null},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"enum\",\"display\":{\"widget\":\"badge\"},\"format\":null,\"key\":\"valve_state\",\"kind\":\"state\",\"label\":\"Valve\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":null,\"uuid\":\"31000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"valve_state_unknown\",\"engine\":\"json_logic\",\"message\":\"Valve must be open or closed.\",\"rule\":{\"in\":[{\"var\":\"value\"},[\"open\",\"closed\"]]}}}],\"profile\":{\"category\":\"water-metering\",\"code\":\"water-meter\",\"name\":\"Water meter\",\"revision\":1,\"uuid\":\"31000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "30000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "30000000-0000-4000-8000-000000000006",
+          "group_id": "adapters-30000000-0000-4000-8000-000000000001",
+          "edge_node_id": "adapter-30000000-0000-4000-8000-000000000008",
+          "device_id": "src-5e4683e4ae7135e8fa858e45aa0c8a9f"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+            "metric": "flow_rate",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+            "metric": "total_volume",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+            "metric": "valve_state",
+            "datatype": "String",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "30000000-0000-4000-8000-000000000005/adapter-30000000-0000-4000-8000-000000000008:3:1760256000000:1760256000123456789",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "label": "Flow rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "label": "Total volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 3.25,
+          "quality": "good",
+          "diagnostic": "Counter reset detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "counter_event": "reset"
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "label": "Valve",
+          "data_type": "uint64",
+          "unit": null,
+          "value": "open",
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "an empty manufacturer serial",
+    "valid": false,
+    "error": {
+      "keyword": "minLength",
+      "instance_location": "/readings/0/manufacturer_serial"
+    },
+    "data": {
+      "capture_id": "30000000-0000-4000-8000-00000000000a",
+      "generation": 2,
+      "uuid": "30000000-0000-4000-8000-00000000000b",
+      "definition": {
+        "adapter": {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+          "manufacturer_serial": "WM-1042"
+        },
+        "schema_version": "device-configuration.v2",
+        "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+        "device_uuid": "30000000-0000-4000-8000-000000000002",
+        "organization_uuid": "30000000-0000-4000-8000-000000000001",
+        "profile_artifact_uuid": "30000000-0000-4000-8000-000000000004",
+        "profile_hash": "f2e088ddb2c16a28b4257902135662fb5f4c34db5bf6d79f8cbd021c77d92a1d",
+        "profile_canonical_json": "{\"alarm_templates\":[],\"calculations\":[],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"flow_rate\",\"kind\":\"measurement\",\"label\":\"Flow rate\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L/min\",\"uuid\":\"31000000-0000-4000-8000-000000000001\",\"validation\":null},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"total_volume\",\"kind\":\"counter\",\"label\":\"Total volume\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L\",\"uuid\":\"31000000-0000-4000-8000-000000000002\",\"validation\":null},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"enum\",\"display\":{\"widget\":\"badge\"},\"format\":null,\"key\":\"valve_state\",\"kind\":\"state\",\"label\":\"Valve\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":null,\"uuid\":\"31000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"valve_state_unknown\",\"engine\":\"json_logic\",\"message\":\"Valve must be open or closed.\",\"rule\":{\"in\":[{\"var\":\"value\"},[\"open\",\"closed\"]]}}}],\"profile\":{\"category\":\"water-metering\",\"code\":\"water-meter\",\"name\":\"Water meter\",\"revision\":1,\"uuid\":\"31000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "30000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "30000000-0000-4000-8000-000000000006",
+          "group_id": "adapters-30000000-0000-4000-8000-000000000001",
+          "edge_node_id": "adapter-30000000-0000-4000-8000-000000000008",
+          "device_id": "src-5e4683e4ae7135e8fa858e45aa0c8a9f"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+            "metric": "flow_rate",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+            "metric": "total_volume",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+            "metric": "valve_state",
+            "datatype": "String",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "30000000-0000-4000-8000-000000000005/adapter-30000000-0000-4000-8000-000000000008:3:1760256000000:1760256000123456789",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "label": "Flow rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "label": "Total volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 3.25,
+          "quality": "good",
+          "diagnostic": "Counter reset detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "counter_event": "reset"
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "label": "Valve",
+          "data_type": "enum",
+          "unit": null,
+          "value": "open",
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "a top-level field a newer producer adds",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {
+      "keyword": "additionalProperties",
+      "instance_location": ""
+    },
+    "data": {
+      "capture_id": "30000000-0000-4000-8000-00000000000a",
+      "generation": 2,
+      "uuid": "30000000-0000-4000-8000-00000000000b",
+      "definition": {
+        "adapter": {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+          "manufacturer_serial": "WM-1042"
+        },
+        "schema_version": "device-configuration.v2",
+        "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+        "device_uuid": "30000000-0000-4000-8000-000000000002",
+        "organization_uuid": "30000000-0000-4000-8000-000000000001",
+        "profile_artifact_uuid": "30000000-0000-4000-8000-000000000004",
+        "profile_hash": "f2e088ddb2c16a28b4257902135662fb5f4c34db5bf6d79f8cbd021c77d92a1d",
+        "profile_canonical_json": "{\"alarm_templates\":[],\"calculations\":[],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"flow_rate\",\"kind\":\"measurement\",\"label\":\"Flow rate\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L/min\",\"uuid\":\"31000000-0000-4000-8000-000000000001\",\"validation\":null},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"total_volume\",\"kind\":\"counter\",\"label\":\"Total volume\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":\"L\",\"uuid\":\"31000000-0000-4000-8000-000000000002\",\"validation\":null},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"enum\",\"display\":{\"widget\":\"badge\"},\"format\":null,\"key\":\"valve_state\",\"kind\":\"state\",\"label\":\"Valve\",\"reporting\":{\"stale_after_seconds\":15},\"reports_state\":true,\"unit\":null,\"uuid\":\"31000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"valve_state_unknown\",\"engine\":\"json_logic\",\"message\":\"Valve must be open or closed.\",\"rule\":{\"in\":[{\"var\":\"value\"},[\"open\",\"closed\"]]}}}],\"profile\":{\"category\":\"water-metering\",\"code\":\"water-meter\",\"name\":\"Water meter\",\"revision\":1,\"uuid\":\"31000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+        "source": {
+          "connection_uuid": "30000000-0000-4000-8000-000000000005",
+          "candidate_uuid": "30000000-0000-4000-8000-000000000006",
+          "group_id": "adapters-30000000-0000-4000-8000-000000000001",
+          "edge_node_id": "adapter-30000000-0000-4000-8000-000000000008",
+          "device_id": "src-5e4683e4ae7135e8fa858e45aa0c8a9f"
+        },
+        "birth_revision": 1,
+        "mappings": [
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+            "metric": "flow_rate",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+            "metric": "total_volume",
+            "datatype": "Double",
+            "command_metric": null,
+            "command_datatype": null
+          },
+          {
+            "conversion_mode": "none",
+            "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+            "metric": "valve_state",
+            "datatype": "String",
+            "command_metric": null,
+            "command_datatype": null
+          }
+        ]
+      },
+      "session_id": "30000000-0000-4000-8000-000000000005/adapter-30000000-0000-4000-8000-000000000008:3:1760256000000:1760256000123456789",
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "label": "Flow rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000002",
+          "key": "total_volume",
+          "label": "Total volume",
+          "data_type": "number",
+          "unit": "L",
+          "value": 3.25,
+          "quality": "good",
+          "diagnostic": "Counter reset detected; consumption continues from the new value.",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "counter_event": "reset"
+        },
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "adapter_revision_uuid": "30000000-0000-4000-8000-000000000009",
+          "manufacturer_serial": "WM-1042",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "label": "Valve",
+          "data_type": "enum",
+          "unit": null,
+          "value": "open",
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ],
+      "source_message_id": "msg-1"
+    }
+  }
+]

@@ -31,7 +31,6 @@ func TestCommittedProjectionMatchesSharedContract(t *testing.T) {
 	if err = json.Unmarshal(raw, &input); err != nil {
 		t.Fatal(err)
 	}
-	input.Generation = 1
 	event := ProjectCommitted(input)
 	event.Sequence = "1"
 	actual, err := json.Marshal(event)

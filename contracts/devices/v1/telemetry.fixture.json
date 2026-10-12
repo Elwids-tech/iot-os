@@ -1,5 +1,6 @@
 {
   "uuid": "90000000-0000-4000-8000-000000000009",
+  "generation": 1,
   "definition": {
     "schema_version": "device-configuration.v1",
     "configuration_uuid": "90000000-0000-4000-8000-000000000001",
