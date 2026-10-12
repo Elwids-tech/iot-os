@@ -56,7 +56,7 @@ Format: [contracts/supplement.schema.json](contracts/supplement.schema.json).
 | Field | Meaning |
 | --- | --- |
 | `components` | Schemas, responses, headers, examples to add (names must not collide with inferred ones) |
-| `operations["METHOD /path"]` | Patch for one generated operation: `summary`, `description`, `responses` (per status, replaces the inferred response for that status), `x-*` fields |
+| `operations["METHOD /path"]` | Patch for one generated operation: `summary`, `description`, `responses` (per status, replaces the inferred response for that status), `x-*` fields, and `requestBody` only where the export inferred none (validation in a helper; the export fails otherwise) |
 | `webhooks` | Webhook definitions (integration only) |
 
 **Rules**: a key must match a generated operation (otherwise the export fails, which
