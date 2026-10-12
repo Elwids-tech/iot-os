@@ -1,0 +1,13 @@
+# Account and public operations.
+#
+# Statuses the code returns that inference missed, found by the response checks in
+# the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
+# Success bodies stay pending until the domain is described.
+# Format: ../meta/supplement.schema.json.
+operations:
+  PUT /v1/notifications/preferences:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        $ref: '#/components/responses/Conflict'

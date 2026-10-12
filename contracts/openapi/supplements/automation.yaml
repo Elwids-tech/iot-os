@@ -1,0 +1,46 @@
+# Automation operations (workflows, scenarios, alerts).
+#
+# Statuses the code returns that inference missed, found by the response checks in
+# the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
+# Success bodies stay pending until the domain is described.
+# Format: ../meta/supplement.schema.json.
+operations:
+  POST /v1/organizations/{organization}/alerts/{alert}/comments:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/alerts/{alert}/deliveries/{delivery}/retry:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/workflows:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  GET /v1/organizations/{organization}/workflows/dag/node-types:
+    responses:
+      '503':
+        $ref: '#/components/responses/RuntimeUnavailable'
+  POST /v1/organizations/{organization}/workflows/{workflow}/deployments:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  PUT /v1/organizations/{organization}/workflows/{workflow}/layout:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  PUT /v1/organizations/{organization}/workflows/{workflow}/notifications:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/workflows/{workflow}/scenarios:
+    responses:
+      '201':
+        description: The scenario was created.
+        content:
+          application/json:
+            schema: {}
+  PUT /v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'

@@ -70,15 +70,15 @@ dependency approval (decision 1) blocks T001, T023, T043 and T064.
 
 ### PR 2: response checks in the suite
 
-- [ ] T023 Add the exact-pinned dev dependency `opis/json-schema` `2.6.0` to apps/api/composer.json and apps/api/composer.lock (already added in PR 1, see T001)
-- [ ] T024 Implement apps/api/tests/Support/Contract/ContractDocument.php: load contracts/openapi/openapi.json, index operations by method and URI template, and resolve internal and `../` `$ref`s through an opis loader rooted at contracts/
-- [ ] T025 Implement apps/api/tests/Support/Contract/ResponseChecker.php: status documented; for non-pending operations the JSON body validates and documented required headers are present; failure message in the G4 format from contracts/ci-gate.md
-- [ ] T026 [P] Implement apps/api/tests/Support/Contract/CoverageRecorder.php and the `#[WithoutContractCheck('reason')]` attribute in apps/api/tests/Support/Contract/WithoutContractCheck.php; the recorder appends `{operation, status, test}` and skipped `{test, reason}` to apps/api/storage/framework/testing/contract-coverage.json (git-ignored)
-- [ ] T027 Hook the checker into apps/api/tests/TestCase.php: listen for `RequestHandled` during each test, check in-scope routes only, honour the attribute
-- [ ] T028 Implement `contract:coverage` in apps/api/app/Support/Contract/Console/ContractCoverage.php with the required pairs from research R8 ("every integration operation: one 2xx, 401, 403 and 404, plus 422 when it has a request body or a required query parameter"; "every fully described `api/v1` operation: one 2xx"); integration requirements behind a flag that starts off
-- [ ] T029 Run the suite on PostgreSQL; add every undocumented status the suite produces to the matching supplement; create specs/001-openapi-contract/drift-log.md with the columns Operation, Source, Discrepancy, Resolution, Pull request and record what was found
-- [ ] T030 Add `php artisan contract:coverage` after `php artisan test --compact` in the API job of .github/workflows/ci.yml
-- [ ] T031 Verify PR 2: the suite passes on PostgreSQL in CI and on SQLite locally; rebuild `api`
+- [X] T023 Add the exact-pinned dev dependency `opis/json-schema` `2.6.0` to apps/api/composer.json and apps/api/composer.lock (already added in PR 1, see T001)
+- [X] T024 Implement apps/api/tests/Support/Contract/ContractDocument.php: load contracts/openapi/openapi.json, index operations by method and URI template, and resolve internal and `../` `$ref`s through an opis loader rooted at contracts/
+- [X] T025 Implement apps/api/tests/Support/Contract/ResponseChecker.php: status documented; for non-pending operations the JSON body validates and documented required headers are present; failure message in the G4 format from contracts/ci-gate.md
+- [X] T026 [P] Implement apps/api/tests/Support/Contract/CoverageRecorder.php and the `#[WithoutContractCheck('reason')]` attribute in apps/api/tests/Support/Contract/WithoutContractCheck.php; the recorder appends `{operation, status, test}` and skipped `{test, reason}` to apps/api/storage/framework/testing/contract-coverage.json (git-ignored)
+- [X] T027 Hook the checker into apps/api/tests/TestCase.php: listen for `RequestHandled` during each test, check in-scope routes only, honour the attribute
+- [X] T028 Implement `contract:coverage` in apps/api/app/Support/Contract/Console/ContractCoverage.php with the required pairs from research R8 ("every integration operation: one 2xx, 401, 403 and 404, plus 422 when it has a request body or a required query parameter"; "every fully described `api/v1` operation: one 2xx"); integration requirements behind a flag that starts off
+- [X] T029 Run the suite on PostgreSQL; add every undocumented status the suite produces to the matching supplement; create specs/001-openapi-contract/drift-log.md with the columns Operation, Source, Discrepancy, Resolution, Pull request and record what was found
+- [X] T030 Add `php artisan contract:coverage` after `php artisan test --compact` in the API job of .github/workflows/ci.yml
+- [X] T031 Verify PR 2: the suite passes on PostgreSQL in CI and on SQLite locally; rebuild `api`
 
 **Checkpoint**: Export, inventory, ratchet and response checks run in CI with all 247 operations pending.
 

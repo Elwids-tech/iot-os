@@ -12,6 +12,10 @@
             <directory>tests/Feature</directory>
         </testsuite>
     </testsuites>
+    <extensions>
+        <!-- Writes storage/framework/testing/contract-coverage.json for php artisan contract:coverage (gate G4). -->
+        <bootstrap class="Tests\Support\Contract\CoverageRecorder"/>
+    </extensions>
     <source>
         <include>
             <directory>app</directory>

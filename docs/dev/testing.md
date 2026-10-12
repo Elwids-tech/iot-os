@@ -11,7 +11,8 @@ Passing tests and typechecks do not update what Docker serves.
 | --- | --- | --- |
 | TypeScript + Go static checks | `./taskw lint` | `pnpm lint` (turbo: `tsc` everywhere, plus the design-system guardrails in portal and admin) and `go vet ./...` |
 | TypeScript + Go tests | `./taskw test` | `pnpm test` (turbo: Vitest in portal, ui, charts; admin Playwright with a Vite dev server; integration-sdk and vertical-demo node tests) and `go test ./...` |
-| Laravel tests | `cd apps/api && php artisan test --compact` | Not part of `./taskw test`. Use `--filter=DashboardTest` etc. for one area |
+| Laravel tests | `cd apps/api && php artisan test --compact` | Not part of `./taskw test`. Use `--filter=DashboardTest` etc. for one area. Responses are checked against the API contract ([below](#api-contract-checks)) |
+| API contract coverage | `cd apps/api && php artisan contract:coverage` | After a full `php artisan test`; reads the record the suite wrote |
 | Go only | `./taskw runtime:test` | |
 | Portal/admin only | `pnpm --filter @iot-os/portal lint`, `pnpm --filter @iot-os/portal test` | Same for `@iot-os/admin` |
 | Help articles | `cd apps/api && php artisan help:validate` | Also runs in API image builds |
@@ -20,11 +21,15 @@ Passing tests and typechecks do not update what Docker serves.
 | Release tooling | `python3 -m unittest discover -s tooling/release -p 'test_*.py'` | Needs PyYAML |
 | Adapters | `npm test --prefix services/adapters` | Decoder sandbox and flow generation |
 
-There is no pull-request CI. [`.github/workflows/release.yml`](../../.github/workflows/release.yml)
-runs on `v*` tags and manual dispatch: PHP tests, api-client typecheck,
-portal/admin lint, release-tooling tests, Go tests, the adapter sandbox and live
-protocol test, and the Mosquitto acceptance check, then builds the release
-images. Run the relevant subset locally before you push.
+[CI](../../.github/workflows/ci.yml) runs on every pull request and on pushes to
+`main`: the API job (Pint, help articles, the API contract gates and the PHP suite
+on PostgreSQL with TimescaleDB), Go tests against TimescaleDB and NATS, the
+TypeScript typechecks, lint, unit tests and builds, the portal specs that mock the
+API, the adapter sandbox, and the Python tooling tests and contract checker.
+[`.github/workflows/release.yml`](../../.github/workflows/release.yml) runs on `v*`
+tags and manual dispatch: it runs CI, then the live adapter protocol test and the
+Mosquitto acceptance check, then builds the release images. Run the relevant
+subset locally before you push.
 
 ## Contract checker
 
@@ -82,11 +87,69 @@ check every fixture and case in both modes on each side.
 
 ## Laravel
 
-[`phpunit.xml`](../../apps/api/phpunit.xml) forces SQLite `:memory:`, and
-`tests/TestCase.php` refuses any other database, so tests never touch the
-development database. SQLite hides Postgres-only failures such as invalid-UUID
-casts ([gotchas](gotchas.md#data-and-api-contracts)). AI providers are faked; no
-test spends provider credit.
+[`phpunit.xml`](../../apps/api/phpunit.xml) defaults to in-memory SQLite; the
+process environment can select PostgreSQL instead, as CI does. `tests/TestCase.php`
+refuses any database except SQLite `:memory:` or a PostgreSQL database whose name
+ends in `_test`, so tests never touch the development database. CI runs the suite
+on PostgreSQL with TimescaleDB and is authoritative: SQLite hides Postgres-only
+failures such as invalid-UUID casts ([gotchas](gotchas.md#data-and-api-contracts)).
+To run it the same way locally, start a throwaway database and point the suite at
+it:
+
+```sh
+docker run -d --rm --name api-test-pg --tmpfs /var/lib/postgresql/data \
+  -e POSTGRES_DB=iot_os_test -e POSTGRES_USER=iot_os_test -e POSTGRES_PASSWORD=iot_os_test \
+  -p 127.0.0.1:55432:5432 timescale/timescaledb:2.29.2-pg17
+cd apps/api && DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=55432 DB_DATABASE=iot_os_test \
+  DB_USERNAME=iot_os_test DB_PASSWORD=iot_os_test php artisan test --compact
+docker rm -f api-test-pg
+```
+
+AI providers are faked; no test spends provider credit.
+
+### API contract checks
+
+Every response the suite receives from an `/api/v1` or `/api/integration/v1` route
+is checked against [`contracts/openapi/openapi.json`](../reference/api.md#contract)
+(gate G4 in the
+[spec 001 CI gates](../../specs/001-openapi-contract/contracts/ci-gate.md)).
+`tests/TestCase.php` listens for `RequestHandled` and finds the operation from the
+route Laravel matched, so there is nothing to call in a test:
+
+- the status must be one the operation documents;
+- for an operation not on `contracts/openapi/pending-schemas.json`, documented
+  required headers (such as `Retry-After` on 429) must be present and the body must
+  match the documented content type and JSON schema (opis/json-schema, JSON Schema
+  2020-12; `../` references resolve into `contracts/`). Pending operations get the
+  status check only.
+
+A mismatch fails the test that made the request, naming the operation, status and
+JSON pointer:
+
+```text
+contract G4: GET /v1/organizations/{organization}/things/{thing} 200: /data/created_by: expected integer, got string
+  fix: correct the response in contracts/openapi/supplements/<domain>.yaml and run php artisan contract:export; ...
+```
+
+The platform's behaviour is the truth: fix the contract (a supplement, then
+`php artisan contract:export`) and add a row to the
+[drift log](../../specs/001-openapi-contract/drift-log.md); a platform bug is
+recorded for a separate change. A test that produces an undocumented response on
+purpose opts out with `#[WithoutContractCheck('reason')]`
+(`Tests\Support\Contract\WithoutContractCheck`) on the test method. The checks read
+the committed contract and never export it, so run `php artisan contract:export`
+first when you change a route or supplement. `Event::fake()` with no event list
+swallows `RequestHandled` and silently turns the checks off for that test; fake only
+the events the test asserts on.
+
+The suite also records each (operation, status) pair it checked, and each opt-out,
+in `apps/api/storage/framework/testing/contract-coverage.json` (git-ignored, emptied
+at the start of every run). `php artisan contract:coverage` then fails when a
+required pair was never checked: a 2xx for every fully described `api/v1`
+operation, and a 2xx, 401, 403 and 404 (plus 422 with input) for every integration
+operation once `scramble.contract.require_integration_coverage` is on. It prints the
+opt-outs with their reasons. Run it after the full suite; a filtered run records
+only what it ran.
 
 ## Go runtime
 

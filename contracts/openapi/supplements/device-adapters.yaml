@@ -1,0 +1,19 @@
+# Device adapter operations.
+#
+# Statuses the code returns that inference missed, found by the response checks in
+# the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
+# Success bodies stay pending until the domain is described.
+# Format: ../meta/supplement.schema.json.
+operations:
+  POST /v1/organizations/{organization}/device-adapters:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  PUT /v1/organizations/{organization}/device-adapters/{adapter}:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/device-adapters/{adapter}/proposals/{proposal}/decision:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'

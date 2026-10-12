@@ -37,6 +37,12 @@ Things that have cost time before. Add to this list when something surprises you
   silently becomes plain `Draft202012Validator` inside every other contract. The
   checker validates copies of the schemas without `$schema`; do the same in any new
   Python tooling that extends a validator.
+- **opis/json-schema is not standard by default.** Its plain `Validator` enables
+  opis extensions: `default` fills in data, so `required` silently skips any property
+  that has a default, and a `$ref` containing `{...}` is a URI template. Validate
+  contract data with `CompliantValidator` (as the API response checks in
+  `apps/api/tests/Support/Contract` do), and percent-encode `{` and `}` in JSON
+  pointers into OpenAPI paths.
 
 ## Local stack
 

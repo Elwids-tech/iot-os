@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support\Contract;
 
 use App\Support\Contract\Console\CheckContract;
+use App\Support\Contract\Console\ContractCoverage;
 use App\Support\Contract\Console\ExportContract;
 use Dedoc\Scramble\Scramble;
 use Illuminate\Routing\Route;
@@ -42,7 +43,7 @@ final class ContractServiceProvider extends ServiceProvider
             ->resolveOperationMethodsUsing(static fn (Route $route): array => ContractRoutes::methods($route));
 
         if ($this->app->runningInConsole()) {
-            $this->commands([ExportContract::class, CheckContract::class]);
+            $this->commands([ExportContract::class, CheckContract::class, ContractCoverage::class]);
         }
     }
 }

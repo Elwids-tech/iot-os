@@ -67,7 +67,9 @@ jobs:
       - run: git fetch --depth=1 origin main
       - run: php artisan contract:export --check
       - run: php artisan contract:check --base=origin/main
+      # The suite checks every in-scope response against the contract (G4) and records what it checked.
       - run: php artisan test --compact
+      - run: php artisan contract:coverage
 
   runtime:
     name: Runtime (Go)
