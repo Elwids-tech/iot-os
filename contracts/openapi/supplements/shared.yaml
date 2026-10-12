@@ -213,12 +213,31 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorMessage'
+    DraftConflict:
+      description: >-
+        The device-profile draft changed since the caller read it (`code:
+        profile.draft_conflict`). Reload it before saving.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DraftConflictError'
     ValidationFailed:
       description: The input failed validation.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ValidationError'
+    Unprocessable:
+      description: >-
+        The input failed validation (`errors` names the fields), or the request cannot be
+        applied in the resource's current state (a message only, for example an archived
+        device or a limit reached).
+      content:
+        application/json:
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/ValidationError'
+              - $ref: '#/components/schemas/ErrorMessage'
     TooManyRequests:
       description: A rate limit was reached; see `x-rate-limits` on the operation.
       headers:
@@ -230,6 +249,15 @@ components:
             $ref: '#/components/schemas/ErrorMessage'
     RuntimeUnavailable:
       description: The device runtime is not configured, unavailable, or could not complete the request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    ServiceUnavailable:
+      description: >-
+        A service the operation depends on, other than the device runtime, is not
+        configured or unavailable: the AI provider, the broker, the adapter runtime or
+        the public MQTT endpoint. The message says which.
       content:
         application/json:
           schema:
