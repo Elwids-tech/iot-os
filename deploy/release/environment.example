@@ -38,6 +38,10 @@ IOT_STAGING_DEMO_ENABLED=true
 IOT_OPS_EXPECTED_SIMULATORS=5
 IOT_ASSISTANT_ENABLED=false
 IOT_HELP_AI_ENABLED=false
+# AI agents through MCP (spec 004): off by default; organizations switch it on themselves.
+IOT_AGENTS_ENABLED=false
+# Comma-separated return-address domains agents may use, or * for any.
+IOT_AGENTS_REDIRECT_DOMAINS=*
 OPENAI_API_KEY=
 PUBLIC_MAP_STYLE_URL=
 # Images are provided by the digest-pinned release manifest, never mutable tags.

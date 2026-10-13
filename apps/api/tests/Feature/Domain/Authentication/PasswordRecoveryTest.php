@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Authentication;
 
+use App\Domain\Agents\Enums\RevocationReason;
 use App\Domain\Authentication\Notifications\PasswordResetNotification;
+use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,11 +15,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
+use Laravel\Passport\Passport;
+use Tests\Support\Agents\AgentFixtures;
 use Tests\TestCase;
 
 final class PasswordRecoveryTest extends TestCase
 {
-    use RefreshDatabase;
+    use AgentFixtures, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -52,7 +56,9 @@ final class PasswordRecoveryTest extends TestCase
         $user = User::factory()->create(['password' => 'original-password', 'remember_token' => 'old-remember-token']);
         $other = User::factory()->create();
         $otherHash = $other->password;
-        $user->createToken('old-token');
+        $organization = Organization::factory()->create();
+        $connection = $this->agentConnection($user, $organization);
+        $tokens = $this->agentTokenRows($user, (string) $connection->oauth_client_id);
         foreach ([$user, $other] as $sessionUser) {
             DB::table('sessions')->insert(['id' => 'session-'.$sessionUser->id, 'user_id' => $sessionUser->id, 'payload' => '', 'last_activity' => time()]);
         }
@@ -63,7 +69,9 @@ final class PasswordRecoveryTest extends TestCase
         $this->assertTrue(Hash::check('new-long-password', $user->password));
         $this->assertFalse(Hash::check('original-password', $user->password));
         $this->assertNotSame('old-remember-token', $user->remember_token);
-        $this->assertSame(0, $user->tokens()->count());
+        $this->assertTrue((bool) Passport::token()->newQuery()->findOrFail($tokens['access'])->revoked);
+        $this->assertTrue((bool) Passport::refreshToken()->newQuery()->findOrFail($tokens['refresh'])->revoked);
+        $this->assertSame(RevocationReason::PASSWORD_RESET, $connection->fresh()->revoked_reason);
         $this->assertDatabaseMissing('sessions', ['user_id' => $user->id]);
         $this->assertDatabaseHas('sessions', ['user_id' => $other->id]);
         $this->assertSame($otherHash, $other->fresh()->password);

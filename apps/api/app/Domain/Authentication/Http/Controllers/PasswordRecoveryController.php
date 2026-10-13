@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Authentication\Http\Controllers;
 
+use App\Domain\Agents\Enums\RevocationReason;
+use App\Domain\Agents\Services\ConnectionRevoker;
 use App\Domain\Authentication\Http\Requests\ForgotPasswordRequest;
 use App\Domain\Authentication\Http\Requests\ResetPasswordRequest;
 use App\Domain\Authentication\Notifications\PasswordResetNotification;
@@ -37,7 +39,8 @@ final class PasswordRecoveryController
 
             return Password::broker()->reset($request->validated(), static function (User $user, string $password) use ($request): void {
                 $user->forceFill(['password' => Hash::make($password), 'remember_token' => Str::random(60)])->save();
-                $user->tokens()->delete();
+                // Agent connections and their Passport tokens, refresh tokens included.
+                app(ConnectionRevoker::class)->person($user, RevocationReason::PASSWORD_RESET);
                 if (config('session.driver') === 'database') {
                     DB::connection(config('session.connection'))->table(config('session.table', 'sessions'))
                         ->where('user_id', $user->getKey())->delete();

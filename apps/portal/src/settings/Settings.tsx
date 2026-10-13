@@ -18,10 +18,12 @@ import { NotificationsList, WorkflowNotificationsPage } from "../alerts/Notifica
 import { MembersPage } from "../members/Members"
 import RoleRoutes, { RolesList } from "../members/Roles"
 import { useAdministration } from "../members/shared"
+import { AiAppsSettings } from "../agents/AiAppsSettings"
+import { agentAccessOffered } from "../agents/model"
 
 /** One place for organization and personal settings. */
 export default function SettingsRoutes() {
-  const { org, can } = useAdministration()
+  const { org, can, organization } = useAdministration()
   const { capabilities } = useDeviceOrganization()
   const { pathname } = useLocation()
   const base = `/organizations/${org}/settings`
@@ -30,6 +32,7 @@ export default function SettingsRoutes() {
     ...(can.members_view ? [{ key: "members", label: "Members", to: `${base}/members` }] : []),
     ...(can.roles_view ? [{ key: "roles", label: "Roles", to: `${base}/roles` }] : []),
     ...(capabilities.manage ? [{ key: "notifications", label: "Notifications", to: `${base}/notifications` }] : []),
+    ...(agentAccessOffered(organization) ? [{ key: "ai-apps", label: "AI apps", to: `${base}/ai-apps` }] : []),
     { key: "email", label: "Email preferences", to: `${base}/email` },
   ].map((section) => ({ ...section, current: pathname.startsWith(section.to) }))
   const layout = (
@@ -46,6 +49,7 @@ export default function SettingsRoutes() {
         <Route path="roles" element={<RolesList />} />
         <Route path="notifications" element={<NotificationsList />} />
         <Route path="email" element={<EmailSettings />} />
+        <Route path="ai-apps" element={<AiAppsSettings />} />
       </Route>
       <Route path="roles/*" element={<RoleRoutes />} />
       <Route path="notifications/:workflowUuid" element={<WorkflowNotificationsPage />} />

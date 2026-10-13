@@ -10,6 +10,8 @@
         "althinect/enum-permission": "^1.1",
         "laravel/ai": "^1.2",
         "laravel/framework": "^13.17",
+        "laravel/mcp": "^1.0.2",
+        "laravel/passport": "^13.9",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "opis/json-schema": "2.6.0",

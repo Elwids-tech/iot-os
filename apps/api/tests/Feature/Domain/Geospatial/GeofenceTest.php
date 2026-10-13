@@ -131,7 +131,7 @@ final class GeofenceTest extends TestCase
 
     public function test_integration_mutations_require_management_and_the_complete_device_grant(): void
     {
-        $admin = User::where('is_super_admin', true)->firstOrFail()->createToken('admin')->plainTextToken;
+        $admin = User::where('is_super_admin', true)->firstOrFail();
         $manage = '/api/v1/organizations/'.$this->organization->uuid.'/applications';
         $integration = '/api/integration/v1/organizations/'.$this->organization->uuid.'/geofences/'.$this->fence->uuid;
 
@@ -360,7 +360,7 @@ final class GeofenceTest extends TestCase
     /** @return array{string, string} an integration token granted every GPS device, and the geofence collection URL */
     private function integrationClient(): array
     {
-        $admin = User::where('is_super_admin', true)->firstOrFail()->createToken('admin')->plainTextToken;
+        $admin = User::where('is_super_admin', true)->firstOrFail();
         $token = $this->applicationToken($admin, '/api/v1/organizations/'.$this->organization->uuid.'/applications',
             GpsUseCaseSeeder::deviceUuids(), ['geofences:read', 'geofences:manage', 'geofences:activate']);
         Auth::forgetGuards();
@@ -384,7 +384,7 @@ final class GeofenceTest extends TestCase
      */
     private function integrationToken(array $abilities): string
     {
-        $admin = User::where('is_super_admin', true)->firstOrFail()->createToken('admin')->plainTextToken;
+        $admin = User::where('is_super_admin', true)->firstOrFail();
 
         return $this->applicationToken($admin, '/api/v1/organizations/'.$this->organization->uuid.'/applications', GpsUseCaseSeeder::deviceUuids(), $abilities);
     }
@@ -396,14 +396,14 @@ final class GeofenceTest extends TestCase
         return $this->withToken($token);
     }
 
-    private function applicationToken(string $admin, string $manage, array $devices, array $abilities): string
+    private function applicationToken(User $admin, string $manage, array $devices, array $abilities): string
     {
         Auth::forgetGuards();
-        $application = $this->withToken($admin)->postJson($manage, ['name' => 'Geofence client', 'device_uuids' => $devices, 'abilities' => $abilities])
+        $application = $this->withoutToken()->actingAs($admin)->postJson($manage, ['name' => 'Geofence client', 'device_uuids' => $devices, 'abilities' => $abilities])
             ->assertCreated()->json('data');
         Auth::forgetGuards();
 
-        return $this->withToken($admin)->postJson($manage.'/'.$application['uuid'].'/token', [
+        return $this->withoutToken()->actingAs($admin)->postJson($manage.'/'.$application['uuid'].'/token', [
             'revision' => $application['revision'], 'expires_in_days' => 1, 'abilities' => $abilities,
         ])->assertCreated()->json('data.token');
     }

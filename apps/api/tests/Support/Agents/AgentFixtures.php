@@ -1,0 +1,45 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Support\Agents;
+
+use App\Domain\Agents\Enums\AccessLevel;
+use App\Domain\Agents\Models\AgentConnection;
+use App\Domain\Shared\Models\Organization;
+use App\Domain\Shared\Models\User;
+use Illuminate\Support\Str;
+use Laravel\Passport\Client;
+use Laravel\Passport\ClientRepository;
+use Laravel\Passport\Passport;
+
+/** Builds agent clients, connections and Passport tokens the way sign-in does. */
+trait AgentFixtures
+{
+    protected function agentClient(string $name = 'Claude', string $redirect = 'https://claude.ai/api/mcp/auth_callback'): Client
+    {
+        return app(ClientRepository::class)->createAuthorizationCodeGrantClient($name, [$redirect], false);
+    }
+
+    protected function agentConnection(User $user, Organization $organization, AccessLevel $level = AccessLevel::READ, ?Client $client = null): AgentConnection
+    {
+        return AgentConnection::create([
+            'user_id' => $user->id,
+            'organization_id' => $organization->id,
+            'oauth_client_id' => ($client ?? $this->agentClient())->id,
+            'access_level' => $level,
+            'expires_at' => now()->addDays((int) config('agents.connection_idle_days')),
+        ]);
+    }
+
+    /** @return array{access: string, refresh: string} the stored ids of a token pair for the connection's client */
+    protected function agentTokenRows(User $user, string $clientId): array
+    {
+        $access = Str::random(80);
+        Passport::token()->forceFill(['id' => $access, 'user_id' => $user->id, 'client_id' => $clientId, 'scopes' => ['mcp:use'], 'revoked' => false, 'expires_at' => now()->addHour()])->save();
+        $refresh = Str::random(80);
+        Passport::refreshToken()->forceFill(['id' => $refresh, 'access_token_id' => $access, 'revoked' => false, 'expires_at' => now()->addDays(90)])->save();
+
+        return ['access' => $access, 'refresh' => $refresh];
+    }
+}

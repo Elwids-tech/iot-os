@@ -34,7 +34,7 @@ final class WebhookTest extends TestCase
 
     private Alert $alert;
 
-    private string $token;
+    private User $person;
 
     private string $url;
 
@@ -44,7 +44,7 @@ final class WebhookTest extends TestCase
         $this->seed(DatabaseSeeder::class);
         $this->org = Organization::where('slug', 'acme-manufacturing')->firstOrFail();
         $user = User::where('is_super_admin', true)->firstOrFail();
-        $this->token = $user->createToken('test')->plainTextToken;
+        $this->person = $user;
         $device = Device::create(['organization_id' => $this->org->id, 'code' => 'hook', 'name' => 'Tag']);
         $workflow = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Boundary', 'workflow' => [], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => $user->id]);
         $deployment = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $user->id, 'created_at' => now(), 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('a', 64), 'definition' => ['binding' => ['device_uuid' => $device->uuid]]]);
@@ -65,7 +65,7 @@ final class WebhookTest extends TestCase
     {
         Auth::forgetGuards();
 
-        return $this->withToken($this->token)->json($method, $path, $body);
+        return $this->withoutToken()->actingAs($this->person)->json($method, $path, $body);
     }
 
     private function configure(): Webhook
@@ -215,7 +215,7 @@ final class WebhookTest extends TestCase
         app(WebhookDispatch::class)->tick($hook->id);
         $this->assertSame('failed', WebhookDelivery::firstOrFail()->status);
         $member = User::where('email', 'acme.member@example.test')->firstOrFail();
-        $this->token = $member->createToken('member')->plainTextToken;
+        $this->person = $member;
         $this->api('GET', $this->url)->assertForbidden();
         $this->api('PUT', $this->url, ['revision' => 1, 'url' => 'https://receiver.example.test/events'])->assertForbidden();
     }

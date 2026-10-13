@@ -50,6 +50,20 @@ Things that have cost time before. Add to this list when something surprises you
   actually sends: configuration v2 makes both mapping fields optional for this
   reason, and the GPS demo seeder's configurations omit both.
 
+- **`User` holds Passport tokens, not Sanctum's.** Passport and Sanctum both define a
+  `HasApiTokens` trait with incompatible signatures, so a model can use only one,
+  even through a subclass. People hold agent tokens (Passport). Portal sessions and
+  integration application tokens still go through Sanctum. In tests, sign people in
+  with `actingAs()`, because `$user->createToken()` now needs a Passport
+  personal-access client.
+- **Every auth guard gets seeded permissions.** `PermissionSeeder` creates each
+  permission for every guard in `config('auth.guards')`, including Sanctum's runtime
+  `sanctum` guard. A new guard that carries no roles must be excluded there, as the
+  agent guard `mcp` is.
+- **`withToken()` sticks for the rest of a test.** It sets a default header, so a later
+  request made with `actingAs()` still sends the old bearer token. Call
+  `withoutToken()` when switching from a token to a session within one test.
+
 ## Local stack
 
 - **Containers build from source with no bind mounts.** A source edit does
