@@ -44,11 +44,14 @@ final class DeploymentTest extends TestCase
 
     public function test_dead_letters_are_counted_without_capacity_labels(): void
     {
-        Http::fake(['*' => Http::sequence()
-            ->push(['storage' => 99, 'account_details' => [['stream_detail' => [
-                ['name' => 'IOT_DEAD_LETTERS', 'state' => ['messages' => 3, 'bytes' => 260000000], 'config' => ['max_bytes' => 268435456]],
-            ]]]])
-            ->push(['storage' => 99, 'account_details' => [['stream_detail' => []]]]),
+        // On PostgreSQL the metrics also call the runtime first, so only NATS gets the sequence.
+        Http::fake([
+            'nats:8222/*' => Http::sequence()
+                ->push(['storage' => 99, 'account_details' => [['stream_detail' => [
+                    ['name' => 'IOT_DEAD_LETTERS', 'state' => ['messages' => 3, 'bytes' => 260000000], 'config' => ['max_bytes' => 268435456]],
+                ]]]])
+                ->push(['storage' => 99, 'account_details' => [['stream_detail' => []]]]),
+            '*' => Http::response([]),
         ]);
         $metrics = app(Operations::class)->metrics();
         $this->assertStringContainsString("iot_nats_dead_letters 3\n", $metrics);
