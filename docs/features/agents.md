@@ -91,6 +91,60 @@ Hosted agents such as Claude.ai and Claude Desktop reach the deployment from the
 internet (Claude's egress is `160.79.104.0/21`). Claude Code and other local clients
 need only to reach the API from the person's machine.
 
+## Calls to /mcp
+
+Each call passes three checks:
+
+1. `RequireAgentAccess`: the deployment switch.
+2. `auth:mcp`: Passport validates the token, its expiry and its revocation.
+3. `AuthenticateAgent`, which checks, in order:
+   - **The connection** for the token's person and client is active and has been used
+     within 90 days. Otherwise its tokens are revoked and the call answers 401, so the
+     agent asks the person to connect again.
+   - **The organization's switch** is on. Otherwise the call gets a JSON-RPC error
+     naming who can switch it on.
+   - **The person is still a member.**
+   - **The rate limit**: 120 calls a minute and 2,000 an hour per connection.
+
+The call then runs in the connection's organization, with the person's web-guard
+permissions. `User` pins `$guard_name = 'web'`, because the `mcp` guard carries no
+roles.
+
+Tools (`App\Domain\Agents\Mcp\Tools`, catalogue in
+[`contracts/agents/tools.json`](../../contracts/agents/tools.json)) extend `AgentTool`.
+It:
+
+- hides tools the access level does not allow;
+- translates failures into tool errors (`not_found`, `permission`, `invalid_input`,
+  `access_level`, `conflict`, `rate_limited`, `unavailable`, `failed`);
+- bounds results at 60,000 characters;
+- records each call in `agent_activity` (the tool, the records it addressed, the
+  outcome and the duration; never arguments or results).
+
+Every result carries an `untrusted` notice and `portal_url` links. Add a tool to
+`PlatformServer::TOOLS`, run `php artisan agents:tools --export`, and commit the
+catalogue; CI runs `agents:tools --check` and refuses destructive tools.
+
+| Tool | Permission | What it returns |
+| --- | --- | --- |
+| `get_overview` | `Device.view` | Device counts by state, active alerts, automation states, sources waiting to be onboarded, commands with an uncertain outcome |
+| `find_devices` | `Device.view` | Devices by name or code, site, tag, profile, lifecycle or presence, a page at a time |
+
+## Oversight
+
+**Settings → AI apps** lists the person's own connections in every organization, and
+for administrators every member's connections to the organization. Each row shows:
+
+- the agent and where it returns to;
+- the organization or member;
+- the access level, when it was connected and last used;
+- its state (`active`, `expired`, `revoked` with the reason, or `unavailable` while
+  the organization's switch is off).
+
+**Disconnect** stops the agent at its next request. Administrator disconnections are
+audited (`agents.connection_revoked`). **Activity** lists every tool call. Switching
+agent access off asks for confirmation while connections are active.
+
 ### Signing keys
 
 Passport signs access tokens with an RSA key pair.

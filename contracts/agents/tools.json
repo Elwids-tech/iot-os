@@ -1,0 +1,87 @@
+{
+    "catalogue_version": 1,
+    "server": "iot-os",
+    "tools": [
+        {
+            "name": "find_devices",
+            "title": "Find Devices",
+            "description": "Find devices by name or code, site, tag, profile, lifecycle or presence. Returns one page; pass the returned cursor for the next. Presence \"quiet\" means online with no reading for an hour; \"unknown\" means the runtime has not confirmed it recently.",
+            "inputSchema": {
+                "properties": {
+                    "search": {
+                        "description": "Part of the device name or code.",
+                        "maxLength": 255,
+                        "type": "string"
+                    },
+                    "site_uuid": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "tag": {
+                        "maxLength": 32,
+                        "type": "string"
+                    },
+                    "profile_uuid": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "lifecycle": {
+                        "enum": [
+                            "registered",
+                            "active",
+                            "deactivated",
+                            "archived"
+                        ],
+                        "type": "string"
+                    },
+                    "presence": {
+                        "enum": [
+                            "online",
+                            "offline",
+                            "unknown",
+                            "unseen",
+                            "quiet"
+                        ],
+                        "type": "string"
+                    },
+                    "cursor": {
+                        "description": "The page.next value from the previous result.",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "default": 20,
+                        "minimum": 1,
+                        "maximum": 50,
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "annotations": {
+                "title": "Find Devices",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "access_level": "read",
+            "permission": "Device.view"
+        },
+        {
+            "name": "get_overview",
+            "title": "Get Overview",
+            "description": "What needs attention in the organization: device counts by state (online, offline, unknown, silent for 24 hours, registered, deactivated), active alerts, automation states, sources waiting to be onboarded and commands with an uncertain outcome. Start here.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            },
+            "annotations": {
+                "title": "Get Overview",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "access_level": "read",
+            "permission": "Device.view"
+        }
+    ]
+}

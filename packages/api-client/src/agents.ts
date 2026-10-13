@@ -38,3 +38,35 @@ export type AgentAuthorization = {
 }
 
 export type AgentAuthorizationDecision = { redirect_to: string }
+
+export type AgentConnectionState = "active" | "expired" | "revoked" | "unavailable"
+
+/** One person's agent acting in one organization. */
+export type AgentConnection = {
+  uuid: string
+  agent: { name: string; redirect_host: string }
+  organization: { uuid: string; name: string }
+  access_level: AgentAccessLevel
+  created_at: string
+  last_used_at: string | null
+  expires_at: string
+  state: AgentConnectionState
+  revoked_reason: "person" | "administrator" | "membership_removed" | "password_reset" | "refresh_reuse" | "replaced" | null
+  /** Administrators' list only. */
+  user?: { id: number; name: string; email: string }
+}
+
+/** One tool call; arguments and results are never stored. */
+export type AgentActivityEntry = {
+  tool: string
+  outcome: "answered" | "refused" | "failed"
+  reason: string | null
+  targets: string[]
+  duration_ms: number
+  created_at: string
+}
+
+export type AgentActivityPage = {
+  data: AgentActivityEntry[]
+  meta: { current_page: number; last_page: number; total: number }
+}

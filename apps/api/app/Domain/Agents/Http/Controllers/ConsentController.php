@@ -47,6 +47,8 @@ final class ConsentController
     public function current(Request $request): array
     {
         $user = $request->user();
+        // Passport keeps the request in the browser session; other clients have none.
+        abort_unless($request->hasSession(), 404, 'No agent connection is waiting for approval.');
         $authToken = $request->session()->get('authToken');
         $authRequest = $this->pending($request);
         abort_unless(is_string($authToken) && $authRequest !== null && $this->belongsTo($authRequest, $user), 404, 'No agent connection is waiting for approval.');
@@ -131,6 +133,7 @@ final class ConsentController
 
     private function retrieve(Request $request, User $user): AuthorizationRequestInterface
     {
+        abort_unless($request->hasSession(), 404, 'No agent connection is waiting for approval.');
         try {
             $authRequest = $this->getAuthRequestFromSession($request);
         } catch (InvalidAuthTokenException) {

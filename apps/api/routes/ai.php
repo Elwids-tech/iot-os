@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use App\Domain\Agents\Http\Controllers\AuthorizationController;
+use App\Domain\Agents\Http\Middleware\AuthenticateAgent;
 use App\Domain\Agents\Http\Middleware\RequireAgentAccess;
 use App\Domain\Agents\Http\Middleware\RequireMcpResource;
+use App\Domain\Agents\Mcp\PlatformServer;
 use Illuminate\Support\Facades\Route;
 use Laravel\Mcp\Facades\Mcp;
 use Laravel\Mcp\Server\Http\Controllers\OAuthRegisterController;
@@ -32,4 +34,7 @@ Route::middleware(RequireAgentAccess::class)->group(function (): void {
     Route::post('oauth/token', [AccessTokenController::class, 'issueToken'])
         ->middleware(['throttle:60,1', RequireMcpResource::class])
         ->name('passport.token');
+
+    // The MCP endpoint: Passport validates the token, AuthenticateAgent the connection.
+    Mcp::web('/mcp', PlatformServer::class)->middleware(['auth:mcp', AuthenticateAgent::class]);
 });
