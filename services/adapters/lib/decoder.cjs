@@ -1,6 +1,9 @@
 const { Worker } = require("node:worker_threads");
 const path = require("node:path");
 
+const STARTUP_DEADLINE_MS = 5000;
+const DECODE_DEADLINE_MS = 500;
+
 function inputFromMessage(payload, topic, metadata = {}) {
   const bytes = Buffer.isBuffer(payload)
     ? payload
@@ -45,13 +48,23 @@ function decode(code, input) {
       worker.terminate();
       error ? reject(error) : resolve(result);
     };
-    const timer = setTimeout(
-      () => finish(Error("Decoder exceeded its worker deadline")),
-      500,
+    // Loading QuickJS in a fresh worker can take most of the decode deadline on a
+    // busy host, so the deadline starts once the engine is ready.
+    let timer = setTimeout(
+      () => finish(Error("Decoder worker did not start")),
+      STARTUP_DEADLINE_MS,
     );
-    worker.once("message", (message) =>
-      finish(message.ok ? null : Error(message.error), message.result),
-    );
+    worker.on("message", (message) => {
+      if (message.ready) {
+        clearTimeout(timer);
+        timer = setTimeout(
+          () => finish(Error("Decoder exceeded its worker deadline")),
+          DECODE_DEADLINE_MS,
+        );
+        return;
+      }
+      finish(message.ok ? null : Error(message.error), message.result);
+    });
     worker.once("error", (error) =>
       finish(
         Error(
