@@ -102,6 +102,7 @@ final class Operations
             $gauge('nats_store_limit_bytes', (int) ($nats['config']['max_storage'] ?? 0));
             $pending = 0;
             $unmanagedPending = 0;
+            $deadLetters = 0;
             $expectedConsumers = [
                 'IOT_DEVICE_CONTROL' => 'devices-control',
                 'IOT_DEVICE_EVENTS' => 'devices-control-inbox',
@@ -116,6 +117,11 @@ final class Operations
                         $gauge('nats_stream_bytes', (int) ($stream['state']['bytes'] ?? 0), $labels);
                         $gauge('nats_stream_limit_bytes', (int) ($stream['config']['max_bytes'] ?? 0), $labels);
                     }
+                    // Messages the runtime set aside because retrying cannot fix them. The stream
+                    // discards its oldest letters, so it is a count to act on, not a capacity risk.
+                    if (($stream['name'] ?? '') === 'IOT_DEAD_LETTERS') {
+                        $deadLetters = (int) ($stream['state']['messages'] ?? 0);
+                    }
                     foreach ($stream['consumer_detail'] ?? [] as $consumer) {
                         $count = ($consumer['num_pending'] ?? 0) + ($consumer['num_ack_pending'] ?? 0);
                         if (($expectedConsumers[$stream['name'] ?? ''] ?? null) === ($consumer['name'] ?? '')) {
@@ -128,6 +134,7 @@ final class Operations
             }
             $gauge('nats_consumer_pending', $pending);
             $gauge('nats_unmanaged_consumer_pending', $unmanagedPending);
+            $gauge('nats_dead_letters', $deadLetters);
         } catch (\Throwable) {
             $gauge('nats_monitor_up', 0);
         }

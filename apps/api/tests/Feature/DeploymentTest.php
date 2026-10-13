@@ -42,6 +42,26 @@ final class DeploymentTest extends TestCase
         $this->assertStringNotContainsString('untrusted-tenant-stream', $metrics);
     }
 
+    public function test_dead_letters_are_counted_without_capacity_labels(): void
+    {
+        // On PostgreSQL the metrics also call the runtime first, so only NATS gets the sequence.
+        Http::fake([
+            'nats:8222/*' => Http::sequence()
+                ->push(['storage' => 99, 'account_details' => [['stream_detail' => [
+                    ['name' => 'IOT_DEAD_LETTERS', 'state' => ['messages' => 3, 'bytes' => 260000000], 'config' => ['max_bytes' => 268435456]],
+                ]]]])
+                ->push(['storage' => 99, 'account_details' => [['stream_detail' => []]]]),
+            '*' => Http::response([]),
+        ]);
+        $metrics = app(Operations::class)->metrics();
+        $this->assertStringContainsString("iot_nats_dead_letters 3\n", $metrics);
+        // A nearly full dead-letter stream drops its oldest letters; it must not raise StreamCapacityLow.
+        $this->assertStringNotContainsString('stream="IOT_DEAD_LETTERS"', $metrics);
+
+        // Before the runtime creates the stream there is nothing set aside.
+        $this->assertStringContainsString("iot_nats_dead_letters 0\n", app(Operations::class)->metrics());
+    }
+
     public function test_retired_consumers_do_not_mask_live_processing_health(): void
     {
         Http::fake(['*' => Http::response(['storage' => 99, 'config' => ['max_storage' => 1000], 'account_details' => [['stream_detail' => [

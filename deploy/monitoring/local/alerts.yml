@@ -177,6 +177,19 @@ groups:
       description: Check NATS health and durable consumer backlog.
       dashboard_url: http://localhost:3000/d/iot-local/local-operations
       runbook_url: http://localhost:9101/runbook
+  - alert: MessagesDeadLettered
+    expr: iot_nats_dead_letters > 0
+    for: 1m
+    labels:
+      severity: warning
+      environment: local
+    annotations:
+      summary: The runtime set aside {{ $value }} messages it cannot process
+      description: Retrying cannot fix these, so they are kept in IOT_DEAD_LETTERS
+        for 30 days and then dropped. Fix the cause from the runtime logs, decide
+        per message, then purge the stream; never replay commands blindly.
+      dashboard_url: http://localhost:3000/d/iot-local/local-operations
+      runbook_url: http://localhost:9101/runbook
   - alert: MemoryHeadroomLow
     expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.15
     for: 5m
