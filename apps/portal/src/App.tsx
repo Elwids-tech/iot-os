@@ -118,6 +118,7 @@ const DeviceRoutes = lazy(() => import("./devices/Routes"))
 const IntegrationRoutes = lazy(() => import("./integrations/Integrations"))
 const AlertRoutes = lazy(() => import("./alerts/Alerts"))
 const SettingsRoutes = lazy(() => import("./settings/Settings"))
+const ConnectPage = lazy(() => import("./agents/ConnectPage"))
 const NotificationCenter = lazy(() => import("./notifications/NotificationCenter"))
 const HelpPanel = lazy(() => import("./help/HelpPanel"))
 const ProfileAssistantBody = lazy(() => import("./assistant/AssistantPanel"))
@@ -245,6 +246,8 @@ function Session() {
   return (
     <>
       <Routes>
+        {/* An AI agent asking to connect: a standalone page, outside the workspace shell. */}
+        <Route path="connect" element={<Suspense fallback={<PageFallback />}><ConnectPage /></Suspense>} />
         <Route element={<PortalShell user={user} />}>
           <Route path="notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
           <Route path="organizations/:organizationUuid/notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />

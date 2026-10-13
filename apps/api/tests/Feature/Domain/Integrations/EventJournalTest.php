@@ -31,7 +31,7 @@ final class EventJournalTest extends TestCase
 
     private IntegrationApplication $application;
 
-    private string $admin;
+    private User $admin;
 
     private string $token;
 
@@ -43,7 +43,7 @@ final class EventJournalTest extends TestCase
         $this->seed(DatabaseSeeder::class);
         $this->org = Organization::where('slug', 'acme-manufacturing')->firstOrFail();
         $actor = User::where('is_super_admin', true)->firstOrFail();
-        $this->admin = $actor->createToken('test')->plainTextToken;
+        $this->admin = $actor;
         $device = Device::create(['organization_id' => $this->org->id, 'code' => 'events', 'name' => 'Event tag']);
         $this->workflow = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Boundary', 'workflow' => [], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => $actor->id]);
         $this->deployment = Deployment::create(['automation_workflow_id' => $this->workflow->id, 'created_by' => $actor->id, 'created_at' => now(), 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('a', 64), 'definition' => ['binding' => ['device_uuid' => $device->uuid]]]);
@@ -60,11 +60,14 @@ final class EventJournalTest extends TestCase
         return $token->id.'|'.$secret;
     }
 
-    private function api(string $path, ?string $token = null, string $method = 'GET', array $body = [])
+    /** A person signs in with a session; an integration application presents its token. */
+    private function api(string $path, User|string|null $actor = null, string $method = 'GET', array $body = [])
     {
         Auth::forgetGuards();
 
-        return $this->withToken($token ?? $this->token)->json($method, $path, $body);
+        return $actor instanceof User
+            ? $this->withoutToken()->actingAs($actor)->json($method, $path, $body)
+            : $this->withToken($actor ?? $this->token)->json($method, $path, $body);
     }
 
     private function emit(string $type, int $episode = 1): void

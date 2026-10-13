@@ -1,0 +1,23 @@
+# AI agent access operations (spec 004).
+#
+# Statuses the code returns that inference missed. Bodies are inferred.
+# Format: ../meta/supplement.schema.json.
+operations:
+  POST /v1/agent-authorizations/approve:
+    responses:
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        $ref: '#/components/responses/Conflict'
+  POST /v1/agent-authorizations/deny:
+    responses:
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        $ref: '#/components/responses/Conflict'
+  GET /v1/agent-authorizations/current:
+    responses:
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        $ref: '#/components/responses/Conflict'

@@ -12,15 +12,27 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
+use Laravel\Passport\Contracts\OAuthenticatable;
+use Laravel\Passport\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'password', 'is_super_admin'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+/**
+ * People sign in to the portal with a session (Sanctum, stateful). Their AI agents
+ * hold Passport tokens, so the token trait is Passport's: the two packages cannot
+ * share it, and people never hold Sanctum tokens (spec 004, research finding 5).
+ */
+class User extends Authenticatable implements OAuthenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasRoles, Notifiable;
+
+    /**
+     * Roles and permissions always resolve on the web guard. Agent requests authenticate
+     * on the mcp guard, which carries none, and spatie would otherwise check that one.
+     */
+    protected string $guard_name = 'web';
 
     protected static function newFactory(): UserFactory
     {

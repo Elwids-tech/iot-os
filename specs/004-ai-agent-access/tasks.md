@@ -49,8 +49,8 @@ release is PRs 1 to 4.
 
 **Purpose**: Dependency, configuration and the domain skeleton
 
-- [ ] T001 After the package upgrade (`chore/upgrade-laravel-packages`) has merged, run `composer require laravel/mcp:^1.0.2 laravel/passport:^13.9` in apps/api. Confirm apps/api/composer.lock lists both under `packages`, not `packages-dev`. Publish Passport's migrations with `php artisan vendor:publish --tag=passport-migrations`
-- [ ] T002 [P] Create apps/api/config/agents.php with the keys of data-model.md section 9:
+- [x] T001 After the package upgrade (`chore/upgrade-laravel-packages`) has merged, run `composer require laravel/mcp:^1.0.2 laravel/passport:^13.9` in apps/api. Confirm apps/api/composer.lock lists both under `packages`, not `packages-dev`. Publish Passport's migrations with `php artisan vendor:publish --tag=passport-migrations`
+- [x] T002 [P] Create apps/api/config/agents.php with the keys of data-model.md section 9:
   - `enabled` (`IOT_AGENTS_ENABLED`, default `false`)
   - `resource` (`rtrim(APP_URL, '/').'/mcp'`)
   - `connection_idle_days` 90
@@ -60,7 +60,7 @@ release is PRs 1 to 4.
   Add the environment variables (all off), `IOT_AGENTS_REDIRECT_DOMAINS` and the
   Passport key variables to apps/api/.env.example, deploy/compose/compose.app.yml and
   deploy/release/compose.yml.
-- [ ] T003 [P] Create apps/api/app/Domain/Agents/ with `Models/`, `Enums/`, `Services/`, `Http/`, `Http/Middleware/`, `Mcp/`, `Mcp/Tools/`, `Proposals/`, `Console/` and `routes/`. Load `Domain/Agents/routes/api.php` from apps/api/routes/api.php like the other domains
+- [x] T003 [P] Create apps/api/app/Domain/Agents/ with `Models/`, `Enums/`, `Services/`, `Http/`, `Http/Middleware/`, `Mcp/`, `Mcp/Tools/`, `Proposals/`, `Console/` and `routes/`. Load `Domain/Agents/routes/api.php` from apps/api/routes/api.php like the other domains
 
 ---
 
@@ -70,61 +70,61 @@ release is PRs 1 to 4.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Create apps/api/database/migrations/2026_10_13_000000_create_agent_access.php with the two `organizations` columns and the four `agent_*` tables of data-model.md sections 1 and 4 to 7. Include:
+- [x] T004 Create apps/api/database/migrations/2026_10_13_000000_create_agent_access.php with the two `organizations` columns and the four `agent_*` tables of data-model.md sections 1 and 4 to 7. Include:
   - `agent_access_enabled` boolean default `false`;
   - `agent_connections.oauth_client_id` as a uuid foreign key to `oauth_clients`, restrict on delete;
   - the partial unique index on `agent_connections (user_id, oauth_client_id) where revoked_at is null`;
   - indexes on `agent_activity (organization_id, created_at)` and `(agent_connection_id, created_at)`;
   - enum columns as strings with check constraints;
   - integer `user_id` foreign keys (ADR-013), cascading as listed.
-- [ ] T005 [P] Create the enums in apps/api/app/Domain/Agents/Enums/:
+- [x] T005 [P] Create the enums in apps/api/app/Domain/Agents/Enums/:
   - `AccessLevel` (`read`, `draft`)
   - `RevocationReason` (`person`, `administrator`, `membership_removed`, `password_reset`, `refresh_reuse`, `replaced`)
   - `ActivityOutcome` (`answered`, `refused`, `failed`)
   - `ProposalKind` (`profile_section`, `decoder_revision`, `device_registration`, `dashboard`)
   - `ProposalStatus` (`open`, `applied`, `discarded`, `expired`, `superseded`)
-- [ ] T006 [P] Create the models in apps/api/app/Domain/Agents/Models/ with casts and relations:
+- [x] T006 [P] Create the models in apps/api/app/Domain/Agents/Models/ with casts and relations:
   - `AgentConnection`: `scopeActive()`; `isExpired()` (no call for `connection_idle_days`); `revoke(RevocationReason, ?User)`, which also sets `revoked` on the person's Passport access and refresh tokens for its client.
   - `AgentActivity`
   - `AgentProposalGroup`
   - `AgentProposal`
-- [ ] T007 Move apps/api/app/Domain/Shared/Models/User.php to Passport's `HasApiTokens` and `OAuthenticatable`, replacing Sanctum's trait (research finding 5). Then:
+- [x] T007 Move apps/api/app/Domain/Shared/Models/User.php to Passport's `HasApiTokens` and `OAuthenticatable`, replacing Sanctum's trait (research finding 5). Then:
   - make apps/api/database/seeders/PermissionSeeder.php skip the `mcp` guard;
   - switch the tests that sign in with `createToken()` (Integrations, Webhook, EventJournal, Geofence, PasswordRecovery) to `actingAs`;
   - add a test that asserts the trait and the seeder's guards.
-- [ ] T008 [P] Create factories for the agent models in apps/api/database/factories/Agents/, with a helper that creates a public Passport client the way registration does
-- [ ] T009 Implement apps/api/app/Domain/Agents/Services/AgentAccess.php:
+- [x] T008 [P] Create factories for the agent models in apps/api/database/factories/Agents/, with a helper that creates a public Passport client the way registration does (done as the test trait tests/Support/Agents/AgentFixtures.php; the repository has factories only for users and organizations)
+- [x] T009 Implement apps/api/app/Domain/Agents/Services/AgentAccess.php:
   - `deploymentEnabled()`
   - `organizationEnabled(Organization)`
   - `canManage(User, Organization)`: a member holding `Organization.update`, through `OrganizationAdministrationAuthorization`
   - `setEnabled(User, Organization, bool)`: writes `agent_access_enabled` and `agent_access_changed_at`, and records `DeviceAudit::record('agents.access_enabled'|'agents.access_disabled', …)` (FR-003)
-- [ ] T010 Add `features.agent_access` and `agents {enabled, manage}` to apps/api/app/Domain/Administration/Http/Resources/OrganizationResource.php, and the matching fields to the organization capability type in packages/api-client/src/index.ts
-- [ ] T011 Implement `GET` and `PUT organizations/{organization}/agent-access` in apps/api/app/Domain/Agents/Http/AgentAccessController.php, registered in apps/api/app/Domain/Agents/routes/api.php with `auth:sanctum` and `ResolveOrganizationContext`:
+- [x] T010 Add `features.agent_access` and `agents {enabled, manage}` to apps/api/app/Domain/Administration/Http/Resources/OrganizationResource.php, and the matching fields to the organization capability type in packages/api-client/src/index.ts
+- [x] T011 Implement `GET` and `PUT organizations/{organization}/agent-access` in apps/api/app/Domain/Agents/Http/AgentAccessController.php, registered in apps/api/app/Domain/Agents/routes/api.php with `auth:sanctum` and `ResolveOrganizationContext`:
   - 404 while the deployment switch is off;
   - `GET` returns `{enabled, can_manage, connector_url}` to any member;
   - `PUT {enabled}` requires `canManage`.
-- [ ] T012 Describe the two operations and the capability fields in contracts/openapi/supplements/agents.yaml. Run `cd apps/api && php artisan contract:export`. Add `agentAccess()` and `setAgentAccess()` to packages/api-client/src/agents.ts, exported from the package index
-- [ ] T013 Implement `agents:prune` in apps/api/app/Domain/Agents/Console/PruneAgents.php and schedule it daily in apps/api/routes/console.php. It deletes:
+- [x] T012 Describe the two operations and the capability fields in contracts/openapi/supplements/agents.yaml. Run `cd apps/api && php artisan contract:export`. Add `agentAccess()` and `setAgentAccess()` to packages/api-client/src/agents.ts, exported from the package index (Scramble inferred both response bodies fully, so no supplement was needed; the coverage tests now count only the pairs they set up)
+- [x] T013 Implement `agents:prune` in apps/api/app/Domain/Agents/Console/PruneAgents.php and schedule it daily in apps/api/routes/console.php. It deletes:
   - Passport clients created by registration that have no connection 24 hours after creation;
   - activity older than `agents.activity_days`.
   
   It also marks open proposals past `expires_at` as `expired`. Schedule Passport's
   `passport:purge` daily as well.
-- [ ] T014 Add the **Connected AI apps** page (navigation label "AI apps") in apps/portal/src/agents/AiAppsSettings.tsx as settings sub-route `ai-apps` in apps/portal/src/settings/Settings.tsx, shown only when `features.agent_access`. It contains:
+- [x] T014 Add the **Connected AI apps** page (navigation label "AI apps") in apps/portal/src/agents/AiAppsSettings.tsx as settings sub-route `ai-apps` in apps/portal/src/settings/Settings.tsx, shown only when `features.agent_access`. It contains:
   - a `Panel` with the connector address, a copy button and per-client steps (Claude.ai and Claude Desktop: Settings → Connectors → Add custom connector; Claude Code: `claude mcp add --transport http iot-os <url>` then `/mcp`; other MCP clients);
   - a `Switch` for administrators (`agents.manage`) with a toast on change;
   - empty "Your connections" and "Connections to this organization" sections.
   
   Use the kit's `SettingsPage` sections.
-- [ ] T015 [P] Write apps/api/tests/Feature/Agents/AgentAccessSettingsTest.php:
+- [x] T015 [P] Write apps/api/tests/Feature/Agents/AgentAccessSettingsTest.php:
   - deployment off gives 404;
   - a member can `GET`, but gets 403 on `PUT`;
   - an administrator's `PUT` toggles the switch and writes an audit row;
   - new organizations start off;
   - capabilities in `/me` and `/context`;
   - another organization's administrator cannot change it.
-- [ ] T016 [P] Write apps/portal/src/agents/model.test.ts for visibility rules (feature off hides the section; non-administrators see no switch)
-- [ ] T017 Create docs/features/agents.md (overview, switches, configuration) and link it from docs/README.md
+- [x] T016 [P] Write apps/portal/src/agents/model.test.ts for visibility rules (feature off hides the section; non-administrators see no switch)
+- [x] T017 Create docs/features/agents.md (overview, switches, configuration) and link it from docs/README.md
 - [ ] T018 Rebuild `api`, `scheduler` and `portal` with the AGENTS.md compose command. As an administrator with `IOT_AGENTS_ENABLED=true`, switch agent access on and off on the running stack
 
 **Checkpoint**: Switches exist; nothing can connect yet
@@ -143,27 +143,27 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
 
 ### Sign-in (PR 2)
 
-- [ ] T019 [P] [US1] Configure Passport in apps/api/app/Domain/Agents/AgentsServiceProvider.php (registered in apps/api/bootstrap/providers.php):
+- [x] T019 [P] [US1] Configure Passport in apps/api/app/Domain/Agents/AgentsServiceProvider.php (registered in apps/api/bootstrap/providers.php):
   - `Passport::ignoreRoutes()`, with the device flow and JSON API off;
   - `tokensExpireIn(1 hour)` and `refreshTokensExpireIn(90 days)`;
   - `Passport::authorizationView()` returning a redirect to `{FRONTEND_URL}/connect`;
   - keys from `PASSPORT_PRIVATE_KEY` and `PASSPORT_PUBLIC_KEY`.
   
   In apps/api/config/auth.php, add the `mcp` guard (driver `passport`, provider `users`). Set `passport.guard` to `web`.
-- [ ] T020 [US1] Register the agent routes in apps/api/routes/ai.php, all behind `RequireAgentAccess` (404 JSON while `IOT_AGENTS_ENABLED=false`):
+- [x] T020 [US1] Register the agent routes in apps/api/routes/ai.php, all behind `RequireAgentAccess` (404 JSON while `IOT_AGENTS_ENABLED=false`):
   - `Mcp::oauthRoutes(registration: false)`;
   - `POST oauth/register`: `laravel/mcp`'s `OAuthRegisterController`, named `mcp.oauth.register`, with `throttle:10,1`;
   - `GET oauth/authorize`: Passport's `AuthorizationController@authorize`, named `passport.authorizations.authorize`, with `web` and `RequireMcpResource`;
   - `POST oauth/token`: our `AccessTokenController`, named `passport.token`, with `throttle:60,1` and `RequireMcpResource`.
   
   Set `mcp.redirect_domains` in apps/api/config/mcp.php from `IOT_AGENTS_REDIRECT_DOMAINS` (default `*`).
-- [ ] T021 [P] [US1] Implement apps/api/app/Domain/Agents/Http/Middleware/RequireAgentAccess.php and RequireMcpResource.php. A `resource` parameter, when present, must equal `config('agents.resource')` ignoring a trailing slash. Otherwise authorize redirects back to the registered redirect URI with `error=invalid_target` and `state`, and token answers `400 {"error": "invalid_target"}`
-- [ ] T022 [US1] Add the guest redirect in apps/api/bootstrap/app.php with `redirectGuestsTo`: for the route `passport.authorizations.authorize` only, send the person to `{FRONTEND_URL}/connect?return=<full authorize URL>`. Every other route keeps today's behaviour (JSON 401 for `api/*`)
-- [ ] T023 [US1] Implement apps/api/app/Domain/Agents/Http/AccessTokenController.php, a subclass of Passport's `AccessTokenController`:
+- [x] T021 [P] [US1] Implement apps/api/app/Domain/Agents/Http/Middleware/RequireAgentAccess.php and RequireMcpResource.php. A `resource` parameter, when present, must equal `config('agents.resource')` ignoring a trailing slash. Otherwise authorize redirects back to the registered redirect URI with `error=invalid_target` and `state`, and token answers `400 {"error": "invalid_target"}`
+- [x] T022 [US1] Add the guest redirect in apps/api/bootstrap/app.php with `redirectGuestsTo`: for the route `passport.authorizations.authorize` only, send the person to `{FRONTEND_URL}/connect?return=<full authorize URL>`. Every other route keeps today's behaviour (JSON 401 for `api/*`)
+- [ ] T023 [US1] (Deferred in PR 2: Passport rejects reused refresh tokens; revoking the connection on reuse needs a grace-window design, research D3.) Implement apps/api/app/Domain/Agents/Http/AccessTokenController.php, a subclass of Passport's `AccessTokenController`:
   - after an authorization-code exchange, require an active connection for the person and client, or revoke the issued tokens and answer `invalid_grant`;
   - when Passport rejects a refresh token as revoked by rotation, revoke the connection for the request's `client_id` with reason `refresh_reuse`;
   - a token that cannot be decrypted revokes nothing.
-- [ ] T024 [US1] Implement apps/api/app/Domain/Agents/Http/ConsentController.php (routes in apps/api/app/Domain/Agents/routes/api.php, `auth:sanctum`):
+- [x] T024 [US1] Implement apps/api/app/Domain/Agents/Http/ConsentController.php (routes in apps/api/app/Domain/Agents/routes/api.php, `auth:sanctum`):
   - `GET agent-authorizations/current`: reads Passport's `authRequest` and `authToken` from the session without removing them; returns the shape in contracts/portal-api.md, or 404 when none is pending.
   - `POST agent-authorizations/approve {auth_token, organization_uuid, access_level}`:
     - retrieves the request with Passport's `RetrievesAuthRequestFromSession` (409 on an `auth_token` mismatch);
@@ -171,8 +171,8 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
     - creates the connection, or replaces the active one for the person and client (reason `replaced`, revoking its earlier tokens);
     - sets the user, approves, calls `AuthorizationServer::completeAuthorizationRequest`, and returns `{redirect_to}` from the `Location` header.
   - `POST agent-authorizations/deny {auth_token}`: completes with `access_denied` and returns `{redirect_to}`.
-- [ ] T025 [US1] Describe the three consent operations in contracts/openapi/supplements/agents.yaml, run `contract:export`, and add `currentAgentAuthorization()`, `approveAgentAuthorization()` and `denyAgentAuthorization()` to packages/api-client/src/agents.ts
-- [ ] T026 [US1] Build apps/portal/src/agents/ConnectPage.tsx as top-level route `connect` in apps/portal/src/App.tsx, inside `Session` and outside `PortalShell`. When signed out, the existing in-place login appears.
+- [x] T025 [US1] Describe the three consent operations in contracts/openapi/supplements/agents.yaml, run `contract:export`, and add `currentAgentAuthorization()`, `approveAgentAuthorization()` and `denyAgentAuthorization()` to packages/api-client/src/agents.ts
+- [x] T026 [US1] Build apps/portal/src/agents/ConnectPage.tsx as top-level route `connect` in apps/portal/src/App.tsx, inside `Session` and outside `PortalShell`. When signed out, the existing in-place login appears.
   - **With `?return=`**: after sign-in, navigate to it only when it starts with `{API_URL}/oauth/authorize`; otherwise show an error.
   - **Without it**: load `current` and show:
     - "Returns to <host>" first, and the agent's name with a "self-declared" badge;
@@ -182,8 +182,8 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
     - **Approve** and **Deny**.
   
   On a response, the page calls `window.location.assign(redirect_to)`. A "no pending connection" state covers expired or replaced requests.
-- [ ] T027 [US1] Serve `Content-Security-Policy: frame-ancestors 'none'` for `/connect` in deploy/docker/admin/nginx.conf (the portal image's configuration), and verify it on the rebuilt `portal`
-- [ ] T028 [US1] Provision Passport keys:
+- [x] T027 [US1] Serve `Content-Security-Policy: frame-ancestors 'none'` for `/connect` in deploy/docker/admin/nginx.conf (the portal image's configuration), and verify it on the rebuilt `portal`
+- [x] T028 [US1] Provision Passport keys:
   - `tooling/bootstrap` runs `php artisan passport:keys` into ignored storage for development;
   - deploy/release/compose.yml passes `PASSPORT_PRIVATE_KEY` and `PASSPORT_PUBLIC_KEY` from the `.local/` deployment secrets;
   - tooling/release generates them once per deployment and never overwrites them.
@@ -199,12 +199,12 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
   - separation, in fresh test methods: a portal session on `/mcp` and an agent token on `/api/v1/me` and `/api/integration/v1` all answer 401;
   - portal sessions and integration tokens still authenticate through Sanctum.
 - [ ] T030 [P] [US1] Write apps/portal/e2e/agents.spec.ts for `/connect` with a mocked API: signed in, signed out with `return`, a rejected `return`, a single organization preselected, an unavailable organization, deny, no pending connection, and an axe scan after animations settle
-- [ ] T031 [US1] Run `/security-review` on the PR 2 diff and fix its findings. Set docs/adr/ADR-018-agent-access-oauth.md to Accepted, set the ADR-008 status line to "Accepted; amended by ADR-018", and update docs/adr/README.md
+- [x] T031 [US1] (Ran over PRs 1 to 4 on 2026-10-13: no reportable vulnerability. One correctness gap was fixed: the consent screen now names the return host when an agent omits `redirect_uri`. The no-framing rule now covers `/connect/` too.) Run `/security-review` on the PR 2 diff and fix its findings. Set docs/adr/ADR-018-agent-access-oauth.md to Accepted, set the ADR-008 status line to "Accepted; amended by ADR-018", and update docs/adr/README.md
 - [ ] T032 [US1] Rebuild `api` and `portal`. On the running stack, complete sign-in with the MCP Inspector's auth flow and with Claude Code (`claude mcp add --transport http iot-os http://127.0.0.1:8001/mcp`) up to token issuance
 
 ### Endpoint, first tools and disconnect (PR 3)
 
-- [ ] T033 [US1] Implement apps/api/app/Domain/Agents/Http/Middleware/AuthenticateAgent.php, which runs after `RequireAgentAccess` and `auth:mcp` (Passport validates the bearer token, its expiry and revocation, and answers 401 with the challenge). In order (research D7):
+- [x] T033 [US1] Implement apps/api/app/Domain/Agents/Http/Middleware/AuthenticateAgent.php, which runs after `RequireAgentAccess` and `auth:mcp` (Passport validates the bearer token, its expiry and revocation, and answers 401 with the challenge). In order (research D7):
   1. The connection for the token's person and client (`$request->user('mcp')->token()->client_id`) is active and not idle for `connection_idle_days`. Otherwise revoke its tokens and answer `401` with `error="invalid_token"` and `error_description`.
   2. The organization's switch is on.
   3. The person is a member.
@@ -215,7 +215,7 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
   - rate limit per connection (`rate_per_minute`, `rate_per_hour`);
   - update `last_used_at` at most once a minute;
   - bind a scoped `AgentContext` (connection, person, organization, level).
-- [ ] T034 [US1] Implement apps/api/app/Domain/Agents/Mcp/AgentTool.php and ToolResult.php. `AgentTool`:
+- [x] T034 [US1] Implement apps/api/app/Domain/Agents/Mcp/AgentTool.php and ToolResult.php. `AgentTool`:
   - declares level and permission, and registers only for allowed levels (`shouldRegister`);
   - checks the permission through the existing domain authorization services;
   - translates `HttpException`, `ModelNotFoundException`, `ValidationException` and authorization failures into the error codes of contracts/mcp-tools.md;
@@ -223,39 +223,39 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
   - bounds results at `max_result_characters`.
   
   `ToolResult` builds the envelope (`data`, `page`, `untrusted`, `next_steps`), and a `PortalUrls` service builds `portal_url` values from `FRONTEND_URL`. Read tools default to read-only, idempotent and closed-world annotations.
-- [ ] T035 [US1] Implement apps/api/app/Domain/Agents/Mcp/PlatformServer.php:
+- [x] T035 [US1] Implement apps/api/app/Domain/Agents/Mcp/PlatformServer.php:
   - name `iot-os`, protocol versions 2026-07-28, 2025-11-25 and 2025-06-18;
   - the instructions of contracts/mcp-tools.md filled with the organization, the person and the level;
   - registered in apps/api/routes/ai.php as `Mcp::web('/mcp', PlatformServer::class)->middleware([RequireAgentAccess::class, 'auth:mcp', AuthenticateAgent::class])`.
   
   Check that `laravel/mcp`'s global `AddWwwAuthenticateHeader` leaves the middleware's header intact.
-- [ ] T036 [P] [US1] Extract apps/api/app/Domain/Devices/Services/DeviceDirectory.php from `DeviceController::index`, with an added presence filter (`online`, `offline`, `unknown`, `unseen`, `quiet`) used only by tools. Move the controller onto it with byte-identical responses, and extract `OverviewQuery` from `OverviewController` the same way
-- [ ] T037 [US1] Implement the `get_overview` and `find_devices` tools in apps/api/app/Domain/Agents/Mcp/Tools/ per contracts/mcp-tools.md: `limit` 1–50 (default 20), `search` at most 255 characters, cursor paging
-- [ ] T038 [US1] Implement `agents:tools --export|--check` in apps/api/app/Domain/Agents/Console/ExportToolCatalogue.php. It writes contracts/agents/tools.json, sorted by name, with a `catalogue_version`, and for each tool its name, description, input and output schemas, annotations, level, permission and one example result checked against its output schema (research D12). It fails on any tool with `destructiveHint: true`. Add `php artisan agents:tools --check` to the API job in .github/workflows/ci.yml next to `contract:export --check`
-- [ ] T039 [US1] Implement `GET me/agent-connections`, `DELETE me/agent-connections/{connection}` (owner only; reason `person`) and `GET organizations/{organization}/agent-connections/{connection}/activity` (owner; 50 per page, newest first) in apps/api/app/Domain/Agents/Http/ConnectionController.php:
+- [x] T036 [P] [US1] Extract apps/api/app/Domain/Devices/Services/DeviceDirectory.php from `DeviceController::index`, with an added presence filter (`online`, `offline`, `unknown`, `unseen`, `quiet`) used only by tools. Move the controller onto it with byte-identical responses, and extract `OverviewQuery` from `OverviewController` the same way
+- [x] T037 [US1] Implement the `get_overview` and `find_devices` tools in apps/api/app/Domain/Agents/Mcp/Tools/ per contracts/mcp-tools.md: `limit` 1–50 (default 20), `search` at most 255 characters, cursor paging
+- [x] T038 [US1] Implement `agents:tools --export|--check` in apps/api/app/Domain/Agents/Console/ExportToolCatalogue.php. It writes contracts/agents/tools.json, sorted by name, with a `catalogue_version`, and for each tool its name, description, input and output schemas, annotations, level, permission and one example result checked against its output schema (research D12). It fails on any tool with `destructiveHint: true`. Add `php artisan agents:tools --check` to the API job in .github/workflows/ci.yml next to `contract:export --check`
+- [x] T039 [US1] Implement `GET me/agent-connections`, `DELETE me/agent-connections/{connection}` (owner only; reason `person`) and `GET organizations/{organization}/agent-connections/{connection}/activity` (owner; 50 per page, newest first) in apps/api/app/Domain/Agents/Http/ConnectionController.php:
   - derive `state` (`active`, `expired`, `revoked`, `unavailable`) as in contracts/portal-api.md;
   - describe them in agents.yaml, export, and add them to packages/api-client/src/agents.ts.
-- [ ] T040 [US1] Add a `ConnectionRevoker` in apps/api/app/Domain/Agents/Services/ and call it:
+- [x] T040 [US1] Add a `ConnectionRevoker` in apps/api/app/Domain/Agents/Services/ and call it (landed in PR 1, so a password reset never leaves usable Passport refresh tokens once `User` holds Passport tokens):
   - from `OrganizationMembershipManager::remove` (the member's connections to that organization, reason `membership_removed`);
   - from apps/api/app/Domain/Authentication/Http/Controllers/PasswordRecoveryController.php next to `tokens()->delete()` (all of the person's connections, reason `password_reset`).
-- [ ] T041 [US1] Fill "Your connections" in apps/portal/src/agents/AiAppsSettings.tsx with a `DataTable`:
+- [x] T041 [US1] Fill "Your connections" in apps/portal/src/agents/AiAppsSettings.tsx with a `DataTable`:
   - columns: agent name with its return host, organization, level, created and last used as `RelativeTime`, and state through `statusOf`/`Status`;
   - **Disconnect** with an `AlertDialog`;
   - activity in a `Sheet` with paging.
-- [ ] T042 [P] [US1] Write apps/api/tests/Feature/Agents/GateTest.php:
+- [x] T042 [P] [US1] Write apps/api/tests/Feature/Agents/GateTest.php:
   - each gate step's outcome and its order;
   - an agent token refused on `/api/v1` and `/api/integration/v1`;
   - a session cookie and an integration token refused on `/mcp` (FR-014);
   - the rate limit; `last_used_at` throttling;
   - tools listed by level; error translation; one activity row per call.
-- [ ] T043 [P] [US1] Write apps/api/tests/Feature/Agents/ConnectionsTest.php: owner listing, disconnect stopping the next call, activity paging, membership removal and password reset revocation, expiry after 90 days without refresh, another person's connection being not found
-- [ ] T044 [US1] Build the isolation harness in apps/api/tests/Feature/Agents/Isolation/AgentIsolationTest.php. Its dataset is every registered tool × three cases:
+- [x] T043 [P] [US1] Write apps/api/tests/Feature/Agents/ConnectionsTest.php: owner listing, disconnect stopping the next call, activity paging, membership removal and password reset revocation, expiry after 90 days without refresh, another person's connection being not found
+- [x] T044 [US1] Build the isolation harness in apps/api/tests/Feature/Agents/Isolation/AgentIsolationTest.php. Its dataset is every registered tool × three cases:
   - organization B's identifiers;
   - a member without the tool's permission;
   - a read connection for draft tools.
   
   Each case expects `not_found`, `permission` or `access_level`, with no B data. Also write SecretScanTest.php: seed broker passwords, connection-kit contents, an integration token, a webhook secret and adapter source credentials, capture every `ToolResult` produced in the suite through a test hook, and assert none contains a seeded value (SC-004, SC-005).
-- [ ] T045 [US1] Extend docs/features/agents.md with connecting, the consent screen, connections and disconnecting
+- [x] T045 [US1] Extend docs/features/agents.md with connecting, the consent screen, connections and disconnecting
 - [ ] T046 [US1] Rebuild `api`, `scheduler` and `portal`, then run quickstart B1 steps 1 to 6 with Claude Code and the MCP Inspector on the running stack
 
 **Checkpoint**: A person connects, the agent reads the overview and devices, and
@@ -272,18 +272,18 @@ switch agent access off for all of them.
 
 **Independent Test**: Quickstart B5.
 
-- [ ] T047 [US3] Implement `GET organizations/{organization}/agent-connections` (with `user {id, name, email}`) and `DELETE organizations/{organization}/agent-connections/{connection}` (reason `administrator`, audited with `DeviceAudit`) in apps/api/app/Domain/Agents/Http/ConnectionController.php. Allow administrators to read any connection's activity. All require `Organization.update`. Describe them in agents.yaml, export, and add them to packages/api-client/src/agents.ts
-- [ ] T048 [US3] Fill "Connections to this organization" in apps/portal/src/agents/AiAppsSettings.tsx for administrators:
+- [x] T047 [US3] Implement `GET organizations/{organization}/agent-connections` (with `user {id, name, email}`) and `DELETE organizations/{organization}/agent-connections/{connection}` (reason `administrator`, audited with `DeviceAudit`) in apps/api/app/Domain/Agents/Http/ConnectionController.php. Allow administrators to read any connection's activity. All require `Organization.update`. Describe them in agents.yaml, export, and add them to packages/api-client/src/agents.ts
+- [x] T048 [US3] Fill "Connections to this organization" in apps/portal/src/agents/AiAppsSettings.tsx for administrators:
   - a `DataTable` with a member column, **Disconnect** and the activity `Sheet`;
   - turning the switch off asks for confirmation in an `AlertDialog` ("All n connections stop at their next call");
   - members see `unavailable` connections with the reason.
-- [ ] T049 [P] [US3] Write apps/api/tests/Feature/Agents/AdministratorOversightTest.php:
+- [x] T049 [P] [US3] Write apps/api/tests/Feature/Agents/AdministratorOversightTest.php:
   - an administrator sees every connection, a member only their own;
   - administrator disconnect writes an audit row and the member sees the reason;
   - switching off refuses the next call with the JSON-RPC error and removes the organization from consent;
   - switching on resumes non-revoked connections.
 - [ ] T050 [P] [US3] Extend apps/portal/e2e/agents.spec.ts for the administrator section (list, disconnect, switch confirmation) with an axe scan
-- [ ] T051 [US3] Extend docs/features/agents.md with administration, then rebuild `api` and `portal` and run quickstart B5 on the running stack
+- [x] T051 [US3] Extend docs/features/agents.md with administration, then rebuild `api` and `portal` and run quickstart B5 on the running stack (done; quickstart B5 ran on the rebuilt stack with curl and the browser pane)
 
 **Checkpoint**: Agent access can be offered to a pilot organization
 
@@ -298,12 +298,12 @@ without side effects.
 
 **Independent Test**: Quickstart B3 (five fault scenarios) and the isolation dataset.
 
-- [ ] T052 [P] [US2] Implement apps/api/app/Domain/Devices/Services/DeviceHealth.php:
+- [x] T052 [P] [US2] Implement apps/api/app/Domain/Devices/Services/DeviceHealth.php: (done as DeviceReadings, the runtime reads shared with the device controller, plus the projection in get_device_health)
   - the projection of contracts/mcp-tools.md `get_device_health`;
   - latest readings through the existing `RuntimeClient` latest path;
   - `age_seconds` and `stale_after_seconds`;
   - `review_required`: `true` when the device diagnostic carries the runtime's review texts or the draft's `birth_revision` differs from the candidate's; `null` with a reason when there is no evidence; never `false` without evidence.
-- [ ] T053 [P] [US2] Implement apps/api/app/Domain/Devices/Services/IngestionDiagnostics.php, returning `checks[]` (`ok`, `problem`, `unknown`):
+- [x] T053 [P] [US2] Implement apps/api/app/Domain/Devices/Services/IngestionDiagnostics.php, returning `checks[]` (`ok`, `problem`, `unknown`):
   - source presence and last birth;
   - `birth_revision` drift;
   - unmapped announced metrics (candidate metrics minus applied mappings);
@@ -315,18 +315,18 @@ without side effects.
   - when the person has `Device.manage` and a capture session is open, its samples' status and diagnostics, never `wire_base64`.
   
   It never starts, stops or changes a capture, and calls no validate or test endpoint.
-- [ ] T054 [P] [US2] Extract apps/api/app/Domain/Automation/Services/AlertQuery.php from `AlertController::index`, with a site filter (through the site's device uuids) used only by tools, and move the controller onto it with identical responses
+- [x] T054 [P] [US2] Extract apps/api/app/Domain/Automation/Services/AlertQuery.php from `AlertController::index`, with a site filter (through the site's device uuids) used only by tools, and move the controller onto it with identical responses
 - [ ] T055 [P] [US2] Implement apps/api/app/Domain/Dashboards/Services/DashboardQuery.php (visible list, show without touching `last_viewed_at`) and move `DashboardController::index` onto it with identical responses
-- [ ] T056 [US2] Implement `get_device_health`, `get_measurements` and `get_ingestion_diagnostics` in apps/api/app/Domain/Agents/Mcp/Tools/ per contracts/mcp-tools.md. `get_measurements` takes:
+- [x] T056 [US2] Implement `get_device_health`, `get_measurements` and `get_ingestion_diagnostics` in apps/api/app/Domain/Agents/Mcp/Tools/ per contracts/mcp-tools.md. `get_measurements` takes: (get_measurements takes one parameter_uuid per call to keep results bounded)
   - 1–4 `parameter_uuid` values;
   - `max_points` 10–500, default 120;
   - `kind` `history`, `increase` or `state`;
   - `bucket` for increases.
   
   It calls the existing runtime reads and their limits.
-- [ ] T057 [US2] Implement the remaining read tools in apps/api/app/Domain/Agents/Mcp/Tools/: `list_alerts` (`limit` 1–50), `list_sites`, `list_device_profiles` (default `published`), `get_device_profile` (no transport credentials), `list_adapters` (adapters enabled; no `code` or source credentials), `list_dashboards` and `get_dashboard`
+- [ ] T057 [US2] (Partly done in PR 4: `list_alerts` and `list_sites`. Profiles, adapters and dashboards remain, with T055.) Implement the remaining read tools in apps/api/app/Domain/Agents/Mcp/Tools/: `list_alerts` (`limit` 1–50), `list_sites`, `list_device_profiles` (default `published`), `get_device_profile` (no transport credentials), `list_adapters` (adapters enabled; no `code` or source credentials), `list_dashboards` and `get_dashboard`
 - [ ] T058 [US2] Implement `get_authoring_guide` in apps/api/app/Domain/Agents/Mcp/Tools/. Topics `profiles`, `mappings`, `decoders` and `dashboards`; content comes from apps/api/resources/agents/guides/*.md, plus the panel type rules generated from `DashboardDefinition`'s type constants
-- [ ] T059 [US2] Write apps/api/tests/Feature/Agents/Tools/ tests per tool family:
+- [x] T059 [US2] Write apps/api/tests/Feature/Agents/Tools/ tests per tool family: (IngestionDiagnosticsTest covers the fault scenarios; AgentReadToolsTest the tools through /mcp)
   - the five fault scenarios in IngestionDiagnosticsTest.php (stopped reporting, unmapped metric, decoder failure, review required, open alert) with runtime and adapter-manager fakes;
   - checks that results match the portal endpoints' values for the same device.
   

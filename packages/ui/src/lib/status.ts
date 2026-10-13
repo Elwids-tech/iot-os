@@ -28,6 +28,9 @@ const vocabulary: Record<string, Status> = {
   ready: { tone: "good", label: "Ready" },
   provisioning: { tone: "muted", label: "Not provisioned" },
   succeeded: { tone: "good", label: "Succeeded" },
+  answered: { tone: "good", label: "Answered" },
+  refused: { tone: "warning", label: "Refused" },
+  unavailable: { tone: "warning", label: "Unavailable" },
   // Adapter runtimes
   queued: { tone: "info", label: "Queued" },
   running: { tone: "good", label: "Running" },

@@ -30,6 +30,7 @@ export * from "./notifications"
 export * from "./adapters"
 export * from "./geospatial"
 export * from "./overview"
+export * from "./agents"
 
 export type Organization = {
   uuid: string
@@ -45,7 +46,9 @@ export type Organization = {
     /** Dashboard permissions of their own. Older payloads omit it. */
     dashboards?: import("./dashboards").DashboardCapabilities
     /** Optional platform features enabled for this organization. */
-    features?: { device_adapters: boolean }
+    features?: { device_adapters: boolean; agent_access?: boolean }
+    /** AI agent access. Older payloads omit it. */
+    agents?: import("./agents").AgentCapabilities
   }
 }
 
@@ -1258,6 +1261,40 @@ export class ApiClient {
   /** The organization's zone applies to devices without a site; null means UTC. */
   setOrganizationTimezone(org: string, timezone: string | null) {
     return this.data<{ timezone: string | null }>(`/api/v1/organizations/${encodeURIComponent(org)}/settings/timezone`, "PUT", { timezone })
+  }
+  /** The organization's AI agent access setting and connector address. */
+  agentAccess(org: string) {
+    return this.data<import("./agents").AgentAccessSettings>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-access`)
+  }
+  setAgentAccess(org: string, enabled: boolean) {
+    return this.data<import("./agents").AgentAccessSettings>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-access`, "PUT", { enabled })
+  }
+  /** The agent connection waiting for the signed-in person's decision (404 when none). */
+  currentAgentAuthorization() {
+    return this.data<import("./agents").AgentAuthorization>("/api/v1/agent-authorizations/current")
+  }
+  approveAgentAuthorization(values: { auth_token: string; organization_uuid: string; access_level: import("./agents").AgentAccessLevel }) {
+    return this.data<import("./agents").AgentAuthorizationDecision>("/api/v1/agent-authorizations/approve", "POST", values)
+  }
+  /** The signed-in person's agent connections in every organization. */
+  myAgentConnections() {
+    return this.data<import("./agents").AgentConnection[]>("/api/v1/me/agent-connections")
+  }
+  disconnectMyAgent(connection: string) {
+    return this.request<null>(`/api/v1/me/agent-connections/${encodeURIComponent(connection)}`, { method: "DELETE" })
+  }
+  /** Every member's agent connections to the organization (administrators). */
+  organizationAgentConnections(org: string) {
+    return this.data<import("./agents").AgentConnection[]>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-connections`)
+  }
+  disconnectAgent(org: string, connection: string) {
+    return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-connections/${encodeURIComponent(connection)}`, { method: "DELETE" })
+  }
+  agentActivity(org: string, connection: string, page = 1) {
+    return this.request<import("./agents").AgentActivityPage>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-connections/${encodeURIComponent(connection)}/activity?page=${page}`)
+  }
+  denyAgentAuthorization(authToken: string) {
+    return this.data<import("./agents").AgentAuthorizationDecision>("/api/v1/agent-authorizations/deny", "POST", { auth_token: authToken })
   }
   updateDevice(
     org: string,

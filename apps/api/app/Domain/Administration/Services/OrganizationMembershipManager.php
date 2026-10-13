@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Administration\Services;
 
+use App\Domain\Agents\Services\ConnectionRevoker;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Shared\Models\Organization;
@@ -54,7 +55,7 @@ final class OrganizationMembershipManager
         $this->ensureMembership($organization, $user);
         $this->grants->ensureMember($actor, $organization, $user);
 
-        DB::transaction(function () use ($organization, $user): void {
+        DB::transaction(function () use ($organization, $user, $actor): void {
             $this->lock($organization);
             $administratorRole = $this->administratorRole($organization);
 
@@ -70,6 +71,7 @@ final class OrganizationMembershipManager
                 $user->syncRoles([]);
                 $organization->users()->detach($user->getKey());
             });
+            app(ConnectionRevoker::class)->member($user, $organization, $actor);
         });
     }
 

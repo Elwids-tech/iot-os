@@ -45,6 +45,29 @@ def read_env(path):
     return values
 
 
+PASSPORT_KEYS = ("PASSPORT_PRIVATE_KEY", "PASSPORT_PUBLIC_KEY")
+
+
+def passport_keys():
+    """A signing key pair for AI agent tokens (spec 004). Rotating it disconnects every agent."""
+    private = subprocess.run(["openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:4096"],
+                             check=True, capture_output=True, text=True).stdout
+    public = subprocess.run(["openssl", "pkey", "-pubout"], input=private, check=True, capture_output=True, text=True).stdout
+    return {"PASSPORT_PRIVATE_KEY": private, "PASSPORT_PUBLIC_KEY": public}
+
+
+def add_passport_keys(path):
+    """Add agent signing keys to an existing private environment; never replace them."""
+    path = Path(path)
+    if all(read_env(path).get(key) for key in PASSPORT_KEYS):
+        return False
+    if any(read_env(path).get(key) for key in PASSPORT_KEYS):
+        raise ValueError("Only one Passport key is present; restore the pair from backup instead of generating a new one")
+    text = path.read_text()
+    private_write(path, text + ("" if text.endswith("\n") else "\n") + "".join(k+"="+json.dumps(v)+"\n" for k, v in passport_keys().items()))
+    return True
+
+
 def private_write(path, value, mode=0o600):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -187,6 +210,8 @@ class Deployment:
                 raise ValueError(f"{key} must be generated, URL-safe 256-bit secret")
         if self.env.get("IOT_ASSISTANT_ENABLED") == "true" and not self.env.get("OPENAI_API_KEY"):
             raise ValueError("Assistant enabled without provider credentials")
+        if self.env.get("IOT_AGENTS_ENABLED") == "true" and not all(self.env.get(key) for key in PASSPORT_KEYS):
+            raise ValueError("Agent access enabled without Passport keys; run manage.py passport-keys")
         self.nats_capacity()
         if bool(self.env.get("ALERT_SMTP_USERNAME")) != bool(self.env.get("ALERT_SMTP_PASSWORD")):
             raise ValueError("Separate alert SMTP username and password must both be set")
@@ -436,6 +461,8 @@ class Deployment:
             raise ValueError("Restore requires backed-up Mosquitto credentials")
         if any(original.get(k) != self.env.get(k) for k in (*SECRET_KEYS, "APP_KEY", "DEVICE_EMQX_API_KEY")):
             raise ValueError("Restore requires the backed-up encryption and service credentials")
+        if any(original.get(k) and original.get(k) != self.env.get(k) for k in PASSPORT_KEYS):
+            raise ValueError("Restore requires the backed-up Passport keys")
         if original.get("IOT_ADAPTERS_ENABLED", "false") != self.env.get("IOT_ADAPTERS_ENABLED", "false"):
             raise ValueError("Restore requires the backed-up adapter feature configuration")
         if self.adapters_enabled and original.get("IOT_ADAPTER_MANAGER_TOKEN") != self.env.get("IOT_ADAPTER_MANAGER_TOKEN"):
@@ -575,7 +602,7 @@ class Deployment:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["init", "validate", "render", "deploy", "backup", "restore", "certificates", "staging", "metrics", "monitoring_heartbeat", "smoke"])
+    parser.add_argument("command", choices=["init", "passport-keys", "validate", "render", "deploy", "backup", "restore", "certificates", "staging", "metrics", "monitoring_heartbeat", "smoke"])
     parser.add_argument("--env", required=True)
     parser.add_argument("--manifest")
     parser.add_argument("--backup-env")
@@ -594,8 +621,13 @@ def main():
         values.update({key: secrets.token_hex(32) for key in SECRET_KEYS})
         values["APP_KEY"] = "base64:"+base64.b64encode(secrets.token_bytes(32)).decode()
         values["DEVICE_EMQX_API_KEY"] = secrets.token_hex(12)
+        values.update(passport_keys())
         private_write(path, "".join(k+"="+json.dumps(v)+"\n" for k, v in values.items()))
         print("Private environment created. Fill provider inputs without changing generated keys.")
+        return
+    if args.command == "passport-keys":
+        added = add_passport_keys(args.env)
+        print("Passport keys added. Back up the environment file." if added else "Passport keys already present; nothing changed.")
         return
     deployment = Deployment(args.env, args.manifest)
     if args.command == "validate":
