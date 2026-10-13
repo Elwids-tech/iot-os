@@ -199,39 +199,70 @@ async function choose(page: Page, label: string, option: RegExp) {
   await page.getByRole("option", { name: option }).click()
 }
 
-test("history summarizes states and exports every selected cursor page", async ({
+test("history summarizes states, loads older records and exports the newest ones", async ({
   page,
 }) => {
   const { calls, errors } = await setup(page)
   await page.goto(basePath)
-  await expect(page.getByText("On (1)", { exact: true })).toBeVisible()
-  await expect(page.getByText("Off (0)", { exact: true })).toBeVisible()
-  await choose(page, "Record limit", /Latest 100 records/)
-  await page
-    .getByRole("button", { name: "View timestamped values", exact: true })
-    .click()
-
+  const summary = page.locator('[data-slot="panel"]', {
+    has: page.getByRole("heading", { name: "Measurement history" }),
+  })
+  await expect(summary.getByText("On (1)", { exact: true })).toBeVisible()
+  await expect(summary.getByText("Off (0)", { exact: true })).toBeVisible()
   await expect(
-    page.getByRole("columnheader", { name: "Timestamp" }),
+    page.getByRole("combobox", { name: "Record limit" }),
+  ).toHaveCount(0)
+
+  // Records show without a toggle, newest first, in their own panel.
+  const records = page.getByRole("table", { name: "Power records" })
+  const count = page.getByRole("status").filter({ hasText: / records? · / })
+  const received = records.getByRole("columnheader", { name: "Received" })
+  await expect(received).toBeVisible()
+  for (const aggregate of ["Minimum", "Maximum", "Samples"])
+    await expect(
+      records.getByRole("columnheader", { name: aggregate }),
+    ).toHaveCount(0)
+  await expect(count).toHaveText("50 records · newest first")
+  // One heading per configuration run replaces two columns that repeated it.
+  await expect(
+    records.getByRole("cell", {
+      name: "Device configuration 3 · Profile revision 2",
+    }),
+  ).toHaveCount(1)
+  await expect(
+    records.getByRole("row", { name: /stale Delayed report/ }),
   ).toBeVisible()
-  await expect(page.getByRole("columnheader", { name: "Minimum" })).toHaveCount(
-    0,
+
+  // The rows scroll inside the panel, under a header that stays in view.
+  const scroller = records.locator("xpath=..")
+  await received.scrollIntoViewIfNeeded()
+  expect((await scroller.boundingBox())!.height).toBeLessThanOrEqual(512)
+  await scroller.evaluate((element) =>
+    element.scrollTo(0, element.scrollHeight),
   )
-  await expect(page.getByRole("columnheader", { name: "Maximum" })).toHaveCount(
-    0,
-  )
-  await expect(page.getByRole("columnheader", { name: "Samples" })).toHaveCount(
-    0,
-  )
-  // Next slides while the records panel unfolds, so a click then can release on
-  // a table cell instead. Click once nothing is animating.
-  await page.waitForFunction(() => document.getAnimations().length === 0)
-  await page.getByRole("button", { name: /Next/ }).click()
-  await expect(page.getByText(/Page 2 · records 51–100/)).toBeVisible()
-  await expect(page.getByText(/selected limit was reached/i)).toBeVisible()
+  await expect(received).toBeInViewport()
+
+  const older = page.getByRole("button", { name: "Load older", exact: true })
+  await older.click()
+  await expect(count).toHaveText("100 records · newest first")
+  await older.click()
+  await expect(count).toHaveText("125 records · all in this range")
+  await expect(older).toHaveCount(0)
+  expect(calls.table).toBe(3)
+
+  await page.getByRole("button", { name: "Columns", exact: true }).click()
+  await page.getByRole("menuitemcheckbox", { name: "Device time" }).click()
+  await page.keyboard.press("Escape")
+  await expect(
+    records.getByRole("columnheader", { name: "Device time" }),
+  ).toBeVisible()
+  await expect(
+    records.getByRole("cell", { name: /2s earlier$/ }).first(),
+  ).toBeVisible()
 
   const downloadPromise = page.waitForEvent("download")
   await page.getByRole("button", { name: "Download CSV", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Newest 100 records" }).click()
   const download = await downloadPromise
   const stream = await download.createReadStream()
   if (!stream) throw new Error("Download stream was unavailable")
@@ -243,10 +274,21 @@ test("history summarizes states and exports every selected cursor page", async (
   expect(csv).toContain("profile_artifact_uuid")
   expect(csv.indexOf("event-099")).toBeLessThan(csv.indexOf("event-000"))
   expect(csv).not.toContain("event-100")
+  await expect(page.getByText("Downloaded 100 records")).toBeVisible()
+  await expect(
+    page.getByText(/Older records in this range were left out/),
+  ).toBeVisible()
 
+  // Another parameter keeps the records on screen and starts from the newest again.
   await choose(page, "Parameter", /^Mode$/)
+  await expect(page.getByRole("table", { name: "Mode records" })).toBeVisible()
+  await expect(count).toHaveText("50 records · newest first")
   await expect(page.getByText("solid", { exact: true })).toBeVisible()
   await expect(page.getByText("blink", { exact: true })).toBeVisible()
+  // Coming back starts from the newest records, not the batches loaded before.
+  await choose(page, "Parameter", /^Power$/)
+  await expect(page.getByRole("table", { name: "Power records" })).toBeVisible()
+  await expect(count).toHaveText("50 records · newest first")
   await choose(page, "Parameter", /^Color$/)
   await expect(page.getByText("#FF0000", { exact: true })).toBeVisible()
   await expect(page.getByText("Invalid value", { exact: true })).toBeVisible()
@@ -262,6 +304,8 @@ test("history summarizes states and exports every selected cursor page", async (
   await expect(segments.nth(1)).toContainText(/^Invalid colour: not-a-colour, /)
   await expect(page.getByText(/visual timeline is sampled/)).toBeVisible()
 
+  // The download toast slides in; scan once no animation is running.
+  await page.waitForFunction(() => document.getAnimations().length === 0)
   const accessibility = await new AxeBuilder({ page }).analyze()
   expect(accessibility.violations).toEqual([])
   expect(errors).toEqual([])

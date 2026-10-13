@@ -119,3 +119,52 @@ export const Loading: StoryObj = {
     />
   ),
 }
+
+type Reading = { id: string; at: number; value: number; configuration: number }
+const readings: Reading[] = Array.from({ length: 120 }, (_, index) => ({
+  id: `reading-${index}`,
+  at: now - index * 60_000,
+  value: Math.round((21 + Math.sin(index / 6) * 2) * 10) / 10,
+  configuration: index < 70 ? 4 : 3,
+}))
+
+function ReadingLog() {
+  const [loaded, setLoaded] = useState(40)
+  const [loading, setLoading] = useState(false)
+  return (
+    <DataTable
+      id="story-readings"
+      label="Temperature records"
+      noun={["record", "records"]}
+      rows={readings.slice(0, loaded)}
+      rowKey={(r) => r.id}
+      columns={[
+        { id: "at", header: "Received", mobile: "title", value: (r) => r.at, cell: (r) => new Date(r.at).toLocaleString() },
+        { id: "value", header: "Value", mobile: "badge", align: "end", value: (r) => r.value, cell: (r) => <span className="tabular-nums">{r.value} °C</span> },
+      ]}
+      bounded
+      separator={(row, previous) =>
+        row.configuration !== previous?.configuration ? `Device configuration ${row.configuration}` : null
+      }
+      loadMore={{
+        hasMore: loaded < readings.length,
+        loading,
+        label: "Load older",
+        note: loaded < readings.length ? "newest first" : "all in this range",
+        onLoadMore: () => {
+          setLoading(true)
+          setTimeout(() => {
+            setLoaded((count) => count + 40)
+            setLoading(false)
+          }, 400)
+        },
+      }}
+    />
+  )
+}
+
+/**
+ * A log from a cursor API with no total: rows scroll under a sticky header,
+ * Load older appends the next batch, and a heading marks each configuration run.
+ */
+export const LoadMoreLog: StoryObj = { render: () => <ReadingLog /> }

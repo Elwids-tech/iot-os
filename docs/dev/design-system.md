@@ -75,8 +75,10 @@ line. Test and spec files are skipped.
 `DataTable` (TanStack Table) gives pages, from column descriptions: saved views with
 counts, search, a Filters popover with chips, grouping, a remembered Columns menu,
 sortable headers, selection with "Select all N", bulk actions (Export CSV), row
-actions, subtotal and total rows, rows per page, server or client paging, skeleton
-rows, empty and filtered-empty states, a phone card layout and a polling note.
+actions, subtotal and total rows, rows per page, server or client paging, "Load
+more" paging for cursor APIs without a total, a bounded height with a sticky
+header, run separators for logs, skeleton rows, empty and filtered-empty states, a
+phone card layout and a polling note.
 
 ## Look and feel
 

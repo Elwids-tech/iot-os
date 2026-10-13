@@ -180,6 +180,20 @@ export type DataTableProps<T> = {
     onPageSizeChange?: (pageSize: number) => void
   }
   pageSizes?: number[]
+  /** Cursor paging for APIs without a total: every loaded row shows, and the footer offers the next batch. */
+  loadMore?: {
+    hasMore: boolean
+    loading: boolean
+    onLoadMore: () => void
+    /** Button text, e.g. "Load older". */
+    label?: string
+    /** Follows the count in the footer, e.g. "newest first". */
+    note?: React.ReactNode
+  }
+  /** Caps the table's height and scrolls it under a sticky header, for long logs. */
+  bounded?: boolean
+  /** A heading row above a row that starts a new run, such as a configuration change in a log. */
+  separator?: (row: T, previous: T | undefined) => React.ReactNode
   /** Server tables say whether the request is filtered, for "N devices match". */
   filtered?: boolean
   onReset?: () => void
@@ -314,6 +328,9 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
     defaultSort = [],
     pagination,
     pageSizes = PAGE_SIZES,
+    loadMore,
+    bounded = false,
+    separator,
     selectable = false,
     bulkActions,
     exportName,
@@ -374,9 +391,12 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
     pageIndex: 0,
     pageSize: readStored(`${storageKey}:page-size`, pageSizes[0]),
   })
+  // Load-more tables show every loaded row on one page.
   const paginationState: PaginationState = pagination
     ? { pageIndex: pagination.page - 1, pageSize: pagination.pageSize }
-    : clientPage
+    : loadMore
+      ? { pageIndex: 0, pageSize: Math.max(processed?.length ?? 0, 1) }
+      : clientPage
   const onPaginationChange = (updater: Updater<PaginationState>) => {
     const next = functionalUpdate(updater, paginationState)
     if (next.pageSize !== paginationState.pageSize) {
@@ -563,6 +583,10 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
     </TableRow>
   )
 
+  // A log's heading above the first row of each run; null inside a run.
+  const headingBefore = (index: number) =>
+    separator?.(pageRows[index].original, pageRows[index - 1]?.original)
+
   const titleColumn = columns.find((column) => column.mobile === "title") ?? columns[0]
   const badgeColumn = columns.find((column) => column.mobile === "badge")
   const metaColumns = visible.filter(
@@ -674,9 +698,20 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
           )
         ) : (
           !phone ? (
-            <div>
+            <div
+              className={cn(
+                bounded &&
+                  "[&>[data-slot=table-container]]:max-h-[min(32rem,70vh)] [&>[data-slot=table-container]]:overflow-y-auto",
+              )}
+            >
               <Table aria-label={label}>
-                <TableHeader className="bg-sunken">
+                <TableHeader
+                  className={cn(
+                    "bg-sunken",
+                    // Collapsed borders stay behind when the header sticks, so the cells draw the rule.
+                    bounded && "sticky top-0 z-10 [&_th]:bg-sunken [&_th]:shadow-[inset_0_-1px_0_var(--border)]",
+                  )}
+                >
                   <TableRow className="hover:bg-transparent">
                     {selectable && (
                       <TableHead className="w-10 pr-0">
@@ -785,7 +820,26 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
                               : []),
                           ]
                         })
-                      : pageRows.map(renderRow)}
+                      : pageRows.flatMap((row, index) => {
+                          const heading = headingBefore(index)
+                          return heading
+                            ? [
+                                <TableRow
+                                  key={`separator:${row.id}`}
+                                  data-slot="data-table-separator"
+                                  className="bg-background hover:bg-background"
+                                >
+                                  <TableCell
+                                    colSpan={span}
+                                    className="py-1.5 text-meta font-medium text-muted-foreground"
+                                  >
+                                    {heading}
+                                  </TableCell>
+                                </TableRow>,
+                                renderRow(row),
+                              ]
+                            : [renderRow(row)]
+                        })}
                   {!loading && hasSummary && (!grouped || grouped.length > 1) &&
                     summaryRow(pageRows.map((row) => row.original), "summary", pageCount > 1 ? "This page" : "Total")}
                 </TableBody>
@@ -800,27 +854,42 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
                       <Skeleton className="h-3 w-1/2" />
                     </li>
                   ))
-                : pageRows.map((row) => (
-                    <li
-                      key={row.id}
-                      data-slot="data-table-card"
-                      className="group/card relative flex min-w-0 flex-col gap-1 px-4 py-3 has-[[data-row-link]:focus-visible]:ring-2 has-[[data-row-link]:focus-visible]:ring-ring has-[[data-row-link]:focus-visible]:ring-inset"
-                    >
-                      <div className="flex min-w-0 items-start justify-between gap-2">
-                        <div className="min-w-0">{titleColumn?.cell(row.original)}</div>
-                        {badgeColumn && <div className="shrink-0">{badgeColumn.cell(row.original)}</div>}
-                      </div>
-                      {metaColumns.length > 0 && (
-                        <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-0.5 text-meta text-muted-foreground">
-                          {metaColumns.map((column) => (
-                            <span key={column.id} className="min-w-0 truncate">
-                              {column.header} {column.cell(row.original)}
-                            </span>
-                          ))}
-                        </p>
-                      )}
-                    </li>
-                  ))}
+                : pageRows.flatMap((row, index) => {
+                    const heading = headingBefore(index)
+                    const card = (
+                      <li
+                        key={row.id}
+                        data-slot="data-table-card"
+                        className="group/card relative flex min-w-0 flex-col gap-1 px-4 py-3 has-[[data-row-link]:focus-visible]:ring-2 has-[[data-row-link]:focus-visible]:ring-ring has-[[data-row-link]:focus-visible]:ring-inset"
+                      >
+                        <div className="flex min-w-0 items-start justify-between gap-2">
+                          <div className="min-w-0">{titleColumn?.cell(row.original)}</div>
+                          {badgeColumn && <div className="shrink-0">{badgeColumn.cell(row.original)}</div>}
+                        </div>
+                        {metaColumns.length > 0 && (
+                          <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-0.5 text-meta text-muted-foreground">
+                            {metaColumns.map((column) => (
+                              <span key={column.id} className="min-w-0 truncate">
+                                {column.header} {column.cell(row.original)}
+                              </span>
+                            ))}
+                          </p>
+                        )}
+                      </li>
+                    )
+                    return heading
+                      ? [
+                          <li
+                            key={`separator:${row.id}`}
+                            data-slot="data-table-separator"
+                            className="bg-background px-4 py-1.5 text-meta font-medium text-muted-foreground"
+                          >
+                            {heading}
+                          </li>,
+                          card,
+                        ]
+                      : [card]
+                  })}
             </ul>
           )
         )}
@@ -828,12 +897,20 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
           <span className="flex flex-wrap items-center gap-x-2">
             <span role="status">
               {loading ? "Loading…" : `${plural(total, noun)}${filtered ? " match" : ""}`}
+              {!loading && loadMore?.note ? <> · {loadMore.note}</> : null}
             </span>
             {props.refreshSeconds && !loading && (
               <span>· updates every {props.refreshSeconds} s</span>
             )}
           </span>
-          {!loading && total > 0 && (
+          {loadMore ? (
+            !loading &&
+            loadMore.hasMore && (
+              <Button variant="outline" size="sm" disabled={loadMore.loading} onClick={loadMore.onLoadMore}>
+                {loadMore.loading ? "Loading…" : (loadMore.label ?? "Load more")}
+              </Button>
+            )
+          ) : !loading && total > 0 && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               {total > pageSizes[0] && (!pagination || pagination.onPageSizeChange) && (
                 <label className="flex items-center gap-2">

@@ -10,6 +10,7 @@ import {
   buildHistoryCsv,
   csvCell,
   configurationMeta,
+  deviceTimeOffset,
   emptyHistoryReason,
   formatDuration,
   isColorParameter,
@@ -65,6 +66,23 @@ describe("history semantics", () => {
       stateColor("alarm", true, "enum"),
     )
     expect(formatDuration(90_000)).toBe("1m 30s")
+  })
+
+  it("says how far the device clock sits from receipt, ignoring sub-second gaps", () => {
+    const at = (received: string, observed: string) => ({
+      received_at: received,
+      observed_at: observed,
+    })
+    expect(
+      deviceTimeOffset(at("2026-10-12T10:00:02.000Z", "2026-10-12T10:00:00.000Z")),
+    ).toBe("2s earlier")
+    expect(
+      deviceTimeOffset(at("2026-10-12T10:00:00.000Z", "2026-10-12T10:01:30.000Z")),
+    ).toBe("1m 30s later")
+    expect(
+      deviceTimeOffset(at("2026-10-12T10:00:00.400Z", "2026-10-12T10:00:00.000Z")),
+    ).toBeNull()
+    expect(deviceTimeOffset(at("2026-10-12T10:00:00Z", "not a time"))).toBeNull()
   })
 
   it("labels configuration and profile revisions independently", () => {
