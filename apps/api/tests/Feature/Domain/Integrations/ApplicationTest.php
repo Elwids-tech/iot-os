@@ -27,7 +27,7 @@ final class ApplicationTest extends TestCase
 
     private Device $device;
 
-    private string $admin;
+    private User $admin;
 
     private string $manage;
 
@@ -39,16 +39,19 @@ final class ApplicationTest extends TestCase
         $this->seed(DatabaseSeeder::class);
         $this->org = Organization::where('slug', 'acme-manufacturing')->firstOrFail();
         $this->device = Device::create(['organization_id' => $this->org->id, 'code' => 'sdk', 'name' => 'Test tag']);
-        $this->admin = User::where('is_super_admin', true)->firstOrFail()->createToken('test')->plainTextToken;
+        $this->admin = User::where('is_super_admin', true)->firstOrFail();
         $this->manage = '/api/v1/organizations/'.$this->org->uuid.'/applications';
         $this->read = '/api/integration/v1/organizations/'.$this->org->uuid;
     }
 
-    private function api(string $token, string $method, string $path, array $body = [])
+    /** A person signs in with a session; an integration application presents its token. */
+    private function api(User|string $actor, string $method, string $path, array $body = [])
     {
         Auth::forgetGuards();
 
-        return $this->withToken($token)->json($method, $path, $body);
+        return $actor instanceof User
+            ? $this->withoutToken()->actingAs($actor)->json($method, $path, $body)
+            : $this->withToken($actor)->json($method, $path, $body);
     }
 
     private function create(): array
@@ -127,7 +130,7 @@ final class ApplicationTest extends TestCase
         $app = $this->create();
         $this->api($this->admin, 'POST', '/api/v1/organizations/'.$other->uuid.'/applications/'.$app['uuid'].'/revoke', ['revision' => 1])->assertNotFound();
         $this->api($this->admin, 'POST', $this->manage.'/'.$app['uuid'].'/token', ['revision' => 1, 'expires_in_days' => 91, 'abilities' => ['*']])->assertUnprocessable();
-        $member = User::where('email', 'acme.member@example.test')->firstOrFail()->createToken('member')->plainTextToken;
+        $member = User::where('email', 'acme.member@example.test')->firstOrFail();
         $this->api($member, 'POST', $this->manage, ['name' => 'Not allowed'])->assertForbidden();
     }
 

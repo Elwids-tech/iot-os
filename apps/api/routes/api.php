@@ -10,3 +10,4 @@ require app_path('Domain/Notifications/routes.php');
 require app_path('Domain/Overview/routes.php');
 
 require app_path('Domain/DeviceAdapters/routes.php');
+require app_path('Domain/Agents/routes/api.php');

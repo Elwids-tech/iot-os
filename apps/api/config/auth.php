@@ -42,6 +42,12 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // AI agents (spec 004): Passport bearer tokens, accepted only on /mcp.
+        'mcp' => [
+            'driver' => 'passport',
+            'provider' => 'users',
+        ],
     ],
 
     /*

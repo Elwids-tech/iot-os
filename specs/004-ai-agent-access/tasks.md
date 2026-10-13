@@ -49,8 +49,8 @@ release is PRs 1 to 4.
 
 **Purpose**: Dependency, configuration and the domain skeleton
 
-- [ ] T001 After the package upgrade (`chore/upgrade-laravel-packages`) has merged, run `composer require laravel/mcp:^1.0.2 laravel/passport:^13.9` in apps/api. Confirm apps/api/composer.lock lists both under `packages`, not `packages-dev`. Publish Passport's migrations with `php artisan vendor:publish --tag=passport-migrations`
-- [ ] T002 [P] Create apps/api/config/agents.php with the keys of data-model.md section 9:
+- [x] T001 After the package upgrade (`chore/upgrade-laravel-packages`) has merged, run `composer require laravel/mcp:^1.0.2 laravel/passport:^13.9` in apps/api. Confirm apps/api/composer.lock lists both under `packages`, not `packages-dev`. Publish Passport's migrations with `php artisan vendor:publish --tag=passport-migrations`
+- [x] T002 [P] Create apps/api/config/agents.php with the keys of data-model.md section 9:
   - `enabled` (`IOT_AGENTS_ENABLED`, default `false`)
   - `resource` (`rtrim(APP_URL, '/').'/mcp'`)
   - `connection_idle_days` 90
@@ -60,7 +60,7 @@ release is PRs 1 to 4.
   Add the environment variables (all off), `IOT_AGENTS_REDIRECT_DOMAINS` and the
   Passport key variables to apps/api/.env.example, deploy/compose/compose.app.yml and
   deploy/release/compose.yml.
-- [ ] T003 [P] Create apps/api/app/Domain/Agents/ with `Models/`, `Enums/`, `Services/`, `Http/`, `Http/Middleware/`, `Mcp/`, `Mcp/Tools/`, `Proposals/`, `Console/` and `routes/`. Load `Domain/Agents/routes/api.php` from apps/api/routes/api.php like the other domains
+- [x] T003 [P] Create apps/api/app/Domain/Agents/ with `Models/`, `Enums/`, `Services/`, `Http/`, `Http/Middleware/`, `Mcp/`, `Mcp/Tools/`, `Proposals/`, `Console/` and `routes/`. Load `Domain/Agents/routes/api.php` from apps/api/routes/api.php like the other domains
 
 ---
 
@@ -70,61 +70,61 @@ release is PRs 1 to 4.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Create apps/api/database/migrations/2026_10_13_000000_create_agent_access.php with the two `organizations` columns and the four `agent_*` tables of data-model.md sections 1 and 4 to 7. Include:
+- [x] T004 Create apps/api/database/migrations/2026_10_13_000000_create_agent_access.php with the two `organizations` columns and the four `agent_*` tables of data-model.md sections 1 and 4 to 7. Include:
   - `agent_access_enabled` boolean default `false`;
   - `agent_connections.oauth_client_id` as a uuid foreign key to `oauth_clients`, restrict on delete;
   - the partial unique index on `agent_connections (user_id, oauth_client_id) where revoked_at is null`;
   - indexes on `agent_activity (organization_id, created_at)` and `(agent_connection_id, created_at)`;
   - enum columns as strings with check constraints;
   - integer `user_id` foreign keys (ADR-013), cascading as listed.
-- [ ] T005 [P] Create the enums in apps/api/app/Domain/Agents/Enums/:
+- [x] T005 [P] Create the enums in apps/api/app/Domain/Agents/Enums/:
   - `AccessLevel` (`read`, `draft`)
   - `RevocationReason` (`person`, `administrator`, `membership_removed`, `password_reset`, `refresh_reuse`, `replaced`)
   - `ActivityOutcome` (`answered`, `refused`, `failed`)
   - `ProposalKind` (`profile_section`, `decoder_revision`, `device_registration`, `dashboard`)
   - `ProposalStatus` (`open`, `applied`, `discarded`, `expired`, `superseded`)
-- [ ] T006 [P] Create the models in apps/api/app/Domain/Agents/Models/ with casts and relations:
+- [x] T006 [P] Create the models in apps/api/app/Domain/Agents/Models/ with casts and relations:
   - `AgentConnection`: `scopeActive()`; `isExpired()` (no call for `connection_idle_days`); `revoke(RevocationReason, ?User)`, which also sets `revoked` on the person's Passport access and refresh tokens for its client.
   - `AgentActivity`
   - `AgentProposalGroup`
   - `AgentProposal`
-- [ ] T007 Move apps/api/app/Domain/Shared/Models/User.php to Passport's `HasApiTokens` and `OAuthenticatable`, replacing Sanctum's trait (research finding 5). Then:
+- [x] T007 Move apps/api/app/Domain/Shared/Models/User.php to Passport's `HasApiTokens` and `OAuthenticatable`, replacing Sanctum's trait (research finding 5). Then:
   - make apps/api/database/seeders/PermissionSeeder.php skip the `mcp` guard;
   - switch the tests that sign in with `createToken()` (Integrations, Webhook, EventJournal, Geofence, PasswordRecovery) to `actingAs`;
   - add a test that asserts the trait and the seeder's guards.
-- [ ] T008 [P] Create factories for the agent models in apps/api/database/factories/Agents/, with a helper that creates a public Passport client the way registration does
-- [ ] T009 Implement apps/api/app/Domain/Agents/Services/AgentAccess.php:
+- [x] T008 [P] Create factories for the agent models in apps/api/database/factories/Agents/, with a helper that creates a public Passport client the way registration does (done as the test trait tests/Support/Agents/AgentFixtures.php; the repository has factories only for users and organizations)
+- [x] T009 Implement apps/api/app/Domain/Agents/Services/AgentAccess.php:
   - `deploymentEnabled()`
   - `organizationEnabled(Organization)`
   - `canManage(User, Organization)`: a member holding `Organization.update`, through `OrganizationAdministrationAuthorization`
   - `setEnabled(User, Organization, bool)`: writes `agent_access_enabled` and `agent_access_changed_at`, and records `DeviceAudit::record('agents.access_enabled'|'agents.access_disabled', …)` (FR-003)
-- [ ] T010 Add `features.agent_access` and `agents {enabled, manage}` to apps/api/app/Domain/Administration/Http/Resources/OrganizationResource.php, and the matching fields to the organization capability type in packages/api-client/src/index.ts
-- [ ] T011 Implement `GET` and `PUT organizations/{organization}/agent-access` in apps/api/app/Domain/Agents/Http/AgentAccessController.php, registered in apps/api/app/Domain/Agents/routes/api.php with `auth:sanctum` and `ResolveOrganizationContext`:
+- [x] T010 Add `features.agent_access` and `agents {enabled, manage}` to apps/api/app/Domain/Administration/Http/Resources/OrganizationResource.php, and the matching fields to the organization capability type in packages/api-client/src/index.ts
+- [x] T011 Implement `GET` and `PUT organizations/{organization}/agent-access` in apps/api/app/Domain/Agents/Http/AgentAccessController.php, registered in apps/api/app/Domain/Agents/routes/api.php with `auth:sanctum` and `ResolveOrganizationContext`:
   - 404 while the deployment switch is off;
   - `GET` returns `{enabled, can_manage, connector_url}` to any member;
   - `PUT {enabled}` requires `canManage`.
-- [ ] T012 Describe the two operations and the capability fields in contracts/openapi/supplements/agents.yaml. Run `cd apps/api && php artisan contract:export`. Add `agentAccess()` and `setAgentAccess()` to packages/api-client/src/agents.ts, exported from the package index
-- [ ] T013 Implement `agents:prune` in apps/api/app/Domain/Agents/Console/PruneAgents.php and schedule it daily in apps/api/routes/console.php. It deletes:
+- [x] T012 Describe the two operations and the capability fields in contracts/openapi/supplements/agents.yaml. Run `cd apps/api && php artisan contract:export`. Add `agentAccess()` and `setAgentAccess()` to packages/api-client/src/agents.ts, exported from the package index (Scramble inferred both response bodies fully, so no supplement was needed; the coverage tests now count only the pairs they set up)
+- [x] T013 Implement `agents:prune` in apps/api/app/Domain/Agents/Console/PruneAgents.php and schedule it daily in apps/api/routes/console.php. It deletes:
   - Passport clients created by registration that have no connection 24 hours after creation;
   - activity older than `agents.activity_days`.
   
   It also marks open proposals past `expires_at` as `expired`. Schedule Passport's
   `passport:purge` daily as well.
-- [ ] T014 Add the **Connected AI apps** page (navigation label "AI apps") in apps/portal/src/agents/AiAppsSettings.tsx as settings sub-route `ai-apps` in apps/portal/src/settings/Settings.tsx, shown only when `features.agent_access`. It contains:
+- [x] T014 Add the **Connected AI apps** page (navigation label "AI apps") in apps/portal/src/agents/AiAppsSettings.tsx as settings sub-route `ai-apps` in apps/portal/src/settings/Settings.tsx, shown only when `features.agent_access`. It contains:
   - a `Panel` with the connector address, a copy button and per-client steps (Claude.ai and Claude Desktop: Settings → Connectors → Add custom connector; Claude Code: `claude mcp add --transport http iot-os <url>` then `/mcp`; other MCP clients);
   - a `Switch` for administrators (`agents.manage`) with a toast on change;
   - empty "Your connections" and "Connections to this organization" sections.
   
   Use the kit's `SettingsPage` sections.
-- [ ] T015 [P] Write apps/api/tests/Feature/Agents/AgentAccessSettingsTest.php:
+- [x] T015 [P] Write apps/api/tests/Feature/Agents/AgentAccessSettingsTest.php:
   - deployment off gives 404;
   - a member can `GET`, but gets 403 on `PUT`;
   - an administrator's `PUT` toggles the switch and writes an audit row;
   - new organizations start off;
   - capabilities in `/me` and `/context`;
   - another organization's administrator cannot change it.
-- [ ] T016 [P] Write apps/portal/src/agents/model.test.ts for visibility rules (feature off hides the section; non-administrators see no switch)
-- [ ] T017 Create docs/features/agents.md (overview, switches, configuration) and link it from docs/README.md
+- [x] T016 [P] Write apps/portal/src/agents/model.test.ts for visibility rules (feature off hides the section; non-administrators see no switch)
+- [x] T017 Create docs/features/agents.md (overview, switches, configuration) and link it from docs/README.md
 - [ ] T018 Rebuild `api`, `scheduler` and `portal` with the AGENTS.md compose command. As an administrator with `IOT_AGENTS_ENABLED=true`, switch agent access on and off on the running stack
 
 **Checkpoint**: Switches exist; nothing can connect yet
@@ -235,7 +235,7 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
 - [ ] T039 [US1] Implement `GET me/agent-connections`, `DELETE me/agent-connections/{connection}` (owner only; reason `person`) and `GET organizations/{organization}/agent-connections/{connection}/activity` (owner; 50 per page, newest first) in apps/api/app/Domain/Agents/Http/ConnectionController.php:
   - derive `state` (`active`, `expired`, `revoked`, `unavailable`) as in contracts/portal-api.md;
   - describe them in agents.yaml, export, and add them to packages/api-client/src/agents.ts.
-- [ ] T040 [US1] Add a `ConnectionRevoker` in apps/api/app/Domain/Agents/Services/ and call it:
+- [x] T040 [US1] Add a `ConnectionRevoker` in apps/api/app/Domain/Agents/Services/ and call it (landed in PR 1, so a password reset never leaves usable Passport refresh tokens once `User` holds Passport tokens):
   - from `OrganizationMembershipManager::remove` (the member's connections to that organization, reason `membership_removed`);
   - from apps/api/app/Domain/Authentication/Http/Controllers/PasswordRecoveryController.php next to `tokens()->delete()` (all of the person's connections, reason `password_reset`).
 - [ ] T041 [US1] Fill "Your connections" in apps/portal/src/agents/AiAppsSettings.tsx with a `DataTable`:

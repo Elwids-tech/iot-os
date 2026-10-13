@@ -22,6 +22,7 @@ final class ContractCoverageTest extends TestCase
 
     public function test_an_empty_record_passes_while_nothing_is_required(): void
     {
+        $this->onlyIntegrationDescribed();
         config(['scramble.contract.require_integration_coverage' => false]);
 
         $this->artisan('contract:coverage', ['--file' => $this->record([])])
@@ -32,6 +33,7 @@ final class ContractCoverageTest extends TestCase
 
     public function test_an_empty_record_misses_every_integration_pair(): void
     {
+        $this->onlyIntegrationDescribed();
         // 18 operations need a 2xx, 401, 403 and 404; the 6 with a body or a required
         // query parameter also need a 422.
         $this->artisan('contract:coverage', ['--file' => $this->record([])])
@@ -67,6 +69,7 @@ final class ContractCoverageTest extends TestCase
 
     public function test_a_checked_success_response_covers_a_fully_described_operation(): void
     {
+        $this->onlyIntegrationDescribed();
         config(['scramble.contract.require_integration_coverage' => false]);
         $this->describe('GET /v1/me');
 
@@ -92,6 +95,7 @@ final class ContractCoverageTest extends TestCase
 
     public function test_opt_outs_are_counted_and_listed_with_their_reasons(): void
     {
+        $this->onlyIntegrationDescribed();
         config(['scramble.contract.require_integration_coverage' => false]);
         $file = $this->record([], skipped: [['test' => 'Tests\\Feature\\ExampleTest::test_teapot', 'reason' => 'Returns 418 on purpose.']]);
 
@@ -107,11 +111,37 @@ final class ContractCoverageTest extends TestCase
      */
     private function describe(string $operation): void
     {
-        $path = $this->useContractCopy().'/openapi.json';
+        $path = $this->copiedDocument();
         $document = ContractJson::decode((string) file_get_contents($path));
         [$method, $uri] = explode(' ', $operation, 2);
         unset($document['paths'][$uri][strtolower($method)]['x-schema-status']);
         file_put_contents($path, ContractJson::encode($document));
+    }
+
+    /**
+     * Marks every operation outside the integration API pending in the copy, so a test
+     * counts only the pairs it sets up, however many tenant operations are described.
+     */
+    private function onlyIntegrationDescribed(): void
+    {
+        $path = $this->copiedDocument();
+        $document = ContractJson::decode((string) file_get_contents($path));
+        foreach ($document['paths'] as $uri => $operations) {
+            if (str_starts_with($uri, '/integration/')) {
+                continue;
+            }
+            foreach (array_keys($operations) as $method) {
+                if (in_array($method, ['get', 'post', 'put', 'patch', 'delete'], true)) {
+                    $document['paths'][$uri][$method]['x-schema-status'] = 'pending';
+                }
+            }
+        }
+        file_put_contents($path, ContractJson::encode($document));
+    }
+
+    private function copiedDocument(): string
+    {
+        return ($this->contractCopy === null ? $this->useContractCopy() : $this->contractCopy.'/openapi').'/openapi.json';
     }
 
     /**

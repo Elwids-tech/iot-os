@@ -6,6 +6,7 @@ namespace App\Domain\Shared\Http\Resources;
 
 use App\Domain\Administration\Services\OrganizationAdministrationAuthorization;
 use App\Domain\Administration\Services\OrganizationGrants;
+use App\Domain\Agents\Services\AgentAccess;
 use App\Domain\Dashboards\Services\DashboardAccess;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization;
 use App\Domain\Devices\Services\DeviceAuthorization;
@@ -28,21 +29,37 @@ final class OrganizationResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'users_count' => $this->whenCounted('users'),
-            'capabilities' => $this->when($user instanceof User, fn (): array => [
-                'device_profiles' => app(DeviceProfileAuthorization::class)->capabilities($user, $this->resource),
-                'devices' => app(DeviceAuthorization::class)->capabilities($user, $this->resource),
-                'dashboards' => app(DashboardAccess::class)->capabilities($user, $this->resource),
-                'manage_administration' => app(OrganizationAdministrationAuthorization::class)->allows(
-                    $user,
-                    $this->resource,
-                    OrganizationPermission::UPDATE->value,
-                ),
-                'administration' => app(OrganizationGrants::class)->capabilities($user, $this->resource),
-                // Optional platform features, so clients can hide entry points the API would 404.
-                'features' => [
-                    'device_adapters' => (bool) config('adapters.enabled'),
-                ],
-            ]),
+            'capabilities' => $this->when($user instanceof User, fn (): array => $this->capabilities($user)),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function capabilities(User $user): array
+    {
+        $manageAdministration = app(OrganizationAdministrationAuthorization::class)->allows(
+            $user,
+            $this->resource,
+            OrganizationPermission::UPDATE->value,
+        );
+
+        return [
+            'device_profiles' => app(DeviceProfileAuthorization::class)->capabilities($user, $this->resource),
+            'devices' => app(DeviceAuthorization::class)->capabilities($user, $this->resource),
+            'dashboards' => app(DashboardAccess::class)->capabilities($user, $this->resource),
+            'manage_administration' => $manageAdministration,
+            'administration' => app(OrganizationGrants::class)->capabilities($user, $this->resource),
+            // Optional platform features, so clients can hide entry points the API would 404.
+            'features' => [
+                'device_adapters' => (bool) config('adapters.enabled'),
+                'agent_access' => app(AgentAccess::class)->deploymentEnabled(),
+            ],
+            // AI agent access (spec 004): the organization's switch and who may change it.
+            'agents' => [
+                'enabled' => (bool) $this->agent_access_enabled,
+                'manage' => $manageAdministration,
+            ],
         ];
     }
 }

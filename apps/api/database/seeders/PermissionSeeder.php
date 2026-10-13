@@ -31,7 +31,8 @@ class PermissionSeeder extends Seeder
             DashboardPermission::getPermissionGroup() => DashboardPermission::cases(),
             PlatformAdministrationPermission::getPermissionGroup() => PlatformAdministrationPermission::cases(),
         ];
-        $guards = array_keys(config('auth.guards'));
+        // The agent guard carries no roles: agents act with the person's web permissions.
+        $guards = array_values(array_diff(array_keys(config('auth.guards')), ['mcp']));
 
         foreach ($permissionGroups as $group => $permissions) {
             foreach ($permissions as $permission) {
