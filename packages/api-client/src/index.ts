@@ -1276,6 +1276,23 @@ export class ApiClient {
   approveAgentAuthorization(values: { auth_token: string; organization_uuid: string; access_level: import("./agents").AgentAccessLevel }) {
     return this.data<import("./agents").AgentAuthorizationDecision>("/api/v1/agent-authorizations/approve", "POST", values)
   }
+  /** The signed-in person's agent connections in every organization. */
+  myAgentConnections() {
+    return this.data<import("./agents").AgentConnection[]>("/api/v1/me/agent-connections")
+  }
+  disconnectMyAgent(connection: string) {
+    return this.request<null>(`/api/v1/me/agent-connections/${encodeURIComponent(connection)}`, { method: "DELETE" })
+  }
+  /** Every member's agent connections to the organization (administrators). */
+  organizationAgentConnections(org: string) {
+    return this.data<import("./agents").AgentConnection[]>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-connections`)
+  }
+  disconnectAgent(org: string, connection: string) {
+    return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-connections/${encodeURIComponent(connection)}`, { method: "DELETE" })
+  }
+  agentActivity(org: string, connection: string, page = 1) {
+    return this.request<import("./agents").AgentActivityPage>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-connections/${encodeURIComponent(connection)}/activity?page=${page}`)
+  }
   denyAgentAuthorization(authToken: string) {
     return this.data<import("./agents").AgentAuthorizationDecision>("/api/v1/agent-authorizations/deny", "POST", { auth_token: authToken })
   }

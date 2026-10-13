@@ -11,6 +11,7 @@ use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Devices\Services\DeviceConfigurationService;
+use App\Domain\Devices\Services\DeviceDirectory;
 use App\Domain\Devices\Services\DeviceLifecycleService;
 use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Devices\Services\RetentionService;
@@ -35,15 +36,7 @@ final class DeviceController
         $sort = $filters['sort'] ?? 'name';
         $column = self::SORTS[ltrim($sort, '-')];
         $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
-        $result = Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile', 'site'])
-            ->when($filters['site_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('site', fn ($site) => $site->where('uuid', $uuid)))
-            ->when($filters['tag'] ?? null, fn ($q, $tag) => $q->whereJsonContains('tags', trim($tag)))
-            ->when($filters['search'] ?? null, fn ($q, $s) => $q->where(fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($s).'%'])->orWhereRaw('LOWER(code) LIKE ?', ['%'.mb_strtolower($s).'%'])))
-            ->when($filters['lifecycle'] ?? null, fn ($q, $s) => $q->where('lifecycle', $s))
-            // A device's profile is its applied configuration's, or the last applied one while inactive.
-            ->when($filters['profile_uuid'] ?? null, fn ($q, $uuid) => $q->where(fn ($q) => $q
-                ->whereHas('appliedConfiguration.artifact.profile', fn ($p) => $p->where('uuid', $uuid))
-                ->orWhere(fn ($q) => $q->whereNull('applied_configuration_uuid')->whereHas('lastAppliedConfiguration.artifact.profile', fn ($p) => $p->where('uuid', $uuid)))))
+        $result = app(DeviceDirectory::class)->query($organization, $filters)
             // Never-seen devices sort last either way; id breaks ties so pages never overlap.
             ->when($column === 'last_seen_at', fn ($q) => $q->orderByRaw('CASE WHEN last_seen_at IS NULL THEN 1 ELSE 0 END'))
             ->orderBy($column, $direction)->orderBy('id')->paginate($request->integer('per_page', 25));
