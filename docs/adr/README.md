@@ -23,7 +23,7 @@ the code as evidence.
 | [ADR-005](ADR-005-sparkplug-b-boundary.md) | Sparkplug B as the external MQTT interoperability contract | Accepted; amended by ADR-009 |
 | [ADR-006](ADR-006-deployment-profiles.md) | Single-node Compose first, Kubernetes later | Accepted |
 | [ADR-007](ADR-007-monorepo-and-shadcn-ui.md) | Cross-language monorepo with a shared shadcn UI foundation | Accepted |
-| [ADR-008](ADR-008-laravel-sanctum-authentication.md) | Sanctum session cookies for the React apps, tokens for machine clients | Accepted |
+| [ADR-008](ADR-008-laravel-sanctum-authentication.md) | Sanctum session cookies for the React apps, tokens for machine clients | Accepted; amended by ADR-018 |
 | [ADR-009](ADR-009-mosquitto-default-broker.md) | Mosquitto is the default MQTT broker | Accepted |
 | [ADR-010](ADR-010-per-tenant-adapter-runtimes.md) | One Mosquitto ingress and Node-RED runtime per tenant, decoders in QuickJS | Accepted |
 | [ADR-011](ADR-011-dag-automation-in-go.md) | Automation runs as a typed DAG (v2) in the Go runtime; workflow v1 is legacy | Accepted |
@@ -32,7 +32,7 @@ the code as evidence.
 | [ADR-014](ADR-014-control-plane-data-plane-http-integration.md) | Laravel and Go integrate over internal HTTP with outboxes; JetStream stays inside Go | Accepted |
 | [ADR-015](ADR-015-internal-contract-validation.md) | Internal messages are read tolerantly and the canonical envelope strictly; live contract checks only log and count | Accepted |
 | [ADR-016](ADR-016-public-api-contract.md) | The public API contract is generated from Laravel, supplemented by hand and enforced in CI | Accepted |
-| [ADR-018](ADR-018-agent-access-oauth.md) | AI agents sign in through Passport and act through connections; amends ADR-008 | Proposed |
+| [ADR-018](ADR-018-agent-access-oauth.md) | AI agents sign in through Passport and act through connections; amends ADR-008 | Accepted |
 
 ## Template
 

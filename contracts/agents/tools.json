@@ -67,6 +67,124 @@
             "permission": "Device.view"
         },
         {
+            "name": "get_device_health",
+            "title": "Get Device Health",
+            "description": "One device's state: lifecycle, presence, last reading, configuration state, its source or gateway, and the latest value of every parameter with its quality (good, stale, invalid, inactive), age and diagnostic. Unknown values are null with a reason.",
+            "inputSchema": {
+                "properties": {
+                    "device_uuid": {
+                        "format": "uuid",
+                        "type": "string"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "device_uuid"
+                ]
+            },
+            "annotations": {
+                "title": "Get Device Health",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "access_level": "read",
+            "permission": "Device.view"
+        },
+        {
+            "name": "get_ingestion_diagnostics",
+            "title": "Get Ingestion Diagnostics",
+            "description": "Why a device (or an adapter) is or is not delivering data: lifecycle, configuration state, source and gateway presence, last reading, whether the source changed and needs review, announced metrics that are not mapped, current reading quality, and for adapters their status, connectivity and decoder tests. Each check is ok, problem or unknown with a detail. Pass device_uuid or adapter_uuid.",
+            "inputSchema": {
+                "properties": {
+                    "device_uuid": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "adapter_uuid": {
+                        "format": "uuid",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "annotations": {
+                "title": "Get Ingestion Diagnostics",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "access_level": "read",
+            "permission": "Device.view"
+        },
+        {
+            "name": "get_measurements",
+            "title": "Get Measurements",
+            "description": "Readings of one device parameter over a time window (RFC 3339 from and to). kind \"history\" (default) returns values at observed time, bucketed to max_points; \"increase\" returns a counter's increase per calendar bucket in the device's reporting time zone; \"state\" returns durations and transitions of a boolean, enum or colour parameter. Use get_device_health for parameter uuids.",
+            "inputSchema": {
+                "properties": {
+                    "device_uuid": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "parameter_uuid": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "from": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "to": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "kind": {
+                        "default": "history",
+                        "enum": [
+                            "history",
+                            "increase",
+                            "state"
+                        ],
+                        "type": "string"
+                    },
+                    "max_points": {
+                        "default": 120,
+                        "minimum": 10,
+                        "maximum": 500,
+                        "type": "integer"
+                    },
+                    "bucket": {
+                        "description": "Required for kind \"increase\".",
+                        "enum": [
+                            "15m",
+                            "1h",
+                            "1d",
+                            "1w",
+                            "1mo",
+                            "1y"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "device_uuid",
+                    "parameter_uuid",
+                    "from",
+                    "to"
+                ]
+            },
+            "annotations": {
+                "title": "Get Measurements",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "access_level": "read",
+            "permission": "Device.view"
+        },
+        {
             "name": "get_overview",
             "title": "Get Overview",
             "description": "What needs attention in the organization: device counts by state (online, offline, unknown, silent for 24 hours, registered, deactivated), active alerts, automation states, sources waiting to be onboarded and commands with an uncertain outcome. Start here.",
@@ -76,6 +194,70 @@
             },
             "annotations": {
                 "title": "Get Overview",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "access_level": "read",
+            "permission": "Device.view"
+        },
+        {
+            "name": "list_alerts",
+            "title": "List Alerts",
+            "description": "Alert episodes, newest first: active ones by default, or cleared history. Filter by device, site or workflow. Acknowledging and assigning alerts happen in the portal (portal_url).",
+            "inputSchema": {
+                "properties": {
+                    "condition": {
+                        "default": "active",
+                        "enum": [
+                            "active",
+                            "cleared"
+                        ],
+                        "type": "string"
+                    },
+                    "device_uuid": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "site_uuid": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "workflow_uuid": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "cursor": {
+                        "type": "string"
+                    },
+                    "limit": {
+                        "default": 20,
+                        "minimum": 1,
+                        "maximum": 50,
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "annotations": {
+                "title": "List Alerts",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "access_level": "read",
+            "permission": "Device.view"
+        },
+        {
+            "name": "list_sites",
+            "title": "List Sites",
+            "description": "The organization's sites with their time zones and how many devices each holds. Use a site_uuid to filter find_devices or list_alerts.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            },
+            "annotations": {
+                "title": "List Sites",
                 "readOnlyHint": true,
                 "idempotentHint": true,
                 "openWorldHint": false

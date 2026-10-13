@@ -62,7 +62,7 @@ final class ConsentController
                 'self_declared' => true,
                 'client_uri' => is_string($client?->client_uri ?? null) ? $client->client_uri : null,
             ],
-            'redirect_host' => (string) parse_url((string) $authRequest->getRedirectUri(), PHP_URL_HOST),
+            'redirect_host' => $this->returnHost($authRequest),
             'organizations' => $user->organizations()->orderBy('name')->get()->map(fn (Organization $organization): array => [
                 'uuid' => $organization->uuid,
                 'name' => $organization->name,
@@ -162,6 +162,23 @@ final class ConsentController
     private function belongsTo(AuthorizationRequestInterface $authRequest, User $user): bool
     {
         return (string) $authRequest->getUser()?->getIdentifier() === (string) $user->getAuthIdentifier();
+    }
+
+    /**
+     * Where the code will go. An agent may omit redirect_uri when it registered one
+     * address, and the code then goes to that address, so show it too.
+     */
+    private function returnHost(AuthorizationRequestInterface $authRequest): string
+    {
+        $uri = $authRequest->getRedirectUri();
+        if ($uri === null) {
+            $registered = $authRequest->getClient()->getRedirectUri();
+            $uri = is_array($registered) ? ($registered[0] ?? null) : $registered;
+        }
+        $host = (string) parse_url((string) $uri, PHP_URL_HOST);
+        abort_if($host === '', 409, 'This connection request has no return address. Start it again from your agent.');
+
+        return $host;
     }
 
     private function location(ResponseInterface $response): string

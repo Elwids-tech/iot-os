@@ -1,6 +1,6 @@
 # ADR-018: AI Agents Sign In Through Passport and Act Through Connections
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-12, revised 2026-10-13
 **Amends:** [ADR-008](ADR-008-laravel-sanctum-authentication.md)
 **Relates to:** [ADR-002](ADR-002-laravel-control-plane.md), [ADR-006](ADR-006-deployment-profiles.md), [ADR-013](ADR-013-integer-user-ids.md)

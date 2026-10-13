@@ -13,6 +13,7 @@ use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Devices\Services\DeviceConfigurationService;
 use App\Domain\Devices\Services\DeviceDirectory;
 use App\Domain\Devices\Services\DeviceLifecycleService;
+use App\Domain\Devices\Services\DeviceReadings;
 use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Devices\Services\RuntimeClient;
@@ -233,7 +234,7 @@ final class DeviceController
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $device);
 
-        return app(RuntimeClient::class)->request('GET', '/internal/measurements/latest', ['organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'configuration_uuid' => $device->applied_configuration_uuid ?? $device->last_applied_configuration_uuid]);
+        return app(DeviceReadings::class)->latest($organization, $device);
     }
 
     public function history(Request $request, Organization $organization, Device $device)
@@ -241,9 +242,7 @@ final class DeviceController
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $device);
         $values = $request->validate(['from' => ['required', 'date'], 'to' => ['required', 'date', 'after:from'], 'parameter_uuid' => ['required', 'uuid'], 'max_points' => ['sometimes', 'integer', 'min:10', 'max:1000']]);
 
-        // Portal charts place readings at observed time and join configuration
-        // revisions; the integration SDK keeps its receipt-time, per-configuration contract.
-        return app(RuntimeClient::class)->request('GET', '/internal/measurements/history', [...$values, 'time_basis' => 'observed', 'merge_configurations' => 1, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']], RuntimeClient::RANGE_TIMEOUT);
+        return app(DeviceReadings::class)->history($organization, $device, $values);
     }
 
     public function historyRecords(Request $request, Organization $organization, Device $device)
@@ -273,13 +272,8 @@ final class DeviceController
             'max_points' => ['sometimes', 'integer', 'min:10', 'max:500'],
         ]);
         $values['max_points'] ??= 500;
-        if (! $this->supportsStateHistory($device, $values['parameter_uuid'])) {
-            throw ValidationException::withMessages([
-                'parameter_uuid' => 'Choose a boolean, enum, or colour-compatible string parameter from a device configuration.',
-            ]);
-        }
 
-        return app(RuntimeClient::class)->request('GET', '/internal/measurements/state-history', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']], RuntimeClient::RANGE_TIMEOUT);
+        return app(DeviceReadings::class)->stateHistory($organization, $device, $values);
     }
 
     /** Counter consumption per calendar bucket, with days and months cut in the given IANA time zone. */
@@ -294,51 +288,8 @@ final class DeviceController
             // Defaults to the device's site, then its organization, so totals match for every viewer.
             'timezone' => ['sometimes', 'timezone:all'],
         ]);
-        $values['timezone'] ??= $device->reportingTimezone();
-        $counter = $this->counterParameter($device, $values['parameter_uuid']);
-        if ($counter === null) {
-            throw ValidationException::withMessages([
-                'parameter_uuid' => 'Choose a counter parameter from a device configuration.',
-            ]);
-        }
 
-        return app(RuntimeClient::class)->request('GET', '/internal/measurements/increase', [...$values,
-            'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid,
-            'rollover_at' => $counter['rollover_at'] ?? null,
-            'retention_days' => app(RetentionService::class)->effective($organization)['days']], RuntimeClient::RANGE_TIMEOUT);
-    }
-
-    /** The counter settings from the newest configuration that defines the parameter as a counter. */
-    private function counterParameter(Device $device, string $parameterUuid): ?array
-    {
-        foreach ($device->configurations()->latest('id')->get() as $configuration) {
-            $canonical = $configuration->definition['profile_canonical_json'] ?? [];
-            $profile = is_string($canonical) ? json_decode($canonical, true) : $canonical;
-            $parameter = collect(is_array($profile) ? ($profile['parameters'] ?? []) : [])->firstWhere('uuid', $parameterUuid);
-            if ($parameter && ($parameter['kind'] ?? null) === 'counter' && in_array($parameter['data_type'] ?? null, ['integer', 'number'], true)) {
-                return is_array($parameter['counter'] ?? null) ? $parameter['counter'] : [];
-            }
-        }
-
-        return null;
-    }
-
-    private function supportsStateHistory(Device $device, string $parameterUuid): bool
-    {
-        return $device->configurations()->get()->contains(function ($configuration) use ($parameterUuid): bool {
-            $canonical = $configuration->definition['profile_canonical_json'] ?? [];
-            $profile = is_string($canonical) ? json_decode($canonical, true) : $canonical;
-            $parameter = collect(is_array($profile) ? ($profile['parameters'] ?? []) : [])->firstWhere('uuid', $parameterUuid);
-            if (! $parameter) {
-                return false;
-            }
-            if (in_array($parameter['data_type'] ?? null, ['boolean', 'enum'], true)) {
-                return true;
-            }
-
-            return ($parameter['data_type'] ?? null) === 'string'
-                && (($parameter['format'] ?? null) === 'hex_color' || data_get($parameter, 'display.widget') === 'color');
-        });
+        return app(DeviceReadings::class)->increase($organization, $device, $values);
     }
 
     private function revision(Request $request): int

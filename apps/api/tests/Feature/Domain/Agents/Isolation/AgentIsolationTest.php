@@ -14,6 +14,7 @@ use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\Support\Agents\AgentFixtures;
@@ -35,6 +36,8 @@ final class AgentIsolationTest extends TestCase
 
     private Site $foreignSite;
 
+    private Device $own;
+
     /** @var list<string> */
     private array $secrets = [];
 
@@ -50,7 +53,10 @@ final class AgentIsolationTest extends TestCase
         $this->a->forceFill(['agent_access_enabled' => true])->save();
         $this->foreignSite = Site::create(['organization_id' => $this->b->id, 'name' => 'iso-b-site', 'timezone' => 'UTC']);
         $this->foreign = Device::create(['organization_id' => $this->b->id, 'code' => 'iso-b-device', 'name' => 'iso-b-device', 'site_id' => $this->foreignSite->id, 'tags' => ['iso-b-tag']]);
-        Device::create(['organization_id' => $this->a->id, 'code' => 'iso-a-device', 'name' => 'iso-a-device']);
+        $this->own = Device::create(['organization_id' => $this->a->id, 'code' => 'iso-a-device', 'name' => 'iso-a-device']);
+        Http::preventStrayRequests();
+        Http::fake(['*/internal/measurements/latest*' => Http::response(['data' => []])]);
+        config(['devices.runtime_token' => str_repeat('x', 40), 'devices.runtime_url' => 'http://runtime:8081']);
         $this->seedSecrets();
     }
 
@@ -59,6 +65,22 @@ final class AgentIsolationTest extends TestCase
     {
         return match ($tool) {
             'find_devices' => ['site_uuid' => $this->foreignSite->uuid, 'tag' => 'iso-b-tag', 'search' => 'iso-b'],
+            'list_alerts' => ['site_uuid' => $this->foreignSite->uuid, 'device_uuid' => $this->foreign->uuid],
+            default => $this->deviceArguments($tool, $this->foreign),
+        };
+    }
+
+    /** Valid arguments on the connection's own organization, so only permission can refuse them. */
+    private function ownArguments(string $tool): array
+    {
+        return $this->deviceArguments($tool, $this->own);
+    }
+
+    private function deviceArguments(string $tool, Device $device): array
+    {
+        return match ($tool) {
+            'get_device_health', 'get_ingestion_diagnostics' => ['device_uuid' => $device->uuid],
+            'get_measurements' => ['device_uuid' => $device->uuid, 'parameter_uuid' => (string) Str::uuid(), 'from' => now()->subHour()->toIso8601String(), 'to' => now()->toIso8601String()],
             default => [],
         };
     }
@@ -84,7 +106,7 @@ final class AgentIsolationTest extends TestCase
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         foreach ($this->toolNames() as $tool) {
-            $result = $this->callTool($agent['access_token'], $tool);
+            $result = $this->callTool($agent['access_token'], $tool, $this->ownArguments($tool));
             $this->assertTrue($result['error'], "{$tool} answered without permission");
             $this->assertContains($result['body']['error']['code'], ['permission', 'not_found'], $tool);
         }
