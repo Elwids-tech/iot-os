@@ -32,6 +32,7 @@ the code as evidence.
 | [ADR-014](ADR-014-control-plane-data-plane-http-integration.md) | Laravel and Go integrate over internal HTTP with outboxes; JetStream stays inside Go | Accepted |
 | [ADR-015](ADR-015-internal-contract-validation.md) | Internal messages are read tolerantly and the canonical envelope strictly; live contract checks only log and count | Accepted |
 | [ADR-016](ADR-016-public-api-contract.md) | The public API contract is generated from Laravel, supplemented by hand and enforced in CI | Accepted |
+| [ADR-018](ADR-018-agent-access-oauth.md) | AI agents sign in through Passport and act through connections; amends ADR-008 | Proposed |
 
 ## Template
 
