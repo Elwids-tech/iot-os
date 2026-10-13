@@ -199,7 +199,7 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
   - separation, in fresh test methods: a portal session on `/mcp` and an agent token on `/api/v1/me` and `/api/integration/v1` all answer 401;
   - portal sessions and integration tokens still authenticate through Sanctum.
 - [ ] T030 [P] [US1] Write apps/portal/e2e/agents.spec.ts for `/connect` with a mocked API: signed in, signed out with `return`, a rejected `return`, a single organization preselected, an unavailable organization, deny, no pending connection, and an axe scan after animations settle
-- [ ] T031 [US1] Run `/security-review` on the PR 2 diff and fix its findings. Set docs/adr/ADR-018-agent-access-oauth.md to Accepted, set the ADR-008 status line to "Accepted; amended by ADR-018", and update docs/adr/README.md
+- [x] T031 [US1] (Ran over PRs 1 to 4 on 2026-10-13: no reportable vulnerability. One correctness gap was fixed: the consent screen now names the return host when an agent omits `redirect_uri`. The no-framing rule now covers `/connect/` too.) Run `/security-review` on the PR 2 diff and fix its findings. Set docs/adr/ADR-018-agent-access-oauth.md to Accepted, set the ADR-008 status line to "Accepted; amended by ADR-018", and update docs/adr/README.md
 - [ ] T032 [US1] Rebuild `api` and `portal`. On the running stack, complete sign-in with the MCP Inspector's auth flow and with Claude Code (`claude mcp add --transport http iot-os http://127.0.0.1:8001/mcp`) up to token issuance
 
 ### Endpoint, first tools and disconnect (PR 3)

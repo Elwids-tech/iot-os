@@ -154,6 +154,19 @@ final class AgentOAuthFlowTest extends TestCase
             ->assertStatus(400)->assertJsonPath('error', 'invalid_grant');
     }
 
+    public function test_the_consent_screen_names_the_return_host_when_the_agent_omits_redirect_uri(): void
+    {
+        $client = $this->register();
+        [, $challenge] = $this->pkce();
+        $this->actingAs($this->person)->get('/oauth/authorize?'.http_build_query([
+            'response_type' => 'code', 'client_id' => $client, 'state' => 'state-123',
+            'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
+        ]))->assertRedirect(self::PORTAL.'/connect');
+
+        $this->stateful()->actingAs($this->person)->getJson('/api/v1/agent-authorizations/current')
+            ->assertOk()->assertJsonPath('data.redirect_host', 'claude.ai');
+    }
+
     public function test_approving_again_replaces_the_connection_and_revokes_its_tokens(): void
     {
         $client = $this->register();
