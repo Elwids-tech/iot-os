@@ -301,6 +301,26 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'release manifest'):
                 deployment.validate()
 
+    def test_api_web_serves_agent_discovery_but_still_hides_dotfiles(self):
+        config = (release.ROOT/'deploy/docker/api/nginx.release.conf').read_text()
+        discovery = config.index('location ^~ /.well-known/ { try_files $uri /index.php?$query_string; }')
+        self.assertLess(discovery, config.index('location ~ /\\. { deny all; }'))
+
+    def test_smoke_checks_agent_discovery_only_when_agents_are_on(self):
+        class Ok:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            discovery = 'https://api.staging.example.test/.well-known/oauth-protected-resource/mcp'
+            with patch.object(release.urllib.request, 'urlopen', return_value=Ok()) as opened:
+                deployment.smoke()
+                self.assertNotIn(discovery, [call.args[0] for call in opened.call_args_list])
+                deployment.env['IOT_AGENTS_ENABLED'] = 'true'
+                deployment.smoke()
+                self.assertIn(discovery, [call.args[0] for call in opened.call_args_list])
+
     def test_production_refuses_demo_configuration(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/"env"
