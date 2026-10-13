@@ -593,7 +593,11 @@ class Deployment:
         self.ping_heartbeat("MONITORING_HEARTBEAT_URL")
 
     def smoke(self):
-        for host, path in [("app", "/"), ("admin", "/"), ("api", "/up"), ("api", "/health/ready")]:
+        checks = [("app", "/"), ("admin", "/"), ("api", "/up"), ("api", "/health/ready")]
+        if self.env.get("IOT_AGENTS_ENABLED") == "true":
+            # Agents discover sign-in here; a dotfile rule in front of the API once hid it.
+            checks.append(("api", "/.well-known/oauth-protected-resource/mcp"))
+        for host, path in checks:
             with urllib.request.urlopen("https://"+host+"."+self.env["DOMAIN"]+path, timeout=15) as response:
                 if response.status != 200:
                     raise RuntimeError("Public HTTPS smoke check failed")

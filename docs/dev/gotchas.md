@@ -84,6 +84,13 @@ Things that have cost time before. Add to this list when something surprises you
 - **Rebuilding `api` signs everyone out.** The dev API uses the `file` session
   driver inside the container ([`compose.app.yml`](../../deploy/compose/compose.app.yml)).
   This is expected, not a regression.
+- **The dev stack does not serve the API the way a release does.** Releases put
+  nginx ([`nginx.release.conf`](../../deploy/docker/api/nginx.release.conf)) in
+  front of PHP-FPM. Its dotfile rule (`location ~ /\.`) once returned 403 for
+  `/.well-known/oauth-*`, so agents could not discover sign-in on the pilot,
+  although every dev check passed. Paths the API must serve from a dot
+  directory need their own `^~` location; `manage.py smoke` checks agent
+  discovery when agents are on.
 - **A fresh worktree has no `apps/api/vendor` and no `.env`.** Clone the main
   checkout's vendor directory (`cp -Rc`, never a symlink: Composer resolves
   `__DIR__` through the link and autoloads the main checkout's `app/`), then
