@@ -16,6 +16,20 @@ use Laravel\Passport\Passport;
 /** Builds agent clients, connections and Passport tokens the way sign-in does. */
 trait AgentFixtures
 {
+    /** @var array{private: string, public: string}|null */
+    private static ?array $passportKeys = null;
+
+    /** Throwaway signing keys for Passport, made once per test process; nothing is written to disk. */
+    protected function usePassportTestKeys(): void
+    {
+        if (self::$passportKeys === null) {
+            $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+            openssl_pkey_export($key, $private);
+            self::$passportKeys = ['private' => $private, 'public' => openssl_pkey_get_details($key)['key']];
+        }
+        config(['passport.private_key' => self::$passportKeys['private'], 'passport.public_key' => self::$passportKeys['public']]);
+    }
+
     protected function agentClient(string $name = 'Claude', string $redirect = 'https://claude.ai/api/mcp/auth_callback'): Client
     {
         return app(ClientRepository::class)->createAuthorizationCodeGrantClient($name, [$redirect], false);

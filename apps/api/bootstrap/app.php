@@ -24,6 +24,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([WebhookWorker::class, AutomationWorker::class, ValidateHelp::class, PruneAgents::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        // A signed-out person starting an agent connection signs in on the portal, which
+        // then returns to the authorize URL. Other routes keep their behaviour.
+        $middleware->redirectGuestsTo(fn (Request $request): ?string => $request->routeIs('passport.authorizations.authorize')
+            ? rtrim((string) config('app.frontend_url'), '/').'/connect?'.http_build_query(['return' => $request->fullUrl()])
+            : null);
         $middleware->replace(TrustProxies::class, TrustDeploymentProxies::class);
         $middleware->append(OperationRequestLog::class);
     })

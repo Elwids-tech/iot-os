@@ -33,3 +33,29 @@ export function connectSteps(url: string): ClientSteps[] {
     },
   ]
 }
+
+const loopback = new Set(["localhost", "127.0.0.1", "[::1]"])
+
+/**
+ * After sign-in the portal sends the browser back to the agent's authorize request.
+ * Only the API's own authorize endpoint qualifies, so the link cannot redirect elsewhere.
+ */
+export function isAgentAuthorizeUrl(candidate: string, apiBase: string) {
+  let url: URL
+  let api: URL
+  try {
+    url = new URL(candidate)
+    api = new URL(apiBase)
+  } catch {
+    return false
+  }
+  const sameHost = url.hostname === api.hostname || (loopback.has(url.hostname) && loopback.has(api.hostname))
+  return (
+    url.protocol === api.protocol &&
+    sameHost &&
+    url.port === api.port &&
+    url.pathname === "/oauth/authorize" &&
+    url.username === "" &&
+    url.password === ""
+  )
+}

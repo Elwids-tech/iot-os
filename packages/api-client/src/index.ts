@@ -1269,6 +1269,16 @@ export class ApiClient {
   setAgentAccess(org: string, enabled: boolean) {
     return this.data<import("./agents").AgentAccessSettings>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-access`, "PUT", { enabled })
   }
+  /** The agent connection waiting for the signed-in person's decision (404 when none). */
+  currentAgentAuthorization() {
+    return this.data<import("./agents").AgentAuthorization>("/api/v1/agent-authorizations/current")
+  }
+  approveAgentAuthorization(values: { auth_token: string; organization_uuid: string; access_level: import("./agents").AgentAccessLevel }) {
+    return this.data<import("./agents").AgentAuthorizationDecision>("/api/v1/agent-authorizations/approve", "POST", values)
+  }
+  denyAgentAuthorization(authToken: string) {
+    return this.data<import("./agents").AgentAuthorizationDecision>("/api/v1/agent-authorizations/deny", "POST", { auth_token: authToken })
+  }
   updateDevice(
     org: string,
     id: string,

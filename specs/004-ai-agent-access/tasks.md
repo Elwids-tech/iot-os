@@ -143,27 +143,27 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
 
 ### Sign-in (PR 2)
 
-- [ ] T019 [P] [US1] Configure Passport in apps/api/app/Domain/Agents/AgentsServiceProvider.php (registered in apps/api/bootstrap/providers.php):
+- [x] T019 [P] [US1] Configure Passport in apps/api/app/Domain/Agents/AgentsServiceProvider.php (registered in apps/api/bootstrap/providers.php):
   - `Passport::ignoreRoutes()`, with the device flow and JSON API off;
   - `tokensExpireIn(1 hour)` and `refreshTokensExpireIn(90 days)`;
   - `Passport::authorizationView()` returning a redirect to `{FRONTEND_URL}/connect`;
   - keys from `PASSPORT_PRIVATE_KEY` and `PASSPORT_PUBLIC_KEY`.
   
   In apps/api/config/auth.php, add the `mcp` guard (driver `passport`, provider `users`). Set `passport.guard` to `web`.
-- [ ] T020 [US1] Register the agent routes in apps/api/routes/ai.php, all behind `RequireAgentAccess` (404 JSON while `IOT_AGENTS_ENABLED=false`):
+- [x] T020 [US1] Register the agent routes in apps/api/routes/ai.php, all behind `RequireAgentAccess` (404 JSON while `IOT_AGENTS_ENABLED=false`):
   - `Mcp::oauthRoutes(registration: false)`;
   - `POST oauth/register`: `laravel/mcp`'s `OAuthRegisterController`, named `mcp.oauth.register`, with `throttle:10,1`;
   - `GET oauth/authorize`: Passport's `AuthorizationController@authorize`, named `passport.authorizations.authorize`, with `web` and `RequireMcpResource`;
   - `POST oauth/token`: our `AccessTokenController`, named `passport.token`, with `throttle:60,1` and `RequireMcpResource`.
   
   Set `mcp.redirect_domains` in apps/api/config/mcp.php from `IOT_AGENTS_REDIRECT_DOMAINS` (default `*`).
-- [ ] T021 [P] [US1] Implement apps/api/app/Domain/Agents/Http/Middleware/RequireAgentAccess.php and RequireMcpResource.php. A `resource` parameter, when present, must equal `config('agents.resource')` ignoring a trailing slash. Otherwise authorize redirects back to the registered redirect URI with `error=invalid_target` and `state`, and token answers `400 {"error": "invalid_target"}`
-- [ ] T022 [US1] Add the guest redirect in apps/api/bootstrap/app.php with `redirectGuestsTo`: for the route `passport.authorizations.authorize` only, send the person to `{FRONTEND_URL}/connect?return=<full authorize URL>`. Every other route keeps today's behaviour (JSON 401 for `api/*`)
-- [ ] T023 [US1] Implement apps/api/app/Domain/Agents/Http/AccessTokenController.php, a subclass of Passport's `AccessTokenController`:
+- [x] T021 [P] [US1] Implement apps/api/app/Domain/Agents/Http/Middleware/RequireAgentAccess.php and RequireMcpResource.php. A `resource` parameter, when present, must equal `config('agents.resource')` ignoring a trailing slash. Otherwise authorize redirects back to the registered redirect URI with `error=invalid_target` and `state`, and token answers `400 {"error": "invalid_target"}`
+- [x] T022 [US1] Add the guest redirect in apps/api/bootstrap/app.php with `redirectGuestsTo`: for the route `passport.authorizations.authorize` only, send the person to `{FRONTEND_URL}/connect?return=<full authorize URL>`. Every other route keeps today's behaviour (JSON 401 for `api/*`)
+- [ ] T023 [US1] (Deferred in PR 2: Passport rejects reused refresh tokens; revoking the connection on reuse needs a grace-window design, research D3.) Implement apps/api/app/Domain/Agents/Http/AccessTokenController.php, a subclass of Passport's `AccessTokenController`:
   - after an authorization-code exchange, require an active connection for the person and client, or revoke the issued tokens and answer `invalid_grant`;
   - when Passport rejects a refresh token as revoked by rotation, revoke the connection for the request's `client_id` with reason `refresh_reuse`;
   - a token that cannot be decrypted revokes nothing.
-- [ ] T024 [US1] Implement apps/api/app/Domain/Agents/Http/ConsentController.php (routes in apps/api/app/Domain/Agents/routes/api.php, `auth:sanctum`):
+- [x] T024 [US1] Implement apps/api/app/Domain/Agents/Http/ConsentController.php (routes in apps/api/app/Domain/Agents/routes/api.php, `auth:sanctum`):
   - `GET agent-authorizations/current`: reads Passport's `authRequest` and `authToken` from the session without removing them; returns the shape in contracts/portal-api.md, or 404 when none is pending.
   - `POST agent-authorizations/approve {auth_token, organization_uuid, access_level}`:
     - retrieves the request with Passport's `RetrievesAuthRequestFromSession` (409 on an `auth_token` mismatch);
@@ -171,8 +171,8 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
     - creates the connection, or replaces the active one for the person and client (reason `replaced`, revoking its earlier tokens);
     - sets the user, approves, calls `AuthorizationServer::completeAuthorizationRequest`, and returns `{redirect_to}` from the `Location` header.
   - `POST agent-authorizations/deny {auth_token}`: completes with `access_denied` and returns `{redirect_to}`.
-- [ ] T025 [US1] Describe the three consent operations in contracts/openapi/supplements/agents.yaml, run `contract:export`, and add `currentAgentAuthorization()`, `approveAgentAuthorization()` and `denyAgentAuthorization()` to packages/api-client/src/agents.ts
-- [ ] T026 [US1] Build apps/portal/src/agents/ConnectPage.tsx as top-level route `connect` in apps/portal/src/App.tsx, inside `Session` and outside `PortalShell`. When signed out, the existing in-place login appears.
+- [x] T025 [US1] Describe the three consent operations in contracts/openapi/supplements/agents.yaml, run `contract:export`, and add `currentAgentAuthorization()`, `approveAgentAuthorization()` and `denyAgentAuthorization()` to packages/api-client/src/agents.ts
+- [x] T026 [US1] Build apps/portal/src/agents/ConnectPage.tsx as top-level route `connect` in apps/portal/src/App.tsx, inside `Session` and outside `PortalShell`. When signed out, the existing in-place login appears.
   - **With `?return=`**: after sign-in, navigate to it only when it starts with `{API_URL}/oauth/authorize`; otherwise show an error.
   - **Without it**: load `current` and show:
     - "Returns to <host>" first, and the agent's name with a "self-declared" badge;
@@ -182,8 +182,8 @@ local stack, and B2 (`php artisan test --compact --filter=AgentOAuth`).
     - **Approve** and **Deny**.
   
   On a response, the page calls `window.location.assign(redirect_to)`. A "no pending connection" state covers expired or replaced requests.
-- [ ] T027 [US1] Serve `Content-Security-Policy: frame-ancestors 'none'` for `/connect` in deploy/docker/admin/nginx.conf (the portal image's configuration), and verify it on the rebuilt `portal`
-- [ ] T028 [US1] Provision Passport keys:
+- [x] T027 [US1] Serve `Content-Security-Policy: frame-ancestors 'none'` for `/connect` in deploy/docker/admin/nginx.conf (the portal image's configuration), and verify it on the rebuilt `portal`
+- [x] T028 [US1] Provision Passport keys:
   - `tooling/bootstrap` runs `php artisan passport:keys` into ignored storage for development;
   - deploy/release/compose.yml passes `PASSPORT_PRIVATE_KEY` and `PASSPORT_PUBLIC_KEY` from the `.local/` deployment secrets;
   - tooling/release generates them once per deployment and never overwrites them.
