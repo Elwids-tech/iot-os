@@ -6,7 +6,12 @@ namespace App\Domain\Agents\Mcp;
 
 use App\Domain\Agents\Enums\AccessLevel;
 use App\Domain\Agents\Mcp\Tools\FindDevices;
+use App\Domain\Agents\Mcp\Tools\GetDeviceHealth;
+use App\Domain\Agents\Mcp\Tools\GetIngestionDiagnostics;
+use App\Domain\Agents\Mcp\Tools\GetMeasurements;
 use App\Domain\Agents\Mcp\Tools\GetOverview;
+use App\Domain\Agents\Mcp\Tools\ListAlerts;
+use App\Domain\Agents\Mcp\Tools\ListSites;
 use Laravel\Mcp\Server;
 use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Attributes\Version;
@@ -23,6 +28,11 @@ final class PlatformServer extends Server
     public const TOOLS = [
         GetOverview::class,
         FindDevices::class,
+        GetDeviceHealth::class,
+        GetMeasurements::class,
+        GetIngestionDiagnostics::class,
+        ListAlerts::class,
+        ListSites::class,
     ];
 
     protected array $tools = self::TOOLS;

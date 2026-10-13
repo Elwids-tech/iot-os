@@ -283,7 +283,7 @@ switch agent access off for all of them.
   - switching off refuses the next call with the JSON-RPC error and removes the organization from consent;
   - switching on resumes non-revoked connections.
 - [ ] T050 [P] [US3] Extend apps/portal/e2e/agents.spec.ts for the administrator section (list, disconnect, switch confirmation) with an axe scan
-- [ ] T051 [US3] Extend docs/features/agents.md with administration, then rebuild `api` and `portal` and run quickstart B5 on the running stack
+- [x] T051 [US3] Extend docs/features/agents.md with administration, then rebuild `api` and `portal` and run quickstart B5 on the running stack (done; quickstart B5 ran on the rebuilt stack with curl and the browser pane)
 
 **Checkpoint**: Agent access can be offered to a pilot organization
 
@@ -298,12 +298,12 @@ without side effects.
 
 **Independent Test**: Quickstart B3 (five fault scenarios) and the isolation dataset.
 
-- [ ] T052 [P] [US2] Implement apps/api/app/Domain/Devices/Services/DeviceHealth.php:
+- [x] T052 [P] [US2] Implement apps/api/app/Domain/Devices/Services/DeviceHealth.php: (done as DeviceReadings, the runtime reads shared with the device controller, plus the projection in get_device_health)
   - the projection of contracts/mcp-tools.md `get_device_health`;
   - latest readings through the existing `RuntimeClient` latest path;
   - `age_seconds` and `stale_after_seconds`;
   - `review_required`: `true` when the device diagnostic carries the runtime's review texts or the draft's `birth_revision` differs from the candidate's; `null` with a reason when there is no evidence; never `false` without evidence.
-- [ ] T053 [P] [US2] Implement apps/api/app/Domain/Devices/Services/IngestionDiagnostics.php, returning `checks[]` (`ok`, `problem`, `unknown`):
+- [x] T053 [P] [US2] Implement apps/api/app/Domain/Devices/Services/IngestionDiagnostics.php, returning `checks[]` (`ok`, `problem`, `unknown`):
   - source presence and last birth;
   - `birth_revision` drift;
   - unmapped announced metrics (candidate metrics minus applied mappings);
@@ -315,18 +315,18 @@ without side effects.
   - when the person has `Device.manage` and a capture session is open, its samples' status and diagnostics, never `wire_base64`.
   
   It never starts, stops or changes a capture, and calls no validate or test endpoint.
-- [ ] T054 [P] [US2] Extract apps/api/app/Domain/Automation/Services/AlertQuery.php from `AlertController::index`, with a site filter (through the site's device uuids) used only by tools, and move the controller onto it with identical responses
+- [x] T054 [P] [US2] Extract apps/api/app/Domain/Automation/Services/AlertQuery.php from `AlertController::index`, with a site filter (through the site's device uuids) used only by tools, and move the controller onto it with identical responses
 - [ ] T055 [P] [US2] Implement apps/api/app/Domain/Dashboards/Services/DashboardQuery.php (visible list, show without touching `last_viewed_at`) and move `DashboardController::index` onto it with identical responses
-- [ ] T056 [US2] Implement `get_device_health`, `get_measurements` and `get_ingestion_diagnostics` in apps/api/app/Domain/Agents/Mcp/Tools/ per contracts/mcp-tools.md. `get_measurements` takes:
+- [x] T056 [US2] Implement `get_device_health`, `get_measurements` and `get_ingestion_diagnostics` in apps/api/app/Domain/Agents/Mcp/Tools/ per contracts/mcp-tools.md. `get_measurements` takes: (get_measurements takes one parameter_uuid per call to keep results bounded)
   - 1–4 `parameter_uuid` values;
   - `max_points` 10–500, default 120;
   - `kind` `history`, `increase` or `state`;
   - `bucket` for increases.
   
   It calls the existing runtime reads and their limits.
-- [ ] T057 [US2] Implement the remaining read tools in apps/api/app/Domain/Agents/Mcp/Tools/: `list_alerts` (`limit` 1–50), `list_sites`, `list_device_profiles` (default `published`), `get_device_profile` (no transport credentials), `list_adapters` (adapters enabled; no `code` or source credentials), `list_dashboards` and `get_dashboard`
+- [ ] T057 [US2] (Partly done in PR 4: `list_alerts` and `list_sites`. Profiles, adapters and dashboards remain, with T055.) Implement the remaining read tools in apps/api/app/Domain/Agents/Mcp/Tools/: `list_alerts` (`limit` 1–50), `list_sites`, `list_device_profiles` (default `published`), `get_device_profile` (no transport credentials), `list_adapters` (adapters enabled; no `code` or source credentials), `list_dashboards` and `get_dashboard`
 - [ ] T058 [US2] Implement `get_authoring_guide` in apps/api/app/Domain/Agents/Mcp/Tools/. Topics `profiles`, `mappings`, `decoders` and `dashboards`; content comes from apps/api/resources/agents/guides/*.md, plus the panel type rules generated from `DashboardDefinition`'s type constants
-- [ ] T059 [US2] Write apps/api/tests/Feature/Agents/Tools/ tests per tool family:
+- [x] T059 [US2] Write apps/api/tests/Feature/Agents/Tools/ tests per tool family: (IngestionDiagnosticsTest covers the fault scenarios; AgentReadToolsTest the tools through /mcp)
   - the five fault scenarios in IngestionDiagnosticsTest.php (stopped reporting, unmapped metric, decoder failure, review required, open alert) with runtime and adapter-manager fakes;
   - checks that results match the portal endpoints' values for the same device.
   
