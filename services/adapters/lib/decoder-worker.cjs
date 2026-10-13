@@ -3,6 +3,7 @@ const { getQuickJS } = require("quickjs-emscripten");
 
 (async () => {
   const engine = await getQuickJS();
+  parentPort.postMessage({ ready: true });
   const runtime = engine.newRuntime();
   runtime.setMemoryLimit(16 * 1024 * 1024);
   runtime.setMaxStackSize(512 * 1024);
