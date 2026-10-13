@@ -28,7 +28,9 @@ steps are in the [incident runbook](incident-runbook.md).
   simulators are not an alert).
 - **Runtime status**: `GET /internal/status` on the runtime (bearer token) reports
   consumer health, a lost workflow checkpoint and `dead_letters` (messages moved to
-  `IOT_DEAD_LETTERS`, see [events](../reference/events.md#nats-jetstream)).
+  `IOT_DEAD_LETTERS`, see [events](../reference/events.md#nats-jetstream)). The API
+  exports the retained count as `iot_nats_dead_letters`, and `MessagesDeadLettered`
+  warns while it is above zero.
 - **Logs**: Alloy collects only this Compose project's containers, normalizes JSON
   and logfmt severity, and keeps tenant, device and request IDs out of index labels.
   Loki's ruler evaluates error-log and missing-canary rules and sends them to the same

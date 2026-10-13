@@ -222,6 +222,9 @@ jobs:
       - run: python -m unittest discover -s tooling/docs -p 'test_*.py'
       - name: Documentation links resolve
         run: python tooling/docs/check_links.py
+      # The release renders its rules from these (tooling/release/monitoring.py).
+      - name: Alert rules pass their unit tests
+        run: docker run --rm -v "$PWD/deploy/monitoring/local:/rules:ro" -w /rules --entrypoint promtool prom/prometheus:v3.7.3 test rules alerts.test.yml
       - name: Node version matches tooling/versions.env
         run: |
           pinned="$(sed -n 's/^NODE_VERSION=//p' tooling/versions.env)"

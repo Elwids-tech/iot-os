@@ -163,7 +163,7 @@ class ReleaseTests(unittest.TestCase):
             expression = next(r['expr'] for g in expected['groups'] for r in g['rules'] if r['alert'] == 'TelemetryStalled')
             self.assertEqual(actual, expression)
             self.assertIn('iot_simulator_expected_devices > 0', actual)
-            self.assertTrue({'BackupOverdue', 'StreamCapacityLow', 'WorkerStalled', 'RestoreDrillOverdue'} <= names)
+            self.assertTrue({'BackupOverdue', 'StreamCapacityLow', 'MessagesDeadLettered', 'WorkerStalled', 'RestoreDrillOverdue'} <= names)
             self.assertNotIn('localhost', (deployment.config/'alerts.yml').read_text())
             self.assertNotIn('environment="local"', (deployment.config/'loki-rules/fake/errors.yml').read_text())
             dashboard = json.loads((deployment.config/'dashboards/platform.json').read_text())
