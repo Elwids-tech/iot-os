@@ -1,6 +1,6 @@
 # ADR-008: Laravel Sanctum Authentication
 
-**Status:** Accepted
+**Status:** Accepted; amended by [ADR-018](ADR-018-agent-access-oauth.md)
 **Date:** 2026-08-23
 
 ## Context

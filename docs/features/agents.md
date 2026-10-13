@@ -129,6 +129,15 @@ catalogue; CI runs `agents:tools --check` and refuses destructive tools.
 | --- | --- | --- |
 | `get_overview` | `Device.view` | Device counts by state, active alerts, automation states, sources waiting to be onboarded, commands with an uncertain outcome |
 | `find_devices` | `Device.view` | Devices by name or code, site, tag, profile, lifecycle or presence, a page at a time |
+| `get_device_health` | `Device.view` | Lifecycle, presence, configuration state, source and gateway, and every parameter's latest value with quality and age. When the runtime is down, `readings` is null with a reason |
+| `get_measurements` | `Device.view` | One parameter's history (bucketed, 10–500 points), counter increase per calendar bucket, or state durations, over a window |
+| `get_ingestion_diagnostics` | `Device.view` | Checks (`ok`, `problem`, `unknown`) on lifecycle, configuration, source, last reading, review required, unmapped metrics, reading quality, and adapter status, connectivity and decoder tests |
+| `list_alerts` | `Device.view` | Active or cleared alert episodes, by device, site or workflow |
+| `list_sites` | `Device.view` | Sites with time zones and device counts |
+
+The read tools share their queries with the portal: `DeviceDirectory`,
+`OverviewQuery`, `DeviceReadings`, `AlertQuery` and `IngestionDiagnostics`. They have
+no side effects: they never validate, test, capture or record a view.
 
 ## Oversight
 
