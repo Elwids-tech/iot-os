@@ -96,6 +96,13 @@ Things that have cost time before. Add to this list when something surprises you
   mid-transition, not token bugs. Wait for
   `document.getAnimations().length === 0` before running axe, as
   `devices.spec.ts` and `onboarding.spec.ts` do.
+- **Clicks inside an unfolding collapsible can be lost silently.** Playwright
+  scrolls the `overflow-hidden` content to bring the target into its clipped
+  strip, then the growing height moves the target between mousedown and
+  mouseup. Playwright checks only the first event's hit target, so it reports
+  the click as done while `click` fires on a parent. Wait for
+  `document.getAnimations().length === 0` before clicking, as
+  `history.spec.ts` does.
 - **`rtk npx` rewrites to an npm script.** `rtk npx vite build` becomes
   `npm run vite`. Use `rtk proxy npx vite …` and `rtk proxy npx playwright …`.
 
