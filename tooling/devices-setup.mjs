@@ -7,7 +7,7 @@ import {
   chmodSync,
 } from "node:fs"
 import { resolve, join } from "node:path"
-import { randomBytes } from "node:crypto"
+import { generateKeyPairSync, randomBytes } from "node:crypto"
 import { spawnSync } from "node:child_process"
 
 const directory = resolve(process.argv[2] ?? ".local/devices")
@@ -26,6 +26,20 @@ const existing = existsSync(envFile)
         }),
     )
   : {}
+// Agent token signing keys (spec 004), kept across runs. Compose reads \n inside double quotes.
+function passportKeys() {
+  if (existing.PASSPORT_PRIVATE_KEY && existing.PASSPORT_PUBLIC_KEY)
+    return { PASSPORT_PRIVATE_KEY: existing.PASSPORT_PRIVATE_KEY, PASSPORT_PUBLIC_KEY: existing.PASSPORT_PUBLIC_KEY }
+  const pair = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  })
+  return {
+    PASSPORT_PRIVATE_KEY: JSON.stringify(pair.privateKey),
+    PASSPORT_PUBLIC_KEY: JSON.stringify(pair.publicKey),
+  }
+}
 const values = {
   DEVICE_CERT_DIR: certs,
   DEVICE_RUNTIME_TOKEN:
@@ -38,6 +52,7 @@ const values = {
     existing.DEVICE_TEST_DB_PASSWORD ?? randomBytes(24).toString("hex"),
   DEVICE_TEST_COOKIE:
     existing.DEVICE_TEST_COOKIE ?? randomBytes(24).toString("hex"),
+  ...passportKeys(),
 }
 writeFileSync(
   envFile,

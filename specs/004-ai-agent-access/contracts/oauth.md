@@ -87,8 +87,14 @@ with `throttle:10,1` per address (**ours**).
 
 Passport validates the client, the redirect URI and PKCE, and answers with
 RFC 6749 errors. Before Passport, `RequireMcpResource` (**ours**) checks that a
-`resource`, when present, equals `{api}/mcp` (trailing slash ignored). An absent
-`resource` is accepted, because Claude has been reported to omit it. Any other value
+`resource`, when present, equals `{api}/mcp` (trailing slash ignored).
+
+- Any other value answers `400 {"error": "invalid_target"}` directly, never as a
+  redirect to an address that has not been validated yet.
+- An absent `resource` is accepted, because Claude has been reported to omit it.
+
+Consent is always asked (**ours**): Passport would otherwise approve silently while
+the agent still holds a valid token, skipping the organization choice. Any other value
 is redirected back with `error=invalid_target`.
 
 - **Signed out**: `302` to `{portal}/connect?return=<this authorize URL, URL-encoded>`
@@ -111,21 +117,21 @@ Approval gives `{redirect_uri}?code=…&state=…`; denial gives
 
 ## Tokens: `POST {api}/oauth/token` (Passport; `application/x-www-form-urlencoded`)
 
-The route uses a thin subclass of Passport's `AccessTokenController` (**ours**) and is
-limited to 60 requests per minute per address. `RequireMcpResource` applies here too.
+The route is Passport's `AccessTokenController`, limited to 60 requests per minute per
+address. `RequireMcpResource` applies here too.
 
 - **Authorization code**:
   - Parameters: `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`,
     `code_verifier`, `resource` (optional).
   - Passport checks the code, the client, the redirect URI and PKCE S256.
-  - The subclass then checks that the connection for the person and client is
-    active (**ours**).
+  - The connection was created at approval. If it is revoked before the agent's first
+    call, the `/mcp` gate refuses the call.
 - **Refresh**:
   - Parameters: `grant_type=refresh_token`, `refresh_token`, `client_id`.
   - Passport rotates the refresh token on every use.
   - Presenting a refresh token already revoked by rotation returns `invalid_grant`.
-    The subclass then revokes the connection of that `client_id` with reason
-    `refresh_reuse` (**ours**).
+  - Revoking the whole connection on reuse is deferred. It needs a grace window for
+    concurrent refreshes (league/oauth2-server#1506).
 
 Success `200`:
 

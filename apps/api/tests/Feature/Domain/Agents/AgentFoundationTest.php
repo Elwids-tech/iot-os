@@ -39,11 +39,13 @@ final class AgentFoundationTest extends TestCase
         $this->assertGreaterThan(0, Permission::where('guard_name', 'web')->count());
     }
 
-    public function test_passport_registers_none_of_its_default_routes(): void
+    public function test_only_the_agent_authorize_and_token_routes_come_from_passport(): void
     {
-        foreach (['passport.token', 'passport.authorizations.authorize', 'passport.authorizations.approve', 'passport.clients.index', 'passport.device'] as $name) {
+        foreach (['passport.authorizations.approve', 'passport.authorizations.deny', 'passport.token.refresh', 'passport.clients.index', 'passport.tokens.index', 'passport.device', 'passport.device.code'] as $name) {
             $this->assertFalse(Route::has($name), "{$name} must not be registered");
         }
+        $this->assertSame('oauth/authorize', Route::getRoutes()->getByName('passport.authorizations.authorize')?->uri());
+        $this->assertSame('oauth/token', Route::getRoutes()->getByName('passport.token')?->uri());
     }
 
     public function test_removing_a_member_revokes_their_connections_to_that_organization_only(): void

@@ -3601,6 +3601,325 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/agent-authorizations/approve": {
+      "post": {
+        "operationId": "consent.approve",
+        "summary": "Approve the connection for one organization and access level, and return the agent's callback address",
+        "tags": [
+          "Consent"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "auth_token": {
+                    "type": "string"
+                  },
+                  "organization_uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "access_level": {
+                    "$ref": "#/components/schemas/AccessLevel"
+                  }
+                },
+                "required": [
+                  "auth_token",
+                  "organization_uuid",
+                  "access_level"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "redirect_to": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "redirect_to"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "description": "An error\n\nAn error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error overview.",
+                          "examples": [
+                            "You are not a member of this organization."
+                          ]
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error overview.",
+                          "examples": [
+                            "Agent access is switched off for this organization."
+                          ]
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/agent-authorizations/current": {
+      "get": {
+        "operationId": "consent.current",
+        "summary": "The agent connection waiting for the signed-in person's decision",
+        "tags": [
+          "Consent"
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "auth_token": {
+                          "type": "string"
+                        },
+                        "client": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "self_declared": {
+                              "type": "boolean"
+                            },
+                            "client_uri": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "self_declared",
+                            "client_uri"
+                          ]
+                        },
+                        "redirect_host": {
+                          "type": "string"
+                        },
+                        "organizations": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "uuid": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "available": {
+                                "type": "boolean"
+                              },
+                              "reason": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "can_manage": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "uuid",
+                              "name",
+                              "available",
+                              "reason",
+                              "can_manage"
+                            ]
+                          }
+                        },
+                        "access_levels": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "auth_token",
+                        "client",
+                        "redirect_host",
+                        "organizations",
+                        "access_levels"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/agent-authorizations/deny": {
+      "post": {
+        "operationId": "consent.deny",
+        "summary": "Refuse the connection and return the agent's callback address with access_denied",
+        "tags": [
+          "Consent"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "auth_token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "auth_token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "redirect_to": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "redirect_to"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
     "/v1/auth/forgot-password": {
       "post": {
         "operationId": "v1.auth.forgot-password",
@@ -20554,6 +20873,14 @@
           }
         },
         "title": "AcceptOrganizationInvitationRequest"
+      },
+      "AccessLevel": {
+        "type": "string",
+        "enum": [
+          "read",
+          "draft"
+        ],
+        "title": "AccessLevel"
       },
       "AlertIntegrationEvent": {
         "type": "object",

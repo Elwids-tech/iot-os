@@ -267,6 +267,40 @@ class ReleaseTests(unittest.TestCase):
                     deployment.restore(None, "snapshot", root/"restored")
                 compose.assert_not_called()
 
+    def test_passport_keys_are_added_once_and_survive_quoting(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/"env"
+            release.private_write(path, "DOMAIN=example.com\n")
+            self.assertTrue(release.add_passport_keys(path))
+            first = release.read_env(path)
+            self.assertTrue(first["PASSPORT_PRIVATE_KEY"].startswith("-----BEGIN PRIVATE KEY-----\n"))
+            self.assertTrue(first["PASSPORT_PUBLIC_KEY"].startswith("-----BEGIN PUBLIC KEY-----\n"))
+            self.assertEqual(first["DOMAIN"], "example.com")
+            self.assertFalse(release.add_passport_keys(path))
+            self.assertEqual(release.read_env(path), first)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_a_lone_passport_key_is_never_regenerated(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/"env"
+            release.private_write(path, 'PASSPORT_PUBLIC_KEY="kept"\n')
+            with self.assertRaisesRegex(ValueError, "Only one Passport key"):
+                release.add_passport_keys(path)
+
+    def test_agent_access_needs_passport_keys(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.env['APP_KEY'] = 'base64:'+'a'*44
+            # Validation stops at the missing release manifest once every earlier check passes.
+            with self.assertRaisesRegex(ValueError, 'release manifest'):
+                deployment.validate()
+            deployment.env['IOT_AGENTS_ENABLED'] = 'true'
+            with self.assertRaisesRegex(ValueError, 'without Passport keys'):
+                deployment.validate()
+            deployment.env.update(release.passport_keys())
+            with self.assertRaisesRegex(ValueError, 'release manifest'):
+                deployment.validate()
+
     def test_production_refuses_demo_configuration(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/"env"
