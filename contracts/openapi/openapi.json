@@ -4232,6 +4232,164 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/me/agent-connections": {
+      "get": {
+        "operationId": "connection.mine",
+        "summary": "The signed-in person's agent connections in every organization",
+        "tags": [
+          "Connection"
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "uuid": {
+                            "type": "string"
+                          },
+                          "agent": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "redirect_host": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "redirect_host"
+                            ]
+                          },
+                          "organization": {
+                            "type": "object",
+                            "properties": {
+                              "uuid": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "uuid",
+                              "name"
+                            ]
+                          },
+                          "access_level": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "last_used_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "expires_at": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "revoked",
+                              "expired",
+                              "unavailable",
+                              "active"
+                            ]
+                          },
+                          "revoked_reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "uuid",
+                          "agent",
+                          "organization",
+                          "access_level",
+                          "created_at",
+                          "last_used_at",
+                          "expires_at",
+                          "state",
+                          "revoked_reason"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/me/agent-connections/{connection}": {
+      "delete": {
+        "operationId": "connection.disconnectMine",
+        "summary": "Disconnect one of your own agents; it stops at its next request",
+        "tags": [
+          "Connection"
+        ],
+        "parameters": [
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
     "/v1/notifications/events": {
       "get": {
         "operationId": "notificationCenter.events",
@@ -4647,6 +4805,341 @@
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/agent-connections": {
+      "get": {
+        "operationId": "connection.index",
+        "summary": "Every member's agent connections to the organization (administrators)",
+        "tags": [
+          "Connection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "uuid": {
+                            "type": "string"
+                          },
+                          "agent": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "redirect_host": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "redirect_host"
+                            ]
+                          },
+                          "organization": {
+                            "type": "object",
+                            "properties": {
+                              "uuid": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "uuid",
+                              "name"
+                            ]
+                          },
+                          "access_level": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "last_used_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "expires_at": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "revoked",
+                              "expired",
+                              "unavailable",
+                              "active"
+                            ]
+                          },
+                          "revoked_reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "user": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "email": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "email"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "uuid",
+                          "agent",
+                          "organization",
+                          "access_level",
+                          "created_at",
+                          "last_used_at",
+                          "expires_at",
+                          "state",
+                          "revoked_reason",
+                          "user"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/agent-connections/{connection}": {
+      "delete": {
+        "operationId": "connection.disconnect",
+        "summary": "Disconnect a member's agent (administrators); it stops at its next request",
+        "tags": [
+          "Connection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/agent-connections/{connection}/activity": {
+      "get": {
+        "operationId": "connection.activity",
+        "summary": "What a connection did, newest first (its owner, or an administrator)",
+        "tags": [
+          "Connection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tool": {
+                            "type": "string"
+                          },
+                          "outcome": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "targets": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "duration_ms": {
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "tool",
+                          "outcome",
+                          "reason",
+                          "targets",
+                          "duration_ms",
+                          "created_at"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "current_page": {
+                          "type": "integer"
+                        },
+                        "last_page": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "current_page",
+                        "last_page",
+                        "total"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "security": [

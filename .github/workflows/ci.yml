@@ -66,6 +66,8 @@ jobs:
       # Public API contract (specs/001-openapi-contract): G1 export is fresh, G3 pending list only shrinks.
       - run: git fetch --depth=1 origin main
       - run: php artisan contract:export --check
+      # The AI agent tool catalogue (spec 004) is a public contract too.
+      - run: php artisan agents:tools --check
       - run: php artisan contract:check --base=origin/main
       # The suite checks every in-scope response against the contract (G4) and records what it checked.
       - run: php artisan test --compact

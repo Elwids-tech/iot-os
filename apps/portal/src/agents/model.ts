@@ -59,3 +59,17 @@ export function isAgentAuthorizeUrl(candidate: string, apiBase: string) {
     url.password === ""
   )
 }
+
+const revocations: Record<string, string> = {
+  person: "Disconnected by you",
+  administrator: "Disconnected by an administrator",
+  membership_removed: "Removed from the organization",
+  password_reset: "Password was reset",
+  refresh_reuse: "Its sign-in was reused",
+  replaced: "Replaced by a newer connection",
+}
+
+/** Why a connection ended, in words. */
+export function revocationLabel(reason: string) {
+  return revocations[reason] ?? reason.replaceAll("_", " ")
+}

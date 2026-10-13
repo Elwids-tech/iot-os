@@ -28,6 +28,12 @@ class User extends Authenticatable implements OAuthenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
+    /**
+     * Roles and permissions always resolve on the web guard. Agent requests authenticate
+     * on the mcp guard, which carries none, and spatie would otherwise check that one.
+     */
+    protected string $guard_name = 'web';
+
     protected static function newFactory(): UserFactory
     {
         return UserFactory::new();
