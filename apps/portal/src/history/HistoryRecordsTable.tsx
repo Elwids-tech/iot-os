@@ -1,58 +1,51 @@
-import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useMemo, useState } from "react"
+import { useInfiniteQuery } from "@tanstack/react-query"
 import type {
   DeviceDetail,
   DeviceProfileParameter,
   HistoryRecord,
 } from "@iot-os/api-client"
-import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
+import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-} from "@iot-os/ui/components/pagination"
-import { Skeleton } from "@iot-os/ui/components/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@iot-os/ui/components/table"
-import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon } from "lucide-react"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@iot-os/ui/components/dropdown-menu"
+import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { ChevronDownIcon, DownloadIcon } from "lucide-react"
+import { toast } from "sonner"
 import { api } from "../lib/api"
-import { RequestError } from "../components/forms"
+import { RequestError, errorMessage } from "../components/forms"
 import { formatTime } from "../devices/shared"
 import { HistoryValue, QualityBadge } from "./HistoryValue"
-import { buildHistoryCsv, configurationMeta, historyFileName } from "./model"
+import {
+  buildHistoryCsv,
+  configurationMeta,
+  deviceTimeOffset,
+  historyFileName,
+} from "./model"
 
+/** The API's largest limit: browsing walks this many of the newest records, then stops. */
+const BROWSE_LIMIT = 5000
 const PAGE_SIZE = 50
+const EXPORT_LIMITS = [100, 500, 1000, 5000]
 
+/** Every record in the range, newest first, loaded a batch at a time from the cursor. */
 export function HistoryRecordsTable({
   org,
   device,
   parameter,
   window,
-  limit,
 }: {
   org: string
   device: DeviceDetail
   parameter: DeviceProfileParameter
   window: { from: string; to: string }
-  limit: number
 }) {
-  const [page, setPage] = useState(0)
-  const [cursors, setCursors] = useState<Array<string | undefined>>([undefined])
   const [exporting, setExporting] = useState(false)
-  const [exportError, setExportError] = useState<unknown>(null)
-  const [exportResult, setExportResult] = useState<{
-    count: number
-    limitReached: boolean
-  } | null>(null)
-  const cursor = cursors[page]
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: [
       "device-history-records",
       org,
@@ -60,46 +53,105 @@ export function HistoryRecordsTable({
       parameter.uuid,
       window.from,
       window.to,
-      limit,
-      cursor,
     ],
-    queryFn: ({ signal }) =>
+    queryFn: ({ pageParam, signal }) =>
       api.deviceHistoryRecords(
         org,
         device.uuid,
         {
           parameter_uuid: parameter.uuid,
           ...window,
-          limit,
+          limit: BROWSE_LIMIT,
           page_size: PAGE_SIZE,
-          cursor,
+          cursor: pageParam,
         },
         signal,
       ),
-    placeholderData: (previous) => previous,
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (page) => page.meta.next_cursor ?? undefined,
+    // Coming back to a parameter starts from the newest batch, not every batch loaded before.
+    gcTime: 0,
   })
+  const records = useMemo(
+    () => query.data?.pages.flatMap((page) => page.data),
+    [query.data],
+  )
+  const limitReached = query.data?.pages.at(-1)?.meta.limit_reached ?? false
 
-  async function exportCsv() {
+  const columns = useMemo<DataColumn<HistoryRecord>[]>(
+    () => [
+      {
+        id: "received",
+        header: "Received",
+        mobile: "title",
+        value: (record) => record.received_at,
+        cell: (record) => (
+          <time dateTime={record.received_at}>
+            {formatTime(record.received_at)}
+          </time>
+        ),
+      },
+      {
+        id: "value",
+        header: "Value",
+        mobile: "badge",
+        cell: (record) => <HistoryValue record={record} parameter={parameter} />,
+      },
+      {
+        id: "quality",
+        header: "Quality",
+        value: (record) => record.quality,
+        cell: (record) => (
+          <span className="inline-flex items-center gap-2">
+            <QualityBadge quality={record.quality} />
+            {record.diagnostic ? (
+              <span className="text-muted-foreground">{record.diagnostic}</span>
+            ) : null}
+          </span>
+        ),
+      },
+      {
+        id: "device-time",
+        header: "Device time",
+        hidden: true,
+        value: (record) => record.observed_at,
+        cell: (record) => {
+          const offset = deviceTimeOffset(record)
+          return (
+            <>
+              <time dateTime={record.observed_at}>
+                {formatTime(record.observed_at)}
+              </time>
+              {offset && (
+                <span className="ml-1.5 text-muted-foreground">{offset}</span>
+              )}
+            </>
+          )
+        },
+      },
+    ],
+    [parameter],
+  )
+
+  async function exportCsv(limit: number) {
     setExporting(true)
-    setExportError(null)
-    setExportResult(null)
     try {
-      const records: HistoryRecord[] = []
-      let exportCursor: string | undefined
-      let limitReached = false
+      const exported: HistoryRecord[] = []
+      let cursor: string | undefined
+      let reached = false
       do {
         const result = await api.deviceHistoryRecords(org, device.uuid, {
           parameter_uuid: parameter.uuid,
           ...window,
           limit,
           page_size: 100,
-          cursor: exportCursor,
+          cursor,
         })
-        records.push(...result.data)
-        limitReached = result.meta.limit_reached
-        exportCursor = result.meta.next_cursor ?? undefined
-      } while (exportCursor)
-      const csv = buildHistoryCsv(records, {
+        exported.push(...result.data)
+        reached = result.meta.limit_reached
+        cursor = result.meta.next_cursor ?? undefined
+      } while (cursor)
+      const csv = buildHistoryCsv(exported, {
         deviceUuid: device.uuid,
         deviceName: device.name,
         parameterUuid: parameter.uuid,
@@ -108,7 +160,7 @@ export function HistoryRecordsTable({
         configurations: device.configurations,
       })
       const href = URL.createObjectURL(
-        new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }),
+        new Blob(["﻿", csv], { type: "text/csv;charset=utf-8" }),
       )
       const link = document.createElement("a")
       link.href = href
@@ -117,133 +169,82 @@ export function HistoryRecordsTable({
       link.click()
       link.remove()
       globalThis.setTimeout(() => URL.revokeObjectURL(href), 0)
-      setExportResult({ count: records.length, limitReached })
+      toast.success(
+        `Downloaded ${exported.length.toLocaleString()} ${exported.length === 1 ? "record" : "records"}`,
+        {
+          description: reached
+            ? "Older records in this range were left out. Choose a larger download or a shorter range."
+            : undefined,
+        },
+      )
     } catch (error) {
-      setExportError(error)
+      toast.error("The CSV couldn't be prepared", {
+        description: errorMessage(error),
+      })
     } finally {
       setExporting(false)
     }
   }
 
-  const firstRecord = page * PAGE_SIZE + 1
-  const lastRecord = page * PAGE_SIZE + (query.data?.data.length ?? 0)
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium">Timestamped values</p>
-          <p className="text-xs text-muted-foreground">
-            Latest {limit.toLocaleString()} matching records, 50 per page.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={exporting}
-          onClick={() => void exportCsv()}
-        >
-          <DownloadIcon data-icon="inline-start" />
-          {exporting ? "Preparing CSV…" : "Download CSV"}
-        </Button>
-      </div>
-      <RequestError error={query.error ?? exportError} />
-      {query.isPending ? (
-        <Skeleton className="h-56 w-full" />
-      ) : query.data?.data.length ? (
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Timestamp</TableHead>
-                <TableHead>Value</TableHead>
-                <TableHead>Quality</TableHead>
-                <TableHead>Device configuration</TableHead>
-                <TableHead>Profile revision</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {query.data.data.map((record) => {
-                const meta = configurationMeta(
-                  device.configurations,
-                  record.configuration_uuid,
-                )
-                return (
-                  <TableRow key={`${record.received_at}:${record.event_uuid}`}>
-                    <TableCell className="whitespace-nowrap">
-                      {formatTime(record.received_at)}
-                    </TableCell>
-                    <TableCell>
-                      <HistoryValue record={record} parameter={parameter} />
-                    </TableCell>
-                    <TableCell>
-                      <QualityBadge quality={record.quality} />
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {meta.configurationLabel}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {meta.profileLabel}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          No exact records in this range.
-        </p>
-      )}
-      {(query.data?.meta.limit_reached || exportResult?.limitReached) && (
-        <Alert>
-          <AlertDescription>
-            The selected limit was reached.
-            {exportResult
-              ? ` The CSV contains the latest ${exportResult.count.toLocaleString()} matching records.`
-              : ""}{" "}
-            Increase the record limit to view and export older matching records.
-          </AlertDescription>
-        </Alert>
-      )}
-      {query.data?.data.length ? (
-        <Pagination aria-label="History record pages">
-          <PaginationContent className="w-full justify-between">
-            <PaginationItem>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === 0 || query.isFetching}
-                onClick={() => setPage((current) => current - 1)}
-              >
-                <ChevronLeftIcon data-icon="inline-start" />
-                Previous
-              </Button>
-            </PaginationItem>
-            <PaginationItem>
-              <span className="text-sm text-muted-foreground">
-                Page {page + 1} · records {firstRecord}–{lastRecord}
-              </span>
-            </PaginationItem>
-            <PaginationItem>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!query.data.meta.next_cursor || query.isFetching}
-                onClick={() => {
-                  const next = query.data?.meta.next_cursor
-                  if (!next) return
-                  setCursors((current) => [...current.slice(0, page + 1), next])
-                  setPage((current) => current + 1)
-                }}
-              >
-                Next
-                <ChevronRightIcon data-icon="inline-end" />
-              </Button>
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      ) : null}
-    </div>
+    <DataTable
+      id="device-history-records"
+      label={`${parameter.label} records`}
+      noun={["record", "records"]}
+      rows={records}
+      rowKey={(record) => `${record.received_at}:${record.event_uuid}`}
+      columns={columns}
+      bounded
+      separator={(record, previous) => {
+        if (previous?.configuration_uuid === record.configuration_uuid)
+          return null
+        const meta = configurationMeta(
+          device.configurations,
+          record.configuration_uuid,
+        )
+        return `${meta.configurationLabel} · ${meta.profileLabel}`
+      }}
+      loadMore={{
+        hasMore: Boolean(query.hasNextPage),
+        loading: query.isFetchingNextPage,
+        onLoadMore: () => void query.fetchNextPage(),
+        label: "Load older",
+        note: query.isFetchNextPageError
+          ? "older records couldn't load"
+          : query.hasNextPage
+            ? "newest first"
+            : limitReached
+              ? `only the newest ${BROWSE_LIMIT.toLocaleString()}; shorten the range for older ones`
+              : "all in this range",
+      }}
+      error={
+        query.error && !records ? <RequestError error={query.error} /> : undefined
+      }
+      empty={
+        <EmptyState
+          inset
+          title="No records in this range"
+          description="Choose another parameter or time range."
+        />
+      }
+      toolbar={
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" disabled={exporting}>
+              <DownloadIcon data-icon="inline-start" />
+              {exporting ? "Preparing CSV…" : "Download CSV"}
+              <ChevronDownIcon data-icon="inline-end" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {EXPORT_LIMITS.map((limit) => (
+              <DropdownMenuItem key={limit} onSelect={() => void exportCsv(limit)}>
+                Newest {limit.toLocaleString()} records
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      }
+    />
   )
 }

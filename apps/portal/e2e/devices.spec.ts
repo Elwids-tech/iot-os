@@ -237,6 +237,21 @@ async function setup(page: Page, options: Options = {}) {
         ? json({ message: "The device runtime is unavailable." }, 503)
         : json({ data: [] })
     }
+    if (path.endsWith("/measurements/records"))
+      return json({
+        data: [],
+        meta: {
+          from: url.searchParams.get("from"),
+          to: url.searchParams.get("to"),
+          limit: Number(url.searchParams.get("limit")),
+          page_size: Number(url.searchParams.get("page_size")),
+          returned: 0,
+          consumed: 0,
+          next_cursor: null,
+          has_more: false,
+          limit_reached: false,
+        },
+      })
     if (path.endsWith("/location-bindings")) return json({ data: options.bindings ?? [] })
     if (path.endsWith("/measurements/latest"))
       return json({

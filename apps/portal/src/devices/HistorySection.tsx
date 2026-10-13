@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { configurationProfile, type DeviceDetail } from "@iot-os/api-client"
 import { FieldGroup } from "@iot-os/ui/components/field"
 import {
@@ -9,17 +9,7 @@ import {
 } from "@iot-os/ui/components/alert"
 import { EChart, timeSeriesOption, useChartTheme } from "@iot-os/charts"
 import { Button } from "@iot-os/ui/components/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@iot-os/ui/components/collapsible"
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  CircleAlertIcon,
-  RefreshCwIcon,
-} from "lucide-react"
+import { CircleAlertIcon, RefreshCwIcon } from "lucide-react"
 import { formatAge, formatNumber } from "@iot-os/ui/lib/format"
 import { api } from "../lib/api"
 import { Choice, TextField, errorMessage } from "../components/forms"
@@ -121,8 +111,7 @@ export default function HistorySection({
   const [preset, setPreset] = useState("24")
   const [window, setWindow] = useState(() => range(24))
   const [custom, setCustom] = useState({ from: "", to: "" })
-  const [recordLimit, setRecordLimit] = useState(500)
-  const [recordsOpen, setRecordsOpen] = useState(false)
+  const queryClient = useQueryClient()
   const selected = parameters.find((item) => item.uuid === parameter)
   const numeric = Boolean(
     selected && ["number", "integer"].includes(selected.data_type),
@@ -159,6 +148,9 @@ export default function HistorySection({
     if (preset === "custom") {
       void numericQuery.refetch()
       void stateQuery.refetch()
+      void queryClient.resetQueries({
+        queryKey: ["device-history-records", org, device.uuid],
+      })
     } else {
       setWindow(range(Number(preset)))
     }
@@ -180,7 +172,6 @@ export default function HistorySection({
     setPreset("custom")
     setCustom({ from: localInput(next.from), to: localInput(next.to) })
     setWindow(next)
-    setRecordsOpen(false)
   }
   function jumpToLatest() {
     if (!device.last_seen_at) return
@@ -188,29 +179,26 @@ export default function HistorySection({
     setPreset("custom")
     setCustom({ from: localInput(next.from), to: localInput(next.to) })
     setWindow(next)
-    setRecordsOpen(false)
   }
 
   return (
-    <Section
-      title="Measurement history"
-      meta={`Kept for ${device.retention.days} days (${
-        device.retention.source === "organization"
-          ? "organization setting"
-          : device.retention.source === "platform"
-            ? "platform default"
-            : "default"
-      })`}
-    >
+    <div className="flex flex-col gap-(--panel-gap)">
+      <Section
+        title="Measurement history"
+        meta={`Kept for ${device.retention.days} days (${
+          device.retention.source === "organization"
+            ? "organization setting"
+            : device.retention.source === "platform"
+              ? "platform default"
+              : "default"
+        })`}
+      >
         <div className="flex flex-col gap-5">
-          <FieldGroup className="grid gap-4 sm:grid-cols-3">
+          <FieldGroup className="grid gap-4 sm:grid-cols-2">
             <Choice
               label="Parameter"
               value={parameter}
-              onChange={(value) => {
-                setParameter(value)
-                setRecordsOpen(false)
-              }}
+              onChange={setParameter}
               options={[
                 { value: "", label: "Choose parameter" },
                 ...parameters.map((item) => ({
@@ -224,7 +212,6 @@ export default function HistorySection({
               value={preset}
               onChange={(value) => {
                 setPreset(value)
-                setRecordsOpen(false)
                 if (value !== "custom") setWindow(range(Number(value)))
               }}
               options={[
@@ -237,18 +224,6 @@ export default function HistorySection({
                 { value: "custom", label: "Custom range" },
               ]}
             />
-            <Choice
-              label="Record limit"
-              value={String(recordLimit)}
-              onChange={(value) => {
-                setRecordLimit(Number(value))
-                setRecordsOpen(false)
-              }}
-              options={[100, 500, 1000, 5000].map((value) => ({
-                value: String(value),
-                label: `Latest ${value.toLocaleString()} records`,
-              }))}
-            />
           </FieldGroup>
           {preset === "custom" && (
             <form
@@ -259,7 +234,6 @@ export default function HistorySection({
                   from: new Date(custom.from).toISOString(),
                   to: new Date(custom.to).toISOString(),
                 })
-                setRecordsOpen(false)
               }}
             >
               <FieldGroup className="grid flex-1 gap-4 sm:grid-cols-2">
@@ -374,34 +348,23 @@ export default function HistorySection({
               />
             )
           )}
-
-          {selected && (
-            <Collapsible open={recordsOpen} onOpenChange={setRecordsOpen}>
-              <CollapsibleTrigger asChild>
-                <Button variant="outline" className="w-full justify-between">
-                  View timestamped values
-                  {recordsOpen ? (
-                    <ChevronUpIcon data-icon="inline-end" />
-                  ) : (
-                    <ChevronDownIcon data-icon="inline-end" />
-                  )}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                {recordsOpen && (
-                  <HistoryRecordsTable
-                    key={`${parameter}:${window.from}:${window.to}:${recordLimit}`}
-                    org={org}
-                    device={device}
-                    parameter={selected}
-                    window={window}
-                    limit={recordLimit}
-                  />
-                )}
-              </CollapsibleContent>
-            </Collapsible>
-          )}
         </div>
-    </Section>
+      </Section>
+      {selected && (
+        <section aria-labelledby="history-records" className="flex flex-col gap-3">
+          <h2 id="history-records" className="skin-label text-heading">
+            Recorded values
+          </h2>
+          {/* A new parameter or range starts again from the newest record, scrolled to the top. */}
+          <HistoryRecordsTable
+            key={`${parameter}:${window.from}:${window.to}`}
+            org={org}
+            device={device}
+            parameter={selected}
+            window={window}
+          />
+        </section>
+      )}
+    </div>
   )
 }

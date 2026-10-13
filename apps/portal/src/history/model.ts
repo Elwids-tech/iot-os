@@ -80,6 +80,16 @@ export function formatDuration(milliseconds: number) {
   return `${rest}s`
 }
 
+/** How far the device's own timestamp sits from the platform's receipt; null under a second. */
+export function deviceTimeOffset(
+  record: Pick<HistoryRecord, "received_at" | "observed_at">,
+) {
+  const offset = Date.parse(record.received_at) - Date.parse(record.observed_at)
+  if (!Number.isFinite(offset) || Math.abs(offset) < 1000) return null
+  return offset > 0
+    ? `${formatDuration(offset)} earlier`
+    : `${formatDuration(-offset)} later`
+}
 export function configurationMeta(
   configurations: DeviceConfiguration[],
   uuid: string,
