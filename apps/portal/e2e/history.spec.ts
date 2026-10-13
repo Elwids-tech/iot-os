@@ -223,6 +223,9 @@ test("history summarizes states and exports every selected cursor page", async (
   await expect(page.getByRole("columnheader", { name: "Samples" })).toHaveCount(
     0,
   )
+  // Next slides while the records panel unfolds, so a click then can release on
+  // a table cell instead. Click once nothing is animating.
+  await page.waitForFunction(() => document.getAnimations().length === 0)
   await page.getByRole("button", { name: /Next/ }).click()
   await expect(page.getByText(/Page 2 · records 51–100/)).toBeVisible()
   await expect(page.getByText(/selected limit was reached/i)).toBeVisible()
