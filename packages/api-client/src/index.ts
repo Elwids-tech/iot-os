@@ -30,6 +30,7 @@ export * from "./notifications"
 export * from "./adapters"
 export * from "./geospatial"
 export * from "./overview"
+export * from "./agents"
 
 export type Organization = {
   uuid: string
@@ -45,7 +46,9 @@ export type Organization = {
     /** Dashboard permissions of their own. Older payloads omit it. */
     dashboards?: import("./dashboards").DashboardCapabilities
     /** Optional platform features enabled for this organization. */
-    features?: { device_adapters: boolean }
+    features?: { device_adapters: boolean; agent_access?: boolean }
+    /** AI agent access. Older payloads omit it. */
+    agents?: import("./agents").AgentCapabilities
   }
 }
 
@@ -1258,6 +1261,13 @@ export class ApiClient {
   /** The organization's zone applies to devices without a site; null means UTC. */
   setOrganizationTimezone(org: string, timezone: string | null) {
     return this.data<{ timezone: string | null }>(`/api/v1/organizations/${encodeURIComponent(org)}/settings/timezone`, "PUT", { timezone })
+  }
+  /** The organization's AI agent access setting and connector address. */
+  agentAccess(org: string) {
+    return this.data<import("./agents").AgentAccessSettings>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-access`)
+  }
+  setAgentAccess(org: string, enabled: boolean) {
+    return this.data<import("./agents").AgentAccessSettings>(`/api/v1/organizations/${encodeURIComponent(org)}/agent-access`, "PUT", { enabled })
   }
   updateDevice(
     org: string,

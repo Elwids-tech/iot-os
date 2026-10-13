@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Agents\Console\PruneAgents;
 use App\Domain\Automation\Console\AutomationWorker;
 use App\Domain\DeviceProfiles\Exceptions\ProfileDraftConflictException;
 use App\Domain\DeviceProfiles\Exceptions\ProfileValidationException;
@@ -20,7 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withCommands([WebhookWorker::class, AutomationWorker::class, ValidateHelp::class])
+    ->withCommands([WebhookWorker::class, AutomationWorker::class, ValidateHelp::class, PruneAgents::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->replace(TrustProxies::class, TrustDeploymentProxies::class);
