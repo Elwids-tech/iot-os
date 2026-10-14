@@ -1,7 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { Worker } = require("node:worker_threads");
+const { promisify } = require("node:util");
+const execFile = promisify(require("node:child_process").execFile);
 const {
   decode,
   inputFromMessage,
@@ -49,21 +50,29 @@ test("infinite loops are interrupted and later messages still decode", async () 
   );
 });
 test("time the worker spends without the CPU does not count against the decoder", async () => {
-  // Runs the worker without decode()'s wall-clock deadline, which a loaded host
-  // can still reach, so only the decoder's own budget is under test.
-  const worker = new Worker(path.join(__dirname, "../lib/decoder-worker.cjs"), {
-    workerData: {
-      code: "function decode(){let total=0;for(let i=0;i<20000;i++)total+=i%7;return {total}}",
-      input: {},
-    },
-    execArgv: ["--require", path.join(__dirname, "busy-host.cjs")],
-  });
-  const message = await new Promise((resolve, reject) => {
-    worker.on("message", (message) => message.ready || resolve(message));
-    worker.once("error", reject);
-  });
-  await worker.terminate();
-  assert.deepEqual(message, { ok: true, result: { total: 59997 } });
+  // The decoder runs in a child process whose workers load busy-host.cjs.
+  const code =
+    "function decode(){let total=0;for(let i=0;i<20000;i++)total+=i%7;return {total}}";
+  const { stdout } = await execFile(process.execPath, [
+    "--require",
+    path.join(__dirname, "busy-host.cjs"),
+    "-e",
+    `require(${JSON.stringify(path.join(__dirname, "../lib/decoder.cjs"))})
+      .decode(${JSON.stringify(code)}, {})
+      .then((result) => console.log(JSON.stringify(result)))`,
+  ]);
+  assert.deepEqual(JSON.parse(stdout), { total: 59997 });
+});
+test("work QuickJS cannot interrupt is stopped by the worker deadline", async () => {
+  // A backtracking regular expression runs inside one QuickJS call, which the
+  // decoder's own budget cannot interrupt.
+  await assert.rejects(
+    decode(
+      "function decode(){return {match:/^(a+)+$/.test('a'.repeat(28)+'b')}}",
+      {},
+    ),
+    { message: "Decoder exceeded its worker deadline" },
+  );
 });
 test("memory exhaustion is bounded", async () => {
   await assert.rejects(

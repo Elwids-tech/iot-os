@@ -46,6 +46,8 @@ function unwrap(context, evaluated) {
     // Everything from here runs tenant code, including code that escapes the
     // decode expression, so all of it is interrupted once the budget is spent.
     const started = cpuMs();
+    // decoder.cjs measures its worker deadline from the same point.
+    parentPort.postMessage({ decoderStarted: started });
     runtime.setInterruptHandler(() => cpuMs() - started > EXECUTION_BUDGET_MS);
     const code = `'use strict'; const decode = (${workerData.code}); const result = decode(input, helpers); if(result && typeof result.then === 'function') throw Error('Decoder must be synchronous'); JSON.stringify(result);`;
     const evaluated = unwrap(

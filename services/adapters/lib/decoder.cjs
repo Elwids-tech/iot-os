@@ -2,7 +2,15 @@ const { Worker } = require("node:worker_threads");
 const path = require("node:path");
 
 const STARTUP_DEADLINE_MS = 5000;
-const DECODE_DEADLINE_MS = 500;
+// QuickJS interrupts the decoder after 100 ms of CPU, but never inside a single
+// built-in call such as a backtracking regular expression. This backstop is the
+// worker's CPU time from the start of the decoder's code, because wall time also
+// counts the time a busy host gives to other work.
+const DECODE_CPU_DEADLINE_MS = 500;
+const CPU_CHECK_INTERVAL_MS = 50;
+// Decoder code cannot wait without using the CPU, so this only stops a worker
+// that has stopped answering for some other reason.
+const ANSWER_DEADLINE_MS = 30000;
 
 function inputFromMessage(payload, topic, metadata = {}) {
   const bytes = Buffer.isBuffer(payload)
@@ -41,28 +49,44 @@ function decode(code, input) {
       },
     });
     let settled = false;
+    let cpuCheck;
     const finish = (error, result) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(cpuCheck);
       worker.terminate();
       error ? reject(error) : resolve(result);
     };
-    // Loading QuickJS in a fresh worker can take most of the decode deadline on a
-    // busy host, so the deadline starts once the engine is ready.
+    // Loading QuickJS in a fresh worker is slow on a busy host, so it has its
+    // own deadline.
     let timer = setTimeout(
       () => finish(Error("Decoder worker did not start")),
       STARTUP_DEADLINE_MS,
     );
+    // worker.cpuUsage() reads the worker's CPU time even while it is stuck inside
+    // QuickJS. It rejects once the worker has exited, and the exit handler settles.
+    const checkCpu = (started) =>
+      worker.cpuUsage().then(
+        ({ user, system }) => {
+          if (settled) return;
+          if ((user + system) / 1000 - started > DECODE_CPU_DEADLINE_MS)
+            finish(Error("Decoder exceeded its worker deadline"));
+          else cpuCheck = setTimeout(checkCpu, CPU_CHECK_INTERVAL_MS, started);
+        },
+        () => {},
+      );
     worker.on("message", (message) => {
       if (message.ready) {
         clearTimeout(timer);
         timer = setTimeout(
-          () => finish(Error("Decoder exceeded its worker deadline")),
-          DECODE_DEADLINE_MS,
+          () => finish(Error("Decoder worker stopped answering")),
+          ANSWER_DEADLINE_MS,
         );
         return;
       }
+      if (message.decoderStarted !== undefined)
+        return checkCpu(message.decoderStarted);
       finish(message.ok ? null : Error(message.error), message.result);
     });
     worker.once("error", (error) =>
