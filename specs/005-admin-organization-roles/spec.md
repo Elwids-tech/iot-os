@@ -49,7 +49,8 @@ in the Roles list for that organization with the chosen permission count.
    organization is preselected when they came from a filtered list or a row.
 2. **Given** an organization is chosen, **When** the permission list loads, **Then**
    it shows exactly that organization's ceiling, grouped like the existing role
-   editor, and changing the organization reloads it and clears the selection.
+   editor. Changing the organization reloads it and keeps only the selected
+   permissions the new organization allows.
 3. **Given** a name and any number of permissions (zero is allowed), **When** they
    create the role, **Then** they land on the new role's page with a confirmation.
 4. **Given** a name that another role in the same organization already has, **When**
