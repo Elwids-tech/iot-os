@@ -109,6 +109,46 @@ func TestDeactivationFencesCachesTelemetryCommandsAndStaleReconciliation(t *test
 	}
 }
 
+// A broker connection change says nothing about when a device last sent data, so
+// its presence event leaves last_seen_at out and the control plane keeps the old one.
+func TestConnectionPresenceDoesNotClaimDevicesWereSeen(t *testing.T) {
+	a, d := lifecycleFixture(t)
+	ctx := context.Background()
+	d.Source.ConnectionUUID = storage.UUID()
+	a.definitions[d.DeviceUUID] = d
+	t.Cleanup(func() {
+		_, _ = a.Store.Pool.Exec(ctx, "DELETE FROM device_runtime.outbox WHERE event->'payload'->>'connection_uuid'=$1", d.Source.ConnectionUUID)
+	})
+	emitted := func(presence string) map[string]any {
+		t.Helper()
+		var raw []byte
+		if err := a.Store.Pool.QueryRow(ctx, "SELECT event->'payload' FROM device_runtime.outbox WHERE event->>'type'='device.presence.v1' AND event->'payload'->>'device_uuid'=$1 AND event->'payload'->>'presence'=$2", d.DeviceUUID, presence).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		payload := map[string]any{}
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			t.Fatal(err)
+		}
+		return payload
+	}
+	a.connectionPresence(d.Source.ConnectionUUID, "unknown", "Broker connection was lost; waiting for fresh birth certificates.")
+	lost := emitted("unknown")
+	if seen, ok := lost["last_seen_at"]; ok {
+		t.Fatalf("connection loss claimed the device was seen at %v", seen)
+	}
+	if lost["diagnostic"] != "Broker connection was lost; waiting for fresh birth certificates." {
+		t.Fatalf("diagnostic: %v", lost["diagnostic"])
+	}
+	if a.compatible[d.DeviceUUID] {
+		t.Fatal("connection loss left the device compatible")
+	}
+	received := time.Date(2026, 10, 10, 8, 30, 0, 0, time.UTC)
+	a.devicePresence(d, "online", "", received, true)
+	if seen := emitted("online")["last_seen_at"]; seen != "2026-10-10T08:30:00Z" {
+		t.Fatalf("received packet last_seen_at: %v", seen)
+	}
+}
+
 func TestDeviceFenceBlocksTransitionUntilProcessingBoundaryAndSeparatesDevices(t *testing.T) {
 	a := &Application{}
 	release := a.lockDevice("first")

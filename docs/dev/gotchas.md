@@ -49,6 +49,12 @@ Things that have cost time before. Add to this list when something surprises you
   absent `conversion_mode` as `profile`. Write a contract for what each producer
   actually sends: configuration v2 makes both mapping fields optional for this
   reason, and the GPS demo seeder's configurations omit both.
+- **`last_seen_at` means a packet arrived from the device.** The portal's freshness,
+  the agents' `last_reading` check and `find_devices` all read it. A presence change
+  that comes from the runtime's broker connection (restart, deploy, broker outage)
+  must not set it: the runtime omits `last_seen_at` from that `device.presence.v1`,
+  and `RuntimeController` keeps the stored value. Until 2026-10 it sent the current
+  time, so every device on a connection looked freshly seen after each deploy.
 
 - **`User` holds Passport tokens, not Sanctum's.** Passport and Sanctum both define a
   `HasApiTokens` trait with incompatible signatures, so a model can use only one,
@@ -81,6 +87,15 @@ Things that have cost time before. Add to this list when something surprises you
   (`IOT_ADAPTER_MANAGER_TOKEN` and `IOT_ADAPTER_HOST_STATE_DIR` are required).
   `compose.adapters.yml` does not define `portal` or `admin`, so a
   frontend-only rebuild does not need it.
+- **Infrastructure config is bind-mounted from where compose ran.** NATS and EMQX
+  mount `deploy/compose/*.conf` from that checkout. If it was a worktree that is
+  later removed, Docker mounts an empty directory instead, and the service fails on
+  its next restart: NATS exits 127 and the runtime loops on `lookup nats`. Start
+  `nats` and `emqx` from the main checkout.
+- **EMQX loses its MQTT users when its container IP changes.** The node name
+  follows the IP, and built-in users live under `data/mnesia/emqx@<ip>`, so after
+  such a restart every login fails and the runtime logs `MQTT connection pending`.
+  Run `php artisan devices:reprovision-broker` in the `api` container.
 - **Rebuilding `api` signs everyone out.** The dev API uses the `file` session
   driver inside the container ([`compose.app.yml`](../../deploy/compose/compose.app.yml)).
   This is expected, not a regression.
@@ -97,6 +112,9 @@ Things that have cost time before. Add to this list when something surprises you
   `composer dump-autoload`. Without `.env`, tests fail with "No application
   encryption key"; run with a throwaway key:
   `APP_KEY="base64:$(openssl rand -base64 32)" php artisan test --compact`.
+  The main checkout's vendor can lag its own `composer.lock`; if `package:discover`
+  fails with a missing class (such as `Laravel\Passport\Passport`), run
+  `composer install` in the worktree.
 
 ## Browser tests and screenshots
 

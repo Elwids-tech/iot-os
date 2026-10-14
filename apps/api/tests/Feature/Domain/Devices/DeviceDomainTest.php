@@ -165,6 +165,31 @@ final class DeviceDomainTest extends TestCase
         $this->assertDatabaseCount('device_configurations', 1);
     }
 
+    public function test_presence_without_last_seen_at_keeps_when_the_device_was_last_seen(): void
+    {
+        $device = $this->active($this->configured());
+        $seen = now()->subDays(3)->startOfSecond();
+        $device->update(['last_seen_at' => $seen]);
+        $device->candidate->update(['last_seen_at' => $seen]);
+        $presence = ['organization_uuid' => $this->organization->uuid, 'device_uuid' => $device->uuid, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => $device->deployment_generation];
+
+        // The runtime lost its broker connection; nothing arrived from the device.
+        $lost = 'Broker connection was lost; waiting for fresh birth certificates.';
+        $this->runtimeEvent('device.presence.v1', [...$presence, 'presence' => 'unknown', 'diagnostic' => $lost])->assertOk()->assertJsonMissingPath('stale');
+        $device->refresh();
+        $this->assertSame('unknown', $device->presence);
+        $this->assertSame($lost, $device->diagnostic);
+        $this->assertEquals($seen, $device->last_seen_at);
+        $this->assertEquals($seen, $device->candidate->last_seen_at);
+
+        $received = now()->subMinute()->startOfSecond();
+        $this->runtimeEvent('device.presence.v1', [...$presence, 'presence' => 'online', 'diagnostic' => '', 'last_seen_at' => $received->toIso8601ZuluString()])->assertOk();
+        $device->refresh();
+        $this->assertSame('online', $device->presence);
+        $this->assertEquals($received, $device->last_seen_at);
+        $this->assertEquals($received, $device->candidate->last_seen_at);
+    }
+
     public function test_commands_require_confirmation_are_idempotent_and_keep_one_outstanding_request(): void
     {
         $device = $this->active($this->configured('rgb-light'));

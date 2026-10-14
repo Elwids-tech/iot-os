@@ -468,6 +468,9 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 	}
 }
 
+// devicePresence reports a device's presence. at is when its packet was received;
+// a zero at (presence derived from the broker connection) omits last_seen_at, so
+// the control plane keeps the last time the device was actually seen.
 func (a *Application) devicePresence(d devices.Definition, presence, diagnostic string, at time.Time, force bool) {
 	a.mu.Lock()
 	if !force && time.Since(a.presenceAt[d.DeviceUUID]) < 5*time.Second {
@@ -477,7 +480,11 @@ func (a *Application) devicePresence(d devices.Definition, presence, diagnostic 
 	a.presenceAt[d.DeviceUUID] = time.Now()
 	generation := a.generations[d.DeviceUUID]
 	a.mu.Unlock()
-	a.emit("device.presence.v1", map[string]any{"organization_uuid": d.OrganizationUUID, "device_uuid": d.DeviceUUID, "configuration_uuid": d.ConfigurationUUID, "generation": generation, "presence": presence, "diagnostic": diagnostic, "last_seen_at": at})
+	payload := map[string]any{"organization_uuid": d.OrganizationUUID, "device_uuid": d.DeviceUUID, "configuration_uuid": d.ConfigurationUUID, "generation": generation, "presence": presence, "diagnostic": diagnostic}
+	if !at.IsZero() {
+		payload["last_seen_at"] = at
+	}
+	a.emit("device.presence.v1", payload)
 }
 func (a *Application) connectionPresence(connection, presence, diagnostic string) {
 	a.emit("connection.presence.v1", map[string]any{"connection_uuid": connection, "presence": presence, "diagnostic": diagnostic})
@@ -491,7 +498,7 @@ func (a *Application) connectionPresence(connection, presence, diagnostic string
 	}
 	a.mu.Unlock()
 	for _, d := range defs {
-		a.devicePresence(d, presence, diagnostic, time.Now().UTC(), true)
+		a.devicePresence(d, presence, diagnostic, time.Time{}, true)
 	}
 }
 func (a *Application) activate(d devices.Definition, generation int, operation ...string) error {

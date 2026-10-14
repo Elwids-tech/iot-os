@@ -220,7 +220,7 @@ plane middleware on `POST /events`. All schemas new under `internal/events/`.
 | `discovery.presence.v1` | `connection_uuid, edge_node_id, device_id, session_id, received_at, presence` | session |
 | `discovery.birth.v1` | as above with `metrics[]` instead of `presence` | session |
 | `gateway.presence.v1` | `connection_uuid, edge_node_id, session_id, presence, last_seen_at` | session |
-| `device.presence.v1` | `organization_uuid, device_uuid, configuration_uuid, generation, presence, diagnostic, last_seen_at` | generation, configuration |
+| `device.presence.v1` | `organization_uuid, device_uuid, configuration_uuid, generation, presence, diagnostic, last_seen_at?` (absent when presence comes from the broker connection) | generation, configuration |
 | `device.applied.v1` | `device_uuid, organization_uuid, configuration_uuid, generation, presence, operation_uuid` | generation, operation, configuration |
 | `device.failed.v1` | `device_uuid, organization_uuid, generation, configuration_uuid, diagnostic, operation_uuid?` | generation, operation, configuration |
 | `device.deactivated.v1` | as applied plus `uncertain_command_uuids` | generation, operation |
