@@ -1,8 +1,9 @@
 # Admin
 
 The platform administration React app, served on http://localhost:5174:
-organizations and their permission ceilings, users, role templates, the platform
-team and telemetry retention. It requires `PlatformAdministration.access`
+organizations and their permission ceilings, each organization's roles (create,
+rename, delete, edit permissions), users and invitations, the platform team and
+telemetry retention. It requires `PlatformAdministration.access`
 ([access](../../docs/features/access.md#platform-administration)).
 
 ```sh

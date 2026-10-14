@@ -13,6 +13,10 @@ operations:
     responses:
       '422':
         $ref: '#/components/responses/ValidationFailed'
+  DELETE /v1/organizations/{organization}/roles/{role}:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
   DELETE /v1/organizations/{organization}/members/{member}:
     responses:
       '422':

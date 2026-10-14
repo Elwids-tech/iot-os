@@ -102,6 +102,7 @@ export function UsersPage() {
       <PendingInvitations refreshKey={invitationRefreshKey} />
       <InviteUserDialog
         organizations={organizations}
+        initialOrganization={organizations.find((organization) => organization.uuid === query.organization)}
         open={inviteOpen}
         onOpenChange={setInviteOpen}
         onInvited={() => setInvitationRefreshKey((current) => current + 1)}

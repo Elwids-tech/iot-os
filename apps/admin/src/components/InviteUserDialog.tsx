@@ -27,6 +27,8 @@ type FormErrors = {
 
 type InviteUserDialogProps = {
   organizations: Organization[]
+  /** Selected when the dialog opens, and listed even if `organizations` has not caught up with it. */
+  initialOrganization?: Organization
   onInvited: () => void
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -34,6 +36,7 @@ type InviteUserDialogProps = {
 
 export function InviteUserDialog({
   organizations,
+  initialOrganization,
   onInvited,
   open,
   onOpenChange,
@@ -45,6 +48,14 @@ export function InviteUserDialog({
   const [errors, setErrors] = useState<FormErrors>({})
   const [isLoadingRoles, setIsLoadingRoles] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const choices =
+    initialOrganization && !organizations.some((organization) => organization.uuid === initialOrganization.uuid)
+      ? [initialOrganization, ...organizations]
+      : organizations
+
+  useEffect(() => {
+    if (open) setOrganizationUuid(initialOrganization?.uuid ?? "")
+  }, [open, initialOrganization?.uuid])
 
   useEffect(() => {
     let active = true
@@ -166,7 +177,7 @@ export function InviteUserDialog({
               value={organizationUuid}
               onChange={setOrganizationUuid}
               placeholder="Select an organization"
-              options={organizations.map((organization) => ({
+              options={choices.map((organization) => ({
                 value: organization.uuid,
                 label: organization.name,
               }))}

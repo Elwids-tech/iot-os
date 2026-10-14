@@ -37,9 +37,10 @@ import {
 } from "@iot-os/ui/components/select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { keepToastsAbove } from "@iot-os/ui/components/sonner"
-import { AlertCircleIcon, ChevronsUpDownIcon, LockKeyholeIcon, SearchXIcon } from "lucide-react"
+import { AlertCircleIcon, ChevronsUpDownIcon, LockKeyholeIcon, PencilIcon, SearchXIcon, Trash2Icon } from "lucide-react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
+import { DeleteRoleDialog, RenameRoleDialog } from "../components/RoleDialogs"
 import { useDiscardGuard } from "../hooks/use-discard-guard"
 import { apiClient } from "../lib/api-client"
 import { permissionGroupLabel, permissionLabel } from "@iot-os/ui/lib/permission-labels"
@@ -148,6 +149,9 @@ export function RolePermissionsPage() {
   const [draftSearch, setDraftSearch] = useState(searchParams.get("search") ?? "")
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
+  const [dialog, setDialog] = useState<"rename" | "delete" | null>(null)
+  const [deletedTo, setDeletedTo] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   const numericRoleId = Number.parseInt(roleId ?? "", 10)
   const search = searchParams.get("search") ?? ""
@@ -191,7 +195,7 @@ export function RolePermissionsPage() {
   const role = state.data
   const added = [...selectedPermissionNames].filter((name) => !initialPermissionNames.has(name)).length
   const removed = [...initialPermissionNames].filter((name) => !selectedPermissionNames.has(name)).length
-  const isDirty = added + removed > 0
+  const isDirty = deletedTo === null && added + removed > 0
   const { dialog: discardDialog } = useDiscardGuard(isDirty, {
     title: "Discard unsaved permission changes?",
     description: `${added} added and ${removed} removed permissions for ${role?.display_name ?? "this role"} will be lost.`,
@@ -209,6 +213,11 @@ export function RolePermissionsPage() {
           permissionLabel(permission.name).toLocaleLowerCase().includes(normalizedSearch)),
     )
   }, [group, search, state.data])
+
+  // Leave a deleted role once the page is no longer dirty, so the discard guard stays quiet.
+  useEffect(() => {
+    if (deletedTo !== null) navigate(deletedTo, { replace: true })
+  }, [deletedTo, navigate])
 
   const groupNames = useMemo(
     () => (state.data ? [...new Set(state.data.permissions.map((permission) => permission.group))] : []),
@@ -312,6 +321,23 @@ export function RolePermissionsPage() {
         back={back}
         heading={<RoleSwitcher role={role} />}
         meta={`${role.organization.name} · ${role.is_default ? "Default" : "Custom"} role · ${selectedPermissionNames.size} of ${role.permissions.length} selected`}
+        actions={
+          <>
+            {/* Organization Admin follows the ceiling; its name is fixed too. */}
+            {role.permissions_editable ? (
+              <Button size="sm" variant="outline" onClick={() => setDialog("rename")}>
+                <PencilIcon data-icon="inline-start" />
+                Rename
+              </Button>
+            ) : null}
+            {!role.is_default ? (
+              <Button size="sm" variant="outline" onClick={() => setDialog("delete")}>
+                <Trash2Icon data-icon="inline-start" />
+                Delete role
+              </Button>
+            ) : null}
+          </>
+        }
       >
         <form onSubmit={submitSearch} role="search" className="flex min-w-0 flex-1">
           <FilterBar>
@@ -430,6 +456,21 @@ export function RolePermissionsPage() {
           </Button>
         </div>
       ) : null}
+      <RenameRoleDialog
+        role={role}
+        savedPermissionNames={initialPermissionNames}
+        open={dialog === "rename"}
+        onClose={() => setDialog(null)}
+        onRenamed={(displayName) =>
+          setState((current) => (current.data ? { ...current, data: { ...current.data, display_name: displayName } } : current))
+        }
+      />
+      <DeleteRoleDialog
+        role={role}
+        open={dialog === "delete"}
+        onClose={() => setDialog(null)}
+        onDeleted={() => setDeletedTo(`/roles?organization=${encodeURIComponent(role.organization.uuid)}`)}
+      />
       {discardDialog}
     </>
   )

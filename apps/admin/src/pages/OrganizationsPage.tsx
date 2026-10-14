@@ -2,14 +2,16 @@ import { useMemo, useState } from "react"
 import type { DirectoryQuery, Organization, PaginatedResponse } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import { DataTable, RefLink, type DataColumn } from "@iot-os/ui/components/data-table"
-import { DropdownMenuItem } from "@iot-os/ui/components/dropdown-menu"
+import { DropdownMenuItem, DropdownMenuSeparator } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { Building2Icon, PlusIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 import { countLabel } from "../components/DirectoryStates"
+import { InviteUserDialog } from "../components/InviteUserDialog"
 import { OrganizationDialog } from "../components/OrganizationDialog"
 import { useDirectoryTable } from "../components/ResourceDirectory"
+import { useOrganizationOptions } from "../hooks/use-directory"
 import { apiClient } from "../lib/api-client"
 
 function loadOrganizations(query: DirectoryQuery): Promise<PaginatedResponse<Organization>> {
@@ -19,6 +21,8 @@ function loadOrganizations(query: DirectoryQuery): Promise<PaginatedResponse<Org
 export function OrganizationsPage() {
   const { reload, table } = useDirectoryTable(loadOrganizations, { searchPlaceholder: "Name or slug" })
   const [editing, setEditing] = useState<Organization | "new" | null>(null)
+  const [inviting, setInviting] = useState<Organization | null>(null)
+  const organizations = useOrganizationOptions()
   const columns = useMemo<DataColumn<Organization>[]>(
     () => [
       {
@@ -82,6 +86,14 @@ export function OrganizationsPage() {
                 Available permissions
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to={`/roles?organization=${encodeURIComponent(organization.uuid)}`}>Roles</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to={`/roles/new?organization=${encodeURIComponent(organization.uuid)}`}>New role</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setInviting(organization)}>Invite user</DropdownMenuItem>
           </>
         )}
         empty={
@@ -94,6 +106,15 @@ export function OrganizationsPage() {
         }
       />
       <OrganizationDialog organization={editing} onClose={() => setEditing(null)} onSaved={reload} />
+      <InviteUserDialog
+        organizations={organizations}
+        initialOrganization={inviting ?? undefined}
+        open={inviting !== null}
+        onOpenChange={(open) => {
+          if (!open) setInviting(null)
+        }}
+        onInvited={() => undefined}
+      />
     </CollectionPage>
   )
 }

@@ -154,19 +154,46 @@ async function fulfillJson(route: Route, json: unknown, status = 200) {
   await route.fulfill({ status, json })
 }
 
+const customRoles = [
+  {
+    id: 4,
+    key: "custom-01k8field",
+    display_name: "Field Technician",
+    is_default: false,
+    permissions_count: 1,
+    organization: organizations[0],
+  },
+  {
+    id: 5,
+    key: "custom-01k8shift",
+    display_name: "Shift Lead",
+    is_default: false,
+    permissions_count: 1,
+    organization: organizations[0],
+  },
+]
+
 async function mockApi(
   page: Page,
-  options: { initiallyAuthenticated?: boolean; roleDetailStatus?: number; user?: SessionUser } = {},
+  options: {
+    initiallyAuthenticated?: boolean
+    roleDetailStatus?: number
+    user?: SessionUser
+    /** Adds two Acme custom roles: Field Technician (unused) and Shift Lead (held by Acme Member). */
+    customRoles?: boolean
+  } = {},
 ) {
   let signedIn = options.initiallyAuthenticated ?? true
   const user = options.user ?? superAdmin
   const orgs = organizations.map((organization) => ({ ...organization }))
+  const roles = [...directoryRoles, ...(options.customRoles ? customRoles : [])].map((role) => ({ ...role }))
   const users = directoryUsers.map((item) => ({ ...item, organizations: [...item.organizations] }))
   const memberRoles = new Map<string, number[]>([
     [`${organizations[0].uuid}:3`, [1]],
     [`${organizations[0].uuid}:4`, [2]],
     [`${organizations[1].uuid}:3`, [3]],
     [`${organizations[1].uuid}:5`, [3]],
+    ...(options.customRoles ? [[`${organizations[0].uuid}:4`, [2, 5]] as [string, number[]]] : []),
   ])
   const unprocessable = (route: Route, field: string, message: string) =>
     fulfillJson(route, { message, errors: { [field]: [message] } }, 422)
@@ -174,6 +201,8 @@ async function mockApi(
     [1, new Set(tenantPermissions.map((permission) => permission.name))],
     [2, new Set(["Organization.view", "User.view-any"])],
     [3, new Set(["Organization.view"])],
+    [4, new Set(["Organization.view"])],
+    [5, new Set(["Organization.view"])],
   ])
   const ceiling = { restricted: false, names: tenantPermissions.map((permission) => permission.name) }
   const invitations = [
@@ -191,7 +220,7 @@ async function mockApi(
   ]
 
   function roleDetail(id: number) {
-    const role = directoryRoles.find((item) => item.id === id)
+    const role = roles.find((item) => item.id === id)
 
     if (!role) return null
 
@@ -304,7 +333,7 @@ async function mockApi(
           id: item.id,
           name: item.name,
           email: item.email,
-          roles: directoryRoles
+          roles: roles
             .filter((role) => memberRoles.get(`${organizationUuid}:${item.id}`)?.includes(role.id))
             .map(({ id, key, display_name, is_default }) => ({ id, key, display_name, is_default })),
         }))
@@ -360,7 +389,7 @@ async function mockApi(
     if (request.method() === "GET" && url.pathname === "/api/v1/admin/roles") {
       const search = url.searchParams.get("search")?.toLocaleLowerCase() ?? ""
       const organization = url.searchParams.get("organization")
-      const results = directoryRoles.filter(
+      const results = roles.filter(
         (role) =>
           (role.display_name.toLocaleLowerCase().includes(search) ||
             role.key.toLocaleLowerCase().includes(search)) &&
@@ -379,9 +408,8 @@ async function mockApi(
     const organizationRoleMatch = url.pathname.match(/^\/api\/v1\/admin\/organizations\/([^/]+)\/roles$/)
 
     if (request.method() === "GET" && organizationRoleMatch) {
-      const organization = organizations.find((item) => item.uuid === organizationRoleMatch[1])
       await fulfillJson(route, {
-        data: directoryRoles.filter((role) => role.organization.uuid === organization?.uuid),
+        data: roles.filter((role) => role.organization.uuid === organizationRoleMatch[1]),
       })
       return
     }
@@ -389,7 +417,7 @@ async function mockApi(
     const createInvitationMatch = url.pathname.match(/^\/api\/v1\/admin\/organizations\/([^/]+)\/invitations$/)
 
     if (request.method() === "POST" && createInvitationMatch) {
-      const organization = organizations.find((item) => item.uuid === createInvitationMatch[1])
+      const organization = orgs.find((item) => item.uuid === createInvitationMatch[1])
       const payload = request.postDataJSON() as { email?: string; role_ids?: number[] }
 
       if (
@@ -410,12 +438,13 @@ async function mockApi(
         }
       }
 
-      const roles = invitationRoles.filter((role) => payload.role_ids?.includes(role.id))
       const invitation = {
         uuid: `invite-${invitations.length + 1}`,
         email: payload.email ?? "",
         role_ids: payload.role_ids ?? [],
-        roles,
+        roles: roles
+          .filter((role) => payload.role_ids?.includes(role.id))
+          .map(({ id, display_name }) => ({ id, display_name })),
         organization: organization ?? organizations[0],
         expires_at: "2026-09-01T12:00:00.000000Z",
         accepted_at: null,
@@ -530,6 +559,82 @@ async function mockApi(
 
       rolePermissions.set(detail.id, new Set(payload.permission_names.filter((name): name is string => typeof name === "string")))
       await fulfillJson(route, { data: roleDetail(detail.id) })
+      return
+    }
+
+    const tenantPermissionsMatch = url.pathname.match(/^\/api\/v1\/organizations\/([^/]+)\/role-permissions$/)
+
+    if (request.method() === "GET" && tenantPermissionsMatch) {
+      // A platform administrator can grant the organization's whole ceiling.
+      await fulfillJson(route, {
+        data: tenantPermissions
+          .filter((permission) => ceiling.names.includes(permission.name))
+          .map((permission) => ({ ...permission, grantable: true })),
+      })
+      return
+    }
+
+    const tenantRolesMatch = url.pathname.match(/^\/api\/v1\/organizations\/([^/]+)\/roles(?:\/(\d+))?$/)
+
+    if (tenantRolesMatch && ["POST", "PATCH", "DELETE"].includes(request.method())) {
+      const [, organizationUuid, roleId] = tenantRolesMatch
+      const organization = orgs.find((item) => item.uuid === organizationUuid)
+      const existing = roles.find((role) => role.id === Number(roleId) && role.organization.uuid === organizationUuid)
+
+      if (!organization || (roleId && !existing)) {
+        await fulfillJson(route, { message: "Not found." }, 404)
+        return
+      }
+
+      if (request.method() === "DELETE" && existing) {
+        if (existing.is_default) {
+          await unprocessable(route, "role", "Default organization roles cannot be deleted.")
+          return
+        }
+        if ([...memberRoles.values()].some((roleIds) => roleIds.includes(existing.id))) {
+          await unprocessable(route, "role", "Remove this role from members before deleting it.")
+          return
+        }
+        roles.splice(roles.indexOf(existing), 1)
+        await route.fulfill({ status: 204 })
+        return
+      }
+
+      const payload = request.postDataJSON() as { display_name: string; permission_names: string[] }
+
+      if (roles.some((role) => role !== existing && role.organization.uuid === organizationUuid && role.display_name === payload.display_name)) {
+        await unprocessable(route, "display_name", "A role with this name already exists in the organization.")
+        return
+      }
+
+      const role = existing ?? {
+        id: Math.max(...roles.map((item) => item.id)) + 1,
+        key: `custom-${roles.length + 1}`,
+        display_name: payload.display_name,
+        is_default: false,
+        permissions_count: 0,
+        organization,
+      }
+      if (!existing) roles.push(role)
+      role.display_name = payload.display_name
+      role.permissions_count = payload.permission_names.length
+      rolePermissions.set(role.id, new Set(payload.permission_names))
+
+      await fulfillJson(
+        route,
+        {
+          data: {
+            id: role.id,
+            key: role.key,
+            display_name: role.display_name,
+            is_default: role.is_default,
+            is_administrator: role.key === "organization-admin",
+            manageable: role.key !== "organization-admin",
+            permissions: tenantPermissions.filter((permission) => payload.permission_names.includes(permission.name)),
+          },
+        },
+        existing ? 200 : 201,
+      )
       return
     }
 
@@ -956,4 +1061,149 @@ test("requires existing invitees to sign in before accepting", async ({ page }) 
 
   await expect(page.getByRole("heading", { name: "Account ready" })).toBeVisible()
   await expect(page.getByText("existing.user@example.test")).toBeVisible()
+})
+
+test("creates a role for an organization from the Roles page", async ({ page, consoleMessages }) => {
+  await mockApi(page)
+  await page.goto(`/roles?organization=${organizations[0].uuid}`)
+
+  await page.getByRole("link", { name: "New role" }).click()
+  await expect(page).toHaveURL(new RegExp(`/roles/new\\?organization=${organizations[0].uuid}$`))
+  await expect(page.getByRole("heading", { name: "New role" })).toBeVisible()
+  await expect(page.getByRole("combobox", { name: "Organization" })).toHaveText("Acme Manufacturing")
+  await expect(page.getByRole("button", { name: "Create role" })).toBeDisabled()
+
+  await page.getByRole("textbox", { name: "Role name" }).fill("Moderator")
+  await page.getByRole("checkbox", { name: "View organization" }).check()
+  await page.getByRole("checkbox", { name: "List members" }).check()
+  await expect(page.getByText("2 of 5 selected")).toBeVisible()
+  await page.getByRole("button", { name: "Create role" }).click()
+
+  await expect(page.getByText("A role with this name already exists in the organization.")).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "Role name" })).toHaveAttribute("aria-invalid", "true")
+  await expect(page.getByText("2 of 5 selected")).toBeVisible()
+  expect(consoleMessages).toHaveLength(1)
+  expect(consoleMessages[0]).toContain("status of 422")
+  consoleMessages.length = 0
+
+  await page.getByRole("textbox", { name: "Role name" }).fill("Site Operator")
+  await page.getByRole("button", { name: "Create role" }).click()
+
+  await expect(page.getByText("Site Operator created in Acme Manufacturing")).toBeVisible()
+  await expect(page).toHaveURL(/\/roles\/4$/)
+  await expect(page.getByRole("heading", { name: "Site Operator" })).toBeVisible()
+  await expect(page.getByText("Acme Manufacturing · Custom role · 2 of 5 selected")).toBeVisible()
+
+  await page.getByRole("link", { name: "Back to Roles" }).click()
+  await expect(page.getByRole("row", { name: /Site Operator/ })).toContainText("Custom")
+})
+
+test("asks before discarding a new role", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/roles/new")
+
+  await page.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Northstar Utilities" }).click()
+  await page.getByRole("textbox", { name: "Role name" }).fill("Auditor")
+  await page.getByRole("button", { name: "Cancel" }).click()
+
+  const guard = page.getByRole("alertdialog", { name: "Discard this new role?" })
+  await guard.getByRole("button", { name: "Keep editing" }).click()
+  await expect(page.getByRole("textbox", { name: "Role name" })).toHaveValue("Auditor")
+
+  await page.getByRole("button", { name: "Cancel" }).click()
+  await guard.getByRole("button", { name: "Discard changes" }).click()
+  await expect(page).toHaveURL(new RegExp(`/roles\\?organization=${organizations[1].uuid}$`))
+})
+
+test("creates an organization, adds a role and invites someone with it", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/organizations")
+
+  await page.getByRole("button", { name: "New organization" }).click()
+  await page.getByRole("textbox", { name: "Name" }).fill("Cedar Processing")
+  await page.getByRole("button", { name: "Create organization" }).click()
+  await expect(page.getByText("Cedar Processing created")).toBeVisible()
+
+  await page.getByRole("button", { name: "Actions for Cedar Processing" }).click()
+  await page.getByRole("menuitem", { name: "New role" }).click()
+  await expect(page.getByRole("combobox", { name: "Organization" })).toHaveText("Cedar Processing")
+  await page.getByRole("textbox", { name: "Role name" }).fill("Field Engineer")
+  await page.getByRole("checkbox", { name: "Select all Organization permissions" }).click()
+  await page.getByRole("button", { name: "Create role" }).click()
+  await expect(page.getByRole("heading", { name: "Field Engineer" })).toBeVisible()
+  await expect(page.getByText("Cedar Processing · Custom role · 2 of 5 selected")).toBeVisible()
+
+  await page.getByRole("link", { name: "Organizations" }).click()
+  await page.getByRole("button", { name: "Actions for Cedar Processing" }).click()
+  await page.getByRole("menuitem", { name: "Invite user" }).click()
+  const dialog = page.getByRole("dialog", { name: "Invite user" })
+  await expect(dialog.getByRole("combobox", { name: "Organization" })).toHaveText("Cedar Processing")
+  await dialog.getByRole("textbox", { name: "Email" }).fill("engineer@cedar.example.test")
+  await dialog.getByRole("checkbox", { name: "Field Engineer" }).check()
+  await dialog.getByRole("button", { name: "Send invitation" }).click()
+  await expect(page.getByText("Invitation sent to engineer@cedar.example.test")).toBeVisible()
+  await expect(dialog).toBeHidden()
+
+  await page.getByRole("button", { name: "Actions for Cedar Processing" }).click()
+  await page.getByRole("menuitem", { name: "Roles" }).click()
+  await expect(page).toHaveURL(/\/roles\?organization=33333333-3333-4333-8333-333333333333$/)
+  await expect(page.getByRole("row", { name: /Field Engineer/ })).toBeVisible()
+})
+
+test("preselects the filtered organization when inviting from Users", async ({ page }) => {
+  await mockApi(page, { customRoles: true })
+  await page.goto(`/users?organization=${organizations[0].uuid}`)
+
+  await page.getByRole("button", { name: "Invite user" }).click()
+  const dialog = page.getByRole("dialog", { name: "Invite user" })
+  await expect(dialog.getByRole("combobox", { name: "Organization" })).toHaveText("Acme Manufacturing")
+  await expect(dialog.getByRole("checkbox", { name: "Field Technician" })).toBeVisible()
+})
+
+test("renames and deletes custom roles", async ({ page, consoleMessages }) => {
+  await mockApi(page, { customRoles: true })
+  await page.goto("/roles/1")
+  await expect(page.getByRole("heading", { name: "Organization Admin" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Rename" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Delete role" })).toHaveCount(0)
+
+  await page.goto("/roles/2")
+  await expect(page.getByRole("button", { name: "Rename" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Delete role" })).toHaveCount(0)
+
+  await page.goto("/roles/5")
+  await page.getByRole("button", { name: "Delete role" }).click()
+  const deleteDialog = page.getByRole("alertdialog", { name: "Delete Shift Lead?" })
+  await deleteDialog.getByRole("button", { name: "Delete role" }).click()
+  await expect(deleteDialog.getByText("Remove this role from members before deleting it.")).toBeVisible()
+  await deleteDialog.getByRole("button", { name: "Cancel" }).click()
+  await expect(page.getByRole("heading", { name: "Shift Lead" })).toBeVisible()
+
+  await page.goto("/roles/4")
+  await page.getByRole("checkbox", { name: "List members" }).check()
+  await expect(page.getByText("Unsaved permission changes")).toBeVisible()
+
+  await page.getByRole("button", { name: "Rename" }).click()
+  const renameDialog = page.getByRole("dialog", { name: "Rename role" })
+  await renameDialog.getByRole("textbox", { name: "Role name" }).fill("Shift Lead")
+  await renameDialog.getByRole("button", { name: "Rename role" }).click()
+  await expect(renameDialog.getByText("A role with this name already exists in the organization.")).toBeVisible()
+  await renameDialog.getByRole("textbox", { name: "Role name" }).fill("Field Engineer")
+  await renameDialog.getByRole("button", { name: "Rename role" }).click()
+  await expect(page.getByText("Renamed to Field Engineer")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Field Engineer" })).toBeVisible()
+  // Renaming sent the saved permissions; the unsaved tick is still pending.
+  await expect(page.getByText("Unsaved permission changes")).toBeVisible()
+
+  await page.getByRole("button", { name: "Delete role" }).click()
+  await page.getByRole("alertdialog", { name: "Delete Field Engineer?" }).getByRole("button", { name: "Delete role" }).click()
+  await expect(page.getByText("Field Engineer deleted")).toBeVisible()
+  await expect(page).toHaveURL(new RegExp(`/roles\\?organization=${organizations[0].uuid}$`))
+  await expect(page.getByRole("row", { name: /Field Engineer/ })).toHaveCount(0)
+  await expect(page.getByRole("row", { name: /Shift Lead/ })).toBeVisible()
+
+  expect(consoleMessages).toHaveLength(2)
+  expect(consoleMessages.every((message) => message.includes("status of 422"))).toBe(true)
+  consoleMessages.length = 0
 })

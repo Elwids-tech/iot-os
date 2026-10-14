@@ -1,7 +1,10 @@
 import { useMemo } from "react"
 import type { DirectoryQuery, OrganizationRole, PaginatedResponse } from "@iot-os/api-client"
+import { Button } from "@iot-os/ui/components/button"
 import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
+import { PlusIcon } from "lucide-react"
+import { Link } from "react-router-dom"
 import { useDirectoryTable } from "../components/ResourceDirectory"
 import { useOrganizationOptions } from "../hooks/use-directory"
 import { apiClient } from "../lib/api-client"
@@ -12,7 +15,7 @@ function loadRoles(query: DirectoryQuery): Promise<PaginatedResponse<Organizatio
 
 export function RolesPage() {
   const organizations = useOrganizationOptions()
-  const { table } = useDirectoryTable(loadRoles, { searchPlaceholder: "Role name or key", organizations })
+  const { query, table } = useDirectoryTable(loadRoles, { searchPlaceholder: "Role name or key", organizations })
   const columns = useMemo<DataColumn<OrganizationRole>[]>(
     () => [
       {
@@ -46,7 +49,17 @@ export function RolesPage() {
   )
 
   return (
-    <CollectionPage title="Roles">
+    <CollectionPage
+      title="Roles"
+      actions={
+        <Button size="sm" asChild>
+          <Link to={query.organization ? `/roles/new?organization=${encodeURIComponent(query.organization)}` : "/roles/new"}>
+            <PlusIcon data-icon="inline-start" />
+            New role
+          </Link>
+        </Button>
+      }
+    >
       <DataTable
         id="admin-roles"
         label="Roles"
