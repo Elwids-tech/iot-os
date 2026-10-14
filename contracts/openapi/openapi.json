@@ -2797,6 +2797,69 @@
       }
     },
     "/v1/admin/organizations/{organization}": {
+      "delete": {
+        "operationId": "v1.admin.organizations.destroy",
+        "tags": [
+          "PlatformOrganizationDeletion"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The organization still holds devices or other data that blocks deletion; nothing was deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationNotEmpty"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
       "patch": {
         "operationId": "v1.admin.organizations.update",
         "tags": [
@@ -2858,6 +2921,62 @@
         "x-audience": "platform-admin",
         "x-platform-permission": "PlatformAdministration.manage-organizations",
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/admin/organizations/{organization}/deletion": {
+      "get": {
+        "operationId": "v1.admin.organizations.deletion.show",
+        "tags": [
+          "PlatformOrganizationDeletion"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`OrganizationDeletionResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OrganizationDeletionResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
       }
     },
     "/v1/admin/organizations/{organization}/invitations": {
@@ -3084,7 +3203,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_116",
+        "operationId": "domain.devices.retention.show_118",
         "tags": [
           "Retention"
         ],
@@ -3133,7 +3252,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_117",
+        "operationId": "domain.devices.retention.update_119",
         "tags": [
           "Retention"
         ],
@@ -3463,7 +3582,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_114",
+        "operationId": "domain.devices.retention.show_116",
         "tags": [
           "Retention"
         ],
@@ -3495,7 +3614,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_115",
+        "operationId": "domain.devices.retention.update_117",
         "tags": [
           "Retention"
         ],
@@ -18874,7 +18993,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_152",
+        "operationId": "domain.automation.dag.settings_154",
         "tags": [
           "Dag"
         ],
@@ -18949,7 +19068,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_153",
+        "operationId": "domain.automation.dag.settings_155",
         "tags": [
           "Dag"
         ],
@@ -20181,7 +20300,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_164",
+        "operationId": "domain.automation.scenario.save_166",
         "tags": [
           "Scenario"
         ],
@@ -20297,7 +20416,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_165",
+        "operationId": "domain.automation.scenario.save_167",
         "tags": [
           "Scenario"
         ],
@@ -20842,7 +20961,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_156",
+        "operationId": "domain.automation.dag.timeline_158",
         "tags": [
           "Dag"
         ],
@@ -20913,7 +21032,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_157",
+        "operationId": "domain.automation.dag.timeline_159",
         "tags": [
           "Dag"
         ],
@@ -22481,6 +22600,92 @@
           "password"
         ],
         "title": "LoginRequest"
+      },
+      "OrganizationDeletionEntryResource": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "count"
+        ],
+        "title": "OrganizationDeletionEntryResource"
+      },
+      "OrganizationDeletionResource": {
+        "type": "object",
+        "properties": {
+          "organization": {
+            "type": "object",
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "name",
+              "slug"
+            ]
+          },
+          "deletable": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationDeletionEntryResource"
+            }
+          },
+          "removes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationDeletionEntryResource"
+            }
+          }
+        },
+        "required": [
+          "organization",
+          "deletable",
+          "blockers",
+          "removes"
+        ],
+        "title": "OrganizationDeletionResource"
+      },
+      "OrganizationNotEmpty": {
+        "type": "object",
+        "description": "409 when the organization still holds data that blocks deletion (spec 006).",
+        "required": [
+          "message",
+          "blockers"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "blockers": {
+            "type": "array",
+            "description": "Each kind of blocking data that has rows, with its count.",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationDeletionEntryResource"
+            }
+          }
+        }
       },
       "ProfileParameterDataType": {
         "type": "string",

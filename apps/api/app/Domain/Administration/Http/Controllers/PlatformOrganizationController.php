@@ -36,6 +36,10 @@ final class PlatformOrganizationController
                 });
             })
             ->withCount('users')
+            // Devices block deletion (spec 006), so the directory shows how many each has.
+            ->addSelect(['devices_count' => DB::table('devices')
+                ->selectRaw('count(*)')
+                ->whereColumn('devices.organization_id', 'organizations.id')])
             ->orderBy('name')
             ->paginate($perPage)
             ->withQueryString();

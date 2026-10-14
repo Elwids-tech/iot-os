@@ -138,10 +138,40 @@ add a **New role** (name and permissions from the organization's ceiling) or
 **Rename** (not Organization Admin) and **Delete role** (custom roles that no member
 holds and no pending invitation uses).
 
+### Deleting an organization
+
+**Delete organization** on an Organizations row removes an organization permanently
+([spec 006](../../specs/006-delete-empty-organizations/spec.md)). The list's
+**Devices** column shows which organizations are empty.
+
+Deletion is refused while the organization holds anything that is still people's work
+or that lives outside Laravel's database and has no teardown yet: devices (archived
+ones too), broker connections, gateways, adapter runtimes and device adapters, device
+profiles (soft-deleted ones too), automations, integrations, geofences, or an
+assistant reply still running. The dialog lists each blocker with its count.
+
+Otherwise the dialog lists what goes and asks for the organization's slug. Deletion
+removes, in one transaction:
+- memberships (accounts stay), roles and their assignments, and invitations;
+- the permission ceiling, dashboards, sites, and automation and retention settings;
+- notification events and audit events;
+- AI-agent connections, whose Passport tokens are revoked first;
+- assistant conversations, with their stored files and SDK rows.
+
+One `organization.deleted` audit event, with no organization, records who deleted
+which one (uuid, name and slug). The slug can then be reused. There is no restore:
+recover from a checkpoint.
+
+`OrganizationDeletion` holds the classification. `OrganizationDeletionInventoryTest`
+fails when a foreign key to `organizations` neither cascades nor appears there.
+
 Routes are under `/api/v1/admin` and mostly need
 `PlatformAdministration.manage-organizations`. Creating, renaming and deleting roles,
 and changing or removing members, use the organization routes above: they accept
 platform administrators without membership and let them grant the whole ceiling.
+Deletion uses `GET organizations/{uuid}/deletion` (blockers and removed data, each
+with a count) and `DELETE organizations/{uuid}?slug=<slug>` (204, 409 with
+`blockers`, or 422 for a wrong slug).
 
 The first administrator of a new deployment is created with
 `php artisan deployment:administrator EMAIL --output=<new private file>`

@@ -4,8 +4,30 @@
 # the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
 # Success bodies stay pending until the domain is described.
 # Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    OrganizationNotEmpty:
+      type: object
+      description: 409 when the organization still holds data that blocks deletion (spec 006).
+      required: [message, blockers]
+      properties:
+        message:
+          type: string
+        blockers:
+          type: array
+          description: Each kind of blocking data that has rows, with its count.
+          items:
+            $ref: '#/components/schemas/OrganizationDeletionEntryResource'
 operations:
   PUT /v1/admin/settings/telemetry-retention:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  DELETE /v1/admin/organizations/{organization}:
+    responses:
+      '409':
+        description: The organization still holds devices or other data that blocks deletion; nothing was deleted.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationNotEmpty'

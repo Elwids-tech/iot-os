@@ -8,6 +8,7 @@ use App\Domain\Administration\Http\Controllers\OrganizationMemberController;
 use App\Domain\Administration\Http\Controllers\OrganizationRoleController;
 use App\Domain\Administration\Http\Controllers\PlatformInvitationController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationController;
+use App\Domain\Administration\Http\Controllers\PlatformOrganizationDeletionController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationPermissionController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationRoleController;
 use App\Domain\Administration\Http\Controllers\PlatformRoleController;
@@ -35,6 +36,14 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::patch('organizations/{organization}', [PlatformOrganizationController::class, 'update'])
                 ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
                 ->name('organizations.update');
+            Route::get('organizations/{organization}/deletion', [PlatformOrganizationDeletionController::class, 'show'])
+                ->whereUuid('organization')
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('organizations.deletion.show');
+            Route::delete('organizations/{organization}', [PlatformOrganizationDeletionController::class, 'destroy'])
+                ->whereUuid('organization')
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('organizations.destroy');
             Route::get('users', [PlatformUserController::class, 'index'])
                 ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
                 ->name('users.index');

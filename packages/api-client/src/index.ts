@@ -37,6 +37,8 @@ export type Organization = {
   name: string
   slug: string
   users_count?: number
+  /** Admin directory only; devices block deletion (spec 006). */
+  devices_count?: number
   capabilities?: {
     manage_administration: boolean
     /** Member, invitation and role screens. Older payloads omit it. */
@@ -439,6 +441,21 @@ export type PreviewInput = DraftInput &
   )
 export type PreviewResult = DeviceProfileValidationResult & {
   result: JsonValue
+}
+
+/** One kind of data in an organization deletion check. */
+export type OrganizationDeletionEntry = {
+  key: string
+  label: string
+  count: number
+}
+
+/** Whether an organization can be deleted (spec 006); only entries with rows are listed. */
+export type OrganizationDeletion = {
+  organization: Pick<Organization, "uuid" | "name" | "slug">
+  deletable: boolean
+  blockers: OrganizationDeletionEntry[]
+  removes: OrganizationDeletionEntry[]
 }
 
 export class ApiError extends Error {
@@ -914,6 +931,23 @@ export class ApiClient {
       `/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}`,
       { method: "PATCH", body: JSON.stringify(values) },
     ).then((response) => response.data)
+  }
+
+  async adminOrganizationDeletion(organizationUuid: string): Promise<OrganizationDeletion> {
+    return this.request<ApiResponse<OrganizationDeletion>>(
+      `/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}/deletion`,
+    ).then((response) => response.data)
+  }
+
+  /**
+   * Deletes the organization permanently; `slug` repeats its slug as confirmation.
+   * A 409 carries `blockers` (OrganizationDeletionEntry[]) when it still holds data that blocks it.
+   */
+  async deleteAdminOrganization(organizationUuid: string, slug: string): Promise<void> {
+    await this.request(
+      `/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}?${new URLSearchParams({ slug })}`,
+      { method: "DELETE" },
+    )
   }
 
   async organizationMembers(
