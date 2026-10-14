@@ -125,10 +125,13 @@ Things that have cost time before. Add to this list when something surprises you
 ## Device adapters
 
 - **Time decoder budgets in CPU time, from the start of the tenant's code.** QuickJS
-  calls its interrupt handler when evaluated code starts running and then about every
-  10,000 operations. The 100 ms budget used to be wall time started before the context
-  and script were built, so a busy CI runner spent it before a trivial decoder ran
-  (`error: 'interrupted'`), and a 1 MiB input always did.
+  calls its interrupt handler about every 10,000 operations, counted across all the
+  evals in a runtime. The first eval in a fresh runtime is checked as it starts, but
+  after the worker's setup eval a trivial decoder runs without a single check, so a
+  test that needs the handler must loop (20,000 iterations is enough). The 100 ms
+  budget used to be wall time started before the context and script were built, so a
+  busy CI runner spent it before a trivial decoder ran (`error: 'interrupted'`), and a
+  1 MiB input always did.
   [`decoder-worker.cjs`](../../services/adapters/lib/decoder-worker.cjs) now measures
   `process.threadCpuUsage()` from just before the decoder's script.
 - **QuickJS checks its interrupt handler only between bytecode operations.** A
@@ -137,15 +140,30 @@ Things that have cost time before. Add to this list when something surprises you
   `JSON.stringify` of large values ran for 0.3–4.7 s. The worker deadline in
   [`decoder.cjs`](../../services/adapters/lib/decoder.cjs) catches these. It reads
   the worker's CPU time with `worker.cpuUsage()` (Node 22.19+), which works while
-  the worker is stuck in QuickJS but rejects once the worker has exited. A
-  500 ms wall-clock deadline here still failed 1 in 40 runs under load.
-- **Loading QuickJS in a fresh worker is load-sensitive too.** At `--cpus=0.25`
-  with four busy loops, workers took up to 4.2 s of wall time to post `ready`, for
-  at most 190 ms of their own CPU, so the old 5 s startup limit failed about 1 run
-  in 20. With twelve loops they took up to 7.7 s, and the old limit failed every
-  run. Loading now gets the same 30 s as the answer limit. At twelve loops, that
-  30 s limit is the next one to trip, because a decoder spending its 500 ms of CPU
-  needs more wall time.
+  the worker is stuck in QuickJS. A 500 ms wall-clock deadline here still failed
+  1 in 40 runs under load.
+- **No decoder limit may count wall time.** At `--cpus=0.25` with four busy loops,
+  workers took up to 4.2 s of wall time to post `ready` for at most 190 ms of their
+  own CPU, so a 5 s startup limit failed about 1 run in 20. With twelve loops, a
+  30 s wall-clock limit stopped the backtracking-regex test before its 500 ms CPU
+  deadline in 6 of 8 runs, and a 1 MiB input took up to 67 s to decode for 0.5 s of
+  setup CPU. `decode()` now stops a worker only when its CPU time stops advancing
+  for 30 s, or when setup passes 5 s of CPU.
+- **Reading a worker's CPU time costs the worker CPU.** The worker thread answers
+  `worker.cpuUsage()` itself, so a worker blocked in `Atomics.wait` still gains
+  0.03 ms per read, and up to 0.5 ms on a busy host. A stall check that counts any
+  advance as progress never fires; `decode()` needs 1 ms between reads. Reads
+  reject with `ERR_WORKER_NOT_RUNNING` until the worker's environment exists (over
+  2 s with twelve busy loops) and after it exits, but they resolve while a
+  `--require` preload blocks, before the worker is `online`.
+- **Mocked time outruns a real worker.** Ticking `t.mock.timers` past a real
+  worker's CPU checks fits 30 s into milliseconds, in which the worker cannot use
+  1 ms of CPU, so a working worker looks stalled. The decoder tests either mock
+  `Worker.prototype.cpuUsage` and let only microtasks run between ticks (the real
+  worker's messages wait until the test yields to the event loop), or move the clock
+  only after the worker reports on a `BroadcastChannel` that it has blocked. Mocked
+  timers' `refresh()` does not re-arm a timeout in Node 22, so re-arm with
+  `clearTimeout` and `setTimeout`.
 - **Reproduce host-load flakes in a CPU-limited container.** macOS shares CPU too
   evenly to stall a worker for 100 ms. `docker run --cpus=1` with four
   `node -e 'for(;;){}'` loops next to `node --test` reproduced that CI failure in 5 of
