@@ -129,13 +129,16 @@ function SelectField({
 }) {
   const generated = React.useId()
   const id = idProp ?? generated
+  // Radix items cannot have an empty value, so an empty option stands in as NONE. Without
+  // one, an empty value must stay empty so the placeholder shows.
+  const emptyValue = options.some((option) => !option.value) ? NONE : ""
   return (
     <Field data-invalid={Boolean(error)} data-disabled={disabled}>
       <FieldLabel htmlFor={id} optional={optional} className={labelHidden ? "sr-only" : undefined}>
         {label}
       </FieldLabel>
       <Select
-        value={value || NONE}
+        value={value || emptyValue}
         onValueChange={(next) => onChange(next === NONE ? "" : next)}
         disabled={disabled}
       >

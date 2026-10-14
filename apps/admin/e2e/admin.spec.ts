@@ -1102,6 +1102,7 @@ test("asks before discarding a new role", async ({ page }) => {
   await mockApi(page)
   await page.goto("/roles/new")
 
+  await expect(page.getByRole("combobox", { name: "Organization" })).toHaveText("Select an organization")
   await page.getByRole("combobox", { name: "Organization" }).click()
   await page.getByRole("option", { name: "Northstar Utilities" }).click()
   await page.getByRole("textbox", { name: "Role name" }).fill("Auditor")
