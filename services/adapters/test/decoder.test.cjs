@@ -63,6 +63,18 @@ test("time the worker spends without the CPU does not count against the decoder"
   ]);
   assert.deepEqual(JSON.parse(stdout), { total: 59997 });
 });
+test("a worker that is slow to load QuickJS still decodes, up to 30 s", async (t) => {
+  // On a busy host, loading QuickJS took up to 7.7 s of wall time for at most
+  // 190 ms of CPU. Mocked timers let that time pass before the worker starts.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const code = "function decode(){return {ok:true}}";
+  const slow = decode(code, {});
+  t.mock.timers.tick(29000);
+  assert.equal((await slow).ok, true);
+  const stuck = decode(code, {});
+  t.mock.timers.tick(30000);
+  await assert.rejects(stuck, { message: "Decoder worker did not start" });
+});
 test("work QuickJS cannot interrupt is stopped by the worker deadline", async () => {
   // A backtracking regular expression runs inside one QuickJS call, which the
   // decoder's own budget cannot interrupt.

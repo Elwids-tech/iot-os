@@ -99,7 +99,7 @@ function decode(input, helpers) {
   cannot interrupt a single long built-in call, such as a backtracking regular
   expression, so the worker is also stopped after 500 ms of CPU time from the
   start of the decoder's code. It is stopped as well if QuickJS takes more than
-  5 s to load, or if the worker then gives no answer for 30 s. No host APIs,
+  30 s to load, or if the worker then gives no answer for 30 s. No host APIs,
   filesystem, network, secrets, modules, async or persistent state.
 - Invalid messages produce diagnostics. Partial messages update only the metrics
   they carry. Missing values are never replaced with zero, and a decreasing

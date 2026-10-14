@@ -139,10 +139,22 @@ Things that have cost time before. Add to this list when something surprises you
   the worker's CPU time with `worker.cpuUsage()` (Node 22.19+), which works while
   the worker is stuck in QuickJS but rejects once the worker has exited. A
   500 ms wall-clock deadline here still failed 1 in 40 runs under load.
+- **Loading QuickJS in a fresh worker is load-sensitive too.** At `--cpus=0.25`
+  with four busy loops, workers took up to 4.2 s of wall time to post `ready`, for
+  at most 190 ms of their own CPU, so the old 5 s startup limit failed about 1 run
+  in 20. With twelve loops they took up to 7.7 s, and the old limit failed every
+  run. Loading now gets the same 30 s as the answer limit. At twelve loops, that
+  30 s limit is the next one to trip, because a decoder spending its 500 ms of CPU
+  needs more wall time.
 - **Reproduce host-load flakes in a CPU-limited container.** macOS shares CPU too
   evenly to stall a worker for 100 ms. `docker run --cpus=1` with four
   `node -e 'for(;;){}'` loops next to `node --test` reproduced that CI failure in 5 of
   40 runs. At `--cpus=0.25`, the old wall-clock worker deadline failed every run.
+  More busy loops inside the container add load; Docker builds or busy containers
+  beside it barely do, because each container keeps its CPU quota. Never use a
+  `docker build --no-cache` loop as load: each build leaves new layers, and 275
+  builds filled the Mac's disk until the Docker Desktop VM failed with
+  `input/output error`.
 
 ## Browser tests and screenshots
 
