@@ -149,6 +149,10 @@ ssh <app-host> 'cd /srv/elwids/source && python3 tooling/release/manage.py backu
 ssh <app-host> 'python3 /srv/elwids/source/tooling/release/pilot/verify_checkpoint_restore.py'
 ```
 
+Before installing a release, run the drill from the staged source instead
+(`<staged source>/tooling/release/pilot/verify_checkpoint_restore.py`); it uses the
+release tooling next to it.
+
 The restore drill restores the latest checkpoint into a disposable internal
 TimescaleDB network (no ports, no outbound network), runs
 `deployment:quarantine-restore`, verifies tables and migrations, and updates

@@ -280,6 +280,14 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(release.read_env(path), first)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
+    def test_docker_run_environment_passes_multi_line_values_exactly(self):
+        key = "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n"
+        arguments, environment = release.docker_run_environment({"PASSPORT_PRIVATE_KEY": key, "DB_HOST": "db"})
+        self.assertEqual(["-e", "PASSPORT_PRIVATE_KEY", "-e", "DB_HOST"], arguments)
+        self.assertEqual(key, environment["PASSPORT_PRIVATE_KEY"])
+        self.assertEqual("db", environment["DB_HOST"])
+        self.assertIn("PATH", environment)
+
     def test_a_lone_passport_key_is_never_regenerated(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/"env"

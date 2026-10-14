@@ -106,6 +106,12 @@ Things that have cost time before. Add to this list when something surprises you
   although every dev check passed. Paths the API must serve from a dot
   directory need their own `^~` location; `manage.py smoke` checks agent
   discovery when agents are on.
+- **`docker run --env-file` reads each line literally.** Unlike Compose env
+  files, it strips no quotes and cannot hold a multi-line value. After the
+  Passport keys (PEM) entered the pilot environment, the checkpoint restore drill
+  failed with "variable '-----END PRIVATE KEY-----' contains whitespaces". Pass a
+  private environment with `-e NAME` from the client's environment instead
+  (`docker_run_environment` in [`manage.py`](../../tooling/release/manage.py)).
 - **A fresh worktree has no `apps/api/vendor` and no `.env`.** Clone the main
   checkout's vendor directory (`cp -Rc`, never a symlink: Composer resolves
   `__DIR__` through the link and autoloads the main checkout's `app/`), then

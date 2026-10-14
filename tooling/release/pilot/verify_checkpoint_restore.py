@@ -5,8 +5,9 @@ import time
 import shutil
 from pathlib import Path
 
-sys.path.insert(0, "/srv/elwids/source/tooling/release")
-from manage import Deployment, read_env, private_write
+# The release tooling next to this script, so a staged release can check the checkpoint before it is installed.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from manage import Deployment, docker_run_environment, read_env, private_write
 
 d = Deployment(
     "/srv/elwids/private/application.env", "/srv/elwids/private/current-release.json"
@@ -141,10 +142,7 @@ try:
         IOT_RECOVERY_MODE="true",
         LOG_CHANNEL="stderr",
     )
-    private_write(
-        root / "recovery.env",
-        "\n".join(k + '="' + v + '"' for k, v in env.items()) + "\n",
-    )
+    arguments, environment = docker_run_environment(env)
     subprocess.run(
         [
             "docker",
@@ -154,14 +152,14 @@ try:
             network,
             "--memory",
             "384m",
-            "--env-file",
-            str(root / "recovery.env"),
+            *arguments,
             images["API_IMAGE"],
             "php",
             "artisan",
             "deployment:quarantine-restore",
         ],
         check=True,
+        env=environment,
         stdout=subprocess.DEVNULL,
     )
     tables = int(
