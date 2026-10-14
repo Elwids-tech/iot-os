@@ -131,10 +131,18 @@ Things that have cost time before. Add to this list when something surprises you
   (`error: 'interrupted'`), and a 1 MiB input always did.
   [`decoder-worker.cjs`](../../services/adapters/lib/decoder-worker.cjs) now measures
   `process.threadCpuUsage()` from just before the decoder's script.
+- **QuickJS checks its interrupt handler only between bytecode operations.** A
+  single built-in call runs to completion: `/^(a+)+$/` on 28 `a`s and a `b` was
+  still running after 7.8 s of CPU, and short loops over `indexOf`, `sort` or
+  `JSON.stringify` of large values ran for 0.3–4.7 s. The worker deadline in
+  [`decoder.cjs`](../../services/adapters/lib/decoder.cjs) catches these. It reads
+  the worker's CPU time with `worker.cpuUsage()` (Node 22.19+), which works while
+  the worker is stuck in QuickJS but rejects once the worker has exited. A
+  500 ms wall-clock deadline here still failed 1 in 40 runs under load.
 - **Reproduce host-load flakes in a CPU-limited container.** macOS shares CPU too
   evenly to stall a worker for 100 ms. `docker run --cpus=1` with four
   `node -e 'for(;;){}'` loops next to `node --test` reproduced that CI failure in 5 of
-  40 runs.
+  40 runs. At `--cpus=0.25`, the old wall-clock worker deadline failed every run.
 
 ## Browser tests and screenshots
 
