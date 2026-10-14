@@ -127,11 +127,22 @@ the Members and Roles pages.
 The admin app ([`apps/admin`](../../apps/admin)) requires
 `PlatformAdministration.access`, granted by the `platform-administrator` platform
 role; super administrators (`users.is_super_admin`) pass every check. It covers
-organizations and their ceilings, users, invitations, role templates, the platform
+organizations and their ceilings and roles, users, invitations, the platform
 team (super administrators only) and telemetry retention
 (`PlatformAdministration.manage-retention`).
 
+A platform administrator sets up an organization from **Organizations**: create it
+(it gets the three built-in roles), then use the row's actions to open its **Roles**,
+add a **New role** (name and permissions from the organization's ceiling) or
+**Invite user** with any of its roles. A role's page edits its permissions and offers
+**Rename** (not Organization Admin) and **Delete role** (custom roles that no member
+holds and no pending invitation uses).
+
 Routes are under `/api/v1/admin` and mostly need
-`PlatformAdministration.manage-organizations`. The first administrator of a new
-deployment is created with `php artisan deployment:administrator EMAIL
---output=<new private file>` ([release](../ops/release.md)).
+`PlatformAdministration.manage-organizations`. Creating, renaming and deleting roles,
+and changing or removing members, use the organization routes above: they accept
+platform administrators without membership and let them grant the whole ceiling.
+
+The first administrator of a new deployment is created with
+`php artisan deployment:administrator EMAIL --output=<new private file>`
+([release](../ops/release.md)).

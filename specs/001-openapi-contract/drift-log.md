@@ -157,3 +157,11 @@ Recorded for separate changes; the contract describes today's behaviour.
    returns string coordinates, unlike the contract's numbers. A string
    `expected_revision` also fails the strict revision comparison and returns 409 for a
    current revision. First-party clients and the SDK send numbers.
+
+## Later changes
+
+Statuses found after spec 001 by tests that exercise an operation for the first time.
+
+| Operation | Source | Discrepancy | Resolution | Pull request |
+| --- | --- | --- | --- | --- |
+| `DELETE /v1/organizations/{organization}/roles/{role}` | inference | 422 missing: `OrganizationRoleManager::delete` refuses a built-in role, a role a member holds and a role on a pending invitation | `422: ValidationFailed` in `supplements/administration.yaml` | spec 005 |

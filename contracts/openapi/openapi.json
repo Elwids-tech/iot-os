@@ -17353,6 +17353,9 @@
           },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
           }
         },
         "security": [
