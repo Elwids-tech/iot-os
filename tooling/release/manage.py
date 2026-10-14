@@ -68,6 +68,15 @@ def add_passport_keys(path):
     return True
 
 
+def docker_run_environment(values):
+    """`docker run` arguments and a client environment that pass values exactly.
+
+    `--env-file` takes each line literally, so it cannot carry a multi-line value such as
+    a Passport key; `-e NAME` makes docker read the value from its own environment.
+    """
+    return [part for key in values for part in ("-e", key)], {**os.environ, **values}
+
+
 def private_write(path, value, mode=0o600):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
