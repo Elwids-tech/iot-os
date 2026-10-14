@@ -56,6 +56,68 @@ tokens), `@iot-os/ui` (`AlertDialog`, `TextField`, `DataTable`)
 
 ### Classification (`app/Domain/Administration/Services/OrganizationDeletion.php`)
 
+**Blockers**, grouped the way people act on them. A group shows the count of its
+first table with rows; the later tables only hold rows that hang off the first.
+
+| Blocker | Tables |
+| --- | --- |
+| Devices | `devices`, `device_location_bindings` |
+| Broker connections | `sparkplug_connections` |
+| Gateways | `sparkplug_gateways`, `device_discovery_candidates` |
+| Device adapters | `device_adapters` |
+| Adapter runtimes | `device_adapter_tenants` |
+| Device profiles | `device_profiles` including soft-deleted (its key sets null, which would turn them into platform templates) |
+| Automations | `automation_workflows`, `automation_alerts`, `automation_actions` |
+| Integration applications | `integration_applications`, `integration_streams`, `integration_events` |
+| Geofences | `geofences`, `geofence_assignments`, `geofence_activation_batches`, `geofence_events` |
+| Assistant replies in progress | `assistant_runs` with `reserved_usd > 0` on the organization's conversations |
+
+**Removed data** is counted for the confirmation dialog, then deleted with the
+  organization. Most of it cascades from `organizations`; audit events and retention
+  settings use restrictive keys and are deleted explicitly first.
+- **Side effects** outside cascading rows: agent tokens are revoked before the delete;
+  assistant files and SDK conversation rows are removed and the permission cache is
+  cleared after commit.
+
+Two admin routes expose it, the Organizations list gains a Devices column and a
+**Delete organization** action, and a schema test keeps the classification complete.
+
+## Technical Context
+
+**Language/Version**: PHP 8.4 / Laravel 13; TypeScript, React 19
+
+**Primary Dependencies**: spatie/laravel-permission (teams), Laravel Passport (agent
+tokens), `@iot-os/ui` (`AlertDialog`, `TextField`, `DataTable`)
+
+**Storage**: PostgreSQL 17; no migration
+
+**Testing**: PHPUnit on PostgreSQL in CI (and locally against a throwaway
+`timescale/timescaledb:2.29.2-pg17`); Playwright with a mocked API for admin
+
+**Target Platform**: admin app and API (pilot release profile)
+
+**Project Type**: web application
+
+**Scale/Scope**: 1 service, 1 controller, 2 resources, 1 dialog, 1 column
+
+## Constitution Check
+
+| Principle | Status |
+| --- | --- |
+| I. Laravel owns intent | Pass. Only Laravel rows change. Runtime tables (`device_runtime`, read-only to the API in release) hold rows only for organizations with devices, which block. |
+| II. Immutable versions | Pass. Organizations with profiles, automations or deployments block; nothing activated is touched. |
+| III. Tenant isolation | Pass. Platform administrators only; every query is scoped by `organization_id`. A test proves another organization's members, roles, audit events and agent tokens survive. |
+| IV. Contracts first | Pass. Both operations are described in the export with their 409/422 responses (not added to the pending list), and `packages/api-client` gains both methods. |
+| V. AI proposes | Pass. Not exposed to agents or the assistant. |
+| VI. Show uncertainty | Pass. The dialog shows live counts and re-checks on confirm. |
+| VII. Durable messaging | Pass. No events are emitted; organizations with outbox-producing resources block. |
+| VIII. One design system | Pass. Kit `AlertDialog`, `TextField`, `DataTable` column; no new kit component. |
+| IX. Verified where it runs | Pass. PostgreSQL CI, rebuilt `api` and `admin`, browser walk-through, then the pilot (SC-001). |
+
+## Design
+
+### Classification (`app/Domain/Administration/Services/OrganizationDeletion.php`)
+
 **Blockers** (label, count query by `organization_id`):
 
 | Blocker | Tables |
@@ -100,7 +162,7 @@ the explicitly removed tables. A new table fails the test until it is classified
 - `GET /api/v1/admin/organizations/{organization}/deletion` →
   `OrganizationDeletionResource`: `organization` (uuid, name, slug), `deletable`,
   `blockers[]` and `removes[]` (`key`, `label`, `count`; only non-zero entries).
-- `DELETE /api/v1/admin/organizations/{organization}` with `{"slug": "<slug>"}` → 204;
+- `DELETE /api/v1/admin/organizations/{organization}?slug=<slug>` → 204;
   422 for a wrong slug; 409 with `blockers[]` when blocked.
 - Both gated by `can:PlatformAdministration.manage-organizations`, with
   `whereUuid('organization')`.

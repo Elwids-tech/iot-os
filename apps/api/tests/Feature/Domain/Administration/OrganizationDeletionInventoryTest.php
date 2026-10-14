@@ -19,7 +19,7 @@ final class OrganizationDeletionInventoryTest extends TestCase
 
     public function test_every_foreign_key_to_organizations_cascades_or_is_classified(): void
     {
-        $handled = [...array_keys(OrganizationDeletion::BLOCKERS), ...OrganizationDeletion::REMOVED_FIRST];
+        $handled = [...OrganizationDeletion::blockingTables(), ...OrganizationDeletion::REMOVED_FIRST];
         $unhandled = [];
         $seen = 0;
 
@@ -43,7 +43,7 @@ final class OrganizationDeletionInventoryTest extends TestCase
 
     public function test_every_classified_table_exists_and_refers_to_organizations(): void
     {
-        foreach ([...array_keys(OrganizationDeletion::BLOCKERS), ...OrganizationDeletion::REMOVED_FIRST] as $table) {
+        foreach ([...OrganizationDeletion::blockingTables(), ...OrganizationDeletion::REMOVED_FIRST] as $table) {
             $this->assertTrue(Schema::hasColumn($table, 'organization_id'), "{$table}.organization_id is missing");
         }
     }

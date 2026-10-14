@@ -30,7 +30,7 @@ type Check =
 
 function EntryList({ entries, label }: { entries: OrganizationDeletionEntry[]; label: string }) {
   return (
-    <dl aria-label={label} className="flex flex-col divide-y rounded-md border text-sm">
+    <dl aria-label={label} className="flex max-h-72 flex-col divide-y overflow-y-auto rounded-md border text-sm">
       {entries.map((entry) => (
         <div key={entry.key} className="flex items-center justify-between gap-4 px-3 py-2">
           <dt>{entry.label}</dt>

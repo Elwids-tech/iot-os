@@ -23,31 +23,25 @@ use Spatie\Permission\PermissionRegistrar;
 final class OrganizationDeletion
 {
     /**
-     * Tables whose rows block deletion, with what the admin app calls them. Broker logins,
-     * adapter containers and runtime history have no teardown yet, and the rest is work
-     * people made. Every foreign key to organizations that does not cascade must be listed
-     * here or in REMOVED_FIRST (OrganizationDeletionInventoryTest).
+     * What blocks deletion, grouped the way people act on it. Broker logins, adapter
+     * containers and runtime history have no teardown yet, and the rest is work people
+     * made. A group shows the count of its first table with rows; the later tables only
+     * hold rows that hang off the first. Every foreign key to organizations that does not
+     * cascade must be in a group or in REMOVED_FIRST (OrganizationDeletionInventoryTest).
+     *
+     * @var array<string, array{label: string, tables: list<string>}>
      */
     public const BLOCKERS = [
-        'devices' => 'Devices',
-        'sparkplug_connections' => 'Broker connections',
-        'sparkplug_gateways' => 'Gateways',
-        'device_discovery_candidates' => 'Discovered devices',
-        'device_adapter_tenants' => 'Adapter runtimes',
-        'device_adapters' => 'Device adapters',
+        'devices' => ['label' => 'Devices', 'tables' => ['devices', 'device_location_bindings']],
+        'broker_connections' => ['label' => 'Broker connections', 'tables' => ['sparkplug_connections']],
+        'gateways' => ['label' => 'Gateways', 'tables' => ['sparkplug_gateways', 'device_discovery_candidates']],
+        'device_adapters' => ['label' => 'Device adapters', 'tables' => ['device_adapters']],
+        'adapter_runtimes' => ['label' => 'Adapter runtimes', 'tables' => ['device_adapter_tenants']],
         // Soft-deleted ones too: the key sets null, which would turn them into platform templates.
-        'device_profiles' => 'Device profiles',
-        'automation_workflows' => 'Automations',
-        'automation_alerts' => 'Automation alerts',
-        'automation_actions' => 'Automation actions',
-        'integration_applications' => 'Integration applications',
-        'integration_streams' => 'Integration event streams',
-        'integration_events' => 'Integration events',
-        'geofences' => 'Geofences',
-        'geofence_assignments' => 'Geofence assignments',
-        'geofence_activation_batches' => 'Geofence activations',
-        'geofence_events' => 'Geofence events',
-        'device_location_bindings' => 'Device locations',
+        'device_profiles' => ['label' => 'Device profiles', 'tables' => ['device_profiles']],
+        'automations' => ['label' => 'Automations', 'tables' => ['automation_workflows', 'automation_alerts', 'automation_actions']],
+        'integrations' => ['label' => 'Integration applications', 'tables' => ['integration_applications', 'integration_streams', 'integration_events']],
+        'geofences' => ['label' => 'Geofences', 'tables' => ['geofences', 'geofence_assignments', 'geofence_activation_batches', 'geofence_events']],
     ];
 
     /** Data that goes with the organization behind restrictive keys, deleted before it. */
@@ -63,8 +57,16 @@ final class OrganizationDeletion
         $id = $organization->getKey();
         $counts = [];
 
-        foreach (self::BLOCKERS as $table => $label) {
-            $counts[] = ['key' => $table, 'label' => $label, 'count' => DB::table($table)->where('organization_id', $id)->count()];
+        foreach (self::BLOCKERS as $key => $blocker) {
+            $count = 0;
+
+            foreach ($blocker['tables'] as $table) {
+                if (($count = DB::table($table)->where('organization_id', $id)->count()) > 0) {
+                    break;
+                }
+            }
+
+            $counts[] = ['key' => $key, 'label' => $blocker['label'], 'count' => $count];
         }
 
         $counts[] = ['key' => 'assistant_runs', 'label' => 'Assistant replies in progress', 'count' => $this->reservedAssistantRuns($organization)];
@@ -142,6 +144,14 @@ final class OrganizationDeletion
 
         // Role rows went by cascade, which the permission cache never hears about.
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function blockingTables(): array
+    {
+        return array_merge(...array_values(array_map(fn (array $blocker): array => $blocker['tables'], self::BLOCKERS)));
     }
 
     private function reservedAssistantRuns(Organization $organization): int

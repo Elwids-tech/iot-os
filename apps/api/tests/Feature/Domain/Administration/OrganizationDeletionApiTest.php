@@ -131,11 +131,11 @@ final class OrganizationDeletionApiTest extends TestCase
     public static function blockers(): iterable
     {
         yield 'an archived device' => [fn (Organization $o) => Device::create(['organization_id' => $o->id, 'code' => 'pump-1', 'name' => 'Pump', 'lifecycle' => 'archived']), 'devices'];
-        yield 'a broker connection' => [fn (Organization $o) => self::connection($o), 'sparkplug_connections'];
-        yield 'a gateway' => [fn (Organization $o) => SparkplugGateway::create(['organization_id' => $o->id, 'sparkplug_connection_id' => self::connection($o)->id, 'name' => 'Gateway', 'edge_node_id' => 'edge']), 'sparkplug_gateways'];
-        yield 'an adapter runtime' => [fn (Organization $o) => AdapterTenant::create(['organization_id' => $o->id, 'listen_port' => 18883, 'runtime_token' => Str::random(64), 'ingress_admin_password' => Str::random(64)]), 'device_adapter_tenants'];
+        yield 'a broker connection' => [fn (Organization $o) => self::connection($o), 'broker_connections'];
+        yield 'a gateway' => [fn (Organization $o) => SparkplugGateway::create(['organization_id' => $o->id, 'sparkplug_connection_id' => self::connection($o)->id, 'name' => 'Gateway', 'edge_node_id' => 'edge']), 'gateways'];
+        yield 'an adapter runtime' => [fn (Organization $o) => AdapterTenant::create(['organization_id' => $o->id, 'listen_port' => 18883, 'runtime_token' => Str::random(64), 'ingress_admin_password' => Str::random(64)]), 'adapter_runtimes'];
         yield 'a soft-deleted device profile' => [fn (Organization $o) => DeviceProfile::create(['organization_id' => $o->id, 'code' => 'meter', 'name' => 'Meter'])->delete(), 'device_profiles'];
-        yield 'a draft automation' => [fn (Organization $o) => Workflow::create(['organization_id' => $o->id, 'name' => 'Too hot', 'workflow' => [], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => User::query()->value('id')]), 'automation_workflows'];
+        yield 'a draft automation' => [fn (Organization $o) => Workflow::create(['organization_id' => $o->id, 'name' => 'Too hot', 'workflow' => [], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => User::query()->value('id')]), 'automations'];
     }
 
     /**

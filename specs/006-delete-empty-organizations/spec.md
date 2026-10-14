@@ -116,8 +116,9 @@ the dialog lists "6 devices" (and any other blockers) and offers no delete butto
   plus rows in any other table whose foreign key would stop the delete (these exist
   only alongside one of the blockers above). Only blockers with rows are shown.
 - **FR-003**: `DELETE /api/v1/admin/organizations/{organization}` MUST require the
-  organization's slug in the body, MUST re-check blockers under a lock, and MUST
-  return 409 with the current blockers when any exist.
+  organization's slug (`?slug=`; the contract describes DELETE parameters in the
+  query), MUST re-check blockers under a lock, and MUST return 409 with the current
+  blockers when any exist.
 - **FR-004**: Deleting MUST remove, in one transaction: memberships, roles and their
   assignments, invitations, the permission ceiling, dashboards, sites, automation
   settings, notification events, retention settings, audit events, AI-agent
