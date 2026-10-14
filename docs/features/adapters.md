@@ -93,10 +93,11 @@ function decode(input, helpers) {
 - Metric values can be numbers, safe integers, booleans or strings.
 - Sandbox ([`lib/decoder.cjs`](../../services/adapters/lib/decoder.cjs),
   [`lib/decoder-worker.cjs`](../../services/adapters/lib/decoder-worker.cjs)):
-  QuickJS with a fresh context per message, 100 ms execution budget, 16 MiB
-  memory, 500 ms worker deadline once QuickJS has loaded (5 s to start the
-  worker), 1 MiB raw input, 64,000-character decoder. No host APIs, filesystem,
-  network, secrets, modules, async or persistent state.
+  QuickJS with a fresh context per message, 100 ms execution budget (CPU time
+  of the decoder's own code; creating the context and parsing the input do not
+  count), 16 MiB memory, 500 ms worker deadline once QuickJS has loaded (5 s to
+  start the worker), 1 MiB raw input, 64,000-character decoder. No host APIs,
+  filesystem, network, secrets, modules, async or persistent state.
 - Invalid messages produce diagnostics. Partial messages update only the metrics
   they carry. Missing values are never replaced with zero, and a decreasing
   monotonic counter needs review.

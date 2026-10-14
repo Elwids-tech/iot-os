@@ -122,6 +122,20 @@ Things that have cost time before. Add to this list when something surprises you
   fails with a missing class (such as `Laravel\Passport\Passport`), run
   `composer install` in the worktree.
 
+## Device adapters
+
+- **Time decoder budgets in CPU time, from the start of the tenant's code.** QuickJS
+  calls its interrupt handler when evaluated code starts running and then about every
+  10,000 operations. The 100 ms budget used to be wall time started before the context
+  and script were built, so a busy CI runner spent it before a trivial decoder ran
+  (`error: 'interrupted'`), and a 1 MiB input always did.
+  [`decoder-worker.cjs`](../../services/adapters/lib/decoder-worker.cjs) now measures
+  `process.threadCpuUsage()` from just before the decoder's script.
+- **Reproduce host-load flakes in a CPU-limited container.** macOS shares CPU too
+  evenly to stall a worker for 100 ms. `docker run --cpus=1` with four
+  `node -e 'for(;;){}'` loops next to `node --test` reproduced that CI failure in 5 of
+  40 runs.
+
 ## Browser tests and screenshots
 
 - **Playwright browser version.** If the headless shell pinned by
