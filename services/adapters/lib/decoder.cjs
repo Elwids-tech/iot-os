@@ -1,7 +1,6 @@
 const { Worker } = require("node:worker_threads");
 const path = require("node:path");
 
-const STARTUP_DEADLINE_MS = 5000;
 // QuickJS interrupts the decoder after 100 ms of CPU, but never inside a single
 // built-in call such as a backtracking regular expression. This backstop is the
 // worker's CPU time from the start of the decoder's code, because wall time also
@@ -9,7 +8,9 @@ const STARTUP_DEADLINE_MS = 5000;
 const DECODE_CPU_DEADLINE_MS = 500;
 const CPU_CHECK_INTERVAL_MS = 50;
 // Decoder code cannot wait without using the CPU, so this only stops a worker
-// that has stopped answering for some other reason.
+// that has stopped answering for some other reason. Loading QuickJS gets the
+// same time: on a busy host it took up to 7.7 s of wall time for at most 190 ms
+// of the worker's CPU, and none of the decoder's code runs before it is ready.
 const ANSWER_DEADLINE_MS = 30000;
 
 function inputFromMessage(payload, topic, metadata = {}) {
@@ -58,11 +59,9 @@ function decode(code, input) {
       worker.terminate();
       error ? reject(error) : resolve(result);
     };
-    // Loading QuickJS in a fresh worker is slow on a busy host, so it has its
-    // own deadline.
     let timer = setTimeout(
       () => finish(Error("Decoder worker did not start")),
-      STARTUP_DEADLINE_MS,
+      ANSWER_DEADLINE_MS,
     );
     // worker.cpuUsage() reads the worker's CPU time even while it is stuck inside
     // QuickJS. It rejects once the worker has exited, and the exit handler settles.
