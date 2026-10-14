@@ -143,13 +143,13 @@ jobs:
       - run: pnpm --filter @iot-os/api-client typecheck
       # Portal and admin lint = typecheck + design system guardrails (packages/ui/scripts/check-ui.mjs).
       - run: pnpm --filter @iot-os/portal --filter @iot-os/admin lint
-      # Unit tests only: admin's test script is Playwright against a live stack.
+      # Unit tests only: admin's test script is Playwright, which runs in the e2e job.
       - name: Unit tests
         run: pnpm --filter @iot-os/portal --filter @iot-os/ui --filter @iot-os/charts --filter @iot-os/integration-sdk --filter @iot-os/vertical-demo test
       - run: pnpm --filter @iot-os/portal --filter @iot-os/admin build
 
   e2e:
-    name: Portal end-to-end (mocked API)
+    name: Portal and admin end-to-end (mocked API)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -182,11 +182,17 @@ jobs:
           fi
           # studio.spec.ts drives a live API, so it stays a local check.
           pnpm exec playwright test $(ls e2e/*.spec.ts | grep -v '^e2e/studio\.spec\.ts$')
+      # Admin mocks every API call; its config starts a Vite dev server on 4174.
+      - name: Run the admin specs
+        working-directory: apps/admin
+        run: pnpm exec playwright test
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
           name: playwright-traces
-          path: ${{ runner.temp }}/playwright
+          path: |
+            ${{ runner.temp }}/playwright
+            apps/admin/test-results
           retention-days: 7
 
   adapters:
