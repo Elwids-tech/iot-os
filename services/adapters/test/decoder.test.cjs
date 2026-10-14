@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const { promisify } = require("node:util");
+const { Worker } = require("node:worker_threads");
 const execFile = promisify(require("node:child_process").execFile);
 const {
   decode,
@@ -63,17 +64,113 @@ test("time the worker spends without the CPU does not count against the decoder"
   ]);
   assert.deepEqual(JSON.parse(stdout), { total: 59997 });
 });
-test("a worker that is slow to load QuickJS still decodes, up to 30 s", async (t) => {
-  // On a busy host, loading QuickJS took up to 7.7 s of wall time for at most
-  // 190 ms of CPU. Mocked timers let that time pass before the worker starts.
+// Mocked timers and CPU reads let time pass before the worker answers. Only
+// microtasks run between steps, so the real worker's messages wait until the
+// test awaits the decode.
+function mockWorkerCpu(t) {
   t.mock.timers.enable({ apis: ["setTimeout"] });
+  const worker = { cpu: 0, online: true };
+  t.mock.method(Worker.prototype, "cpuUsage", () =>
+    worker.online
+      ? Promise.resolve({ user: worker.cpu * 1000, system: 0 })
+      : Promise.reject(Error("Worker is not running")),
+  );
+  worker.advance = async (ms, onStep = () => {}) => {
+    for (let elapsed = 50; elapsed <= ms; elapsed += 50) {
+      onStep(elapsed);
+      t.mock.timers.tick(50);
+      for (let i = 0; i < 3; i++) await null;
+    }
+  };
+  return worker;
+}
+test("a worker that is slow to load QuickJS still decodes while it uses the CPU", async (t) => {
+  // On a busy host, loading QuickJS took up to 22 s of wall time for at most
+  // 190 ms of CPU. Here the worker gets 5 ms of CPU every 20 s for 100 s.
+  const worker = mockWorkerCpu(t);
   const code = "function decode(){return {ok:true}}";
   const slow = decode(code, {});
-  t.mock.timers.tick(29000);
+  await worker.advance(100000, (elapsed) => {
+    if (elapsed % 20000 === 0) worker.cpu += 5;
+  });
   assert.equal((await slow).ok, true);
-  const stuck = decode(code, {});
-  t.mock.timers.tick(30000);
-  await assert.rejects(stuck, { message: "Decoder worker did not start" });
+  // A worker whose CPU time cannot be read is stopped after 30 s.
+  worker.online = false;
+  let failure;
+  decode(code, {}).catch((error) => (failure = error.message));
+  await worker.advance(29950);
+  assert.equal(failure, undefined);
+  await worker.advance(50);
+  assert.equal(failure, "Decoder worker did not start");
+});
+test("platform work before the decoder starts is capped at 5 s of the worker's CPU", async (t) => {
+  // The worker spins without starting the decoder: 99 ms of CPU every 50 ms.
+  const worker = mockWorkerCpu(t);
+  let failure;
+  decode("function decode(){return {ok:true}}", {}).catch(
+    (error) => (failure = error.message),
+  );
+  await worker.advance(2500, () => (worker.cpu += 99));
+  assert.equal(failure, undefined);
+  await worker.advance(100, () => (worker.cpu += 99));
+  assert.equal(failure, "Decoder setup exceeded its CPU limit");
+});
+// Decodes in a child process whose workers load stalled-worker.cjs. Its timers
+// are mocked and move 1 s at a time once the worker has stalled, each step
+// after the worker answered the last CPU read. The loop reaches QuickJS's
+// interrupt check, where STALL_AT=decode stalls.
+async function decodeWithStalledWorker(stallAt) {
+  const code =
+    "function decode(){let total=0;for(let i=0;i<20000;i++)total+=i%7;return {total}}";
+  const { stdout } = await execFile(
+    process.execPath,
+    [
+      "--require",
+      path.join(__dirname, "stalled-worker.cjs"),
+      "-e",
+      `const { mock } = require("node:test");
+      const { Worker, BroadcastChannel } = require("node:worker_threads");
+      mock.timers.enable({ apis: ["setTimeout"] });
+      const reads = [];
+      const { cpuUsage } = Worker.prototype;
+      Worker.prototype.cpuUsage = function () {
+        const read = cpuUsage.call(this);
+        reads.push(read);
+        return read;
+      };
+      const channel = new BroadcastChannel("stalled-worker");
+      let done = false;
+      require(${JSON.stringify(path.join(__dirname, "../lib/decoder.cjs"))})
+        .decode(${JSON.stringify(code)}, {})
+        .then(() => "decoded", (error) => error.message)
+        .then((outcome) => {
+          done = true;
+          channel.close();
+          console.log(outcome);
+        });
+      channel.onmessage = async () => {
+        while (!done) {
+          await Promise.allSettled(reads.splice(0));
+          await new Promise((resolve) => setImmediate(resolve));
+          mock.timers.tick(1000);
+        }
+      };`,
+    ],
+    { env: { ...process.env, STALL_AT: stallAt }, timeout: 60000 },
+  );
+  return stdout.trim();
+}
+test("a worker that stops using the CPU before QuickJS loads is stopped", async () => {
+  assert.equal(
+    await decodeWithStalledWorker("load"),
+    "Decoder worker did not start",
+  );
+});
+test("a worker that stops using the CPU while decoding is stopped", async () => {
+  assert.equal(
+    await decodeWithStalledWorker("decode"),
+    "Decoder worker stopped answering",
+  );
 });
 test("work QuickJS cannot interrupt is stopped by the worker deadline", async () => {
   // A backtracking regular expression runs inside one QuickJS call, which the

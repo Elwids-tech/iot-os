@@ -7,11 +7,18 @@ const path = require("node:path");
 // counts the time a busy host gives to other work.
 const DECODE_CPU_DEADLINE_MS = 500;
 const CPU_CHECK_INTERVAL_MS = 50;
-// Decoder code cannot wait without using the CPU, so this only stops a worker
-// that has stopped answering for some other reason. Loading QuickJS gets the
-// same time: on a busy host it took up to 7.7 s of wall time for at most 190 ms
-// of the worker's CPU, and none of the decoder's code runs before it is ready.
-const ANSWER_DEADLINE_MS = 30000;
+// Decoder code cannot wait without the CPU, and the platform's work barely
+// does, so a worker is stuck only when its CPU time stops advancing. On a busy
+// host a 1 MiB input took up to 67 s of wall time to decode, so the worker is
+// stopped only after 30 s without progress. Answering a read costs a blocked
+// worker up to 0.5 ms of CPU, so smaller advances are not progress.
+const STALL_MS = 30000;
+const PROGRESS_CPU_MS = 1;
+// Loading QuickJS and preparing the input are platform work on input that
+// decode() bounds: up to 0.5 s of the worker's CPU on a busy host. QuickJS
+// cannot interrupt it, so this cap stops a worker that spins before the
+// decoder's code starts.
+const SETUP_CPU_LIMIT_MS = 5000;
 
 function inputFromMessage(payload, topic, metadata = {}) {
   const bytes = Buffer.isBuffer(payload)
@@ -50,43 +57,61 @@ function decode(code, input) {
       },
     });
     let settled = false;
+    let ready = false;
+    let started; // the worker's CPU time when the decoder's code started
+    let cpu = 0; // the worker's CPU time at the last read
     let cpuCheck;
+    let stall;
     const finish = (error, result) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      clearTimeout(stall);
       clearTimeout(cpuCheck);
       worker.terminate();
       error ? reject(error) : resolve(result);
     };
-    let timer = setTimeout(
-      () => finish(Error("Decoder worker did not start")),
-      ANSWER_DEADLINE_MS,
-    );
+    const restartStall = () => {
+      clearTimeout(stall);
+      stall = setTimeout(
+        () =>
+          finish(
+            Error(
+              ready
+                ? "Decoder worker stopped answering"
+                : "Decoder worker did not start",
+            ),
+          ),
+        STALL_MS,
+      );
+    };
     // worker.cpuUsage() reads the worker's CPU time even while it is stuck inside
-    // QuickJS. It rejects once the worker has exited, and the exit handler settles.
-    const checkCpu = (started) =>
+    // QuickJS. It rejects before the worker is online and after it has exited,
+    // which counts as no progress. A read that never settles stops the checks,
+    // and the stall timer then stops the worker.
+    const checkCpu = () =>
       worker.cpuUsage().then(
         ({ user, system }) => {
           if (settled) return;
-          if ((user + system) / 1000 - started > DECODE_CPU_DEADLINE_MS)
-            finish(Error("Decoder exceeded its worker deadline"));
-          else cpuCheck = setTimeout(checkCpu, CPU_CHECK_INTERVAL_MS, started);
+          const used = (user + system) / 1000;
+          if (started !== undefined && used - started > DECODE_CPU_DEADLINE_MS)
+            return finish(Error("Decoder exceeded its worker deadline"));
+          if (started === undefined && used > SETUP_CPU_LIMIT_MS)
+            return finish(Error("Decoder setup exceeded its CPU limit"));
+          if (used - cpu >= PROGRESS_CPU_MS) restartStall();
+          cpu = used;
+          cpuCheck = setTimeout(checkCpu, CPU_CHECK_INTERVAL_MS);
         },
-        () => {},
+        () => {
+          if (!settled) cpuCheck = setTimeout(checkCpu, CPU_CHECK_INTERVAL_MS);
+        },
       );
+    restartStall();
+    checkCpu();
     worker.on("message", (message) => {
-      if (message.ready) {
-        clearTimeout(timer);
-        timer = setTimeout(
-          () => finish(Error("Decoder worker stopped answering")),
-          ANSWER_DEADLINE_MS,
-        );
-        return;
-      }
-      if (message.decoderStarted !== undefined)
-        return checkCpu(message.decoderStarted);
-      finish(message.ok ? null : Error(message.error), message.result);
+      if (message.ready) ready = true;
+      else if (message.decoderStarted !== undefined)
+        started = message.decoderStarted;
+      else finish(message.ok ? null : Error(message.error), message.result);
     });
     worker.once("error", (error) =>
       finish(
