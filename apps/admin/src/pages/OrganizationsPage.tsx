@@ -7,6 +7,7 @@ import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { Building2Icon, PlusIcon } from "lucide-react"
 import { Link } from "react-router-dom"
+import { DeleteOrganizationDialog } from "../components/DeleteOrganizationDialog"
 import { countLabel } from "../components/DirectoryStates"
 import { InviteUserDialog } from "../components/InviteUserDialog"
 import { OrganizationDialog } from "../components/OrganizationDialog"
@@ -22,6 +23,7 @@ export function OrganizationsPage() {
   const { reload, table } = useDirectoryTable(loadOrganizations, { searchPlaceholder: "Name or slug" })
   const [editing, setEditing] = useState<Organization | "new" | null>(null)
   const [inviting, setInviting] = useState<Organization | null>(null)
+  const [deleting, setDeleting] = useState<Organization | null>(null)
   const organizations = useOrganizationOptions()
   const columns = useMemo<DataColumn<Organization>[]>(
     () => [
@@ -54,6 +56,16 @@ export function OrganizationsPage() {
           >
             {(organization.users_count ?? 0).toLocaleString()}
           </RefLink>
+        ),
+      },
+      {
+        id: "devices",
+        header: "Devices",
+        align: "end",
+        summary: "sum",
+        value: (organization) => organization.devices_count ?? 0,
+        cell: (organization) => (
+          <span className="tabular-nums">{(organization.devices_count ?? 0).toLocaleString()}</span>
         ),
       },
     ],
@@ -94,6 +106,10 @@ export function OrganizationsPage() {
               <Link to={`/roles/new?organization=${encodeURIComponent(organization.uuid)}`}>New role</Link>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setInviting(organization)}>Invite user</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleting(organization)}>
+              Delete organization
+            </DropdownMenuItem>
           </>
         )}
         empty={
@@ -115,6 +131,7 @@ export function OrganizationsPage() {
         }}
         onInvited={() => undefined}
       />
+      <DeleteOrganizationDialog organization={deleting} onClose={() => setDeleting(null)} onDeleted={reload} />
     </CollectionPage>
   )
 }

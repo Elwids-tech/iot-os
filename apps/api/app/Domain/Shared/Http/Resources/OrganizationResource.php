@@ -29,6 +29,7 @@ final class OrganizationResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'users_count' => $this->whenCounted('users'),
+            'devices_count' => $this->whenHas('devices_count', fn (): int => (int) $this->devices_count),
             'capabilities' => $this->when($user instanceof User, fn (): array => $this->capabilities($user)),
         ];
     }

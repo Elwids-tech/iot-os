@@ -6,12 +6,14 @@ const organizations = [
     name: "Acme Manufacturing",
     slug: "acme-manufacturing",
     users_count: 3,
+    devices_count: 6,
   },
   {
     uuid: "22222222-2222-4222-8222-222222222222",
     name: "Northstar Utilities",
     slug: "northstar-utilities",
     users_count: 3,
+    devices_count: 0,
   },
 ]
 
@@ -181,6 +183,8 @@ async function mockApi(
     user?: SessionUser
     /** Adds two Acme custom roles: Field Technician (unused) and Shift Lead (held by Acme Member). */
     customRoles?: boolean
+    /** Organizations whose delete gets a 409, as if a device appeared after the check. */
+    deleteConflicts?: string[]
   } = {},
 ) {
   let signedIn = options.initiallyAuthenticated ?? true
@@ -295,6 +299,7 @@ async function mockApi(
         name: payload.name,
         slug: payload.slug,
         users_count: 0,
+        devices_count: 0,
       }
       orgs.push(organization)
       orgs.sort((left, right) => left.name.localeCompare(right.name))
@@ -320,6 +325,52 @@ async function mockApi(
 
       Object.assign(organization, payload)
       await fulfillJson(route, { data: organization })
+      return
+    }
+
+    const deletionMatch = url.pathname.match(/^\/api\/v1\/admin\/organizations\/([^/]+)\/deletion$/)
+
+    if ((request.method() === "GET" && deletionMatch) || (request.method() === "DELETE" && organizationMatch)) {
+      const uuid = (deletionMatch ?? organizationMatch)![1]
+      const organization = orgs.find((item) => item.uuid === uuid)
+
+      if (!organization) {
+        await fulfillJson(route, { message: "Not found." }, 404)
+        return
+      }
+
+      const blockers = organization.devices_count ? [{ key: "devices", label: "Devices", count: organization.devices_count }] : []
+
+      if (request.method() === "GET") {
+        const removes = [
+          { key: "members", label: "Members (their accounts stay)", count: organization.users_count },
+          { key: "roles", label: "Roles", count: roles.filter((role) => role.organization.uuid === uuid).length },
+        ].filter((entry) => entry.count > 0)
+        await fulfillJson(route, {
+          data: { organization: { uuid, name: organization.name, slug: organization.slug }, deletable: blockers.length === 0, blockers, removes },
+        })
+        return
+      }
+
+      if (url.searchParams.get("slug") !== organization.slug) {
+        await unprocessable(route, "slug", "Type the organization's slug exactly to confirm.")
+        return
+      }
+
+      if (blockers.length > 0 || options.deleteConflicts?.includes(uuid)) {
+        await fulfillJson(
+          route,
+          {
+            message: "This organization still holds data that blocks deletion.",
+            blockers: blockers.length > 0 ? blockers : [{ key: "devices", label: "Devices", count: 1 }],
+          },
+          409,
+        )
+        return
+      }
+
+      orgs.splice(orgs.indexOf(organization), 1)
+      await route.fulfill({ status: 204 })
       return
     }
 
@@ -1206,5 +1257,76 @@ test("renames and deletes custom roles", async ({ page, consoleMessages }) => {
 
   expect(consoleMessages).toHaveLength(2)
   expect(consoleMessages.every((message) => message.includes("status of 422"))).toBe(true)
+  consoleMessages.length = 0
+})
+
+test("deletes an empty organization after its slug is typed", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/organizations")
+
+  await page.getByRole("button", { name: "New organization" }).click()
+  await page.getByRole("textbox", { name: "Name" }).fill("Cedar Processing")
+  await page.getByRole("button", { name: "Create organization" }).click()
+  await expect(page.getByRole("row", { name: /Cedar Processing/ })).toContainText("0")
+
+  await page.getByRole("button", { name: "Actions for Cedar Processing" }).click()
+  await page.getByRole("menuitem", { name: "Delete organization" }).click()
+  const dialog = page.getByRole("alertdialog", { name: "Delete Cedar Processing?" })
+  await expect(dialog).toContainText("cannot be undone")
+  await expect(dialog).toContainText("It holds nothing else.")
+
+  const confirm = dialog.getByRole("button", { name: "Delete organization" })
+  await expect(confirm).toBeDisabled()
+  await dialog.getByRole("textbox", { name: "Type cedar-processing to confirm" }).fill("Cedar Processing")
+  await expect(confirm).toBeDisabled()
+  await dialog.getByRole("textbox", { name: "Type cedar-processing to confirm" }).fill("cedar-processing")
+  await confirm.click()
+
+  await expect(page.getByText("Cedar Processing deleted")).toBeVisible()
+  await expect(dialog).toBeHidden()
+  await expect(page.getByRole("row", { name: /Cedar Processing/ })).toHaveCount(0)
+  await expect(page.getByRole("row", { name: /Acme Manufacturing/ })).toBeVisible()
+})
+
+test("lists what deletion removes and what blocks it", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/organizations")
+  await expect(page.getByRole("row", { name: /Acme Manufacturing/ })).toContainText("6")
+
+  await page.getByRole("button", { name: "Actions for Acme Manufacturing" }).click()
+  await page.getByRole("menuitem", { name: "Delete organization" }).click()
+  const blocked = page.getByRole("alertdialog", { name: "Acme Manufacturing can't be deleted yet" })
+  await expect(blocked.getByRole("definition")).toHaveText("6")
+  await expect(blocked.getByRole("term")).toHaveText("Devices")
+  await expect(blocked.getByRole("button", { name: "Delete organization" })).toHaveCount(0)
+  await expect(blocked.getByRole("textbox")).toHaveCount(0)
+  await blocked.getByRole("button", { name: "Close" }).click()
+  await expect(blocked).toBeHidden()
+
+  await page.getByRole("button", { name: "Actions for Northstar Utilities" }).click()
+  await page.getByRole("menuitem", { name: "Delete organization" }).click()
+  const dialog = page.getByRole("alertdialog", { name: "Delete Northstar Utilities?" })
+  await expect(dialog.getByLabel("What deletion removes")).toContainText("Members (their accounts stay)")
+  await expect(dialog.getByLabel("What deletion removes")).toContainText("Roles")
+})
+
+test("shows the blockers when one appears before the delete is confirmed", async ({ page, consoleMessages }) => {
+  await mockApi(page, { deleteConflicts: [organizations[1].uuid] })
+  await page.goto("/organizations")
+
+  await page.getByRole("button", { name: "Actions for Northstar Utilities" }).click()
+  await page.getByRole("menuitem", { name: "Delete organization" }).click()
+  const dialog = page.getByRole("alertdialog")
+  await dialog.getByRole("textbox", { name: "Type northstar-utilities to confirm" }).fill("northstar-utilities")
+  await dialog.getByRole("button", { name: "Delete organization" }).click()
+
+  await expect(dialog.getByRole("heading", { name: "Northstar Utilities can't be deleted yet" })).toBeVisible()
+  await expect(dialog.getByLabel("What blocks deletion")).toContainText("Devices")
+  await expect(dialog.getByRole("button", { name: "Delete organization" })).toHaveCount(0)
+  await dialog.getByRole("button", { name: "Close" }).click()
+  await expect(page.getByRole("row", { name: /Northstar Utilities/ })).toBeVisible()
+
+  expect(consoleMessages).toHaveLength(1)
+  expect(consoleMessages[0]).toContain("status of 409")
   consoleMessages.length = 0
 })
