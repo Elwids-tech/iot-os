@@ -102,7 +102,7 @@ function PlatformAdministrationApp() {
         <Route index element={<Navigate to="/organizations" replace />} />
         <Route path="organizations" element={<OrganizationsPage />} />
         <Route path="organizations/:organizationUuid/permissions" element={<OrganizationPermissionsPage />} />
-        <Route path="users" element={<UsersPage />} />
+        <Route path="users" element={<UsersPage currentUser={screen.user} />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="roles/new" element={<NewRolePage />} />
         <Route path="roles/:roleId" element={<RolePermissionsPage />} />

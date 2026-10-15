@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Administration\Http\Resources;
 
 use App\Domain\Administration\Http\Resources\Concerns\KnowsGrantablePermissions;
+use App\Domain\Authorization\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,20 +22,16 @@ final class OrganizationInvitationResource extends JsonResource
             'uuid' => $this->uuid,
             'email' => $this->email,
             'role_ids' => $this->role_ids,
-            'roles' => $this->whenLoaded('roles', fn (): array => $this->roles
-                ->map(fn ($role): array => [
-                    'id' => $role->getKey(),
-                    'display_name' => $role->display_name,
-                ])
-                ->values()
-                ->all()),
-            'organization' => $this->whenLoaded('organization', fn (): array => [
+            'roles' => $this->whenLoaded('roles', fn (): array => $this->roleSummaries()),
+            'grants_super_admin' => (bool) $this->grants_super_admin,
+            // Null for a super-administrator invitation, which belongs to no organization.
+            'organization' => $this->whenLoaded('organization', fn (): ?array => $this->organization === null ? null : [
                 'uuid' => $this->organization->uuid,
                 'name' => $this->organization->name,
                 'slug' => $this->organization->slug,
             ]),
             'invited_by' => $this->whenLoaded('invitedBy', fn (): ?array => $this->invitedBy === null ? null : [
-                'id' => $this->invitedBy->getKey(),
+                'id' => (int) $this->invitedBy->getKey(),
                 'name' => $this->invitedBy->name,
             ]),
             // Manageable: the actor could resend or revoke it without handing out access they lack.
@@ -49,5 +46,19 @@ final class OrganizationInvitationResource extends JsonResource
                 ? 'accepted'
                 : ($this->revoked_at !== null ? 'revoked' : ($this->expires_at->isPast() ? 'expired' : 'pending')),
         ];
+    }
+
+    /**
+     * @return list<array{id: int, display_name: string}>
+     */
+    private function roleSummaries(): array
+    {
+        return $this->roles
+            ->map(fn (Role $role): array => [
+                'id' => (int) $role->getKey(),
+                'display_name' => (string) $role->display_name,
+            ])
+            ->values()
+            ->all();
     }
 }

@@ -3,5 +3,5 @@ import { apiClient } from "../lib/api-client"
 import { portalUrl } from "../lib/portal"
 
 export function AcceptInvitationPage() {
-  return <SharedInvitationPage apiClient={apiClient} portalUrl={portalUrl} />
+  return <SharedInvitationPage apiClient={apiClient} portalUrl={portalUrl} adminUrl="/" />
 }

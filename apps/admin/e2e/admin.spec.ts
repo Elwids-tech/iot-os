@@ -215,7 +215,8 @@ async function mockApi(
       email: "pending@example.test",
       role_ids: [3],
       roles: [invitationRoles[2]],
-      organization: organizations[1],
+      grants_super_admin: false,
+      organization: organizations[1] as (typeof organizations)[number] | null,
       expires_at: "2026-09-01T12:00:00.000000Z",
       accepted_at: null,
       revoked_at: null,
@@ -483,7 +484,7 @@ async function mockApi(
       }
 
       for (const earlier of invitations) {
-        if (earlier.email === payload.email && earlier.organization.uuid === organization?.uuid && earlier.status === "pending") {
+        if (earlier.email === payload.email && earlier.organization?.uuid === organization?.uuid && earlier.status === "pending") {
           earlier.status = "revoked"
           earlier.revoked_at = "2026-08-24T12:00:00.000000Z"
         }
@@ -496,6 +497,7 @@ async function mockApi(
         roles: roles
           .filter((role) => payload.role_ids?.includes(role.id))
           .map(({ id, display_name }) => ({ id, display_name })),
+        grants_super_admin: false,
         organization: organization ?? organizations[0],
         expires_at: "2026-09-01T12:00:00.000000Z",
         accepted_at: null,
@@ -505,6 +507,75 @@ async function mockApi(
 
       invitations.unshift(invitation)
       await fulfillJson(route, { data: invitation }, 201)
+      return
+    }
+
+    if (request.method() === "POST" && url.pathname === "/api/v1/admin/super-administrators/invitations") {
+      const payload = request.postDataJSON() as { email: string }
+
+      if (!user.is_super_admin) {
+        await fulfillJson(route, { message: "This action is unauthorized." }, 403)
+        return
+      }
+
+      if (users.some((item) => item.email === payload.email && item.is_super_admin)) {
+        await unprocessable(route, "email", "This user is already a super administrator.")
+        return
+      }
+
+      for (const earlier of invitations) {
+        if (earlier.email === payload.email && earlier.grants_super_admin && earlier.status === "pending") {
+          earlier.status = "revoked"
+          earlier.revoked_at = "2026-08-24T12:00:00.000000Z"
+        }
+      }
+
+      const invitation = {
+        uuid: `invite-${invitations.length + 1}`,
+        email: payload.email,
+        role_ids: [],
+        roles: [],
+        grants_super_admin: true,
+        organization: null,
+        expires_at: "2026-09-01T12:00:00.000000Z",
+        accepted_at: null,
+        revoked_at: null,
+        status: "pending",
+      }
+
+      invitations.unshift(invitation)
+      await fulfillJson(route, { data: invitation }, 201)
+      return
+    }
+
+    const superAdministratorMatch = url.pathname.match(/^\/api\/v1\/admin\/super-administrators\/(\d+)$/)
+
+    if (superAdministratorMatch && ["PUT", "DELETE"].includes(request.method())) {
+      const target = users.find((item) => item.id === Number(superAdministratorMatch[1]))
+
+      if (!user.is_super_admin) {
+        await fulfillJson(route, { message: "This action is unauthorized." }, 403)
+        return
+      }
+
+      if (!target) {
+        await fulfillJson(route, { message: "Not found." }, 404)
+        return
+      }
+
+      if (request.method() === "DELETE") {
+        if (target.id === user.id) {
+          await unprocessable(route, "user", "You cannot remove your own super administrator access.")
+          return
+        }
+
+        target.is_super_admin = false
+        await route.fulfill({ status: 204 })
+        return
+      }
+
+      target.is_super_admin = true
+      await fulfillJson(route, { data: target })
       return
     }
 
@@ -528,13 +599,15 @@ async function mockApi(
 
     if (publicInvitationMatch) {
       const token = publicInvitationMatch[1]
+      const grantsSuperAdmin = token === "super-admin-invite-token"
       const acceptanceMode = token === "existing-invite-token" ? "sign_in" : "create_account"
       const email = acceptanceMode === "sign_in" ? "existing.user@example.test" : "new.user@example.test"
 
       if (request.method() === "GET" && !publicInvitationMatch[2]) {
         await fulfillJson(route, {
           data: {
-            organization: organizations[0],
+            grants_super_admin: grantsSuperAdmin,
+            organization: grantsSuperAdmin ? null : organizations[0],
             email,
             expires_at: "2026-09-01T12:00:00.000000Z",
             acceptance_mode: acceptanceMode,
@@ -545,10 +618,9 @@ async function mockApi(
 
       if (request.method() === "POST" && publicInvitationMatch[2]) {
         await fulfillJson(route, {
-          data: {
-            ...tenantUser,
-            email,
-          },
+          data: grantsSuperAdmin
+            ? { ...superAdmin, id: 6, name: "New Admin", email, organizations: [] }
+            : { ...tenantUser, email },
         })
         return
       }
@@ -1112,6 +1184,108 @@ test("requires existing invitees to sign in before accepting", async ({ page }) 
 
   await expect(page.getByRole("heading", { name: "Account ready" })).toBeVisible()
   await expect(page.getByText("existing.user@example.test")).toBeVisible()
+})
+
+test("makes a user a super administrator and removes the access again", async ({ page, consoleMessages }) => {
+  await mockApi(page)
+  await page.goto("/users")
+
+  // A super administrator never removes their own access, and their row has nothing else to offer.
+  await expect(page.getByRole("button", { name: "Actions for Platform Super Admin" })).toHaveCount(0)
+
+  await page.getByRole("button", { name: "Actions for Acme Member" }).click()
+  await expect(page.getByRole("menuitem", { name: "Change roles" })).toBeVisible()
+  await page.getByRole("menuitem", { name: "Make super administrator" }).click()
+  const grantDialog = page.getByRole("alertdialog", { name: "Make Acme Member a super administrator?" })
+  await expect(grantDialog).toContainText("every organization")
+  await grantDialog.getByRole("button", { name: "Make super administrator" }).click()
+  await expect(page.getByText("Acme Member is now a super administrator")).toBeVisible()
+  await expect(page.getByRole("row", { name: /Acme Member/ })).toContainText("Super admin")
+
+  // A user with no organization can be promoted too.
+  await page.getByRole("button", { name: "Actions for Platform Administrator" }).click()
+  await expect(page.getByRole("menuitem", { name: "Change roles" })).toHaveCount(0)
+  await page.keyboard.press("Escape")
+
+  await page.getByRole("button", { name: "Actions for Acme Member" }).click()
+  await page.getByRole("menuitem", { name: "Remove super administrator" }).click()
+  const revokeDialog = page.getByRole("alertdialog", { name: "Remove super administrator access from Acme Member?" })
+  const revoke = page.waitForRequest((request) => request.method() === "DELETE")
+  await revokeDialog.getByRole("button", { name: "Remove access" }).click()
+  expect((await revoke).url()).toContain("/api/v1/admin/super-administrators/4")
+  await expect(page.getByText("Acme Member is no longer a super administrator")).toBeVisible()
+  await expect(page.getByRole("row", { name: /Acme Member/ })).toContainText("Tenant user")
+
+  expect(consoleMessages).toEqual([])
+})
+
+test("invites a super administrator", async ({ page, consoleMessages }) => {
+  await mockApi(page)
+  await page.goto("/users")
+
+  await page.getByRole("button", { name: "Invite user" }).click()
+  const dialog = page.getByRole("dialog", { name: "Invite user" })
+  await expect(dialog.getByRole("radio", { name: "Organization member" })).toBeChecked()
+  await dialog.getByRole("radio", { name: "Super administrator" }).click()
+  await expect(dialog.getByRole("combobox", { name: "Organization" })).toHaveCount(0)
+
+  await dialog.getByRole("textbox", { name: "Email" }).fill("super-admin@example.test")
+  await dialog.getByRole("button", { name: "Send invitation" }).click()
+  await expect(dialog.getByText("This user is already a super administrator.")).toBeVisible()
+
+  await dialog.getByRole("textbox", { name: "Email" }).fill("new.admin@example.test")
+  const invite = page.waitForRequest((request) => request.method() === "POST")
+  await dialog.getByRole("button", { name: "Send invitation" }).click()
+  expect((await invite).url()).toContain("/api/v1/admin/super-administrators/invitations")
+  await expect(page.getByText("Invitation sent to new.admin@example.test")).toBeVisible()
+
+  const row = page.getByRole("row", { name: /new\.admin@example\.test/ })
+  await expect(row).toContainText("All organizations")
+  await expect(row).toContainText("Super administrator")
+
+  await page.getByRole("button", { name: "Actions for new.admin@example.test" }).click()
+  await page.getByRole("menuitem", { name: "Resend" }).click()
+  const resend = page.waitForRequest((request) => request.method() === "POST")
+  await page.getByRole("button", { name: "Resend invitation" }).click()
+  expect((await resend).url()).toContain("/api/v1/admin/super-administrators/invitations")
+  await expect(page.getByRole("alertdialog")).toBeHidden()
+  // The first toast may still be showing.
+  await expect(page.getByText("Invitation sent to new.admin@example.test").last()).toBeVisible()
+
+  expect(consoleMessages).toHaveLength(1)
+  expect(consoleMessages[0]).toContain("status of 422")
+  consoleMessages.length = 0
+})
+
+test("platform administrators cannot grant super administrator access", async ({ page }) => {
+  await mockApi(page, { user: platformAdmin })
+  await page.goto("/users")
+
+  await page.getByRole("button", { name: "Actions for Acme Member" }).click()
+  await expect(page.getByRole("menuitem", { name: "Change roles" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: "Make super administrator" })).toHaveCount(0)
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("button", { name: "Actions for Platform Super Admin" })).toHaveCount(0)
+
+  await page.getByRole("button", { name: "Invite user" }).click()
+  const dialog = page.getByRole("dialog", { name: "Invite user" })
+  await expect(dialog.getByRole("combobox", { name: "Organization" })).toBeVisible()
+  await expect(dialog.getByRole("radio")).toHaveCount(0)
+})
+
+test("creates a super administrator account from an invitation", async ({ page }) => {
+  await mockApi(page, { initiallyAuthenticated: false })
+  await page.goto("/accept-invitation?token=super-admin-invite-token")
+
+  await expect(page.getByText("You have been invited to administer IoT OS as new.user@example.test.")).toBeVisible()
+  await page.getByRole("textbox", { name: "Name" }).fill("New Admin")
+  await page.getByLabel("Password", { exact: true }).fill("safe-password")
+  await page.getByLabel("Confirm password", { exact: true }).fill("safe-password")
+  await page.getByRole("button", { name: "Create account and accept" }).click()
+
+  await expect(page.getByRole("heading", { name: "Account ready" })).toBeVisible()
+  await expect(page.getByText("You are now a super administrator.")).toBeVisible()
+  await expect(page.getByRole("link", { name: "Open administration" })).toHaveAttribute("href", "/")
 })
 
 test("creates a role for an organization from the Roles page", async ({ page, consoleMessages }) => {

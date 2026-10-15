@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import type { DirectoryQuery, PaginatedResponse, PlatformUser } from "@iot-os/api-client"
+import type { AuthenticatedUser, DirectoryQuery, PaginatedResponse, PlatformUser } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
 import { DropdownMenuItem, DropdownMenuSeparator } from "@iot-os/ui/components/dropdown-menu"
@@ -9,6 +9,7 @@ import { UserPlusIcon, UsersIcon } from "lucide-react"
 import { InviteUserDialog } from "../components/InviteUserDialog"
 import { MemberDialogs, type MemberAction } from "../components/MemberDialogs"
 import { PendingInvitations } from "../components/PendingInvitations"
+import { SuperAdministratorDialog, type SuperAdministratorAction } from "../components/SuperAdministratorDialog"
 import { useDirectoryTable } from "../components/ResourceDirectory"
 import { useOrganizationOptions } from "../hooks/use-directory"
 import { apiClient } from "../lib/api-client"
@@ -23,7 +24,9 @@ function platformAccess(user: PlatformUser): string {
   return "Tenant user"
 }
 
-export function UsersPage() {
+export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
+  // Only super administrators grant or remove super administrator access (spec 007); the API re-checks.
+  const managesSuperAdministrators = currentUser.is_super_admin
   const organizations = useOrganizationOptions()
   const { reload, query, table } = useDirectoryTable(loadUsers, {
     searchPlaceholder: "Name or email",
@@ -32,6 +35,7 @@ export function UsersPage() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invitationRefreshKey, setInvitationRefreshKey] = useState(0)
   const [memberAction, setMemberAction] = useState<MemberAction | null>(null)
+  const [superAdministratorAction, setSuperAdministratorAction] = useState<SuperAdministratorAction | null>(null)
   const columns = useMemo<DataColumn<PlatformUser>[]>(
     () => [
       { id: "user", header: "User", mobile: "title", value: (user) => user.name, cell: (user) => <span className="font-medium">{user.name}</span> },
@@ -77,19 +81,36 @@ export function UsersPage() {
         columns={columns}
         {...table}
         groups={[{ id: "access", label: "Platform access", value: platformAccess }]}
-        rowActions={(user) =>
-          user.organizations.length > 0 ? (
-            <>
-              <DropdownMenuItem onSelect={() => setMemberAction({ kind: "roles", user })}>
-                Change roles
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setMemberAction({ kind: "remove", user })}>
-                Remove member
-              </DropdownMenuItem>
-            </>
+        rowActions={(user) => {
+          const isMember = user.organizations.length > 0
+          const superAdministratorItem = !managesSuperAdministrators ? null : !user.is_super_admin ? (
+            <DropdownMenuItem onSelect={() => setSuperAdministratorAction({ kind: "grant", user })}>
+              Make super administrator
+            </DropdownMenuItem>
+          ) : user.id !== currentUser.id ? (
+            <DropdownMenuItem variant="destructive" onSelect={() => setSuperAdministratorAction({ kind: "revoke", user })}>
+              Remove super administrator
+            </DropdownMenuItem>
           ) : null
-        }
+          if (!isMember && !superAdministratorItem) return null
+          return (
+            <>
+              {isMember ? (
+                <>
+                  <DropdownMenuItem onSelect={() => setMemberAction({ kind: "roles", user })}>
+                    Change roles
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={() => setMemberAction({ kind: "remove", user })}>
+                    Remove member
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+              {isMember && superAdministratorItem ? <DropdownMenuSeparator /> : null}
+              {superAdministratorItem}
+            </>
+          )
+        }}
         empty={
           <EmptyState
             inset
@@ -99,8 +120,9 @@ export function UsersPage() {
           />
         }
       />
-      <PendingInvitations refreshKey={invitationRefreshKey} />
+      <PendingInvitations refreshKey={invitationRefreshKey} managesSuperAdministrators={managesSuperAdministrators} />
       <InviteUserDialog
+        canInviteSuperAdministrators={managesSuperAdministrators}
         organizations={organizations}
         initialOrganization={organizations.find((organization) => organization.uuid === query.organization)}
         open={inviteOpen}
@@ -112,6 +134,11 @@ export function UsersPage() {
         preferredOrganization={query.organization}
         onClose={() => setMemberAction(null)}
         onRemoved={reload}
+      />
+      <SuperAdministratorDialog
+        action={superAdministratorAction}
+        onClose={() => setSuperAdministratorAction(null)}
+        onChanged={reload}
       />
     </CollectionPage>
   )

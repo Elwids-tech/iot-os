@@ -27,6 +27,12 @@ Things that have cost time before. Add to this list when something surprises you
   and never touches yours. It refuses to run with cached configuration
   (`php artisan config:clear`). Run one export per process: a second export in the same
   PHP process can lose parameters Scramble inferred from method calls.
+- **A new operation's response must be fully typed.** `contract:check` refuses open
+  schemas on operations that are not in `pending-schemas.json`, and Scramble types
+  `$collection->map(fn ($x) => [...])->values()` in a resource as `string` or `{}`. Move
+  the mapping into a private method with a `@return list<array{...}>` docblock and cast
+  `getKey()` (`(int)`), as `PlatformUserResource` does. Statuses from `abort_unless` are
+  not inferred; add them to the domain's supplement.
 - **PostgreSQL and SQLite serialise some values differently** (decimals, JSON key
   order, booleans read back from raw queries). CI runs the suite on PostgreSQL and is
   authoritative; describe what PostgreSQL returns in the contract, and check a
