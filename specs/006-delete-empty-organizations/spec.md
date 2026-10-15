@@ -12,8 +12,7 @@
 
 Platform administrators can create organizations in the admin app but cannot remove
 one. Organizations made by mistake or for a trial stay forever: on the pilot, two
-organizations ("Alberta IoT" and "Alberta-IoT") have no members, no devices and nothing
-but audit rows.
+near-duplicate organizations have no members, no devices and nothing but audit rows.
 
 No code deletes an organization today. The model soft-deletes, but a soft-deleted
 organization breaks the runtime's state sync, agent sign-in and invitation links,
@@ -144,8 +143,8 @@ No new tables. `organizations` rows are deleted permanently (not soft-deleted).
 
 ### Measurable Outcomes
 
-- **SC-001**: On the pilot, "Alberta-IoT" (or another empty organization the owner
-  chooses) can be deleted from admin, and "Laine demo (simulated)" shows its blockers.
+- **SC-001**: On the pilot, an empty organization the owner chooses can be deleted
+  from admin, and an organization with simulated devices shows its blockers.
 - **SC-002**: The API tests pass on PostgreSQL, including a deletion of an
   organization holding every kind of removed data, and the FR-008 guard.
 - **SC-003**: The admin Playwright tests for US1 and US2 pass in CI.

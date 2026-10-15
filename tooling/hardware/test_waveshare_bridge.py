@@ -20,7 +20,7 @@ class HardwareBridgeTest(unittest.TestCase):
             ("mqtt://mqtt.staging.elwids.xyz:8883", True),
             ("ssl://mqtt.staging.elwids.xyz:1883", True),
             ("ssl://mqtt.elwids.xyz:8883", True),
-            ("ssl://46.225.74.65:8883", True),
+            ("ssl://203.0.113.10:8883", True),
             ("ssl://mqtt.staging.elwids.xyz.attacker.test:8883", True),
             ("ssl://user:password@mqtt.staging.elwids.xyz:8883", True),
             ("ssl://mqtt.staging.elwids.xyz:8883?insecure=true", True),
