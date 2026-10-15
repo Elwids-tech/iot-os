@@ -217,8 +217,10 @@ class Deployment:
         for key in SECRET_KEYS:
             if not re.fullmatch(r"[a-f0-9]{64}", self.env[key]):
                 raise ValueError(f"{key} must be generated, URL-safe 256-bit secret")
-        if self.env.get("IOT_ASSISTANT_ENABLED") == "true" and not self.env.get("OPENAI_API_KEY"):
-            raise ValueError("Assistant enabled without provider credentials")
+        # Super administrators can save provider keys in admin (spec 010), so an enabled
+        # assistant needs no key here; it stays unavailable until one exists.
+        if self.env.get("IOT_ASSISTANT_PROVIDER", "openai") not in ("openai", "anthropic"):
+            raise ValueError("IOT_ASSISTANT_PROVIDER must be openai or anthropic")
         if self.env.get("IOT_AGENTS_ENABLED") == "true" and not all(self.env.get(key) for key in PASSPORT_KEYS):
             raise ValueError("Agent access enabled without Passport keys; run manage.py passport-keys")
         self.nats_capacity()

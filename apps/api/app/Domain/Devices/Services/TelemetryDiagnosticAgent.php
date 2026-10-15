@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Services;
 
+use App\Domain\Assistant\Services\AssistantProvider;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Attributes\MaxTokens;
 use Laravel\Ai\Contracts\Agent;
+use Laravel\Ai\Contracts\HasProviderOptions;
 use Laravel\Ai\Contracts\HasStructuredOutput;
+use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Promptable;
 
 #[MaxTokens(1200)]
-final class TelemetryDiagnosticAgent implements Agent, HasStructuredOutput
+final class TelemetryDiagnosticAgent implements Agent, HasProviderOptions, HasStructuredOutput
 {
     use Promptable;
 
@@ -30,5 +33,10 @@ PROMPT;
             'suggested_review' => $schema->string()->required(),
             'next_check' => $schema->string()->required(),
         ];
+    }
+
+    public function providerOptions(Lab|string $provider): array
+    {
+        return AssistantProvider::options($provider);
     }
 }

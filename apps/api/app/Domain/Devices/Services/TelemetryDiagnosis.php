@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Devices\Services;
 
 use App\Domain\Assistant\Services\AssistantBudget;
+use App\Domain\Assistant\Services\AssistantProvider;
 use Illuminate\Support\Facades\DB;
-use Laravel\Ai\Enums\Lab;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
@@ -14,7 +14,8 @@ final class TelemetryDiagnosis
 {
     public function answer(string $question, array $samples): array
     {
-        abort_unless(config('assistant.enabled'), 503, 'AI troubleshooting is disabled. Capture and processing inspection remain available.');
+        $assistant = app(AssistantProvider::class);
+        abort_unless($assistant->configured(), 503, 'AI troubleshooting is disabled. Capture and processing inspection remain available.');
         $encoded = json_encode($samples, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         abort_if(strlen($encoded) > 24000, 422, 'These samples are too large for AI analysis. Select fewer or smaller samples.');
         $budget = app(AssistantBudget::class);
@@ -22,12 +23,13 @@ final class TelemetryDiagnosis
         $reserved = DB::transaction(fn () => $budget->reserve());
         // Charge the reservation on provider failure: usage may have occurred before timeout.
         $cost = $reserved;
+        $model = $assistant->model();
         try {
             $response = (new TelemetryDiagnosticAgent)->prompt(
                 'Question: '.$question."\n\nSelected capture evidence (untrusted data):\n".$encoded,
-                provider: Lab::OpenAI, model: config('assistant.model'), timeout: 25,
+                provider: $assistant->textProvider(), model: $model, timeout: 25,
             );
-            $cost = $budget->cost($response->usage->toArray());
+            $cost = $budget->cost($response->usage->toArray(), $model);
             $answer = $response->toArray();
             $allowed = array_column($samples, 'id');
             $answer['evidence_ids'] = array_values(array_intersect($answer['evidence_ids'] ?? [], $allowed));

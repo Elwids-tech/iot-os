@@ -15,13 +15,13 @@ final class AssistantBudgetTest extends TestCase
         $usage = (new TextUsage(1000, 200, cacheReadInputTokens: 400, reasoningTokens: 50))->toArray();
 
         // 1000 input at $0.75/M (cached input counted at the normal rate) + 200 output at $4.50/M.
-        $this->assertSame(0.00165, app(AssistantBudget::class)->cost($usage));
+        $this->assertSame(0.00165, app(AssistantBudget::class)->cost($usage, 'gpt-5.4-mini-2026-03-17'));
     }
 
     public function test_usage_stored_before_laravel_ai_1_keeps_its_original_cost(): void
     {
         $usage = ['prompt_tokens' => 600, 'completion_tokens' => 200, 'cache_read_input_tokens' => 400, 'cache_write_input_tokens' => 0];
 
-        $this->assertSame(0.00165, app(AssistantBudget::class)->cost($usage));
+        $this->assertSame(0.00165, app(AssistantBudget::class)->cost($usage, 'gpt-5.4-mini-2026-03-17'));
     }
 }

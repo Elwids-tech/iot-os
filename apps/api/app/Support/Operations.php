@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Domain\Assistant\Services\AssistantProvider;
 use App\Domain\Devices\Services\RetentionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -67,7 +68,7 @@ final class Operations
         $gauge('automation_uncertain_targets', DB::table('automation_command_targets')->whereNotNull('uncertain_command_uuid')->count());
         $gauge('simulator_expected_devices', config('deployment.expected_simulators'));
         $budget = DB::table('assistant_budgets')->where('day', gmdate('Y-m-d'))->first();
-        $gauge('assistant_daily_budget_usd', (float) config('assistant.daily_budget_usd'));
+        $gauge('assistant_daily_budget_usd', app(AssistantProvider::class)->dailyBudget());
         $gauge('assistant_enabled', (int) config('assistant.enabled'));
         $gauge('assistant_spent_usd', (float) ($budget->spent_usd ?? 0));
         $gauge('assistant_reserved_usd', (float) ($budget->reserved_usd ?? 0));

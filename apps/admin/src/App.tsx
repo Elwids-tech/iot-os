@@ -15,6 +15,7 @@ import { RolePermissionsPage } from "./pages/RolePermissionsPage"
 import { RolesPage } from "./pages/RolesPage"
 import { UsersPage } from "./pages/UsersPage"
 import { RetentionPage } from "./pages/RetentionPage"
+import { AssistantPage } from "./pages/AssistantPage"
 
 type ScreenState =
   | { status: "loading" }
@@ -109,6 +110,9 @@ function PlatformAdministrationApp() {
         <Route path="device-profiles" element={<TenantPortalRedirect />} />
         {screen.user.capabilities.manage_retention ? (
           <Route path="settings/retention" element={<RetentionPage />} />
+        ) : null}
+        {screen.user.capabilities.manage_assistant ? (
+          <Route path="settings/assistant" element={<AssistantPage />} />
         ) : null}
         <Route path="*" element={<Navigate to="/organizations" replace />} />
       </Route>

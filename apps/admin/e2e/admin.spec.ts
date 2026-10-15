@@ -107,7 +107,7 @@ const superAdmin = {
   email: "super-admin@example.test",
   email_verified_at: "2026-08-24T00:00:00.000000Z",
   is_super_admin: true,
-  capabilities: { platform_administration: true },
+  capabilities: { platform_administration: true, manage_assistant: true },
   organizations,
 }
 
@@ -117,7 +117,7 @@ const platformAdmin = {
   email: "platform-admin@example.test",
   email_verified_at: "2026-08-24T00:00:00.000000Z",
   is_super_admin: false,
-  capabilities: { platform_administration: true },
+  capabilities: { platform_administration: true, manage_assistant: false },
   organizations: [],
 }
 
@@ -127,7 +127,7 @@ const tenantUser = {
   email: "shared.operator@example.test",
   email_verified_at: "2026-08-24T00:00:00.000000Z",
   is_super_admin: false,
-  capabilities: { platform_administration: false },
+  capabilities: { platform_administration: false, manage_assistant: false },
   organizations,
 }
 
@@ -786,6 +786,63 @@ async function mockApi(
     }
 
     await fulfillJson(route, { message: "Not found." }, 404)
+  })
+}
+
+/** The admin AI assistant settings (spec 010), starting on OpenAI from the server environment. */
+async function mockAssistantSettings(page: Page) {
+  const models = {
+    openai: [{ id: "gpt-5.4-mini-2026-03-17", label: "GPT-5.4 mini", input_usd_per_million: 0.75, output_usd_per_million: 4.5 }],
+    anthropic: [
+      { id: "claude-opus-5-5", label: "Claude Opus 5.5", input_usd_per_million: 4, output_usd_per_million: 20 },
+      { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", input_usd_per_million: 2, output_usd_per_million: 10 },
+      { id: "claude-haiku-5-5", label: "Claude Haiku 5.5", input_usd_per_million: 0.1, output_usd_per_million: 0.5 },
+    ],
+  }
+  const settings = {
+    enabled: true,
+    help_enabled: true,
+    configured: true,
+    provider: "openai",
+    model: "gpt-5.4-mini-2026-03-17",
+    daily_budget_usd: 2,
+    run_budget_usd: 0.04,
+    sources: { provider: "environment", daily_budget_usd: "environment", run_budget_usd: "environment" },
+    revision: 0,
+    updated_at: null as string | null,
+    today: { spent_usd: 0.12, reserved_usd: 0 },
+    providers: [
+      { id: "openai", label: "OpenAI", default_model: "gpt-5.4-mini-2026-03-17", models: models.openai, key: { source: "environment" as string | null, last_four: "1111" as string | null, updated_at: null as string | null } },
+      { id: "anthropic", label: "Anthropic", default_model: "claude-opus-5-5", models: models.anthropic, key: { source: null as string | null, last_four: null as string | null, updated_at: null as string | null } },
+    ],
+  }
+  await page.route("**/api/v1/admin/assistant-settings**", async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() === "GET") return fulfillJson(route, { data: settings })
+    if (request.method() === "POST" && path.endsWith("/test")) {
+      const payload = request.postDataJSON() as { api_key?: string }
+      return fulfillJson(route, {
+        data: payload.api_key?.includes("wrong")
+          ? { ok: false, latency_ms: 210, error: "invalid x-api-key" }
+          : { ok: true, latency_ms: 840, error: null },
+      })
+    }
+    if (request.method() === "PUT") {
+      const payload = request.postDataJSON() as { provider: string; model: string; daily_budget_usd: number; run_budget_usd: number; api_key?: string }
+      Object.assign(settings, {
+        provider: payload.provider,
+        model: payload.model,
+        daily_budget_usd: payload.daily_budget_usd,
+        run_budget_usd: payload.run_budget_usd,
+        revision: settings.revision + 1,
+        sources: { provider: "saved", daily_budget_usd: "saved", run_budget_usd: "saved" },
+      })
+      const provider = settings.providers.find((item) => item.id === payload.provider)!
+      if (payload.api_key) provider.key = { source: "saved", last_four: payload.api_key.slice(-4), updated_at: new Date().toISOString() }
+      return fulfillJson(route, { data: settings })
+    }
+    return fulfillJson(route, { message: "Not found." }, 404)
   })
 }
 
@@ -1574,4 +1631,62 @@ test("shows the blockers when one appears before the delete is confirmed", async
   expect(consoleMessages).toHaveLength(1)
   expect(consoleMessages[0]).toContain("status of 409")
   consoleMessages.length = 0
+})
+
+test("switches the assistant to Anthropic after testing the key", async ({ page }) => {
+  await mockApi(page)
+  await mockAssistantSettings(page)
+  await page.goto("/organizations")
+  await page.getByRole("link", { name: "AI assistant" }).click()
+
+  await expect(page).toHaveURL(/\/settings\/assistant$/)
+  await expect(page.getByRole("radio", { name: "OpenAI" })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "OpenAI" })).toHaveAccessibleDescription("Server environment key ending in …1111")
+
+  await page.getByRole("radio", { name: "Anthropic" }).click()
+  await expect(page.getByRole("combobox", { name: "Anthropic model" })).toContainText("Claude Opus 5.5")
+  await expect(page.getByText("Large replies may stop early")).toBeVisible()
+  await page.getByRole("combobox", { name: "Anthropic model" }).click()
+  await page.getByRole("option", { name: /Claude Sonnet 5\.5/ }).click()
+  await page.getByRole("spinbutton", { name: "Per-reply limit (USD)" }).fill("0.1")
+  await expect(page.getByText("Large replies may stop early")).toHaveCount(0)
+
+  const key = page.getByLabel("API key", { exact: true })
+  await key.fill("sk-ant-wrong-key-000000000")
+  await page.getByRole("button", { name: "Test connection" }).click()
+  await expect(page.getByText("Connection failed")).toBeVisible()
+  await expect(page.getByText("invalid x-api-key")).toBeVisible()
+
+  await key.fill("sk-ant-test-only-key-123456")
+  const testRequest = page.waitForRequest((request) => request.url().endsWith("/assistant-settings/test"))
+  await page.getByRole("button", { name: "Test connection" }).click()
+  expect((await testRequest).postDataJSON()).toEqual({ provider: "anthropic", model: "claude-sonnet-5-5", api_key: "sk-ant-test-only-key-123456" })
+  await expect(page.getByText("Anthropic · Claude Sonnet 5.5 answered in 840 ms. Nothing was saved.")).toBeVisible()
+
+  const save = page.waitForRequest((request) => request.method() === "PUT")
+  await page.getByRole("button", { name: "Save settings" }).click()
+  expect((await save).postDataJSON()).toEqual({
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    daily_budget_usd: 2,
+    run_budget_usd: 0.1,
+    revision: 0,
+    api_key: "sk-ant-test-only-key-123456",
+  })
+  await expect(page.getByText("AI assistant settings saved")).toBeVisible()
+  await expect(page.getByRole("radio", { name: "Anthropic" })).toBeChecked()
+  await expect(page.getByText("Saved key ending in …3456").first()).toBeVisible()
+  await expect(page.getByLabel("Replace key")).toHaveValue("")
+  await expect(page.getByRole("button", { name: "Save settings" })).toBeDisabled()
+})
+
+test("platform administrators do not see the AI assistant settings", async ({ page }) => {
+  await mockApi(page, { user: platformAdmin })
+  await mockAssistantSettings(page)
+  await page.goto("/organizations")
+
+  await expect(page.getByRole("link", { name: "Users" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "AI assistant" })).toHaveCount(0)
+  await page.goto("/settings/assistant")
+  await expect(page).toHaveURL(/\/organizations$/)
 })

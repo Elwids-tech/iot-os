@@ -35,6 +35,7 @@ import {
   HistoryIcon,
   LogOutIcon,
   ShieldCheckIcon,
+  SparklesIcon,
   UsersIcon,
 } from "lucide-react"
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom"
@@ -45,7 +46,10 @@ const navigationGroups = [
     { title: "Users", to: "/users", icon: UsersIcon },
     { title: "Roles", to: "/roles", icon: ShieldCheckIcon },
   ],
-  [{ title: "Retention", to: "/settings/retention", icon: HistoryIcon }],
+  [
+    { title: "Retention", to: "/settings/retention", icon: HistoryIcon },
+    { title: "AI assistant", to: "/settings/assistant", icon: SparklesIcon },
+  ],
 ]
 
 const initials = (name: string) => {
@@ -70,7 +74,9 @@ function AdminSidebar({
   const groups = navigationGroups
     .map((group) =>
       group.filter(
-        (item) => item.to !== "/settings/retention" || user.capabilities.manage_retention,
+        (item) =>
+          (item.to !== "/settings/retention" || user.capabilities.manage_retention) &&
+          (item.to !== "/settings/assistant" || user.capabilities.manage_assistant),
       ),
     )
     .filter((group) => group.length)

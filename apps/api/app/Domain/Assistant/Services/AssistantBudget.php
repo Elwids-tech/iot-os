@@ -14,8 +14,9 @@ final class AssistantBudget
         $day = now()->toDateString();
         DB::table('assistant_budgets')->insertOrIgnore(['day' => $day]);
         $budget = DB::table('assistant_budgets')->where('day', $day)->lockForUpdate()->first();
-        $amount = (float) config('assistant.run_budget_usd');
-        abort_unless($amount > 0 && (float) $budget->spent_usd + (float) $budget->reserved_usd + $amount <= (float) config('assistant.daily_budget_usd'), 429, 'The assistant has reached its configured daily testing allowance. Try again later or adjust the server allowance.');
+        $provider = app(AssistantProvider::class);
+        $amount = $provider->runBudget();
+        abort_unless($amount > 0 && (float) $budget->spent_usd + (float) $budget->reserved_usd + $amount <= $provider->dailyBudget(), 429, 'The assistant has reached its configured daily testing allowance. Try again later or adjust the server allowance.');
         DB::table('assistant_budgets')->where('day', $day)->increment('reserved_usd', $amount);
 
         return $amount;
@@ -36,15 +37,11 @@ final class AssistantBudget
         });
     }
 
-    public function cost(array $usage): float
+    /**
+     * @param  array<string, mixed>  $usage
+     */
+    public function cost(array $usage, ?string $model = null): float
     {
-        // Laravel AI 1.x totals already include cached input and reasoning output; rows
-        // stored before 1.x use prompt/completion keys that excluded cached input.
-        $input = array_key_exists('input_tokens', $usage)
-            ? $usage['input_tokens'] ?? 0
-            : ($usage['prompt_tokens'] ?? 0) + ($usage['cache_read_input_tokens'] ?? 0) + ($usage['cache_write_input_tokens'] ?? 0);
-        $output = $usage['output_tokens'] ?? $usage['completion_tokens'] ?? 0;
-
-        return round(($input * 0.75 + $output * 4.5) / 1000000, 6);
+        return app(AssistantProvider::class)->cost($usage, $model);
     }
 }

@@ -98,30 +98,54 @@ telemetry or credentials.
 
 ## Configuration and cost
 
-Configure on the server only (root `.env` for Compose, `apps/api/.env` for host
-processes); never in a `VITE_` variable:
+The provider is OpenAI or Anthropic. Super administrators choose it in the admin app
+(**AI assistant**, spec 010): the provider and model, an API key per provider, and the
+daily and per-reply limits, with a **Test connection** button that sends one short
+request without saving. Saved settings apply to the next reply, with no restart.
+Keys are stored encrypted with the application key, are never returned (only their
+last four characters), and are redacted from provider errors and logs. Every change
+records an `assistant.settings.updated` or `assistant.provider_key.removed` audit
+event without the key.
+
+Until something is saved, the server environment applies. Configure it on the server
+only (root `.env` for Compose, `apps/api/.env` for host processes); never in a `VITE_`
+variable:
 
 ```dotenv
+IOT_ASSISTANT_ENABLED=true
+IOT_ASSISTANT_PROVIDER=openai        # or anthropic
+IOT_ASSISTANT_MODEL=                 # empty: the provider's default model
 OPENAI_API_KEY=...
 OPENAI_STORE=false
-IOT_ASSISTANT_ENABLED=true
-IOT_ASSISTANT_MODEL=gpt-5.4-mini-2026-03-17
+ANTHROPIC_API_KEY=
 IOT_ASSISTANT_DAILY_BUDGET_USD=0.50
 IOT_ASSISTANT_RUN_BUDGET_USD=0.04
 IOT_HELP_AI_ENABLED=false
 ```
 
+`IOT_ASSISTANT_ENABLED` and `IOT_HELP_AI_ENABLED` stay in the environment; the admin
+page says when the assistant is switched off. Saved keys fall back to the
+environment key when removed, and the active provider's only key cannot be removed.
+
+- The selectable models and their prices per million tokens are listed in
+  [`config/assistant.php`](../../apps/api/config/assistant.php): OpenAI GPT-5.4 mini,
+  and Anthropic Claude Opus 5.5 (the Anthropic default), Sonnet 5.5 and Haiku 5.5.
+  Adding a model means adding it there with its prices. Each run is priced with the
+  model that served it; a model set in `IOT_ASSISTANT_MODEL` that is not listed is
+  priced at the provider's most expensive listed model.
+- Each agent sends only its provider's request options: OpenAI gets low reasoning
+  effort, no parallel tool calls and `store=false`; Anthropic gets effort `low`,
+  no parallel tool use and room for thinking tokens (`max_tokens` 8000).
 - Runs go through the `assistant` database queue and `assistant-worker`
   (180 s retry window, 120 s timeout), with idempotency keys, cancellation and
   recovery of stuck reservations (`php artisan assistant:recover`, scheduled every
   minute).
-- The server reserves the run budget before queueing and records reported usage
+- The server reserves the per-reply limit before queueing and records reported usage
   afterwards. These are **application guards, not provider billing caps**; keep
   provider-side limits. Unknown usage after a failure is charged at the reservation.
-  Cost estimates assume the configured model's price; update the estimator when
-  changing models. The budget is one shared daily allowance, not per organization.
-- `store=false` disables Responses API storage; it does not imply zero provider
-  retention. Selected content is sent to the provider.
+  The budget is one shared daily allowance, not per organization.
+- `store=false` disables OpenAI Responses API storage; it does not imply zero provider
+  retention. Selected content is sent to the provider, and the portal names it.
 
 There is no MCP endpoint. A future one must establish the same authenticated actor
 and organization as the REST API.
@@ -134,3 +158,6 @@ and organization as the REST API.
 `proposals/{p}/decision`, `runs/{r}/cancel`.
 `/api/v1/organizations/{organization}/help`: `page?context=`, `articles?query=`,
 `articles/{slug}`.
+`settings` includes `provider` (`id`, `label`).
+`/api/v1/admin/assistant-settings` (super administrators): `GET`, `PUT` (with
+`revision`; 409 when stale), `DELETE keys/{provider}`, `POST test` (6 a minute).

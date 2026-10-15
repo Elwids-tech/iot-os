@@ -190,7 +190,7 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
             {active ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={async () => { setBusy(true); try { await api.assistantCancel(org, session.id!, active.id); await detail.refetch() } catch (e) { setError(e) } finally { setBusy(false) } }}><SquareIcon data-icon="inline-start" />Stop</Button> : <Button size="icon-sm" aria-label="Send automation message" disabled={locked || !settings.data?.enabled || !session.text.trim()}><SendIcon /></Button>}
           </InputGroupAddon></InputGroup>
       </form>
-      <p className="text-xs text-muted-foreground">Your request, draft, {execution ? "selected execution evidence, " : ""}and relevant device and geofence configuration are sent to OpenAI. Nothing is saved or activated automatically.{conversationCost(detail.data?.runs) > 0 && <span className="tabular-nums"> · Estimated cost of this conversation {formatCost(conversationCost(detail.data?.runs))}</span>}</p>
+      <p className="text-xs text-muted-foreground">Your request, draft, {execution ? "selected execution evidence, " : ""}and relevant device and geofence configuration are sent to {settings.data?.provider?.label ?? "the AI provider"}. Nothing is saved or activated automatically.{conversationCost(detail.data?.runs) > 0 && <span className="tabular-nums"> · Estimated cost of this conversation {formatCost(conversationCost(detail.data?.runs))}</span>}</p>
     </div>
   </div>
 }

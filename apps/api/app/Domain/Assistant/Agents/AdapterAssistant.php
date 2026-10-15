@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Assistant\Agents;
 
 use App\Domain\Assistant\Models\AssistantRun;
+use App\Domain\Assistant\Services\AssistantProvider;
 use App\Domain\Assistant\Tools\AdapterAssistantTools;
 use Laravel\Ai\Attributes\MaxSteps;
 use Laravel\Ai\Attributes\MaxTokens;
@@ -12,12 +13,14 @@ use Laravel\Ai\Attributes\Timeout;
 use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
+use Laravel\Ai\Contracts\HasProviderOptions;
 use Laravel\Ai\Contracts\HasTools;
+use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Promptable;
 use Stringable;
 
 #[MaxSteps(5)] #[MaxTokens(2200)] #[Timeout(90)]
-final class AdapterAssistant implements Agent, Conversational, HasTools
+final class AdapterAssistant implements Agent, Conversational, HasProviderOptions, HasTools
 {
     use Promptable,RemembersConversations;
 
@@ -49,5 +52,10 @@ PROMPT
     public function tools(): iterable
     {
         return [new AdapterAssistantTools($this->run)];
+    }
+
+    public function providerOptions(Lab|string $provider): array
+    {
+        return AssistantProvider::options($provider, tools: true);
     }
 }

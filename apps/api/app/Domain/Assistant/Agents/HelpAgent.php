@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Assistant\Agents;
 
 use App\Domain\Assistant\Models\AssistantRun;
+use App\Domain\Assistant\Services\AssistantProvider;
 use App\Domain\Help\Services\HelpAnswers;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Attributes\MaxTokens;
@@ -66,6 +67,6 @@ PROMPT
 
     public function providerOptions(Lab|string $provider): array
     {
-        return ['reasoning' => ['effort' => 'low'], 'store' => false];
+        return AssistantProvider::options($provider, ['reasoning' => ['effort' => 'low'], 'store' => false]);
     }
 }

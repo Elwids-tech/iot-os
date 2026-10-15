@@ -110,8 +110,11 @@ export type AssistantEvent = {
     message?: string
   }
 }
+/** The AI provider replies come from, so screens can say where content is sent. */
+export type AssistantProviderRef = { id: string; label: string }
 export type AssistantSettings = {
   enabled: boolean
+  provider: AssistantProviderRef
   capabilities: DeviceProfileCapabilities
   supported_extensions: string[]
   max_file_bytes: number
@@ -121,3 +124,45 @@ export type AssistantPreviewInput = Pick<
   AssistantProposal,
   "section" | "summary" | "changes" | "evidence"
 >
+
+/** A selectable model and its price in USD per million tokens (spec 010). */
+export type AssistantModelOption = {
+  id: string
+  label: string
+  input_usd_per_million: number
+  output_usd_per_million: number
+}
+export type AssistantKeySource = "saved" | "environment"
+export type AssistantProviderOption = {
+  id: string
+  label: string
+  default_model: string
+  models: AssistantModelOption[]
+  /** Where the provider's key comes from; the key itself is never returned. */
+  key: { source: AssistantKeySource | null; last_four: string | null; updated_at: string | null }
+}
+/** The admin AI assistant page, for super administrators. */
+export type AssistantAdminSettings = {
+  enabled: boolean
+  help_enabled: boolean
+  configured: boolean
+  provider: string
+  model: string
+  daily_budget_usd: number
+  run_budget_usd: number
+  sources: { provider: AssistantKeySource; daily_budget_usd: AssistantKeySource; run_budget_usd: AssistantKeySource }
+  revision: number
+  updated_at: string | null
+  today: { spent_usd: number; reserved_usd: number }
+  providers: AssistantProviderOption[]
+}
+export type AssistantAdminSettingsInput = {
+  provider: string
+  model: string
+  daily_budget_usd: number | null
+  run_budget_usd: number | null
+  revision: number
+  /** A new key for the chosen provider; omit to keep the current one. */
+  api_key?: string
+}
+export type AssistantConnectionTest = { ok: boolean; latency_ms: number | null; error: string | null }

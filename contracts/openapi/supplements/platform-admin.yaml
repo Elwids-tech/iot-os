@@ -23,6 +23,14 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  PUT /v1/admin/assistant-settings:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  DELETE /v1/admin/assistant-settings/keys/{provider}:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
   PUT /v1/admin/super-administrators/{user}:
     responses:
       '403':
