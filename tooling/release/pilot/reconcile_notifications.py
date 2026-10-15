@@ -63,7 +63,9 @@ def main():
     from manage import Deployment
     try:
         deployment = Deployment('/srv/elwids/private/application.env', '/srv/elwids/private/current-release.json')
-        with deployment.lock():
+        # Wait out the metrics timer, but not a backup or a deploy: the unit times
+        # out after 60 seconds and the next run is a minute away.
+        with deployment.lock(20):
             if (deployment.config / 'DEPLOYMENT_INCOMPLETE').exists():
                 return 0
             reconcile(deployment)

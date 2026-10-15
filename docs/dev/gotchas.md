@@ -122,6 +122,13 @@ Things that have cost time before. Add to this list when something surprises you
   failed with "variable '-----END PRIVATE KEY-----' contains whitespaces". Pass a
   private environment with `-e NAME` from the client's environment instead
   (`docker_run_environment` in [`manage.py`](../../tooling/release/manage.py)).
+- **systemd starts timers that fall in the same minute together.** Timers default
+  to `AccuracySec=1min`, so the pilot's metrics, notification reconcile and daily
+  backup timers fired in the same second and raced for `operation.lock`. When the
+  lock failed at once instead of waiting, a third of metrics runs and several
+  scheduled backups failed with "[Errno 11] Resource temporarily unavailable".
+  `BackupOverdue` stayed quiet because deploy checkpoints kept the backup metric
+  fresh. Anything that takes the lock from a timer passes `Deployment.lock` a wait.
 - **A fresh worktree has no `apps/api/vendor` and no `.env`.** Clone the main
   checkout's vendor directory (`cp -Rc`, never a symlink: Composer resolves
   `__DIR__` through the link and autoloads the main checkout's `app/`), then
