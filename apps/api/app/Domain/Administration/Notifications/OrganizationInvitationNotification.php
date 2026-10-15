@@ -34,6 +34,15 @@ final class OrganizationInvitationNotification extends Notification
             urlencode($this->token),
         );
 
+        if ($this->invitation->grants_super_admin) {
+            return (new MailMessage)
+                ->subject('You have been invited to administer IoT OS')
+                ->greeting('You have been invited to IoT OS')
+                ->line('Join as a super administrator: you will manage the platform and every organization on it.')
+                ->action('Accept invitation', $acceptUrl)
+                ->line(sprintf('This invitation expires on %s.', $this->invitation->expires_at->toDayDateTimeString()));
+        }
+
         return (new MailMessage)
             ->subject(sprintf('Join %s on IoT OS', $this->invitation->organization->name))
             ->greeting('You have been invited to IoT OS')

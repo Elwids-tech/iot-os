@@ -28,7 +28,25 @@ type InvitationState = {
 
 type Confirming = { action: "resend" | "revoke"; invitation: OrganizationInvitation }
 
-export function PendingInvitations({ refreshKey }: { refreshKey: number }) {
+const allOrganizations = "All organizations"
+const superAdministrator = "Super administrator"
+
+function organizationName(invitation: OrganizationInvitation): string {
+  return invitation.organization?.name ?? allOrganizations
+}
+
+function roleNames(invitation: OrganizationInvitation): string {
+  return invitation.grants_super_admin ? superAdministrator : invitation.roles.map((role) => role.display_name).join(", ")
+}
+
+export function PendingInvitations({
+  refreshKey,
+  managesSuperAdministrators = false,
+}: {
+  refreshKey: number
+  /** Only super administrators resend or revoke super-administrator invitations (spec 007). */
+  managesSuperAdministrators?: boolean
+}) {
   const [state, setState] = useState<InvitationState>({ error: false })
   const [page, setPage] = useState(1)
   const [version, setVersion] = useState(0)
@@ -68,7 +86,11 @@ export function PendingInvitations({ refreshKey }: { refreshKey: number }) {
         await apiClient.revokeAdminInvitation(invitation.uuid)
         toast.success(`Invitation for ${invitation.email} revoked`)
       } else {
-        await apiClient.inviteUser(invitation.organization.uuid, invitation.email, invitation.role_ids)
+        if (invitation.organization) {
+          await apiClient.inviteUser(invitation.organization.uuid, invitation.email, invitation.role_ids)
+        } else {
+          await apiClient.inviteSuperAdministrator(invitation.email)
+        }
         toast.success(`Invitation sent to ${invitation.email}`)
         setPage(1)
       }
@@ -86,13 +108,18 @@ export function PendingInvitations({ refreshKey }: { refreshKey: number }) {
 
   const columns: DataColumn<OrganizationInvitation>[] = [
     { id: "email", header: "Email", mobile: "title", value: (i) => i.email, cell: (i) => <span className="font-medium">{i.email}</span> },
-    { id: "organization", header: "Organization", value: (i) => i.organization.name, cell: (i) => i.organization.name },
+    {
+      id: "organization",
+      header: "Organization",
+      value: organizationName,
+      cell: (i) => (i.organization ? i.organization.name : <span className="text-muted-foreground">{allOrganizations}</span>),
+    },
     {
       id: "roles",
       header: "Roles",
       className: "min-w-40 whitespace-normal",
-      value: (i) => i.roles.map((role) => role.display_name).join(", "),
-      cell: (i) => i.roles.map((role) => role.display_name).join(", "),
+      value: roleNames,
+      cell: roleNames,
     },
     {
       id: "expires",
@@ -134,6 +161,7 @@ export function PendingInvitations({ refreshKey }: { refreshKey: number }) {
           onPageChange: setPage,
         }}
         rowActions={(invitation) => {
+          if (invitation.grants_super_admin && !managesSuperAdministrators) return null
           const canResend = invitation.status === "pending" || invitation.status === "expired"
           if (!canResend && invitation.status !== "pending") return null
           return (

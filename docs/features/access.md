@@ -127,8 +127,8 @@ the Members and Roles pages.
 The admin app ([`apps/admin`](../../apps/admin)) requires
 `PlatformAdministration.access`, granted by the `platform-administrator` platform
 role; super administrators (`users.is_super_admin`) pass every check. It covers
-organizations and their ceilings and roles, users, invitations, the platform
-team (super administrators only) and telemetry retention
+organizations and their ceilings and roles, users, invitations, super administrators
+(managed by super administrators only) and telemetry retention
 (`PlatformAdministration.manage-retention`).
 
 A platform administrator sets up an organization from **Organizations**: create it
@@ -137,6 +137,32 @@ add a **New role** (name and permissions from the organization's ceiling) or
 **Invite user** with any of its roles. A role's page edits its permissions and offers
 **Rename** (not Organization Admin) and **Delete role** (custom roles that no member
 holds and no pending invitation uses).
+
+### Super administrators
+
+Super administrators add and remove other super administrators in admin under
+**Users** ([spec 007](../../specs/007-super-administrators/spec.md)):
+
+- **Make super administrator** on any user's row promotes an existing account; it keeps
+  its organization memberships and roles. **Remove super administrator** takes the
+  access away on the person's next request; it is never offered on your own row, and
+  the API refuses it with 422, so at least one super administrator remains.
+- **Invite user → Super administrator** invites someone by email with no organization.
+  They accept like any invitation (a new account chooses its name and password; an
+  existing account signs in with the invited email) and land in admin. The
+  **Invitations** list shows these as "All organizations" / "Super administrator";
+  they expire after seven days and can be resent and revoked. When the inviter loses
+  super administrator access, their pending super-administrator invitations stop
+  working.
+
+Platform administrators see none of this, and the API answers them 403. Every grant
+and removal records `user.super_admin_granted` or `user.super_admin_revoked` (no
+organization, the acting user, and the affected `user_id` and email); an accepted
+invitation records the inviter as the actor. Routes:
+`PUT/DELETE /api/v1/admin/super-administrators/{user_id}` and
+`POST /api/v1/admin/super-administrators/invitations` (`email`). A
+super-administrator invitation is an `organization_invitations` row with
+`grants_super_admin` and no organization or roles.
 
 ### Deleting an organization
 
@@ -175,4 +201,4 @@ with a count) and `DELETE organizations/{uuid}?slug=<slug>` (204, 409 with
 
 The first administrator of a new deployment is created with
 `php artisan deployment:administrator EMAIL --output=<new private file>`
-([release](../ops/release.md)).
+([release](../ops/release.md)); further super administrators are added from admin.

@@ -16,6 +16,8 @@ use App\Domain\Administration\Http\Controllers\PlatformRolePermissionController;
 use App\Domain\Administration\Http\Controllers\PlatformTeamController;
 use App\Domain\Administration\Http\Controllers\PlatformUserController;
 use App\Domain\Administration\Http\Controllers\PublicOrganizationInvitationController;
+use App\Domain\Administration\Http\Controllers\SuperAdministratorController;
+use App\Domain\Administration\Http\Controllers\SuperAdministratorInvitationController;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use Illuminate\Support\Facades\Route;
 
@@ -76,6 +78,14 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
                 ->name('roles.permissions.update');
             Route::get('platform-team', [PlatformTeamController::class, 'index'])->name('platform-team.index');
             Route::put('platform-team/{user}', [PlatformTeamController::class, 'update'])->name('platform-team.update');
+            Route::post('super-administrators/invitations', [SuperAdministratorInvitationController::class, 'store'])
+                ->name('super-administrators.invitations.store');
+            Route::put('super-administrators/{user}', [SuperAdministratorController::class, 'update'])
+                ->whereNumber('user')
+                ->name('super-administrators.update');
+            Route::delete('super-administrators/{user}', [SuperAdministratorController::class, 'destroy'])
+                ->whereNumber('user')
+                ->name('super-administrators.destroy');
         });
 
         Route::prefix('organizations/{organization}')->name('organizations.')->whereUuid(['organization', 'invitation'])->group(function (): void {

@@ -13,7 +13,8 @@ organization can hold only permissions inside it. `Shared/Models/Organization.ph
 
 **User.** A person's account, identified by **integer id** (there is no user
 UUID, [ADR-013](../adr/ADR-013-integer-user-ids.md)). Belongs to many
-organizations. `is_super_admin` bypasses authorization checks.
+organizations. `is_super_admin` bypasses authorization checks; super administrators
+grant and remove it in admin.
 `Shared/Models/User.php`
 
 **Role.** An organization-scoped bundle of permissions. Built-in roles are

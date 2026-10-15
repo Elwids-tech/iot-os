@@ -3,6 +3,7 @@ import type { Organization, OrganizationRole } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
+import { ChoiceCard } from "@iot-os/ui/components/choice-card"
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,7 @@ import {
 import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
 import { SelectField } from "@iot-os/ui/components/form-fields"
 import { Input } from "@iot-os/ui/components/input"
+import { RadioGroup } from "@iot-os/ui/components/radio-group"
 import { AlertCircleIcon, SendIcon } from "lucide-react"
 import { toast } from "sonner"
 import { apiClient } from "../lib/api-client"
@@ -25,7 +27,11 @@ type FormErrors = {
   form?: string
 }
 
+type InvitationKind = "organization" | "super-administrator"
+
 type InviteUserDialogProps = {
+  /** Super administrators may also invite a super administrator, with no organization (spec 007). */
+  canInviteSuperAdministrators?: boolean
   organizations: Organization[]
   /** Selected when the dialog opens, and listed even if `organizations` has not caught up with it. */
   initialOrganization?: Organization
@@ -35,6 +41,7 @@ type InviteUserDialogProps = {
 }
 
 export function InviteUserDialog({
+  canInviteSuperAdministrators = false,
   organizations,
   initialOrganization,
   onInvited,
@@ -42,6 +49,8 @@ export function InviteUserDialog({
   onOpenChange,
 }: InviteUserDialogProps) {
   const [email, setEmail] = useState("")
+  const [kind, setKind] = useState<InvitationKind>("organization")
+  const invitesSuperAdministrator = canInviteSuperAdministrators && kind === "super-administrator"
   const [organizationUuid, setOrganizationUuid] = useState("")
   const [roles, setRoles] = useState<OrganizationRole[]>([])
   const [selectedRoleIds, setSelectedRoleIds] = useState<Set<number>>(new Set())
@@ -94,6 +103,7 @@ export function InviteUserDialog({
 
   function reset() {
     setEmail("")
+    setKind("organization")
     setOrganizationUuid("")
     setRoles([])
     setSelectedRoleIds(new Set())
@@ -122,6 +132,23 @@ export function InviteUserDialog({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setErrors({})
+
+    if (invitesSuperAdministrator) {
+      setIsSubmitting(true)
+
+      try {
+        const invitation = await apiClient.inviteSuperAdministrator(email)
+        toast.success(`Invitation sent to ${invitation.email}`)
+        handleOpenChange(false)
+        onInvited()
+      } catch (error) {
+        const emailErrors = fieldMessages(validationErrors(error), "email")
+        setErrors({ email: emailErrors, form: emailErrors ? undefined : errorMessage(error) })
+      } finally {
+        setIsSubmitting(false)
+      }
+      return
+    }
 
     if (!organizationUuid || selectedRoleIds.size === 0) {
       setErrors({ role_ids: ["Select an organization and at least one role."] })
@@ -158,6 +185,32 @@ export function InviteUserDialog({
         </DialogHeader>
         <form onSubmit={submit}>
           <FieldGroup>
+            {canInviteSuperAdministrators ? (
+              <FieldSet>
+                <FieldLegend variant="label">Invite as</FieldLegend>
+                <RadioGroup
+                  value={kind}
+                  onValueChange={(value) => {
+                    setKind(value as InvitationKind)
+                    setErrors({})
+                  }}
+                  className="gap-2"
+                >
+                  <ChoiceCard
+                    value="organization"
+                    disabled={isSubmitting}
+                    title="Organization member"
+                    description="Joins one organization with the roles you choose."
+                  />
+                  <ChoiceCard
+                    value="super-administrator"
+                    disabled={isSubmitting}
+                    title="Super administrator"
+                    description="Manages the platform and every organization, including other super administrators."
+                  />
+                </RadioGroup>
+              </FieldSet>
+            ) : null}
             <Field data-invalid={Boolean(errors.email?.length)}>
               <FieldLabel htmlFor="invite-email">Email</FieldLabel>
               <Input
@@ -171,44 +224,48 @@ export function InviteUserDialog({
               />
               <FieldError errors={errors.email?.map((message) => ({ message }))} />
             </Field>
-            <SelectField
-              id="invite-organization"
-              label="Organization"
-              value={organizationUuid}
-              onChange={setOrganizationUuid}
-              placeholder="Select an organization"
-              options={choices.map((organization) => ({
-                value: organization.uuid,
-                label: organization.name,
-              }))}
-            />
-            <FieldSet data-invalid={Boolean(errors.role_ids?.length)}>
-              <FieldLegend variant="label">Roles</FieldLegend>
-              {!organizationUuid ? (
-                <p className="text-sm text-muted-foreground">Select an organization to load its roles.</p>
-              ) : isLoadingRoles ? (
-                <p className="text-sm text-muted-foreground">Loading organization roles…</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {roles.map((role) => {
-                    const id = `invite-role-${role.id}`
+            {invitesSuperAdministrator ? null : (
+              <>
+                <SelectField
+                  id="invite-organization"
+                  label="Organization"
+                  value={organizationUuid}
+                  onChange={setOrganizationUuid}
+                  placeholder="Select an organization"
+                  options={choices.map((organization) => ({
+                    value: organization.uuid,
+                    label: organization.name,
+                  }))}
+                />
+                <FieldSet data-invalid={Boolean(errors.role_ids?.length)}>
+                  <FieldLegend variant="label">Roles</FieldLegend>
+                  {!organizationUuid ? (
+                    <p className="text-sm text-muted-foreground">Select an organization to load its roles.</p>
+                  ) : isLoadingRoles ? (
+                    <p className="text-sm text-muted-foreground">Loading organization roles…</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {roles.map((role) => {
+                        const id = `invite-role-${role.id}`
 
-                    return (
-                      <Field key={role.id} orientation="horizontal">
-                        <Checkbox
-                          id={id}
-                          checked={selectedRoleIds.has(role.id)}
-                          disabled={isSubmitting}
-                          onCheckedChange={(checked) => toggleRole(role.id, checked === true)}
-                        />
-                        <FieldLabel htmlFor={id}>{role.display_name}</FieldLabel>
-                      </Field>
-                    )
-                  })}
-                </div>
-              )}
-              <FieldError errors={errors.role_ids?.map((message) => ({ message }))} />
-            </FieldSet>
+                        return (
+                          <Field key={role.id} orientation="horizontal">
+                            <Checkbox
+                              id={id}
+                              checked={selectedRoleIds.has(role.id)}
+                              disabled={isSubmitting}
+                              onCheckedChange={(checked) => toggleRole(role.id, checked === true)}
+                            />
+                            <FieldLabel htmlFor={id}>{role.display_name}</FieldLabel>
+                          </Field>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <FieldError errors={errors.role_ids?.map((message) => ({ message }))} />
+                </FieldSet>
+              </>
+            )}
             {errors.form ? (
               <Alert variant="destructive">
                 <AlertCircleIcon />
@@ -221,7 +278,7 @@ export function InviteUserDialog({
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || isLoadingRoles}>
+            <Button type="submit" disabled={isSubmitting || (!invitesSuperAdministrator && isLoadingRoles)}>
               <SendIcon data-icon="inline-start" />
               {isSubmitting ? "Sending…" : "Send invitation"}
             </Button>
