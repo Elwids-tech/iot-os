@@ -77,7 +77,9 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
                 ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
                 ->name('roles.permissions.update');
             Route::get('platform-team', [PlatformTeamController::class, 'index'])->name('platform-team.index');
-            Route::put('platform-team/{user}', [PlatformTeamController::class, 'update'])->name('platform-team.update');
+            Route::put('platform-team/{user}', [PlatformTeamController::class, 'update'])
+                ->whereNumber('user')
+                ->name('platform-team.update');
             Route::post('super-administrators/invitations', [SuperAdministratorInvitationController::class, 'store'])
                 ->name('super-administrators.invitations.store');
             Route::put('super-administrators/{user}', [SuperAdministratorController::class, 'update'])

@@ -3382,9 +3382,10 @@
             "name": "user",
             "in": "path",
             "required": true,
-            "description": "The user ID",
+            "description": "The user ID. A value that does not match returns 404.",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0
             }
           }
         ],
@@ -3404,7 +3405,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformTeamMemberResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
                 }
               }
             }
@@ -3430,8 +3439,7 @@
             "session": []
           }
         ],
-        "x-audience": "platform-admin",
-        "x-schema-status": "pending"
+        "x-audience": "platform-admin"
       }
     },
     "/v1/admin/roles": {
@@ -22965,6 +22973,48 @@
             }
           }
         }
+      },
+      "PlatformTeamMemberResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "is_super_admin": {
+            "type": "boolean"
+          },
+          "platform_roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "display_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "display_name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "is_super_admin"
+        ],
+        "title": "PlatformTeamMemberResource"
       },
       "PlatformUserResource": {
         "type": "object",

@@ -9,6 +9,7 @@ import { UserPlusIcon, UsersIcon } from "lucide-react"
 import { InviteUserDialog } from "../components/InviteUserDialog"
 import { MemberDialogs, type MemberAction } from "../components/MemberDialogs"
 import { PendingInvitations } from "../components/PendingInvitations"
+import { PlatformAdministratorDialog, type PlatformAdministratorAction } from "../components/PlatformAdministratorDialog"
 import { SuperAdministratorDialog, type SuperAdministratorAction } from "../components/SuperAdministratorDialog"
 import { useDirectoryTable } from "../components/ResourceDirectory"
 import { useOrganizationOptions } from "../hooks/use-directory"
@@ -24,9 +25,13 @@ function platformAccess(user: PlatformUser): string {
   return "Tenant user"
 }
 
+function isPlatformAdministrator(user: PlatformUser): boolean {
+  return user.platform_roles.some((role) => role.key === "platform-administrator")
+}
+
 export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
-  // Only super administrators grant or remove super administrator access (spec 007); the API re-checks.
-  const managesSuperAdministrators = currentUser.is_super_admin
+  // Only super administrators manage super administrators (spec 007) and platform administrators (spec 008); the API re-checks.
+  const managesPlatformAccess = currentUser.is_super_admin
   const organizations = useOrganizationOptions()
   const { reload, query, table } = useDirectoryTable(loadUsers, {
     searchPlaceholder: "Name or email",
@@ -36,6 +41,7 @@ export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
   const [invitationRefreshKey, setInvitationRefreshKey] = useState(0)
   const [memberAction, setMemberAction] = useState<MemberAction | null>(null)
   const [superAdministratorAction, setSuperAdministratorAction] = useState<SuperAdministratorAction | null>(null)
+  const [platformAdministratorAction, setPlatformAdministratorAction] = useState<PlatformAdministratorAction | null>(null)
   const columns = useMemo<DataColumn<PlatformUser>[]>(
     () => [
       { id: "user", header: "User", mobile: "title", value: (user) => user.name, cell: (user) => <span className="font-medium">{user.name}</span> },
@@ -83,7 +89,17 @@ export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
         groups={[{ id: "access", label: "Platform access", value: platformAccess }]}
         rowActions={(user) => {
           const isMember = user.organizations.length > 0
-          const superAdministratorItem = !managesSuperAdministrators ? null : !user.is_super_admin ? (
+          // A super administrator already passes every check, so their row offers no role change.
+          const platformAdministratorItem = !managesPlatformAccess || user.is_super_admin ? null : isPlatformAdministrator(user) ? (
+            <DropdownMenuItem variant="destructive" onSelect={() => setPlatformAdministratorAction({ kind: "revoke", user })}>
+              Remove platform administrator
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => setPlatformAdministratorAction({ kind: "grant", user })}>
+              Make platform administrator
+            </DropdownMenuItem>
+          )
+          const superAdministratorItem = !managesPlatformAccess ? null : !user.is_super_admin ? (
             <DropdownMenuItem onSelect={() => setSuperAdministratorAction({ kind: "grant", user })}>
               Make super administrator
             </DropdownMenuItem>
@@ -92,7 +108,8 @@ export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
               Remove super administrator
             </DropdownMenuItem>
           ) : null
-          if (!isMember && !superAdministratorItem) return null
+          const accessItems = platformAdministratorItem || superAdministratorItem
+          if (!isMember && !accessItems) return null
           return (
             <>
               {isMember ? (
@@ -106,7 +123,8 @@ export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
                   </DropdownMenuItem>
                 </>
               ) : null}
-              {isMember && superAdministratorItem ? <DropdownMenuSeparator /> : null}
+              {isMember && accessItems ? <DropdownMenuSeparator /> : null}
+              {platformAdministratorItem}
               {superAdministratorItem}
             </>
           )
@@ -120,9 +138,9 @@ export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
           />
         }
       />
-      <PendingInvitations refreshKey={invitationRefreshKey} managesSuperAdministrators={managesSuperAdministrators} />
+      <PendingInvitations refreshKey={invitationRefreshKey} managesSuperAdministrators={managesPlatformAccess} />
       <InviteUserDialog
-        canInviteSuperAdministrators={managesSuperAdministrators}
+        canInviteSuperAdministrators={managesPlatformAccess}
         organizations={organizations}
         initialOrganization={organizations.find((organization) => organization.uuid === query.organization)}
         open={inviteOpen}
@@ -138,6 +156,11 @@ export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
       <SuperAdministratorDialog
         action={superAdministratorAction}
         onClose={() => setSuperAdministratorAction(null)}
+        onChanged={reload}
+      />
+      <PlatformAdministratorDialog
+        action={platformAdministratorAction}
+        onClose={() => setPlatformAdministratorAction(null)}
         onChanged={reload}
       />
     </CollectionPage>

@@ -23,7 +23,8 @@ can be added. `Authorization/Models/Role.php`, `Authorization/Enums/Organization
 
 **Platform role.** A role outside any tenant. Only `platform-administrator`
 exists; it grants the `PlatformAdministration.*` permissions used by the admin
-app. `Authorization/Models/PlatformRole.php`
+app, and super administrators grant and remove it on the admin Users page.
+`Authorization/Models/PlatformRole.php`
 
 **Permission.** Named `Resource.action`, for example `Device.view`,
 `Device.command`, `DeviceProfile.publish`, `Workflow.activate`,

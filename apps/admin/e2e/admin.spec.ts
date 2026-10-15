@@ -438,6 +438,30 @@ async function mockApi(
       return
     }
 
+    const platformTeamMatch = url.pathname.match(/^\/api\/v1\/admin\/platform-team\/(\d+)$/)
+
+    if (request.method() === "PUT" && platformTeamMatch) {
+      const target = users.find((item) => item.id === Number(platformTeamMatch[1]))
+      const payload = request.postDataJSON() as { is_platform_administrator: boolean }
+
+      if (!user.is_super_admin) {
+        await fulfillJson(route, { message: "This action is unauthorized." }, 403)
+        return
+      }
+
+      if (!target) {
+        await fulfillJson(route, { message: "Not found." }, 404)
+        return
+      }
+
+      target.platform_roles = payload.is_platform_administrator
+        ? [{ key: "platform-administrator", display_name: "Platform Administrator" }]
+        : []
+      const { organizations: _organizations, ...member } = target
+      await fulfillJson(route, { data: member })
+      return
+    }
+
     if (request.method() === "GET" && url.pathname === "/api/v1/admin/roles") {
       const search = url.searchParams.get("search")?.toLocaleLowerCase() ?? ""
       const organization = url.searchParams.get("organization")
@@ -1286,6 +1310,53 @@ test("creates a super administrator account from an invitation", async ({ page }
   await expect(page.getByRole("heading", { name: "Account ready" })).toBeVisible()
   await expect(page.getByText("You are now a super administrator.")).toBeVisible()
   await expect(page.getByRole("link", { name: "Open administration" })).toHaveAttribute("href", "/")
+})
+
+test("makes a user a platform administrator and removes the role again", async ({ page, consoleMessages }) => {
+  await mockApi(page)
+  await page.goto("/users")
+
+  // A super administrator's row offers no role change, and has nothing else to offer.
+  await expect(page.getByRole("button", { name: "Actions for Platform Super Admin" })).toHaveCount(0)
+
+  await page.getByRole("button", { name: "Actions for Acme Member" }).click()
+  await expect(page.getByRole("menuitem", { name: "Change roles" })).toBeVisible()
+  await page.getByRole("menuitem", { name: "Make platform administrator" }).click()
+  const grantDialog = page.getByRole("alertdialog", { name: "Make Acme Member a platform administrator?" })
+  await expect(grantDialog).toContainText("manage organizations")
+  const grant = page.waitForRequest((request) => request.method() === "PUT")
+  await grantDialog.getByRole("button", { name: "Make platform administrator" }).click()
+  expect((await grant).url()).toContain("/api/v1/admin/platform-team/4")
+  expect((await grant).postDataJSON()).toEqual({ is_platform_administrator: true })
+  await expect(page.getByText("Acme Member is now a platform administrator")).toBeVisible()
+  await expect(page.getByRole("row", { name: /Acme Member/ })).toContainText("Platform administrator")
+
+  await page.getByRole("button", { name: "Actions for Acme Member" }).click()
+  await page.getByRole("menuitem", { name: "Remove platform administrator" }).click()
+  const revokeDialog = page.getByRole("alertdialog", { name: "Remove platform administrator access from Acme Member?" })
+  const revoke = page.waitForRequest((request) => request.method() === "PUT")
+  await revokeDialog.getByRole("button", { name: "Remove access" }).click()
+  expect((await revoke).postDataJSON()).toEqual({ is_platform_administrator: false })
+  await expect(page.getByText("Acme Member is no longer a platform administrator")).toBeVisible()
+  await expect(page.getByRole("row", { name: /Acme Member/ })).toContainText("Tenant user")
+
+  // A platform administrator without an organization offers only the removal.
+  await page.getByRole("button", { name: "Actions for Platform Administrator" }).click()
+  await expect(page.getByRole("menuitem", { name: "Change roles" })).toHaveCount(0)
+  await expect(page.getByRole("menuitem", { name: "Remove platform administrator" })).toBeVisible()
+
+  expect(consoleMessages).toEqual([])
+})
+
+test("platform administrators cannot change platform administrator access", async ({ page }) => {
+  await mockApi(page, { user: platformAdmin })
+  await page.goto("/users")
+
+  await page.getByRole("button", { name: "Actions for Acme Member" }).click()
+  await expect(page.getByRole("menuitem", { name: "Change roles" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: "Make platform administrator" })).toHaveCount(0)
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("button", { name: "Actions for Platform Administrator" })).toHaveCount(0)
 })
 
 test("creates a role for an organization from the Roles page", async ({ page, consoleMessages }) => {

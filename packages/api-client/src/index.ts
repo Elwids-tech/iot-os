@@ -68,6 +68,9 @@ export type PlatformUser = {
   organizations: Organization[]
 }
 
+/** A user as the platform-team update returns them: no organizations (spec 008). */
+export type PlatformTeamMember = Omit<PlatformUser, "organizations">
+
 export type OrganizationRole = {
   id: number
   key: string
@@ -1136,6 +1139,27 @@ export class ApiClient {
     await this.request(`/api/v1/admin/super-administrators/${userId}`, {
       method: "DELETE",
     })
+  }
+
+  async grantPlatformAdministrator(userId: number): Promise<PlatformTeamMember> {
+    return this.updatePlatformTeamMember(userId, true)
+  }
+
+  async revokePlatformAdministrator(userId: number): Promise<PlatformTeamMember> {
+    return this.updatePlatformTeamMember(userId, false)
+  }
+
+  private async updatePlatformTeamMember(
+    userId: number,
+    isPlatformAdministrator: boolean,
+  ): Promise<PlatformTeamMember> {
+    return this.request<ApiResponse<PlatformTeamMember>>(
+      `/api/v1/admin/platform-team/${userId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ is_platform_administrator: isPlatformAdministrator }),
+      },
+    ).then((response) => response.data)
   }
 
   async revokeAdminInvitation(invitationUuid: string): Promise<void> {

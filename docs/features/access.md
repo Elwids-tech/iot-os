@@ -128,7 +128,8 @@ The admin app ([`apps/admin`](../../apps/admin)) requires
 `PlatformAdministration.access`, granted by the `platform-administrator` platform
 role; super administrators (`users.is_super_admin`) pass every check. It covers
 organizations and their ceilings and roles, users, invitations, super administrators
-(managed by super administrators only) and telemetry retention
+and platform administrators (both managed by super administrators only) and telemetry
+retention
 (`PlatformAdministration.manage-retention`).
 
 A platform administrator sets up an organization from **Organizations**: create it
@@ -163,6 +164,27 @@ invitation records the inviter as the actor. Routes:
 `POST /api/v1/admin/super-administrators/invitations` (`email`). A
 super-administrator invitation is an `organization_invitations` row with
 `grants_super_admin` and no organization or roles.
+
+### Platform administrators
+
+Super administrators grant and remove the `platform-administrator` role in admin under
+**Users** ([spec 008](../../specs/008-platform-administrators/spec.md)):
+
+- **Make platform administrator** on the row of a user who is not a super
+  administrator opens the admin app to them on their next request; they keep their
+  organization memberships and roles. **Remove platform administrator** takes it away
+  again.
+- Super administrators' rows offer neither: they pass every check anyway. A super
+  administrator who also holds the role keeps it when their super administrator
+  access is removed.
+
+Platform administrators see neither action, and the API answers them 403. Every change
+records `user.platform_administrator_granted` or `user.platform_administrator_revoked`
+(no organization, the acting user, and the affected `user_id` and email); a request
+that changes nothing records none. Route:
+`PUT /api/v1/admin/platform-team/{user_id}` (`is_platform_administrator`, returns the
+user with their platform roles); `GET /api/v1/admin/platform-team` lists users with
+their platform roles.
 
 ### Deleting an organization
 

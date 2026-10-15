@@ -6,8 +6,7 @@ namespace App\Domain\Administration\Http\Controllers;
 
 use App\Domain\Administration\Http\Requests\SyncPlatformUserRoleRequest;
 use App\Domain\Administration\Http\Resources\PlatformTeamMemberResource;
-use App\Domain\Authorization\Enums\PlatformRoleName;
-use App\Domain\Authorization\Models\PlatformRole;
+use App\Domain\Administration\Services\PlatformAdministrators;
 use App\Domain\Shared\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -35,17 +34,16 @@ final class PlatformTeamController
         );
     }
 
-    public function update(SyncPlatformUserRoleRequest $request, User $user): JsonResource
+    public function update(SyncPlatformUserRoleRequest $request, User $user, PlatformAdministrators $platformAdministrators): JsonResource
     {
         $this->authorize($request);
-        $platformAdministrator = PlatformRole::query()
-            ->where('key', PlatformRoleName::PLATFORM_ADMINISTRATOR->value)
-            ->firstOrFail();
+        /** @var User $actor */
+        $actor = $request->user();
 
         if ($request->boolean('is_platform_administrator')) {
-            $user->platformRoles()->syncWithoutDetaching([$platformAdministrator->getKey()]);
+            $platformAdministrators->grant($actor, $user);
         } else {
-            $user->platformRoles()->detach($platformAdministrator->getKey());
+            $platformAdministrators->revoke($actor, $user);
         }
 
         return PlatformTeamMemberResource::make($user->fresh('platformRoles'));
