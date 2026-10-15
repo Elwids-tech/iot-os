@@ -133,10 +133,9 @@ domain changes.
 ## Delivery
 
 One pull request based on `main` with these documents and the implementation, then the
-release from `main` and the pilot deploy. Spec 007's pull request edits the same admin
-files (`App.tsx`, `UsersPage.tsx`, `admin.spec.ts`, the API client and the access
-docs); whichever merges second is rebased onto the other, keeping both sets of row
-actions.
+release from `main` and the pilot deploy. Spec 007 (#60) edits the same admin files
+(`App.tsx`, `UsersPage.tsx`, `admin.spec.ts`, the API client and the access docs) and
+merged first; this branch merges `main` and keeps both sets of row actions.
 
 ## Complexity Tracking
 
