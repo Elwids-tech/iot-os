@@ -1,7 +1,9 @@
+import fcntl
 import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -364,6 +366,36 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(calls[-2], ('up','-d','--no-recreate','--wait','nats'))
             self.assertEqual(calls[-1], ('start','api','runtime'))
             self.assertEqual(list((root/'private').glob('checkpoint-*')), [])
+
+    def hold_operation_lock(self, deployment, seconds):
+        deployment.config.mkdir(parents=True, exist_ok=True)
+        holder = (deployment.config/'operation.lock').open('w')
+        fcntl.flock(holder, fcntl.LOCK_EX)
+        threading.Timer(seconds, holder.close).start()
+
+    def test_operation_lock_fails_without_a_wait_and_waits_when_asked(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            self.hold_operation_lock(deployment, 0.5)
+            with self.assertRaisesRegex(BlockingIOError, 'Another release operation holds the lock'):
+                with deployment.lock():
+                    pass
+            with deployment.lock(5):
+                pass
+
+    def test_scheduled_commands_wait_for_a_timer_that_holds_the_lock(self):
+        # The pilot's backup and metrics timers lost this race to the notification
+        # reconciler whenever systemd started them in the same second.
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            for command in ('metrics', 'backup'):
+                self.hold_operation_lock(deployment, 0.5)
+                argv = ['manage.py', command, '--env', str(deployment.env_path), '--backup-env', 'private-env']
+                with patch.object(release.sys, 'argv', argv), patch.object(release.os, 'umask'), patch.object(release.Deployment, 'backup') as backup:
+                    release.main()
+                if command == 'backup':
+                    backup.assert_called_once_with('private-env')
+            self.assertTrue((deployment.state/'metrics/containers.prom').is_file())
 
 
 if __name__ == "__main__":

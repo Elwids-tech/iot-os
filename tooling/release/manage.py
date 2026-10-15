@@ -183,10 +183,25 @@ class Deployment:
             self.compose("up", "-d", "--wait", "timescaledb", stdout=subprocess.DEVNULL)
 
     @contextlib.contextmanager
-    def lock(self):
+    def lock(self, wait=0):
         self.config.mkdir(parents=True, exist_ok=True, mode=0o700)
         with (self.config / "operation.lock").open("w") as stream:
-            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # systemd starts timers that fall in the same minute together, so they
+            # race for this lock; the losers wait for it instead of failing.
+            started = time.monotonic()
+            announced = False
+            while True:
+                try:
+                    fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    waited = time.monotonic() - started
+                    if waited >= wait:
+                        raise BlockingIOError("Another release operation holds the lock") from None
+                    if waited >= 10 and not announced:
+                        print("Waiting for another release operation to finish.", file=sys.stderr)
+                        announced = True
+                    time.sleep(min(1, wait - waited))
             yield
 
     def validate(self):
@@ -649,7 +664,9 @@ def main():
         deployment.validate()
         print("Release configuration validated.")
         return
-    with deployment.lock():
+    # Metrics runs every minute and must finish before its next run; the rest can
+    # wait out a backup or a deploy.
+    with deployment.lock(45 if args.command == "metrics" else 1800):
         if args.command in ("deploy", "staging") and (deployment.config / "RESTORE_QUARANTINE").exists():
             raise ValueError("Restored state is quarantined; follow recovery review before activation")
         if args.command == "deploy": deployment.deploy(args.backup_env)
