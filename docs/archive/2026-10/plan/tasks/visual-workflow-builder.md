@@ -219,13 +219,13 @@ changes must follow the repository's portal/admin rebuild requirements.
 
 Working defaults for planning: core portal first; one device per workflow; React
 reference host; TypeScript SDK first; explicit activation; no real customer email
-for verification. These defaults allow workstream 1 to proceed without Laine.
+for verification. These defaults allow workstream 1 to proceed without the cattle customer.
 
 Resolve before the dependent slice:
 
 - Map renderer/tile service and supported basemap requirements before polygon UI
   delivery. A host adapter and GeoJSON contract keep this replaceable.
-- Laine's application framework, user identity model and temporal tag ownership
+- The cattle customer's application framework, user identity model and temporal tag ownership
   before claiming the real third-party integration complete.
 - Exact role migration and application scopes before enabling new authoring or
   activation access; map existing effective permissions explicitly.

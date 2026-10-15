@@ -56,7 +56,7 @@ Each stage must be split into reviewable stories using the existing [definition 
 | P4 | Location/alert dashboard integration and reusable UI boundary | P1–P3 | Core portal and sample application use the same data/component contracts without importing portal source |
 | P5 | Real tag integration and pilot acceptance | Confirmed hardware/transport plus P0–P4 | Hardware evidence meets agreed reporting, accuracy, loss/recovery and customer-isolation requirements |
 
-**First product milestone:** P0–P2, demonstrated entirely with a deterministic location simulator. P3 turns that capability into an external-application foundation. Vendor protocol discovery can proceed when Laine responds without blocking generic simulator work.
+**First product milestone:** P0–P2, demonstrated entirely with a deterministic location simulator. P3 turns that capability into an external-application foundation. Vendor protocol discovery can proceed when the cattle customer responds without blocking generic simulator work.
 
 ### P0 — Durable data and location semantics
 
@@ -70,7 +70,7 @@ Define location bindings over existing numeric parameters rather than introducin
 - Unknown accuracy remains unknown. Define whether it is allowed for a particular rule; never assume zero error.
 - Keep device presence, location freshness and geometry result separate.
 
-Add fixtures for inside, outside, boundary, jitter, re-entry, no fix, stale fix, duplicates, delayed/historical fixes, reconnect, configuration change and runtime restart. Reporting cadence and accuracy are configurable fixture inputs, not claims about Laine's tags.
+Add fixtures for inside, outside, boundary, jitter, re-entry, no fix, stale fix, duplicates, delayed/historical fixes, reconnect, configuration change and runtime restart. Reporting cadence and accuracy are configurable fixture inputs, not claims about the customer's tags.
 
 ### P1 — Rules engine with a geofencing node
 
@@ -175,5 +175,5 @@ queued delivery to opted-in members. Portal notification settings and audited, g
 **P3 progress:** [Scoped application access and the TypeScript/Node SDK](../../docs/application-access.md) provide organization/device grants, token lifecycle and read-only device/alert APIs. Verified using a separately installed package against the rebuilt API. The [durable alert-event journal and consumer recovery](../../docs/integration-events.md) are also implemented; [signed webhooks](../../docs/integration-webhooks.md) are delivered. [Latest telemetry and chart history](../../docs/integration-telemetry.md) are delivered in SDK 0.4.0.
 
 **P4 progress:** [Location and alert dashboard panels](../../docs/workflow-dashboard-panels.md) delivered with a standalone data-injected presentation proof. **Independent host:** [Node/React evidence sample](../../apps/vertical-demo/README.md) validates SDK-backed portable presentation using scoped machine credentials. **Dashboard regressions:** [resolved](../tasks/dashboard-chart-measurement.md). **Next task:** pilot-driven live machine-view contracts; public packaging and multi-tenant host authentication remain pending. [Integration management UI](../../docs/integration-management.md) is delivered; pilot load and production operational validation remain pending. [Raw telemetry and paired location reads](../../docs/integration-raw-location.md) are delivered in SDK 0.5.0. Cooldown/escalation policies remain requirement-led.
-The visual builder is deferred at the user's request. Keep Laine's customer
+The visual builder is deferred at the user's request. Keep the cattle customer's
 workflow and hardware choices open while making the generic core demonstrable.

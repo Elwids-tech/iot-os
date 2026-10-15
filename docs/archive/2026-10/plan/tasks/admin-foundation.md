@@ -11,7 +11,7 @@ Establish the Laravel API and React administration foundations for tenant, user,
 
 - Laravel is the headless control plane and owns authentication, tenancy, authorization, and public API contracts.
 - React is the administration experience and uses the shared shadcn component foundation.
-- Laravel code follows domain-driven boundaries, informed by the proven patterns in `/Users/tharindarodrigo/Herd/iot-portal` without copying its Filament UI.
+- Laravel code follows domain-driven boundaries, informed by the proven patterns in the earlier `iot-portal` project without copying its Filament UI.
 - Tenant-aware authorization uses `spatie/laravel-permission` with teams enabled and the tenant key set to `organization_id`.
 - Permission definitions use typed enums through `althinect/enum-permission`.
 - API authentication for the React client must be explicitly selected and documented before protected endpoints are implemented.

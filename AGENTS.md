@@ -50,5 +50,10 @@ disagrees with it, fix the doc. New features follow Spec Kit
   `@iot-os/ui/components/sonner`, or toasts will cover their buttons.
 - New user references in API contracts use the integer `user_id`; users have no
   UUID ([ADR-013](docs/adr/ADR-013-integer-user-ids.md)).
+- The repository is public. Keep host addresses, SSH key names, credentials,
+  customer, prospect and pilot organization names, and local home paths out of
+  code, specs and docs. Fixtures use `example.com`/`.test` hosts and documentation
+  addresses (`192.0.2.0/24`, `203.0.113.0/24`); pilot specifics stay in the
+  private operations inventory ([pilot](docs/ops/pilot.md)).
 - Decisions change only through a new ADR. Known traps are in
   [docs/dev/gotchas.md](docs/dev/gotchas.md); add to it when something surprises you.
