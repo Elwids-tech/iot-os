@@ -931,7 +931,7 @@ export default function ProfileAssistantBody({
           </InputGroup>
         </form>
         <p className="text-xs text-muted-foreground">
-          Selected files are sent to OpenAI. Chats and files stay private until
+          Selected files are sent to {settings.data?.provider?.label ?? "the AI provider"}. Chats and files stay private until
           you delete them. Check suggested values before saving.
           {conversationCost(detail?.runs) > 0 && (
             <span className="tabular-nums">

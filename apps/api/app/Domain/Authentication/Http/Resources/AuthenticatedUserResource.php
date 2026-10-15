@@ -27,6 +27,8 @@ final class AuthenticatedUserResource extends JsonResource
             'capabilities' => [
                 'platform_administration' => app(PlatformAuthorization::class)->canAccessAdministration($this->resource),
                 'manage_retention' => app(PlatformAuthorization::class)->allows($this->resource, PlatformAdministrationPermission::MANAGE_RETENTION),
+                // The assistant's provider keys spend the operator's money for every organization (spec 010).
+                'manage_assistant' => (bool) $this->is_super_admin,
             ],
             'organizations' => OrganizationResource::collection(
                 $this->is_super_admin

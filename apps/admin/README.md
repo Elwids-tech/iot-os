@@ -4,7 +4,8 @@ The platform administration React app, served on http://localhost:5174:
 organizations (create, edit, delete empty ones) and their permission ceilings, each
 organization's roles (create, rename, delete, edit permissions), users and
 invitations, super administrators (promote, remove, invite), platform administrators
-(grant, remove) and telemetry retention. It requires `PlatformAdministration.access`
+(grant, remove), telemetry retention, and the AI assistant's provider, model, keys and
+spend limits (super administrators only). It requires `PlatformAdministration.access`
 ([access](../../docs/features/access.md#platform-administration)).
 
 ```sh

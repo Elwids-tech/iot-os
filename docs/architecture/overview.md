@@ -52,7 +52,7 @@ flowchart LR
     apps["External applications<br/>(integration API, webhooks)"]
     iot["IoT OS"]
     smtp["SMTP provider"]
-    ai["AI provider<br/>(OpenAI, optional)"]
+    ai["AI provider<br/>(OpenAI or Anthropic, optional)"]
 
     users -->|HTTPS| iot
     admins -->|HTTPS| iot

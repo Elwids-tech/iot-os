@@ -221,6 +221,7 @@ export type AuthenticatedUser = {
   capabilities: {
     platform_administration: boolean
     manage_retention?: boolean
+    manage_assistant?: boolean
   }
   organizations: Organization[]
 }
@@ -1771,6 +1772,22 @@ export class ApiClient {
     return this.data<RetentionSetting>(this.retentionPath(org), "PUT", values)
   }
 
+  assistantAdminSettings() {
+    return this.data<import("./assistant").AssistantAdminSettings>("/api/v1/admin/assistant-settings")
+  }
+  updateAssistantAdminSettings(values: import("./assistant").AssistantAdminSettingsInput) {
+    return this.data<import("./assistant").AssistantAdminSettings>("/api/v1/admin/assistant-settings", "PUT", values)
+  }
+  removeAssistantProviderKey(provider: string) {
+    return this.data<import("./assistant").AssistantAdminSettings>(
+      `/api/v1/admin/assistant-settings/keys/${encodeURIComponent(provider)}`,
+      "DELETE",
+    )
+  }
+  testAssistantConnection(values: { provider: string; model: string; api_key?: string }) {
+    return this.data<import("./assistant").AssistantConnectionTest>("/api/v1/admin/assistant-settings/test", "POST", values)
+  }
+
   private adapterPath(org: string, id?: string, suffix = "") {
     return `/api/v1/organizations/${encodeURIComponent(org)}/device-adapters${id ? "/" + encodeURIComponent(id) : ""}${suffix}`
   }
@@ -1790,7 +1807,7 @@ export class ApiClient {
   revokeAdapterCredential(org: string,id: string,credential: string) { return this.data<{revoked: boolean}>(this.adapterPath(org,id,`/credentials/${encodeURIComponent(credential)}/revoke`), "POST", {}) }
   adapterProposals(org: string,id: string) { return this.data<import("./adapters").AdapterProposal[]>(this.adapterPath(org,id,"/proposals")) }
   decideAdapterProposal(org: string,id: string,proposal: string,action: "apply" | "reject",content_hash: string) { return this.data<import("./adapters").DeviceAdapter | {status: string}>(this.adapterPath(org,id,`/proposals/${encodeURIComponent(proposal)}/decision`), "POST", {action,content_hash}) }
-  adapterAssistantSettings(org: string) { return this.data<{enabled: boolean}>(this.assistantPath(org,undefined,"/settings?scope=adapter")) }
+  adapterAssistantSettings(org: string) { return this.data<{enabled: boolean; provider: import("./assistant").AssistantProviderRef}>(this.assistantPath(org,undefined,"/settings?scope=adapter")) }
   adapterAssistantConversations(org: string, adapter_uuid: string) { return this.data<{id: string; adapter_uuid: string}[]>(this.assistantPath(org,undefined,`/conversations?scope=adapter&adapter_uuid=${encodeURIComponent(adapter_uuid)}`)) }
   createAdapterConversation(org: string,adapter_uuid: string) { return this.data<{id: string}>(this.assistantPath(org,undefined,"/conversations"),"POST",{scope:"adapter",adapter_uuid}) }
 
@@ -1827,7 +1844,7 @@ export class ApiClient {
     )
   }
   workflowAssistantSettings(org: string) {
-    return this.data<{ enabled: boolean }>(this.assistantPath(org, undefined, "/settings?scope=automation"))
+    return this.data<{ enabled: boolean; provider: import("./assistant").AssistantProviderRef }>(this.assistantPath(org, undefined, "/settings?scope=automation"))
   }
   createWorkflowAssistantConversation(org: string, workflow_uuid?: string) {
     return this.data<{ id: string }>(this.assistantPath(org, undefined, "/conversations"), "POST", { scope: "automation", workflow_uuid })

@@ -12,6 +12,7 @@ use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\AssistantBudget;
 use App\Domain\Assistant\Services\AssistantEvents;
+use App\Domain\Assistant\Services\AssistantProvider;
 use App\Domain\Help\Services\HelpAnswers;
 use App\Domain\Help\Services\HelpRetrieval;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -21,7 +22,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Ai\Approvals\Decision;
 use Laravel\Ai\Approvals\Decisions;
-use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Files;
 use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\StreamedAgentResponse;
@@ -60,19 +60,24 @@ final class RunAssistant implements ShouldQueue
         $lastFlush = microtime(true);
         $helpProviderStarted = false;
         $helpUsageReported = false;
+        $model = null;
         try {
             app(AssistantAccess::class)->conversation($conversation->user, $conversation->organization, $conversation);
-            abort_unless(config('assistant.enabled'), 503, 'Assistant unavailable.');
+            $assistant = app(AssistantProvider::class);
+            abort_unless($assistant->configured(), 503, 'Assistant unavailable.');
+            // Resolved once, so a provider change made while this reply runs applies to the next one.
+            $provider = $assistant->textProvider();
+            $model = $assistant->model();
             $events->emit($conversation, $run, 'status', ['status' => 'running']);
             if ($conversation->scope === 'help') {
                 abort_unless(config('assistant.help_enabled'), 503, 'Ask Help unavailable.');
                 $help = app(HelpAnswers::class);
                 $excerpts = $help->prepare($run);
                 $helpProviderStarted = true;
-                $response = (new HelpAgent($run, $excerpts))->prompt($run->prompt, provider: Lab::OpenAI, model: config('assistant.model'));
+                $response = (new HelpAgent($run, $excerpts))->prompt($run->prompt, provider: $provider, model: $model);
                 $usage = $response->usage;
                 $helpUsageReported = true;
-                if (app(AssistantBudget::class)->cost($usage->toArray()) > config('assistant.run_budget_usd')) {
+                if (app(AssistantBudget::class)->cost($usage->toArray(), $model) > $run->reserved_usd) {
                     throw new RuntimeException('assistant.run_budget');
                 }
                 app(AssistantAccess::class)->conversation($conversation->user, $conversation->organization, $conversation);
@@ -87,7 +92,7 @@ final class RunAssistant implements ShouldQueue
                 });
                 $conversation->touch();
                 $events->emit($conversation, $run, 'status', ['status' => 'completed']);
-                logger()->info('Help response completed.', ['run_id' => $run->id, 'context' => $run->help_context['key'], 'supported' => $normalized['supported'], 'latency_ms' => (int) (1000 * (microtime(true) - $lastFlush)), 'estimated_cost_usd' => app(AssistantBudget::class)->cost($usage->toArray())]);
+                logger()->info('Help response completed.', ['run_id' => $run->id, 'context' => $run->help_context['key'], 'supported' => $normalized['supported'], 'latency_ms' => (int) (1000 * (microtime(true) - $lastFlush)), 'model' => $model, 'estimated_cost_usd' => app(AssistantBudget::class)->cost($usage->toArray(), $model)]);
 
                 return;
             }
@@ -111,7 +116,7 @@ final class RunAssistant implements ShouldQueue
                 return str_starts_with($source->mime, 'image/') ? Files\Image::fromPath(Storage::disk('local')->path($source->path))->as($source->name) : Files\Document::fromPath(Storage::disk('local')->path($source->path))->as($source->name);
             })->all();
             abort_unless($run->fresh()?->status === 'running', 409, 'assistant.cancelled');
-            $response = $agent->stream($prompt, attachments: $attachments, provider: Lab::OpenAI, model: config('assistant.model'));
+            $response = $agent->stream($prompt, attachments: $attachments, provider: $provider, model: $model);
             $response->then(function (StreamedAgentResponse $result) use ($conversation, $automation): void {
                 if ($automation) {
                     return;
@@ -133,7 +138,7 @@ final class RunAssistant implements ShouldQueue
                 }
                 if ($event instanceof StreamEnd) {
                     $usage = $usage->add($event->usage);
-                    if (app(AssistantBudget::class)->cost($usage->toArray()) > config('assistant.run_budget_usd')) {
+                    if (app(AssistantBudget::class)->cost($usage->toArray(), $model) > $run->reserved_usd) {
                         throw new RuntimeException('assistant.run_budget');
                     }
                 }
@@ -169,13 +174,13 @@ final class RunAssistant implements ShouldQueue
                 $providerError = $exception instanceof RequestException ? $exception->response->json('error') : null;
                 $providerMessage = is_array($providerError) ? mb_substr((string) ($providerError['message'] ?? ''), 0, 600) : null;
                 if ($providerMessage) {
-                    $providerMessage = str_replace((string) config('ai.providers.openai.key'), '[redacted]', $providerMessage);
+                    $providerMessage = app(AssistantProvider::class)->redact($providerMessage);
                 }
-                logger()->warning('Assistant run did not complete.', ['run_id' => $run->id, 'code' => $code, 'exception_type' => $exception::class, 'provider_status' => $exception instanceof RequestException ? $exception->response->status() : null, 'provider_code' => $providerError['code'] ?? null, 'provider_message' => $conversation->scope === 'help' ? null : $providerMessage]);
+                logger()->warning('Assistant run did not complete.', ['run_id' => $run->id, 'code' => $code, 'exception_type' => $exception::class, 'provider_status' => $exception instanceof RequestException ? $exception->response->status() : null, 'model' => $model, 'provider_code' => $providerError['code'] ?? $providerError['type'] ?? null, 'provider_message' => $conversation->scope === 'help' ? null : $providerMessage]);
             }
         } finally {
             if ($run) {
-                $cost = app(AssistantBudget::class)->cost($usage->toArray());
+                $cost = app(AssistantBudget::class)->cost($usage->toArray(), $model);
                 if ($conversation->scope === 'help' && $helpProviderStarted && ! $helpUsageReported) {
                     $cost = $run->reserved_usd;
                 }

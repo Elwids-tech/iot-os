@@ -2636,6 +2636,252 @@
         "description": "Positions, geofence condition and optional trails (last 1h, 6h, 24h or 7d) of 1 to 100 granted devices. Device entries are the device runtime's output with four fields added by the control plane. 403 when a requested device is not granted; 422 for invalid input or when the runtime rejects the query (under `errors.runtime`); 503 when the runtime is unavailable."
       }
     },
+    "/v1/admin/assistant-settings": {
+      "get": {
+        "operationId": "v1.admin.assistant-settings.show",
+        "tags": [
+          "AssistantSettings"
+        ],
+        "responses": {
+          "200": {
+            "description": "`AssistantSettingsResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AssistantSettingsResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin"
+      },
+      "put": {
+        "operationId": "v1.admin.assistant-settings.update",
+        "tags": [
+          "AssistantSettings"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAssistantSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`AssistantSettingsResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AssistantSettingsResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin"
+      }
+    },
+    "/v1/admin/assistant-settings/keys/{provider}": {
+      "delete": {
+        "operationId": "v1.admin.assistant-settings.keys.destroy",
+        "tags": [
+          "AssistantSettings"
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:openai|anthropic)$"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`AssistantSettingsResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AssistantSettingsResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin"
+      }
+    },
+    "/v1/admin/assistant-settings/test": {
+      "post": {
+        "operationId": "v1.admin.assistant-settings.test",
+        "tags": [
+          "AssistantSettings"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestAssistantConnectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean"
+                        },
+                        "latency_ms": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "latency_ms",
+                        "error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-rate-limits": [
+          {
+            "limit": 6,
+            "per": "minute",
+            "key": "user"
+          }
+        ]
+      }
+    },
     "/v1/admin/invitations": {
       "get": {
         "operationId": "v1.admin.invitations.index",
@@ -19159,7 +19405,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_157",
+        "operationId": "domain.automation.dag.settings_161",
         "tags": [
           "Dag"
         ],
@@ -19234,7 +19480,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_158",
+        "operationId": "domain.automation.dag.settings_162",
         "tags": [
           "Dag"
         ],
@@ -20466,7 +20712,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_169",
+        "operationId": "domain.automation.scenario.save_173",
         "tags": [
           "Scenario"
         ],
@@ -20582,7 +20828,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_170",
+        "operationId": "domain.automation.scenario.save_174",
         "tags": [
           "Scenario"
         ],
@@ -21127,7 +21373,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_161",
+        "operationId": "domain.automation.dag.timeline_165",
         "tags": [
           "Dag"
         ],
@@ -21198,7 +21444,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_162",
+        "operationId": "domain.automation.dag.timeline_166",
         "tags": [
           "Dag"
         ],
@@ -21686,6 +21932,193 @@
             "$ref": "#/components/schemas/IntegrationAlert"
           }
         }
+      },
+      "AssistantModelResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "input_usd_per_million": {
+            "type": "number"
+          },
+          "output_usd_per_million": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "input_usd_per_million",
+          "output_usd_per_million"
+        ],
+        "title": "AssistantModelResource"
+      },
+      "AssistantProviderResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "default_model": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistantModelResource"
+            }
+          },
+          "key": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "saved",
+                  "environment",
+                  null
+                ]
+              },
+              "last_four": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "updated_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "last_four",
+              "updated_at"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "default_model",
+          "models",
+          "key"
+        ],
+        "title": "AssistantProviderResource"
+      },
+      "AssistantSettingsResource": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "help_enabled": {
+            "type": "boolean"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "daily_budget_usd": {
+            "type": "number"
+          },
+          "run_budget_usd": {
+            "type": "number"
+          },
+          "sources": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "enum": [
+                  "saved",
+                  "environment"
+                ]
+              },
+              "daily_budget_usd": {
+                "type": "string",
+                "enum": [
+                  "saved",
+                  "environment"
+                ]
+              },
+              "run_budget_usd": {
+                "type": "string",
+                "enum": [
+                  "saved",
+                  "environment"
+                ]
+              }
+            },
+            "required": [
+              "provider",
+              "daily_budget_usd",
+              "run_budget_usd"
+            ]
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "today": {
+            "type": "object",
+            "properties": {
+              "spent_usd": {
+                "type": "number"
+              },
+              "reserved_usd": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "spent_usd",
+              "reserved_usd"
+            ]
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistantProviderResource"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "help_enabled",
+          "configured",
+          "provider",
+          "model",
+          "daily_budget_usd",
+          "run_budget_usd",
+          "sources",
+          "revision",
+          "updated_at",
+          "today",
+          "providers"
+        ],
+        "title": "AssistantSettingsResource"
       },
       "AutomationTriggered": {
         "type": "object",
@@ -23968,6 +24401,91 @@
           "null"
         ],
         "description": "A reading's value; its type follows the parameter's `data_type`."
+      },
+      "TestAssistantConnectionRequest": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "anthropic"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "enum": [
+              ""
+            ]
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 20,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "TestAssistantConnectionRequest"
+      },
+      "UpdateAssistantSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "anthropic"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "enum": [
+              ""
+            ]
+          },
+          "daily_budget_usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0.01,
+            "maximum": 10000
+          },
+          "run_budget_usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0.001,
+            "maximum": 1000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 20,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "daily_budget_usd",
+          "run_budget_usd",
+          "revision"
+        ],
+        "title": "UpdateAssistantSettingsRequest"
       },
       "UpdateDeviceProfileRequest": {
         "type": "object",

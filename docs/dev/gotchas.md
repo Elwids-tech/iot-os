@@ -75,6 +75,10 @@ Things that have cost time before. Add to this list when something surprises you
 - **`withToken()` sticks for the rest of a test.** It sets a default header, so a later
   request made with `actingAs()` still sends the old bearer token. Call
   `withoutToken()` when switching from a token to a session within one test.
+- **Laravel AI sends provider options verbatim.** An agent's `providerOptions()` is
+  merged into the request body of whichever provider runs it, so OpenAI's `store`,
+  `reasoning` or `parallel_tool_calls` make an Anthropic request fail. Return each
+  provider's own options through `AssistantProvider::options()` (spec 010).
 
 ## Local stack
 
@@ -214,3 +218,7 @@ Things that have cost time before. Add to this list when something surprises you
   action bar needs `ref={keepToastsAbove}`, and a panel docked to the right edge
   needs `keepToastsLeftOf`, both from `@iot-os/ui/components/sonner`, or toasts
   will cover their buttons.
+- **A Radix `Select` keeps its old label when its options change.** Changing the
+  value and the item list in the same render (for example switching provider and
+  model together) leaves the trigger showing the placeholder. Give the `Select` a
+  `key` tied to the option list so it remounts.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Assistant\Agents;
 
 use App\Domain\Assistant\Models\AssistantRun;
+use App\Domain\Assistant\Services\AssistantProvider;
 use App\Domain\Assistant\Services\ProfileKnowledge;
 use App\Domain\Assistant\Services\ProfileProposalService;
 use App\Domain\Assistant\Tools\ApplyProfileSection;
@@ -109,6 +110,6 @@ PROMPT
 
     public function providerOptions(Lab|string $provider): array
     {
-        return ['parallel_tool_calls' => false, 'reasoning' => ['effort' => 'low']];
+        return AssistantProvider::options($provider, ['parallel_tool_calls' => false, 'reasoning' => ['effort' => 'low']], tools: true);
     }
 }

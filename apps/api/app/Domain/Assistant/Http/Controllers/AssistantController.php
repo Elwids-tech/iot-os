@@ -12,6 +12,7 @@ use App\Domain\Assistant\Models\AssistantSource;
 use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\AssistantBudget;
 use App\Domain\Assistant\Services\AssistantEvents;
+use App\Domain\Assistant\Services\AssistantProvider;
 use App\Domain\Assistant\Services\AssistantRecovery;
 use App\Domain\Assistant\Services\ExecutionEvidence;
 use App\Domain\Assistant\Services\ProfileKnowledge;
@@ -44,7 +45,7 @@ final class AssistantController
         if ($scope === 'help') {
             app(HelpAccess::class)->organization($request->user(), $organization);
 
-            return response()->json(['data' => ['enabled' => (bool) config('assistant.enabled') && (bool) config('assistant.help_enabled') && filled(config('ai.providers.openai.key'))]]);
+            return response()->json(['data' => ['enabled' => app(AssistantProvider::class)->configured() && (bool) config('assistant.help_enabled'), 'provider' => $this->provider()]]);
         }
         if ($scope === 'adapter') {
             abort_unless(config('adapters.enabled'), 404);
@@ -52,17 +53,18 @@ final class AssistantController
             // The adapter workspace lists only its own conversations; without the filter the tab could reopen another adapter's thread.
             $adapterUuid = $request->validate(['adapter_uuid' => 'sometimes|string|max:64'])['adapter_uuid'] ?? null;
 
-            return response()->json(['data' => str_ends_with($request->path(), 'settings') ? ['enabled' => (bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))] : AssistantConversation::where('scope', 'adapter')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->when($adapterUuid, fn ($query) => $query->whereHas('adapter', fn ($adapter) => $adapter->where('uuid', $adapterUuid)))->latest('updated_at')->limit(100)->get()->map(fn ($conversation) => $this->conversationData($conversation))]);
+            return response()->json(['data' => str_ends_with($request->path(), 'settings') ? ['enabled' => app(AssistantProvider::class)->configured(), 'provider' => $this->provider()] : AssistantConversation::where('scope', 'adapter')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->when($adapterUuid, fn ($query) => $query->whereHas('adapter', fn ($adapter) => $adapter->where('uuid', $adapterUuid)))->latest('updated_at')->limit(100)->get()->map(fn ($conversation) => $this->conversationData($conversation))]);
         }
         if ($request->query('scope') === 'automation') {
             $this->access->automation($request->user(), $organization);
 
-            return response()->json(['data' => ['enabled' => (bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))]]);
+            return response()->json(['data' => ['enabled' => app(AssistantProvider::class)->configured(), 'provider' => $this->provider()]]);
         }
         $this->access->organization($request->user(), $organization);
 
         return response()->json(['data' => [
-            'enabled' => (bool) config('assistant.enabled') && filled(config('ai.providers.openai.key')),
+            'enabled' => app(AssistantProvider::class)->configured(),
+            'provider' => $this->provider(),
             'capabilities' => $this->access->capabilities($request->user(), $organization),
             'schema' => app(ProfileKnowledge::class)->describe(),
             'supported_extensions' => ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'txt', 'md', 'json', 'csv'],
@@ -85,7 +87,7 @@ final class AssistantController
             // The adapter workspace lists only its own conversations; without the filter the tab could reopen another adapter's thread.
             $adapterUuid = $request->validate(['adapter_uuid' => 'sometimes|string|max:64'])['adapter_uuid'] ?? null;
 
-            return response()->json(['data' => str_ends_with($request->path(), 'settings') ? ['enabled' => (bool) config('assistant.enabled') && filled(config('ai.providers.openai.key'))] : AssistantConversation::where('scope', 'adapter')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->when($adapterUuid, fn ($query) => $query->whereHas('adapter', fn ($adapter) => $adapter->where('uuid', $adapterUuid)))->latest('updated_at')->limit(100)->get()->map(fn ($conversation) => $this->conversationData($conversation))]);
+            return response()->json(['data' => str_ends_with($request->path(), 'settings') ? ['enabled' => app(AssistantProvider::class)->configured(), 'provider' => $this->provider()] : AssistantConversation::where('scope', 'adapter')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->when($adapterUuid, fn ($query) => $query->whereHas('adapter', fn ($adapter) => $adapter->where('uuid', $adapterUuid)))->latest('updated_at')->limit(100)->get()->map(fn ($conversation) => $this->conversationData($conversation))]);
         }
         if ($request->query('scope') === 'automation') {
             $this->access->automation($request->user(), $organization);
@@ -347,6 +349,18 @@ final class AssistantController
         return response()->noContent();
     }
 
+    /**
+     * The provider replies come from, so the portal can say where content is sent.
+     *
+     * @return array{id: string, label: string}
+     */
+    private function provider(): array
+    {
+        $provider = app(AssistantProvider::class);
+
+        return ['id' => $provider->provider(), 'label' => $provider->label()];
+    }
+
     private function queueRun(AssistantConversation $conversation, string $requestId, string $prompt, array $sources = [], array $decisions = [], array $answers = [], ?array $target = null, ?string $evaluationId = null, ?string $pageContext = null): AssistantRun
     {
         return DB::transaction(function () use ($conversation, $requestId, $prompt, $sources, $decisions, $answers, $target, $evaluationId, $pageContext): AssistantRun {
@@ -355,7 +369,7 @@ final class AssistantController
             if ($existing) {
                 return $existing;
             }
-            abort_unless(config('assistant.enabled') && filled(config('ai.providers.openai.key')), 503, 'The assistant is not configured on this server. You can continue editing manually.');
+            abort_unless(app(AssistantProvider::class)->configured(), 503, 'The assistant is not configured on this server. You can continue editing manually.');
             if ($locked->scope === 'help') {
                 abort_unless(config('assistant.help_enabled'), 503, 'Ask Help is unavailable. You can continue reading the guides.');
             }

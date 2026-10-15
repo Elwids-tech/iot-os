@@ -54,10 +54,14 @@ x-api-env: &api-env
   # Signing keys for agent tokens (manage.py init or passport-keys). Rotating them disconnects every agent.
   PASSPORT_PRIVATE_KEY: ${PASSPORT_PRIVATE_KEY:-}
   PASSPORT_PUBLIC_KEY: ${PASSPORT_PUBLIC_KEY:-}
+  # Defaults; super administrators can override provider, model, keys and limits in admin (spec 010).
+  IOT_ASSISTANT_PROVIDER: ${IOT_ASSISTANT_PROVIDER:-openai}
+  IOT_ASSISTANT_MODEL: ${IOT_ASSISTANT_MODEL:-}
   IOT_ASSISTANT_DAILY_BUDGET_USD: ${IOT_ASSISTANT_DAILY_BUDGET_USD:-2.00}
-  IOT_ASSISTANT_RUN_BUDGET_USD: "0.04"
+  IOT_ASSISTANT_RUN_BUDGET_USD: ${IOT_ASSISTANT_RUN_BUDGET_USD:-0.04}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   OPENAI_STORE: "false"
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   MAIL_MAILER: smtp
   MAIL_HOST: smtp-relay.brevo.com
   MAIL_PORT: "587"
