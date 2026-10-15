@@ -88,7 +88,7 @@ final class TelemetryCaptureTest extends TestCase
 
     public function test_ai_is_grounded_in_selected_samples_and_has_no_write_tools(): void
     {
-        config(['assistant.enabled' => true]);
+        config(['assistant.enabled' => true, 'ai.providers.openai.key' => 'test-only']);
         $sample = (string) Str::uuid();
         Http::fake(['http://runtime:8081/*' => Http::response(['data' => ['samples' => [['id' => $sample, 'wire_base64' => 'private-wire-value', 'status' => 'decoded', 'metrics' => [['name' => 'temperature', 'value' => 0]]]]]])]);
         TelemetryDiagnosticAgent::fake([['explanation' => 'A received zero is a valid value.', 'evidence_ids' => [$sample, 'fabricated'], 'suggested_review' => '', 'next_check' => 'Inspect storage.']]);
