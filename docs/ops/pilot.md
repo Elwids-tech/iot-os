@@ -24,7 +24,16 @@ Firewalling uses UFW plus the `ELWIDS-INGRESS` Docker forwarding chain
 ([`tooling/release/pilot/install_docker_firewall.py`](../../tooling/release/pilot/install_docker_firewall.py)).
 The application host accepts public 80, 443 and 8883 (plus the adapter broker port
 range); the database host accepts no public Docker ingress. WireGuard UDP is limited
-to the peer. SSH is key-only but publicly reachable; it is not VPN-only.
+to the peer.
+
+SSH is not VPN-only, but UFW on both hosts accepts it only from the operators' IPv4
+addresses, and not at all over IPv6. sshd allows key-only `root` login and nothing
+else (`/etc/ssh/sshd_config.d/00-elwids-key-only.conf`: no passwords, no X11
+forwarding, three attempts); TCP forwarding stays on for the Grafana tunnel below.
+When an operator's address changes, sign in through the Hetzner Console and run
+`ufw allow from <operator-ip> to any port 22 proto tcp` before deleting the old rule.
+Change sshd with a second session open and a timed revert
+(`systemd-run --on-active=10min`), and cancel the revert only after a fresh login works.
 
 Paths on the application host: source `/srv/elwids/source`, state
 `/srv/elwids/state`, private configuration `/srv/elwids/private` (`application.env`,
