@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import type { DirectoryQuery, PaginatedResponse, PlatformUser } from "@iot-os/api-client"
+import type { AuthenticatedUser, DirectoryQuery, PaginatedResponse, PlatformUser } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
 import { DropdownMenuItem, DropdownMenuSeparator } from "@iot-os/ui/components/dropdown-menu"
@@ -9,6 +9,7 @@ import { UserPlusIcon, UsersIcon } from "lucide-react"
 import { InviteUserDialog } from "../components/InviteUserDialog"
 import { MemberDialogs, type MemberAction } from "../components/MemberDialogs"
 import { PendingInvitations } from "../components/PendingInvitations"
+import { PlatformAdministratorDialog, type PlatformAdministratorAction } from "../components/PlatformAdministratorDialog"
 import { useDirectoryTable } from "../components/ResourceDirectory"
 import { useOrganizationOptions } from "../hooks/use-directory"
 import { apiClient } from "../lib/api-client"
@@ -23,7 +24,13 @@ function platformAccess(user: PlatformUser): string {
   return "Tenant user"
 }
 
-export function UsersPage() {
+function isPlatformAdministrator(user: PlatformUser): boolean {
+  return user.platform_roles.some((role) => role.key === "platform-administrator")
+}
+
+export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
+  // Only super administrators grant or remove the platform-administrator role (spec 008); the API re-checks.
+  const managesPlatformAdministrators = currentUser.is_super_admin
   const organizations = useOrganizationOptions()
   const { reload, query, table } = useDirectoryTable(loadUsers, {
     searchPlaceholder: "Name or email",
@@ -32,6 +39,7 @@ export function UsersPage() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invitationRefreshKey, setInvitationRefreshKey] = useState(0)
   const [memberAction, setMemberAction] = useState<MemberAction | null>(null)
+  const [platformAdministratorAction, setPlatformAdministratorAction] = useState<PlatformAdministratorAction | null>(null)
   const columns = useMemo<DataColumn<PlatformUser>[]>(
     () => [
       { id: "user", header: "User", mobile: "title", value: (user) => user.name, cell: (user) => <span className="font-medium">{user.name}</span> },
@@ -77,19 +85,38 @@ export function UsersPage() {
         columns={columns}
         {...table}
         groups={[{ id: "access", label: "Platform access", value: platformAccess }]}
-        rowActions={(user) =>
-          user.organizations.length > 0 ? (
+        rowActions={(user) => {
+          const isMember = user.organizations.length > 0
+          // A super administrator already passes every check, so their row offers no role change.
+          const offersPlatformAdministrator = managesPlatformAdministrators && !user.is_super_admin
+          const platformAdministratorItem = !offersPlatformAdministrator ? null : isPlatformAdministrator(user) ? (
+            <DropdownMenuItem variant="destructive" onSelect={() => setPlatformAdministratorAction({ kind: "revoke", user })}>
+              Remove platform administrator
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => setPlatformAdministratorAction({ kind: "grant", user })}>
+              Make platform administrator
+            </DropdownMenuItem>
+          )
+          if (!isMember && !platformAdministratorItem) return null
+          return (
             <>
-              <DropdownMenuItem onSelect={() => setMemberAction({ kind: "roles", user })}>
-                Change roles
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setMemberAction({ kind: "remove", user })}>
-                Remove member
-              </DropdownMenuItem>
+              {isMember ? (
+                <>
+                  <DropdownMenuItem onSelect={() => setMemberAction({ kind: "roles", user })}>
+                    Change roles
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={() => setMemberAction({ kind: "remove", user })}>
+                    Remove member
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+              {isMember && platformAdministratorItem ? <DropdownMenuSeparator /> : null}
+              {platformAdministratorItem}
             </>
-          ) : null
-        }
+          )
+        }}
         empty={
           <EmptyState
             inset
@@ -112,6 +139,11 @@ export function UsersPage() {
         preferredOrganization={query.organization}
         onClose={() => setMemberAction(null)}
         onRemoved={reload}
+      />
+      <PlatformAdministratorDialog
+        action={platformAdministratorAction}
+        onClose={() => setPlatformAdministratorAction(null)}
+        onChanged={reload}
       />
     </CollectionPage>
   )

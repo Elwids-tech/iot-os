@@ -20,21 +20,21 @@ T010.
 
 ## Phase 1: Foundational
 
-- [ ] T001 `PlatformAdministrators` service in `apps/api/app/Domain/Administration/Services/`: `grant`, `revoke` (lock actor and user in id order, actor re-check, no-op without an event), audit events (plan.md "Service")
-- [ ] T002 [P] API tests in `PlatformAdministratorApiTest.php` covering every acceptance scenario and edge case of the spec: grant and revoke with audit rows; repeats write no event; the user can open admin after a grant and is refused after a removal; memberships and organization roles are unchanged; a demoted actor is refused under the lock; platform administrators and tenant users get 403; a non-numeric or unknown id is 404
+- [x] T001 `PlatformAdministrators` service in `apps/api/app/Domain/Administration/Services/`: `grant`, `revoke` (lock actor and user in id order, actor re-check, no-op without an event), audit events (plan.md "Service")
+- [x] T002 [P] API tests in `PlatformAdministratorApiTest.php` covering every acceptance scenario and edge case of the spec: grant and revoke with audit rows; repeats write no event; the user can open admin after a grant and is refused after a removal; memberships and organization roles are unchanged; a demoted actor is refused under the lock; platform administrators and tenant users get 403; a non-numeric or unknown id is 404
 
 ## Phase 2: User Stories 1 and 2 - Make and remove platform administrators (P1) 🎯 MVP
 
-- [ ] T003 [US1] [US2] `PlatformTeamController::update` calls the service; `whereNumber('user')` on the route
-- [ ] T004 [US1] [US2] Contract: fully type `PlatformTeamMemberResource`; remove `PUT /v1/admin/platform-team/{user}` from `pending-schemas.json`; `contract:export --check` and `contract:check` pass
-- [ ] T005 [US1] [US2] `packages/api-client`: `PlatformTeamMember`, `grantPlatformAdministrator`, `revokePlatformAdministrator`
-- [ ] T006 [US1] [US2] Admin: signed-in user passed to `UsersPage`; **Make platform administrator** / **Remove platform administrator** row actions and `components/PlatformAdministratorDialog.tsx`
-- [ ] T007 [US1] [US2] Playwright: promote a tenant user, remove the role again, no action on a super administrator's row, no actions for a platform administrator
+- [x] T003 [US1] [US2] `PlatformTeamController::update` calls the service; `whereNumber('user')` on the route
+- [x] T004 [US1] [US2] Contract: fully type `PlatformTeamMemberResource`; remove `PUT /v1/admin/platform-team/{user}` from `pending-schemas.json`; `contract:export --check` and `contract:check` pass
+- [x] T005 [US1] [US2] `packages/api-client`: `PlatformTeamMember`, `grantPlatformAdministrator`, `revokePlatformAdministrator`
+- [x] T006 [US1] [US2] Admin: signed-in user passed to `UsersPage`; **Make platform administrator** / **Remove platform administrator** row actions and `components/PlatformAdministratorDialog.tsx`
+- [x] T007 [US1] [US2] Playwright: promote a tenant user, remove the role again, no action on a super administrator's row, no actions for a platform administrator
 
 ## Phase 3: Polish
 
-- [ ] T008 [P] Docs: platform administrators in `docs/features/access.md` (Platform administration), `docs/architecture/glossary.md` and `apps/admin/README.md`
-- [ ] T009 Checks: `php artisan test --compact` on PostgreSQL, `pint --test`, `contract:export --check`, `contract:check`, admin and portal lint, admin Playwright; rebuild `api` and `admin` and walk SC-001 and SC-002 in the browser
+- [x] T008 [P] Docs: platform administrators in `docs/features/access.md` (Platform administration), `docs/architecture/glossary.md` and `apps/admin/README.md`
+- [x] T009 Checks: `php artisan test --compact` on PostgreSQL, `pint --test`, `contract:export --check`, `contract:check`, admin and portal lint, admin Playwright; rebuild `api` and `admin` and walk SC-001 and SC-002 in the browser
 - [ ] T010 Release from `main`, deploy to the pilot
 
 ## Dependencies

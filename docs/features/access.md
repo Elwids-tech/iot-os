@@ -127,8 +127,8 @@ the Members and Roles pages.
 The admin app ([`apps/admin`](../../apps/admin)) requires
 `PlatformAdministration.access`, granted by the `platform-administrator` platform
 role; super administrators (`users.is_super_admin`) pass every check. It covers
-organizations and their ceilings and roles, users, invitations, the platform
-team (super administrators only) and telemetry retention
+organizations and their ceilings and roles, users, invitations, platform
+administrators (managed by super administrators only) and telemetry retention
 (`PlatformAdministration.manage-retention`).
 
 A platform administrator sets up an organization from **Organizations**: create it
@@ -137,6 +137,27 @@ add a **New role** (name and permissions from the organization's ceiling) or
 **Invite user** with any of its roles. A role's page edits its permissions and offers
 **Rename** (not Organization Admin) and **Delete role** (custom roles that no member
 holds and no pending invitation uses).
+
+### Platform administrators
+
+Super administrators grant and remove the `platform-administrator` role in admin under
+**Users** ([spec 008](../../specs/008-platform-administrators/spec.md)):
+
+- **Make platform administrator** on the row of a user who is not a super
+  administrator opens the admin app to them on their next request; they keep their
+  organization memberships and roles. **Remove platform administrator** takes it away
+  again.
+- Super administrators' rows offer neither: they pass every check anyway. A super
+  administrator who also holds the role keeps it when their super administrator
+  access is removed.
+
+Platform administrators see neither action, and the API answers them 403. Every change
+records `user.platform_administrator_granted` or `user.platform_administrator_revoked`
+(no organization, the acting user, and the affected `user_id` and email); a request
+that changes nothing records none. Route:
+`PUT /api/v1/admin/platform-team/{user_id}` (`is_platform_administrator`, returns the
+user with their platform roles); `GET /api/v1/admin/platform-team` lists users with
+their platform roles.
 
 ### Deleting an organization
 
