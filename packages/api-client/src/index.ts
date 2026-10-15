@@ -173,7 +173,9 @@ export type OrganizationInvitation = {
   email: string
   role_ids: number[]
   roles: InvitationRole[]
-  organization: Organization
+  /** A super-administrator invitation has no organization and no roles (spec 007). */
+  grants_super_admin: boolean
+  organization: Organization | null
   expires_at: string
   accepted_at: string | null
   revoked_at: string | null
@@ -181,7 +183,9 @@ export type OrganizationInvitation = {
 }
 
 export type InvitationDetails = {
-  organization: Pick<Organization, "uuid" | "name">
+  grants_super_admin: boolean
+  /** Null for a super-administrator invitation. */
+  organization: Pick<Organization, "uuid" | "name"> | null
   email: string
   expires_at: string
   acceptance_mode: "create_account" | "sign_in"
@@ -1112,6 +1116,29 @@ export class ApiClient {
         body: JSON.stringify({ email, role_ids: roleIds }),
       },
     ).then((response) => response.data)
+  }
+
+  async inviteSuperAdministrator(email: string): Promise<OrganizationInvitation> {
+    return this.request<ApiResponse<OrganizationInvitation>>(
+      "/api/v1/admin/super-administrators/invitations",
+      {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      },
+    ).then((response) => response.data)
+  }
+
+  async grantSuperAdministrator(userId: number): Promise<PlatformUser> {
+    return this.request<ApiResponse<PlatformUser>>(
+      `/api/v1/admin/super-administrators/${userId}`,
+      { method: "PUT" },
+    ).then((response) => response.data)
+  }
+
+  async revokeSuperAdministrator(userId: number): Promise<void> {
+    await this.request(`/api/v1/admin/super-administrators/${userId}`, {
+      method: "DELETE",
+    })
   }
 
   async grantPlatformAdministrator(userId: number): Promise<PlatformTeamMember> {

@@ -23,6 +23,20 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  PUT /v1/admin/super-administrators/{user}:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  DELETE /v1/admin/super-administrators/{user}:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  POST /v1/admin/super-administrators/invitations:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
   DELETE /v1/admin/organizations/{organization}:
     responses:
       '409':

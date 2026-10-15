@@ -20,7 +20,8 @@ final class PublicOrganizationInvitationController
         $invitation = $this->invitations->findPending($token);
 
         return new JsonResource([
-            'organization' => [
+            'grants_super_admin' => $invitation->grants_super_admin,
+            'organization' => $invitation->organization === null ? null : [
                 'uuid' => $invitation->organization->uuid,
                 'name' => $invitation->organization->name,
             ],

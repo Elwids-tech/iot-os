@@ -56,10 +56,13 @@ function invitationError(error: unknown): FormErrors {
 export function AcceptInvitationPage({
   apiClient,
   portalUrl = "/",
+  adminUrl,
   organizationUrl,
 }: {
   apiClient: ApiClient
   portalUrl?: string
+  /** Where to send a new super administrator (spec 007). */
+  adminUrl?: string
   /** Where to send the new member: the organization they just joined. */
   organizationUrl?: (organizationUuid: string) => string
 }) {
@@ -136,7 +139,35 @@ export function AcceptInvitationPage({
     }
   }
 
+  if (acceptedUser && state.data?.grants_super_admin) {
+    return (
+      <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CheckCircle2Icon className="text-primary" />
+            <CardTitle>
+              <h1>Account ready</h1>
+            </CardTitle>
+            <CardDescription>
+              You are signed in as {acceptedUser.email}. You are now a super
+              administrator.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            You can manage the platform and every organization on it.
+          </CardContent>
+          <CardFooter>
+            <Button asChild>
+              <a href={adminUrl ?? portalUrl}>Open administration</a>
+            </Button>
+          </CardFooter>
+        </Card>
+      </main>
+    )
+  }
+
   if (acceptedUser) {
+    const organization = state.data?.organization
     return (
       <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12">
         <Card className="w-full max-w-md">
@@ -155,7 +186,7 @@ export function AcceptInvitationPage({
           </CardContent>
           <CardFooter>
             <Button asChild>
-              <a href={organizationUrl && state.data ? organizationUrl(state.data.organization.uuid) : portalUrl}>
+              <a href={organizationUrl && organization ? organizationUrl(organization.uuid) : portalUrl}>
                 Open tenant portal
               </a>
             </Button>
@@ -210,8 +241,9 @@ export function AcceptInvitationPage({
             </h1>
           </CardTitle>
           <CardDescription>
-            You have been invited to {state.data.organization.name} as{" "}
-            {state.data.email}.
+            {state.data.organization === null
+              ? `You have been invited to administer IoT OS as ${state.data.email}. Super administrators manage the platform and every organization on it.`
+              : `You have been invited to ${state.data.organization.name} as ${state.data.email}.`}
           </CardDescription>
         </CardHeader>
         <form

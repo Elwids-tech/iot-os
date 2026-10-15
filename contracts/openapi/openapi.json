@@ -3203,7 +3203,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_118",
+        "operationId": "domain.devices.retention.show_121",
         "tags": [
           "Retention"
         ],
@@ -3252,7 +3252,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_119",
+        "operationId": "domain.devices.retention.update_122",
         "tags": [
           "Retention"
         ],
@@ -3590,7 +3590,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_116",
+        "operationId": "domain.devices.retention.show_119",
         "tags": [
           "Retention"
         ],
@@ -3622,7 +3622,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_117",
+        "operationId": "domain.devices.retention.update_120",
         "tags": [
           "Retention"
         ],
@@ -3692,6 +3692,164 @@
         "x-audience": "platform-admin",
         "x-platform-permission": "PlatformAdministration.manage-retention",
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/admin/super-administrators/invitations": {
+      "post": {
+        "operationId": "v1.admin.super-administrators.invitations.store",
+        "tags": [
+          "SuperAdministratorInvitation"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreSuperAdministratorInvitationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "`OrganizationInvitationResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OrganizationInvitationResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin"
+      }
+    },
+    "/v1/admin/super-administrators/{user}": {
+      "put": {
+        "operationId": "v1.admin.super-administrators.update",
+        "tags": [
+          "SuperAdministrator"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "description": "The user ID. A value that does not match returns 404.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`PlatformUserResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformUserResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin"
+      },
+      "delete": {
+        "operationId": "v1.admin.super-administrators.destroy",
+        "tags": [
+          "SuperAdministrator"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "description": "The user ID. A value that does not match returns 404.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin"
       }
     },
     "/v1/admin/users": {
@@ -19001,7 +19159,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_154",
+        "operationId": "domain.automation.dag.settings_157",
         "tags": [
           "Dag"
         ],
@@ -19076,7 +19234,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_155",
+        "operationId": "domain.automation.dag.settings_158",
         "tags": [
           "Dag"
         ],
@@ -20308,7 +20466,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_166",
+        "operationId": "domain.automation.scenario.save_169",
         "tags": [
           "Scenario"
         ],
@@ -20424,7 +20582,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_167",
+        "operationId": "domain.automation.scenario.save_170",
         "tags": [
           "Scenario"
         ],
@@ -20969,7 +21127,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_158",
+        "operationId": "domain.automation.dag.timeline_161",
         "tags": [
           "Dag"
         ],
@@ -21040,7 +21198,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_159",
+        "operationId": "domain.automation.dag.timeline_162",
         "tags": [
           "Dag"
         ],
@@ -22675,6 +22833,127 @@
         ],
         "title": "OrganizationDeletionResource"
       },
+      "OrganizationInvitationResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "display_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "display_name"
+              ]
+            }
+          },
+          "grants_super_admin": {
+            "type": "boolean"
+          },
+          "organization": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Null for a super-administrator invitation, which belongs to no organization.",
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "name",
+              "slug"
+            ]
+          },
+          "invited_by": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "manageable": {
+            "type": "boolean",
+            "description": "Manageable: the actor could resend or revoke it without handing out access they lack."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accepted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "revoked",
+              "expired",
+              "pending"
+            ]
+          }
+        },
+        "required": [
+          "uuid",
+          "email",
+          "role_ids",
+          "grants_super_admin",
+          "expires_at",
+          "accepted_at",
+          "revoked_at",
+          "status"
+        ],
+        "title": "OrganizationInvitationResource"
+      },
       "OrganizationNotEmpty": {
         "type": "object",
         "description": "409 when the organization still holds data that blocks deletion (spec 006).",
@@ -22736,6 +23015,70 @@
           "is_super_admin"
         ],
         "title": "PlatformTeamMemberResource"
+      },
+      "PlatformUserResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "is_super_admin": {
+            "type": "boolean"
+          },
+          "platform_roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "display_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "display_name"
+              ]
+            }
+          },
+          "organizations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uuid": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "uuid",
+                "name",
+                "slug"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "is_super_admin"
+        ],
+        "title": "PlatformUserResource"
       },
       "ProfileParameterDataType": {
         "type": "string",
@@ -23145,6 +23488,20 @@
           "draft_revision"
         ],
         "title": "StoreProfileParameterGroupRequest"
+      },
+      "StoreSuperAdministratorInvitationRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "StoreSuperAdministratorInvitationRequest"
       },
       "StoreTransportBindingRequest": {
         "type": "object",

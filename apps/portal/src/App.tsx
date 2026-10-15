@@ -135,7 +135,9 @@ export function App() {
         <Route path="reset-password" element={<PasswordRecoveryPage key="reset" apiClient={api} mode="reset" />} />
         <Route
           path="accept-invitation"
-          element={<AcceptInvitationPage apiClient={api} organizationUrl={(uuid) => sectionPath(uuid)} />}
+          element={
+            <AcceptInvitationPage apiClient={api} adminUrl={adminUrl} organizationUrl={(uuid) => sectionPath(uuid)} />
+          }
         />
         <Route path="*" element={<Session />} />
       </Routes>

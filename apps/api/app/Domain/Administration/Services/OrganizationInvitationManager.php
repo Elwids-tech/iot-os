@@ -22,6 +22,7 @@ final class OrganizationInvitationManager
     public function __construct(
         private readonly OrganizationRoleManager $roleManager,
         private readonly OrganizationGrants $grants,
+        private readonly SuperAdministrators $superAdministrators,
     ) {}
 
     /**
@@ -50,6 +51,45 @@ final class OrganizationInvitationManager
                 'organization_id' => $organization->getKey(),
                 'email' => $email,
                 'role_ids' => $roles->modelKeys(),
+                'token_hash' => hash('sha256', $token),
+                'invited_by_user_id' => $invitedBy->getKey(),
+                'expires_at' => now()->addDays(self::LIFETIME_DAYS),
+            ]);
+        });
+
+        $this->send($invitation, $token);
+
+        return $invitation;
+    }
+
+    /**
+     * Invite someone to become a super administrator: no organization, no roles (spec 007).
+     * The caller has checked that the inviter is a super administrator.
+     */
+    public function inviteSuperAdministrator(User $invitedBy, string $email): OrganizationInvitation
+    {
+        $email = Str::lower(trim($email));
+
+        if (User::query()->where('email', $email)->where('is_super_admin', true)->exists()) {
+            throw ValidationException::withMessages(['email' => 'This user is already a super administrator.']);
+        }
+
+        $token = Str::random(64);
+
+        $invitation = DB::transaction(function () use ($invitedBy, $email, $token): OrganizationInvitation {
+            OrganizationInvitation::query()
+                ->where('grants_super_admin', true)
+                ->where('email', $email)
+                ->whereNull('accepted_at')
+                ->whereNull('revoked_at')
+                ->update(['revoked_at' => now()]);
+
+            return OrganizationInvitation::query()->create([
+                'uuid' => (string) Str::uuid(),
+                'organization_id' => null,
+                'grants_super_admin' => true,
+                'email' => $email,
+                'role_ids' => [],
                 'token_hash' => hash('sha256', $token),
                 'invited_by_user_id' => $invitedBy->getKey(),
                 'expires_at' => now()->addDays(self::LIFETIME_DAYS),
@@ -91,6 +131,13 @@ final class OrganizationInvitationManager
             throw ValidationException::withMessages(['invitation' => 'Only pending invitations can be revoked.']);
         }
 
+        // The controller has required a super administrator; there is no organization to check grants in.
+        if ($invitation->grants_super_admin) {
+            $invitation->forceFill(['revoked_at' => now()])->save();
+
+            return;
+        }
+
         $roles = Role::query()
             ->where('organization_id', $invitation->organization_id)
             ->whereIn('id', $invitation->role_ids)
@@ -126,7 +173,7 @@ final class OrganizationInvitationManager
             ->where('token_hash', hash('sha256', $token))
             ->first();
 
-        if ($invitation === null || ! $invitation->isPending()) {
+        if ($invitation === null || ! $this->isActive($invitation)) {
             abort(404, 'Invitation not found or no longer active.');
         }
 
@@ -142,7 +189,7 @@ final class OrganizationInvitationManager
                 ->lockForUpdate()
                 ->first();
 
-            if ($invitation === null || ! $invitation->isPending()) {
+            if ($invitation === null || ! $this->isActive($invitation)) {
                 throw ValidationException::withMessages(['token' => 'This invitation is not active.']);
             }
 
@@ -176,17 +223,37 @@ final class OrganizationInvitationManager
                 $user->forceFill(['email_verified_at' => now()])->save();
             }
 
-            if ($user->organizations()->whereKey($invitation->organization_id)->exists()) {
-                throw ValidationException::withMessages(['token' => 'This user already belongs to the organization.']);
-            }
+            if ($invitation->grants_super_admin) {
+                $this->superAdministrators->promote($user, $invitation->invited_by_user_id, [
+                    'invitation_uuid' => $invitation->uuid,
+                ]);
+            } else {
+                if ($user->organizations()->whereKey($invitation->organization_id)->exists()) {
+                    throw ValidationException::withMessages(['token' => 'This user already belongs to the organization.']);
+                }
 
-            $user->organizations()->attach($invitation->organization_id);
-            $this->roleManager->syncMemberRoles($invitation->organization, $user, $invitation->role_ids);
+                $user->organizations()->attach($invitation->organization_id);
+                $this->roleManager->syncMemberRoles($invitation->organization, $user, $invitation->role_ids);
+            }
 
             $invitation->forceFill(['accepted_at' => now()])->save();
 
             return $user;
         });
+    }
+
+    /**
+     * Pending, and for a super-administrator invitation, still backed by a super administrator:
+     * removing someone's access voids the invitations they sent.
+     */
+    private function isActive(OrganizationInvitation $invitation): bool
+    {
+        if (! $invitation->isPending()) {
+            return false;
+        }
+
+        return ! $invitation->grants_super_admin
+            || User::query()->whereKey($invitation->invited_by_user_id)->where('is_super_admin', true)->exists();
     }
 
     private function ensureNotMember(Organization $organization, string $email): void

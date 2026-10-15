@@ -66,6 +66,7 @@ final class PlatformInvitationController
 
         /** @var User $user */
         $user = $request->user();
+        abort_if($invitation->grants_super_admin && ! $user->is_super_admin, 403);
         $this->invitations->revoke($invitation, $user);
 
         return response()->noContent();

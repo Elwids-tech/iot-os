@@ -12,6 +12,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
+ * An invitation into an organization with its roles or, when `grants_super_admin` is set,
+ * to become a super administrator: then it has no organization and no roles (spec 007).
+ *
+ * @property int|null $organization_id
+ * @property bool $grants_super_admin
  * @property array<int, int> $role_ids
  * @property Carbon $expires_at
  * @property Carbon|null $accepted_at
@@ -20,6 +25,7 @@ use Illuminate\Support\Carbon;
 #[Fillable([
     'uuid',
     'organization_id',
+    'grants_super_admin',
     'email',
     'role_ids',
     'token_hash',
@@ -64,6 +70,7 @@ final class OrganizationInvitation extends Model
     protected function casts(): array
     {
         return [
+            'grants_super_admin' => 'boolean',
             'role_ids' => 'array',
             'expires_at' => 'datetime',
             'accepted_at' => 'datetime',
