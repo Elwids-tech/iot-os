@@ -125,6 +125,13 @@ async function restart(name, options = {}) {
         (await fetch(runtime + "/health/ready").catch(() => null))?.status,
       (status) => status === 200,
     )
+  if (name === "broker-admin")
+    await until(
+      "Broker admin readiness",
+      async () =>
+        (await fetch(`http://127.0.0.1:${env.ports.brokerAdmin}/health/ready`).catch(() => null))?.status,
+      (status) => status === 200,
+    )
 }
 const lightPath = `/api/v1/organizations/${resources.org}/devices/${resources.light.device.uuid}`
 async function live() {
@@ -298,7 +305,7 @@ try {
   passed(
     "Crash after dispatch becomes uncertain and is never automatically replayed",
   )
-  await docker("stop", "-t", "2", "emqx")
+  await docker("stop", "-t", "2", "mqtt")
   await until(
     "Broker disconnect visible",
     () => api("GET", lightPath),
@@ -318,7 +325,9 @@ try {
     },
     422,
   )
-  await docker("start", "emqx")
+  await docker("start", "mqtt")
+  // broker-admin exits when it loses the broker so a supervisor can restart it; this harness is the supervisor.
+  await restart("broker-admin")
   await live()
   passed(
     "Broker disconnect blocks controls and TLS reconnect restores a fresh source session",

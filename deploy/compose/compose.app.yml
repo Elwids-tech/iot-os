@@ -20,8 +20,6 @@ services:
       SESSION_DRIVER: file
       CACHE_STORE: file
       QUEUE_CONNECTION: sync
-      # Development still runs EMQX; the release default is Mosquitto (ADR-009).
-      DEVICE_BROKER_PROVIDER: emqx
       IOT_WEBHOOK_ALLOWED_HOSTS: ${IOT_WEBHOOK_ALLOWED_HOSTS:-}
       IOT_WEBHOOK_LOCAL_SINK_ENABLED: ${IOT_WEBHOOK_LOCAL_SINK_ENABLED:-false}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

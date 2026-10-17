@@ -27,11 +27,10 @@ services:
       QUEUE_CONNECTION: database
       DEVICE_RUNTIME_URL: http://runtime:8081
       DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN:?}
-      DEVICE_MQTT_URL: ssl://emqx:8883
+      DEVICE_MQTT_URL: ssl://mqtt:8883
       DEVICE_MQTT_CA_FILE: /certs/ca.crt
-      DEVICE_EMQX_API_URL: http://emqx:18083/api/v5
-      DEVICE_EMQX_API_KEY: ${DEVICE_EMQX_API_KEY:?}
-      DEVICE_EMQX_API_SECRET: ${DEVICE_EMQX_API_SECRET:?}
+      DEVICE_BROKER_ADMIN_URL: http://broker-admin:8082
+      DEVICE_BROKER_ADMIN_TOKEN: ${DEVICE_BROKER_ADMIN_TOKEN:?}
       <<: *adapter-env
     command: [php, artisan, queue:work, --queue=device-adapters, --sleep=1, --tries=1, --timeout=180, --max-time=3600]
     volumes:

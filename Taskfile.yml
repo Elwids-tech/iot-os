@@ -61,7 +61,6 @@ tasks:
       - docker compose --env-file .env -f {{.COMPOSE_FILE}} exec -T timescaledb psql -U ${IOT_POSTGRES_USER} -d ${IOT_POSTGRES_DATABASE} -tAc "SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'" | grep -Eq '^[0-9]+\.'
       - test "$(docker compose --env-file .env -f {{.COMPOSE_FILE}} exec -T redis redis-cli ping)" = "PONG"
       - curl --fail --silent http://127.0.0.1:${IOT_NATS_MONITOR_PORT}/healthz >/dev/null
-      - curl --fail --silent http://127.0.0.1:${IOT_EMQX_DASHBOARD_PORT} >/dev/null
       - curl --fail --silent http://127.0.0.1:${IOT_NODE_RED_PORT} >/dev/null
       - curl --fail --silent http://127.0.0.1:${IOT_MINIO_API_PORT}/minio/health/live >/dev/null
       - curl --fail --silent http://127.0.0.1:${IOT_MAILPIT_UI_PORT:-8025}/ >/dev/null
@@ -163,13 +162,15 @@ tasks:
       - node tooling/test-devices.mjs --serve
 
   devices:config:
-    desc: Validate the opt-in Devices overlay for the existing EMQX deployment
+    desc: Validate the opt-in Devices overlay (Mosquitto over TLS, the Go runtime)
     cmds:
       - docker compose --env-file .env --env-file .local/devices/devices.env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} -f deploy/compose/compose.devices.yml config --quiet
 
   devices:up:
-    desc: Start the opt-in local Devices stack with TLS on the existing EMQX service
+    desc: Start the opt-in local Devices stack with Mosquitto over TLS
     deps:
       - devices:config
     cmds:
       - docker compose --env-file .env --env-file .local/devices/devices.env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} -f deploy/compose/compose.devices.yml up -d --build --wait
+      # Reapply every connection's credentials and ACLs; a new or reset broker volume has none.
+      - docker compose --env-file .env --env-file .local/devices/devices.env -f {{.COMPOSE_FILE}} -f {{.APP_COMPOSE_FILE}} -f deploy/compose/compose.devices.yml exec -T api php artisan devices:reprovision-broker

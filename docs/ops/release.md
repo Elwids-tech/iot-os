@@ -31,10 +31,10 @@ access ([pilot](pilot.md#deploying-a-release)).
 Services ([`deploy/release/compose.yml`](../../deploy/release/compose.yml)): Caddy
 (TLS on 80/443), `api` and `api-web`, `portal`, `admin`, workers (`default`,
 `alerts`, `assistant`, `webhooks`, `automation`), `scheduler`, `runtime`,
-TimescaleDB, NATS, the MQTT broker, the monitoring stack, one-off `migrate` and
-`runtime-migrate` jobs, and demo simulators (`demo` profile). Overlays:
-`compose.mosquitto.yml` (Mosquitto + `broker-admin`), `compose.external-db.yml`
-(database on another host), `compose.adapters.yml`.
+TimescaleDB, NATS, the MQTT broker (Mosquitto, `mqtt`) and `broker-admin`, the
+monitoring stack, one-off `migrate` and `runtime-migrate` jobs, and demo simulators
+(`demo` profile). Overlays: `compose.external-db.yml` (database on another host),
+`compose.adapters.yml`.
 
 ## Private inputs
 
@@ -54,11 +54,9 @@ environment label).
 - An AI provider key, if the assistant will be enabled.
 - An off-host Restic repository (S3 or SFTP) and its password, kept in a password
   manager independent of the host. A MinIO volume on the same host is not a backup.
-- Broker: `DEVICE_BROKER_PROVIDER`. `init` writes `mosquitto`
-  ([ADR-009](../adr/ADR-009-mosquitto-default-broker.md)) and generates
-  `DEVICE_BROKER_ADMIN_TOKEN` and `MOSQUITTO_ADMIN_PASSWORD`. An environment that
-  leaves the provider unset is refused, so set `emqx` in an older EMQX environment
-  until it is migrated.
+- Broker: `init` generates `DEVICE_BROKER_ADMIN_TOKEN` and `MOSQUITTO_ADMIN_PASSWORD`
+  ([ADR-019](../adr/ADR-019-mosquitto-only-broker.md)). The release refuses an
+  environment still on EMQX ([broker](broker.md#environments-still-on-emqx)).
 
 ## First installation
 

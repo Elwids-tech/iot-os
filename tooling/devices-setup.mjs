@@ -5,6 +5,7 @@ import {
   readFileSync,
   writeFileSync,
   chmodSync,
+  rmSync,
 } from "node:fs"
 import { resolve, join } from "node:path"
 import { generateKeyPairSync, randomBytes } from "node:crypto"
@@ -44,14 +45,13 @@ const values = {
   DEVICE_CERT_DIR: certs,
   DEVICE_RUNTIME_TOKEN:
     existing.DEVICE_RUNTIME_TOKEN ?? randomBytes(32).toString("hex"),
-  DEVICE_EMQX_API_KEY:
-    existing.DEVICE_EMQX_API_KEY ?? randomBytes(10).toString("hex"),
-  DEVICE_EMQX_API_SECRET:
-    existing.DEVICE_EMQX_API_SECRET ?? randomBytes(24).toString("hex"),
+  // broker-admin's bearer token and the Mosquitto Dynamic Security admin password (ADR-019).
+  DEVICE_BROKER_ADMIN_TOKEN:
+    existing.DEVICE_BROKER_ADMIN_TOKEN ?? randomBytes(32).toString("hex"),
+  MOSQUITTO_ADMIN_PASSWORD:
+    existing.MOSQUITTO_ADMIN_PASSWORD ?? randomBytes(32).toString("hex"),
   DEVICE_TEST_DB_PASSWORD:
     existing.DEVICE_TEST_DB_PASSWORD ?? randomBytes(24).toString("hex"),
-  DEVICE_TEST_COOKIE:
-    existing.DEVICE_TEST_COOKIE ?? randomBytes(24).toString("hex"),
   ...passportKeys(),
 }
 writeFileSync(
@@ -66,8 +66,10 @@ function openssl(args) {
   const result = spawnSync("openssl", args, { cwd: certs, encoding: "utf8" })
   if (result.status !== 0)
     throw new Error(`Local certificate generation failed: ${result.stderr}`)
+  return result.stdout
 }
-if (!existsSync(join(certs, "server.crt"))) {
+// Devices trust this CA, so it is kept; only the server certificate is reissued.
+if (!existsSync(join(certs, "ca.crt"))) {
   openssl([
     "req",
     "-x509",
@@ -83,6 +85,15 @@ if (!existsSync(join(certs, "server.crt"))) {
     "-subj",
     "/CN=IoT Devices Local CA",
   ])
+  chmodSync(join(certs, "ca.key"), 0o600)
+}
+// The broker's hostname inside Compose is mqtt. Certificates issued for the old
+// EMQX service name are replaced. `-text` works with both OpenSSL and LibreSSL.
+const serverCertificate = join(certs, "server.crt")
+if (
+  !existsSync(serverCertificate) ||
+  !openssl(["x509", "-in", "server.crt", "-noout", "-text"]).includes("DNS:mqtt")
+) {
   openssl([
     "req",
     "-newkey",
@@ -93,11 +104,11 @@ if (!existsSync(join(certs, "server.crt"))) {
     "-out",
     "server.csr",
     "-subj",
-    "/CN=emqx",
+    "/CN=mqtt",
   ])
   writeFileSync(
     join(certs, "server.ext"),
-    "subjectAltName=DNS:emqx,DNS:localhost,IP:127.0.0.1\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n",
+    "subjectAltName=DNS:mqtt,DNS:localhost,IP:127.0.0.1\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n",
   )
   openssl([
     "x509",
@@ -116,13 +127,9 @@ if (!existsSync(join(certs, "server.crt"))) {
     "-extfile",
     "server.ext",
   ])
-  chmodSync(join(certs, "ca.key"), 0o600)
 }
+// EMQX's bootstrap API keys; nothing reads them any more.
+rmSync(join(certs, "api-keys"), { force: true })
 // The containing setup directory is private. The broker's unprivileged UID must read its mounted files.
-writeFileSync(
-  join(certs, "api-keys"),
-  `${values.DEVICE_EMQX_API_KEY}:${values.DEVICE_EMQX_API_SECRET}:administrator\n`,
-  { mode: 0o644 },
-)
 chmodSync(join(certs, "server.key"), 0o644)
 console.log(`Device setup ready. Private environment: ${envFile}`)

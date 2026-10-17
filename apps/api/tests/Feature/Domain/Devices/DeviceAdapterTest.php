@@ -47,7 +47,7 @@ final class DeviceAdapterTest extends TestCase
         $this->prefix = '/api/v1/organizations/'.$this->organization->uuid;
         Artisan::call('devices:prepare-water-meter-profile');
         $this->artifact = DeviceProfile::where('code', 'water-meter-onboarding-example')->firstOrFail()->artifacts()->firstOrFail()->uuid;
-        config(['devices.runtime_token' => str_repeat('r', 64), 'devices.emqx_key' => 'test', 'devices.emqx_secret' => 'test', 'adapters.enabled' => true, 'adapters.manager_url' => 'http://adapter-manager.test', 'adapters.manager_token' => str_repeat('m', 64)]);
+        config(['devices.runtime_token' => str_repeat('r', 64), 'devices.broker_admin_token' => 'test-token', 'adapters.enabled' => true, 'adapters.manager_url' => 'http://adapter-manager.test', 'adapters.manager_token' => str_repeat('m', 64)]);
         Http::fake(function ($request) {
             if (str_ends_with($request->url(), '/test')) {
                 return Http::response(['valid' => true, 'results' => [['passed' => true, 'output' => ['sourceDeviceId' => 'WM-1042', 'metrics' => [['name' => 'flow_rate', 'value' => 12], ['name' => 'total_volume', 'value' => 8400]]]]]]);

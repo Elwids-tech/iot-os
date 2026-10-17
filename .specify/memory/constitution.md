@@ -108,8 +108,7 @@ docs/dev/simulators-and-fixtures.md.
 - **Stack:** Laravel 13 on PHP 8.4 (Sanctum, Laravel AI), Go 1.27, React 19 with
   TanStack Query and shadcn/ui on Radix through `@iot-os/ui`, ECharts through
   `packages/charts`, PostgreSQL 17 with TimescaleDB, NATS JetStream inside the
-  runtime, Sparkplug B over MQTT/TLS. Mosquitto is the default broker; EMQX remains
-  for existing environments (ADR-009).
+  runtime, Sparkplug B over MQTT/TLS on Mosquitto, the only broker (ADR-019).
 - **One product, several deployment profiles:** a single VM or on-premise host with
   Docker Compose first; Kubernetes profiles are future work (ADR-006).
 - **Decisions are ADRs:** a change that contradicts an accepted ADR needs a new ADR
@@ -147,4 +146,4 @@ expanding one, PATCH for wording. Reviewers and `/speckit-plan` check new work
 against these principles; violations are either fixed or justified in the plan's
 Complexity Tracking table.
 
-**Version**: 1.0.1 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-11
+**Version**: 1.0.2 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-17

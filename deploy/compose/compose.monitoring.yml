@@ -96,7 +96,7 @@ services:
     command: ["python", "-u", "/app/collector.py"]
     environment:
       COMPOSE_PROJECT: ${IOT_COMPOSE_PROJECT_NAME:-iot-os-dev}
-      EXPECTED_SERVICES: api,portal,admin,runtime,alerts-worker,assistant-worker,webhooks-worker,automation-worker,timescaledb,nats,emqx,mailpit,prometheus,alertmanager,grafana,loki,alloy,node-exporter,blackbox,container-metrics
+      EXPECTED_SERVICES: api,portal,admin,runtime,alerts-worker,assistant-worker,webhooks-worker,automation-worker,timescaledb,nats,mqtt,broker-admin,mailpit,prometheus,alertmanager,grafana,loki,alloy,node-exporter,blackbox,container-metrics
     volumes:
       - ../monitoring/local/collector.py:/app/collector.py:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro

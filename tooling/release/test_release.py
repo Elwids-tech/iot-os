@@ -28,22 +28,18 @@ class ReleaseTests(unittest.TestCase):
             self.assertFalse(deployment.adapters_enabled)
             self.assertEqual([], deployment.adapter_containers())
             deployment.env['IOT_ADAPTERS_ENABLED'] = 'true'
-            deployment.env['DEVICE_BROKER_PROVIDER'] = 'mosquitto'
             with patch.object(release,'run',return_value=SimpleNamespace(stdout=b'')) as run:
                 deployment.compose('config','--quiet')
             self.assertIn(release.RELEASE/'compose.adapters.yml', run.call_args.args[0])
 
-    def test_mosquitto_is_opt_in_and_admin_has_no_public_port(self):
+    def test_mosquitto_is_the_broker_and_admin_has_no_public_port(self):
+        services = yaml.safe_load((release.RELEASE/'compose.yml').read_text())['services']
+        self.assertNotIn('emqx', services)
+        self.assertNotIn('ports', services['broker-admin'])
+        self.assertEqual(services['mqtt']['ports'], ['8883:8883'])
+        self.assertFalse((release.RELEASE/'compose.mosquitto.yml').exists())
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)
-            self.assertEqual(deployment.broker, 'emqx')
-            deployment.env['DEVICE_BROKER_PROVIDER'] = 'mosquitto'
-            self.assertEqual(deployment.broker, 'mqtt')
-            self.assertEqual(deployment.broker_uid, 1883)
-            overlay = yaml.safe_load((release.RELEASE/'compose.mosquitto.yml').read_text())['services']
-            self.assertNotIn('ports', overlay['broker-admin'])
-            self.assertEqual(overlay['mqtt']['ports'], ['8883:8883'])
-            self.assertEqual(overlay['emqx']['profiles'], ['legacy-broker'])
             deployment.render()
             prometheus = yaml.safe_load((deployment.config/'prometheus.yml').read_text())
             probe = next(job for job in prometheus['scrape_configs'] if job['job_name'] == 'health')
@@ -54,7 +50,6 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)
             deployment.config.mkdir()
-            deployment.env['DEVICE_BROKER_PROVIDER'] = 'mosquitto'
             with patch.object(deployment,'restic'), patch.object(deployment,'running',return_value=['mqtt','broker-admin','api']), patch.object(deployment,'compose') as compose, patch.object(deployment,'database_command',side_effect=RuntimeError('dump failed')), patch.object(release.time,'sleep'):
                 with self.assertRaises(RuntimeError): deployment.backup('backup')
             self.assertEqual(compose.call_args_list[0].args, ('stop','caddy','simulator','gps-simulator','mqtt','broker-admin'))
@@ -106,9 +101,7 @@ class ReleaseTests(unittest.TestCase):
         root = Path(root)
         values = release.read_env(release.RELEASE/'environment.example')
         values.update({key: 'a'*64 for key in release.SECRET_KEYS})
-        values['DEVICE_EMQX_API_KEY'] = 'a'*24
-        # The EMQX profile, as existing environments set it; tests switch to mosquitto where they need it.
-        values['DEVICE_BROKER_PROVIDER'] = 'emqx'
+        values.update(DEVICE_BROKER_ADMIN_TOKEN='b'*64, MOSQUITTO_ADMIN_PASSWORD='c'*64)
         values.update(STATE_DIR=str(root/'state'), CONFIG_DIR=str(root/'private'), DOMAIN='staging.example.test', ACME_EMAIL='operator@example.test', MAIL_FROM_ADDRESS='app@example.test', MAIL_USERNAME='application', MAIL_PASSWORD='application-password', ALERT_EMAIL='operator@example.test')
         path = root/'environment'
         release.private_write(path, ''.join(k+'='+v+'\n' for k,v in values.items()))
@@ -218,7 +211,7 @@ class ReleaseTests(unittest.TestCase):
             root = Path(temp)
             (root/'private').mkdir()
             path = root/'env'
-            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\nDEVICE_BROKER_PROVIDER=emqx\n')
+            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\n')
             deployment = release.Deployment(path, None)
             calls = []
             def fail_dump(*args, **kwargs):
@@ -251,7 +244,7 @@ class ReleaseTests(unittest.TestCase):
     def test_release_exposes_only_ingress_and_mqtt(self):
         compose = yaml.safe_load((release.RELEASE/"compose.yml").read_text())
         public = {key: value["ports"] for key, value in compose["services"].items() if value.get("ports")}
-        self.assertEqual(public, {"caddy": ["80:80", "443:443"], "emqx": ["8883:8883"]})
+        self.assertEqual(public, {"caddy": ["80:80", "443:443"], "mqtt": ["8883:8883"]})
         self.assertNotIn("build", compose["services"]["api"])
         self.assertEqual(compose["services"]["api"]["environment"]["APP_DEBUG"], "false")
         self.assertEqual(compose["services"]["migrate"]["restart"], "no")
@@ -336,14 +329,14 @@ class ReleaseTests(unittest.TestCase):
     def test_production_refuses_demo_configuration(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/"env"
-            release.private_write(path, f"STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\nDEVICE_BROKER_PROVIDER=emqx\nDEPLOY_ENVIRONMENT=production\nIOT_STAGING_DEMO_ENABLED=true\n")
+            release.private_write(path, f"STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\nDEVICE_BROKER_ADMIN_TOKEN={'b'*64}\nMOSQUITTO_ADMIN_PASSWORD={'c'*64}\nDEPLOY_ENVIRONMENT=production\nIOT_STAGING_DEMO_ENABLED=true\n")
             with self.assertRaisesRegex(ValueError, "disable demo"):
                 release.Deployment(path, None).validate()
 
     def test_failed_remote_preflight_does_not_stop_services(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/'env'
-            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\nDEVICE_BROKER_PROVIDER=emqx\n')
+            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\n')
             deployment = release.Deployment(path, None)
             with patch.object(deployment, 'restic', side_effect=RuntimeError('offline')), patch.object(deployment, 'compose') as compose:
                 with self.assertRaisesRegex(RuntimeError, 'offline'):
@@ -355,7 +348,7 @@ class ReleaseTests(unittest.TestCase):
             root = Path(temp)
             (root/'private').mkdir()
             path = root/'env'
-            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\nDEVICE_BROKER_PROVIDER=emqx\n')
+            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\n')
             deployment = release.Deployment(path, None)
             calls = []
             def compose(*args, **kwargs):
@@ -399,25 +392,31 @@ class ReleaseTests(unittest.TestCase):
                     backup.assert_called_once_with('private-env')
             self.assertTrue((deployment.state/'metrics/containers.prom').is_file())
 
-    def test_new_environments_use_mosquitto_with_generated_secrets(self):
-        # ADR-009: init copies environment.example, so a new environment runs Mosquitto.
+    def test_new_environments_get_generated_mosquitto_secrets(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/'environment'
             with patch.object(release.sys, 'argv', ['manage.py', 'init', '--env', str(path)]), patch.object(release.os, 'umask'):
                 release.main()
             values = release.read_env(path)
-            self.assertEqual('mosquitto', values['DEVICE_BROKER_PROVIDER'])
-            for key in ('DEVICE_BROKER_ADMIN_TOKEN', 'MOSQUITTO_ADMIN_PASSWORD'):
+            for key in release.BROKER_KEYS:
                 self.assertRegex(values[key], r'^[a-f0-9]{64}$')
+            self.assertFalse(any('EMQX' in key or key == 'DEVICE_BROKER_PROVIDER' for key in values))
 
-    def test_an_environment_without_a_broker_provider_is_refused(self):
-        # An environment written before ADR-009 may rely on the old implicit emqx;
-        # guessing either way could switch its broker on upgrade.
+    def test_an_environment_still_on_emqx_is_refused(self):
+        # ADR-019: deploying over EMQX would start an empty Mosquitto and drop every device.
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)
-            del deployment.env['DEVICE_BROKER_PROVIDER']
-            with self.assertRaisesRegex(ValueError, 'Set DEVICE_BROKER_PROVIDER'):
+            deployment.env['DEVICE_BROKER_PROVIDER'] = 'emqx'
+            with self.assertRaisesRegex(ValueError, 'still runs EMQX'):
                 deployment.validate()
+            del deployment.env['DEVICE_BROKER_PROVIDER']
+            (deployment.state/'emqx').mkdir(parents=True)
+            with self.assertRaisesRegex(ValueError, 'still runs EMQX'):
+                deployment.validate()
+            # A migrated environment keeps its old EMQX directory next to Mosquitto's state.
+            (deployment.state/'mosquitto').mkdir()
+            (deployment.state/'mosquitto/dynamic-security.json').write_text('{}')
+            deployment.refuse_emqx()
 
 
 if __name__ == "__main__":

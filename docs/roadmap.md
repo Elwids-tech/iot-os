@@ -10,8 +10,6 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### Platform and runtime
 
-- **Mosquitto in development.** Replace EMQX in the local stack so development and
-  release run the same broker ([ADR-009](adr/ADR-009-mosquitto-default-broker.md)).
 - **Incremental runtime state.** Replace the 30-second full-fleet
   `GET /internal/devices/state` poll with per-organization or change-based
   reconciliation, and raise the control-claim throughput

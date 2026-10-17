@@ -1,6 +1,6 @@
 # ADR-005: Sparkplug B Boundary
 
-**Status:** Accepted; amended by [ADR-009](ADR-009-mosquitto-default-broker.md)  
+**Status:** Accepted; amended by [ADR-009](ADR-009-mosquitto-default-broker.md) and [ADR-019](ADR-019-mosquitto-only-broker.md)  
 **Date:** 2026-08-22
 
 ## Context

@@ -29,7 +29,11 @@ RELEASE = ROOT / "deploy/release"
 IMAGES = ("API_IMAGE", "API_WEB_IMAGE", "PORTAL_IMAGE", "ADMIN_IMAGE", "RUNTIME_IMAGE", "SIMULATOR_IMAGE")
 ADAPTER_IMAGES = ("ADAPTER_MANAGER_IMAGE", "ADAPTER_RUNTIME_IMAGE")
 WRITERS = ("api", "default-worker", "alerts-worker", "assistant-worker", "webhooks-worker", "automation-worker", "scheduler", "runtime")
-SECRET_KEYS = ("API_DB_PASSWORD", "RUNTIME_DB_PASSWORD", "POSTGRES_PASSWORD", "DEVICE_RUNTIME_TOKEN", "DEVICE_EMQX_API_SECRET", "NATS_PASSWORD", "EMQX_COOKIE", "EMQX_DASHBOARD_PASSWORD", "GRAFANA_PASSWORD", "IOT_METRICS_TOKEN")
+SECRET_KEYS = ("API_DB_PASSWORD", "RUNTIME_DB_PASSWORD", "POSTGRES_PASSWORD", "DEVICE_RUNTIME_TOKEN", "NATS_PASSWORD", "GRAFANA_PASSWORD", "IOT_METRICS_TOKEN")
+# The device broker: Mosquitto with Dynamic Security, changed only through broker-admin (ADR-019).
+BROKER = "mqtt"
+BROKER_UID = 1883
+BROKER_KEYS = ("DEVICE_BROKER_ADMIN_TOKEN", "MOSQUITTO_ADMIN_PASSWORD")
 
 
 def read_env(path):
@@ -120,16 +124,12 @@ class Deployment:
         env = {**os.environ, **self.env}
         profiles = ["--profile", "demo", "--profile", "tools"] if args and args[0] in ("stop", "start", "restart", "ps", "down") else []
         overlays = ["-f", RELEASE / "compose.external-db.yml"] if self.external_database else []
-        if self.broker == "mqtt":
-            overlays += ["-f", RELEASE / "compose.mosquitto.yml"]
-            inventory = yaml.safe_load((RELEASE / "compose.yml").read_text())["services"]
-            names = [name for name, service in inventory.items() if not service.get("profiles") and name != "emqx" and (not self.external_database or name != "timescaledb")]
-            env["BROKER_EXPECTED_SERVICES"] = ",".join([*names, "mqtt", "broker-admin"])
+        inventory = yaml.safe_load((RELEASE / "compose.yml").read_text())["services"]
+        names = [name for name, service in inventory.items() if not service.get("profiles") and (not self.external_database or name != "timescaledb")]
         if self.env.get("IOT_ADAPTERS_ENABLED", "false").lower() == "true":
-            if self.broker != "mqtt":
-                raise ValueError("Release adapters require the Mosquitto broker overlay")
             overlays += ["-f", RELEASE / "compose.adapters.yml"]
-            env["BROKER_EXPECTED_SERVICES"] += ",adapter-manager,adapter-worker"
+            names += ["adapter-manager", "adapter-worker"]
+        env["EXPECTED_SERVICES"] = ",".join(names)
         return run(["docker", "compose", "--project-directory", RELEASE, "--env-file", self.env_path,
                     "-f", RELEASE / "compose.yml", *overlays, *profiles, *args], env=env, **kwargs)
 
@@ -143,21 +143,12 @@ class Deployment:
         result = run(["docker", "ps", "--filter", "label=iot.adapter.managed=true", "--filter", "label=iot.adapter.project="+self.env["COMPOSE_PROJECT_NAME"], "--format", "{{.Names}}"], capture_output=True)
         return result.stdout.decode().splitlines()
 
-    @property
-    def broker(self):
-        # No default: an environment written before Mosquitto became the default
-        # (ADR-009) may rely on the old implicit emqx, and guessing would switch
-        # its broker on upgrade.
-        provider = self.env.get("DEVICE_BROKER_PROVIDER")
-        if provider is None:
-            raise ValueError("Set DEVICE_BROKER_PROVIDER: emqx for an environment that has not run migrate_mosquitto.py, mosquitto otherwise")
-        if provider not in ("emqx", "mosquitto"):
-            raise ValueError("Unsupported broker provider")
-        return "mqtt" if provider == "mosquitto" else "emqx"
-
-    @property
-    def broker_uid(self):
-        return 1883 if self.broker == "mqtt" else 1000
+    def refuse_emqx(self):
+        # ADR-019 removed EMQX. Deploying over an EMQX environment would start an empty
+        # Mosquitto and devices would lose their credentials, so it must be migrated first.
+        provider = self.env.get("DEVICE_BROKER_PROVIDER", "mosquitto")
+        if provider != "mosquitto" or ((self.state / "emqx").is_dir() and not (self.state / "mosquitto/dynamic-security.json").exists()):
+            raise ValueError("This environment still runs EMQX; migrate it with migrate_mosquitto.py from a release before ADR-019, then deploy this one")
 
     @property
     def external_database(self):
@@ -211,10 +202,10 @@ class Deployment:
 
     def validate(self):
         self.validate_database_host()
-        if self.broker == "mqtt":
-            for key in ("DEVICE_BROKER_ADMIN_TOKEN", "MOSQUITTO_ADMIN_PASSWORD"):
-                if not re.fullmatch(r"[a-f0-9]{64}", self.env.get(key, "")):
-                    raise ValueError(key+" must be a generated 256-bit secret")
+        self.refuse_emqx()
+        for key in BROKER_KEYS:
+            if not re.fullmatch(r"[a-f0-9]{64}", self.env.get(key, "")):
+                raise ValueError(key+" must be a generated 256-bit secret")
         if self.env_path.stat().st_mode & 0o077:
             raise ValueError("Environment file must have mode 0600")
         if self.env.get("DEPLOY_ENVIRONMENT") not in ("staging", "production"):
@@ -231,7 +222,7 @@ class Deployment:
         for path in (self.state, self.config):
             if not path.is_absolute() or str(path) in ("/", "/srv", "/var", "/home"):
                 raise ValueError("State/config must be dedicated absolute directories")
-        for key in (*SECRET_KEYS, "APP_KEY", "DEVICE_EMQX_API_KEY", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM_ADDRESS", "ACME_EMAIL", "ALERT_EMAIL"):
+        for key in (*SECRET_KEYS, "APP_KEY", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM_ADDRESS", "ACME_EMAIL", "ALERT_EMAIL"):
             if not self.env.get(key):
                 raise ValueError(f"Missing private input: {key}")
         for key in SECRET_KEYS:
@@ -278,7 +269,6 @@ class Deployment:
         # Sync every JetStream write: the default 2-minute interval lets a host crash drop
         # acknowledged telemetry and break the workflow checkpoint's continuity.
         private_write(self.config / "nats.conf", 'jetstream { store_dir: "/data", max_file_store: '+str(capacity)+', max_memory_store: 64MB, sync_interval: always }\nhttp_port: 8222\nauthorization { users: [{user: "runtime", password: "'+self.env['NATS_PASSWORD']+'"}] }\n', 0o644)
-        private_write(self.config / "emqx-api-keys", self.env["DEVICE_EMQX_API_KEY"]+":"+self.env["DEVICE_EMQX_API_SECRET"]+":administrator\n", 0o644)
         sql = (RELEASE / "init-db.sql").read_text()
         for key in ("API_DB_PASSWORD", "RUNTIME_DB_PASSWORD"):
             if not re.fullmatch(r"[a-f0-9]{64}", self.env[key]): raise ValueError("Unsafe generated database credential")
@@ -295,9 +285,7 @@ class Deployment:
             scrape[1]['static_configs'].append({'targets': [self.env['DATABASE_HOST']+':9100'], 'labels': {'role': 'database'}})
         for job, target in [('containers', 'container-metrics:9101'), ('alertmanager', 'alertmanager:9093'), ('loki', 'loki:3100'), ('alloy', 'alloy:12345'), ('blackbox', 'blackbox:9115')]:
             scrape.append({'job_name': job, 'static_configs': [{'targets': [target]}]})
-        for name, module, targets in [("health", "http_ok", ["http://api-web/health/ready", "http://runtime:8081/health/ready", "https://app."+domain, "https://api."+domain+"/up"]), ("mqtt", "mqtt_tls", ["mqtt."+domain+":8883"])]:
-            if name == "health" and self.broker == "mqtt":
-                targets.append("http://broker-admin:8082/health/ready")
+        for name, module, targets in [("health", "http_ok", ["http://api-web/health/ready", "http://runtime:8081/health/ready", "http://broker-admin:8082/health/ready", "https://app."+domain, "https://api."+domain+"/up"]), ("mqtt", "mqtt_tls", ["mqtt."+domain+":8883"])]:
             scrape.append({"job_name": name, "metrics_path": "/probe", "params": {"module": [module]}, "static_configs": [{"targets": targets}], "relabel_configs": [{"source_labels": ["__address__"], "target_label": "__param_target"}, {"source_labels": ["__param_target"], "target_label": "instance"}, {"target_label": "__address__", "replacement": "blackbox:9115"}]})
         private_write(self.config / "prometheus.yml", yaml.safe_dump({"global": {"scrape_interval": "30s", "evaluation_interval": "30s"}, "rule_files": ["/etc/prometheus/alerts.yml"], "alerting": {"alertmanagers": [{"static_configs": [{"targets": ["alertmanager:9093"]}]}]}, "scrape_configs": scrape}), 0o644)
         from notification_monitoring import alertmanager_config
@@ -321,15 +309,15 @@ class Deployment:
             directory = self.state / "device-adapters"
             directory.mkdir(parents=True, exist_ok=True)
             directory.chmod(0o700)
-        owners = {"app": (33, 33), "emqx": (1000, 1000), "mosquitto": (1883, 1883), "prometheus": (65534, 65534), "alertmanager": (65534, 65534), "grafana": (472, 0), "loki": (10001, 10001)}
-        for name in ("postgres", "app", "nats", "emqx", "mosquitto", "mqtt-certs", "caddy", "prometheus", "alertmanager", "grafana", "loki", "alloy", "metrics", "simulators", "simulator-config"):
+        owners = {"app": (33, 33), "mosquitto": (BROKER_UID, BROKER_UID), "prometheus": (65534, 65534), "alertmanager": (65534, 65534), "grafana": (472, 0), "loki": (10001, 10001)}
+        for name in ("postgres", "app", "nats", "mosquitto", "mqtt-certs", "caddy", "prometheus", "alertmanager", "grafana", "loki", "alloy", "metrics", "simulators", "simulator-config"):
             path = self.state / name
             path.mkdir(parents=True, exist_ok=True)
             path.chmod(0o755)
             if name in owners:
                 os.chown(path, *owners[name])
         for path in (self.state / "mqtt-certs").glob("*.pem"):
-            os.chown(path, self.broker_uid, self.broker_uid)
+            os.chown(path, BROKER_UID, BROKER_UID)
         for name in ("app", "framework", "app/private", "app/public", "framework/cache", "framework/sessions", "framework/views", "logs"):
             path = self.state / "app" / name
             path.mkdir(parents=True, exist_ok=True)
@@ -340,8 +328,6 @@ class Deployment:
         return self.compose("ps", "--services", "--status", "running", stdout=subprocess.PIPE, text=True).stdout.split()
 
     def broker_init(self):
-        if self.broker != "mqtt":
-            return
         target = self.state / "mosquitto/dynamic-security.json"
         if target.exists():
             return # Never reset existing credentials/ACLs.
@@ -393,17 +379,16 @@ class Deployment:
         self.database_ready()
         # Generated files are atomically replaced. Recreate their bind mounts so
         # Docker cannot retain the previous config inode after a release.
-        self.compose("up", "-d", "--force-recreate", "--wait", "nats", self.broker, stdout=subprocess.DEVNULL)
-        if self.broker == "mqtt":
-            self.compose("up", "-d", "--force-recreate", "broker-admin", stdout=subprocess.DEVNULL)
-            self.compose("run", "--rm", "--no-deps", "migrate", "curl", "--fail", "--silent", "--retry", "20", "--retry-connrefused", "--retry-delay", "1", "--max-time", "3", "http://broker-admin:8082/health/ready", stdout=subprocess.DEVNULL)
+        self.compose("up", "-d", "--force-recreate", "--wait", "nats", BROKER, stdout=subprocess.DEVNULL)
+        self.compose("up", "-d", "--force-recreate", "broker-admin", stdout=subprocess.DEVNULL)
+        self.compose("run", "--rm", "--no-deps", "migrate", "curl", "--fail", "--silent", "--retry", "20", "--retry-connrefused", "--retry-delay", "1", "--max-time", "3", "http://broker-admin:8082/health/ready", stdout=subprocess.DEVNULL)
         self.compose("run", "--rm", "migrate", stdout=subprocess.DEVNULL)
         self.compose("run", "--rm", "runtime-migrate", stdout=subprocess.DEVNULL)
         self.compose("run", "--rm", "migrate", "php", "artisan", "db:seed", "--class=PermissionSeeder", "--force", stdout=subprocess.DEVNULL)
-        if self.broker == "mqtt":
-            self.compose("run", "--rm", "migrate", "php", "artisan", "devices:reprovision-broker", stdout=subprocess.DEVNULL)
+        self.compose("run", "--rm", "migrate", "php", "artisan", "devices:reprovision-broker", stdout=subprocess.DEVNULL)
         services = yaml.safe_load((RELEASE / "compose.yml").read_text())["services"]
-        applications = [name for name, service in services.items() if not service.get("profiles") and name not in ("timescaledb", "nats", "emqx")]
+        # The broker and broker-admin are already up; recreating them would drop every device again.
+        applications = [name for name, service in services.items() if not service.get("profiles") and name not in ("timescaledb", "nats", BROKER, "broker-admin")]
         if self.adapters_enabled: applications += ["adapter-manager", "adapter-worker"]
         self.compose("up", "-d", "--force-recreate", "--no-deps", *applications, stdout=subprocess.DEVNULL)
         if self.adapters_enabled and tenants: run(["docker", "start", *tenants], stdout=subprocess.DEVNULL)
@@ -438,7 +423,7 @@ class Deployment:
             if self.adapters_enabled:
                 self.compose("stop", "adapter-manager", "adapter-worker", stdout=subprocess.DEVNULL)
                 if tenants: run(["docker", "stop", "--time", "20", *tenants], stdout=subprocess.DEVNULL)
-            self.compose("stop", "caddy", "simulator", "gps-simulator", self.broker, *(["broker-admin"] if self.broker == "mqtt" else []), stdout=subprocess.DEVNULL)
+            self.compose("stop", "caddy", "simulator", "gps-simulator", BROKER, "broker-admin", stdout=subprocess.DEVNULL)
             # Expire command deadlines while the runtime can still reconcile outcomes.
             time.sleep(45)
             self.compose("stop", *WRITERS, stdout=subprocess.DEVNULL)
@@ -446,7 +431,7 @@ class Deployment:
             with (checkpoint / "database.dump").open("wb") as stream:
                 self.database_command("pg_dump", "-U", "postgres", "-d", "iot", "-Fc", stdout=stream)
             # Broker and JetStream files are copied only while their owners are stopped.
-            run(["tar", "-C", self.state, "-czf", checkpoint / "state.tar.gz", "app", "nats", "mosquitto" if self.broker == "mqtt" else "emqx", "simulators", "simulator-config", "mqtt-certs", "caddy", *(["device-adapters"] if self.adapters_enabled else [])], stdout=subprocess.DEVNULL)
+            run(["tar", "-C", self.state, "-czf", checkpoint / "state.tar.gz", "app", "nats", "mosquitto", "simulators", "simulator-config", "mqtt-certs", "caddy", *(["device-adapters"] if self.adapters_enabled else [])], stdout=subprocess.DEVNULL)
             shutil.copy2(self.env_path, checkpoint / "environment")
             private_write(checkpoint / "release.json", self.release_text)
             private_write(checkpoint / "checkpoint.json", json.dumps({"format": 1, "created_at": time.time(), "project": self.env["COMPOSE_PROJECT_NAME"], "quiesced": True}))
@@ -456,7 +441,7 @@ class Deployment:
         finally:
             # Restart only services that were running before the maintenance window.
             if running:
-                dependencies = [name for name in ("nats", self.broker) if name in running]
+                dependencies = [name for name in ("nats", BROKER) if name in running]
                 if dependencies:
                     self.compose("up", "-d", "--no-recreate", "--wait", *dependencies, stdout=subprocess.DEVNULL)
                 remaining = [name for name in running if name not in dependencies]
@@ -486,12 +471,12 @@ class Deployment:
         if backup_images != self.images["images"]:
             raise ValueError("Restore must use the exact backed-up release manifest")
         original = read_env(source / "environment")
-        # A backup taken before the provider was required means emqx when it is unset.
-        if original.get("DEVICE_BROKER_PROVIDER", "emqx") != self.env.get("DEVICE_BROKER_PROVIDER"):
-            raise ValueError("Restore requires the backed-up broker provider")
-        if self.broker == "mqtt" and any(original.get(k) != self.env.get(k) for k in ("DEVICE_BROKER_ADMIN_TOKEN", "MOSQUITTO_ADMIN_PASSWORD")):
+        # An EMQX environment never had a Mosquitto admin password (ADR-019).
+        if original.get("DEVICE_BROKER_PROVIDER", "mosquitto") != "mosquitto" or not original.get("MOSQUITTO_ADMIN_PASSWORD"):
+            raise ValueError("The backup is from an EMQX environment; restore it with the release that took it")
+        if any(original.get(k) != self.env.get(k) for k in BROKER_KEYS):
             raise ValueError("Restore requires backed-up Mosquitto credentials")
-        if any(original.get(k) != self.env.get(k) for k in (*SECRET_KEYS, "APP_KEY", "DEVICE_EMQX_API_KEY")):
+        if any(original.get(k) != self.env.get(k) for k in (*SECRET_KEYS, "APP_KEY")):
             raise ValueError("Restore requires the backed-up encryption and service credentials")
         if any(original.get(k) and original.get(k) != self.env.get(k) for k in PASSPORT_KEYS):
             raise ValueError("Restore requires the backed-up Passport keys")
@@ -516,7 +501,7 @@ class Deployment:
         self.compose("exec", "-T", "timescaledb", "psql", "-U", "postgres", "-d", "iot", "-v", "ON_ERROR_STOP=1", "-c", "SELECT timescaledb_post_restore();", stdout=subprocess.DEVNULL)
         self.compose("run", "--rm", "-e", "IOT_RECOVERY_MODE=true", "-e", "DB_USERNAME=postgres", "-e", "DB_PASSWORD="+self.env["POSTGRES_PASSWORD"], "migrate", "php", "artisan", "deployment:quarantine-restore", stdout=subprocess.DEVNULL)
         # Restore archive extraction deliberately discards ownership; restore container UIDs.
-        for name, owner in (("app", (33, 33)), ("mosquitto" if self.broker == "mqtt" else "emqx", (self.broker_uid, self.broker_uid)), ("mqtt-certs", (self.broker_uid, self.broker_uid))):
+        for name, owner in (("app", (33, 33)), ("mosquitto", (BROKER_UID, BROKER_UID)), ("mqtt-certs", (BROKER_UID, BROKER_UID))):
             for path in [self.state/name, *(self.state/name).rglob("*")]:
                 if not path.is_symlink(): os.chown(path, *owner)
         if self.adapters_enabled:
@@ -575,10 +560,10 @@ class Deployment:
             content = (Path("/etc/letsencrypt/live") / domain / filename).read_text()
             changed = changed or not (target / filename).exists() or (target / filename).read_text() != content
             private_write(target / filename, content, 0o640)
-            os.chown(target / filename, self.broker_uid, self.broker_uid)
-        if changed and self.broker in self.running():
+            os.chown(target / filename, BROKER_UID, BROKER_UID)
+        if changed and BROKER in self.running():
             # Restart reopens certificates even if their path did not change.
-            self.compose("restart", self.broker, stdout=subprocess.DEVNULL)
+            self.compose("restart", BROKER, stdout=subprocess.DEVNULL)
 
     def staging(self):
         if self.env.get("DEPLOY_ENVIRONMENT") != "staging" or self.env.get("IOT_STAGING_DEMO_ENABLED") != "true":
@@ -656,7 +641,6 @@ def main():
         values = read_env(RELEASE / "environment.example")
         values.update({key: secrets.token_hex(32) for key in SECRET_KEYS})
         values["APP_KEY"] = "base64:"+base64.b64encode(secrets.token_bytes(32)).decode()
-        values["DEVICE_EMQX_API_KEY"] = secrets.token_hex(12)
         values.update(DEVICE_BROKER_ADMIN_TOKEN=secrets.token_hex(32), MOSQUITTO_ADMIN_PASSWORD=secrets.token_hex(32))
         values.update(passport_keys())
         private_write(path, "".join(k+"="+json.dumps(v)+"\n" for k, v in values.items()))

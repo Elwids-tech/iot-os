@@ -1,6 +1,6 @@
 # ADR-009: Mosquitto Is the Default MQTT Broker
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-019](ADR-019-mosquitto-only-broker.md)
 **Date:** 2026-10-11
 **Amends:** [ADR-005](ADR-005-sparkplug-b-boundary.md) (which names EMQX as the MQTT transport)
 
@@ -15,7 +15,7 @@ gained a second broker profile, and the pilot environment was migrated to it:
   with no single-node commercial licence requirement.
 - The release supports both brokers, selected by `DEVICE_BROKER_PROVIDER`
   (`emqx` or `mosquitto`) in [`tooling/release/manage.py`](../../tooling/release/manage.py).
-  Selecting Mosquitto adds [`compose.mosquitto.yml`](../../deploy/release/compose.mosquitto.yml):
+  Selecting Mosquitto adds [`compose.mosquitto.yml`](https://github.com/Elwids-tech/iot-os/blob/4a59f5de03b3273f84eebf7200bac3b7f0dfae07/deploy/release/compose.mosquitto.yml):
   Mosquitto 2.0.22 (digest-pinned) with the Dynamic Security plugin
   ([`mosquitto.conf`](../../deploy/release/mosquitto.conf)) and a private
   `broker-admin` service.
@@ -25,7 +25,7 @@ gained a second broker profile, and the pilot environment was migrated to it:
   [`BrokerProvisioner`](../../apps/api/app/Domain/Devices/Services/BrokerProvisioner.php)
   sends it credentials and Sparkplug ACLs over bearer-authenticated HTTP; it
   applies them through `$CONTROL/dynamic-security/v1` with default-deny roles.
-- [`tooling/release/migrate_mosquitto.py`](../../tooling/release/migrate_mosquitto.py)
+- [`tooling/release/migrate_mosquitto.py`](https://github.com/Elwids-tech/iot-os/blob/4a59f5de03b3273f84eebf7200bac3b7f0dfae07/tooling/release/migrate_mosquitto.py)
   migrates an EMQX environment with an encrypted checkpoint and automatic
   rollback.
 - Per-tenant adapter ingress brokers are Mosquitto ([ADR-010](ADR-010-per-tenant-adapter-runtimes.md)),
@@ -56,10 +56,7 @@ Mosquitto 2.x with the Dynamic Security plugin, administered only through
   `manage.py` and [`deploy/release/compose.yml`](../../deploy/release/compose.yml),
   while the release adapter worker defaults to `mosquitto`
   ([`deploy/release/compose.adapters.yml`](../../deploy/release/compose.adapters.yml)).
-  Flipping the defaults is follow-up work. *(Done 2026-10-17: new environments
-  get `mosquitto` from `environment.example`, Laravel defaults to it, and the release
-  refuses an unset provider instead of assuming either broker; see
-  [broker](../ops/broker.md).)*
+  Flipping the defaults is follow-up work.
 - Development exercises EMQX ACLs and provisioning while production runs
   Mosquitto. Until dev moves, Mosquitto behaviour is covered by
   `tooling/release/verify_mosquitto.py` in the release workflow, not by everyday
