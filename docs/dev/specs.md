@@ -43,8 +43,7 @@ Specs are history. When a feature's last implementation pull request merges, its
 [`docs/features`](../features) or [`docs/reference`](../reference), and any decision is
 recorded as an [ADR](../adr/README.md). A later change to the feature gets a new spec.
 
-Candidate specs are listed under **Next** in the [roadmap](../roadmap.md); the first
-is the OpenAPI description of the public and integration APIs.
+Candidate specs are listed under **Next** in the [roadmap](../roadmap.md).
 
 ## Upgrading Spec Kit
 

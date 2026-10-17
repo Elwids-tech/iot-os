@@ -210,10 +210,13 @@ described more than exists. Not built:
   ([ADR-014](../adr/ADR-014-control-plane-data-plane-http-integration.md)).
 - **A `packages/contracts` package** or generated cross-language types. Contracts
   are JSON Schemas and fixtures under [`contracts/`](../../contracts/README.md).
-- **OpenAPI.** There is no OpenAPI description; `packages/api-client` is
-  hand-written ([API reference](../reference/api.md)).
+- **Generated API clients.** The OpenAPI description
+  ([`contracts/openapi`](../../contracts/openapi)) is generated from Laravel and
+  checked in CI, but `packages/api-client` and the SDK types are still hand-written
+  ([API reference](../reference/api.md#contract)).
 - **Realtime push.** No Reverb or WebSockets; the portal polls.
-- **`packages/agent-ui`**, an MCP endpoint, the `platformctl` installer (release
+- **`packages/agent-ui`** (AI agents reach the platform through `/mcp`; see
+  [agents](../features/agents.md)), the `platformctl` installer (release
   uses `manage.py`), Helm/Kubernetes, ClickHouse, Airflow, Neo4j, an edge
   runtime, high availability or more than one runtime instance.
 - Redis and object storage are in the development stack but unused.
