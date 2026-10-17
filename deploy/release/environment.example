@@ -8,9 +8,10 @@ VPN_CIDR=100.64.0.0/10
 # Set to the database host's WireGuard IPv4 address for a two-server pilot.
 # Leave as timescaledb for the existing single-node release/recovery profile.
 DATABASE_HOST=timescaledb
-# Existing environments default to emqx. Mosquitto uses the private adapter
-# included in the runtime image; generate each secret with 32 random bytes.
-DEVICE_BROKER_PROVIDER=emqx
+# Mosquitto is the broker for new environments (ADR-009); init generates its two
+# secrets. An EMQX environment sets emqx until migrate_mosquitto.py moves it.
+# There is no default: the release refuses an environment that leaves this unset.
+DEVICE_BROKER_PROVIDER=mosquitto
 DEVICE_BROKER_ADMIN_TOKEN=
 MOSQUITTO_ADMIN_PASSWORD=
 ACME_EMAIL=

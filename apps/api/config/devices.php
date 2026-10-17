@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'broker_provider' => env('DEVICE_BROKER_PROVIDER', 'emqx'),
+    'broker_provider' => env('DEVICE_BROKER_PROVIDER', 'mosquitto'),
     'broker_admin_url' => env('DEVICE_BROKER_ADMIN_URL', 'http://broker-admin:8082'),
     'broker_admin_token' => env('DEVICE_BROKER_ADMIN_TOKEN'),
     'runtime_url' => env('DEVICE_RUNTIME_URL', 'http://runtime:8081'),

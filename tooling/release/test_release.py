@@ -107,6 +107,8 @@ class ReleaseTests(unittest.TestCase):
         values = release.read_env(release.RELEASE/'environment.example')
         values.update({key: 'a'*64 for key in release.SECRET_KEYS})
         values['DEVICE_EMQX_API_KEY'] = 'a'*24
+        # The EMQX profile, as existing environments set it; tests switch to mosquitto where they need it.
+        values['DEVICE_BROKER_PROVIDER'] = 'emqx'
         values.update(STATE_DIR=str(root/'state'), CONFIG_DIR=str(root/'private'), DOMAIN='staging.example.test', ACME_EMAIL='operator@example.test', MAIL_FROM_ADDRESS='app@example.test', MAIL_USERNAME='application', MAIL_PASSWORD='application-password', ALERT_EMAIL='operator@example.test')
         path = root/'environment'
         release.private_write(path, ''.join(k+'='+v+'\n' for k,v in values.items()))
@@ -216,7 +218,7 @@ class ReleaseTests(unittest.TestCase):
             root = Path(temp)
             (root/'private').mkdir()
             path = root/'env'
-            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\n')
+            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\nDEVICE_BROKER_PROVIDER=emqx\n')
             deployment = release.Deployment(path, None)
             calls = []
             def fail_dump(*args, **kwargs):
@@ -334,14 +336,14 @@ class ReleaseTests(unittest.TestCase):
     def test_production_refuses_demo_configuration(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/"env"
-            release.private_write(path, f"STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\nDEPLOY_ENVIRONMENT=production\nIOT_STAGING_DEMO_ENABLED=true\n")
+            release.private_write(path, f"STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\nDEVICE_BROKER_PROVIDER=emqx\nDEPLOY_ENVIRONMENT=production\nIOT_STAGING_DEMO_ENABLED=true\n")
             with self.assertRaisesRegex(ValueError, "disable demo"):
                 release.Deployment(path, None).validate()
 
     def test_failed_remote_preflight_does_not_stop_services(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/'env'
-            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\n')
+            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\nDEVICE_BROKER_PROVIDER=emqx\n')
             deployment = release.Deployment(path, None)
             with patch.object(deployment, 'restic', side_effect=RuntimeError('offline')), patch.object(deployment, 'compose') as compose:
                 with self.assertRaisesRegex(RuntimeError, 'offline'):
@@ -353,7 +355,7 @@ class ReleaseTests(unittest.TestCase):
             root = Path(temp)
             (root/'private').mkdir()
             path = root/'env'
-            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\n')
+            release.private_write(path, f'STATE_DIR={temp}/state\nCONFIG_DIR={temp}/private\nDEVICE_BROKER_PROVIDER=emqx\n')
             deployment = release.Deployment(path, None)
             calls = []
             def compose(*args, **kwargs):
@@ -396,6 +398,26 @@ class ReleaseTests(unittest.TestCase):
                 if command == 'backup':
                     backup.assert_called_once_with('private-env')
             self.assertTrue((deployment.state/'metrics/containers.prom').is_file())
+
+    def test_new_environments_use_mosquitto_with_generated_secrets(self):
+        # ADR-009: init copies environment.example, so a new environment runs Mosquitto.
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/'environment'
+            with patch.object(release.sys, 'argv', ['manage.py', 'init', '--env', str(path)]), patch.object(release.os, 'umask'):
+                release.main()
+            values = release.read_env(path)
+            self.assertEqual('mosquitto', values['DEVICE_BROKER_PROVIDER'])
+            for key in ('DEVICE_BROKER_ADMIN_TOKEN', 'MOSQUITTO_ADMIN_PASSWORD'):
+                self.assertRegex(values[key], r'^[a-f0-9]{64}$')
+
+    def test_an_environment_without_a_broker_provider_is_refused(self):
+        # An environment written before ADR-009 may rely on the old implicit emqx;
+        # guessing either way could switch its broker on upgrade.
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            del deployment.env['DEVICE_BROKER_PROVIDER']
+            with self.assertRaisesRegex(ValueError, 'Set DEVICE_BROKER_PROVIDER'):
+                deployment.validate()
 
 
 if __name__ == "__main__":

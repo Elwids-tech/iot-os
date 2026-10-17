@@ -6,9 +6,14 @@ for existing environments and is what the local development stack runs. A single
 broker is not highly available.
 
 The release selects the broker with `DEVICE_BROKER_PROVIDER` (`mosquitto` or
-`emqx`). The shipped defaults (`environment.example`, `manage.py`,
-`apps/api/config/devices.php`) still say `emqx`; set `mosquitto` explicitly for new
-environments.
+`emqx`). `environment.example`, and so `manage.py init`, says `mosquitto`, and
+Laravel's default is `mosquitto`. The release has no default: `manage.py` and
+`compose.yml` refuse an environment that leaves it unset, because environments
+written before ADR-009 relied on an implicit `emqx` and guessing would switch their
+broker on upgrade. Such an environment sets `emqx` until
+[`migrate_mosquitto.py`](../../tooling/release/migrate_mosquitto.py) moves it. The
+development stack pins `emqx` in `compose.app.yml`, and the API tests do the same
+in `phpunit.xml`.
 
 ## Mosquitto in a release
 

@@ -54,9 +54,11 @@ environment label).
 - An AI provider key, if the assistant will be enabled.
 - An off-host Restic repository (S3 or SFTP) and its password, kept in a password
   manager independent of the host. A MinIO volume on the same host is not a backup.
-- Broker: `DEVICE_BROKER_PROVIDER` (`mosquitto` is the decided default,
-  [ADR-009](../adr/ADR-009-mosquitto-default-broker.md); the shipped example still
-  says `emqx`), with `DEVICE_BROKER_ADMIN_TOKEN` and `MOSQUITTO_ADMIN_PASSWORD`.
+- Broker: `DEVICE_BROKER_PROVIDER`. `init` writes `mosquitto`
+  ([ADR-009](../adr/ADR-009-mosquitto-default-broker.md)) and generates
+  `DEVICE_BROKER_ADMIN_TOKEN` and `MOSQUITTO_ADMIN_PASSWORD`. An environment that
+  leaves the provider unset is refused, so set `emqx` in an older EMQX environment
+  until it is migrated.
 
 ## First installation
 

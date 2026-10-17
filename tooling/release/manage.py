@@ -145,7 +145,12 @@ class Deployment:
 
     @property
     def broker(self):
-        provider = self.env.get("DEVICE_BROKER_PROVIDER", "emqx")
+        # No default: an environment written before Mosquitto became the default
+        # (ADR-009) may rely on the old implicit emqx, and guessing would switch
+        # its broker on upgrade.
+        provider = self.env.get("DEVICE_BROKER_PROVIDER")
+        if provider is None:
+            raise ValueError("Set DEVICE_BROKER_PROVIDER: emqx for an environment that has not run migrate_mosquitto.py, mosquitto otherwise")
         if provider not in ("emqx", "mosquitto"):
             raise ValueError("Unsupported broker provider")
         return "mqtt" if provider == "mosquitto" else "emqx"
@@ -481,7 +486,8 @@ class Deployment:
         if backup_images != self.images["images"]:
             raise ValueError("Restore must use the exact backed-up release manifest")
         original = read_env(source / "environment")
-        if original.get("DEVICE_BROKER_PROVIDER", "emqx") != self.env.get("DEVICE_BROKER_PROVIDER", "emqx"):
+        # A backup taken before the provider was required means emqx when it is unset.
+        if original.get("DEVICE_BROKER_PROVIDER", "emqx") != self.env.get("DEVICE_BROKER_PROVIDER"):
             raise ValueError("Restore requires the backed-up broker provider")
         if self.broker == "mqtt" and any(original.get(k) != self.env.get(k) for k in ("DEVICE_BROKER_ADMIN_TOKEN", "MOSQUITTO_ADMIN_PASSWORD")):
             raise ValueError("Restore requires backed-up Mosquitto credentials")
@@ -651,6 +657,7 @@ def main():
         values.update({key: secrets.token_hex(32) for key in SECRET_KEYS})
         values["APP_KEY"] = "base64:"+base64.b64encode(secrets.token_bytes(32)).decode()
         values["DEVICE_EMQX_API_KEY"] = secrets.token_hex(12)
+        values.update(DEVICE_BROKER_ADMIN_TOKEN=secrets.token_hex(32), MOSQUITTO_ADMIN_PASSWORD=secrets.token_hex(32))
         values.update(passport_keys())
         private_write(path, "".join(k+"="+json.dumps(v)+"\n" for k, v in values.items()))
         print("Private environment created. Fill provider inputs without changing generated keys.")

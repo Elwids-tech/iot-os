@@ -56,7 +56,10 @@ Mosquitto 2.x with the Dynamic Security plugin, administered only through
   `manage.py` and [`deploy/release/compose.yml`](../../deploy/release/compose.yml),
   while the release adapter worker defaults to `mosquitto`
   ([`deploy/release/compose.adapters.yml`](../../deploy/release/compose.adapters.yml)).
-  Flipping the defaults is follow-up work.
+  Flipping the defaults is follow-up work. *(Done 2026-10-17: new environments
+  get `mosquitto` from `environment.example`, Laravel defaults to it, and the release
+  refuses an unset provider instead of assuming either broker; see
+  [broker](../ops/broker.md).)*
 - Development exercises EMQX ACLs and provisioning while production runs
   Mosquitto. Until dev moves, Mosquitto behaviour is covered by
   `tooling/release/verify_mosquitto.py` in the release workflow, not by everyday
