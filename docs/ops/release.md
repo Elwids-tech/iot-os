@@ -7,9 +7,10 @@ a second host) with Docker Compose, digest-pinned images and one operations tool
 development stack. The current deployment is described in [pilot](pilot.md).
 
 Files: [`deploy/release`](../../deploy/release) (Compose files, Caddy, broker
-configs, `environment.example`, monitoring), [`deploy/ansible`](../../deploy/ansible)
-(host provisioning), [`tooling/release`](../../tooling/release) (operations,
-verification, soak, Mosquitto migration).
+configs, `environment.example`, monitoring, release checks),
+[`deploy/ansible`](../../deploy/ansible) (host provisioning),
+[`tooling/release`](../../tooling/release) (operations, upgrades, verification, soak,
+Mosquitto migration).
 
 This is a recoverable single-runtime deployment, **not high availability**.
 
@@ -93,7 +94,8 @@ operations metrics. The Postgres superuser is used only for initialization, back
 and recovery jobs.
 
 Commands: `init`, `validate`, `render`, `deploy`, `backup`, `restore`,
-`certificates`, `staging`, `metrics`, `monitoring_heartbeat`, `smoke`.
+`certificates`, `staging`, `metrics`, `monitoring_heartbeat`, `smoke`. Upgrades of a
+running deployment go through [`ship.py`](#shipping-an-upgrade).
 
 ## Upgrades and rollback
 
@@ -107,6 +109,104 @@ restore a checkpoint onto a replacement host.
 
 Never run `migrate:fresh`, demo seeders or `docker compose down -v` on a deployed
 environment.
+
+## Shipping an upgrade
+
+[`tooling/release/ship.py`](../../tooling/release/ship.py) upgrades a running
+deployment in one command: it installs the new source, runs `deploy` with that
+release's own `manage.py`, and checks the result. Nothing is edited per release; what
+changes between releases lives in the [checks file](#release-checks). The first
+installation and rollbacks use `manage.py deploy`.
+
+Stage each release in a new private directory (`<short>` is the first seven
+characters of the commit):
+
+| File | Contents |
+| --- | --- |
+| `release.json` | The image manifest, naming the commit its images were built from |
+| `release-origin.json` | Optional: the manifest before its images were imported into a local registry |
+| `iot-os-source-<short>.tar.gz` | `git archive --format=tar.gz -o iot-os-source-<short>.tar.gz <commit>` from any clone |
+| `iot-os-source-<short>.tar.gz.sha256` | `sha256sum` (or `shasum -a 256`) output for the archive |
+| `checks.json` | Optional: [checks](#release-checks) for this deployment only |
+
+Then run `ship.py` from the release being shipped, first with `--preflight`, which
+stops before anything changes, then without it:
+
+```sh
+cd <release dir>
+sha256sum -c iot-os-source-<short>.tar.gz.sha256
+mkdir staged && tar -xzf iot-os-source-<short>.tar.gz -C staged
+python3 staged/tooling/release/ship.py --env <env> --backup-env <backup.env> \
+  --source <installed source> --release-dir . --expect-current <running commit> --preflight
+```
+
+`<running commit>` is `commit` in `current-release.json` (at least seven characters).
+To install a tooling or documentation commit over the images already running, stage
+that commit's archive with the running `release.json` and add `--source-commit
+<commit>`.
+
+In order, `ship.py`:
+
+1. Checks the archive against its checksum and that it is a `git archive` of the
+   expected commit (Git records the commit in the archive), unpacks it beside the
+   installed source and validates the configuration with the new tooling.
+2. Takes the operation lock, waiting for timers that hold it, and refuses
+   `DEPLOYMENT_INCOMPLETE`, `BROKER_MIGRATION_INCOMPLETE` or `RESTORE_QUARANTINE`, a
+   running release other than `--expect-current`, `IOT_STAGING_DEMO_ENABLED=true` or
+   running demo simulators, and a running release with no super administrator.
+3. Counts rows in the running release: organizations, users, super administrators,
+   organization members, invitations, platform administrators, sites, devices and any
+   `unchanged` tables. It also reads the runtime state. `--preflight` ends here.
+4. Copies the environment and the private manifests to `before-<time>/` in the release
+   directory, moves the installed source to a new `source-before-<time>-<old commit>`
+   beside it, puts the new source in its place and deploys.
+5. Copies `release.json` and `release-origin.json` into the private directory, writes
+   `tooling-provenance.json` (commits, archive checksum, previous source), checks the
+   release, then backs up the archive, manifests and provenance with Restic, tagged
+   `iot-release-source` (never the project tag, so checkpoint retention keeps them).
+
+If the deploy stops before writing `DEPLOYMENT_INCOMPLETE` (backup access, image
+pull, the pre-upgrade checkpoint), the previous release is still running: `ship.py`
+puts the previous source back, keeps the new one as `source-failed-<time>-<commit>`,
+and the same command can run again once the cause is fixed. If it stops later, the
+marker blocks further operations; the previous source stays in `source-before-…` for
+the recovery. Failed checks leave the release installed and recorded, and the command
+exits with every failure listed. Remove old `source-before-…` directories once a
+release has proven itself.
+
+### Release checks
+
+[`deploy/release/checks.json`](../../deploy/release/checks.json) ships with each
+release and says what it must contain. `checks.json` in the release directory adds
+checks for one deployment, such as settings that differ between environments. Both
+use this format, and every section is optional:
+
+```json
+{
+  "format": 1,
+  "routes": ["PUT api/v1/admin/platform-team/{user}"],
+  "named_routes": ["api.v1.admin.assistant-settings.show"],
+  "tables": ["assistant_settings"],
+  "columns": {"organization_invitations": ["grants_super_admin"]},
+  "config": {"app.frontend_url": "https://app.{domain}", "agents.enabled": true},
+  "unchanged": ["device_profiles", {"table": "organizations", "where": {"deleted_at": null}}],
+  "may_change": ["devices"]
+}
+```
+
+| Section | Passes when, after the deploy |
+| --- | --- |
+| `routes` | A route with this method and URI exists (the URI as `route:list` shows it) |
+| `named_routes` | A route with this name exists |
+| `tables`, `columns` | The table or column exists |
+| `config` | `config(key)` is identical (`===`) to the JSON value; `{domain}` stands for `DOMAIN`. Only match or mismatch leaves the container, never a value |
+| `unchanged` | The row count, optionally filtered by `where` equality, is the one counted before deploying. Adds to the built-in counts above; the table must exist in the running release |
+| `may_change` | Never fails: rows of these tables are not compared, for a release whose migration changes them |
+
+The runtime must also be operational within a minute of the deploy if it was before.
+The checks run inside the API container and only read. Update the shipped file in the
+pull request that adds what it checks, and keep it short: rows that people change
+during a deploy (dashboards, alerts, telemetry) do not belong in `unchanged`.
 
 ## Backups and restore
 

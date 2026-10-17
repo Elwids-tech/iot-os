@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "config": {
+    "app.frontend_url": "https://app.{domain}",
+    "agents.resource": "https://api.{domain}/mcp"
+  },
+  "routes": [
+    "PUT api/v1/admin/super-administrators/{user}",
+    "DELETE api/v1/admin/super-administrators/{user}",
+    "POST api/v1/admin/super-administrators/invitations",
+    "PUT api/v1/admin/platform-team/{user}",
+    "DELETE api/v1/admin/organizations/{organization}"
+  ],
+  "named_routes": [
+    "api.v1.admin.assistant-settings.show",
+    "api.v1.admin.assistant-settings.update",
+    "api.v1.admin.assistant-settings.keys.destroy",
+    "api.v1.admin.assistant-settings.test"
+  ],
+  "tables": ["assistant_settings", "assistant_provider_keys"],
+  "columns": {
+    "organization_invitations": ["grants_super_admin"]
+  }
+}

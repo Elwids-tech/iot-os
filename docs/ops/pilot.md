@@ -35,11 +35,12 @@ When an operator's address changes, sign in through the Hetzner Console and run
 Change sshd with a second session open and a timed revert
 (`systemd-run --on-active=10min`), and cancel the revert only after a fresh login works.
 
-Paths on the application host: source `/srv/elwids/source`, state
-`/srv/elwids/state`, private configuration `/srv/elwids/private` (`application.env`,
-`backup.env`, `current-release.json`, `release-origin.json`,
-`previous-release.json`, `restore-test-result.json`). The database host keeps its
-own Compose and env files and `watchdog.json`. Never regenerate `APP_KEY` or
+Paths on the application host: source `/srv/elwids/source` (earlier ones in
+`/srv/elwids/source-before-*`), state `/srv/elwids/state`, private configuration
+`/srv/elwids/private` (`application.env`, `backup.env`, `current-release.json`,
+`release-origin.json`, `previous-release.json`, `tooling-provenance.json`,
+`restore-test-result.json`, staged releases in `releases/`). The database host keeps
+its own Compose and env files and `watchdog.json`. Never regenerate `APP_KEY` or
 service secrets, commit these files, or print expanded Compose configuration.
 
 ## Domains
@@ -128,20 +129,46 @@ installed on either server.
    directory, then import it with
    [`import_release_images.py`](../../tooling/release/pilot/import_release_images.py)
    into the local registry `elwids-registry.local` (isolated network, no published
-   ports). Keep each archive as an independent backup.
-4. Export committed source with only reviewed tooling changes; never deploy a dirty
-   checkout. Keep environments, state, certificates and keys.
-5. Deploy with the pinned manifest and a working off-site backup:
+   ports). It writes `release.json` and `release-origin.json` to
+   `/srv/elwids/private`. Keep each archive as an independent backup.
+4. Stage the release in a new `/srv/elwids/private/releases/<short>` (the first seven
+   characters of the commit): copy `release.json` and `release-origin.json` there,
+   and export the source from any clone, so a dirty checkout can never ship:
 
    ```sh
-   ssh <app-host> 'cd /srv/elwids/source && python3 tooling/release/manage.py deploy \
-     --env /srv/elwids/private/application.env \
-     --manifest /srv/elwids/private/release.json \
-     --backup-env /srv/elwids/private/backup.env'
+   git archive --format=tar.gz -o iot-os-source-<short>.tar.gz <commit>
+   shasum -a 256 iot-os-source-<short>.tar.gz > iot-os-source-<short>.tar.gz.sha256
+   scp iot-os-source-<short>.tar.gz iot-os-source-<short>.tar.gz.sha256 \
+     <app-host>:/srv/elwids/private/releases/<short>/
    ```
 
+   Settings only the pilot has, such as agent access being on, go in a `checks.json`
+   there ([format](release.md#release-checks)), for example
+   `{"format": 1, "config": {"agents.enabled": true}}`.
+5. On the application host, unpack the staged tooling, run the
+   [restore drill](#backups-and-recovery), then ship with
+   [`ship.py`](release.md#shipping-an-upgrade), first as a preflight that changes
+   nothing. `<running commit>` is `commit` in
+   `/srv/elwids/private/current-release.json`:
+
+   ```sh
+   cd /srv/elwids/private/releases/<short>
+   sha256sum -c iot-os-source-<short>.tar.gz.sha256
+   mkdir staged && tar -xzf iot-os-source-<short>.tar.gz -C staged
+   python3 staged/tooling/release/pilot/verify_checkpoint_restore.py
+   python3 staged/tooling/release/ship.py --env /srv/elwids/private/application.env \
+     --backup-env /srv/elwids/private/backup.env --source /srv/elwids/source \
+     --release-dir . --expect-current <running commit> --preflight
+   ```
+
+   Then run the same `ship.py` command without `--preflight`. It waits for the
+   minute timers to release the operation lock, refuses to run while the demo
+   simulators are on, and keeps the previous source in a new
+   `/srv/elwids/source-before-<time>-<commit>`.
+
 Keep the running application manifest and the tooling commit separate:
-documentation or tooling commits do not change running image digests.
+documentation or tooling commits do not change running image digests. Ship one with
+the running `release.json` and `--source-commit <commit>`.
 
 ## Backups and recovery
 
@@ -159,8 +186,8 @@ ssh <app-host> 'python3 /srv/elwids/source/tooling/release/pilot/verify_checkpoi
 ```
 
 Before installing a release, run the drill from the staged source instead
-(`<staged source>/tooling/release/pilot/verify_checkpoint_restore.py`); it uses the
-release tooling next to it.
+(`releases/<short>/staged/tooling/release/pilot/verify_checkpoint_restore.py`); it
+uses the release tooling next to it.
 
 The restore drill restores the latest checkpoint into a disposable internal
 TimescaleDB network (no ports, no outbound network), runs
