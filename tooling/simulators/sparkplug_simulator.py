@@ -221,7 +221,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", required=True)
     parser.add_argument("--state-file", required=True)
     parser.add_argument("--ignore-commands", action="store_true")
-    parser.add_argument("--rgb-v2", action="store_true", help="Use Solid/Blink/Strobe and 0–100% brightness; persist RGB state.")
+    parser.add_argument("--rgb-v2", action="store_true", help="Use Solid/Blink/Strobe and 0–100%% brightness; persist RGB state.")
     parser.add_argument("--gps", action="store_true", help="Publish a GPS route that crosses the demo geofence.")
     parser.add_argument("--control-port", type=int, help="Serve optional local RGB controls on this loopback port (requires --rgb-v2).")
     args = parser.parse_args()
