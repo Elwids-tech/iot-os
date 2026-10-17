@@ -11,9 +11,8 @@ Grouped by area. Links point at the decision or doc that explains the item.
 ### Platform and runtime
 
 - **Broker defaults.** Make `mosquitto` the default `DEVICE_BROKER_PROVIDER` in
-  `apps/api/config/devices.php`, `deploy/release/environment.example`,
-  `tooling/release/manage.py` and `deploy/release/compose.yml`, to match the release
-  adapter worker, which already defaults to it
+  `apps/api/config/devices.php`, `deploy/release/environment.example`, `manage.py`
+  and `deploy/release/compose.yml`, and align the release adapter worker
   ([ADR-009](adr/ADR-009-mosquitto-default-broker.md)).
 - **Mosquitto in development.** Replace EMQX in the local stack so development and
   release run the same broker ([ADR-009](adr/ADR-009-mosquitto-default-broker.md)).
