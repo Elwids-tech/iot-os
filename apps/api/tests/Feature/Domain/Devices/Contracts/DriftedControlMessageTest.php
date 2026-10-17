@@ -64,7 +64,7 @@ final class DriftedControlMessageTest extends TestCase
         $this->actingAs(User::where('email', 'super-admin@example.test')->firstOrFail(), 'sanctum');
         $this->prefix = '/api/v1/organizations/'.$this->organization->uuid;
         config(['devices.runtime_token' => self::RUNTIME_TOKEN, 'devices.runtime_url' => 'http://runtime:8081',
-            'devices.emqx_key' => 'test', 'devices.emqx_secret' => 'test', 'adapters.enabled' => true,
+            'devices.broker_admin_token' => 'test-token', 'adapters.enabled' => true,
             'adapters.manager_url' => 'http://adapter-manager.test', 'adapters.manager_token' => str_repeat('m', 64)]);
         Http::fake(function (Request $request) {
             if (str_starts_with($request->url(), 'http://runtime:8081/')) {

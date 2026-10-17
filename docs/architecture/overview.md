@@ -84,8 +84,8 @@ flowchart TB
     end
 
     db[("PostgreSQL + TimescaleDB<br/>public schema: Laravel<br/>device_runtime schema: Go")]
-    broker["MQTT broker<br/>Mosquitto (release default) or EMQX"]
-    brokeradmin["broker-admin<br/>(with Mosquitto)"]
+    broker["MQTT broker<br/>Mosquitto"]
+    brokeradmin["broker-admin"]
 
     subgraph adapters["Device adapters (optional)"]
         manager["adapter-manager"]

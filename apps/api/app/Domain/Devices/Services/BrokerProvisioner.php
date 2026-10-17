@@ -10,33 +10,17 @@ use Illuminate\Support\Facades\Http;
 
 final class BrokerProvisioner
 {
+    /**
+     * Mosquitto's Dynamic Security is changed only through broker-admin (ADR-019),
+     * which replaces the client's password and rules and denies everything else.
+     */
     private function provision(string $username, #[\SensitiveParameter] string $password, array $rules): void
     {
-        if (config('devices.broker_provider') === 'mosquitto') {
-            abort_unless(config('devices.broker_admin_token'), 503, 'Broker provisioning is not configured.');
-            $response = Http::baseUrl(config('devices.broker_admin_url'))
-                ->withToken(config('devices.broker_admin_token'))->acceptJson()->timeout(30)
-                ->put('/clients', compact('username', 'password', 'rules'));
-            abort_unless($response->successful(), 503, 'Broker credential or namespace provisioning failed.');
-
-            return;
-        }
-        abort_unless(config('devices.broker_provider') === 'emqx', 503, 'Unsupported broker provider.');
-        abort_unless(config('devices.emqx_key') && config('devices.emqx_secret'), 503, 'Broker provisioning is not configured.');
-        $client = Http::baseUrl(config('devices.emqx_url'))->withBasicAuth(config('devices.emqx_key'), config('devices.emqx_secret'))->acceptJson()->timeout(10);
-        $auth = '/authentication/password_based:built_in_database/users';
-        $response = $client->post($auth, ['user_id' => $username, 'password' => $password, 'is_superuser' => false]);
-        if ($response->status() === 409) {
-            $response = $client->put($auth.'/'.rawurlencode($username), ['password' => $password, 'is_superuser' => false]);
-        }
-        abort_unless($response->successful(), 503, 'Broker credential provisioning failed. Check the broker authentication configuration.');
-        $authorization = '/authorization/sources/built_in_database/rules/users';
-        $rules = [...$rules, ['permission' => 'deny', 'action' => 'all', 'topic' => '#']];
-        $response = $client->post($authorization, [['username' => $username, 'rules' => $rules]]);
-        if ($response->status() === 409) {
-            $response = $client->put($authorization.'/'.rawurlencode($username), ['username' => $username, 'rules' => $rules]);
-        }
-        abort_unless($response->successful(), 503, 'Broker namespace authorization could not be applied.');
+        abort_unless(config('devices.broker_admin_token'), 503, 'Broker provisioning is not configured.');
+        $response = Http::baseUrl(config('devices.broker_admin_url'))
+            ->withToken(config('devices.broker_admin_token'))->acceptJson()->timeout(30)
+            ->put('/clients', compact('username', 'password', 'rules'));
+        abort_unless($response->successful(), 503, 'Broker credential or namespace provisioning failed.');
     }
 
     private function rule(string $action, string $topic): array

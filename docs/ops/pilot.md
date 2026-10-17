@@ -65,7 +65,7 @@ accepts the legacy hostname ([hardware](../hardware/waveshare-audio-board.md#pil
 
 The pilot runs Mosquitto 2.0.22 with Dynamic Security and `broker-admin`
 ([broker](broker.md)). The previous EMQX environment, images and durable broker
-files are retained for rollback.
+files are retained, but only a release before ADR-019 can run EMQX again.
 
 ## Monitoring and watchdog
 

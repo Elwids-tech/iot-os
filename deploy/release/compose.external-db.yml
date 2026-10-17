@@ -1,9 +1,6 @@
 # Applied by manage.py when DATABASE_HOST is a private IPv4 address.
 # The host must route that address through the verified WireGuard tunnel.
 services:
-  container-metrics:
-    environment:
-      EXPECTED_SERVICES: caddy,api,api-web,portal,admin,runtime,default-worker,alerts-worker,assistant-worker,webhooks-worker,automation-worker,scheduler,nats,emqx,prometheus,alertmanager,grafana,loki,alloy,node-exporter,blackbox,container-metrics
   timescaledb:
     profiles: [local-database]
   db-client:

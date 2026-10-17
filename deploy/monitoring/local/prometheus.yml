@@ -37,7 +37,7 @@ scrape_configs:
   - job_name: tcp
     metrics_path: /probe
     params: {module: [tcp_connect]}
-    static_configs: [{targets: ["timescaledb:5432", "emqx:8883"]}]
+    static_configs: [{targets: ["timescaledb:5432", "mqtt:8883"]}]
     relabel_configs:
       - {source_labels: [__address__], target_label: __param_target}
       - {source_labels: [__param_target], target_label: instance}

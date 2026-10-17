@@ -47,7 +47,7 @@ def main():
         env.update({key: 'unused-local-fixture:check' for key in IMAGES})
         env.update(DATABASE_HOST=address, STATE_DIR=str(root/'state'), CONFIG_DIR=str(root/'private'),
                    APP_KEY='base64:'+base64.b64encode(secrets.token_bytes(32)).decode(),
-                   DEVICE_EMQX_API_KEY=secrets.token_hex(12), MAIL_USERNAME='fixture', MAIL_PASSWORD='fixture',
+                   DEVICE_BROKER_ADMIN_TOKEN=secrets.token_hex(32), MOSQUITTO_ADMIN_PASSWORD=secrets.token_hex(32), MAIL_USERNAME='fixture', MAIL_PASSWORD='fixture',
                    MAIL_FROM_ADDRESS='fixture@example.test', ALERT_EMAIL='fixture@example.test',
                    ACME_EMAIL='fixture@example.test', COMPOSE_PROJECT_NAME=name)
         private_write(root/'environment', ''.join(f'{k}={json.dumps(v)}\n' for k,v in env.items()))

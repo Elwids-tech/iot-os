@@ -5,9 +5,9 @@ ports and rebuilding one service are in [local setup](../../docs/dev/local-setup
 
 | File | Adds | Started by |
 | --- | --- | --- |
-| `compose.dev.yml` | TimescaleDB, Redis, NATS (JetStream), EMQX, Node-RED, MinIO, Mailpit | `./taskw deps:up` |
+| `compose.dev.yml` | TimescaleDB, Redis, NATS (JetStream), Node-RED, MinIO, Mailpit | `./taskw deps:up` |
 | `compose.app.yml` | Laravel API and workers, portal, admin | `./taskw stack:up` |
-| `compose.devices.yml` | MQTT over TLS on EMQX, private NATS, the Go runtime | `./taskw devices:up` (after `./taskw devices:setup`) |
+| `compose.devices.yml` | Mosquitto over TLS with `broker-admin`, private NATS, the Go runtime | `./taskw devices:up` (after `./taskw devices:setup`) |
 | `compose.monitoring.yml` | Prometheus, Alertmanager, Grafana, Loki, Alloy, exporters | `python3 tooling/monitoring/local.py up` ([monitoring](../../docs/ops/monitoring.md#local-monitoring)) |
 | `compose.adapters.yml` | adapter-manager, adapter-worker, tenant runtime image | Manually, with a private env file ([adapters](../../docs/features/adapters.md#running-locally)) |
 | `compose.webhook-verification.yml` | A local webhook sink for `tooling/verify-webhooks.mjs` | Verification only |

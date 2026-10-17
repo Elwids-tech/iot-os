@@ -269,7 +269,7 @@ final class DeviceDomainTest extends TestCase
         $gateway = SparkplugGateway::firstOrFail();
         $gateway->update(['username' => 'test-gateway', 'password' => 'test-gateway-secret']);
         $url = $this->prefix.'/gateways/'.$gateway->uuid.'/provision';
-        config(['devices.emqx_url' => 'http://broker.test/api/v5', 'devices.emqx_key' => 'test-key', 'devices.emqx_secret' => 'test-secret']);
+        config(['devices.broker_admin_url' => 'http://broker.test', 'devices.broker_admin_token' => 'test-token']);
         Http::fake(['http://broker.test/*' => Http::sequence()->push([], 503)->whenEmpty(Http::response([], 200))]);
         $this->postJson($url)->assertStatus(503);
         $this->postJson($url)->assertOk()->assertJsonMissingPath('data.username')->assertJsonMissingPath('data.password');

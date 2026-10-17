@@ -6,26 +6,79 @@ services:
       IOT_NATS_STORE_MAX_BYTES: ${IOT_NATS_STORE_MAX_BYTES:-25769803776}
     volumes:
       - ./nats.devices.conf:/etc/nats/devices.conf:ro
-  emqx:
-    ports: !override
-      - "${IOT_MQTTS_PORT:-8883}:8883"
-      - "127.0.0.1:${IOT_EMQX_DASHBOARD_PORT}:18083"
+  # Mosquitto with Dynamic Security, as in a release (ADR-019). Only broker-admin
+  # changes credentials and ACLs; it also applies the deny-by-default ACLs.
+  mqtt-init:
+    image: eclipse-mosquitto:2.0.22@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
+    # Creates the Dynamic Security file once and never resets it.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - test -f /mosquitto/data/dynamic-security.json || mosquitto_ctrl dynsec init /mosquitto/data/dynamic-security.json iot-admin "$$MOSQUITTO_ADMIN_PASSWORD"; chown -R 1883:1883 /mosquitto/data
+    environment:
+      MOSQUITTO_ADMIN_PASSWORD: ${MOSQUITTO_ADMIN_PASSWORD:?Run the device setup command first}
     volumes:
-      - ./emqx.devices.conf:/opt/emqx/etc/emqx.conf:ro
-      - ${DEVICE_CERT_DIR:?Run the device setup command first}/ca.crt:/opt/emqx/etc/device-certs/ca.crt:ro
-      - ${DEVICE_CERT_DIR}/server.crt:/opt/emqx/etc/device-certs/server.crt:ro
-      - ${DEVICE_CERT_DIR}/server.key:/opt/emqx/etc/device-certs/server.key:ro
-      - ${DEVICE_CERT_DIR}/api-keys:/opt/emqx/etc/device-certs/api-keys:ro
+      - mosquitto-data:/mosquitto/data
+    restart: "no"
+  mqtt:
+    image: eclipse-mosquitto:2.0.22@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
+    ports:
+      - "${IOT_MQTTS_PORT:-8883}:8883"
+    volumes:
+      - ./mosquitto.devices.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${DEVICE_CERT_DIR:?Run the device setup command first}/server.crt:/mosquitto/certs/server.crt:ro
+      - ${DEVICE_CERT_DIR}/server.key:/mosquitto/certs/server.key:ro
+      - mosquitto-data:/mosquitto/data
+    depends_on:
+      mqtt-init:
+        condition: service_completed_successfully
+    # A bare TCP probe makes Mosquitto log a failed TLS handshake, so probe often
+    # only while starting.
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8883"]
+      interval: 60s
+      timeout: 3s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+    restart: unless-stopped
+    networks:
+      - device
+      - internal
+  broker-admin:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/runtime/Dockerfile
+    entrypoint: [/broker-admin]
+    environment:
+      DEVICE_BROKER_ADMIN_TOKEN: ${DEVICE_BROKER_ADMIN_TOKEN:?Run the device setup command first}
+      BROKER_ADDRESS: ssl://mqtt:8883
+      BROKER_TLS_SERVER_NAME: mqtt
+      BROKER_CA_FILE: /certs/ca.crt
+      BROKER_ADMIN_USERNAME: iot-admin
+      BROKER_ADMIN_PASSWORD: ${MOSQUITTO_ADMIN_PASSWORD}
+    volumes:
+      - ${DEVICE_CERT_DIR}/ca.crt:/certs/ca.crt:ro
+    depends_on:
+      mqtt:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/broker-admin", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - internal
   api:
     environment:
       DEVICE_RUNTIME_URL: http://runtime:8081
       DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN:?Generate a private runtime token}
-      DEVICE_MQTT_URL: ssl://emqx:8883
+      DEVICE_MQTT_URL: ssl://mqtt:8883
       DEVICE_MQTT_PUBLIC_URL: ${DEVICE_MQTT_PUBLIC_URL:-ssl://localhost:8883}
       DEVICE_MQTT_CA_FILE: /certs/ca.crt
-      DEVICE_EMQX_API_URL: http://emqx:18083/api/v5
-      DEVICE_EMQX_API_KEY: ${DEVICE_EMQX_API_KEY:?Generate a broker API key}
-      DEVICE_EMQX_API_SECRET: ${DEVICE_EMQX_API_SECRET:?Generate a broker API secret}
+      DEVICE_BROKER_ADMIN_URL: http://broker-admin:8082
+      DEVICE_BROKER_ADMIN_TOKEN: ${DEVICE_BROKER_ADMIN_TOKEN:?Run the device setup command first}
     volumes:
       - ${DEVICE_CERT_DIR}/ca.crt:/certs/ca.crt:ro
   automation-worker:
@@ -60,9 +113,12 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
-      emqx:
+      mqtt:
         condition: service_healthy
     networks:
       - internal
       - device
     restart: unless-stopped
+
+volumes:
+  mosquitto-data:

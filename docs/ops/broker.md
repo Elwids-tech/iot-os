@@ -1,18 +1,13 @@
 # MQTT broker
 
-Mosquitto 2.x with the Dynamic Security plugin is the default broker
-([ADR-009](../adr/ADR-009-mosquitto-default-broker.md)). EMQX is still supported
-for existing environments and is what the local development stack runs. A single
-broker is not highly available.
-
-The release selects the broker with `DEVICE_BROKER_PROVIDER` (`mosquitto` or
-`emqx`). The shipped defaults (`environment.example`, `manage.py`,
-`apps/api/config/devices.php`) still say `emqx`; set `mosquitto` explicitly for new
-environments.
+Mosquitto 2.x with the Dynamic Security plugin is the only broker, in releases,
+local development and the device test harness
+([ADR-019](../adr/ADR-019-mosquitto-only-broker.md)). A single broker is not highly
+available.
 
 ## Mosquitto in a release
 
-[`compose.mosquitto.yml`](../../deploy/release/compose.mosquitto.yml) adds:
+[`compose.yml`](../../deploy/release/compose.yml) runs:
 
 - **`mqtt`**: Mosquitto 2.0.22 (digest-pinned), TLS 1.2 on 8883 only
   ([`mosquitto.conf`](../../deploy/release/mosquitto.conf)), anonymous access off,
@@ -21,11 +16,16 @@ environments.
 - **`broker-admin`**: a private service built into the runtime image
   ([`cmd/broker-admin`](../../services/runtime/cmd/broker-admin),
   [`internal/brokeradmin`](../../services/runtime/internal/brokeradmin)), listening on
-  `broker-admin:8082` with `GET /health/ready` and `PUT /clients`. Laravel's
+  `broker-admin:8082` with `GET /health/ready` and `PUT /clients`
+  (`broker-admin health` is its container healthcheck). Laravel's
   [`BrokerProvisioner`](../../apps/api/app/Domain/Devices/Services/BrokerProvisioner.php)
   sends it credentials and Sparkplug ACLs with `DEVICE_BROKER_ADMIN_TOKEN`; it
   validates the broker's TLS certificate and applies them over
   `$CONTROL/dynamic-security/v1`, which device clients cannot reach.
+
+`manage.py` creates the Dynamic Security file once (`mosquitto_ctrl dynsec init`
+with `MOSQUITTO_ADMIN_PASSWORD`) and never resets it. `broker-admin` sets the
+deny-by-default ACLs each time it connects.
 
 Each host and gateway gets its own role. Defaults deny publish, receive and
 subscribe. Subscription ACLs match the authorized filter literally and delivery ACLs
@@ -34,83 +34,73 @@ update disables the identity, replaces its role and password, and re-enables it
 last; a failure in between leaves it disabled, and a retry is idempotent.
 Reprovisioning disconnects affected clients; the runtime reconnects.
 `php artisan devices:reprovision-broker` reapplies every credential (deploy runs it
-after `broker-admin` is ready).
+after `broker-admin` is ready). broker-admin accepts only usernames that start with
+`host-`, `edge-`, `sim-host-`, `sim-edge-`, `sim-gps-edge-` or `sim-rgb-edge-`, which
+is what Laravel generates. The command carries on past an identity the broker
+rejects, lists it and exits non-zero; such an identity, for example an old
+development gateway named `gateway-…`, needs new credentials.
 
 Limits: 128 MiB memory, 1 MiB messages, 1000 queued messages per client, 20 in-flight.
 Retained and session state autosaves every 30 seconds and on clean shutdown, so a
 crash can lose the latest broker state; Postgres and JetStream remain the durable
 record. QoS 1 permits duplicates.
 
-There is no broker dashboard. Diagnose with `broker-admin` readiness and Laravel's
-provisioning status. Revoke a client with the plugin's `disableClient`; never give
-tenants a control client, management token or the plugin's state file.
+There is no broker dashboard. Diagnose with `broker-admin` readiness, the `mqtt`
+logs and Laravel's provisioning status. Revoke a client with the plugin's
+`disableClient`; never give tenants a control client, management token or the
+plugin's state file.
 
-## Migrating an EMQX environment
+## Development
 
-Deploy only an immutable manifest built from a tested commit, and keep the old
-source, environment, manifest and EMQX state.
+The Devices overlay ([`compose.devices.yml`](../../deploy/compose/compose.devices.yml))
+runs the same image and settings
+([`mosquitto.devices.conf`](../../deploy/compose/mosquitto.devices.conf)) with the
+local CA's certificate for `mqtt` and `localhost`. A one-off `mqtt-init` container
+creates the Dynamic Security file in the `mosquitto-data` volume, `mqtt` publishes
+8883, and `broker-admin` is built from the runtime Dockerfile. `./taskw devices:setup`
+generates `DEVICE_BROKER_ADMIN_TOKEN` and `MOSQUITTO_ADMIN_PASSWORD` in
+`.local/devices/devices.env`, and `./taskw devices:up` re-provisions every connection
+and gateway, so a new or reset volume recovers without rotating device passwords.
 
-```sh
-python3 tooling/release/migrate_mosquitto.py \
-  --env /srv/<env>/private/application.env \
-  --manifest /srv/<env>/private/release.json \
-  --backup-env /srv/<env>/private/backup.env
-```
+The isolated harness (`./taskw devices:test`,
+[`compose.devices-test.yml`](../../deploy/compose/compose.devices-test.yml)) runs
+Mosquitto in Docker and `broker-admin` natively, next to the native runtime.
 
-[`migrate_mosquitto.py`](../../tooling/release/migrate_mosquitto.py) pre-pulls
-images, validates configuration, takes an encrypted off-host checkpoint with EMQX,
-saves rollback inputs privately, quiesces writers, initializes Dynamic Security
-storage once, switches providers, reapplies existing credentials without rotating
-device passwords, runs readiness checks and takes the first Mosquitto checkpoint. It
-restores EMQX automatically if deployment fails. It refuses retained application
-messages (export and import them first); EMQX `$SYS` messages are not carried over.
-After an interruption, inspect `BROKER_MIGRATION_INCOMPLETE` and the private
-migration directory; never overwrite existing plugin storage to retry.
+## Environments still on EMQX
 
-Manual rollback: stop ingress, writers, `mqtt` and `broker-admin`; restore the
-migration directory's environment as `application.env` (mode 0600); clear a
-deployment marker only after inspecting its failed phase; deploy its exact
-`release.json` with the EMQX profile. Keep the new Mosquitto state. A broker
-rollback does not need a database restore. Never roll back across incompatible
-schema changes.
+The release refuses an environment that sets `DEVICE_BROKER_PROVIDER=emqx`, or has
+an `emqx` state directory but no Mosquitto Dynamic Security file. Deploying over it
+would start an empty broker and every device would lose its credentials. Migrate it
+first with [`migrate_mosquitto.py`](https://github.com/Elwids-tech/iot-os/blob/4a59f5de03b3273f84eebf7200bac3b7f0dfae07/tooling/release/migrate_mosquitto.py) from a release before ADR-019,
+then deploy this one. `DEVICE_BROKER_PROVIDER=mosquitto` left in an environment is
+harmless. A backup taken while an environment ran EMQX can only be restored with
+the release that took it.
 
 ## Backups and monitoring
 
 Backups stop the broker and `broker-admin` before checkpointing and include
 Mosquitto's data directory, certificates and administration secrets
-([release](release.md#backups-and-restore)). A restore needs the same provider,
-release, application key and broker secrets.
+([release](release.md#backups-and-restore)). A restore needs the same release,
+application key and broker secrets.
 
-The container inventory expects `mqtt` and `broker-admin` instead of `emqx`;
-Prometheus probes `broker-admin` readiness and MQTT TLS, and the pilot watchdog
-probes the public MQTT endpoint independently ([monitoring](monitoring.md)).
-
-## EMQX
-
-Development runs EMQX 5.9.3 ([`compose.dev.yml`](../../deploy/compose/compose.dev.yml));
-the Devices overlay enables TLS on 8883 with password authentication, disables
-plaintext and WebSocket listeners, and keeps its dashboard on 127.0.0.1:18083.
-Laravel provisions it through its v5 REST API (`DEVICE_EMQX_API_URL`,
-`DEVICE_EMQX_API_KEY`, `DEVICE_EMQX_API_SECRET`) with built-in database
-authentication and per-user ACLs ending in deny-all. The release keeps an EMQX
-profile ([`emqx.conf`](../../deploy/release/emqx.conf)) for environments not yet
-migrated.
+The container inventory expects `mqtt` and `broker-admin`; Prometheus probes
+`broker-admin` readiness and MQTT TLS, and the pilot watchdog probes the public MQTT
+endpoint independently ([monitoring](monitoring.md)).
 
 ## Licensing
 
 Mosquitto is EPL/EDL with no single-node commercial licence requirement
 ([Mosquitto](https://mosquitto.org/),
 [Dynamic Security](https://mosquitto.org/documentation/dynamic-security/)). EMQX
-5.9.3 is distributed under the BSL, whose terms restrict some hosted and embedded
-uses; review the deployment rights before using the EMQX profile for an external
-offering.
+5.9.3, which the platform used before, is distributed under the BSL; that licence
+review is one reason it was removed.
 
 ## Verification
 
 ```sh
 docker build -f deploy/docker/runtime/Dockerfile -t elwids-mosquitto-runtime:check .
 python3 tooling/release/verify_mosquitto.py
-python3 tooling/release/verify_local.py --broker mosquitto
+python3 tooling/release/verify_local.py
 ```
 
 `verify_mosquitto.py` (also run by the release workflow) uses a dedicated internal

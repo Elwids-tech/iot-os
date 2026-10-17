@@ -26,15 +26,18 @@ values; never reuse them anywhere else.
 
 | Command | Starts | Use it for |
 | --- | --- | --- |
-| `./taskw deps:up` | Infrastructure only ([`compose.dev.yml`](../../deploy/compose/compose.dev.yml)): TimescaleDB, Redis, NATS, EMQX, Node-RED, MinIO, Mailpit | Running the API or runtime natively |
+| `./taskw deps:up` | Infrastructure only ([`compose.dev.yml`](../../deploy/compose/compose.dev.yml)): TimescaleDB, Redis, NATS, Node-RED, MinIO, Mailpit | Running the API natively |
 | `./taskw stack:up` | Infrastructure + API, workers, portal, admin ([`compose.app.yml`](../../deploy/compose/compose.app.yml)) | UI and API work without devices (no Go runtime) |
-| `./taskw devices:setup` then `./taskw devices:up` | Everything above + the Go runtime and TLS on the broker ([`compose.devices.yml`](../../deploy/compose/compose.devices.yml)) | **The full platform.** This is the normal development stack |
+| `./taskw devices:setup` then `./taskw devices:up` | Everything above + Mosquitto over TLS, `broker-admin` and the Go runtime ([`compose.devices.yml`](../../deploy/compose/compose.devices.yml)) | **The full platform.** This is the normal development stack |
 
 `devices:setup` writes private files under `.local/devices/` (ignored by Git) and
-keeps existing secrets on reruns: `devices.env` (runtime token, broker API key) and
-`certs/` (a local CA and broker certificate valid for 365 days). The overlay enables
-password-authenticated MQTT over TLS on 8883, removes NATS's host ports and puts the
-runtime on private networks. `./taskw devices:config` validates the merged
+keeps existing secrets on reruns: `devices.env` (runtime token, `broker-admin` token,
+Mosquitto admin password) and `certs/` (a local CA and a certificate for `mqtt` and
+`localhost`, valid for 365 days). The overlay runs Mosquitto as in a release
+([ADR-019](../adr/ADR-019-mosquitto-only-broker.md)): password-authenticated MQTT over
+TLS on 8883, Dynamic Security managed only by `broker-admin`. It also removes NATS's
+host ports and puts the runtime on private networks. `devices:up` re-provisions every
+connection's credentials ([broker](../ops/broker.md)). `./taskw devices:config` validates the merged
 configuration without starting anything.
 
 Optional overlays: local monitoring (`python3 tooling/monitoring/local.py up`,
@@ -68,12 +71,10 @@ not an upgrade tool. Demo accounts and example devices:
 | API | http://localhost:8001 |
 | Mailpit (captured email) | http://localhost:8025 (`IOT_MAILPIT_UI_PORT`) |
 | MQTT over TLS (Devices overlay) | ssl://localhost:8883 |
-| EMQX dashboard | http://127.0.0.1:18083 |
 | NATS monitoring | http://127.0.0.1:8222 (not published with the Devices overlay) |
 | Storybook (when running) | http://localhost:6006 |
 
-Infrastructure ports (Postgres, Redis, NATS, MinIO, EMQX plain MQTT, WebSocket and
-dashboard, Node-RED) bind to `${IOT_DEV_BIND_ADDRESS:-127.0.0.1}`; set it to
+Infrastructure ports (Postgres, Redis, NATS, MinIO, Node-RED) bind to `${IOT_DEV_BIND_ADDRESS:-127.0.0.1}`; set it to
 `0.0.0.0` only when you mean to expose them. Postgres and Redis default to host
 ports 15432 and 16379 so they do not collide with a native Postgres or Redis, and
 `./taskw doctor` fails when a configured port is held by a non-Docker process. The

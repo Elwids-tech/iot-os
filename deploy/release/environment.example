@@ -8,9 +8,7 @@ VPN_CIDR=100.64.0.0/10
 # Set to the database host's WireGuard IPv4 address for a two-server pilot.
 # Leave as timescaledb for the existing single-node release/recovery profile.
 DATABASE_HOST=timescaledb
-# Existing environments default to emqx. Mosquitto uses the private adapter
-# included in the runtime image; generate each secret with 32 random bytes.
-DEVICE_BROKER_PROVIDER=emqx
+# Mosquitto's broker-admin token and admin password (ADR-019); init generates both.
 DEVICE_BROKER_ADMIN_TOKEN=
 MOSQUITTO_ADMIN_PASSWORD=
 ACME_EMAIL=

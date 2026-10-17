@@ -97,15 +97,16 @@ Things that have cost time before. Add to this list when something surprises you
   (`IOT_ADAPTER_MANAGER_TOKEN` and `IOT_ADAPTER_HOST_STATE_DIR` are required).
   `compose.adapters.yml` does not define `portal` or `admin`, so a
   frontend-only rebuild does not need it.
-- **Infrastructure config is bind-mounted from where compose ran.** NATS and EMQX
+- **Infrastructure config is bind-mounted from where compose ran.** NATS and Mosquitto
   mount `deploy/compose/*.conf` from that checkout. If it was a worktree that is
   later removed, Docker mounts an empty directory instead, and the service fails on
   its next restart: NATS exits 127 and the runtime loops on `lookup nats`. Start
-  `nats` and `emqx` from the main checkout.
-- **EMQX loses its MQTT users when its container IP changes.** The node name
-  follows the IP, and built-in users live under `data/mnesia/emqx@<ip>`, so after
-  such a restart every login fails and the runtime logs `MQTT connection pending`.
-  Run `php artisan devices:reprovision-broker` in the `api` container.
+  `nats` and `mqtt` from the main checkout.
+- **A new or reset broker volume has no device credentials.** Mosquitto keeps them
+  in `mosquitto-data`; until they are reapplied every login fails and the runtime
+  logs `MQTT connection pending`. `./taskw devices:up` runs
+  `php artisan devices:reprovision-broker`; run it in the `api` container after
+  recreating the volume by hand.
 - **Rebuilding `api` signs everyone out.** The dev API uses the `file` session
   driver inside the container ([`compose.app.yml`](../../deploy/compose/compose.app.yml)).
   This is expected, not a regression.

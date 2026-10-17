@@ -44,7 +44,7 @@ final class DeviceOnboardingTest extends TestCase
         $csr = openssl_csr_new(['commonName' => 'Test CA'], $key);
         openssl_x509_export(openssl_csr_sign($csr, null, $key, 1), $certificate);
         file_put_contents($this->ca, $certificate);
-        config(['devices.ca_file' => $this->ca, 'devices.broker_public_url' => 'ssl://mqtt.example.test:8883', 'devices.emqx_key' => 'test', 'devices.emqx_secret' => 'test']);
+        config(['devices.ca_file' => $this->ca, 'devices.broker_public_url' => 'ssl://mqtt.example.test:8883', 'devices.broker_admin_token' => 'test-token']);
         Http::fake(['*' => Http::response([], 200)]);
     }
 

@@ -14,26 +14,38 @@ services:
       interval: 2s
       timeout: 2s
       retries: 30
-  emqx:
-    image: emqx/emqx:5.9.3
+  mqtt-init:
+    image: eclipse-mosquitto:2.0.22@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
+    entrypoint:
+      - /bin/sh
+      - -c
+      - test -f /mosquitto/data/dynamic-security.json || mosquitto_ctrl dynsec init /mosquitto/data/dynamic-security.json iot-admin "$$MOSQUITTO_ADMIN_PASSWORD"; chown -R 1883:1883 /mosquitto/data
     environment:
-      EMQX_NODE__COOKIE: ${DEVICE_TEST_COOKIE:?}
+      MOSQUITTO_ADMIN_PASSWORD: ${MOSQUITTO_ADMIN_PASSWORD:?}
+    volumes:
+      - mosquitto-data:/mosquitto/data
+  mqtt:
+    image: eclipse-mosquitto:2.0.22@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
     ports:
       - "127.0.0.1:${DEVICE_TEST_MQTT_PORT:-18885}:8883"
-      - "127.0.0.1:${DEVICE_TEST_EMQX_PORT:-18086}:18083"
     volumes:
-      - ./emqx.devices.conf:/opt/emqx/etc/emqx.conf:ro
-      - ${DEVICE_CERT_DIR:?}/ca.crt:/opt/emqx/etc/device-certs/ca.crt:ro
-      - ${DEVICE_CERT_DIR:?}/server.crt:/opt/emqx/etc/device-certs/server.crt:ro
-      - ${DEVICE_CERT_DIR:?}/server.key:/opt/emqx/etc/device-certs/server.key:ro
-      - ${DEVICE_CERT_DIR:?}/api-keys:/opt/emqx/etc/device-certs/api-keys:ro
+      - ./mosquitto.devices.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${DEVICE_CERT_DIR:?}/server.crt:/mosquitto/certs/server.crt:ro
+      - ${DEVICE_CERT_DIR:?}/server.key:/mosquitto/certs/server.key:ro
+      - mosquitto-data:/mosquitto/data
+    depends_on:
+      mqtt-init:
+        condition: service_completed_successfully
     healthcheck:
-      test: [CMD, /opt/emqx/bin/emqx, ctl, status]
-      interval: 5s
-      timeout: 5s
+      test: [CMD-SHELL, "nc -z 127.0.0.1 8883"]
+      interval: 2s
+      timeout: 2s
       retries: 30
   nats:
     image: nats:2.14.5-alpine
     command: [--jetstream, --store_dir=/data]
     ports:
       - "127.0.0.1:${DEVICE_TEST_NATS_PORT:-14225}:4222"
+
+volumes:
+  mosquitto-data:

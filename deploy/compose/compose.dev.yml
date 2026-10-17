@@ -61,29 +61,6 @@ services:
     networks:
       - internal
 
-  emqx:
-    image: ${IOT_EMQX_IMAGE}
-    environment:
-      EMQX_NODE__COOKIE: ${IOT_EMQX_COOKIE}
-      EMQX_DASHBOARD__DEFAULT_USERNAME: ${IOT_EMQX_DASHBOARD_USER}
-      EMQX_DASHBOARD__DEFAULT_PASSWORD: ${IOT_EMQX_DASHBOARD_PASSWORD}
-    ports:
-      - "${IOT_DEV_BIND_ADDRESS:-127.0.0.1}:${IOT_MQTT_PORT}:1883"
-      - "${IOT_DEV_BIND_ADDRESS:-127.0.0.1}:${IOT_MQTT_WEBSOCKET_PORT}:8083"
-      - "${IOT_DEV_BIND_ADDRESS:-127.0.0.1}:${IOT_EMQX_DASHBOARD_PORT}:18083"
-    volumes:
-      - emqx-data:/opt/emqx/data
-      - emqx-log:/opt/emqx/log
-    healthcheck:
-      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-    restart: unless-stopped
-    networks:
-      - device
-      - internal
-
   node-red:
     image: ${IOT_NODE_RED_IMAGE}
     environment:
@@ -150,8 +127,6 @@ volumes:
   timescaledb-data:
   redis-data:
   nats-data:
-  emqx-data:
-  emqx-log:
   node-red-data:
   minio-data:
   mailpit-data:

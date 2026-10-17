@@ -13,7 +13,7 @@ const project = "iot-devices-test-" + randomBytes(3).toString("hex")
 const ports = {
   postgres: 55435,
   mqtt: 18885,
-  emqx: 18086,
+  brokerAdmin: 18086,
   nats: 14225,
   api: 8016,
   runtime: 8086,
@@ -134,7 +134,7 @@ try {
       }),
   )
   baseEnv = { ...baseEnv, ...secrets }
-  console.log("Starting isolated TimescaleDB, EMQX TLS, and JetStream…")
+  console.log("Starting isolated TimescaleDB, Mosquitto TLS, and JetStream…")
   dockerStarted = true
   await run("docker", [
     ...compose,
@@ -144,7 +144,24 @@ try {
     "--wait-timeout",
     "150",
   ])
-  await waitFor(`http://127.0.0.1:${ports.emqx}/status`)
+  // broker-admin is the only client that changes broker credentials and ACLs.
+  await run(
+    "go",
+    ["build", "-o", join(directory, "broker-admin"), "./cmd/broker-admin"],
+    { cwd: join(root, "services/runtime") },
+  )
+  background("broker-admin", join(directory, "broker-admin"), [], {
+    env: {
+      ...baseEnv,
+      BROKER_ADMIN_HTTP_ADDRESS: `127.0.0.1:${ports.brokerAdmin}`,
+      BROKER_ADDRESS: `ssl://localhost:${ports.mqtt}`,
+      BROKER_TLS_SERVER_NAME: "localhost",
+      BROKER_CA_FILE: `${secrets.DEVICE_CERT_DIR}/ca.crt`,
+      BROKER_ADMIN_USERNAME: "iot-admin",
+      BROKER_ADMIN_PASSWORD: secrets.MOSQUITTO_ADMIN_PASSWORD,
+    },
+  })
+  await waitFor(`http://127.0.0.1:${ports.brokerAdmin}/health/ready`)
   const apiEnv = {
     ...baseEnv,
     APP_ENV: "testing",
@@ -172,7 +189,8 @@ try {
     CORS_ALLOWED_ORIGINS: `http://127.0.0.1:${ports.portal},http://127.0.0.1:${ports.admin}`,
     DEVICE_RUNTIME_URL: `http://127.0.0.1:${ports.runtime}`,
     DEVICE_MQTT_URL: `ssl://localhost:${ports.mqtt}`,
-    DEVICE_EMQX_API_URL: `http://127.0.0.1:${ports.emqx}/api/v5`,
+    DEVICE_BROKER_ADMIN_URL: `http://127.0.0.1:${ports.brokerAdmin}`,
+    DEVICE_BROKER_ADMIN_TOKEN: secrets.DEVICE_BROKER_ADMIN_TOKEN,
   }
   const environment = { directory, project, ports, apiEnv, ...secrets }
   writeFileSync(
