@@ -34,7 +34,11 @@ update disables the identity, replaces its role and password, and re-enables it
 last; a failure in between leaves it disabled, and a retry is idempotent.
 Reprovisioning disconnects affected clients; the runtime reconnects.
 `php artisan devices:reprovision-broker` reapplies every credential (deploy runs it
-after `broker-admin` is ready).
+after `broker-admin` is ready). broker-admin accepts only usernames that start with
+`host-`, `edge-`, `sim-host-`, `sim-edge-`, `sim-gps-edge-` or `sim-rgb-edge-`, which
+is what Laravel generates. The command carries on past an identity the broker
+rejects, lists it and exits non-zero; such an identity, for example an old
+development gateway named `gateway-…`, needs new credentials.
 
 Limits: 128 MiB memory, 1 MiB messages, 1000 queued messages per client, 20 in-flight.
 Retained and session state autosaves every 30 seconds and on clean shutdown, so a
