@@ -1690,3 +1690,25 @@ test("platform administrators do not see the AI assistant settings", async ({ pa
   await page.goto("/settings/assistant")
   await expect(page).toHaveURL(/\/organizations$/)
 })
+
+// Uses the base test: a caught render error is still logged to the console.
+base("keeps the navigation when a page fails to render, and recovers on leaving it", async ({ page }) => {
+  await mockApi(page)
+  let broken = true
+  await page.route((url) => url.pathname === "/api/v1/admin/organizations", async (route) => {
+    if (!broken || route.request().method() !== "GET") return route.fallback()
+    await fulfillJson(route, { data: "not a list" })
+  })
+  await page.goto("/organizations")
+
+  const problem = page.getByRole("alert").filter({ hasText: "This page hit a problem" })
+  await expect(problem).toBeVisible()
+  await expect(problem.getByRole("button", { name: "Reload" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Users" })).toBeVisible()
+  broken = false
+  await page.getByRole("link", { name: "Users" }).click()
+
+  await expect(page).toHaveURL(/\/users$/)
+  await expect(page.getByRole("heading", { name: "Users" })).toBeVisible()
+  await expect(problem).toHaveCount(0)
+})

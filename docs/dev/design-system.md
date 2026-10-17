@@ -69,7 +69,7 @@ line. Test and spec files are skipped.
 | --- | --- | --- |
 | Tokens | Surfaces (`background` canvas, `card` panel, `popover` raised, `sunken` inside a panel), elevation (`shadow-panel`, `shadow-raised`, `shadow-overlay`), type scale, layout widths (`max-w-reading`, `max-w-form`), motion durations, skins and palettes | [`src/styles/globals.css`](../../packages/ui/src/styles/globals.css) |
 | Primitives | shadcn/ui on Radix, style `radix-nova` | [`components.json`](../../packages/ui/components.json), `src/components` |
-| Product components | `Panel` (+ header, title, actions, content, footer), `DataTable`, `PropertyList`, `Freshness`, `RelativeTime`, `RowLink`, `RefLink`, `Status`, `DraftBar`, `InlineName`, `EmptyState`, `Pager`, `ViewsRail`, `PageTabs`, `PageHeader`, `CommandPalette`, `FilterBar`, form fields, `Stepper`, `ChoiceCard`, `PermissionMatrix`, workflow overview components | `src/components` |
+| Product components | `Panel` (+ header, title, actions, content, footer), `DataTable`, `PropertyList`, `Freshness`, `RelativeTime`, `RowLink`, `RefLink`, `Status`, `DraftBar`, `InlineName`, `EmptyState`, `ErrorState`, `ErrorBoundary`, `RouteError`, `Pager`, `ViewsRail`, `PageTabs`, `PageHeader`, `CommandPalette`, `FilterBar`, form fields, `Stepper`, `ChoiceCard`, `PermissionMatrix`, workflow overview components | `src/components` |
 | Templates | `CollectionPage`, `EntityPage`, `InboxPage`, `WorkspacePage`, `SettingsPage`; `useUrlState` keeps search, filters, view and page in the URL | `src/templates`, `src/hooks` |
 
 `DataTable` (TanStack Table) gives pages, from column descriptions: saved views with
@@ -79,6 +79,14 @@ actions, subtotal and total rows, rows per page, server or client paging, "Load
 more" paging for cursor APIs without a total, a bounded height with a sticky
 header, run separators for logs, skeleton rows, empty and filtered-empty states, a
 phone card layout and a polling note.
+
+**Errors.** Each app's root route has `RouteError` as its `errorElement`, and each
+layout wraps its `<Outlet />` in `ErrorBoundary` keyed on the pathname, so a page
+that fails to render shows `ErrorState` while the navigation keeps working, and
+leaving the page clears it. `reloadOnStaleChunks()` (`lib/stale-chunks`), called in
+each app's entry, reloads once when a chunk from an older build fails to load after
+a deploy; a second failure within 10 seconds shows "A new version is available"
+instead of looping.
 
 ## Look and feel
 

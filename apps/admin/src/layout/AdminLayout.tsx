@@ -26,6 +26,7 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@iot-os/ui/components/sidebar"
+import { ErrorBoundary } from "@iot-os/ui/components/error-boundary"
 import { AppearanceMenuItems } from "@iot-os/ui/components/theme-picker"
 import { TooltipProvider } from "@iot-os/ui/components/tooltip"
 import {
@@ -194,6 +195,7 @@ export function AdminLayout({
   onSignOut: () => Promise<void>
 }) {
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const { pathname } = useLocation()
 
   return (
     <TooltipProvider>
@@ -207,7 +209,9 @@ export function AdminLayout({
           }}
         />
         <SidebarInset className="min-w-0">
-          <Outlet />
+          <ErrorBoundary resetKey={pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>

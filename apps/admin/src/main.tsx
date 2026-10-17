@@ -6,8 +6,10 @@ import "@iot-os/ui/globals.css"
 import { ThemeProvider } from "next-themes"
 import { SkinProvider } from "@iot-os/ui/components/skin"
 import { PaletteProvider } from "@iot-os/ui/components/palette"
+import { reloadOnStaleChunks } from "@iot-os/ui/lib/stale-chunks"
 import { App } from "./App"
 
+reloadOnStaleChunks()
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {runtimeConfig("environment") === "staging" ? <Badge variant="warning" className="fixed bottom-2 left-2 pointer-events-none">Staging environment</Badge> : null}
