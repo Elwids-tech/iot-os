@@ -11,6 +11,10 @@ use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Tools\WorkflowAssistantTools;
 use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
+use App\Domain\DeviceProfiles\Models\DeviceProfile;
+use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
+use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -126,8 +130,8 @@ final class WorkflowAssistantTest extends TestCase
     public function test_invalid_compiler_result_and_unknown_devices_cannot_be_proposed(): void
     {
         $conversation = $this->conversation();
-        $graph = [...$this->empty, 'bindings' => [['device_uuid' => (string) Str::uuid()]]];
-        $this->message($conversation, graph: $graph)->assertUnprocessable();
+        $graph = [...$this->empty, 'bindings' => [['role' => 'sensor', 'device_uuid' => (string) Str::uuid()]]];
+        $this->message($conversation, graph: $graph)->assertUnprocessable()->assertJsonPath('message', 'The device for sensor is no longer available. Rebind or remove it in the editor, then ask again.');
         $id = $this->message($conversation)->assertAccepted()->json('data.id');
         $run = AssistantRun::findOrFail($id);
         $run->update(['status' => 'running']);
@@ -165,6 +169,107 @@ final class WorkflowAssistantTest extends TestCase
         $this->assertArrayNotHasKey('binding', $config);
         $this->assertArrayNotHasKey('value', $config);
         $this->assertSame(['alarm_enabled' => true, 'alarm_volume' => 20], $config['settings']);
+    }
+
+    /** A device reconfigured since a draft bound it: [device, earlier configuration, parameter UUID]. */
+    private function reconfiguredDevice(): array
+    {
+        $actor = User::where('is_super_admin', true)->firstOrFail();
+        $profile = DeviceProfile::create(['organization_id' => $this->org->id, 'code' => 'assistant', 'name' => 'Assistant']);
+        $parameter = (string) Str::uuid();
+        $canonical = json_encode(['parameters' => [['uuid' => $parameter, 'key' => 'temperature', 'data_type' => 'number', 'unit' => 'C', 'reports_state' => true]]]);
+        $artifact = DeviceProfileArtifact::create(['device_profile_id' => $profile->id, 'revision' => 1, 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'status' => 'active', 'compiled_at' => now(), 'compiled_by' => $actor->id]);
+        $device = Device::create(['organization_id' => $this->org->id, 'name' => 'Assistant sensor', 'code' => 'assistant-sensor', 'lifecycle' => 'active', 'deployment_status' => 'applied', 'deployment_generation' => 2]);
+        [$earlier, $current] = array_map(fn (int $revision) => DeviceConfiguration::create(['device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => $revision, 'definition_hash' => str_repeat((string) $revision, 64), 'definition' => ['profile_canonical_json' => $canonical, 'mappings' => []], 'created_at' => now()]), [1, 2]);
+        $device->update(['applied_configuration_uuid' => $current->uuid]);
+
+        return [$device->fresh(), $earlier, $parameter];
+    }
+
+    private function preview(AssistantRun $run, array $workflow): array
+    {
+        return json_decode((new WorkflowAssistantTools($run))->handle(new Request(['action' => 'preview_workflow', 'arguments_json' => json_encode(['summary' => 'Edit', 'workflow' => $workflow])])), true);
+    }
+
+    public function test_outdated_and_missing_bindings_are_named_so_the_model_can_refresh_them(): void
+    {
+        [$device, $earlier, $parameter] = $this->reconfiguredDevice();
+        $binding = ['role' => 'sensor', 'device_uuid' => $device->uuid, 'configuration_uuid' => $earlier->uuid, 'generation' => 1, 'parameter_uuid' => $parameter, 'data_type' => 'number', 'unit' => 'C', 'fresh_seconds' => 120];
+        $graph = [...$this->empty, 'bindings' => [$binding], 'nodes' => [
+            ['id' => 'source', 'type' => 'source.parameter.v1', 'config' => ['binding' => 'sensor']],
+            ['id' => 'event', 'type' => 'action.event.v1', 'config' => ['name' => 'test']],
+        ]];
+        // The editor saves bindings to an earlier configuration, so the assistant must accept the draft and say what to refresh.
+        $conversation = $this->conversation();
+        $run = AssistantRun::findOrFail($this->message($conversation, graph: $graph)->assertAccepted()->json('data.id'));
+        $instructions = (new WorkflowAssistant($run))->instructions();
+        $this->assertStringContainsString("Outdated bindings in the current draft:\n- Binding sensor: device {$device->uuid} was reconfigured and now has configuration {$device->applied_configuration_uuid}, generation 2.", $instructions);
+        $run->update(['status' => 'running']);
+        config(['devices.runtime_token' => str_repeat('x', 40), 'devices.runtime_url' => 'http://runtime:8081']);
+        Http::fake(['*' => fn ($request) => Http::response(['valid' => true, 'diagnostics' => [], 'definition' => $request['workflow']])]);
+
+        $result = $this->preview($run, $graph);
+        $this->assertSame('The automation operation was not completed.', $result['error']);
+        $this->assertStringStartsWith('Binding sensor: device '.$device->uuid.' was reconfigured', $result['details']['bindings'][0]);
+        $this->assertStringContainsString('Call find_devices with device_uuid '.$device->uuid, $result['details']['bindings'][0]);
+        $missing = [...$binding, 'role' => 'alarm', 'device_uuid' => (string) Str::uuid()];
+        $result = $this->preview($run, [...$graph, 'bindings' => [$missing]]);
+        $this->assertStringStartsWith('Binding alarm: device '.$missing['device_uuid'].' no longer exists', $result['details']['bindings'][0]);
+        $result = $this->preview($run, [...$graph, 'bindings' => [[...$binding, 'device_uuid' => 'not-a-uuid']]]);
+        $this->assertStringStartsWith('Binding sensor: device not-a-uuid no longer exists', $result['details']['bindings'][0]);
+        $this->assertDatabaseCount('assistant_proposals', 0);
+        Http::assertNothingSent();
+
+        $refreshed = [...$binding, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => 2];
+        $result = $this->preview($run, [...$graph, 'bindings' => [$refreshed]]);
+        $this->assertArrayHasKey('id', $result, json_encode($result));
+        $this->assertSame($refreshed, $conversation->proposals()->findOrFail($result['id'])->changes[0]['values']['workflow']['bindings'][0]);
+    }
+
+    public function test_drafts_with_detailed_geofences_send_their_geometry_by_reference(): void
+    {
+        // 257 points at full precision is about 10,000 characters, so three boundaries passed the old 30,000 limit.
+        $ring = array_map(fn (int $i) => [79.8 + 0.01 * cos(2 * M_PI * $i / 256) + $i * 1e-12, 6.9 + 0.01 * sin(2 * M_PI * $i / 256)], range(0, 255));
+        $polygon = ['type' => 'Polygon', 'coordinates' => [[...$ring, $ring[0]]]];
+        $fences = array_map(fn (int $i) => ['id' => 'fence'.$i, 'type' => 'geofence.v1', 'config' => ['geometry' => $polygon, 'condition' => 'inside']], range(1, 4));
+        $graph = [...$this->empty, 'nodes' => [...$fences, ['id' => 'event', 'type' => 'action.event.v1', 'config' => ['name' => 'test']]]];
+        $this->assertGreaterThan(30000, strlen(json_encode($graph)));
+        $conversation = $this->conversation();
+        $run = AssistantRun::findOrFail($this->message($conversation, graph: $graph)->assertAccepted()->json('data.id'));
+        $this->assertSame($polygon, $conversation->fresh()->onboarding_state['target']['workflow']['nodes'][0]['config']['geometry']);
+        $instructions = (new WorkflowAssistant($run))->instructions();
+        $this->assertStringContainsString('{"draft_geometry":"fence1","points":257,"bounds":[79.79,6.89,79.81,6.91]}', $instructions);
+        $this->assertStringNotContainsString((string) json_encode($ring[1]), $instructions);
+        $this->assertLessThan(30000, strlen($instructions));
+
+        $run->update(['status' => 'running']);
+        config(['devices.runtime_token' => str_repeat('x', 40), 'devices.runtime_url' => 'http://runtime:8081']);
+        Http::fake(['*' => fn ($request) => Http::response(['valid' => true, 'diagnostics' => [], 'definition' => $request['workflow']])]);
+        // The model keeps one boundary, moves another to a new node and drops the rest.
+        $proposed = [...$this->empty, 'nodes' => [
+            ['id' => 'fence1', 'type' => 'geofence.v1', 'config' => ['geometry' => ['draft_geometry' => 'fence1', 'points' => 257], 'condition' => 'outside']],
+            ['id' => 'depot', 'type' => 'geofence.v1', 'config' => ['geometry' => ['draft_geometry' => 'fence2'], 'condition' => 'inside']],
+            ['id' => 'event', 'type' => 'action.event.v1', 'config' => ['name' => 'test']],
+        ]];
+        $result = $this->preview($run, $proposed);
+        $this->assertArrayHasKey('id', $result, json_encode($result));
+        $nodes = $conversation->proposals()->findOrFail($result['id'])->changes[0]['values']['workflow']['nodes'];
+        $this->assertSame([$polygon, $polygon], [$nodes[0]['config']['geometry'], $nodes[1]['config']['geometry']]);
+        $this->assertSame('outside', $nodes[0]['config']['condition']);
+        $proposed['nodes'][1]['config']['geometry'] = ['draft_geometry' => 'event'];
+        $this->assertStringStartsWith('Node depot: draft_geometry must name a node of the current draft', $this->preview($run, $proposed)['details']['geometry'][0]);
+        $this->assertDatabaseCount('assistant_proposals', 1);
+    }
+
+    public function test_draft_limits_follow_the_compiler_and_the_model_context(): void
+    {
+        $conversation = $this->conversation();
+        $event = ['id' => 'event', 'type' => 'action.event.v1', 'config' => ['name' => str_repeat('x', 270000)]];
+        $this->message($conversation, graph: [...$this->empty, 'nodes' => [$event]])->assertUnprocessable()->assertJsonPath('message', 'This draft is too large to save as a workflow.');
+        config(['assistant.max_draft_characters' => 200]);
+        $event['config']['name'] = str_repeat('x', 200);
+        $this->message($conversation, graph: [...$this->empty, 'nodes' => [$event]])->assertUnprocessable()->assertJsonPath('message', 'This draft is too large for the assistant. Edit it manually.');
+        $this->assertDatabaseCount('assistant_runs', 0);
     }
 
     private function executionFixture(): array

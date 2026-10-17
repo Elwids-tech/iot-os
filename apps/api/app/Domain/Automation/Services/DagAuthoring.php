@@ -16,6 +16,9 @@ use Illuminate\Validation\ValidationException;
 
 final class DagAuthoring
 {
+    /** The largest workflow JSON the runtime compiles. */
+    public const MAX_WORKFLOW_BYTES = 262144;
+
     public function compile(Organization $org, array $graph, string $uuid, ?string $version = null): array
     {
         validator(['workflow' => $graph], [
@@ -25,7 +28,7 @@ final class DagAuthoring
             'workflow.bindings.*.device_uuid' => 'required|uuid', 'workflow.bindings.*.configuration_uuid' => 'required|uuid', 'workflow.bindings.*.parameter_uuid' => 'required|uuid',
             'workflow.nodes' => 'required|array|min:2|max:100', 'workflow.edges' => 'present|array|max:200',
         ])->validate();
-        abort_if(strlen(json_encode($graph, JSON_THROW_ON_ERROR)) > 262144, 422, 'Workflow is too large.');
+        abort_if(strlen(json_encode($graph, JSON_THROW_ON_ERROR)) > self::MAX_WORKFLOW_BYTES, 422, 'Workflow is too large.');
         $graph['uuid'] = $uuid;
         $graph['version_uuid'] = $version ?? (string) Str::uuid();
         $graph['organization_uuid'] = $org->uuid;

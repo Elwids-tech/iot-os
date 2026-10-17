@@ -17,7 +17,9 @@ use App\Domain\Assistant\Services\AssistantRecovery;
 use App\Domain\Assistant\Services\ExecutionEvidence;
 use App\Domain\Assistant\Services\ProfileKnowledge;
 use App\Domain\Assistant\Services\ProfileProposalService;
+use App\Domain\Assistant\Services\WorkflowDraftContext;
 use App\Domain\Automation\Models\Workflow;
+use App\Domain\Automation\Services\DagAuthoring;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Permissions\DevicePermission;
@@ -209,9 +211,12 @@ final class AssistantController
                 'target.workflow.nodes' => 'present|array|max:100', 'target.workflow.edges' => 'present|array|max:200',
                 'target.workflow.bindings' => 'present|array|max:32', 'target.workflow.bindings.*.device_uuid' => 'required|uuid',
             ])['target'];
-            abort_if(strlen(json_encode($target, JSON_THROW_ON_ERROR)) > 30000, 422, 'This draft is too large for the assistant. Edit it manually.');
+            // The stored draft may be as large as the compiler accepts; the model sees geofence geometry by reference.
+            abort_if(strlen(json_encode($target['workflow'], JSON_THROW_ON_ERROR)) > DagAuthoring::MAX_WORKFLOW_BYTES, 422, 'This draft is too large to save as a workflow.');
+            abort_if(strlen(json_encode(app(WorkflowDraftContext::class)->prompt($target), JSON_THROW_ON_ERROR)) > config('assistant.max_draft_characters'), 422, 'This draft is too large for the assistant. Edit it manually.');
             foreach ($target['workflow']['bindings'] as $binding) {
-                abort_unless(Device::where('organization_id', $organization->id)->where('uuid', $binding['device_uuid'])->exists(), 422, 'A draft device is unavailable.');
+                $role = is_string($binding['role'] ?? null) ? $binding['role'] : 'a binding';
+                abort_unless(Device::where('organization_id', $organization->id)->where('uuid', $binding['device_uuid'])->exists(), 422, "The device for {$role} is no longer available. Rebind or remove it in the editor, then ask again.");
             }
             abort_if(! empty($values['source_ids']), 422, 'Automation conversations use the current draft and authorized resources.');
         }

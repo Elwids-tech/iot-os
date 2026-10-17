@@ -66,6 +66,7 @@ import { DeviceStateConfig, DeviceStateReview } from "./DeviceStateConfig";
 import { commandGrants } from "./device-state";
 import { activationUnavailableReason } from "./activation";
 import { WorkflowAssistant } from "./WorkflowAssistant";
+import { newEditorId } from "./assistant-session";
 import { usePanel } from "../panel/context";
 import type { ExecutionSelection } from "./execution-evidence";
 import { ExecutionTimeline } from "./ExecutionTimeline";
@@ -118,6 +119,8 @@ function Editor({ org, id }: { org: string; id: string }) {
   const [evidenceTarget, setEvidenceTarget] = useState<(EvidenceTarget & { sequence: number })>();
   // A recorded evaluation the assistant explains instead of the draft; cleared from the panel.
   const [explain, setExplain] = useState<ExecutionSelection>();
+  // Its own assistant chat: every unsaved automation has the route id "new", and saving does not navigate.
+  const [editorId] = useState(() => (id === "new" ? newEditorId() : id));
   const panel = usePanel();
   function showEvidence(target: EvidenceTarget) {
     setTab("execution");
@@ -410,7 +413,7 @@ function Editor({ org, id }: { org: string; id: string }) {
               <TooltipContent>Redo</TooltipContent>
             </Tooltip>
           </div>
-          <WorkflowAssistant org={org} editorId={id} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={nodeTypes} disabled={busy || (id !== "new" && !saved)} onApply={change} onEvidence={showEvidence} execution={explain} onClearExecution={() => setExplain(undefined)} size="sm" />
+          <WorkflowAssistant org={org} editorId={editorId} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={nodeTypes} disabled={busy || (id !== "new" && !saved)} onApply={change} onEvidence={showEvidence} execution={explain} onClearExecution={() => setExplain(undefined)} size="sm" />
 </>}
         draft={
           <DraftBar
