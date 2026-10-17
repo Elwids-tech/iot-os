@@ -322,3 +322,42 @@ test("⌘K selects the top result again when device matches arrive", async ({ pa
   await page.keyboard.press("Enter")
   await expect(page).toHaveURL(`/organizations/${organization}/devices/dev-gps`)
 })
+
+test("a stale page chunk reloads once, then offers the new version", async ({ page }) => {
+  await setup(page)
+  let documents = 0
+  page.on("request", (request) => {
+    if (request.resourceType() === "document") documents++
+  })
+  // As after a deploy: the old build's chunk is gone.
+  await page.route(/\/assets\/TelemetryViewer-[^/]+\.js$/, (route) => route.abort())
+  await page.goto(`/organizations/${organization}/telemetry`)
+  await expect.poll(() => documents).toBe(2)
+  const stale = page.getByRole("alert").filter({ hasText: "A new version is available" })
+  await expect(stale).toBeVisible()
+  await expect(page.getByRole("link", { name: "Devices", exact: true })).toBeVisible()
+  // A second failure straight after the reload shows the state instead of looping.
+  await page.waitForTimeout(1000)
+  expect(documents).toBe(2)
+})
+
+test("a page that fails to render keeps the navigation and recovers on leaving it", async ({ page }) => {
+  await setup(page)
+  let documents = 0
+  page.on("request", (request) => {
+    if (request.resourceType() === "document") documents++
+  })
+  await page.route(/\/assets\/TelemetryViewer-[^/]+\.js$/, (route) =>
+    route.fulfill({ contentType: "text/javascript", body: 'throw new Error("Telemetry viewer failed to start")' }),
+  )
+  await page.goto(`/organizations/${organization}/telemetry`)
+  const problem = page.getByRole("alert").filter({ hasText: "This page hit a problem" })
+  await expect(problem).toBeVisible()
+  await problem.getByText("Technical details").click()
+  await expect(problem.getByText("Telemetry viewer failed to start")).toBeVisible()
+  await page.getByRole("link", { name: "Dashboards", exact: true }).click()
+  await expect(page).toHaveURL(dashboardsPath)
+  await expect(problem).toHaveCount(0)
+  // A chunk that loaded and threw is a bug, so it never triggers the stale-build reload.
+  expect(documents).toBe(1)
+})

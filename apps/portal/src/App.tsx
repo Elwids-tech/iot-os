@@ -22,6 +22,7 @@ import { useForm } from "react-hook-form"
 import { AcceptInvitationPage } from "@iot-os/auth/AcceptInvitationPage"
 import { PasswordRecoveryPage } from "@iot-os/auth/PasswordRecoveryPage"
 import { Button } from "@iot-os/ui/components/button"
+import { ErrorBoundary } from "@iot-os/ui/components/error-boundary"
 import {
   Card,
   CardHeader,
@@ -938,7 +939,9 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
                 key={section}
                 className="flex min-h-0 flex-1 flex-col animate-in fade-in-0 duration-150"
               >
-                <Outlet />
+                <ErrorBoundary resetKey={location.pathname}>
+                  <Outlet />
+                </ErrorBoundary>
               </div>
             </>
           )}

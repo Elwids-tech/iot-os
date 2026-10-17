@@ -112,8 +112,6 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### UI
 
-- **Error boundaries.** A render error or a failed chunk load after a deploy blanks
-  the whole app; add route error elements and reload on `vite:preloadError`.
 - **Smaller components.** Split the `App` shell (session, login, sidebar, recovery)
   and the largest components (`DashboardWorkspace`, `ConfigurationSection`,
   `Integrations`) into hooks and reducers.

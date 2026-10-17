@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import type { AuthenticatedUser } from "@iot-os/api-client"
+import { RouteError } from "@iot-os/ui/components/error-boundary"
 import { Toaster } from "@iot-os/ui/components/sonner"
 import { Navigate, Route, RouterProvider, Routes, createBrowserRouter } from "react-router-dom"
 import { AcceptInvitationPage } from "./auth/AcceptInvitationPage"
@@ -26,6 +27,7 @@ type ScreenState =
 const router = createBrowserRouter([
   {
     path: "*",
+    errorElement: <RouteError />,
     element: (
       <Routes>
         <Route path="accept-invitation" element={<AcceptInvitationPage />} />
