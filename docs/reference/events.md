@@ -159,4 +159,4 @@ each type's `data` (`IntegrationEvent`) and the signed delivery
 
 Journal order is commit order, not event time: apply `data` as the authoritative
 snapshot. Comments, people, email deliveries and private configuration are never
-included. The SDK does not yet accept `automation.triggered.v1`.
+included.

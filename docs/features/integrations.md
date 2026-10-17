@@ -193,9 +193,8 @@ verification flag ([testing](../dev/testing.md#verification-scripts)).
 22.12+, not published to a registry) covers devices, alerts, the event feed,
 webhook verification, telemetry, records, location bindings and fixes, the location
 map and geofences. It validates responses at runtime, rejects redirects, has a
-15-second default timeout and never retries automatically. Its event type list
-does not yet include `automation.triggered.v1`, so the feed throws a contract error
-when one arrives ([roadmap](../roadmap.md#next)).
+15-second default timeout and never retries automatically. It accepts every event
+type in the contract, `automation.triggered.v1` included.
 
 [`apps/vertical-demo`](../../apps/vertical-demo/README.md) is a server-rendered
 sample host that uses only the SDK and `@iot-os/ui`, proving that portable

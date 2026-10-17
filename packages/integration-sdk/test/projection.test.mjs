@@ -13,8 +13,8 @@ test('projection resumes atomically and failed fetch preserves durable state', a
   async *allAlerts(){yield {uuid:'legacy',condition:'active'}},
   async events({cursor}){
    if(fail)throw Error('interrupted')
-   if(phase===0){assert.equal(cursor,'start');return {data:[{data:{uuid:'new',condition:'active'}}],next_cursor:'one',has_more:false}}
-   assert.equal(cursor,'one');return {data:[{data:{uuid:'new',condition:'cleared'}}],next_cursor:'two',has_more:false}
+   if(phase===0){assert.equal(cursor,'start');return {data:[{type:'alert.activated.v1',data:{uuid:'new',condition:'active'}}],next_cursor:'one',has_more:false}}
+   assert.equal(cursor,'one');return {data:[{type:'alert.cleared.v1',data:{uuid:'new',condition:'cleared'}},{type:'automation.triggered.v1',data:{workflow_uuid:'workflow',action_id:'action',name:'Notify',node_id:'notify'}}],next_cursor:'two',has_more:false}
   }
  }
  try {
@@ -25,5 +25,6 @@ test('projection resumes atomically and failed fetch preserves durable state', a
   fail=false;phase=1;await project(client,filename)
   const state=JSON.parse(await readFile(filename,'utf8'))
   assert.equal(state.cursor,'two');assert.equal(state.alerts.new.condition,'cleared');assert.equal(state.alerts.legacy.condition,'active');assert.equal(bootstrap,1)
+  assert.deepEqual(Object.keys(state.alerts).sort(),['legacy','new'])
  } finally {await rm(directory,{recursive:true,force:true})}
 })

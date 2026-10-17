@@ -57,6 +57,10 @@ limit})` to reconcile and resume. Each page returns `data`, `next_cursor` and
 for empty pages. Do not advance it after a failed request. Rotation preserves a
 cursor; grant changes return 409 and require rebuilding your projection.
 
+The feed also carries geofence events and `automation.triggered.v1`, whose `data`
+is `workflow_uuid`, `action_id`, `name` and `node_id`. Check `event.type` before
+reading `data`.
+
 The packed `examples/project.mjs` demonstrates bootstrap, single-writer locking,
 atomic file replacement and restart across separate Node processes. Run it with
 an output path and the same environment variables as `examples/read.mjs`; pass
