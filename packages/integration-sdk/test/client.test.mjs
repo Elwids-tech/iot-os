@@ -124,3 +124,20 @@ test('geofence events are accepted by the shared event stream contract', async()
   const page=await make(async()=>Response.json({data:[event],next_cursor:'next',has_more:false})).events()
   assert.equal(page.data[0].type,'geofence.exited.v1')
 })
+
+test('automation events from the contract example are accepted by the feed and webhooks', async()=>{
+  const {readFile}=await import('node:fs/promises')
+  const {createHmac}=await import('node:crypto')
+  const {verifyWebhook}=await import('../dist/index.js')
+  const contract=JSON.parse(await readFile(new URL('../../../contracts/openapi/openapi.json',import.meta.url),'utf8'))
+  const example=contract.paths['/integration/v1/organizations/{organization}/events'].get.responses['200'].content['application/json'].example
+  const automation=example.data.find(event=>event.type==='automation.triggered.v1')
+  const page=await make(async()=>Response.json(example)).events()
+  assert.deepEqual(page.data.map(event=>event.type),example.data.map(event=>event.type))
+  assert.deepEqual(page.data.find(event=>event.type==='automation.triggered.v1'),automation)
+  const secret='whsec_'+'s'.repeat(64), timestamp='1800000000', body=JSON.stringify(automation)
+  const signature='v1='+createHmac('sha256',secret).update(`${timestamp}.${id}.${body}`).digest('hex')
+  assert.deepEqual((await verifyWebhook({body,secret,signature,timestamp,deliveryId:id,nowSeconds:Number(timestamp)})).data,automation.data)
+  const {node_id,...missing}=automation.data
+  await assert.rejects(make(async()=>Response.json({...example,data:[{...automation,data:missing}]})).events(),IotContractError)
+})

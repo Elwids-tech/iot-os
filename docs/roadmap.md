@@ -21,8 +21,9 @@ Grouped by area. Links point at the decision or doc that explains the item.
   reconciliation, and raise the control-claim throughput
   ([ADR-014](adr/ADR-014-control-plane-data-plane-http-integration.md)).
 - **Unused activation records.** `device_profile_activation_outbox` is written on
-  every publish and never read; profile `TransportBinding` records are stored but
-  unused by the runtime. Remove them or give them a consumer.
+  every publish and never read; remove it or give it a consumer. Profile
+  `TransportBinding` records feed only the device mapping suggestions, not the
+  runtime.
 - **Retention for journals.** Coordinated retention for the integration event journal
   (with a retention floor and 410 contract), webhook deliveries, alert comments,
   deliveries and attempts, the runtime's `rule_transitions` and `dag_intents`, and
@@ -53,13 +54,14 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### Security
 
-- **Login throttling.** `POST /api/v1/auth/login` has no rate limit.
 - **Adapter manager privileges.** Replace the read-write Docker socket mount with a
   restricted proxy or rootless runtime, and put tenant runtimes on a dedicated network
   that reaches only the broker ([ADR-010](adr/ADR-010-per-tenant-adapter-runtimes.md)).
-- **Event feed scoping.** The integration event feed filters by granted device but not
-  by event type, so an application with `events:read` and `geofences:read` also
-  receives alert events. Decide whether types should follow abilities
+- **Event feed scoping.** The integration event feed and webhooks filter by granted
+  device but not by event type, so an application with `events:read` and
+  `geofences:read` also receives alert events, and a webhook delivers geofence events
+  without `geofences:read`. Spec 003 decided that types follow abilities
+  ([FR-024](../specs/003-tenant-scoping/spec.md)); it is not built yet
   ([integrations](features/integrations.md#event-feed)).
 
 ### Automation and alerts
@@ -93,11 +95,12 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### Integrations
 
-- **SDK event types.** Add `automation.triggered.v1` to the SDK's event union so the
-  feed does not throw on it.
-- **OpenAPI (first Spec Kit spec).** Generate an OpenAPI description of the public and
-  integration APIs from Laravel, check it for drift in CI, and generate
-  `packages/api-client` and the SDK types from it.
+- **OpenAPI ([spec 001](../specs/001-openapi-contract/spec.md)).** The contract is
+  generated from Laravel, CI checks it for drift, and the test suite checks responses
+  against it. The integration API is fully described. Still to do: describe the
+  operations left in `contracts/openapi/pending-schemas.json`, add a breaking-change
+  gate, generate `packages/api-client` and the SDK types from the contract, and
+  publish the reference.
 - **Pilot quotas and load tests** for the event feed, webhooks and telemetry reads.
 
 ### Assistant
@@ -132,8 +135,9 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### Release hardening
 
-- Pin third-party images and actions by digest or commit SHA, add healthchecks for
-  api, runtime, the broker and Caddy, and produce an SBOM with signed images.
+- Pin the remaining third-party images by digest (actions are already pinned by
+  commit SHA), add healthchecks for api, runtime, the broker and Caddy, and produce
+  an SBOM with signed images.
 - Make the release artifact include everything the release compose file mounts, so it
   deploys without a full checkout.
 

@@ -28,7 +28,8 @@ export async function project(client, filename, { rebuild = false } = {}) {
       const batch = await client.events({ cursor: state.cursor })
       for (const event of batch.data) {
         // Full authoritative snapshot: late activation cannot undo a clear.
-        state.alerts[event.data.uuid] = event.data
+        // The feed also carries geofence and automation events; this projection keeps alerts.
+        if (event.type.startsWith('alert.')) state.alerts[event.data.uuid] = event.data
         processed++
       }
       state.cursor = batch.next_cursor

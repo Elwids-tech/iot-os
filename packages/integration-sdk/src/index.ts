@@ -73,13 +73,15 @@ export interface Page<T> {
   data: T[];
   meta: { current_page: number; last_page: number; total: number };
 }
+/** A workflow's `action.event.v1` node fired. `action_id` is stable across retries. */
+export interface AutomationTriggered { workflow_uuid: string; action_id: string; name: string; node_id: string }
 export interface IntegrationEvent {
   id: string;
   schema_version: "integration-event.v1";
-  type: "alert.activated.v1" | "alert.cleared.v1" | "alert.acknowledged.v1" | "geofence.entered.v1" | "geofence.exited.v1" | "geofence.wandering_started.v1" | "geofence.wandering_resolved.v1";
+  type: "alert.activated.v1" | "alert.cleared.v1" | "alert.acknowledged.v1" | "geofence.entered.v1" | "geofence.exited.v1" | "geofence.wandering_started.v1" | "geofence.wandering_resolved.v1" | "automation.triggered.v1";
   occurred_at: string;
   recorded_at: string;
-  data: Alert | GeofenceEvent;
+  data: Alert | GeofenceEvent | AutomationTriggered;
 }
 export interface EventPage { data: IntegrationEvent[]; next_cursor: string; has_more: boolean }
 export interface EventOptions { cursor?: string; limit?: number; signal?: AbortSignal }
@@ -132,9 +134,12 @@ function historyWindow(options: Pick<HistoryOptions, "from" | "to">): void {
 
 function integrationEvent(item: unknown): IntegrationEvent {
   const value = fields(item, ["id", "schema_version", "type", "occurred_at", "recorded_at"], []);
-  const types = ["alert.activated.v1", "alert.cleared.v1", "alert.acknowledged.v1", "geofence.entered.v1", "geofence.exited.v1", "geofence.wandering_started.v1", "geofence.wandering_resolved.v1"];
-  if (value.schema_version !== "integration-event.v1" || !types.includes(String(value.type))) throw new IotContractError();
-  const data = String(value.type).startsWith("alert.") ? alert(value.data) : fields(value.data, ["uuid", "geofence_uuid", "geofence_name", "assignment_uuid", "device_uuid", "type", "occurred_at"], ["source_event_uuid"]);
+  const types = ["alert.activated.v1", "alert.cleared.v1", "alert.acknowledged.v1", "geofence.entered.v1", "geofence.exited.v1", "geofence.wandering_started.v1", "geofence.wandering_resolved.v1", "automation.triggered.v1"];
+  const type = String(value.type);
+  if (value.schema_version !== "integration-event.v1" || !types.includes(type)) throw new IotContractError();
+  const data = type.startsWith("alert.") ? alert(value.data)
+    : type.startsWith("geofence.") ? fields(value.data, ["uuid", "geofence_uuid", "geofence_name", "assignment_uuid", "device_uuid", "type", "occurred_at"], ["source_event_uuid"])
+    : fields(value.data, ["workflow_uuid", "action_id", "name", "node_id"], []);
   return { ...value, data } as unknown as IntegrationEvent;
 }
 
