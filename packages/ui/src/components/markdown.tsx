@@ -44,7 +44,8 @@ const defaults: Components = {
   h6: styled("h6", "font-semibold"),
   strong: styled("strong", "font-semibold text-foreground"),
   del: styled("del", "text-muted-foreground"),
-  ul: styled("ul", cn("list-disc", list)),
+  // A checklist (GFM task list) shows its checkboxes, not bullets as well.
+  ul: styled("ul", cn("list-disc [&.contains-task-list]:list-none [&.contains-task-list]:pl-0", list)),
   ol: styled("ol", cn("list-decimal", list)),
   li: styled("li", "pl-0.5 [&>p+p]:mt-2"),
   blockquote: styled("blockquote", "border-l-2 pl-3 text-muted-foreground"),
