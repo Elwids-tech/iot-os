@@ -1,0 +1,43 @@
+# Specification Quality Checklist: Marketing Website and Developer Documentation
+
+**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Created**: 2026-10-17
+**Feature**: [spec.md](../spec.md)
+
+## Content Quality
+
+- [x] No implementation details (languages, frameworks, APIs)
+- [x] Focused on user value and business needs
+- [x] Written for non-technical stakeholders
+- [x] All mandatory sections completed
+
+## Requirement Completeness
+
+- [x] No [NEEDS CLARIFICATION] markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Success criteria are measurable
+- [x] Success criteria are technology-agnostic (no implementation details)
+- [x] All acceptance scenarios are defined
+- [x] Edge cases are identified
+- [x] Scope is clearly bounded
+- [x] Dependencies and assumptions identified
+
+## Feature Readiness
+
+- [x] All functional requirements have clear acceptance criteria
+- [x] User scenarios cover primary flows
+- [x] Feature meets measurable outcomes defined in Success Criteria
+- [x] No implementation details leak into specification
+
+## Notes
+
+- No framework, hosting provider or language is named. The spec does name existing
+  repository sources (the API contract, `contracts/agents/tools.json`, the in-product
+  guides), the integration API path and portal screens, because the feature is defined
+  by publishing those sources honestly. This follows the house style of earlier specs.
+- The audience is technical buyers and engineers, so the stories use their terms
+  (Sparkplug B, webhooks), but each one states its outcome in plain language.
+- Clarifications resolved on 2026-10-17. FR-001: the business-buyer solution pages and
+  the assessment offer carry over beside the two engineering audiences. FR-024: the
+  SDK goes to the public npm registry under a permissive license that covers the SDK
+  alone.
