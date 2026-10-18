@@ -36,7 +36,13 @@ and events). The stop does not affect geofence rules.
 
 The editor ([`@iot-os/workflow-editor`](../../packages/workflow-editor), React
 Flow) shows the node catalogue from the runtime's registry (`GET
-workflows/dag/node-types`). Node cards carry plain labels; type IDs are under
+workflows/dag/node-types`). Node cards are one header row (icon and the node's
+name, or its kind when unnamed) and a summary of the configured value, such as
+"Brightness > 80 %" or "RGB LED · alarm on, volume 20 %"; device and parameter
+names come from `workflows/dag/resources`. A side with one port has an unlabelled
+handle on the card edge; Geofence, Arithmetic, Boolean logic, Correlate inputs and
+Branch keep labelled port rows. **Arrange** lays columns out by graph depth from
+the measured card sizes and lines each card up with its inputs. Type IDs are under
 **Technical details** in the docked settings panel. If the catalogue is
 unavailable, existing graphs stay viewable but nodes cannot be added.
 
