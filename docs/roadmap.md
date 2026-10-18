@@ -66,6 +66,8 @@ Grouped by area. Links point at the decision or doc that explains the item.
   list DAG workflows ([ADR-011](adr/ADR-011-dag-automation-in-go.md)).
 - **Notification policies** (requirement-led): reminders, cooldowns, escalation,
   SMS or push.
+- **New automation nodes** ([spec 014](../specs/014-automation-nodes/spec.md)): no data,
+  schedule, state match, not, range and rate of change.
 
 ### Devices and adapters
 
