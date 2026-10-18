@@ -56,7 +56,9 @@ relative to the repository root.
 
 ## Decisions
 
-### D1. No data cannot fire for platform-side outages (owner to confirm)
+The owner confirmed D1–D9 as written on 2026-10-18.
+
+### D1. No data cannot fire for platform-side outages (confirmed by the owner, 2026-10-18)
 
 - **Decision:** while a tick runs, No data for a device whose broker connection the
   runtime has recorded as lost is unknown ("broker connection lost"), and its silence

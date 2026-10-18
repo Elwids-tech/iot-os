@@ -37,4 +37,4 @@
   implementation, and are kept deliberately.
 - No clarification markers: the open choices (time zone source, Not and Range as
   their own nodes, per-binding silence, wave 1 scope) have defaults recorded in
-  Assumptions and Out of scope, for the owner to confirm in review.
+  Assumptions and Out of scope; the owner confirmed them on 2026-10-18.

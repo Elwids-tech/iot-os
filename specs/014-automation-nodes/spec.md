@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-18
 
-**Status**: Draft
+**Status**: Draft; decisions confirmed by the owner on 2026-10-18
 
 **Input**: "Do you think these nodes are sufficient? … I mean any new nodes that you
 think we should introduce?" The proposed answer, which the owner asked to specify: no
@@ -97,8 +97,8 @@ and combine it with the door condition through Boolean logic (AND).
 **Why this priority**: time-of-day gating is the second most common requirement after
 missing data, and nothing in the catalogue knows the time.
 
-**Independent Test**: build *door state → Boolean AND ← Schedule* in a saved scenario
-that starts on a Monday; a door opening at 17:00 requests nothing, one at 19:00 sounds
+**Independent Test**: build *door contact (boolean) → Boolean AND ← Schedule* in a saved
+scenario that starts on a Monday; a door opening at 17:00 requests nothing, one at 19:00 sounds
 the alarm, and one at 10:00 on Saturday sounds it.
 
 **Acceptance Scenarios**:
@@ -227,9 +227,10 @@ still pass.
 - **No data and freshness.** A binding's freshness says how long one reading counts;
   No data's period says how long silence must last. A period shorter than the
   binding's freshness is rejected, because the reading would still be fresh.
-- **No data never starts true by accident.** After activation, a restart or a stream
-  pause, the node waits until it has processed the full period before declaring
-  silence; until then it is unknown, and unknown never opens or clears an alert.
+- **No data never starts true by accident.** After activation the node waits a full
+  period before declaring silence; until then it is unknown, and unknown never opens or
+  clears an alert. A restart or a stream pause cannot make it true early: the last
+  reading time is kept, and timer ticks wait until the backlog has been processed.
 - **Platform-side outage.** If the platform loses its broker connection, every device
   behind it goes quiet at once. No data then reports unknown for those devices instead
   of opening an alert for each; service monitoring reports the outage itself.
@@ -267,8 +268,8 @@ still pass.
   **Schedule**, **State match**, **Not**, **Range** and **Rate of change**. Each has
   a plain label, a group in the palette, its typed ports and its configuration fields.
   Existing node types MUST NOT change their identifiers, ports, fields or behaviour.
-- **FR-002**: The editor MUST configure each new node with suitable controls from the
-  design system: a duration for No data and Rate of change, time ranges, weekday
+- **FR-002**: The editor MUST configure each new node with controls from the design
+  system: a duration for No data and Rate of change, time ranges, weekday
   toggles and a searchable time zone selector for Schedule, the parameter's allowed
   values (or typed values) for State match, and low and high bounds for Range.
 - **FR-003**: Each new node's canvas summary MUST state its configuration in words (for
@@ -382,7 +383,7 @@ Each needs its own specification:
 - **SC-003**: Saved scenarios show a Schedule's output changing at each boundary across
   midnight, a weekend and both daylight-saving transitions of a zone that observes them,
   and live, the output changes within 10 seconds of a boundary.
-- **SC-004**: Each of the five user stories can be built in the editor, passes a saved
+- **SC-004**: Each of user stories 1–5 can be built in the editor, passes a saved
   scenario, and can be proposed by the automation assistant from a plain-language
   request.
 - **SC-005**: Existing workflow, simulation, scenario and assistant tests pass
