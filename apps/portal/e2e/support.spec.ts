@@ -225,7 +225,9 @@ test("a declined ticket takes no replies and offers a new one", async ({ page })
 test("the command palette opens the form for an improvement", async ({ page }) => {
   const { errors } = await setup(page)
   await page.goto(`/organizations/${org}/support`)
-  await page.keyboard.press("ControlOrMeta+k")
+  // ⌘K is bound once the session loads, so open the palette from its button instead.
+  await expect(page.getByText("No tickets yet")).toBeVisible()
+  await page.getByRole("button", { name: /Search or jump to/ }).click()
   await page.getByRole("option", { name: "Suggest an improvement" }).click()
   await expect(page).toHaveURL(/\/support\/new\?type=improvement$/)
   await expect(page.getByRole("radio", { name: "Improvement" })).toBeChecked()

@@ -87,16 +87,15 @@ function ThreadEvent({
   return (
     <li
       data-slot="thread-event"
-      // The size sits on the children: cn() would drop text-meta next to a text colour.
       className={cn(
-        "flex min-w-0 items-center gap-2 px-4 text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5 [&_svg]:shrink-0",
+        "flex min-w-0 items-center gap-2 px-4 text-meta text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5 [&_svg]:shrink-0",
         className,
       )}
       {...props}
     >
       {icon}
-      <span className="min-w-0 flex-1 text-meta">{children}</span>
-      <RelativeTime at={at} className="shrink-0 text-meta" />
+      <span className="min-w-0 flex-1">{children}</span>
+      <RelativeTime at={at} className="shrink-0" />
     </li>
   )
 }
