@@ -24,6 +24,7 @@ import { conversationCost, formatCost } from "../assistant/cost"
 import { DeviceStateReview } from "./DeviceStateConfig"
 import { evidenceMarkdown, type ExecutionSelection, type ExecutionReferences, type EvidenceTarget } from "./execution-evidence"
 import { changedNodes, draftSignature } from "./assistant-draft"
+import { assistantSessionIds } from "./assistant-session"
 
 type Target = { name: string; workflow: Workflow; draft_revision?: number }
 type Proposal = { id: string; run_id?: string; summary: string; status: string; before: Target; changes: { values: { workflow: Workflow } }[] }
@@ -61,7 +62,8 @@ export function WorkflowAssistant({ size = "default", ...props }: AssistantProps
 
 function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revision, registry, disabled, onApply, execution: selectedExecution, onClearExecution, onEvidence, onClose }: AssistantProps & { onClose: () => void }) {
   const cache = useQueryClient()
-  const sessionId = selectedExecution ? `${editorId}:evaluation:${selectedExecution.id}` : editorId
+  const sessionIds = assistantSessionIds(editorId, workflowId, selectedExecution?.id)
+  const sessionId = sessionIds[0]
   const key = ["workflow-assistant-session", org, sessionId]
   const [session, setSession] = useState<Session>(() => cache.getQueryData<Session>(key) ?? { text: "", used: [] })
   // The session follows the selected evaluation: switching between the draft and an explanation swaps conversations.
@@ -80,8 +82,8 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
   const request = useRef<{ signature: string; id: string } | undefined>(undefined)
   useEffect(() => {
     cache.setQueryDefaults(["workflow-assistant-session"], { gcTime: Infinity })
-    cache.setQueryData(["workflow-assistant-session", org, sessionId], session)
-  }, [cache, org, sessionId, session])
+    for (const id of sessionIds) cache.setQueryData(["workflow-assistant-session", org, id], session)
+  }, [cache, org, sessionIds.join(" "), session])
   const settings = useQuery({ queryKey: ["workflow-assistant-settings", org], queryFn: () => api.workflowAssistantSettings(org), retry: false, staleTime: 60000 })
   const conversations = useQuery({ queryKey: ["workflow-assistant-conversations", org], queryFn: () => api.workflowAssistantConversations(org), enabled: Boolean(settings.data), retry: false })
   const detail = useQuery({
@@ -133,6 +135,9 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
       if (request.current?.signature !== signature) request.current = { signature, id: crypto.randomUUID() }
       await api.workflowAssistantMessage(org, id, { request_id: request.current.id, text: prompt, target, execution_id: execution?.id })
       request.current = undefined
+      // Cached detail younger than the default stale time, or a fetch begun with a new conversation, predates this
+      // message; without its run nothing polls, so the reply would never appear. Invalidating replaces both.
+      await cache.invalidateQueries({ queryKey: ["workflow-assistant", org, id] })
       await cache.fetchQuery({ queryKey: ["workflow-assistant", org, id], queryFn: () => api.workflowAssistantDetail<Detail>(org, id) })
     } catch (e) {
       setError(e)
@@ -146,7 +151,7 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
       <Button variant="ghost" size="sm" onClick={onClearExecution}><ArrowLeftIcon data-icon="inline-start" />Back to the draft conversation</Button>
     </div>}
     <div className="flex shrink-0 items-end gap-2 border-b p-4">
-      <div className="min-w-0 flex-1"><SearchableSelect label="Automation conversation" value={session.id ?? ""} placeholder="New conversation" search={search} onSearchChange={setSearch} disabled={locked} options={(conversations.data ?? []).filter(item => item.workflow_uuid === (workflowId ?? null) && item.title.toLowerCase().includes(search.toLowerCase())).map(item => ({ value: item.id, label: `${item.title} · ${item.id.slice(-6)}` }))} onChange={id => { setSession({ id, text: "", used: [] }); setError(undefined) }} /></div>
+      <div className="min-w-0 flex-1"><SearchableSelect label="Automation conversation" value={session.id ?? ""} placeholder="New conversation" search={search} onSearchChange={setSearch} disabled={locked} options={(conversations.data ?? []).filter(item => (item.id === session.id || item.workflow_uuid === (workflowId ?? null)) && item.title.toLowerCase().includes(search.toLowerCase())).map(item => ({ value: item.id, label: `${item.title} · ${item.id.slice(-6)}` }))} onChange={id => { setSession({ id, text: "", used: [] }); setError(undefined) }} /></div>
       <Button variant="outline" disabled={locked || !session.id} onClick={() => { setSession({ text: "", used: [] }); setError(undefined) }}>New chat</Button>
     </div>
     <div className="min-h-0 flex-1">

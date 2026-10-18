@@ -69,8 +69,18 @@ request includes the current graph, unsaved edits included. The result is a
 **Review proposed workflow** card; **Use this draft** only changes the editor's
 local, undoable graph. If the editor changed meanwhile, the old proposal cannot
 replace it. Command settings in a proposal need `Device.command`. Geofence geometry
-is copied into the node, so later boundary edits do not update it. Limits: 30,000
-characters of draft context, six recent exchanges, no file uploads.
+is copied into the node, so later boundary edits do not update it. A draft can be as
+large as a workflow (262,144 characters). The model sees each geometry as a reference
+with its point count and bounds, which the server swaps back for the draft's
+coordinates when it validates a proposal, and at most 30,000 characters of draft
+(`assistant.max_draft_characters`). Other limits: six recent exchanges, no file uploads.
+
+The editor keeps a binding to the configuration it was saved with, but a proposal must
+use each device's current configuration. The assistant is told which draft bindings are
+outdated, and a preview with one names the binding role, so the model refreshes it from
+the device first. A draft whose device was deleted is refused with the binding's role;
+rebind it in the editor. Each new automation has its own conversation; once saved, its
+conversation continues when the automation is reopened.
 
 **Explain this execution** (Execution timeline) opens a conversation on one
 recorded evaluation. The server fetches the evidence through the authorized

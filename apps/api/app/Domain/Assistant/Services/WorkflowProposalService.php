@@ -8,7 +8,6 @@ use App\Domain\Assistant\Models\AssistantConversation;
 use App\Domain\Assistant\Models\AssistantProposal;
 use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Automation\Services\DagAuthoring;
-use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use Illuminate\Support\Facades\DB;
@@ -27,13 +26,15 @@ final class WorkflowProposalService
                 app(DeviceAuthorization::class)->authorize($conversation->user, DevicePermission::COMMAND, $conversation->organization);
             }
         }
+        $context = app(WorkflowDraftContext::class);
+        $proposed = $context->restore($data['workflow'], $conversation->onboarding_state['target'] ?? []);
         // Proposals must use the current applied configuration, not invented or obsolete bindings.
-        foreach ($data['workflow']['bindings'] ?? [] as $binding) {
-            $device = Device::where('organization_id', $conversation->organization_id)->where('uuid', $binding['device_uuid'] ?? '')->firstOrFail();
-            abort_unless($device->applied_configuration_uuid === ($binding['configuration_uuid'] ?? null)
-                && $device->deployment_generation === ($binding['generation'] ?? null), 422, 'A device configuration changed. Inspect the current device and propose again.');
+        // Name each binding so the model can refresh it rather than retry blindly.
+        $outdated = $context->outdatedBindings($conversation->organization_id, (array) ($proposed['bindings'] ?? []));
+        if ($outdated !== []) {
+            throw ValidationException::withMessages(['bindings' => array_values($outdated)]);
         }
-        $compiled = app(DagAuthoring::class)->compile($conversation->organization, $data['workflow'], $conversation->workflow?->uuid ?? (string) Str::uuid());
+        $compiled = app(DagAuthoring::class)->compile($conversation->organization, $proposed, $conversation->workflow?->uuid ?? (string) Str::uuid());
         $diagnostics = $compiled['diagnostics'] ?? [];
         if (! ($compiled['valid'] ?? false)) {
             throw ValidationException::withMessages(['workflow' => array_map(fn ($d) => ($d['node_id'] ?? 'graph').': '.$d['message'], $diagnostics) ?: ['Invalid workflow.']]);
