@@ -20,6 +20,7 @@ final class OrganizationDeletionInventoryTest extends TestCase
     public function test_every_foreign_key_to_organizations_cascades_or_is_classified(): void
     {
         $handled = [...OrganizationDeletion::blockingTables(), ...OrganizationDeletion::REMOVED_FIRST];
+        $kept = [];
         $unhandled = [];
         $seen = 0;
 
@@ -31,6 +32,12 @@ final class OrganizationDeletionInventoryTest extends TestCase
 
                 $seen++;
 
+                if (in_array($table['name'], OrganizationDeletion::KEPT, true)) {
+                    $kept[$table['name']] = strtolower((string) $key['on_delete']);
+
+                    continue;
+                }
+
                 if (strtolower((string) $key['on_delete']) !== 'cascade' && ! in_array($table['name'], $handled, true)) {
                     $unhandled[] = sprintf('%s.%s (on delete %s)', $table['name'], implode(',', $key['columns']), $key['on_delete']);
                 }
@@ -38,12 +45,14 @@ final class OrganizationDeletionInventoryTest extends TestCase
         }
 
         $this->assertGreaterThan(30, $seen, 'The schema listing found too few keys to organizations; the check is not looking at the right tables.');
-        $this->assertSame([], $unhandled, 'Classify these in OrganizationDeletion::BLOCKERS or REMOVED_FIRST, or make them cascade.');
+        $this->assertSame([], $unhandled, 'Classify these in OrganizationDeletion::BLOCKERS, REMOVED_FIRST or KEPT, or make them cascade.');
+        // Kept records must survive the organization, so their key sets null.
+        $this->assertSame(array_fill_keys(OrganizationDeletion::KEPT, 'set null'), $kept);
     }
 
     public function test_every_classified_table_exists_and_refers_to_organizations(): void
     {
-        foreach ([...OrganizationDeletion::blockingTables(), ...OrganizationDeletion::REMOVED_FIRST] as $table) {
+        foreach ([...OrganizationDeletion::blockingTables(), ...OrganizationDeletion::REMOVED_FIRST, ...OrganizationDeletion::KEPT] as $table) {
             $this->assertTrue(Schema::hasColumn($table, 'organization_id'), "{$table}.organization_id is missing");
         }
     }

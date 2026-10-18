@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation } from "react-router-dom";
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group";
 import { usePanel, type PanelTab } from "../panel/context";
 import type {
@@ -78,6 +79,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { api } from "../lib/api";
+import { newTicketPath, supportPath } from "../support/model";
 import { Confirm, RequestError } from "../components/forms";
 
 
@@ -210,6 +212,7 @@ export default function HelpPanel({
   profileAssistant?: ReactNode;
 }) {
   const cache = useQueryClient();
+  const location = useLocation();
   const workspace = usePanel();
   const { open, tab, setTab, slot, setSlotTarget, askMode, setAskMode } = workspace;
   const onClose = workspace.closePanel;
@@ -854,6 +857,21 @@ export default function HelpPanel({
           )}
         </TabsContent>
       </Tabs>
+      <nav
+        aria-label="Support"
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-3 text-meta"
+      >
+        <span className="text-muted-foreground">Something wrong or missing?</span>
+        <Link className="text-primary hover:underline" to={newTicketPath(org, "bug", location.pathname)} onClick={onClose}>
+          Report a problem
+        </Link>
+        <Link className="text-primary hover:underline" to={newTicketPath(org, "improvement", location.pathname)} onClick={onClose}>
+          Suggest an improvement
+        </Link>
+        <Link className="text-primary hover:underline" to={supportPath(org)} onClick={onClose}>
+          Your tickets
+        </Link>
+      </nav>
       <Confirm
         open={deleteOpen}
         title="Delete this Help conversation?"

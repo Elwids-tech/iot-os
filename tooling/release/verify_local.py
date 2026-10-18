@@ -66,7 +66,7 @@ def main():
         service.pop('ports', None)
         service.pop('mem_limit', None)
         if 'APP_ENV' in service.get('environment', {}):
-            service['environment'].update({'APP_URL': 'http://localhost:18091', 'FRONTEND_URL': 'http://localhost:18092',
+            service['environment'].update({'APP_URL': 'http://localhost:18091', 'FRONTEND_URL': 'http://localhost:18092', 'ADMIN_FRONTEND_URL': 'http://localhost:18093',
                 'SESSION_DOMAIN': '', 'SESSION_SECURE_COOKIE': 'false', 'SANCTUM_STATEFUL_DOMAINS': 'localhost:18092,localhost:18093',
                 'CORS_ALLOWED_ORIGINS': 'http://localhost:18092,http://localhost:18093'})
         if name in ('portal', 'admin'):

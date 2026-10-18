@@ -1,0 +1,110 @@
+# Support ticket operations (spec 015).
+#
+# Statuses the code returns that inference cannot see: the team check and the
+# service-level conflicts and validation run outside the controller actions.
+# Attachments are served as the stored file, never as JSON.
+# Format: ../meta/supplement.schema.json.
+components:
+  responses:
+    TicketAttachment:
+      description: The attachment's content with its stored type. Images are served inline, PDFs as a download; always with nosniff.
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+        image/jpeg:
+          schema:
+            type: string
+            format: binary
+        image/webp:
+          schema:
+            type: string
+            format: binary
+        application/pdf:
+          schema:
+            type: string
+            format: binary
+operations:
+  GET /v1/admin/tickets:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  GET /v1/admin/tickets/summary:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  GET /v1/admin/tickets/assignees:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  GET /v1/admin/tickets/{ticket}:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  PATCH /v1/admin/tickets/{ticket}:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        $ref: '#/components/responses/Conflict'
+  DELETE /v1/admin/tickets/{ticket}:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  POST /v1/admin/tickets/{ticket}/messages:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  POST /v1/admin/tickets/{ticket}/read:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  GET /v1/admin/tickets/{ticket}/attachments/{attachment}:
+    responses:
+      '200':
+        $ref: '#/components/responses/TicketAttachment'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  GET /v1/admin/tickets/{ticket}/people:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  PUT /v1/admin/tickets/{ticket}/participants/{user}:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  DELETE /v1/admin/tickets/{ticket}/participants/{user}:
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  POST /v1/organizations/{organization}/tickets:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  POST /v1/organizations/{organization}/tickets/{ticket}/messages:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  PATCH /v1/organizations/{organization}/tickets/{ticket}:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  GET /v1/organizations/{organization}/tickets/{ticket}/attachments/{attachment}:
+    responses:
+      '200':
+        $ref: '#/components/responses/TicketAttachment'
+  PUT /v1/organizations/{organization}/tickets/{ticket}/participants/{user}:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'

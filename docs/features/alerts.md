@@ -60,7 +60,8 @@ today.
 
 **Settings → Email** is a per-person grid that applies across organizations:
 sources (workflow, service, watchdog) by level (critical, warning, info, and
-**Cleared** for recovery mail), plus **Turn off all emails**. Workflow email needs
+**Cleared** for recovery mail), plus **Turn off all emails**, which also stops
+[support ticket](support.md) emails; those have their own switch below the grid. Workflow email needs
 both the personal choice and the workflow subscription. Account email (password
 resets, invitations) ignores these preferences.
 
