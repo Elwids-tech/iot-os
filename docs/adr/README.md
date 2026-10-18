@@ -34,6 +34,7 @@ the code as evidence.
 | [ADR-016](ADR-016-public-api-contract.md) | The public API contract is generated from Laravel, supplemented by hand and enforced in CI | Accepted |
 | [ADR-018](ADR-018-agent-access-oauth.md) | AI agents sign in through Passport and act through connections; amends ADR-008 | Accepted |
 | [ADR-019](ADR-019-mosquitto-only-broker.md) | Mosquitto is the only MQTT broker, in releases and development; supersedes ADR-009 | Accepted |
+| [ADR-020](ADR-020-public-website.md) | Public website and developer docs: a static Astro site on Cloudflare, outside the product's deployment profiles | Accepted |
 
 ## Template
 

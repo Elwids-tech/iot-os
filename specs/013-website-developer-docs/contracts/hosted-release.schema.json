@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/website/hosted-release.v1.json",
+  "title": "Hosted release record",
+  "description": "Committed half of the hosted release record: the feature switches of the hosted service. The website publishes gated docs only for features switched on. The hosted commit itself is never committed: it comes from the WEBSITE_HOSTED_REF secret in CI and .local/website/website.env locally. Changed by pull request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "features"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "hosted-release.v1"
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapters",
+        "agent_access"
+      ],
+      "properties": {
+        "adapters": {
+          "type": "boolean",
+          "description": "IOT_ADAPTERS_ENABLED on the hosted service."
+        },
+        "agent_access": {
+          "type": "boolean",
+          "description": "IOT_AGENTS_ENABLED on the hosted service."
+        }
+      }
+    }
+  }
+}
