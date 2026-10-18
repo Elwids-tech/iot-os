@@ -72,6 +72,23 @@ const domains = {
     sent: { tone: "good", label: "Sent" },
     delivered: { tone: "good", label: "Delivered" },
   },
+  /** Support tickets (spec 015): open work is info, waiting on the reporter is a warning. */
+  ticket: {
+    new: { tone: "info", label: "New" },
+    in_review: { tone: "info", label: "In review" },
+    needs_info: { tone: "warning", label: "Needs information" },
+    planned: { tone: "muted", label: "Planned" },
+    in_progress: { tone: "info", label: "In progress" },
+    resolved: { tone: "good", label: "Resolved" },
+    declined: { tone: "muted", label: "Declined" },
+  },
+  /** Support ticket priority, set by the team. */
+  priority: {
+    low: { tone: "muted", label: "Low" },
+    normal: { tone: "muted", label: "Normal" },
+    high: { tone: "warning", label: "High" },
+    urgent: { tone: "critical", label: "Urgent" },
+  },
 } satisfies Record<string, Record<string, Status>>
 
 export type StatusDomain = keyof typeof domains
