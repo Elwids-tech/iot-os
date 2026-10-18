@@ -6,10 +6,11 @@ function stable(value: unknown): unknown {
   return value
 }
 
+// Older proposals stored the draft after Laravel trimmed strings and turned "" into null.
 export function draftSignature(name: string, workflow: Workflow): string {
-  return JSON.stringify(stable({ name, workflow: {
+  return JSON.stringify(stable({ name: name.trim(), workflow: {
     schema_version: workflow.schema_version,
-    bindings: workflow.bindings,
+    bindings: workflow.bindings.map(binding => ({ ...binding, unit: binding.unit ?? "" })),
     nodes: workflow.nodes.map(node => ({ ...node, config: Array.isArray(node.config) && !node.config.length ? {} : node.config })),
     edges: workflow.edges,
   } }))

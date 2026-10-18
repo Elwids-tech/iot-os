@@ -53,6 +53,8 @@ import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
 import { Message, MessageContent } from "@iot-os/ui/components/message"
 import { Bubble, BubbleContent } from "@iot-os/ui/components/bubble"
+import { Markdown } from "@iot-os/ui/components/markdown"
+import { Thinking } from "@iot-os/ui/components/thinking"
 import {
   MessageScrollerProvider,
   MessageScroller,
@@ -952,23 +954,47 @@ function Diagnosis({
             <MessageScroller>
               <MessageScrollerViewport>
                 <MessageScrollerContent>
-                  {answer ? (
+                  {diagnose.isPending && diagnose.variables ? (
                     <>
                       <Message align="end">
                         <MessageContent>
-                          <Bubble variant="secondary">
-                            <BubbleContent>{answer.question}</BubbleContent>
+                          <Bubble align="end">
+                            <BubbleContent className="whitespace-pre-wrap">
+                              {diagnose.variables.text}
+                            </BubbleContent>
                           </Bubble>
                         </MessageContent>
                       </Message>
                       <Message>
                         <MessageContent>
-                          <Bubble variant="outline">
-                            <BubbleContent>
-                              <p className="whitespace-pre-wrap">
-                                {answer.result.explanation}
-                              </p>
-                              <p className="mt-3">{answer.result.next_check}</p>
+                          <Thinking>Analyzing selected evidence…</Thinking>
+                        </MessageContent>
+                      </Message>
+                    </>
+                  ) : answer ? (
+                    <>
+                      <Message align="end">
+                        <MessageContent>
+                          <Bubble align="end">
+                            <BubbleContent className="whitespace-pre-wrap">
+                              {answer.question}
+                            </BubbleContent>
+                          </Bubble>
+                        </MessageContent>
+                      </Message>
+                      <Message>
+                        <MessageContent>
+                          <Bubble variant="ghost">
+                            <BubbleContent className="flex flex-col gap-3">
+                              <Markdown>{answer.result.explanation}</Markdown>
+                              {answer.result.next_check && (
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-meta text-muted-foreground">
+                                    Next check
+                                  </span>
+                                  <Markdown>{answer.result.next_check}</Markdown>
+                                </div>
+                              )}
                             </BubbleContent>
                           </Bubble>
                           <div className="flex flex-wrap gap-2">
@@ -1002,11 +1028,6 @@ function Diagnosis({
                       title="Ask about the captured data"
                       description="For example: Why does the stored value differ from the received value?"
                     />
-                  )}
-                  {diagnose.isPending && (
-                    <p role="status" className="text-sm text-muted-foreground">
-                      Analyzing selected evidence…
-                    </p>
                   )}
                 </MessageScrollerContent>
               </MessageScrollerViewport>

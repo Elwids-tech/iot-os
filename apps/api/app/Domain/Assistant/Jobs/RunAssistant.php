@@ -26,6 +26,7 @@ use Laravel\Ai\Files;
 use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\StreamedAgentResponse;
 use Laravel\Ai\Streaming\Events\StreamEnd;
+use Laravel\Ai\Streaming\Events\StreamStart;
 use Laravel\Ai\Streaming\Events\TextDelta;
 use Laravel\Ai\Streaming\Events\ToolApprovalRequest;
 use RuntimeException;
@@ -57,6 +58,7 @@ final class RunAssistant implements ShouldQueue
         $usage = new TextUsage;
         $buffer = '';
         $answer = '';
+        $newStep = false;
         $lastFlush = microtime(true);
         $helpProviderStarted = false;
         $helpUsageReported = false;
@@ -132,9 +134,15 @@ final class RunAssistant implements ShouldQueue
                 if ($run->fresh()?->status !== 'running') {
                     throw new RuntimeException('assistant.cancelled');
                 }
+                // Each provider step (text, tool call, more text) starts a new paragraph, as in the final text.
+                if ($event instanceof StreamStart) {
+                    $newStep = trim($answer) !== '';
+                }
                 if ($event instanceof TextDelta) {
-                    $answer .= $event->delta;
-                    $buffer .= $event->delta;
+                    $delta = $newStep && trim($event->delta) !== '' ? "\n\n".ltrim($event->delta) : $event->delta;
+                    $newStep = $newStep && trim($event->delta) === '';
+                    $answer .= $delta;
+                    $buffer .= $delta;
                 }
                 if ($event instanceof StreamEnd) {
                     $usage = $usage->add($event->usage);

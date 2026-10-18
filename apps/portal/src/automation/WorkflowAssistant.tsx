@@ -13,13 +13,16 @@ import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { InputGroup, InputGroupTextarea, InputGroupAddon } from "@iot-os/ui/components/input-group"
 import { Message, MessageContent, MessageHeader } from "@iot-os/ui/components/message"
 import { Bubble, BubbleContent } from "@iot-os/ui/components/bubble"
+import { Marker, MarkerContent } from "@iot-os/ui/components/marker"
+import { Markdown, MarkdownLink } from "@iot-os/ui/components/markdown"
+import { Thinking } from "@iot-os/ui/components/thinking"
 import { MessageScrollerProvider, MessageScroller, MessageScrollerViewport, MessageScrollerContent, MessageScrollerItem, MessageScrollerButton } from "@iot-os/ui/components/message-scroller"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
 import { usePanel, usePanelSlot } from "../panel/context"
 import { conversationCost, formatCost } from "../assistant/cost"
 import { DeviceStateReview } from "./DeviceStateConfig"
-import { evidenceParts, type ExecutionSelection, type ExecutionReferences, type EvidenceTarget } from "./execution-evidence"
+import { evidenceMarkdown, type ExecutionSelection, type ExecutionReferences, type EvidenceTarget } from "./execution-evidence"
 import { changedNodes, draftSignature } from "./assistant-draft"
 
 type Target = { name: string; workflow: Workflow; draft_revision?: number }
@@ -69,6 +72,8 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
   const [autoExplain, setAutoExplain] = useState(false)
   const explained = useRef<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
+  // The message being sent, shown at once until its run appears in the conversation.
+  const [pending, setPending] = useState<{ prompt: string; runs: number }>()
   const [error, setError] = useState<unknown>()
   const [search, setSearch] = useState("")
   const operation = useRef(false)
@@ -114,6 +119,8 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
     operation.current = true
     setBusy(true)
     setError(undefined)
+    setPending({ prompt, runs: detail.data?.runs.length ?? 0 })
+    setSession(current => ({ ...current, text: "" }))
     try {
       let id = session.id
       if (!id) {
@@ -125,10 +132,13 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
       const signature = JSON.stringify({ text: prompt, target, execution_id: execution?.id })
       if (request.current?.signature !== signature) request.current = { signature, id: crypto.randomUUID() }
       await api.workflowAssistantMessage(org, id, { request_id: request.current.id, text: prompt, target, execution_id: execution?.id })
-      setSession(current => ({ ...current, text: "" }))
       request.current = undefined
       await cache.fetchQuery({ queryKey: ["workflow-assistant", org, id], queryFn: () => api.workflowAssistantDetail<Detail>(org, id) })
-    } catch (e) { setError(e) } finally { operation.current = false; setBusy(false) }
+    } catch (e) {
+      setError(e)
+      // Give the unsent message back so it can be retried or edited.
+      if (request.current) setSession(current => current.text ? current : { ...current, text: prompt })
+    } finally { operation.current = false; setBusy(false); setPending(undefined) }
   }
 
   return <div className="flex h-full min-h-0 flex-col" role="region" aria-label={selectedExecution ? "Explain execution" : "Automation assistant"}>
@@ -147,10 +157,14 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
             <CardFooter><Button variant="outline" disabled={locked} onClick={() => setSession(current => ({ ...current, text: "Explain this workflow and point out any missing configuration." }))}>Explain this workflow</Button></CardFooter>
           </Card>
         </MessageScrollerItem>}
-        {detail.data?.runs.map(run => <MessageScrollerItem key={run.id} messageId={run.id}>
+        {detail.data?.runs.map(run => <MessageScrollerItem key={run.id} messageId={run.id} scrollAnchor>
           <div className="flex flex-col gap-4">
-            <Message align="end"><MessageContent><MessageHeader>You</MessageHeader><Bubble><BubbleContent className="whitespace-pre-wrap">{run.prompt}</BubbleContent></Bubble></MessageContent></Message>
-            <Message><MessageContent><MessageHeader>Automation assistant</MessageHeader><Bubble variant="secondary"><BubbleContent className="whitespace-pre-wrap">{evidenceParts(run.answer || (run.status === "queued" ? "Waiting for the assistant…" : run.status === "running" ? "Inspecting the evidence…" : "No response text."), run.execution).map((part, index) => part.target ? <Button key={index} variant="outline" size="sm" className="h-auto whitespace-normal px-1 py-0" onClick={() => { onEvidence(part.target!); onClose() }}>{part.text}</Button> : part.text)}</BubbleContent></Bubble>
+            <Message align="end"><MessageContent><MessageHeader>You</MessageHeader><Bubble align="end"><BubbleContent className="whitespace-pre-wrap">{run.prompt}</BubbleContent></Bubble></MessageContent></Message>
+            <Message><MessageContent><MessageHeader>Automation assistant</MessageHeader>
+              {run.answer && <Bubble variant="ghost"><BubbleContent><AnswerMarkdown answer={run.answer} evidence={run.execution} onEvidence={target => { onEvidence(target); onClose() }} /></BubbleContent></Bubble>}
+              {run.status === "queued" ? <Thinking>Waiting for the assistant…</Thinking> : run.status === "running" && <Thinking>{run.execution ? "Reading the recorded evidence…" : "Thinking…"}</Thinking>}
+              {run.status === "completed" && !run.answer && <Marker><MarkerContent>No response text.</MarkerContent></Marker>}
+              {run.status === "cancelled" && <Marker><MarkerContent>Response stopped.</MarkerContent></Marker>}
               {run.execution && <div className="flex flex-col gap-1">
                 <Button variant="outline" size="sm" onClick={() => { onEvidence({ evaluationId: run.execution!.evaluation_id }); onClose() }}>View evaluation {run.execution.evaluation_id} · deployment {run.execution.generation} · draft {run.execution.draft_revision}</Button>
                 <p className="text-xs text-muted-foreground">Evidence captured {new Date(run.execution.captured_at).toLocaleString()}. Delivery may have progressed since this response.</p>
@@ -160,6 +174,12 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
             </MessageContent></Message>
           </div>
         </MessageScrollerItem>)}
+        {pending && (detail.data?.runs.length ?? 0) === pending.runs && <MessageScrollerItem messageId="pending" scrollAnchor>
+          <div className="flex flex-col gap-4">
+            <Message align="end"><MessageContent><MessageHeader>You</MessageHeader><Bubble align="end"><BubbleContent className="whitespace-pre-wrap">{pending.prompt}</BubbleContent></Bubble></MessageContent></Message>
+            <Message><MessageContent><MessageHeader>Automation assistant</MessageHeader><Thinking>Sending…</Thinking></MessageContent></Message>
+          </div>
+        </MessageScrollerItem>}
         {latest && proposed && before && <MessageScrollerItem messageId={latest.id}>
           <Card><CardHeader><CardTitle>Review proposed workflow</CardTitle><CardDescription>{latest.summary}</CardDescription></CardHeader>
             <CardContent className="flex flex-col gap-3">
@@ -193,4 +213,17 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
       <p className="text-xs text-muted-foreground">Your request, draft, {execution ? "selected execution evidence, " : ""}and relevant device and geofence configuration are sent to {settings.data?.provider?.label ?? "the AI provider"}. Nothing is saved or activated automatically.{conversationCost(detail.data?.runs) > 0 && <span className="tabular-nums"> · Estimated cost of this conversation {formatCost(conversationCost(detail.data?.runs))}</span>}</p>
     </div>
   </div>
+}
+
+/** A reply as Markdown; its recorded-evidence references become buttons that open the evaluation. */
+function AnswerMarkdown({ answer, evidence, onEvidence }: { answer: string; evidence?: ExecutionReferences | null; onEvidence: (target: EvidenceTarget) => void }) {
+  const { markdown, targets } = evidenceMarkdown(answer, evidence)
+  return <Markdown components={{
+    a: props => {
+      const target = props.href?.startsWith("#evidence-") ? targets[Number(props.href.slice("#evidence-".length))] : undefined
+      return target
+        ? <Button variant="outline" size="sm" className="h-auto whitespace-normal px-1 py-0 align-baseline" onClick={() => onEvidence(target)}>{props.children}</Button>
+        : <MarkdownLink {...props} />
+    },
+  }}>{markdown}</Markdown>
 }
