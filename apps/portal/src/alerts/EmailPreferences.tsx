@@ -75,7 +75,7 @@ export function EmailPreferences() {
           <AlertDescription>
             {data.email_enabled
               ? "Choose which alerts reach your inbox below. Alerts and the event log are always available here."
-              : "Workflow, service monitoring, and watchdog emails are muted. Alerts and the event log continue to record them."}
+              : "Workflow, service monitoring, watchdog and support ticket emails are muted. Alerts and the event log continue to record them."}
             {save.isPending && <span role="status"> Saving…</span>}
           </AlertDescription>
         </Alert>
@@ -172,6 +172,32 @@ export function EmailPreferences() {
             </PanelContent>
           </Panel>
         )
+      )}
+      {data && (
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Support ticket emails</PanelTitle>
+            <PanelDescription>
+              Replies and status changes on tickets you filed or were tagged on
+              {data.operations_access ? ", and new tickets and replies for the platform team" : ""}.
+            </PanelDescription>
+          </PanelHeader>
+          <PanelContent>
+            <SwitchField
+              align="end"
+              id="support-ticket-emails"
+              label="Email me about support tickets"
+              description={
+                data.email_enabled
+                  ? "You can always read tickets under Support."
+                  : "Off while all emails are turned off above."
+              }
+              checked={data.email_enabled && data.ticket_email !== false}
+              disabled={save.isPending || !data.email_enabled}
+              onCheckedChange={(ticket_email) => save.mutate({ ...data, ticket_email })}
+            />
+          </PanelContent>
+        </Panel>
       )}
     </>
   );
