@@ -18,7 +18,7 @@ import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import { fieldError, RequestError } from "../components/forms"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
-import { browserContext, clientId, supportPath, ticketTemplates } from "./model"
+import { browserContext, clientId, supportPath, ticketGuidance } from "./model"
 
 const types: { value: TicketType; title: string; description: string; icon: ReactNode }[] = [
   { value: "bug", title: "Bug", description: "Something doesn't work as it should.", icon: <BugIcon /> },
@@ -37,7 +37,7 @@ export function NewTicketPage() {
   const context = useRef(browserContext(params.get("from") ?? window.location.pathname)).current
   const [type, setType] = useState<TicketType>(initialType)
   const [title, setTitle] = useState("")
-  const [body, setBody] = useState(ticketTemplates[initialType])
+  const [body, setBody] = useState("")
   const [files, setFiles] = useState<ComposerFile[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>()
@@ -46,8 +46,7 @@ export function NewTicketPage() {
   // Reused while the content is unchanged, so a retry after a lost response files one ticket.
   const attempt = useRef<{ id: string; signature: string } | null>(null)
 
-  const untouched = body.trim() === "" || Object.values(ticketTemplates).some((template) => template.trim() === body.trim())
-  const dirty = !filed && (title.trim() !== "" || !untouched || files.length > 0)
+  const dirty = !filed && (title.trim() !== "" || body.trim() !== "" || files.length > 0)
   useUnsaved(dirty)
   useEffect(() => {
     if (filed) navigate(supportPath(org, `/${filed}`), { replace: true })
@@ -55,14 +54,13 @@ export function NewTicketPage() {
 
   function chooseType(next: TicketType) {
     setType(next)
-    if (untouched) setBody(ticketTemplates[next])
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (busy) return
     const valid = files.filter((entry) => !entry.error).map((entry) => entry.file)
-    const description = untouched ? "" : body
+    const description = body.trim() === "" ? "" : body
     const signature = JSON.stringify([type, title, description, valid.map((file) => [file.name, file.size])])
     if (attempt.current?.signature !== signature) attempt.current = { id: clientId(), signature }
     setBusy(true)
@@ -118,7 +116,8 @@ export function NewTicketPage() {
                   onFilesChange={setFiles}
                   disabled={busy}
                   invalid={Boolean(fieldError(error, "body"))}
-                  hint="Markdown · paste or drop screenshots and PDFs, 10 MB each"
+                  placeholder={ticketGuidance[type]}
+                  hint="Paste or drop screenshots and PDFs, 10 MB each"
                 />
                 <FieldError>{fieldError(error, "body")}</FieldError>
               </Field>

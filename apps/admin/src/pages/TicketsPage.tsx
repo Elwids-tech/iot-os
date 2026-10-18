@@ -570,7 +570,7 @@ function TeamComposer({
         onFilesChange={setFiles}
         onSubmit={() => void send()}
         pending={busy}
-        hint={note ? "Not visible to the reporter" : "Markdown · Ctrl+Enter to send"}
+        hint={note ? "Not visible to the reporter" : undefined}
         className={note ? "[&_[data-slot=input-group]]:border-dashed [&_[data-slot=input-group]]:border-warning/60" : undefined}
       />
     </div>

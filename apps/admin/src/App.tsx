@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import type { AuthenticatedUser } from "@iot-os/api-client"
 import { RouteError } from "@iot-os/ui/components/error-boundary"
 import { Toaster } from "@iot-os/ui/components/sonner"
@@ -17,12 +17,19 @@ import { RolesPage } from "./pages/RolesPage"
 import { UsersPage } from "./pages/UsersPage"
 import { RetentionPage } from "./pages/RetentionPage"
 import { AssistantPage } from "./pages/AssistantPage"
-import { TicketsPage } from "./pages/TicketsPage"
 
 type ScreenState =
   | { status: "loading" }
   | { status: "signed-out" }
   | { status: "signed-in"; user: AuthenticatedUser }
+
+// The ticket queue carries the rich text editor, so it loads when first opened.
+const TicketsPage = lazy(() => import("./pages/TicketsPage").then((module) => ({ default: module.TicketsPage })))
+const ticketsPage = (
+  <Suspense fallback={<p className="p-6 text-body text-muted-foreground">Loading tickets…</p>}>
+    <TicketsPage />
+  </Suspense>
+)
 
 // A data router so pages can block navigation with useBlocker.
 const router = createBrowserRouter([
@@ -119,8 +126,8 @@ function PlatformAdministrationApp() {
         ) : null}
         {screen.user.capabilities.manage_tickets ? (
           <>
-            <Route path="tickets" element={<TicketsPage />} />
-            <Route path="tickets/:ticketUuid" element={<TicketsPage />} />
+            <Route path="tickets" element={ticketsPage} />
+            <Route path="tickets/:ticketUuid" element={ticketsPage} />
           </>
         ) : null}
         <Route path="*" element={<Navigate to="/organizations" replace />} />
