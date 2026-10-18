@@ -40,6 +40,10 @@ portal or admin images.
   render through `Markdown` (never raw text with `whitespace-pre-wrap`), and a run
   that is sending, queued or working shows `Thinking` with a label that says which.
   Show the user's message as soon as they send it.
+- **Longer messages** (ticket replies, notes, descriptions) use `Composer`: it formats as
+  you write (Tiptap), stores and sends GitHub-flavoured Markdown that `Markdown` renders,
+  takes attachments, and can switch to editing the Markdown itself. In the text, ⌘K adds a
+  link rather than opening the command palette.
 - **Toasts** sit bottom-right. A sticky bottom action bar needs
   `ref={keepToastsAbove}` and a panel docked to the right edge needs
   `keepToastsLeftOf`, both from `@iot-os/ui/components/sonner`.
@@ -73,7 +77,7 @@ line. Test and spec files are skipped.
 | --- | --- | --- |
 | Tokens | Surfaces (`background` canvas, `card` panel, `popover` raised, `sunken` inside a panel), elevation (`shadow-panel`, `shadow-raised`, `shadow-overlay`), type scale, layout widths (`max-w-reading`, `max-w-form`), motion durations, skins and palettes | [`src/styles/globals.css`](../../packages/ui/src/styles/globals.css) |
 | Primitives | shadcn/ui on Radix, style `radix-nova` | [`components.json`](../../packages/ui/components.json), `src/components` |
-| Product components | `Panel` (+ header, title, actions, content, footer), `DataTable`, `PropertyList`, `Freshness`, `RelativeTime`, `RowLink`, `RefLink`, `Status`, `DraftBar`, `InlineName`, `EmptyState`, `ErrorState`, `ErrorBoundary`, `RouteError`, `Pager`, `ViewsRail`, `PageTabs`, `PageHeader`, `CommandPalette`, `FilterBar`, form fields, `Stepper`, `ChoiceCard`, `PermissionMatrix`, `Markdown`, `Thinking`, workflow overview components | `src/components` |
+| Product components | `Panel` (+ header, title, actions, content, footer), `DataTable`, `PropertyList`, `Freshness`, `RelativeTime`, `RowLink`, `RefLink`, `Status`, `DraftBar`, `InlineName`, `EmptyState`, `ErrorState`, `ErrorBoundary`, `RouteError`, `Pager`, `ViewsRail`, `PageTabs`, `PageHeader`, `CommandPalette`, `FilterBar`, form fields, `Stepper`, `ChoiceCard`, `PermissionMatrix`, `Markdown`, `Thinking`, `Thread`, `TicketThread`, `Composer` (with `useMarkdownEditor` and `MarkdownToolbar`), workflow overview components | `src/components` |
 | Templates | `CollectionPage`, `EntityPage`, `InboxPage`, `WorkspacePage`, `SettingsPage`; `useUrlState` keeps search, filters, view and page in the URL | `src/templates`, `src/hooks` |
 
 `DataTable` (TanStack Table) gives pages, from column descriptions: saved views with

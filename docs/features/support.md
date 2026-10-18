@@ -20,9 +20,12 @@ portal [`src/support`](../../apps/portal/src/support); admin
 current organization, open first, with an unread mark and an unread count on the
 sidebar item. **New ticket** (also **Report a problem** and **Suggest an improvement**
 under Help and in ⌘K) asks for a type (Bug, Feature request, Improvement), a title
-(3–150 characters) and a Markdown description that starts from the type's template.
-Images and PDFs can be attached, dropped or pasted: PNG, JPEG, WebP or PDF by content,
-10 MB each, five per message and 50 per ticket.
+(3–150 characters) and a description, with guidance for the type in the empty field.
+Descriptions, replies and notes are written in a formatting editor (bold, italic,
+strikethrough, code, links, headings, lists, checklists, quotes and code blocks, from
+the toolbar or with Markdown shortcuts) and stored as Markdown; **Edit as Markdown**
+shows the Markdown itself. Images and PDFs can be attached, dropped or pasted: PNG,
+JPEG, WebP or PDF by content, 10 MB each, five per message and 50 per ticket.
 
 The form records the page you came from, the browser, the screen size and the time
 zone; **What else is included with your report?** shows them. The team sees them as
