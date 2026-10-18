@@ -228,6 +228,13 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## UI
 
+- **`cn()` must know every named type size.** Plain `tailwind-merge` reads
+  unknown `text-*` names as colours, so it used to turn
+  `cn("text-meta text-muted-foreground")` into `text-muted-foreground` and drop
+  `text-micro` from a `Badge`. The kit's `cn` now lists the scale in
+  `packages/ui/src/lib/utils.ts`; when you add a `--text-*` size to
+  `globals.css`, add its name there too. A named size also removes a `leading-*`
+  class that comes before it in the same `cn` call, as `text-sm` does.
 - **Toasts sit bottom-right and pause under the pointer.** A sticky bottom
   action bar needs `ref={keepToastsAbove}`, and a panel docked to the right edge
   needs `keepToastsLeftOf`, both from `@iot-os/ui/components/sonner`, or toasts
