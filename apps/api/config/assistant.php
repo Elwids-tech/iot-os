@@ -9,7 +9,10 @@ return [
     'queue_connection' => env('IOT_ASSISTANT_QUEUE_CONNECTION', 'assistant'),
     'daily_budget_usd' => (float) env('IOT_ASSISTANT_DAILY_BUDGET_USD', 0.50),
     'run_budget_usd' => (float) env('IOT_ASSISTANT_RUN_BUDGET_USD', 0.04),
+    // Tool results and execution evidence. A draft is resent on every provider step, so it gets a smaller
+    // share; its geofence geometry is sent by reference, so this bounds the graph rather than its boundaries.
     'max_context_characters' => 60000,
+    'max_draft_characters' => 30000,
     'max_file_kib' => 10240,
     'max_message_files' => 5,
     'max_message_bytes' => 26214400,

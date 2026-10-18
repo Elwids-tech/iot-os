@@ -18,7 +18,7 @@
     "draft"
   ],
   "required_capabilities": [],
-  "revision": 1,
+  "revision": 2,
   "summary": "**Help** explains documented system behavior. The profile and workflow assistants prepare reviewed authoring suggestions when their capabilities are available.",
   "questions": [
     "Can Help change my device?",
@@ -44,6 +44,8 @@ Help answers use approved guides and page context. Authoring suggestions require
 
 ## Troubleshooting
 Help cannot inspect live device data or your unsaved form. If documentation is insufficient it should say so. When AI is unavailable, continue with the guides. Profile publication and workflow activation remain explicit workflows.
+
+If a device was reconfigured after an automation was saved, the automation assistant updates its bindings in the proposal; review them before using the draft. If a device was deleted, rebind or remove it in the editor before asking. Each new automation starts its own conversation.
 
 ## Related guides
 [Read the related guide](/help/getting-started)

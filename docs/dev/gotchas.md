@@ -230,3 +230,9 @@ Things that have cost time before. Add to this list when something surprises you
   value and the item list in the same render (for example switching provider and
   model together) leaves the trigger showing the placeholder. Give the `Select` a
   `key` tied to the option list so it remounts.
+- **`fetchQuery` can return data that predates your write.** The portal's
+  `QueryClient` sets a 15 s default `staleTime`, so `queryClient.fetchQuery()`
+  after a mutation returns any copy fetched in the last 15 s, and joins a fetch
+  already in flight, without refetching. A chat that polls only while a run is
+  active then never shows the new run. Call `invalidateQueries` for that key
+  first, or pass `staleTime: 0`.
