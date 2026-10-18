@@ -19,10 +19,32 @@ import {
 } from "lucide-react";
 import type { Workflow, WorkflowNode } from "./types";
 
-/** Layout is presentation only: no node, edge, or executable configuration changes. */
-export function arrangeNodes(workflow: Workflow) {
+/** Rendered node size at zoom 1; arranged layouts space nodes by it. */
+export type NodeSize = { width: number; height: number };
+/** A one-port-per-side card; multi-port nodes add a labelled row per port. */
+export const NODE_SIZE: NodeSize = { width: 224, height: 52 };
+const PORT_ROW = 20;
+const COLUMN_GAP = 72;
+// Leaves room for a simulation outcome chip, which adds 20px to a card.
+const ROW_GAP = 32;
+/** Size before React Flow measures a node, from its port rows. */
+export function estimatedSize(inputs: number, outputs: number): NodeSize {
+  const rows = Math.max(inputs > 1 ? inputs : 0, outputs > 1 ? outputs : 0);
+  return { ...NODE_SIZE, height: NODE_SIZE.height + (rows ? rows * PORT_ROW + 1 : 0) };
+}
+
+/**
+ * Layout is presentation only: no node, edge, or executable configuration changes.
+ * Columns follow the graph depth. The first column stacks; later nodes line up with
+ * the average centre of their inputs, pushed apart where cards would overlap.
+ */
+export function arrangeNodes(
+  workflow: Workflow,
+  sizeOf: (id: string) => NodeSize = () => NODE_SIZE,
+) {
   const pending = new Map(workflow.nodes.map((node) => [node.id, 0]));
   const children = new Map<string, string[]>();
+  const parents = new Map<string, string[]>();
   const depths = new Map<string, number>();
   for (const edge of workflow.edges) {
     if (!pending.has(edge.source) || !pending.has(edge.target)) continue;
@@ -31,6 +53,7 @@ export function arrangeNodes(workflow: Workflow) {
       ...(children.get(edge.source) ?? []),
       edge.target,
     ]);
+    parents.set(edge.target, [...(parents.get(edge.target) ?? []), edge.source]);
   }
   const ready = workflow.nodes
     .filter((node) => pending.get(node.id) === 0)
@@ -51,71 +74,252 @@ export function arrangeNodes(workflow: Workflow) {
     const depth = pending.get(node.id) === 0 ? (depths.get(node.id) ?? 0) : 0;
     layers.set(depth, [...(layers.get(depth) ?? []), node.id]);
   }
-  const rows = Math.max(
-    1,
-    ...Array.from(layers.values(), (layer) => layer.length),
-  );
-  return Object.fromEntries(
-    Array.from(layers).flatMap(([depth, ids]) =>
-      ids.map((id, index) => [
-        id,
-        { x: depth * 304, y: ((rows - ids.length) / 2 + index) * 208 },
-      ]),
-    ),
-  );
+  const columns = Array.from(layers).sort(([a], [b]) => a - b);
+  const centres = new Map<string, number>();
+  const positions: Record<string, { x: number; y: number }> = {};
+  let x = 0;
+  for (const [, ids] of columns) {
+    const cards = ids.map((id) => {
+      const inputs = (parents.get(id) ?? []).filter((p) => centres.has(p));
+      const target = inputs.length
+        ? inputs.reduce((sum, p) => sum + centres.get(p)!, 0) / inputs.length
+        : undefined;
+      return { id, height: sizeOf(id).height, target };
+    });
+    // Sorting by target keeps edges from crossing; cards without inputs keep their order at the end.
+    cards.sort((a, b) => (a.target ?? Infinity) - (b.target ?? Infinity));
+    let bottom: number | undefined;
+    const tops = cards.map((card) => {
+      const floor = bottom === undefined ? -Infinity : bottom + ROW_GAP;
+      const top =
+        card.target === undefined
+          ? Math.max(floor, 0)
+          : Math.max(card.target - card.height / 2, floor);
+      bottom = top + card.height;
+      return top;
+    });
+    // Re-centre a column that overlaps pushed down: on its targets, or on 0 for the first column.
+    const aligned = cards.flatMap((card, i) =>
+      card.target === undefined ? [] : [tops[i] + card.height / 2 - card.target],
+    );
+    const shift = aligned.length
+      ? aligned.reduce((sum, d) => sum + d, 0) / aligned.length
+      : (tops[0] + bottom!) / 2;
+    cards.forEach((card, i) => {
+      positions[card.id] = { x, y: tops[i] - shift };
+      centres.set(card.id, tops[i] - shift + card.height / 2);
+    });
+    x += Math.max(...ids.map((id) => sizeOf(id).width)) + COLUMN_GAP;
+  }
+  const top = Math.min(0, ...Object.values(positions).map((p) => p.y));
+  for (const position of Object.values(positions)) position.y -= top;
+  return positions;
 }
 
-export function nodeSummary(node: WorkflowNode): string {
+/** Display names for the devices and parameters that bindings point at, keyed by UUID. */
+export type ResourceNames = Record<string, string>;
+type Context = { workflow?: Workflow; names?: ResourceNames };
+type Reading = { name?: string; unit?: string };
+
+const operators: Record<string, string> = {
+  gt: ">",
+  gte: "≥",
+  lt: "<",
+  lte: "≤",
+  eq: "=",
+  add: "+",
+  subtract: "−",
+  multiply: "×",
+  divide: "÷",
+};
+const aggregates: Record<string, string> = {
+  count: "Count",
+  sum: "Sum",
+  min: "Minimum",
+  max: "Maximum",
+  average: "Average",
+};
+const units: Record<string, string> = { C: "°C", F: "°F" };
+const unitLabel = (unit: unknown) => units[String(unit)] ?? String(unit ?? "");
+const shown = (value: unknown) =>
+  value === "" || value == null ? "?" : String(value);
+const withUnit = (value: unknown, unit?: string) =>
+  unit && value !== "" && value != null ? `${value} ${unit}` : shown(value);
+/** Lower-case a label inside a sentence, leaving acronyms such as "LED mode" alone. */
+const inline = (label: string) =>
+  /^[A-Z][a-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
+/** 90 → "1 min 30 s"; blank or invalid → undefined. */
+export function duration(value: unknown): string | undefined {
+  const total = Number(value);
+  if (value === "" || value == null || !Number.isFinite(total) || total < 0)
+    return undefined;
+  const parts = [
+    [Math.floor(total / 3600), "h"],
+    [Math.floor((total % 3600) / 60), "min"],
+    [total % 60, "s"],
+  ].filter(([amount]) => amount);
+  return parts.map(([amount, unit]) => `${amount} ${unit}`).join(" ") || "0 s";
+}
+/** Generated roles (`node_…`, `cmd_…`) say nothing to a reader. */
+const roleName = (role: unknown) =>
+  typeof role === "string" && role && !/^(node|cmd)_/.test(role)
+    ? role.replaceAll("_", " ")
+    : undefined;
+const bindingFor = (ctx: Context, role: unknown) =>
+  ctx.workflow?.bindings.find((b) => b.role === role);
+/** Vertices of a single-ring polygon, without the closing point. */
+function vertices(geometry: unknown): number | undefined {
+  const ring = (geometry as { coordinates?: unknown[][] } | null)?.coordinates?.[0];
+  return Array.isArray(ring) && ring.length > 1 ? ring.length - 1 : undefined;
+}
+/** Command settings keyed by binding role; legacy nodes keep one binding and value. */
+function settingsOf(node: WorkflowNode): [string, unknown][] {
+  const { settings, binding, value } = node.config;
+  if (settings && typeof settings === "object" && !Array.isArray(settings))
+    return Object.entries(settings);
+  return typeof binding === "string" && binding ? [[binding, value]] : [];
+}
+
+/** What arrives on a node's input port: the upstream reading's name and unit. */
+function input(ctx: Context, nodeId: string, port: string, depth = 0): Reading {
+  const edge = ctx.workflow?.edges.find(
+    (e) => e.target === nodeId && e.target_port === port,
+  );
+  const source = edge && ctx.workflow?.nodes.find((n) => n.id === edge.source);
+  return source && depth < 12 ? reading(ctx, source, edge.source_port, depth + 1) : {};
+}
+function reading(ctx: Context, node: WorkflowNode, port: string, depth: number): Reading {
+  const named = nodeName(node);
   const c = node.config;
-  const operators: Record<string, string> = {
-    gt: ">",
-    gte: "≥",
-    lt: "<",
-    lte: "≤",
-    eq: "=",
-    add: "+",
-    subtract: "−",
-    multiply: "×",
-    divide: "÷",
-  };
   switch (node.type) {
-    case "source.parameter.v1":
-      return c.binding
-        ? `${c.binding} · live reading`
-        : "Choose a device parameter";
-    case "window.v1":
-      return `${c.duration_seconds}s · ${c.aggregate} · ${c.minimum_samples} sample(s)`;
-    case "compare.v1":
-      return `Value ${operators[String(c.operator)] ?? c.operator} ${c.value}`;
-    case "boolean.v1":
-      return String(c.operator).toUpperCase() + " condition";
-    case "join.v1":
-      return c.mode === "window"
-        ? "Match finalized windows"
-        : "Match fresh readings";
-    case "action.command.v1":
-      return c.settings && typeof c.settings === "object"
-        ? `${Object.keys(c.settings).length} selected setting(s)`
-        : `${c.binding || "Target"} → ${String(c.value ?? "Set value")}`;
-    case "action.alert.v1":
-      return String(c.title || "Create or clear alert");
-    case "action.event.v1":
-      return String(c.name || "Publish integration event");
-    case "convert.v1":
-      return `${c.from} → ${c.to}`;
+    case "source.parameter.v1": {
+      const b = bindingFor(ctx, c.binding);
+      const parameter = b && ctx.names?.[b.parameter_uuid];
+      return { name: parameter ?? named ?? roleName(c.binding), unit: b?.unit || undefined };
+    }
     case "constant.v1":
-      return String(c.value);
-    case "cooldown.v1":
-    case "sustained.v1":
-      return `${c.seconds} seconds`;
+      return { name: named ?? shown(c.value) };
+    case "join.v1":
+      return input(ctx, node.id, port, depth);
+    case "window.v1": {
+      const r = input(ctx, node.id, "in", depth);
+      return { name: named ?? r.name, unit: c.aggregate === "count" ? undefined : r.unit };
+    }
+    case "convert.v1":
+      return { name: named ?? input(ctx, node.id, "in", depth).name, unit: unitLabel(c.to) };
+    case "compare.v1":
+      return { name: named ?? summary(ctx, node, depth) };
+    case "hysteresis.v1": {
+      // As a condition it reads as its activation threshold.
+      const r = input(ctx, node.id, "in", depth);
+      return { name: named ?? `${r.name ?? "Value"} > ${withUnit(c.activate_above, r.unit)}` };
+    }
+    default:
+      return { name: named ?? nodeAppearance(node.type).label };
+  }
+}
+
+/**
+ * One line for the node card that shows what the node is configured to do.
+ * `workflow` lets a node name its upstream reading and unit; `names` (from the
+ * host) turns binding UUIDs into device and parameter names.
+ */
+export function nodeSummary(
+  node: WorkflowNode,
+  workflow?: Workflow,
+  names?: ResourceNames,
+): string {
+  return summary({ workflow, names }, node, 0);
+}
+function summary(ctx: Context, node: WorkflowNode, depth: number): string {
+  const c = node.config;
+  const operator = operators[String(c.operator)] ?? shown(c.operator);
+  const from = (port: string, fallback: string) =>
+    input(ctx, node.id, port, depth).name ?? fallback;
+  switch (node.type) {
+    case "source.parameter.v1": {
+      const b = bindingFor(ctx, c.binding);
+      if (!b) return c.binding ? String(c.binding) : "Choose a device parameter";
+      const device = ctx.names?.[b.device_uuid];
+      const parameter = ctx.names?.[b.parameter_uuid] ?? roleName(b.role);
+      // A node named after its parameter already says which one it reads.
+      const title = nodeName(node)?.toLowerCase();
+      const fresh = duration(b.fresh_seconds);
+      return [
+        device,
+        parameter?.toLowerCase() !== title && parameter,
+        !device && b.unit,
+        fresh && `fresh ${fresh}`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    }
+    case "constant.v1":
+      return shown(c.value);
+    case "compare.v1": {
+      const r = input(ctx, node.id, "in", depth);
+      return `${r.name ?? "Value"} ${operator} ${withUnit(c.value, r.unit)}`;
+    }
+    case "hysteresis.v1": {
+      const { unit } = input(ctx, node.id, "in", depth);
+      return `On > ${withUnit(c.activate_above, unit)} · off < ${withUnit(c.clear_below, unit)}`;
+    }
     case "math.v1":
-      return `A ${operators[String(c.operator)] ?? c.operator} B`;
-    case "hysteresis.v1":
-      return `Above ${c.activate_above} / below ${c.clear_below}`;
-    case "branch.v1":
-      return "Route true or false";
-    case "geofence.v1":
-      return `True when ${c.condition === "inside" ? "inside" : "outside"} the boundary`;
+      return `${from("a", "A")} ${operator} ${from("b", "B")}`;
+    case "boolean.v1":
+      return `${from("a", "A")} ${String(c.operator).toUpperCase()} ${from("b", "B")}`;
+    case "convert.v1":
+      return `${unitLabel(c.from) || "?"} → ${unitLabel(c.to) || "?"}`;
+    case "window.v1": {
+      const samples = Number(c.minimum_samples);
+      return [
+        `${aggregates[String(c.aggregate)] ?? shown(c.aggregate)} over ${duration(c.duration_seconds) ?? "?"}`,
+        samples > 1 && `≥ ${samples} samples`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    }
+    case "join.v1":
+      return `${from("a", "A")} + ${from("b", "B")} · ${c.mode === "window" ? "windows" : "latest"}`;
+    case "branch.v1": {
+      const condition = input(ctx, node.id, "in", depth).name;
+      return condition ? `If ${inline(condition)}` : "Route true or false";
+    }
+    case "sustained.v1":
+      return `True for ${duration(c.seconds) ?? "?"}`;
+    case "cooldown.v1":
+      return `At most once per ${duration(c.seconds) ?? "?"}`;
+    case "geofence.v1": {
+      const points = vertices(c.geometry);
+      const uncertainty = Number(c.uncertainty_metres);
+      return [
+        c.condition === "inside" ? "Inside" : "Outside",
+        points ? `${points} points` : "No boundary",
+        uncertainty > 0 && `±${uncertainty} m`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    }
+    case "action.alert.v1":
+      return String(c.title || "No alert title");
+    case "action.event.v1":
+      return String(c.name || "No event name");
+    case "action.command.v1": {
+      const settings = settingsOf(node);
+      if (!settings.length) return "Choose device settings";
+      const bindings = settings.map(([role]) => bindingFor(ctx, role));
+      const device = bindings[0] && ctx.names?.[bindings[0].device_uuid];
+      const values = settings.map(([, value], i) => {
+        const b = bindings[i];
+        const label = b && ctx.names?.[b.parameter_uuid];
+        const text =
+          typeof value === "boolean" ? (value ? "on" : "off") : withUnit(value, b?.unit || undefined);
+        return label ? `${inline(label)} ${text}` : text;
+      });
+      return [device ?? (settings.length > 1 && `${settings.length} settings`), values.join(", ")]
+        .filter(Boolean)
+        .join(" · ");
+    }
     default:
       return nodeAppearance(node.type).description;
   }

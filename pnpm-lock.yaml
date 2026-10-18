@@ -173,6 +173,9 @@ importers:
       '@iot-os/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@iot-os/workflow-editor':
+        specifier: workspace:*
+        version: link:../../packages/workflow-editor
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@19.2.8)
@@ -443,6 +446,9 @@ importers:
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.4)(jiti@2.7.0)(lightningcss@1.33.0)(supports-color@10.2.2)
 
 packages:
 

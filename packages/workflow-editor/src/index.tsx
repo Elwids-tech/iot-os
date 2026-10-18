@@ -45,7 +45,6 @@ import {
   TextareaField,
 } from "@iot-os/ui/components/form-fields";
 import { Input } from "@iot-os/ui/components/input";
-import { Badge } from "@iot-os/ui/components/badge";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert";
 import {
@@ -67,6 +66,7 @@ import {
   PanelRightCloseIcon,
   PanelRightOpenIcon,
   ChevronRightIcon,
+  CircleAlertIcon,
   CloudOffIcon,
 } from "lucide-react";
 import {
@@ -76,11 +76,14 @@ import {
 } from "@iot-os/ui/components/tooltip";
 import {
   arrangeNodes,
+  estimatedSize,
   nodeSummary,
   nodeAppearance,
   nodeLabel,
   nodeName,
   paletteCategories,
+  NODE_SIZE,
+  type ResourceNames,
 } from "./presentation";
 import type {
   Workflow,
@@ -93,13 +96,15 @@ import type {
 import "@xyflow/react/dist/style.css";
 import "./workflow-editor.css";
 export type * from "./types";
-export { nodeLabel, nodeName } from "./presentation";
+export { nodeLabel, nodeName, nodeSummary } from "./presentation";
+export type { ResourceNames } from "./presentation";
 
 type NodeData = {
   label: string;
   category: string;
   node: WorkflowNode;
   definition: NodeType;
+  summary: string;
   errors: string[];
   outcome?: NodeOutcome;
   [key: string]: unknown;
@@ -112,80 +117,106 @@ const fieldLabel = (key: string) => {
 // Outcomes that pass usable evidence downstream; their outgoing edges animate.
 const flowing = new Set(["matched", "triggered", "evaluated"]);
 
+/** A side with one port gets an unlabelled handle on the card edge; several ports get labelled rows. */
 const GraphNode = memo(function GraphNode({
   data,
   selected,
 }: NodeProps<Node<NodeData>>) {
   const inputs = Object.keys(data.definition.inputs ?? {});
   const outputs = Object.keys(data.definition.outputs ?? {});
+  const rowInputs = inputs.length > 1 ? inputs : [];
+  const rowOutputs = outputs.length > 1 ? outputs : [];
   const { Icon, tone } = nodeAppearance(data.node.type);
   const name = nodeName(data.node);
+  const issues = data.errors.length;
   return (
     <article
       className="workflow-node"
       style={{ "--node-accent": `var(--${tone})` } as CSSProperties}
       data-selected={selected}
-      data-invalid={data.errors.length > 0}
+      data-invalid={issues > 0}
       data-outcome={data.outcome?.status}
     >
       <div className="workflow-node-heading">
-        <span className="workflow-node-icon">
-          <Icon aria-hidden="true" size={18} />
-        </span>
-        <div className="min-w-0">
-          <p className="workflow-node-kind">{name ? data.label : data.category}</p>
-          <p className="workflow-node-title">{name ?? data.label}</p>
-        </div>
+        <Icon className="workflow-node-icon" aria-hidden="true" />
+        <p className="workflow-node-title text-heading" title={name ? `${name} · ${data.label}` : data.label}>
+          {name ?? data.label}
+          {name && <span className="sr-only"> ({data.label})</span>}
+        </p>
+        {issues > 0 && (
+          <span
+            className="workflow-node-issues text-micro"
+            role="img"
+            aria-label={`${issues} issue${issues === 1 ? "" : "s"}`}
+            title={data.errors.join("\n")}
+          >
+            <CircleAlertIcon aria-hidden="true" />
+            {issues}
+          </span>
+        )}
       </div>
-      <p className="workflow-node-summary" title={nodeSummary(data.node)}>
-        {nodeSummary(data.node)}
+      <p className="workflow-node-summary text-meta" title={data.summary}>
+        {data.summary}
       </p>
       {data.outcome && (
-        <p className="workflow-node-outcome" title={data.outcome.reason}>
+        <p className="workflow-node-outcome text-meta" title={data.outcome.reason}>
           <span aria-hidden="true" />
           <strong>{data.outcome.label}</strong>
           {data.outcome.reason && <span className="sr-only"> · {data.outcome.reason}</span>}
         </p>
       )}
-      <div className="workflow-node-ports">
-        {Array.from(
-          { length: Math.max(inputs.length, outputs.length) },
-          (_, i) => (
-            <div className="workflow-port-row" key={i}>
-              <span>
-                {inputs[i] && (
-                  <>
-                    <Handle
-                      type="target"
-                      id={inputs[i]}
-                      position={Position.Left}
-                      aria-label={`Input ${inputs[i]}`}
-                    />
-                    {inputs[i]}
-                  </>
-                )}
-              </span>
-              <span>
-                {outputs[i] && (
-                  <>
-                    {outputs[i]}
-                    <Handle
-                      type="source"
-                      id={outputs[i]}
-                      position={Position.Right}
-                      aria-label={`Output ${outputs[i]}`}
-                    />
-                  </>
-                )}
-              </span>
-            </div>
-          ),
-        )}
-      </div>
-      {data.errors.length > 0 && (
-        <div className="px-3 pb-3">
-          <Badge variant="destructive">{data.errors.length} issue(s)</Badge>
+      {(rowInputs.length > 0 || rowOutputs.length > 0) && (
+        <div className="workflow-node-ports text-micro">
+          {Array.from(
+            { length: Math.max(rowInputs.length, rowOutputs.length) },
+            (_, i) => (
+              <div className="workflow-port-row" key={i}>
+                <span>
+                  {rowInputs[i] && (
+                    <>
+                      <Handle
+                        type="target"
+                        id={rowInputs[i]}
+                        position={Position.Left}
+                        aria-label={`Input ${rowInputs[i]}`}
+                      />
+                      {rowInputs[i]}
+                    </>
+                  )}
+                </span>
+                <span>
+                  {rowOutputs[i] && (
+                    <>
+                      {rowOutputs[i]}
+                      <Handle
+                        type="source"
+                        id={rowOutputs[i]}
+                        position={Position.Right}
+                        aria-label={`Output ${rowOutputs[i]}`}
+                      />
+                    </>
+                  )}
+                </span>
+              </div>
+            ),
+          )}
         </div>
+      )}
+      {inputs.length === 1 && (
+        <Handle
+          type="target"
+          id={inputs[0]}
+          position={Position.Left}
+          aria-label={`Input ${inputs[0]}`}
+        />
+      )}
+      {outputs.length === 1 && (
+        <Handle
+          type="source"
+          id={outputs[0]}
+          position={Position.Right}
+          aria-label={`Output ${outputs[0]}`}
+        />
       )}
     </article>
   );
@@ -258,6 +289,7 @@ export function WorkflowEditor({
   catalog,
   panel,
   outcomes,
+  resourceNames,
   onSelectionChange,
   palette = true,
 }: {
@@ -278,6 +310,8 @@ export function WorkflowEditor({
   panel?: { label: string; description?: ReactNode; content: ReactNode };
   /** Per-node results to highlight on the canvas, keyed by node ID. */
   outcomes?: Record<string, NodeOutcome>;
+  /** Device and parameter names by UUID, so node summaries can name what bindings point at. */
+  resourceNames?: ResourceNames;
   onSelectionChange?: (nodeId: string) => void;
   /** Show the node palette; hosts may hide it in read-mostly modes such as simulation. */
   palette?: boolean;
@@ -372,10 +406,26 @@ export function WorkflowEditor({
     setSelected(id);
     onSelectionChange?.(id);
   };
-  const defaultPositions = useMemo(
-    () => arrangeNodes(workflow),
-    [workflow.nodes, workflow.edges],
+  const lookup = useMemo(
+    () => new Map(registry.map((r) => [r.type, r])),
+    [registry],
   );
+  // Before React Flow measures the cards, size them from their port rows.
+  const defaultPositions = useMemo(() => {
+    const sizes = new Map(
+      workflow.nodes.map((n) => {
+        const definition = lookup.get(n.type) ?? edgeDefinition(n, workflow);
+        return [
+          n.id,
+          estimatedSize(
+            Object.keys(definition.inputs ?? {}).length,
+            Object.keys(definition.outputs ?? {}).length,
+          ),
+        ];
+      }),
+    );
+    return arrangeNodes(workflow, (id) => sizes.get(id) ?? NODE_SIZE);
+  }, [workflow.nodes, workflow.edges, lookup]);
   const fit = () => {
     userViewport.current = false;
     fitCanvas(200);
@@ -385,7 +435,16 @@ export function WorkflowEditor({
     change();
   };
   const arrange = () => {
-    onLayoutChange({ ...layout, positions: defaultPositions });
+    const measured = (id: string) => flow?.getInternalNode(id)?.measured;
+    onLayoutChange({
+      ...layout,
+      positions: arrangeNodes(workflow, (id) => {
+        const size = measured(id);
+        return size?.width && size.height
+          ? { width: size.width, height: size.height }
+          : NODE_SIZE;
+      }),
+    });
     requestAnimationFrame(() => requestAnimationFrame(fit));
   };
   const [source, setSource] = useState("");
@@ -401,10 +460,6 @@ export function WorkflowEditor({
     const query = (searches[picker] ?? "").toLowerCase();
     return choices.filter((c) => c.label.toLowerCase().includes(query));
   };
-  const lookup = useMemo(
-    () => new Map(registry.map((r) => [r.type, r])),
-    [registry],
-  );
   const labelOf = (n: WorkflowNode) => nodeLabel(n.type, lookup.get(n.type)?.label);
   const nodes = useMemo(
     () =>
@@ -417,6 +472,7 @@ export function WorkflowEditor({
           category: nodeAppearance(node.type).category,
           node,
           definition: lookup.get(node.type) ?? edgeDefinition(node, workflow),
+          summary: nodeSummary(node, workflow, resourceNames),
           errors: diagnostics
             .filter((d) => d.node_id === node.id)
             .map((d) => d.message),
@@ -427,11 +483,13 @@ export function WorkflowEditor({
     [
       workflow.nodes,
       workflow.edges,
+      workflow.bindings,
       layout.positions,
       defaultPositions,
       lookup,
       diagnostics,
       outcomes,
+      resourceNames,
       selected,
     ],
   );
@@ -572,13 +630,16 @@ export function WorkflowEditor({
               x: bounds.left + bounds.width / 2,
               y: bounds.top + bounds.height / 2,
             }
-          : { x: 116, y: 64 });
+          : { x: NODE_SIZE.width / 2, y: NODE_SIZE.height / 2 });
       const center = flow?.screenToFlowPosition(point) ?? point;
       onLayoutChange({
         ...layout,
         positions: {
           ...positions,
-          [id]: { x: center.x - 116, y: center.y - 64 },
+          [id]: {
+            x: center.x - NODE_SIZE.width / 2,
+            y: center.y - NODE_SIZE.height / 2,
+          },
         },
       });
     };

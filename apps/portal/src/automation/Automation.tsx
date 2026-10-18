@@ -63,6 +63,7 @@ import { useUnsavedContribution } from "../lib/unsaved";
 import { RequestError } from "../components/forms";
 import { GeofenceConfig } from "./GeofenceConfig";
 import { DeviceStateConfig, DeviceStateReview } from "./DeviceStateConfig";
+import { useResourceNames } from "./resource-names";
 import { commandGrants } from "./device-state";
 import { activationUnavailableReason } from "./activation";
 import { WorkflowAssistant } from "./WorkflowAssistant";
@@ -191,6 +192,7 @@ function Editor({ org, id }: { org: string; id: string }) {
   const reactivating = live?.deployment_status === "inactive" && live.deployment_generation > 0;
   useUnsavedContribution(dirty || layoutDirty);
   const samples = useMemo(() => ({ ...defaultSamples(graph), ...sampleValues }), [graph, sampleValues]);
+  const names = useResourceNames(org, graph);
   const outcomes = useMemo(
     () => (tab === "simulation" && simulation ? nodeOutcomes(simulation, simulationStep) : undefined),
     [tab, simulation, simulationStep],
@@ -555,6 +557,7 @@ function Editor({ org, id }: { org: string; id: string }) {
               onLayoutChange={setLayout}
               onSelectionChange={setSelectedNode}
               outcomes={outcomes}
+              resourceNames={names}
               palette={tab !== "simulation"}
               panel={
                 tab === "simulation"
