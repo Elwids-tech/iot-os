@@ -45,8 +45,9 @@ export function browserContext(path: string) {
   }
 }
 
-export const ticketTemplates: Record<TicketType, string> = {
-  bug: "**What happened**\n\n\n**What you expected**\n\n\n**Steps to reproduce**\n1. \n",
-  feature_request: "**The problem**\n\n\n**What would help**\n\n",
-  improvement: "**What could be better**\n\n\n**What would help**\n\n",
+/** What each type of ticket should say, shown in the empty description. */
+export const ticketGuidance: Record<TicketType, string> = {
+  bug: "What happened, what you expected instead, and the steps to make it happen again.",
+  feature_request: "The problem you want solved, and what would help.",
+  improvement: "What could be better, and how it would help you.",
 }

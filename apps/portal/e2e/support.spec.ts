@@ -143,11 +143,23 @@ test("files a bug with a screenshot and lands on the new ticket", async ({ page 
 
   await expect(page.getByRole("heading", { name: "New ticket" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Bug" })).toBeChecked()
-  await expect(page.getByRole("textbox", { name: "Description" })).toHaveValue(/What happened/)
+  const description = page.getByRole("textbox", { name: "Description" })
+  await expect(page.locator('[data-slot="composer"] p[data-placeholder]')).toHaveAttribute("data-placeholder", /What happened/)
   await page.getByRole("button", { name: "What else is included with your report?" }).click()
   await expect(page.getByText("/organizations/x/devices")).toBeVisible()
 
   await page.getByRole("textbox", { name: "Title" }).fill("Pump meter shows no readings")
+  // Formatting from the toolbar and from Markdown shortcuts is sent as Markdown.
+  await description.click()
+  await page.keyboard.type("The ")
+  await page.getByRole("button", { name: "Bold" }).click()
+  await page.keyboard.type("pump meter")
+  await page.getByRole("button", { name: "Bold" }).click()
+  await page.keyboard.type(" is empty.")
+  await page.keyboard.press("Enter")
+  await page.keyboard.type("- Open Devices")
+  await expect(description.locator("strong")).toHaveText("pump meter")
+  await expect(description.locator("ul li")).toHaveText("Open Devices")
   await page.locator('[data-slot="composer"] input[type="file"]').setInputFiles([
     { name: "pump.png", mimeType: "image/png", buffer: png },
     { name: "notes.zip", mimeType: "application/zip", buffer: Buffer.from("zip") },
@@ -163,6 +175,8 @@ test("files a bug with a screenshot and lands on the new ticket", async ({ page 
   expect(field(request, "title")).toBe("Pump meter shows no readings")
   expect(field(request, "context[path]")).toBe("/organizations/x/devices")
   expect(field(request, "client_id")).toMatch(/^[0-9a-f-]{36}$/)
+  // Multipart form fields carry CRLF line breaks.
+  expect(new RegExp('name="body"\\r\\n\\r\\n([\\s\\S]*?)\\r\\n--').exec(request.postData() ?? "")?.[1]?.replaceAll("\r\n", "\n")).toBe("The **pump meter** is empty.\n\n- Open Devices")
   expect(request.postData()).toContain('filename="pump.png"')
   expect(request.postData()).not.toContain("notes.zip")
 
@@ -206,6 +220,32 @@ test("shows unread replies, reads them, answers and tags a colleague", async ({ 
   await page.getByRole("option", { name: /Kasun Silva/ }).click()
   await expect(page.getByText("Tagged · kasun@example.test")).toBeVisible()
   await expect(page.getByText(/added\s+Kasun Silva/)).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("a link added from the toolbar stays in the draft until the reply is sent", async ({ page }) => {
+  const { errors } = await setup(page, { tickets: [ticket()] })
+  const sent: Request[] = []
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().endsWith("/messages")) sent.push(request)
+  })
+  await page.goto(`/organizations/${org}/support/${ticket().uuid}`)
+  const reply = page.getByRole("textbox", { name: "Reply" })
+  await reply.click()
+  await page.keyboard.type("docs")
+  await page.keyboard.press("ControlOrMeta+a")
+  await page.keyboard.press("ControlOrMeta+k")
+  await page.getByRole("textbox", { name: "Link address" }).fill("example.com/help")
+  await page.keyboard.press("Enter")
+
+  // Enter in the link box applies the link; it must not send the reply.
+  await expect(reply.getByRole("link", { name: "docs" })).toHaveAttribute("href", "https://example.com/help")
+  await expect(reply).toBeFocused()
+  expect(sent).toHaveLength(0)
+
+  await page.getByRole("button", { name: "Reply", exact: true }).click()
+  await expect.poll(() => sent.length).toBe(1)
+  expect(new RegExp('name="body"\\r\\n\\r\\n([\\s\\S]*?)\\r\\n--').exec(sent[0].postData() ?? "")?.[1]).toBe("[docs](https://example.com/help)")
   expect(errors).toEqual([])
 })
 

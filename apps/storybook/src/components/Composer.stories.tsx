@@ -10,9 +10,9 @@ const png = new File([new Uint8Array([137, 80, 78, 71])], "devices-page.png", { 
 const zip = new File([new Uint8Array(12)], "logs.zip", { type: "application/zip" })
 
 /**
- * A reply box: Markdown text plus images and PDFs that you attach, drop or paste.
- * Enter starts a new line and Ctrl or ⌘ Enter sends. A file that cannot be sent says
- * why and blocks sending until it is removed.
+ * A reply box that formats as you write and sends Markdown, plus images and PDFs that
+ * you attach, drop or paste. Enter starts a new line and Ctrl or ⌘ Enter sends. A file
+ * that cannot be sent says why and blocks sending until it is removed.
  */
 export const Reply: StoryObj = {
   render: function Reply() {
@@ -64,6 +64,27 @@ export const WithControls: StoryObj = {
             </ToggleGroup>
           }
         />
+      </div>
+    )
+  },
+}
+
+
+/**
+ * Formatting from the toolbar or with Markdown shortcuts (`**bold**`, `- ` for a list,
+ * `[ ] ` for a checklist). The last button switches to the Markdown itself, which is
+ * what is sent and what `Markdown` renders.
+ */
+export const Formatting: StoryObj = {
+  render: function Formatting() {
+    const [value, setValue] = useState(
+      "**What happened**\n\nThe pump meter shows ~~some~~ no readings since `firmware 2.1`.\n\n1. Open **Devices**\n2. Pick the pump meter\n\n- [x] Restarted the gateway\n- [ ] Replaced the cable\n\n> Started after the [maintenance window](https://example.com/notes).",
+    )
+    const [files, setFiles] = useState<ComposerFile[]>([])
+    return (
+      <div className="flex max-w-2xl flex-col gap-3">
+        <Composer label="Reply" value={value} onValueChange={setValue} files={files} onFilesChange={setFiles} onSubmit={() => setValue("")} />
+        <pre className="overflow-x-auto rounded-md border bg-sunken p-3 font-mono text-code whitespace-pre-wrap">{value}</pre>
       </div>
     )
   },

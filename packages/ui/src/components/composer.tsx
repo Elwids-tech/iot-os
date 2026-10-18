@@ -13,6 +13,7 @@ import {
 } from "@iot-os/ui/components/attachment"
 import { Button } from "@iot-os/ui/components/button"
 import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@iot-os/ui/components/input-group"
+import { MarkdownEditorContent, MarkdownToolbar, useMarkdownEditor } from "@iot-os/ui/components/markdown-editor"
 import { formatBytes } from "@iot-os/ui/components/thread"
 import { cn } from "@iot-os/ui/lib/utils"
 
@@ -62,10 +63,12 @@ export function prepareFiles(
 }
 
 /**
- * A Markdown message box with file attachments: attach, drop or paste images and
- * PDFs. Enter starts a new line; Ctrl or ⌘ Enter sends. `controls` sit next to the
- * send button (for example a "reply or note" switch). Inside a larger form, pass
- * `field` to leave out the form element and the send button.
+ * A message box that formats as you write and sends Markdown, with file attachments:
+ * attach, drop or paste images and PDFs. The toolbar formats text (Markdown shortcuts
+ * such as `**bold**` or `- ` work too) and can switch to editing the Markdown itself.
+ * Enter starts a new line; Ctrl or ⌘ Enter sends. `controls` sit next to the send
+ * button (for example a "reply or note" switch). Inside a larger form, pass `field`
+ * to leave out the form element and the send button.
  */
 function Composer({
   value,
@@ -80,7 +83,7 @@ function Composer({
   label,
   placeholder,
   submitLabel = "Send",
-  hint = "Markdown supported",
+  hint,
   controls,
   accept = ["image/png", "image/jpeg", "image/webp", "application/pdf"],
   maxFiles = 5,
@@ -125,6 +128,21 @@ function Composer({
   const empty = !value.trim() && files.length === 0
   const canSubmit = !pending && !disabled && !blocked && !empty && !!onSubmit
   const Root = field ? "div" : "form"
+  const [source, setSource] = React.useState(false)
+  const editor = useMarkdownEditor({
+    value,
+    onValueChange,
+    label,
+    id,
+    placeholder,
+    disabled,
+    invalid,
+    maxLength,
+    onFiles: add,
+    onSubmitShortcut: () => {
+      if (canSubmit) onSubmit?.()
+    },
+  })
 
   return (
     <Root
@@ -165,30 +183,46 @@ function Composer({
         }}
       />
       <InputGroup className={cn(dragging && "border-ring ring-3 ring-ring/50")}>
-        <InputGroupTextarea
-          id={id}
-          aria-label={label}
-          aria-invalid={invalid || undefined}
-          placeholder={placeholder}
-          value={value}
-          rows={4}
-          maxLength={maxLength}
+        <MarkdownToolbar
+          editor={editor}
+          source={source}
+          onSourceChange={(next) => {
+            setSource(next)
+            // Leaving the Markdown view shows its edits formatted.
+            if (!next && editor) editor.commands.setContent(value, { contentType: "markdown", emitUpdate: false })
+          }}
           disabled={disabled}
-          className="max-h-96"
-          onChange={(event) => onValueChange(event.target.value)}
-          onPaste={(event) => {
-            const pasted = [...event.clipboardData.files]
-            if (pasted.length === 0) return
-            event.preventDefault()
-            add(pasted)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) {
-              event.preventDefault()
-              if (canSubmit) onSubmit?.()
-            }
-          }}
+          className="order-first w-full border-b px-1.5 py-1"
         />
+        {source ? (
+          <InputGroupTextarea
+            id={id}
+            aria-label={`${label} (Markdown)`}
+            aria-invalid={invalid || undefined}
+            placeholder={placeholder}
+            value={value}
+            rows={4}
+            maxLength={maxLength}
+            disabled={disabled}
+            autoFocus
+            className="max-h-96 font-mono text-code"
+            onChange={(event) => onValueChange(event.target.value)}
+            onPaste={(event) => {
+              const pasted = [...event.clipboardData.files]
+              if (pasted.length === 0) return
+              event.preventDefault()
+              add(pasted)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) {
+                event.preventDefault()
+                if (canSubmit) onSubmit?.()
+              }
+            }}
+          />
+        ) : (
+          <MarkdownEditorContent editor={editor} />
+        )}
         {files.length > 0 && (
           <InputGroupAddon align="block-end" className="cursor-default">
             <AttachmentGroup className="w-full">
@@ -230,7 +264,7 @@ function Composer({
             <PaperclipIcon />
           </Button>
           <span className="mr-auto truncate text-meta text-muted-foreground">
-            {dragging ? "Drop to attach" : hint}
+            {dragging ? "Drop to attach" : (hint ?? (field ? null : "Ctrl+Enter to send"))}
           </span>
           {controls}
           {!field && (

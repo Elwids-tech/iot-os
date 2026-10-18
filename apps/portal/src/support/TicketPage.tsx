@@ -212,7 +212,6 @@ function Reply({ ticket, org, onSent }: { ticket: Ticket; org: string; onSent: (
         pending={busy}
         submitLabel={reopens ? "Reply and reopen" : "Reply"}
         invalid={Boolean(fieldError(error, "body"))}
-        hint="Markdown · Ctrl+Enter to send"
       />
       <RequestError error={error} />
     </div>
