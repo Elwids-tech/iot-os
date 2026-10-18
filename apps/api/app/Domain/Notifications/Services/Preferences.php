@@ -29,8 +29,17 @@ final class Preferences
             'revision' => $row?->revision ?? 0,
             'email_enabled' => $row ? (bool) $row->email_enabled : true,
             'grid' => $row ? json_decode($row->grid, true) : $grid,
+            // Support ticket emails (spec 015): on until the person switches them off.
+            'ticket_email' => $row ? (bool) $row->ticket_email : true,
             'operations_access' => (bool) $user->is_super_admin,
         ];
+    }
+
+    public static function ticketEmail(User $user): bool
+    {
+        $prefs = self::view($user);
+
+        return $prefs['email_enabled'] && $prefs['ticket_email'];
     }
 
     public static function allows(User $user, string $source, string $severity): bool

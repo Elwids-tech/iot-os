@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import type { LucideIcon } from "lucide-react"
-import { CpuIcon, LayoutGridIcon, PlusIcon } from "lucide-react"
+import { BugIcon, CpuIcon, LayoutGridIcon, LightbulbIcon, PlusIcon } from "lucide-react"
 import { CommandPalette, type PaletteItem } from "@iot-os/ui/components/command-palette"
 import { api } from "../lib/api"
+import { newTicketPath } from "../support/model"
 
 const path = (org: string, section: string) => `/organizations/${encodeURIComponent(org)}/${section}`
 
@@ -25,6 +26,7 @@ export function PortalCommandPalette({
   onOpenChange: (open: boolean) => void
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [search, setSearch] = useState("")
   // Clear on open, not on close, so the list doesn't jump while the dialog fades out.
   useEffect(() => {
@@ -84,6 +86,8 @@ export function PortalCommandPalette({
           ? [{ id: "add-device", label: "Add device", icon: <PlusIcon />, onSelect: go(path(org, "devices/onboard")) }]
           : []),
         { id: "new-automation", label: "New automation", icon: <PlusIcon />, onSelect: go(path(org, "automation/new")) },
+        { id: "report-problem", label: "Report a problem", keywords: ["bug", "support", "ticket"], icon: <BugIcon />, onSelect: go(newTicketPath(org, "bug", location.pathname)) },
+        { id: "suggest-improvement", label: "Suggest an improvement", keywords: ["feature", "idea", "support", "ticket"], icon: <LightbulbIcon />, onSelect: go(newTicketPath(org, "improvement", location.pathname)) },
       ],
     },
   ]

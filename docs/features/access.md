@@ -128,9 +128,10 @@ The admin app ([`apps/admin`](../../apps/admin)) requires
 `PlatformAdministration.access`, granted by the `platform-administrator` platform
 role; super administrators (`users.is_super_admin`) pass every check. It covers
 organizations and their ceilings and roles, users, invitations, super administrators
-and platform administrators (both managed by super administrators only) and telemetry
+and platform administrators (both managed by super administrators only), telemetry
 retention
-(`PlatformAdministration.manage-retention`).
+(`PlatformAdministration.manage-retention`), and, for super administrators, the
+[support ticket](support.md) queue.
 
 A platform administrator sets up an organization from **Organizations**: create it
 (it gets the three built-in roles), then use the row's actions to open its **Roles**,

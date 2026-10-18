@@ -17,6 +17,7 @@ import { RolesPage } from "./pages/RolesPage"
 import { UsersPage } from "./pages/UsersPage"
 import { RetentionPage } from "./pages/RetentionPage"
 import { AssistantPage } from "./pages/AssistantPage"
+import { TicketsPage } from "./pages/TicketsPage"
 
 type ScreenState =
   | { status: "loading" }
@@ -115,6 +116,12 @@ function PlatformAdministrationApp() {
         ) : null}
         {screen.user.capabilities.manage_assistant ? (
           <Route path="settings/assistant" element={<AssistantPage />} />
+        ) : null}
+        {screen.user.capabilities.manage_tickets ? (
+          <>
+            <Route path="tickets" element={<TicketsPage />} />
+            <Route path="tickets/:ticketUuid" element={<TicketsPage />} />
+          </>
         ) : null}
         <Route path="*" element={<Navigate to="/organizations" replace />} />
       </Route>

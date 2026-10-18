@@ -95,6 +95,7 @@ import {
   SearchIcon,
   SettingsIcon,
   LayoutGridIcon,
+  LifeBuoyIcon,
   LogOutIcon,
   RouterIcon,
   ScanSearchIcon,
@@ -104,6 +105,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { api } from "./lib/api"
+import { useSupportUnread } from "./support/model"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
 import { PanelProvider, usePanel } from "./panel/context"
 import { TextField, RequestError, Confirm } from "./components/forms"
@@ -121,6 +123,7 @@ const AlertRoutes = lazy(() => import("./alerts/Alerts"))
 const SettingsRoutes = lazy(() => import("./settings/Settings"))
 const ConnectPage = lazy(() => import("./agents/ConnectPage"))
 const NotificationCenter = lazy(() => import("./notifications/NotificationCenter"))
+const SupportRoutes = lazy(() => import("./support/Support"))
 const HelpPanel = lazy(() => import("./help/HelpPanel"))
 const ProfileAssistantBody = lazy(() => import("./assistant/AssistantPanel"))
 const ProfileWorkspace = lazy(() =>
@@ -263,6 +266,7 @@ function Session() {
           <Route path="organizations/:organizationUuid/discovery" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="discovery" /></Suspense>} />
           <Route path="organizations/:organizationUuid/telemetry" element={<Suspense fallback={<PageFallback />}><TelemetryViewer /></Suspense>} />
           <Route path="organizations/:organizationUuid/settings/*" element={<Suspense fallback={<PageFallback />}><SettingsRoutes /></Suspense>} />
+          <Route path="organizations/:organizationUuid/support/*" element={<Suspense fallback={<PageFallback />}><SupportRoutes /></Suspense>} />
           {/* Members and roles moved into Settings; older links still land there. */}
           <Route path="organizations/:organizationUuid/members" element={<MovedTo from="members" section="settings/members" />} />
           <Route path="organizations/:organizationUuid/roles/*" element={<MovedTo from="roles" section="settings/roles" />} />
@@ -557,6 +561,7 @@ const activeFor = (item: NavigationItem, organization: string, pathname: string)
 /** Tools and Settings sit at the foot of the sidebar, above help and the account menu. */
 const footerItems: NavigationItem[] = [
   { path: "telemetry", label: "Telemetry viewer", icon: ActivityIcon, visible: devicesAdministered },
+  { path: "support", label: "Support", icon: LifeBuoyIcon },
   { path: "settings", label: "Settings", icon: SettingsIcon, also: ["members", "roles"] },
 ]
 
@@ -595,9 +600,11 @@ function PortalSidebar({
     enabled: Boolean(organization) && organization?.capabilities?.devices?.view !== false,
     refetchInterval: 30000,
   })
+  const unreadTickets = useSupportUnread(organization?.uuid)
   const badges: Record<string, [number | undefined, string]> = {
     alerts: [overview.data?.alerts?.active_unacknowledged, "unacknowledged"],
     discovery: [overview.data?.discovery?.pending, "waiting"],
+    support: [unreadTickets, "unread"],
   }
 
   return (
@@ -720,7 +727,9 @@ function PortalSidebar({
               <SidebarMenu>
                 {footerItems
                   .filter((item) => item.visible?.(organization) ?? true)
-                  .map((item) => (
+                  .map((item) => {
+                    const [count, countLabel] = badges[item.path] ?? []
+                    return (
                     <SidebarMenuItem key={item.path}>
                       <SidebarMenuButton
                         asChild
@@ -731,10 +740,17 @@ function PortalSidebar({
                         <NavLink to={sectionPath(organization.uuid, item.path)} onClick={closeMobile}>
                           <item.icon />
                           <span className="group-data-[collapsible=icon]:sr-only">{item.label}</span>
+                          {count ? (
+                            <span className="ml-auto font-mono text-xs group-data-[collapsible=icon]:sr-only">
+                              {count}
+                              <span className="sr-only"> {countLabel}</span>
+                            </span>
+                          ) : null}
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                  ))}
+                    )
+                  })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

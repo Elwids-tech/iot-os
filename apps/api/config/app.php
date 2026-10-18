@@ -56,6 +56,9 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
 
+    // The admin app, for links in emails to super administrators (support tickets).
+    'admin_url' => env('ADMIN_FRONTEND_URL', 'http://localhost:5174'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

@@ -57,6 +57,7 @@ pull requests.
 | `/api/v1/invitations/{token}` | Invitees | None (token in path) | [access](../features/access.md#in-the-portal) |
 | `/api/v1/organizations/{organization}/…` | Portal | Session + organization membership (`ResolveOrganizationContext`: 404 unknown, 403 non-member) + permission | Per domain, below |
 | `/api/v1/admin/…` | Admin | Session + `PlatformAdministration.*` | [access](../features/access.md#platform-administration) |
+| `/api/v1/admin/tickets/…` | Admin | Session + super administrator | [support tickets](../features/support.md#api) |
 | `/api/v1/units`, `/api/v1/notifications/…` | Portal | Session | Unit catalogue; personal email preferences and event log |
 | `/api/integration/v1/organizations/{organization}/…` | External applications | Application bearer token with the route's ability (`AuthenticateApplication`) | [integrations](../features/integrations.md#integration-api) |
 | `/api/internal/devices/…` | Go runtime | `DEVICE_RUNTIME_TOKEN` bearer (`AuthenticateDeviceRuntime`) | [events](events.md) |
@@ -80,6 +81,7 @@ pull requests.
 | `applications` | `Integrations` | [integrations](../features/integrations.md#managing-applications) |
 | `assistant`, `help` | `Assistant`, `Help` | [assistant](../features/assistant.md#api) |
 | `members`, `roles`, `role-permissions`, `invitations`, `administration` | `Administration` | [access](../features/access.md#api) |
+| `tickets` | `Support` | [support tickets](../features/support.md#api) |
 | `context` | `Authentication` | Organization capabilities for the UI |
 | `overview` | `Overview` | Home page counts |
 

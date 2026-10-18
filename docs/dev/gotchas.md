@@ -9,6 +9,11 @@ Things that have cost time before. Add to this list when something surprises you
   `created_by`, alert `assignee`, admin and organization member routes), so new
   user references in API contracts use `user_id`. See
   [ADR-013](../adr/ADR-013-integer-user-ids.md).
+- **Eloquent timestamps keep whole seconds.** Laravel writes `Y-m-d H:i:s` on
+  PostgreSQL too, so two writes in the same second tie. Comparing a "last read"
+  time with a "last activity" time misses activity in the second someone read;
+  support tickets count activity with sequence numbers instead
+  ([support](../features/support.md#history)).
 - **PHPUnit runs on SQLite.** [`apps/api/phpunit.xml`](../../apps/api/phpunit.xml)
   forces an in-memory SQLite database. SQLite never raises Postgres's `22P02`
   invalid-UUID error, so a malformed id that would be a 500 on Postgres passes in
@@ -228,6 +233,16 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## UI
 
+- **Navigating right after a successful save can hit the unsaved-changes guard.**
+  `useUnsaved` clears the dirty flag in an effect, so `navigate()` in the same
+  handler that marks the form saved still sees it dirty and shows "Leave without
+  saving?". Store the result in state and navigate from an effect declared after
+  `useUnsaved`, as `support/NewTicketPage.tsx` does.
+- **`cn()` drops the named type sizes next to a text colour.** The kit's `cn` is
+  plain `tailwind-merge`, which reads `text-meta`, `text-body` and the other named
+  sizes as colours, so `cn("text-meta text-muted-foreground")` keeps only the
+  colour (and `<Badge className="text-micro">` loses the badge's colour). Put the
+  size on a child or in a plain `className` string until `cn` learns the scale.
 - **Toasts sit bottom-right and pause under the pointer.** A sticky bottom
   action bar needs `ref={keepToastsAbove}`, and a panel docked to the right edge
   needs `keepToastsLeftOf`, both from `@iot-os/ui/components/sonner`, or toasts

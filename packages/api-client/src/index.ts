@@ -31,6 +31,7 @@ export * from "./adapters"
 export * from "./geospatial"
 export * from "./overview"
 export * from "./agents"
+export * from "./support"
 
 export type Organization = {
   uuid: string
@@ -222,6 +223,8 @@ export type AuthenticatedUser = {
     platform_administration: boolean
     manage_retention?: boolean
     manage_assistant?: boolean
+    /** Super administrators work the support ticket queue (spec 015). */
+    manage_tickets?: boolean
   }
   organizations: Organization[]
 }
@@ -2059,6 +2062,103 @@ export class ApiClient {
   }
   retryAlertDelivery(org: string, alert: string, delivery: string, generation: number) {
     return this.data<{ status: string }>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(alert)}/deliveries/${encodeURIComponent(delivery)}/retry`, "POST", { retry_generation: generation })
+  }
+
+  // Support tickets (spec 015): people on a ticket use the organization routes.
+  private ticketPath(org: string, ticket = "", rest = "") {
+    return `/api/v1/organizations/${encodeURIComponent(org)}/tickets${ticket ? "/" + encodeURIComponent(ticket) : ""}${rest}`
+  }
+  private adminTicketPath(ticket = "", rest = "") {
+    return `/api/v1/admin/tickets${ticket ? "/" + encodeURIComponent(ticket) : ""}${rest}`
+  }
+  private ticketForm(values: Record<string, unknown>, files: File[]) {
+    const body = new FormData()
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined || value === null) continue
+      if (typeof value === "object") {
+        for (const [field, inner] of Object.entries(value as Record<string, unknown>)) {
+          if (inner !== undefined && inner !== null) body.append(`${key}[${field}]`, String(inner))
+        }
+      } else {
+        body.append(key, typeof value === "boolean" ? (value ? "1" : "0") : String(value))
+      }
+    }
+    files.forEach((file) => body.append("files[]", file, file.name))
+    return body
+  }
+  tickets(org: string, query: URLSearchParams | string = "", signal?: AbortSignal) {
+    return this.request<import("./support").TicketPage<import("./support").TicketSummary>>(`${this.ticketPath(org)}?${query}`, { signal })
+  }
+  ticketSummary(org: string, signal?: AbortSignal) {
+    return this.data<{ unread: number }>(this.ticketPath(org, "", "/summary"), "GET", undefined, signal)
+  }
+  ticket(org: string, ticket: string, signal?: AbortSignal) {
+    return this.data<import("./support").Ticket>(this.ticketPath(org, ticket), "GET", undefined, signal)
+  }
+  async fileTicket(org: string, values: import("./support").TicketFiling, files: File[]) {
+    return (await this.request<ApiResponse<import("./support").Ticket>>(this.ticketPath(org), { method: "POST", body: this.ticketForm(values, files) })).data
+  }
+  updateTicket(org: string, ticket: string, values: { title?: string; status?: "resolved" }) {
+    return this.data<import("./support").Ticket>(this.ticketPath(org, ticket), "PATCH", values)
+  }
+  async replyToTicket(org: string, ticket: string, values: { client_id: string; body: string }, files: File[]) {
+    return (await this.request<ApiResponse<import("./support").Ticket>>(this.ticketPath(org, ticket, "/messages"), { method: "POST", body: this.ticketForm(values, files) })).data
+  }
+  markTicketRead(org: string, ticket: string, sequence?: number) {
+    return this.request<null>(this.ticketPath(org, ticket, "/read"), { method: "POST", body: JSON.stringify(sequence === undefined ? {} : { sequence }) })
+  }
+  ticketPeople(org: string, ticket: string, search: string) {
+    return this.data<import("./support").TicketCandidate[]>(this.ticketPath(org, ticket, `/people?${new URLSearchParams({ search })}`))
+  }
+  addTicketParticipant(org: string, ticket: string, userId: number) {
+    return this.data<import("./support").Ticket>(this.ticketPath(org, ticket, `/participants/${userId}`), "PUT", {})
+  }
+  removeTicketParticipant(org: string, ticket: string, userId: number) {
+    return this.request<null>(this.ticketPath(org, ticket, `/participants/${userId}`), { method: "DELETE" })
+  }
+  ticketAttachmentUrl(org: string, ticket: string, attachment: string) {
+    return `${this.baseUrl}${this.ticketPath(org, ticket, `/attachments/${encodeURIComponent(attachment)}`)}`
+  }
+  // The team's queue in admin.
+  adminTickets(query: URLSearchParams | string = "", signal?: AbortSignal) {
+    return this.request<import("./support").TicketPage<import("./support").AdminTicketSummary>>(`${this.adminTicketPath()}?${query}`, { signal })
+  }
+  adminTicketSummary(signal?: AbortSignal) {
+    return this.data<{ awaiting: number }>(this.adminTicketPath("summary"), "GET", undefined, signal)
+  }
+  adminTicketAssignees() {
+    return this.data<import("./support").TicketCandidate[]>(this.adminTicketPath("assignees"))
+  }
+  adminTicket(ticket: string, signal?: AbortSignal) {
+    return this.data<import("./support").AdminTicket>(this.adminTicketPath(ticket), "GET", undefined, signal)
+  }
+  updateAdminTicket(ticket: string, changes: import("./support").AdminTicketChanges) {
+    return this.data<import("./support").AdminTicket>(this.adminTicketPath(ticket), "PATCH", changes)
+  }
+  async adminTicketMessage(
+    ticket: string,
+    values: { client_id: string; body: string; internal: boolean; status?: import("./support").TicketStatus; revision?: number },
+    files: File[],
+  ) {
+    return (await this.request<ApiResponse<import("./support").AdminTicket>>(this.adminTicketPath(ticket, "/messages"), { method: "POST", body: this.ticketForm(values, files) })).data
+  }
+  markAdminTicketRead(ticket: string, sequence?: number) {
+    return this.request<null>(this.adminTicketPath(ticket, "/read"), { method: "POST", body: JSON.stringify(sequence === undefined ? {} : { sequence }) })
+  }
+  adminTicketPeople(ticket: string, search: string) {
+    return this.data<import("./support").TicketCandidate[]>(this.adminTicketPath(ticket, `/people?${new URLSearchParams({ search })}`))
+  }
+  addAdminTicketParticipant(ticket: string, userId: number) {
+    return this.data<import("./support").AdminTicket>(this.adminTicketPath(ticket, `/participants/${userId}`), "PUT", {})
+  }
+  removeAdminTicketParticipant(ticket: string, userId: number) {
+    return this.data<import("./support").AdminTicket>(this.adminTicketPath(ticket, `/participants/${userId}`), "DELETE")
+  }
+  deleteAdminTicket(ticket: string) {
+    return this.request<null>(this.adminTicketPath(ticket), { method: "DELETE" })
+  }
+  adminTicketAttachmentUrl(ticket: string, attachment: string) {
+    return `${this.baseUrl}${this.adminTicketPath(ticket, `/attachments/${encodeURIComponent(attachment)}`)}`
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

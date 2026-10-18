@@ -14,6 +14,8 @@ x-api-env: &api-env
   APP_KEY: ${APP_KEY:?}
   APP_URL: https://api.${DOMAIN:?}
   FRONTEND_URL: https://app.${DOMAIN}
+  # Links in support ticket emails to super administrators (spec 015).
+  ADMIN_FRONTEND_URL: https://admin.${DOMAIN}
   LOG_CHANNEL: stderr
   LOG_LEVEL: info
   LOG_STDERR_FORMATTER: Monolog\Formatter\JsonFormatter

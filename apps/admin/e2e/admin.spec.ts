@@ -1691,6 +1691,148 @@ test("platform administrators do not see the AI assistant settings", async ({ pa
   await expect(page).toHaveURL(/\/organizations$/)
 })
 
+const ticketUuid = "aaaaaaaa-1111-4111-8111-111111111111"
+const ticketNow = new Date().toISOString()
+
+/** The support ticket queue (spec 015): one Acme bug awaiting a reply. */
+async function mockTickets(page: Page) {
+  const reporter = { id: 4, name: "Acme Member", email: "acme.member@example.test" }
+  const message = (key: string, body: string, fromTeam: boolean, internal = false) => ({
+    type: "message", key, created_at: ticketNow, actor: fromTeam ? { id: 1, name: "Platform Super Admin" } : { id: 4, name: "Acme Member" },
+    from_team: fromTeam, internal, body, attachments: [], event: null, from: null, to: null, cause: null,
+  })
+  const event = (key: string, kind: string, from: unknown, to: unknown, internal = false) => ({
+    type: "event", key, created_at: ticketNow, actor: { id: 1, name: "Platform Super Admin" }, from_team: false, internal, body: null,
+    attachments: [], event: kind, from, to, cause: null,
+  })
+  let ticket: Record<string, any> = {
+    uuid: ticketUuid, number: 42, title: "Pump meter shows no readings", type: "bug", status: "new", priority: "normal",
+    organization: { uuid: organizations[0].uuid, name: organizations[0].name }, assignee: null, awaiting_team: true,
+    revision: 1, sequence: 1, context: { path: "/organizations/x/devices", user_agent: "Test browser", screen: "1440x900", time_zone: "Asia/Colombo" },
+    last_activity_at: ticketNow, created_at: ticketNow, closed_at: null,
+    people: [{ ...reporter, role: "reporter" }],
+    timeline: [message("m-1", "The pump meter page is **empty**.", false), { ...event("e-1", "created", null, null), actor: { id: 4, name: "Acme Member" } }],
+  }
+  let conflictNext = false
+  const requests: { method: string; path: string; body: string | null }[] = []
+  const summary = () => ({
+    uuid: ticket.uuid, number: ticket.number, title: ticket.title, type: ticket.type, status: ticket.status, priority: ticket.priority,
+    organization: ticket.organization, reporter, assignee: ticket.assignee, awaiting_team: ticket.awaiting_team, unread: true,
+    last_activity_at: ticket.last_activity_at, created_at: ticket.created_at, closed_at: ticket.closed_at,
+  })
+  const field = (body: string | null, name: string) => new RegExp(`name="${name}"\\r\\n\\r\\n([^\\r]*)`).exec(body ?? "")?.[1]
+  await page.route((url) => url.pathname.startsWith("/api/v1/admin/tickets"), async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    const method = request.method()
+    requests.push({ method, path, body: request.postData() })
+    if (path === "/api/v1/admin/tickets/summary") return fulfillJson(route, { data: { awaiting: ticket.awaiting_team ? 1 : 0 } })
+    if (path === "/api/v1/admin/tickets/assignees") return fulfillJson(route, { data: [{ id: 1, name: "Platform Super Admin", email: "super-admin@example.test" }] })
+    if (path === "/api/v1/admin/tickets")
+      return fulfillJson(route, { data: [summary()], meta: { current_page: 1, last_page: 1, total: 1, per_page: 50, awaiting: ticket.awaiting_team ? 1 : 0 } })
+    if (path === `/api/v1/admin/tickets/${ticketUuid}/read`) return route.fulfill({ status: 204 })
+    if (path === `/api/v1/admin/tickets/${ticketUuid}/people`) return fulfillJson(route, { data: [] })
+    if (path === `/api/v1/admin/tickets/${ticketUuid}` && method === "GET") return fulfillJson(route, { data: ticket })
+    if (path === `/api/v1/admin/tickets/${ticketUuid}` && method === "PATCH") {
+      if (conflictNext) {
+        conflictNext = false
+        ticket = { ...ticket, revision: ticket.revision + 1, status: "planned" }
+        return fulfillJson(route, { message: "This ticket changed since you opened it. Reload it and try again." }, 409)
+      }
+      const changes = request.postDataJSON() as Record<string, any>
+      const events = Object.entries(changes)
+        .filter(([key]) => key !== "revision")
+        .map(([key, value], index) => event(`e-p${ticket.revision}-${index}`, key, ticket[key], value, key === "priority"))
+      ticket = { ...ticket, ...changes, revision: ticket.revision + 1, sequence: ticket.sequence + 1, timeline: [...ticket.timeline, ...events] }
+      return fulfillJson(route, { data: ticket })
+    }
+    if (path === `/api/v1/admin/tickets/${ticketUuid}/messages`) {
+      const body = request.postData()
+      const internal = field(body, "internal") === "1"
+      const status = field(body, "status")
+      const added = [message(`m-${ticket.timeline.length + 1}`, field(body, "body") ?? "", true, internal)]
+      if (status) added.push(event(`e-s${ticket.timeline.length + 1}`, "status", ticket.status, status) as never)
+      ticket = {
+        ...ticket,
+        status: status ?? ticket.status,
+        revision: status ? ticket.revision + 1 : ticket.revision,
+        sequence: ticket.sequence + 1,
+        awaiting_team: internal ? ticket.awaiting_team : false,
+        timeline: [...ticket.timeline, ...added],
+      }
+      return fulfillJson(route, { data: ticket }, 201)
+    }
+    return fulfillJson(route, { message: "Not found" }, 404)
+  })
+  return { requests, field, conflict: () => { conflictNext = true } }
+}
+
+const ticketTeam = { ...superAdmin, capabilities: { ...superAdmin.capabilities, manage_tickets: true } }
+
+test("works the ticket queue: priority, a reply that asks for information, and a note", async ({ page }) => {
+  await mockApi(page, { user: ticketTeam })
+  const tickets = await mockTickets(page)
+  await page.goto("/organizations")
+
+  await expect(page.getByRole("link", { name: /Tickets\s*1 awaiting a reply/ })).toBeVisible()
+  await page.getByRole("link", { name: /Tickets/ }).click()
+  await expect(page).toHaveURL(/\/tickets$/)
+  await page.getByRole("link", { name: "Unread: Pump meter shows no readings" }).click()
+  await expect(page).toHaveURL(new RegExp(`/tickets/${ticketUuid}$`))
+  await expect(page.getByText("The pump meter page is")).toBeVisible()
+  await expect(page.getByText("As the reporter's browser sent it; not verified.")).toBeVisible()
+
+  const properties = page.getByRole("complementary", { name: "Ticket properties" })
+  await properties.getByRole("combobox", { name: "Priority" }).click()
+  await page.getByRole("option", { name: "High" }).click()
+  await expect(page.getByText(/set the priority to\s*High/)).toBeVisible()
+  const patch = tickets.requests.find((request) => request.method === "PATCH")
+  expect(JSON.parse(patch!.body!)).toEqual({ revision: 1, priority: "high" })
+
+  await page.getByRole("combobox", { name: "Then set the status" }).click()
+  await page.getByRole("option", { name: "Set to Needs information" }).click()
+  await page.getByRole("textbox", { name: "Reply to the reporter" }).fill("Which serial number is on the meter?")
+  await page.getByRole("button", { name: "Send reply" }).click()
+  await expect(page.locator('[data-slot="thread-message"]').filter({ hasText: "Which serial number" }).getByText("Team")).toBeVisible()
+  const reply = tickets.requests.filter((request) => request.path.endsWith("/messages")).at(-1)!
+  expect([tickets.field(reply.body, "internal"), tickets.field(reply.body, "status"), tickets.field(reply.body, "revision")]).toEqual(["0", "needs_info", "2"])
+  await expect(page.getByRole("link", { name: /Tickets\s*1 awaiting a reply/ })).toHaveCount(0)
+
+  await page.getByRole("radio", { name: "Internal note" }).click()
+  await page.getByRole("textbox", { name: "Internal note" }).fill("Firmware 2.1 again, see #38.")
+  await page.getByRole("button", { name: "Add note" }).click()
+  await expect(page.locator('[data-slot="thread-message"][data-internal]').getByText("Firmware 2.1 again")).toBeVisible()
+  const note = tickets.requests.filter((request) => request.path.endsWith("/messages")).at(-1)!
+  expect(tickets.field(note.body, "internal")).toBe("1")
+})
+
+test("reloads a ticket another super administrator changed first", async ({ page, consoleMessages }) => {
+  await mockApi(page, { user: ticketTeam })
+  const tickets = await mockTickets(page)
+  await page.goto(`/tickets/${ticketUuid}`)
+  await expect(page.getByText("The pump meter page is")).toBeVisible()
+
+  tickets.conflict()
+  await page.getByRole("combobox", { name: "Status", exact: true }).click()
+  await page.getByRole("option", { name: "In review" }).click()
+  await expect(page.getByText("Someone else changed this ticket. It has been reloaded; check it and try again.")).toBeVisible()
+  await expect(page.getByRole("combobox", { name: "Status", exact: true })).toContainText("Planned")
+
+  expect(consoleMessages).toHaveLength(1)
+  expect(consoleMessages[0]).toContain("status of 409")
+  consoleMessages.length = 0
+})
+
+test("platform administrators do not see support tickets", async ({ page }) => {
+  await mockApi(page, { user: platformAdmin })
+  await page.goto("/organizations")
+
+  await expect(page.getByRole("link", { name: "Users" })).toBeVisible()
+  await expect(page.getByRole("link", { name: /Tickets/ })).toHaveCount(0)
+  await page.goto("/tickets")
+  await expect(page).toHaveURL(/\/organizations$/)
+})
+
 // Uses the base test: a caught render error is still logged to the console.
 base("keeps the navigation when a page fails to render, and recovers on leaving it", async ({ page }) => {
   await mockApi(page)

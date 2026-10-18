@@ -47,3 +47,20 @@ export const Domains: StoryObj = {
     </dl>
   ),
 }
+
+const ticketStatuses = ["new", "in_review", "needs_info", "planned", "in_progress", "resolved", "declined"]
+const priorities = ["low", "normal", "high", "urgent"]
+
+/** Support tickets (spec 015): status and the team's priority, each its own domain. */
+export const Tickets: StoryObj = {
+  render: () => (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap gap-4">
+        {ticketStatuses.map((value) => <Status key={value} value={value} domain="ticket" />)}
+      </div>
+      <div className="flex flex-wrap gap-4">
+        {priorities.map((value) => <Status key={value} value={value} domain="priority" />)}
+      </div>
+    </div>
+  ),
+}

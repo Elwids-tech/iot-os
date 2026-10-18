@@ -3,6 +3,8 @@ export type NotificationLevel = "critical" | "warning" | "info" | "recovery"
 export type NotificationPreferences = {
   revision: number
   email_enabled: boolean
+  /** Support ticket emails (spec 015); on unless switched off. Older payloads omit it. */
+  ticket_email?: boolean
   operations_access: boolean
   grid: Record<NotificationSource, Record<NotificationLevel, boolean>>
 }
