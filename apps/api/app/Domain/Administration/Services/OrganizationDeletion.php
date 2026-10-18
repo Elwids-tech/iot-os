@@ -47,6 +47,12 @@ final class OrganizationDeletion
     /** Data that goes with the organization behind restrictive keys, deleted before it. */
     public const REMOVED_FIRST = ['device_audit_events', 'telemetry_retention_settings'];
 
+    /**
+     * Records the platform team keeps after the organization is gone: their key sets
+     * null. Support tickets (spec 015) lose their tagged participants here.
+     */
+    public const KEPT = ['support_tickets'];
+
     public function __construct(private readonly AssistantRecovery $assistantRecovery) {}
 
     /**
@@ -126,6 +132,12 @@ final class OrganizationDeletion
             foreach (self::REMOVED_FIRST as $table) {
                 DB::table($table)->where('organization_id', $id)->delete();
             }
+
+            // Support tickets stay with the team (organization_id becomes null); the
+            // colleagues tagged on them lose access with the organization (spec 015).
+            DB::table('support_ticket_participants')
+                ->whereIn('ticket_id', DB::table('support_tickets')->where('organization_id', $id)->select('id'))
+                ->delete();
 
             // Members, roles, invitations, dashboards, sites, settings and agent connections cascade.
             $locked->forceDelete();

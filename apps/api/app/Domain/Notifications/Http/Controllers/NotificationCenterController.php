@@ -21,7 +21,7 @@ final class NotificationCenterController
 
     public function update(Request $request): array
     {
-        $rules = ['revision' => 'required|integer|min:0', 'email_enabled' => 'required|boolean', 'grid' => 'required|array:workflow,service,watchdog'];
+        $rules = ['revision' => 'required|integer|min:0', 'email_enabled' => 'required|boolean', 'ticket_email' => 'sometimes|boolean', 'grid' => 'required|array:workflow,service,watchdog'];
         foreach (Preferences::SOURCES as $source) {
             $rules['grid.'.$source] = 'required|array:critical,warning,info,recovery';
             foreach (Preferences::LEVELS as $level) {
@@ -40,6 +40,7 @@ final class NotificationCenterController
             }
             DB::table('notification_preferences')->updateOrInsert(['user_id' => $user->id], [
                 'email_enabled' => $values['email_enabled'], 'grid' => json_encode($values['grid']),
+                'ticket_email' => $values['ticket_email'] ?? $current['ticket_email'],
                 'revision' => $current['revision'] + 1, 'created_at' => now(), 'updated_at' => now(),
             ]);
         });
