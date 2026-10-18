@@ -1,4 +1,6 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { apiClient } from "../lib/api-client"
+import { usePolled } from "../hooks/use-polled"
 import { portalUrl } from "../lib/portal"
 import type { AuthenticatedUser } from "@iot-os/api-client"
 import {
@@ -34,6 +36,7 @@ import {
   BoxesIcon,
   Building2Icon,
   HistoryIcon,
+  InboxIcon,
   LogOutIcon,
   ShieldCheckIcon,
   SparklesIcon,
@@ -46,12 +49,29 @@ const navigationGroups = [
     { title: "Organizations", to: "/organizations", icon: Building2Icon },
     { title: "Users", to: "/users", icon: UsersIcon },
     { title: "Roles", to: "/roles", icon: ShieldCheckIcon },
+    { title: "Tickets", to: "/tickets", icon: InboxIcon },
   ],
   [
     { title: "Retention", to: "/settings/retention", icon: HistoryIcon },
     { title: "AI assistant", to: "/settings/assistant", icon: SparklesIcon },
   ],
 ]
+
+/** Open tickets awaiting the team, refreshed every minute and whenever a ticket changes. */
+function useAwaitingTickets(enabled: boolean) {
+  const summary = usePolled(
+    () => (enabled ? apiClient.adminTicketSummary() : Promise.resolve({ awaiting: 0 })),
+    String(enabled),
+    enabled ? 60_000 : null,
+  )
+  const { reload } = summary
+  useEffect(() => {
+    const refresh = () => void reload()
+    window.addEventListener("iot-tickets-changed", refresh)
+    return () => window.removeEventListener("iot-tickets-changed", refresh)
+  }, [reload])
+  return summary.data?.awaiting ?? 0
+}
 
 const initials = (name: string) => {
   const words = name.trim().split(/\s+/)
@@ -71,13 +91,15 @@ function AdminSidebar({
 }) {
   const location = useLocation()
   const { setOpenMobile } = useSidebar()
+  const awaiting = useAwaitingTickets(Boolean(user.capabilities.manage_tickets))
   const closeMobile = () => setOpenMobile(false)
   const groups = navigationGroups
     .map((group) =>
       group.filter(
         (item) =>
           (item.to !== "/settings/retention" || user.capabilities.manage_retention) &&
-          (item.to !== "/settings/assistant" || user.capabilities.manage_assistant),
+          (item.to !== "/settings/assistant" || user.capabilities.manage_assistant) &&
+          (item.to !== "/tickets" || user.capabilities.manage_tickets),
       ),
     )
     .filter((group) => group.length)
@@ -122,6 +144,13 @@ function AdminSidebar({
                             <span className="group-data-[collapsible=icon]:sr-only">
                               {item.title}
                             </span>
+                            {item.to === "/tickets" && awaiting ? (
+                              // Inside the link so screen readers announce it with the destination.
+                              <span className="ml-auto font-mono text-xs group-data-[collapsible=icon]:sr-only">
+                                {awaiting}
+                                <span className="sr-only"> awaiting a reply</span>
+                              </span>
+                            ) : null}
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
