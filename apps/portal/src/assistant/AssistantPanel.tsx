@@ -47,6 +47,8 @@ import {
 } from "@iot-os/ui/components/message"
 import { Bubble, BubbleContent } from "@iot-os/ui/components/bubble"
 import { Marker, MarkerContent } from "@iot-os/ui/components/marker"
+import { Markdown } from "@iot-os/ui/components/markdown"
+import { Thinking } from "@iot-os/ui/components/thinking"
 import {
   MessageScrollerProvider,
   MessageScroller,
@@ -238,6 +240,8 @@ export default function ProfileAssistantBody({
   const [connectionError, setConnectionError] = useState<unknown>(null)
   const [sessionEpoch, setSessionEpoch] = useState(0)
   const [busy, setBusy] = useState(false)
+  // The message being sent, shown at once until its run appears in the conversation.
+  const [sending, setSending] = useState<{ prompt: string; runs: number } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [search, setSearch] = useState("")
@@ -395,18 +399,28 @@ export default function ProfileAssistantBody({
   }
   async function send(text = draft.text, answers: AssistantAnswer[] = []) {
     if (!text.trim() || locked || !available) return
+    const previousKey = draftKey
+    const typed = text === draft.text
+    setSending({ prompt: text.trim(), runs: detail?.runs.length ?? 0 })
+    if (typed) updateDraft({ text: "" }, previousKey)
     await perform(async () => {
-      const previousKey = draftKey
-      const id = selected ?? (await create()).id
-      await api.assistantMessage(org, id, {
-        request_id: crypto.randomUUID(),
-        text: text.trim(),
-        source_ids: draft.sources,
-        answers,
-      })
-      updateDraft(emptyDraft, previousKey)
-      await refresh(id)
+      try {
+        const id = selected ?? (await create()).id
+        await api.assistantMessage(org, id, {
+          request_id: crypto.randomUUID(),
+          text: text.trim(),
+          source_ids: draft.sources,
+          answers,
+        })
+        updateDraft(emptyDraft, previousKey)
+        await refresh(id)
+      } catch (error) {
+        // Give the unsent message back so it can be retried or edited.
+        if (typed) updateDraft({ text }, previousKey)
+        throw error
+      }
     })
+    setSending(null)
   }
   async function upload(files: FileList | null) {
     if (!files?.length) return
@@ -517,21 +531,17 @@ export default function ProfileAssistantBody({
             <MessageHeader>Profile assistant</MessageHeader>
             {run.answer && (
               <Bubble variant="ghost">
-                <BubbleContent className="whitespace-pre-wrap">
-                  {run.answer}
+                <BubbleContent>
+                  <Markdown>{run.answer}</Markdown>
                 </BubbleContent>
               </Bubble>
             )}
             {(run.status === "queued" || run.status === "running") && (
-              <Marker>
-                <MarkerContent>
-                  <span role="status">
-                    {run.status === "queued"
-                      ? "Waiting for the assistant…"
-                      : "Working on your profile…"}
-                  </span>
-                </MarkerContent>
-              </Marker>
+              <Thinking>
+                {run.status === "queued"
+                  ? "Waiting for the assistant…"
+                  : "Working on your profile…"}
+              </Thinking>
             )}
             {run.status === "cancelled" && (
               <Marker>
@@ -595,6 +605,31 @@ export default function ProfileAssistantBody({
       ),
     })
   messages.sort((a, b) => a.at - b.at)
+  if (sending && (detail?.runs.length ?? 0) === sending.runs)
+    messages.push({
+      id: "sending",
+      at: Infinity,
+      content: (
+        <div className="flex flex-col gap-4">
+          <Message align="end">
+            <MessageContent>
+              <MessageHeader>You</MessageHeader>
+              <Bubble align="end">
+                <BubbleContent className="whitespace-pre-wrap">
+                  {sending.prompt}
+                </BubbleContent>
+              </Bubble>
+            </MessageContent>
+          </Message>
+          <Message>
+            <MessageContent>
+              <MessageHeader>Profile assistant</MessageHeader>
+              <Thinking>Sending…</Thinking>
+            </MessageContent>
+          </Message>
+        </div>
+      ),
+    })
   if (!active && detail?.onboarding_state?.questions?.length)
     messages.push({
       id: "questions-" + JSON.stringify(detail.onboarding_state.questions),
@@ -713,7 +748,7 @@ export default function ProfileAssistantBody({
         </div>
       )}
       <div className="min-h-0 flex-1">
-        {loading || settings.isPending ? (
+        {(loading && !sending) || settings.isPending ? (
           <div className="flex flex-col gap-4 p-4">
             <Skeleton className="h-16" />
             <Skeleton className="h-32" />
@@ -786,7 +821,9 @@ export default function ProfileAssistantBody({
                     <MessageScrollerItem
                       key={message.id}
                       messageId={message.id}
-                      scrollAnchor={message.id.endsWith("-user")}
+                      scrollAnchor={
+                        message.id.endsWith("-user") || message.id === "sending"
+                      }
                     >
                       {message.content}
                     </MessageScrollerItem>

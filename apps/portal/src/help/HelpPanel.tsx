@@ -57,6 +57,8 @@ import {
 } from "@iot-os/ui/components/message";
 import { Bubble, BubbleContent } from "@iot-os/ui/components/bubble";
 import { Marker, MarkerContent } from "@iot-os/ui/components/marker";
+import { Markdown } from "@iot-os/ui/components/markdown";
+import { Thinking } from "@iot-os/ui/components/thinking";
 import {
   MessageScrollerProvider,
   MessageScroller,
@@ -221,6 +223,8 @@ export default function HelpPanel({
   const [conversationSearch, setConversationSearch] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // The question being sent, shown at once until its run appears in the conversation.
+  const [sending, setSending] = useState<{ prompt: string; runs: number } | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [mobile, setMobile] = useState(
@@ -331,12 +335,13 @@ export default function HelpPanel({
     if (!text || busy || active || !available || !page.data) return;
     setBusy(true);
     setError(null);
+    setSending({ prompt: text, runs: detail.data?.runs.length ?? 0 });
+    setDrafts((current) => ({ ...current, [draftKey]: "" }));
+    let id = selected;
     try {
-      let id = selected;
       if (!id) {
         const conversation = await api.createHelpConversation(org);
         id = conversation.id;
-        setDrafts((current) => ({ ...current, [id!]: text, new: "" }));
         setSelected(id);
       }
       const retry = pending.current;
@@ -360,8 +365,11 @@ export default function HelpPanel({
       ]);
     } catch (reason) {
       setError(reason);
+      // Give the unsent question back so it can be retried or edited.
+      setDrafts((current) => ({ ...current, [id ?? "new"]: current[id ?? "new"] || text }));
     } finally {
       setBusy(false);
+      setSending(null);
     }
   }
   async function cancel() {
@@ -635,7 +643,7 @@ export default function HelpPanel({
                   <MessageScroller>
                     <MessageScrollerViewport>
                       <MessageScrollerContent className="p-4">
-                        {!detail.data?.runs.length && (
+                        {!detail.data?.runs.length && !sending && (
                           <MessageScrollerItem messageId="welcome">
                             <Card>
                               <CardHeader>
@@ -697,8 +705,8 @@ export default function HelpPanel({
                                 <MessageHeader>Help</MessageHeader>
                                 {run.status === "completed" && run.answer && (
                                   <Bubble variant="ghost">
-                                    <BubbleContent className="whitespace-pre-wrap">
-                                      {run.answer}
+                                    <BubbleContent>
+                                      <Markdown>{run.answer}</Markdown>
                                     </BubbleContent>
                                   </Bubble>
                                 )}
@@ -719,15 +727,11 @@ export default function HelpPanel({
                                 ))}
                                 {(run.status === "running" ||
                                   run.status === "queued") && (
-                                  <Marker>
-                                    <MarkerContent>
-                                      <span role="status">
-                                        {run.status === "queued"
-                                          ? "Waiting for Help…"
-                                          : "Reading the guides…"}
-                                      </span>
-                                    </MarkerContent>
-                                  </Marker>
+                                  <Thinking>
+                                    {run.status === "queued"
+                                      ? "Waiting for Help…"
+                                      : "Reading the guides…"}
+                                  </Thinking>
                                 )}
                                 {run.status === "cancelled" && (
                                   <Marker>
@@ -750,11 +754,36 @@ export default function HelpPanel({
                             </Message>
                           </MessageScrollerItem>,
                         ])}
-                        {selected && detail.isPending && (
+                        {selected && detail.isPending && !sending && (
                           <MessageScrollerItem messageId="loading">
                             <Skeleton className="h-24" />
                           </MessageScrollerItem>
                         )}
+                        {sending &&
+                          (detail.data?.runs.length ?? 0) === sending.runs && (
+                            <MessageScrollerItem messageId="sending" scrollAnchor>
+                              <div className="flex flex-col gap-4">
+                                <Message align="end">
+                                  <MessageContent>
+                                    <MessageHeader>
+                                      You · {page.data?.title ?? "Help"}
+                                    </MessageHeader>
+                                    <Bubble align="end">
+                                      <BubbleContent className="whitespace-pre-wrap">
+                                        {sending.prompt}
+                                      </BubbleContent>
+                                    </Bubble>
+                                  </MessageContent>
+                                </Message>
+                                <Message>
+                                  <MessageContent>
+                                    <MessageHeader>Help</MessageHeader>
+                                    <Thinking>Sending…</Thinking>
+                                  </MessageContent>
+                                </Message>
+                              </div>
+                            </MessageScrollerItem>
+                          )}
                       </MessageScrollerContent>
                     </MessageScrollerViewport>
                     <MessageScrollerButton />

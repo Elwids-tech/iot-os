@@ -22,16 +22,23 @@ import { Input } from "@iot-os/ui/components/input";
 import { Badge } from "@iot-os/ui/components/badge";
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert";
 import { JsonEditor } from "@iot-os/ui/components/json-editor";
-import {
-  Message,
-  MessageContent,
-  MessageGroup,
-} from "@iot-os/ui/components/message";
+import { Message, MessageContent } from "@iot-os/ui/components/message";
 import { Bubble, BubbleContent } from "@iot-os/ui/components/bubble";
+import { Marker, MarkerContent } from "@iot-os/ui/components/marker";
+import { Markdown } from "@iot-os/ui/components/markdown";
+import { Thinking } from "@iot-os/ui/components/thinking";
 import {
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+} from "@iot-os/ui/components/empty";
+import {
+  MessageScrollerProvider,
   MessageScroller,
   MessageScrollerViewport,
   MessageScrollerContent,
+  MessageScrollerItem,
   MessageScrollerButton,
 } from "@iot-os/ui/components/message-scroller";
 import { api } from "../lib/api";
@@ -55,6 +62,8 @@ export function AdapterAssistant({
   const [prompt, setPrompt] = useState("");
   const [sources, setSources] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  // The message being sent, shown at once until its run appears in the conversation.
+  const [sending, setSending] = useState<{ prompt: string; runs: number } | null>(null);
   const [error, setError] = useState<unknown>(null);
   const settings = useQuery({
     queryKey: ["adapter-ai-settings", org],
@@ -96,21 +105,26 @@ export function AdapterAssistant({
     return result.id;
   }
   async function send() {
+    const text = prompt;
     setBusy(true);
     setError(null);
+    setSending({ prompt: text, runs: detail.data?.runs.length ?? 0 });
+    setPrompt("");
     try {
       const id = await target();
       await api.assistantMessage(org, id, {
         request_id: crypto.randomUUID(),
-        text: prompt,
+        text,
         source_ids: sources,
       });
-      setPrompt("");
       await cache.invalidateQueries({ queryKey: ["adapter-ai", org, id] });
     } catch (reason) {
       setError(reason);
+      // Give the unsent message back so it can be retried or edited.
+      setPrompt((current) => current || text);
     } finally {
       setBusy(false);
+      setSending(null);
     }
   }
   async function upload(file: File) {
@@ -176,15 +190,33 @@ export function AdapterAssistant({
             </Alert>
           )}
           <div className="h-80">
+            <MessageScrollerProvider key={conversation ?? "new"} autoScroll>
             <MessageScroller>
               <MessageScrollerViewport>
                 <MessageScrollerContent>
-                  <MessageGroup>
+                    {!detail.data?.runs.length && !sending && (
+                      <MessageScrollerItem messageId="empty">
+                        <Empty>
+                          <EmptyHeader>
+                            <EmptyTitle>No messages yet</EmptyTitle>
+                            <EmptyDescription>
+                              Describe the payload or attach the manufacturer’s
+                              documentation, then ask for a decoder.
+                            </EmptyDescription>
+                          </EmptyHeader>
+                        </Empty>
+                      </MessageScrollerItem>
+                    )}
                     {detail.data?.runs.map((run) => (
-                      <div key={run.id} className="flex flex-col gap-3">
+                      <MessageScrollerItem
+                        key={run.id}
+                        messageId={run.id}
+                        scrollAnchor
+                        className="flex flex-col gap-3"
+                      >
                         <Message align="end">
                           <MessageContent>
-                            <Bubble>
+                            <Bubble align="end">
                               <BubbleContent className="whitespace-pre-wrap">
                                 {run.prompt}
                               </BubbleContent>
@@ -193,24 +225,66 @@ export function AdapterAssistant({
                         </Message>
                         <Message>
                           <MessageContent>
-                            <Bubble variant="ghost">
-                              <BubbleContent className="whitespace-pre-wrap">
-                                {run.answer ||
-                                  run.error_message ||
-                                  (run.status === "queued"
-                                    ? "Waiting for the assistant…"
-                                    : "Preparing a decoder proposal…")}
-                              </BubbleContent>
-                            </Bubble>
+                            {run.answer && (
+                              <Bubble variant="ghost">
+                                <BubbleContent>
+                                  <Markdown>{run.answer}</Markdown>
+                                </BubbleContent>
+                              </Bubble>
+                            )}
+                            {run.status === "queued" ? (
+                              <Thinking>Waiting for the assistant…</Thinking>
+                            ) : run.status === "running" ? (
+                              <Thinking>Preparing a decoder proposal…</Thinking>
+                            ) : run.status === "awaiting_approval" ? (
+                              <Marker>
+                                <MarkerContent>
+                                  Waiting for your review of the proposal.
+                                </MarkerContent>
+                              </Marker>
+                            ) : null}
+                            {run.status === "cancelled" && (
+                              <Marker>
+                                <MarkerContent>Response stopped.</MarkerContent>
+                              </Marker>
+                            )}
+                            {run.error_message && run.status !== "cancelled" && (
+                              <Alert>
+                                <AlertDescription>{run.error_message}</AlertDescription>
+                              </Alert>
+                            )}
                           </MessageContent>
                         </Message>
-                      </div>
+                      </MessageScrollerItem>
                     ))}
-                  </MessageGroup>
+                    {sending &&
+                      (detail.data?.runs.length ?? 0) === sending.runs && (
+                        <MessageScrollerItem
+                          messageId="sending"
+                          scrollAnchor
+                          className="flex flex-col gap-3"
+                        >
+                          <Message align="end">
+                            <MessageContent>
+                              <Bubble align="end">
+                                <BubbleContent className="whitespace-pre-wrap">
+                                  {sending.prompt}
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageContent>
+                          </Message>
+                          <Message>
+                            <MessageContent>
+                              <Thinking>Sending…</Thinking>
+                            </MessageContent>
+                          </Message>
+                        </MessageScrollerItem>
+                      )}
                 </MessageScrollerContent>
               </MessageScrollerViewport>
               <MessageScrollerButton />
             </MessageScroller>
+            </MessageScrollerProvider>
           </div>
           <FieldGroup>
             <Field>

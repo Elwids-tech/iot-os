@@ -98,6 +98,24 @@ final class WorkflowAssistantTest extends TestCase
         $this->assertSame(0.0, AssistantRun::findOrFail($id)->reserved_usd);
     }
 
+    public function test_the_draft_is_stored_exactly_as_the_editor_sent_it(): void
+    {
+        $conversation = $this->conversation();
+        $device = Device::create(['organization_id' => $this->org->id, 'code' => 'yard-alarm', 'name' => 'Yard alarm']);
+        $graph = [...$this->empty, 'bindings' => [[
+            'role' => 'alarm', 'device_uuid' => $device->uuid, 'configuration_uuid' => (string) Str::uuid(), 'generation' => 1,
+            'parameter_uuid' => (string) Str::uuid(), 'data_type' => 'boolean', 'unit' => '', 'fresh_seconds' => 60,
+        ]]];
+        $this->postJson($this->base.'/conversations/'.$conversation->id.'/messages', [
+            'request_id' => (string) Str::uuid(), 'text' => 'Turn the alarm off after 3 seconds.',
+            'target' => ['name' => 'Alarm ', 'workflow' => $graph],
+        ])->assertAccepted();
+        // The editor recognises its own draft in a proposal only if a unitless binding keeps its "" and the name its spaces.
+        $target = $conversation->fresh()->onboarding_state['target'];
+        $this->assertSame('', $target['workflow']['bindings'][0]['unit']);
+        $this->assertSame('Alarm ', $target['name']);
+    }
+
     public function test_preview_validates_without_saving_and_profile_approval_cannot_apply_it(): void
     {
         $conversation = $this->conversation();

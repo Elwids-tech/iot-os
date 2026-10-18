@@ -32,6 +32,7 @@ use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -203,14 +204,17 @@ final class AssistantController
         }
         $target = null;
         if ($conversation->scope === 'automation') {
-            $target = $request->validate([
+            // TrimStrings and ConvertEmptyStringsToNull rewrite JSON bodies (a unitless binding's "" becomes null).
+            // The editor compares the proposal's stored draft with its own byte for byte, so keep the draft as sent.
+            $sent = $request->isJson() ? json_decode($request->getContent(), true) : null;
+            $target = Validator::make(['target' => is_array($sent) ? ($sent['target'] ?? null) : $request->input('target')], [
                 'target' => 'required|array:name,workflow,draft_revision', 'target.name' => 'required|string|max:255',
                 'target.draft_revision' => 'nullable|integer|min:1',
                 'target.workflow' => 'required|array:schema_version,uuid,version_uuid,organization_uuid,bindings,nodes,edges',
                 'target.workflow.schema_version' => 'required|in:automation-workflow.v2',
                 'target.workflow.nodes' => 'present|array|max:100', 'target.workflow.edges' => 'present|array|max:200',
                 'target.workflow.bindings' => 'present|array|max:32', 'target.workflow.bindings.*.device_uuid' => 'required|uuid',
-            ])['target'];
+            ])->validate()['target'];
             // The stored draft may be as large as the compiler accepts; the model sees geofence geometry by reference.
             abort_if(strlen(json_encode($target['workflow'], JSON_THROW_ON_ERROR)) > DagAuthoring::MAX_WORKFLOW_BYTES, 422, 'This draft is too large to save as a workflow.');
             abort_if(strlen(json_encode(app(WorkflowDraftContext::class)->prompt($target), JSON_THROW_ON_ERROR)) > config('assistant.max_draft_characters'), 422, 'This draft is too large for the assistant. Edit it manually.');

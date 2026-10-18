@@ -364,6 +364,24 @@
   animation: shimmer 1.6s linear infinite;
 }
 
+/* Chat "thinking" dots: each rises and brightens in turn (see Thinking). */
+@keyframes thinking-dot {
+  0%,
+  70%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-0.1875rem);
+  }
+}
+
+@utility animate-thinking-dot {
+  animation: thinking-dot 1.2s ease-in-out infinite;
+}
+
 /* A live reading just changed: one 600 ms highlight behind the value, then nothing. */
 @keyframes value-flash {
   from {

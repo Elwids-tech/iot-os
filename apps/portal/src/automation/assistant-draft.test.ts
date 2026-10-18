@@ -15,6 +15,12 @@ describe("assistant draft review", () => {
   it("ignores server metadata and object property order", () => {
     expect(draftSignature("Alarm", { ...graph, uuid: "server", version_uuid: "revision", nodes: [{ ...graph.nodes[0], config: { value: 25, operator: "gt" } }] })).toBe(draftSignature("Alarm", graph))
   })
+  it("matches a stored draft whose empty unit became null or whose name was trimmed", () => {
+    const binding = { role: "alarm", device_uuid: "d", parameter_uuid: "p", configuration_uuid: "c", generation: 1, data_type: "boolean" as const, unit: "", fresh_seconds: 60 }
+    const stored = { ...graph, bindings: [{ ...binding, unit: null as unknown as string }] }
+    expect(draftSignature("Alarm", stored)).toBe(draftSignature("Alarm ", { ...graph, bindings: [binding] }))
+    expect(draftSignature("Alarm", stored)).not.toBe(draftSignature("Alarm", { ...graph, bindings: [{ ...binding, unit: "%" }] }))
+  })
   it("summarizes additions, removals and settings changes", () => {
     const next: Workflow = { ...graph, nodes: [{ id: "alarm", type: "action.command.v1", config: { settings: { alarm: true, volume: 20 } } }] }
     expect(changedNodes(graph, next).map(item => [item.change, item.node.id])).toEqual([["Add", "alarm"], ["Remove", "limit"]])

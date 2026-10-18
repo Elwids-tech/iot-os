@@ -22,3 +22,16 @@ export function evidenceParts(answer: string, evidence?: ExecutionReferences | n
     return { text: `${text} (reference unavailable)` }
   })
 }
+
+export const evidenceHref = (index: number) => `#evidence-${index}`
+
+/** The answer as Markdown, with each server-returned reference as a `#evidence-N` link into `targets`. */
+export function evidenceMarkdown(answer: string, evidence?: ExecutionReferences | null): { markdown: string; targets: EvidenceTarget[] } {
+  const targets: EvidenceTarget[] = []
+  const markdown = evidenceParts(answer, evidence).map(part => {
+    if (!part.target) return part.text
+    targets.push(part.target)
+    return `[${part.text.replace(/[\\[\]*_`]/g, "\\$&")}](${evidenceHref(targets.length - 1)})`
+  }).join("")
+  return { markdown, targets }
+}
