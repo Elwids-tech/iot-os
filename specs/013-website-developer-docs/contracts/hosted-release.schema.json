@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/schemas/website/hosted-release.v1.json",
+  "$id": "https://example.com/schemas/docs/hosted-release.v1.json",
   "title": "Hosted release record",
-  "description": "Committed half of the hosted release record: the feature switches of the hosted service. The website publishes gated docs only for features switched on. The hosted commit itself is never committed: it comes from the WEBSITE_HOSTED_REF secret in CI and .local/website/website.env locally. Changed by pull request.",
+  "description": "Committed half of the hosted release record: the feature switches of the hosted service. The docs publish gated pages only for features switched on. The hosted commit itself is never committed: it comes from the DOCS_HOSTED_REF secret in CI and .local/docs/docs.env locally. Changed by pull request.",
   "type": "object",
   "additionalProperties": false,
   "required": [

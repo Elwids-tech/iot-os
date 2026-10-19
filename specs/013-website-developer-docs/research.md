@@ -1,22 +1,29 @@
-# Research: Marketing Website and Developer Documentation
+# Research: Developer Documentation and SDK Publishing
 
 Decisions behind [plan.md](plan.md), each with what was rejected. Versions are the
 current stable releases at planning time (October 2026); implementation pins exact
-versions in `apps/website/package.json`.
+versions in `apps/docs/package.json`.
 
-## R1. Site toolchain: Astro with Starlight in `apps/website`
+**Revised 2026-10-18** ([ADR-021](../../docs/adr/ADR-021-developer-docs-only.md)):
+the marketing website moved to its own repository. R1, R2, R6, R7, R10 and R12 are
+revised for a docs-only site. R3 and R11 described the website's inquiry form and
+cutover; they are kept, marked as moved, as input for the website repository.
+Requirement numbers in the moved and superseded parts refer to the 2026-10-17 version
+of the spec (in git history), not to the current one.
 
-**Decision**: Build one Astro 7 project with Starlight 0.42 mounted at `/docs`. The
-marketing pages are ordinary Astro pages beside it. Output is static HTML. React
-islands (`@astrojs/react`) render the few interactive controls with `@iot-os/ui`
-components. Tailwind 4 comes in through `@tailwindcss/vite`, as in the portal, and
-search is Starlight's built-in Pagefind index.
+## R1. Docs toolchain: Astro with Starlight in `apps/docs`
+
+**Decision**: Build one Astro 7 project with Starlight 0.42, served under `/docs` on
+the docs subdomain. Output is static HTML. React islands (`@astrojs/react`) are used
+only where a page needs interaction, with `@iot-os/ui` components. Tailwind 4 comes
+in through `@tailwindcss/vite`, as in the portal, and search is Starlight's built-in
+Pagefind index.
 
 **Rationale**:
 - Static HTML loads fast, works without JavaScript (an edge case in the spec) and
   needs no server.
-- Islands let the inquiry form and the menu reuse the kit's `Button`, `Input`,
-  `Textarea`, `RadioGroup` and `Field`. Everything else ships no JavaScript.
+- Starlight ships almost no JavaScript, and islands reuse the kit's controls where a
+  page needs them.
 - Starlight provides the docs shell: sidebar, light and dark modes, accessible
   navigation, and an offline search index built at publish time.
 - Astro content collections read Markdown from any path. The in-product guides
@@ -25,19 +32,43 @@ search is Starlight's built-in Pagefind index.
 **Alternatives considered**:
 - *Vite and React SPA like the portal*: needs a prerender step for search engines
   and for no-JS readers. That means rebuilding most of what Astro provides.
-- *Next.js*: built around a server runtime the site doesn't need. Static export
-  drops redirects and middleware.
-- *Docusaurus*: React-based but docs-first. Marketing pages and Tailwind 4 tokens
-  fight its own styling system, and it has two theming layers to keep in step with
-  the kit.
+- *Next.js*: built around a server runtime the docs don't need.
+- *Docusaurus*: React-based and docs-first, but Tailwind 4 tokens fight its own
+  styling system, and it has two theming layers to keep in step with the kit.
 - *VitePress*: Vue, which is outside the stack.
 - *Mintlify, GitBook, ReadMe*: hosted and closed-source, with docs living outside
   the repository. That conflicts with the code being the source of truth and with
   the owner's open-source UI preference.
 
-## R2. Hosting: Cloudflare Workers with static assets
+## R2. Hosting: GitHub Pages (revised; the earlier Cloudflare decision follows)
 
-**Decision**: Deploy the built site as a Worker's static assets. A small Worker
+**Decision**: `.github/workflows/docs-deploy.yml` builds the docs and publishes them
+with `actions/upload-pages-artifact` and `actions/deploy-pages`, on `main` and by
+manual dispatch. The docs subdomain is a CNAME record pointing at GitHub Pages, with
+HTTPS enforced.
+
+**Rationale**:
+- A docs-only site has no form, storage or redirects, so static hosting is enough
+  (FR-018, FR-020).
+- The repository is public, so Pages is included. The workflow needs only
+  `pages: write` and `id-token: write`: no new vendor, account or DNS zone move.
+- A custom Actions workflow is exempt from the 10-builds-an-hour limit. The 1 GB site
+  limit, the soft 100 GB a month bandwidth and the 10-minute deployment timeout are
+  far above what the docs need.
+- A failed build never reaches the deploy step, so the previous version stays online
+  (FR-019).
+
+**Alternatives considered**:
+- *Cloudflare, as first planned below*: still sound, but it brings an account, an API
+  token and a zone move for no benefit once the form and redirects are gone.
+- *The marketing site's host*: couples the docs to the website repository's deploys
+  and makes them depend on reading this repository at the hosted commit.
+- *Caddy on the pilot host*: puts the docs and the product in one failure domain
+  (FR-018).
+
+### Superseded: Cloudflare Workers with static assets (moved to the website repository)
+
+**Decision (2026-10-17)**: Deploy the built site as a Worker's static assets. A small Worker
 script runs only for `/api/*`, through `assets.run_worker_first: ["/api/*"]`.
 Permanent redirects live in `_redirects`, and the host redirect from `www` to the
 apex is a zone Redirect Rule. The marketing domain's DNS zone moves from its current
@@ -70,9 +101,12 @@ move.
 - *A separate small VM with Caddy*: a server to patch, TLS and deploy over SSH, plus
   a mail relay for the form. That is the most operations work for the least gain.
 
-## R3. Inquiry delivery: a stored outbox, then email
+## R3. Inquiry delivery (moved to the website repository)
 
-**Decision**: `POST /api/inquiry` takes the request in this order:
+Kept as input for the website repository's form; nothing here is built in this
+repository.
+
+**Decision (2026-10-17)**: `POST /api/inquiry` takes the request in this order:
 
 1. Validate it against `contracts/website/inquiry.v1.schema.json`.
 2. Reject bots silently: a filled honeypot field or a submission made under 3
@@ -112,12 +146,12 @@ sees an on-screen confirmation. No email goes to the visitor.
 **Decision**: the hosted release record has two parts:
 - **The hosted commit**, the full SHA running on the hosted service. It is never
   committed:
-  - CI reads it from the Actions secret `WEBSITE_HOSTED_REF`. A secret rather than a
+  - CI reads it from the Actions secret `DOCS_HOSTED_REF`. A secret rather than a
     variable, because public workflow logs show variable values unmasked.
-  - Local builds read it from `.local/website/website.env`.
+  - Local builds read it from `.local/docs/docs.env`.
   - No script prints it, and nothing in `dist` contains it.
 - **The feature switches** (`adapters`, `agent_access`), committed in
-  `apps/website/hosted-release.json` and changed by pull request.
+  `apps/docs/hosted-release.json` and changed by pull request.
 
 After each hosted deploy, the operator updates the secret and their `.local` value,
 then publishes newly released drafts by pull request or redeploys by dispatch.
@@ -126,12 +160,12 @@ Releases are commits today, not tags, and there is no CD.
 The build extracts the generated sources (`contracts/openapi`, `contracts/agents`,
 `apps/api/resources/help`, `packages/integration-sdk/package.json` and
 `tooling/simulators`) from that commit with `git archive` into the ignored
-`apps/website/.sources/`. Locally, `WEBSITE_SOURCES=worktree` reads the working tree
+`apps/docs/.sources/`. Locally, `DOCS_SOURCES=worktree` reads the working tree
 instead.
 
 Hand-written pages about unreleased behaviour carry Starlight's `draft: true`.
 Starlight leaves drafts out of production builds and shows them in development.
-When the record is bumped, `check-site.mjs drafts` lists drafts whose introducing
+When the record is bumped, `check-docs.mjs drafts` lists drafts whose introducing
 commit is now an ancestor of the hosted commit, so the bump pull request can publish
 them.
 
@@ -141,12 +175,12 @@ them.
   deployed. Keeping it private costs one secret update per hosted deploy.
 - The feature switches reveal nothing sensitive and are worth reviewing, so they
   stay in a committed file. It works with today's manual releases.
-- Marketing copy and docs prose fixes still ship from `main` at any time. Only the
-  generated reference and drafted pages wait for the release.
+- Docs prose fixes still ship from `main` at any time. Only the generated reference
+  and drafted pages wait for the release.
 
 **Alternatives considered**:
-- *Building the whole site from the release commit*: prose fixes would wait for a
-  platform release.
+- *Building the whole docs site from the release commit*: prose fixes would wait
+  for a platform release.
 - *Inferring the release from the pilot host*: the site's CI would need access to
   the production host.
 - *Reading feature switches from repository defaults*: the defaults are "off" for
@@ -169,26 +203,26 @@ them.
   example 240 a minute per address and 60 per application). The plugin renders
   standard fields only, so `sources.mjs` prepends "Requires: `devices:read`" and
   "Rate limits: …" lines to each operation's `description`. The `reference` check
-  confirms every generated page shows them (FR-013).
+  confirms every generated page shows them (FR-010).
 - **Events and webhook delivery**: pages rendered by site components from the
   filtered contract's `IntegrationEvent` discriminator mapping and
   `webhooks.integrationEvent`. This doesn't depend on the plugin's webhook support.
 - **Agent tools**: a table rendered from `contracts/agents/tools.json`.
 - **User guides**: `sources.mjs` writes each guide to
   `src/content/docs/docs/guides/<slug>.md`, a generated and ignored path, as a build
-  artifact rather than a committed second copy (FR-015). Its front matter becomes
+  artifact rather than a committed second copy (FR-012). Its front matter becomes
   `title`, `description` (the summary), `help_revision` and `requires` (from
   `required_capabilities`). It rewrites `/help/<slug>` links to `/docs/guides/<slug>/`.
   Starlight's autogenerated sidebar groups by folder, not front matter. So
   `astro.config.mjs` builds one sidebar group per guide `section` from `meta.json`,
   keeping URLs flat.
 - **Feature gating**: the docs collection drops `adapters/` and `agents/` folders
-  whose switch is off, using glob negation. PR 4 first checks that Starlight's
+  whose switch is off, using glob negation. PR 1 first checks that Starlight's
   `docsLoader` accepts a glob pattern. If it doesn't, the collection uses Astro's
   `glob({ base, pattern })` loader with `docsSchema`, which Starlight supports for
   custom loaders.
 - **Fail closed**: any unknown front matter field, unresolved `$ref` or missing
-  guide fails the build (US4 scenario 2).
+  guide fails the build (US3 scenario 2).
 
 **Alternatives considered**: Scalar or Redoc embedded as one client-side page. These
 are not in the Pagefind index, don't work without JavaScript and are styled apart
@@ -197,75 +231,76 @@ from the kit. Hand-copying the reference was rejected because it would drift.
 ## R6. Design system on a static site
 
 **Decision**:
-- `src/styles/site.css` imports `@iot-os/ui/globals.css`. `src/styles/starlight.css`
-  maps Starlight's `--sl-color-*` and font variables onto the kit tokens, so both
-  sides share one palette in light and dark.
-- Marketing sections are site-local `.astro` components using kit tokens and the
-  named type scale. Interactive controls are kit React components in islands.
-- `check-ui.mjs` gains `.astro` in its file filter, and the site's `lint` runs it on
-  `apps/website/src`.
+- `src/styles/docs.css` imports `@iot-os/ui/globals.css`. `src/styles/starlight.css`
+  maps Starlight's `--sl-color-*` and font variables onto the kit tokens, so the docs
+  and the portal share one palette in light and dark.
+- Docs-specific pieces (event tables, the agent tools table, the guide revision line)
+  are small `.astro` components using kit tokens and the named type scale.
+  Interactive controls, if any, are kit React components in islands.
+- `check-ui.mjs` gains `.astro` in its file filter, and the docs' `lint` runs it on
+  `apps/docs/src`.
 
-**Rationale**: no product screen uses a hero or a pricing-free feature grid, so
-these don't belong in the kit. Tokens, type and controls do, and the guardrail keeps
-raw palette colours and arbitrary sizes out. This is recorded in the plan's
-Complexity Tracking table.
+**Rationale**: with the marketing pages gone, there are no hero or feature-grid
+components to justify. The docs compose Starlight and kit tokens, and the guardrail
+keeps raw palette colours and arbitrary sizes out.
+
+**For the website repository**: `@iot-os/ui` isn't published, so the website copies
+the kit's colour and type variables rather than importing the package.
 
 ## R7. Build checks
 
-**Decision**: `apps/website/scripts/check-site.mjs` runs after `astro build` and
+**Decision**: `apps/docs/scripts/check-docs.mjs` runs after `astro build` and
 fails the build on any of these:
 
-- **literals**: a configured value appears in `src/` outside `site.config.ts`. CI
-  provides the real values as secrets, so this check also proves they are not
-  committed (FR-003, FR-004).
+- **literals**: a configured value appears in `src/` outside `docs.config.ts`. CI
+  provides the real values as variables and secrets, so this check also proves they
+  are not committed (FR-004, FR-005).
+- **rename**: a build with a different product name still contains the default name
+  (SC-005).
 - **names**: built text contains a name from the private denylist (CI secret
-  `WEBSITE_DENYLIST`, or `.local/website/denylist.txt` locally) (FR-006).
-- **claims**: every `<Claim>` either links to a built docs route or names an entry
-  in `src/claims.yaml` with `source` and `reviewed_by`. A percentage or numeric range
-  on a marketing page outside a `<Claim>` fails (FR-005).
+  `DOCS_DENYLIST`, or `.local/docs/denylist.txt` locally) (FR-007).
 - **features**: no built page links to a docs route excluded by a feature switch or
-  by `draft` (FR-012).
+  by `draft` (FR-006).
 - **reference**: the generated API pages match the filtered contract's operations
-  one to one, each shows its "Requires" and "Rate limits" lines, and the events page
-  lists exactly the contract's `IntegrationEventType` values (FR-013, SC-003).
+  one to one, each shows its "Requires" and "Rate limits" lines, the events page
+  lists exactly the contract's `IntegrationEventType` values, and nothing in `dist`
+  contains the hosted commit (FR-010, SC-003).
 - **changelog**: entries exist for the hosted contract's `info.version` and the
   SDK's version. The operations and event types in `meta.json` must also equal the
   committed `changelog-baseline.json`. A difference fails until the pull request adds
-  a changelog entry and refreshes the baseline (`check-site changelog --update`), so
+  a changelog entry and refreshes the baseline (`check-docs changelog --update`), so
   an event type added within v1 without a version change still gets an entry
-  (FR-019).
-- **redirects**: every path in `src/redirects.ts` resolves to a built page (FR-023,
-  SC-006).
+  (FR-016).
 
 Links are checked by `starlight-links-validator`. Accessibility is checked with
 Playwright and `@axe-core/playwright` on every route in the sitemap, waiting for
 `document.getAnimations()` to settle so colour fades don't cause flaky contrast
-failures. Performance is checked by Lighthouse CI on the marketing pages with the
-mobile preset, asserting LCP ≤ 2,000 ms (SC-004).
+failures. Performance is checked by Lighthouse CI on representative docs pages
+(the index, a quickstart, a generated API page and a user guide) with the mobile
+preset, asserting LCP ≤ 2,000 ms (SC-004).
 
 Privacy is checked by a Playwright spec on every sitemap route: no `Set-Cookie`
 header, an empty `document.cookie` and no request to another origin. The kit's fonts
 come from `@fontsource` packages and are bundled, so they pass (FR-008).
 
-A sitemap exists from PR 1 through `@astrojs/sitemap`. When Starlight arrives in
-PR 4, the build must still produce exactly one `sitemap-index.xml` covering
-marketing and docs routes.
+Starlight generates the sitemap when `site` is set, so the axe and privacy specs read
+their route list from `sitemap-index.xml`.
 
 ## R8. Running the samples
 
 **Decision**:
-- Developer samples live as real files in `apps/website/samples/developer/` and are
+- Developer samples live as real files in `apps/docs/samples/developer/` and are
   shown with Starlight's `<Code>` from a `?raw` import, so the page shows exactly
   the file that runs.
 - `tooling/verify-website-samples.mjs` runs them against the fixture made by
   `tooling/verify-integration-sdk.php`, and `tooling/test-devices.mjs` adds it to
-  `./taskw devices:test` (FR-018).
+  `./taskw devices:test` (FR-015).
 - The hardware path runs the downloadable simulator kit with a real connection kit
   in the same suite.
 - CI type-checks and syntax-checks the samples. It can't run them because it has no
-  live stack, the same limit as `studio.spec.ts` and the devices suite today. FR-018
-  makes up for that with a gate in the CI `website` job: a pull request that changes
-  `apps/website/samples/`, `packages/integration-sdk/` or the integration API
+  live stack, the same limit as `studio.spec.ts` and the devices suite today. FR-015
+  makes up for that with a gate in the CI `docs` job: a pull request that changes
+  `apps/docs/samples/`, `packages/integration-sdk/` or the integration API
   (`apps/api/app/Domain/Integrations/`, `contracts/openapi/supplements/integration*.yaml`)
   fails unless its description records a `./taskw devices:test` run.
 
@@ -280,7 +315,7 @@ behaves as one edge node with two downstream devices:
 The edge node's own NBIRTH carries only `bdSeq`, `Node Control/Rebirth` and `Uptime`.
 So the quickstart needs two starter profiles, "Simulated meter" and "Simulated light"
 (controllable Power, Color, Mode and Brightness), and the confirmed command goes to
-`rgb-light`. PR 5's first task proves which onboarding path works, before any page is
+`rgb-light`. PR 2's first task proves which onboarding path works, before any page is
 written:
 - *Preferred*: create a direct device and download its kit, run the simulator, then
   onboard `meter` and `rgb-light` from **Connect → Discovery** under that edge node.
@@ -305,16 +340,21 @@ Renaming later means deprecating it and publishing again.
 
 ## R10. Privacy and analytics
 
-**Decision**: no client-side analytics, cookies or third-party scripts; traffic
-figures come from Cloudflare's server-side zone analytics. The privacy notice names
+**Docs (revised)**: the docs set no cookies and load no analytics or third-party
+scripts. GitHub Pages, as the host, processes request logs. The marketing site's
+privacy notice should mention that the docs are hosted there.
+
+**Website (moved to the website repository; decision of 2026-10-17)**: no client-side
+analytics, cookies or third-party scripts; traffic figures come from Cloudflare's
+server-side zone analytics. The privacy notice names
 the processor (Cloudflare: hosting, inquiry storage and email delivery), what the
 form collects and why, retention (30 days delivered, 90 days failed) and a contact
 for requests. The company supplies the final text, and engineering supplies those
 facts.
 
-## R11. Cutover
+## R11. Cutover (moved to the website repository)
 
-**Decision**:
+**Decision (2026-10-17)**:
 1. Move the zone to Cloudflare, with records copied and checked.
 2. Deploy and review on a preview URL.
 3. Route the apex and `www` to the Worker.
@@ -326,9 +366,13 @@ over (`/platform`, `/solutions`, `/solutions/factory`, `/solutions/carbonops`,
 `/solutions/water`, `/contact`), so most need no redirect. Only renamed pages get
 one, for example `/scan` → `/assessment`.
 
-## R12. ADR
+## R12. ADRs
 
-**Decision**: add **ADR-020, Public website and developer docs outside the product**:
+**Revised 2026-10-18**: **ADR-021** amends ADR-020. The marketing website moves to
+its own repository, and the developer docs stay here in `apps/docs`, published to
+GitHub Pages. The constitution's stack line changes accordingly (1.0.4).
+
+**Decision (2026-10-17)**: add **ADR-020, Public website and developer docs outside the product**:
 a static Astro site in this monorepo, deployed to Cloudflare by its own workflow,
 with docs generated from the hosted release. It adds a deployable, a vendor and the
 repository's first continuous deployment, and it extends the constitution's stack
@@ -342,4 +386,5 @@ ADR beyond 019, so 020 is free.
 - [starlight-openapi](https://github.com/HiDeoo/starlight-openapi) (OpenAPI 3.1, operation snippets)
 - [Workers static assets: binding and `run_worker_first`](https://developers.cloudflare.com/workers/static-assets/binding) and [redirects](https://developers.cloudflare.com/workers/static-assets/redirects/index.md)
 - [Email Service send bindings](https://developers.cloudflare.com/email-service/configuration/send-bindings/index.md)
+- [GitHub Pages limits](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits)
 - [Netlify pricing update, April 2026](https://www.netlify.com/changelog/2026-04-14-pricing-updates-april-2026/) and [spam filters](https://docs.netlify.com/manage/forms/spam-filters/)

@@ -109,8 +109,8 @@ docs/dev/simulators-and-fixtures.md.
   TanStack Query and shadcn/ui on Radix through `@iot-os/ui`, ECharts through
   `packages/charts`, PostgreSQL 17 with TimescaleDB, NATS JetStream inside the
   runtime, Sparkplug B over MQTT/TLS on Mosquitto, the only broker (ADR-019); the
-  public website and developer docs are a static Astro and Starlight site deployed
-  to Cloudflare (ADR-020).
+  public developer docs are a static Astro and Starlight site published to GitHub
+  Pages, and the marketing website lives in its own repository (ADR-020, ADR-021).
 - **One product, several deployment profiles:** a single VM or on-premise host with
   Docker Compose first; Kubernetes profiles are future work (ADR-006).
 - **Decisions are ADRs:** a change that contradicts an accepted ADR needs a new ADR
@@ -148,4 +148,4 @@ expanding one, PATCH for wording. Reviewers and `/speckit-plan` check new work
 against these principles; violations are either fixed or justified in the plan's
 Complexity Tracking table.
 
-**Version**: 1.0.3 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-17
+**Version**: 1.0.4 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-18

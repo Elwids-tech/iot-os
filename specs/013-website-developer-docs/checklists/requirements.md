@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Marketing Website and Developer Documentation
+# Specification Quality Checklist: Developer Documentation and SDK Publishing
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-10-17
@@ -41,3 +41,7 @@
   the assessment offer carry over beside the two engineering audiences. FR-024: the
   SDK goes to the public npm registry under a permissive license that covers the SDK
   alone.
+- Rescoped on 2026-10-18 (ADR-021): the marketing website, its inquiry form, claims,
+  redirects and cutover moved to the website repository. The spec now has three user
+  stories (hardware quickstart, developer quickstart, docs true to the hosted
+  service), 21 requirements and 5 success criteria. Every item above still passes.
