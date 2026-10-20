@@ -19,7 +19,7 @@
     "remove"
   ],
   "required_capabilities": [],
-  "revision": 1,
+  "revision": 2,
   "summary": "**Members** and **Roles** let organization administrators invite people, change what they can do, and bundle permissions into roles.",
   "questions": [
     "How do I invite someone to my organization?",
@@ -41,7 +41,7 @@ You need permission to list, invite or change members, or to edit roles. You can
 5. Open **Roles** to create a role, then select the permissions it bundles and save.
 
 ## Expected result
-Invited people join with the roles you selected. Role and member changes apply on the member's next request. **Organization Admin** always has every permission available to the organization.
+Invited people join with the roles you selected and receive a welcome email that describes what those roles let them do. Role and member changes apply on the member's next request. **Organization Admin** always has every permission available to the organization.
 
 ## Troubleshooting
 A locked permission or role includes access you don't hold yourself, so you can't grant it. A member you can't change has access beyond yours. An organization always keeps at least one **Organization Admin**. A role can be deleted only when no member holds it and no pending invitation uses it.

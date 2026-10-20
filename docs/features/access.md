@@ -106,7 +106,13 @@ remove the last one run under a lock. Violations return 422 with a field error.
 (resend, revoke). **Invite people** takes an email and roles; roles with
 permissions you don't hold are shown locked. **Settings → Roles** edits built-in and
 custom roles with the shared permission matrix; Organization Admin is read-only.
-Accepting an invitation links straight into the organization.
+Accepting an invitation links straight into the organization and queues a welcome
+email ([`OrganizationWelcomeNotification`](../../apps/api/app/Domain/Administration/Notifications/OrganizationWelcomeNotification.php))
+on the `alerts` queue after the acceptance commits. It describes only what the
+person's roles there allow, read when `alerts-worker` sends it, links to the
+organization's Home and is skipped if they have left the organization by then.
+Super-administrator invitations send none. Like password resets, it ignores email
+preferences.
 
 Invitations expire after seven days; resending issues a new token with the same
 UUID and stops the old link. Inviting is limited to 20 per minute per user and 200

@@ -6,6 +6,7 @@ namespace App\Domain\Administration\Services;
 
 use App\Domain\Administration\Models\OrganizationInvitation;
 use App\Domain\Administration\Notifications\OrganizationInvitationNotification;
+use App\Domain\Administration\Notifications\OrganizationWelcomeNotification;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -234,6 +235,7 @@ final class OrganizationInvitationManager
 
                 $user->organizations()->attach($invitation->organization_id);
                 $this->roleManager->syncMemberRoles($invitation->organization, $user, $invitation->role_ids);
+                $user->notify(new OrganizationWelcomeNotification($invitation->organization));
             }
 
             $invitation->forceFill(['accepted_at' => now()])->save();
