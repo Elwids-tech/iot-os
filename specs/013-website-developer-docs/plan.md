@@ -48,7 +48,7 @@ to install it.
 - Astro 7.4.1 (7.4.2 needs a newer Node than the pinned 22.23.3), `@astrojs/starlight`,
   `@astrojs/starlight-tailwind`, `@tailwindcss/vite` 4
 - `starlight-openapi`, `starlight-links-validator`
-- `three` for the landing hero, loaded only after the page is idle
+- `three` for the landing hero, loaded only after the page has loaded and painted
 - `@iot-os/ui` (workspace): `tokens.css`, the kit's tokens without Tailwind's preflight,
   split out of `globals.css` so Starlight's own reset is kept. Portal and admin CSS is
   byte-identical after the split

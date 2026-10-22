@@ -28,11 +28,9 @@ let letterIndex = 0
     ;(() => {
       const hero = document.currentScript.closest('[data-hero]')
       const motion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      let webgl = false
-      try {
-        const probe = document.createElement('canvas')
-        webgl = Boolean(probe.getContext('webgl2') || probe.getContext('webgl'))
-      } catch {}
+      // Creating a WebGL context here would hold up parsing before the text paints. The
+      // scene shows the text itself if it can't get one.
+      const webgl = 'WebGLRenderingContext' in window
       if (!hero || !motion || !webgl) return
       hero.dataset.animate = 'pending'
       // Show everything if the animation never starts.
@@ -97,8 +95,13 @@ let letterIndex = 0
           hero.dataset.animate = 'done'
           hero.querySelectorAll<HTMLElement>('[data-word]').forEach((word) => (word.dataset.revealed = ''))
         })
-    if ('requestIdleCallback' in window) window.requestIdleCallback(start, { timeout: 600 })
-    else setTimeout(start, 120)
+    // Three.js waits until the page has loaded and painted a frame, so it never delays
+    // the largest contentful paint.
+    const whenIdle = () =>
+      'requestIdleCallback' in window ? window.requestIdleCallback(start, { timeout: 600 }) : setTimeout(start, 120)
+    const afterPaint = () => requestAnimationFrame(() => requestAnimationFrame(whenIdle))
+    if (document.readyState === 'complete') afterPaint()
+    else window.addEventListener('load', afterPaint, { once: true })
   }
 </script>
 

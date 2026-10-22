@@ -87,10 +87,12 @@ with the splash template, so it shares the docs header and theme.
   its word of the tagline when the name is an acronym of it. Then the particles settle
   into a drifting constellation.
   - The DOM text is always the content; the canvas only decorates it.
-  - Three.js loads after the page is idle.
-  - With reduced motion, without WebGL or without JavaScript, the final text shows at
-    once. If the scene never starts, an inline script shows the text after three
-    seconds.
+  - Three.js loads only after the page has loaded and painted, so it never delays
+    the largest contentful paint. The inline script checks for WebGL without creating
+    a context, which would hold up parsing.
+  - With reduced motion or without JavaScript, the final text shows at once; without
+    a WebGL context, as soon as the scene finds none. If the scene never starts, an
+    inline script shows the text after three seconds.
 - **Palette:** `src/styles/brand.css` is an accent layer on the kit tokens: life
   (teal), signal (the kit's blue) and energy (amber), for light and dark. The hero is
   the one place with display sizes beyond the named type scale (`--hero-*`).
@@ -143,7 +145,9 @@ They check:
 - the header and footer links
 - the landing intro and its reduced-motion fallback
 
-Lighthouse asserts the largest contentful paint stays under two seconds on mobile.
+Lighthouse asserts the largest contentful paint stays under two seconds on mobile,
+taking the median of three runs per page because single runs vary by a few hundred
+milliseconds.
 
 Astro runs one preview server per project. Playwright reuses one already running on
 port 4321.

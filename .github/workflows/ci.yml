@@ -210,6 +210,7 @@ jobs:
           path: |
             apps/docs/test-results
             apps/docs/.lighthouseci
+          include-hidden-files: true
           retention-days: 7
 
   e2e:

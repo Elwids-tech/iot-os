@@ -8,10 +8,11 @@
         "http://localhost/docs/reference/api/operations/readdevices/index.html",
         "http://localhost/docs/guides/devices/index.html"
       ],
-      "numberOfRuns": 1,
+      "numberOfRuns": 3,
       "settings": { "preset": "perf", "formFactor": "mobile", "screenEmulation": { "mobile": true } }
     },
     "assert": {
+      "aggregationMethod": "median",
       "assertions": {
         "largest-contentful-paint": ["error", { "maxNumericValue": 2000 }]
       }

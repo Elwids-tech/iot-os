@@ -24,6 +24,19 @@ test('the intro plays and ends with the slogan shown', async ({ page }) => {
   for (const word of await hero.locator('[data-word]').all()) await expect(word).toHaveCSS('opacity', '1')
 })
 
+test('without a WebGL context, the slogan shows', async ({ page }) => {
+  await page.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+      return type.startsWith('webgl') ? null : getContext.call(this, type, ...(rest as []))
+    } as typeof getContext
+  })
+  await page.goto('/')
+  const hero = page.locator('[data-hero]')
+  await expect(hero).toHaveAttribute('data-animate', 'done')
+  for (const word of await hero.locator('[data-word]').all()) await expect(word).toHaveCSS('opacity', '1')
+})
+
 test.describe('with reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } })
   test('shows the final state at once, with no animation', async ({ page }) => {
