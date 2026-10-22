@@ -45,3 +45,7 @@
   redirects and cutover moved to the website repository. The spec now has three user
   stories (hardware quickstart, developer quickstart, docs true to the hosted
   service), 21 requirements and 5 success criteria. Every item above still passes.
+- Revised on 2026-10-22, before merge: the docs site is also the platform's front
+  door at the root of the platform domain. Added User Story 4, FR-022 and SC-006, and
+  changed FR-020 from a docs subdomain to the platform domain's root. Every item above
+  still passes.

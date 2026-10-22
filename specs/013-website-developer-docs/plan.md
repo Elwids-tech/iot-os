@@ -6,16 +6,19 @@
 
 **Revision**: the marketing website moved to its own repository
 ([ADR-021](../../docs/adr/ADR-021-developer-docs-only.md)). This plan now covers the
-developer docs and SDK publishing only. The website's earlier design (Cloudflare,
+developer docs and SDK publishing only. On 2026-10-22 the docs site also became the
+platform's front door: a landing page at the root of the platform domain (US4). The website's earlier design (Cloudflare,
 the inquiry Worker, redirects and cutover) stays in [research.md](research.md) as
 input for that repository.
 
 ## Summary
 
-A new workspace, `apps/docs`, holds the public developer docs: a static Astro and
-Starlight site served under `/docs` on its own subdomain. It uses the `@iot-os/ui`
-tokens and type scale, and is published to GitHub Pages independently of the hosted
-platform.
+A new workspace, `apps/docs`, holds the platform's public front door: a static
+Astro and Starlight site at the root of the platform domain. It has a short landing
+page at `/` and the developer docs under `/docs`. It uses the `@iot-os/ui` tokens and
+type scale, and is published to GitHub Pages independently of the hosted platform.
+The portal, API and broker keep their own subdomains, and the company website stays
+on the company's domain.
 
 The docs combine hand-written guides with reference generated at build time. The
 generated parts come from the commit the hosted service runs. That commit is a CI
@@ -97,7 +100,7 @@ for the behaviour it adds, so nothing depends on `specs/` after the freeze:
 - `docs/dev/docs-site.md`, created in PR 1 (local development, checks, writing rules,
   generated pages) and extended in PRs 2 and 4
 - `docs/ops/docs-site.md`, created in PR 1 (deploy, the hosted commit update, the
-  docs subdomain)
+  platform domain's DNS)
 - `docs/ops/release.md` and `docs/features/integrations.md` for the SDK in PR 3
 
 **Engineering constraints**: ADR-021 amends ADR-020, and the constitution's stack
@@ -118,8 +121,9 @@ platform API and no product container.
   `build` (`sources.mjs`, `astro build`, `check-docs all`), `preview`, `lint`
   (`astro check`, `check-ui` on `src`, `check-docs literals`), `test` and `test:e2e`
   scripts.
-- **`docs.config.ts`**: the only place for the product name, company name, docs URL,
-  marketing-site URL and contact page, portal URL, API base URL and broker host.
+- **`docs.config.ts`**: the only place for the product name, company name, site URL
+  (the platform domain's root), marketing-site URL and contact page, portal URL, API
+  base URL and broker host.
   Each value reads a `PUBLIC_DOCS_*` variable and defaults to an `example.com`
   placeholder, so forks build and real values exist only in the deploy environment
   ([contract](contracts/docs-config.md)). For local builds, `docs.config.ts` loads
@@ -173,6 +177,16 @@ Sidebar, in `astro.config.mjs`:
   `docs/reference/sparkplug.md`, with a checklist of each requirement and rejection.
 - **Developer quickstart and SDK pages**: show `samples/developer/*.mjs`. They stay
   `draft: true` until the SDK is on npm (FR-021).
+- **Landing page** (US4, FR-022): `src/content/docs/index.mdx` with Starlight's
+  `template: splash`, served at `/`:
+  - a hero with the product name and a one-sentence description, and actions for
+    **Sign in**, **Connect a device** and **API reference**. **Build an integration**
+    is added once that quickstart leaves draft
+  - link cards for hardware, developers and user guides
+  - "Built and run by <company>", linking to the company website
+
+  It names no industry products, outcome figures or customers. Every capability it
+  mentions links to a docs page, which the `features` and links checks enforce.
 - **Header**: a Starlight `Header` override adds links to the marketing site and the
   portal's sign-in (FR-002).
 - **Footer**: every docs page gets **Report a problem with this page**, linking to
@@ -222,7 +236,7 @@ Sidebar, in `astro.config.mjs`:
 
 - **Package**: `packages/integration-sdk/package.json` gains `license`,
   `repository` and `publishConfig.provenance`, plus a `LICENSE` file. `homepage` is
-  set by the publish workflow from the docs URL variable. The README replaces "not
+  set by the publish workflow to the site URL's `/docs/`. The README replaces "not
   published" with `npm install` and the docs link.
 - **Workflow**: `.github/workflows/sdk-publish.yml` runs on `sdk-v*` tags. It builds
   and tests the SDK, checks that the tag matches `version`, and publishes with npm
@@ -245,6 +259,7 @@ stacked.**
    - `check-docs.mjs`, `check-ui` reading `.astro`, the links validator and the
      `check_links.py` exclusion
    - the CI `docs` job (axe, privacy, Lighthouse) and `docs-deploy.yml`
+   - the landing page (US4)
    - `docs/dev/docs-site.md`, `docs/ops/docs-site.md`, and the AGENTS.md and
      `docs/README.md` repository map rows
 2. **Hardware docs** (US1): the quickstart, the Sparkplug reference, the gateway,
@@ -266,9 +281,15 @@ integration API by PR 1.
 
 ## Owner actions
 
-- **Docs subdomain**: a CNAME record at the company's DNS pointing at GitHub Pages,
-  Pages enabled with "GitHub Actions" as the source, and the custom domain set with
-  HTTPS enforced.
+- **Platform domain root**:
+  - at the domain's existing DNS provider, replace the registrar's parking or
+    forwarding on the root with GitHub Pages' four A records (and, optionally, its
+    AAAA records), and point `www` at the organization's `github.io` host with a
+    CNAME. The portal, API, broker and ops records stay as they are
+  - verify the domain for the organization in GitHub (a TXT record), so no other
+    Pages site can claim it
+  - enable Pages with "GitHub Actions" as the source, and set the custom domain with
+    HTTPS enforced
 - **Marketing site URLs** (home and contact page) for the header and the "Report a
   problem" link. Placeholders work until the new site is live.
 - **SDK**: npm organization, scope and name, and MIT or Apache-2.0.
@@ -312,10 +333,11 @@ apps/docs/
 │   └── check-docs.mjs       # literals, rename, names, features, reference, changelog, drafts
 ├── src/
 │   ├── content.config.ts
+│   ├── content/docs/index.mdx   # the landing page at / (splash template)
 │   ├── content/docs/docs/   # hand-written docs served at /docs (guides/ is generated, ignored)
 │   ├── components/docs/     # Header, Footer, EventTypes, WebhookDelivery, AgentTools, GuideMeta
 │   └── styles/              # docs.css (kit globals), starlight.css (token mapping)
-└── tests/                   # Vitest (scripts), Playwright (axe, privacy)
+└── tests/                   # Vitest (scripts), Playwright (axe, privacy, chrome and landing)
 
 packages/integration-sdk/    # license, metadata, README
 packages/ui/scripts/check-ui.mjs   # also reads .astro

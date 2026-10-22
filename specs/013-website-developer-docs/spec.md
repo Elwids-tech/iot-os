@@ -9,6 +9,10 @@
 the public developer docs and publishing the integration SDK. No implementation had
 started. The folder keeps its name because ADR-020 links to it.
 
+**Revised again**: 2026-10-22, before PR #84 merged. The docs site is also the
+platform's front door: a landing page at the root of the platform's own domain, with
+the docs under `/docs`. The company website stays on the company's domain.
+
 **Status**: Draft
 
 **Input**: "A proper marketing website targeting hardware engineers as well as product
@@ -19,6 +23,9 @@ documentation to get started with." Later decisions:
 - The marketing website replaces the company's current site from a separate, private
   repository. It links to these docs.
 - The developer docs stay in this repository, because they are generated from it.
+- The platform's own domain gets a landing page at its root, which today shows only
+  the registrar's parking page. It serves as the platform's front door, with the docs
+  under it.
 - The integration SDK is published to the public npm registry under a permissive
   license chosen for the SDK alone.
 
@@ -58,8 +65,11 @@ credentials, or customer, prospect or pilot names.
 - *Generated reference* means pages built from a source in this repository: the API
   contract, the agent tool catalogue or the in-product guides.
 - *Hand-written guide* means docs prose written for outsiders.
+- *Platform domain* means the domain the portal, API and broker use, separate from
+  the company's domain.
+- *Landing page* means the page at the root of the platform domain.
 - *Docs configuration* means the single place that holds the product name, company
-  name, the docs, marketing-site, portal and API addresses, and the broker host.
+  name, the site, marketing-site, portal and API addresses, and the broker host.
 - *Hosted release record* means the commit the hosted service runs and its feature
   switches (adapters, agent access). The commit is kept out of the public
   repository, so nobody can diff it against newer fixes.
@@ -171,6 +181,34 @@ is not released does not publish them.
 4. **Given** an in-product guide, **Then** the published page shows the same content
    and revision as the portal does.
 
+---
+
+### User Story 4 - Find the way in from the platform domain (Priority: P2)
+
+A customer, a device maker or a developer types the platform domain without the
+portal's prefix, or follows a link to it. They see what the platform is and who runs
+it, and reach sign-in, a quickstart or the API reference in one click.
+
+**Why this priority**: the domain's root shows a parking page today, which looks
+abandoned to the people most likely to visit. The page is small, but it gives the
+docs and the portal one recognisable home.
+
+**Independent Test**: open the platform domain's root and `www`. Each reaches the
+landing page over HTTPS, and sign-in, each published quickstart, the API reference
+and the company website are each one click away. The portal, API and broker still
+answer at their usual addresses.
+
+**Acceptance Scenarios**:
+
+1. **Given** a visitor at the platform domain's root, **Then** the landing page says
+   in one sentence what the platform is, names the company that runs it, and links to
+   sign-in, the published quickstarts, the API reference and the company website.
+2. **Given** the landing page, **Then** it names no industry products, outcome
+   figures or customers, and every capability it mentions links to a docs page.
+3. **Given** a quickstart that is still a draft, **Then** the landing page doesn't
+   link to it.
+4. **Given** `www` on the platform domain, **Then** it leads to the landing page.
+
 ### Edge Cases
 
 - A feature is switched off in the hosted service (adapters, agent access). Its docs
@@ -262,17 +300,28 @@ is not released does not publish them.
   stays up.
 - **FR-019**: Publishing the docs MUST use the sources of the hosted release, and a
   failed build MUST leave the previous version online.
-- **FR-020**: The docs MUST be served on their own subdomain of the company's
-  domain, over HTTPS.
+- **FR-020**: The landing page and the docs MUST be served from the root of the
+  platform domain over HTTPS, with the docs under `/docs`, and `www` MUST lead to the
+  root. Serving them MUST NOT change the portal, API or broker addresses on that
+  domain.
 - **FR-021**: Before the developer quickstart is published, the integration SDK MUST
   be on the public npm registry under a permissive license (MIT or Apache-2.0) that
   covers the SDK package alone. Each release's changelog entry and published version
   MUST match the SDK docs.
 
+**Landing page**
+
+- **FR-022**: The landing page MUST say in one sentence what the platform is, name
+  the company that runs it, and link to sign-in, the published quickstarts, the API
+  reference and the company website. It MUST follow FR-006 to FR-009, name no
+  industry products or outcome figures, and link every capability it mentions to a
+  docs page.
+
 ### Key Entities
 
-- **Docs configuration**: product name, company name, docs URL, marketing-site URL
-  and its contact page, portal URL, API base URL and broker host.
+- **Docs configuration**: product name, company name, site URL (the platform
+  domain's root), marketing-site URL and its contact page, portal URL, API base URL
+  and broker host.
 - **Hosted release record**: the hosted commit, held privately, and the hosted
   feature switches (adapters, agent access), committed.
 - **Docs page**: section and source (hand-written, generated from the contract,
@@ -301,6 +350,9 @@ is not released does not publish them.
 - **SC-005**: Changing the product name in the docs configuration produces a build in
   which the old name appears nowhere. The literal-value and private-name checks fail
   the build when a test violation is introduced.
+- **SC-006**: The platform domain's root and `www` show the landing page instead of a
+  parking page. Sign-in, each published quickstart, the API reference and the company
+  website are each one click away from it.
 
 ## Assumptions
 

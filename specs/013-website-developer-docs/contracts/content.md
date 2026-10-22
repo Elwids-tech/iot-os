@@ -30,6 +30,17 @@ draft: true        # optional: unreleased behaviour, left out of production buil
 - Runnable code is imported from `samples/` with `<Code>` rather than pasted, so
   the samples harness runs what readers copy.
 
+## Landing page
+
+`src/content/docs/index.mdx`, served at the root of the platform domain:
+- one sentence on what the platform is, and the company that runs it
+- actions for sign-in and each published quickstart, and the API reference; never a
+  draft page
+- link cards to hardware, developers and user guides, and a link to the company
+  website
+- no industry products, outcome figures, customers or testimonials. Every
+  capability it mentions links to a docs page
+
 ## Generated pages
 
 These are never edited in `apps/docs`; edit their source.

@@ -72,12 +72,16 @@ GitHub Pages site, plus the rebuilt local stack for the samples.
    violations on any sitemap route. The privacy spec finds no `Set-Cookie`, an empty
    `document.cookie` and no request to another origin (FR-008). `lhci autorun`
    reports LCP ≤ 2,000 ms on the representative pages (SC-004).
-9. After merge, `docs-deploy.yml` publishes to GitHub Pages, and the docs subdomain
-   serves the new build over HTTPS. A deliberately failing build on a branch never
-   reaches the deploy step (FR-019).
-10. `docs/dev/docs-site.md` and `docs/ops/docs-site.md` exist, are linked from
-    `docs/README.md`, and describe the checks and the hosted commit update
-    (constitution: docs change with behaviour).
+9. After merge, `docs-deploy.yml` publishes to GitHub Pages:
+   - the platform domain's root and `www` serve the landing page over HTTPS
+   - the portal, API and broker still answer at their usual addresses
+   - a deliberately failing build on a branch never reaches the deploy step (FR-019)
+10. The landing page (US4, SC-006): sign-in, each published quickstart, the API
+    reference and the company website are each one click away. A draft quickstart
+    isn't linked, and no industry product, outcome figure or customer name appears.
+11. `docs/dev/docs-site.md` and `docs/ops/docs-site.md` exist, are linked from
+    `docs/README.md`, and describe the checks, the hosted commit update and the
+    platform domain's DNS (constitution: docs change with behaviour).
 
 ### 2. Hardware path (PR 2)
 

@@ -13,8 +13,8 @@ of the spec (in git history), not to the current one.
 
 ## R1. Docs toolchain: Astro with Starlight in `apps/docs`
 
-**Decision**: Build one Astro 7 project with Starlight 0.42, served under `/docs` on
-the docs subdomain. Output is static HTML. React islands (`@astrojs/react`) are used
+**Decision**: Build one Astro 7 project with Starlight 0.42, served from the root of
+the platform domain: a splash landing page at `/` and the docs under `/docs`. Output is static HTML. React islands (`@astrojs/react`) are used
 only where a page needs interaction, with `@iot-os/ui` components. Tailwind 4 comes
 in through `@tailwindcss/vite`, as in the portal, and search is Starlight's built-in
 Pagefind index.
@@ -44,8 +44,12 @@ Pagefind index.
 
 **Decision**: `.github/workflows/docs-deploy.yml` builds the docs and publishes them
 with `actions/upload-pages-artifact` and `actions/deploy-pages`, on `main` and by
-manual dispatch. The docs subdomain is a CNAME record pointing at GitHub Pages, with
-HTTPS enforced.
+manual dispatch. The platform domain's root points at GitHub Pages with its four A
+records at the domain's existing DNS provider, `www` is a CNAME to the organization's
+`github.io` host, and HTTPS is enforced. The domain is verified for the organization,
+so no other Pages site can take it over. The portal, API, broker and ops records on
+the same domain don't change. The root shows only the registrar's parking page today,
+so nothing is lost.
 
 **Rationale**:
 - A docs-only site has no form, storage or redirects, so static hosting is enough
@@ -60,7 +64,12 @@ HTTPS enforced.
 
 **Alternatives considered**:
 - *Cloudflare, as first planned below*: still sound, but it brings an account, an API
-  token and a zone move for no benefit once the form and redirects are gone.
+  token and a zone move for no benefit once the form and redirects are gone. For the
+  platform domain it would also mean moving the zone that carries the pilot's portal,
+  API and broker records.
+- *A docs subdomain* (the first version of this revision): leaves the domain's root
+  as a parking page, which is the first thing a visitor without the portal's address
+  sees.
 - *The marketing site's host*: couples the docs to the website repository's deploys
   and makes them depend on reading this repository at the hosted commit.
 - *Caddy on the pilot host*: puts the docs and the product in one failure domain

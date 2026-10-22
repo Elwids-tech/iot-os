@@ -10,7 +10,7 @@ the file exists. Committed defaults are placeholders (FR-005).
 | --- | --- | --- | --- |
 | `productName` | `PUBLIC_DOCS_PRODUCT_NAME` | `IoT OS` | Every mention of the product |
 | `companyName` | `PUBLIC_DOCS_COMPANY_NAME` | `Example Company` | Footer, titles |
-| `docsUrl` | `PUBLIC_DOCS_URL` | `https://docs.example.com` | `site` for canonical URLs and the sitemap; the SDK's `homepage` |
+| `siteUrl` | `PUBLIC_DOCS_SITE_URL` | `https://platform.example.com` | The platform domain's root: `site` for canonical URLs and the sitemap. The docs are under `/docs/`, which is also the SDK's `homepage` |
 | `marketingUrl` | `PUBLIC_DOCS_MARKETING_URL` | `https://www.example.com` | Header link to the marketing site (FR-002) |
 | `contactUrl` | `PUBLIC_DOCS_CONTACT_URL` | `https://www.example.com/contact` | **Report a problem with this page** (FR-017) |
 | `portalUrl` | `PUBLIC_DOCS_PORTAL_URL` | `https://app.example.com` | **Sign in**, portal links in guides |

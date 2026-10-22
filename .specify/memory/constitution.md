@@ -109,8 +109,9 @@ docs/dev/simulators-and-fixtures.md.
   TanStack Query and shadcn/ui on Radix through `@iot-os/ui`, ECharts through
   `packages/charts`, PostgreSQL 17 with TimescaleDB, NATS JetStream inside the
   runtime, Sparkplug B over MQTT/TLS on Mosquitto, the only broker (ADR-019); the
-  public developer docs are a static Astro and Starlight site published to GitHub
-  Pages, and the marketing website lives in its own repository (ADR-020, ADR-021).
+  platform's public landing page and developer docs are a static Astro and Starlight
+  site published to GitHub Pages, and the marketing website lives in its own
+  repository (ADR-020, ADR-021).
 - **One product, several deployment profiles:** a single VM or on-premise host with
   Docker Compose first; Kubernetes profiles are future work (ADR-006).
 - **Decisions are ADRs:** a change that contradicts an accepted ADR needs a new ADR
