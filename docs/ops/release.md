@@ -149,7 +149,9 @@ In order, `ship.py`:
 
 1. Checks the archive against its checksum and that it is a `git archive` of the
    expected commit (Git records the commit in the archive), unpacks it beside the
-   installed source and validates the configuration with the new tooling.
+   installed source and validates the configuration with the new tooling. The new
+   source gets 0755 directories and 0644 files, so that Grafana, which does not run
+   as root, can read the provisioning it mounts from it.
 2. Takes the operation lock, waiting for timers that hold it, and refuses
    `DEPLOYMENT_INCOMPLETE`, `BROKER_MIGRATION_INCOMPLETE` or `RESTORE_QUARANTINE`, a
    running release other than `--expect-current`, `IOT_STAGING_DEMO_ENABLED=true` or

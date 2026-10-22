@@ -1,0 +1,3 @@
+# Alerting runs in Prometheus and Alertmanager, so Grafana provisions none. Without
+# this directory Grafana logs an error on every start, which fires ServiceErrorLogs.
+apiVersion: 1
