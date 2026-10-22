@@ -1,0 +1,223 @@
+---
+// The landing hero (US4): the company name, the tagline it stands for, what the
+// platform is, and the ways in. With motion allowed, a Three.js scene forms the name
+// from data particles and pours each letter into its word (src/scripts/hero).
+import { docsConfig } from '../../../docs.config'
+
+interface Action { label: string; href: string; tone: 'primary' | 'secondary' | 'plain' }
+interface Props { actions: Action[] }
+const { actions } = Astro.props
+
+const name = docsConfig.companyName
+const words = docsConfig.companyTagline.split(/\s+/).filter(Boolean)
+const letters = [...name].filter((character) => character.trim())
+// Acronym mode: each letter of the name is the initial of a tagline word, in order.
+const acronym =
+  letters.length === words.length &&
+  letters.every((letter, index) => letter.toLocaleUpperCase() === words[index][0]?.toLocaleUpperCase())
+const tone = (index: number) => {
+  const position = words.length > 1 ? index / (words.length - 1) : 0.5
+  return position < 0.34 ? 'life' : position < 0.67 ? 'signal' : 'energy'
+}
+let letterIndex = 0
+---
+
+<section class="hero not-content" data-hero data-acronym={String(acronym)}>
+  <canvas class="hero-canvas" data-hero-canvas aria-hidden="true"></canvas>
+  <script is:inline>
+    ;(() => {
+      const hero = document.currentScript.closest('[data-hero]')
+      const motion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      // Creating a WebGL context here would hold up parsing before the text paints. The
+      // scene shows the text itself if it can't get one.
+      const webgl = 'WebGLRenderingContext' in window
+      if (!hero || !motion || !webgl) return
+      hero.dataset.animate = 'pending'
+      // Show everything if the animation never starts.
+      setTimeout(() => {
+        if (hero.dataset.animate === 'pending') hero.dataset.animate = 'done'
+      }, 3000)
+    })()
+  </script>
+  <div class="hero-inner">
+    <h1 class="wordmark" data-wordmark aria-label={name}>
+      {
+        [...name].map((character) =>
+          character.trim() ? (
+            <span class="wordmark-letter" data-letter={letterIndex++} aria-hidden="true">
+              {character}
+            </span>
+          ) : (
+            <span aria-hidden="true"> </span>
+          ),
+        )
+      }
+    </h1>
+    <p class="slogan" data-slogan>
+      {
+        words.map((word, index) => (
+          <>
+            {index > 0 && ' '}
+            <span class="slogan-word" data-word={index}>
+              {acronym ? (
+                <>
+                  <span class="initial" data-tone={tone(index)}>
+                    {word[0]}
+                  </span>
+                  {word.slice(1)}
+                </>
+              ) : (
+                word
+              )}
+            </span>
+          </>
+        ))
+      }
+    </p>
+    <p class="lead">
+      {docsConfig.productName} is the platform {name} builds connected operations on. It takes data from devices,
+      keeps track of its quality and age, and gives people and software the tools to watch it, automate on it and
+      act.
+    </p>
+    <div class="actions">
+      {actions.map((action) => <a class:list={['action', action.tone]} href={action.href}>{action.label}</a>)}
+    </div>
+  </div>
+</section>
+
+<script>
+  const hero = document.querySelector<HTMLElement>('[data-hero]')
+  if (hero && hero.dataset.animate === 'pending') {
+    const start = () =>
+      import('../../scripts/hero/scene')
+        .then(({ playHero }) => playHero(hero))
+        .catch(() => {
+          hero.dataset.animate = 'done'
+          hero.querySelectorAll<HTMLElement>('[data-word]').forEach((word) => (word.dataset.revealed = ''))
+        })
+    // Three.js waits until the page has loaded and painted a frame, so it never delays
+    // the largest contentful paint.
+    const whenIdle = () =>
+      'requestIdleCallback' in window ? window.requestIdleCallback(start, { timeout: 600 }) : setTimeout(start, 120)
+    const afterPaint = () => requestAnimationFrame(() => requestAnimationFrame(whenIdle))
+    if (document.readyState === 'complete') afterPaint()
+    else window.addEventListener('load', afterPaint, { once: true })
+  }
+</script>
+
+<style>
+  .hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    margin-inline: calc(50% - 50vw);
+    padding: clamp(4rem, 13vh, 8.5rem) 1.5rem clamp(3.5rem, 9vh, 6rem);
+    background:
+      radial-gradient(ellipse 70% 55% at 50% 32%, var(--brand-glow), transparent 70%),
+      linear-gradient(180deg, var(--brand-hero-from), var(--brand-hero-to));
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hero-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .hero-inner {
+    max-width: 62rem;
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  .wordmark {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--hero-wordmark);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.06em;
+    background: linear-gradient(90deg, var(--brand-mark-life), var(--brand-mark-signal) 50%, var(--brand-mark-energy));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    transition: opacity 700ms var(--ease-standard);
+  }
+
+  .wordmark-letter {
+    display: inline-block;
+  }
+
+  .slogan {
+    margin: 1.4rem 0 0;
+    font-size: var(--hero-slogan);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--foreground);
+  }
+
+  .slogan-word {
+    display: inline-block;
+    transition:
+      opacity 600ms var(--ease-standard),
+      transform 600ms var(--ease-standard);
+  }
+
+  .initial {
+    font-weight: 700;
+  }
+  .initial[data-tone="life"] { color: var(--brand-mark-life); }
+  .initial[data-tone="signal"] { color: var(--brand-mark-signal); }
+  .initial[data-tone="energy"] { color: var(--brand-mark-energy); }
+
+  .lead {
+    max-width: 44rem;
+    margin: 1.75rem auto 0;
+    font-size: var(--hero-lead);
+    line-height: 1.6;
+    color: var(--muted-foreground);
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+
+  .action {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 1.25rem;
+    border-radius: var(--radius-lg);
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color var(--duration-base) var(--ease-standard);
+  }
+  .action.primary { background: var(--primary); color: var(--primary-foreground); }
+  .action.primary:hover { background: color-mix(in oklch, var(--primary) 88%, var(--foreground)); }
+  .action.secondary { border: 1px solid var(--border); background: var(--card); color: var(--foreground); }
+  .action.secondary:hover { background: var(--accent); }
+  .action.plain { color: var(--primary); }
+  .action.plain:hover { text-decoration: underline; }
+
+  /* While the intro plays: the name forms from particles, then each word appears as
+     its particles land. Without JavaScript or with reduced motion none of this applies. */
+  .hero[data-animate="pending"] .wordmark,
+  .hero[data-animate="playing"]:not([data-stage="formed"]) .wordmark {
+    opacity: 0.14;
+  }
+  .hero:is([data-animate="pending"], [data-animate="playing"]) .slogan-word:not([data-revealed]) {
+    opacity: 0;
+    transform: translateY(0.35em);
+  }
+
+  @media (forced-colors: active) {
+    .wordmark { color: CanvasText; background: none; }
+  }
+</style>

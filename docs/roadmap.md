@@ -95,8 +95,10 @@ Grouped by area. Links point at the decision or doc that explains the item.
   generated from Laravel, CI checks it for drift, and the test suite checks responses
   against it. The integration API is fully described. Still to do: describe the
   operations left in `contracts/openapi/pending-schemas.json`, add a breaking-change
-  gate, generate `packages/api-client` and the SDK types from the contract, and
-  publish the reference.
+  gate, and generate `packages/api-client` and the SDK types from the contract. The
+  integration API reference is published from the hosted release by the docs site
+  ([spec 013](../specs/013-website-developer-docs/spec.md),
+  [docs site](dev/docs-site.md)).
 - **Pilot quotas and load tests** for the event feed, webhooks and telemetry reads.
 
 ### Assistant

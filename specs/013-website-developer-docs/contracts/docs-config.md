@@ -9,7 +9,8 @@ the file exists. Committed defaults are placeholders (FR-005).
 | Key | Environment variable | Placeholder default | Used for |
 | --- | --- | --- | --- |
 | `productName` | `PUBLIC_DOCS_PRODUCT_NAME` | `IoT OS` | Every mention of the product |
-| `companyName` | `PUBLIC_DOCS_COMPANY_NAME` | `Example Company` | Footer, titles |
+| `companyName` | `PUBLIC_DOCS_COMPANY_NAME` | `Example Company` | Header link, landing hero, titles |
+| `companyTagline` | `PUBLIC_DOCS_COMPANY_TAGLINE` | `Example Company tagline` | Landing hero. When the name is an acronym of the tagline, the animation pours each letter into its word |
 | `siteUrl` | `PUBLIC_DOCS_SITE_URL` | `https://platform.example.com` | The platform domain's root: `site` for canonical URLs and the sitemap. The docs are under `/docs/`, which is also the SDK's `homepage` |
 | `marketingUrl` | `PUBLIC_DOCS_MARKETING_URL` | `https://www.example.com` | Header link to the marketing site (FR-002) |
 | `contactUrl` | `PUBLIC_DOCS_CONTACT_URL` | `https://www.example.com/contact` | **Report a problem with this page** (FR-017) |

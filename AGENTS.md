@@ -10,6 +10,7 @@ disagrees with it, fix the doc. New features follow Spec Kit
 ## Repository map
 
 - `apps/api` Laravel API and workers (`app/Domain/<Domain>`); `apps/portal`, `apps/admin` React apps
+- `apps/docs` the platform's public landing page and developer docs (Astro, Starlight, GitHub Pages; ADR-021)
 - `services/runtime` Go runtime (Sparkplug, storage, rules, DAGs, commands); `services/adapters` adapter manager
 - `packages/ui` design-system kit; `packages/charts`, `api-client`, `workflow-editor`, `integration-sdk`
 - `contracts/` JSON Schemas, fixtures, Sparkplug protobuf shared across languages

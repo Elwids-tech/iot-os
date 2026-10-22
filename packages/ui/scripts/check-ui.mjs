@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Design system guardrails for app code. Errors fail `lint`; warnings list
+// Design system guardrails for app code (.ts, .tsx and .astro). Errors fail `lint`; warnings list
 // places to migrate. A reviewed exception carries `ui-check: allow <rule>` on
 // the same or the previous line. Usage: node check-ui.mjs <dir> [<dir>...]
 import { readFileSync, readdirSync, statSync } from "node:fs"
@@ -36,7 +36,7 @@ function files(dir) {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name)
     if (statSync(path).isDirectory()) return name === "node_modules" || name === "dist" ? [] : files(path)
-    return /\.(tsx|ts)$/.test(name) && !/\.(test|spec)\.tsx?$/.test(name) ? [path] : []
+    return /\.(tsx|ts|astro)$/.test(name) && !/\.(test|spec)\.tsx?$/.test(name) ? [path] : []
   })
 }
 

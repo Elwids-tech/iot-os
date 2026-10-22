@@ -148,6 +148,71 @@ jobs:
         run: pnpm --filter @iot-os/portal --filter @iot-os/ui --filter @iot-os/charts --filter @iot-os/integration-sdk --filter @iot-os/vertical-demo test
       - run: pnpm --filter @iot-os/portal --filter @iot-os/admin build
 
+  docs:
+    name: Docs site (spec 013)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Placeholders apply when a variable is unset (forks, before the owner sets them).
+      PUBLIC_DOCS_PRODUCT_NAME: ${{ vars.PUBLIC_DOCS_PRODUCT_NAME }}
+      PUBLIC_DOCS_COMPANY_NAME: ${{ vars.PUBLIC_DOCS_COMPANY_NAME }}
+      PUBLIC_DOCS_COMPANY_TAGLINE: ${{ vars.PUBLIC_DOCS_COMPANY_TAGLINE }}
+      PUBLIC_DOCS_SITE_URL: ${{ vars.PUBLIC_DOCS_SITE_URL }}
+      PUBLIC_DOCS_MARKETING_URL: ${{ vars.PUBLIC_DOCS_MARKETING_URL }}
+      PUBLIC_DOCS_CONTACT_URL: ${{ vars.PUBLIC_DOCS_CONTACT_URL }}
+      PUBLIC_DOCS_PORTAL_URL: ${{ vars.PUBLIC_DOCS_PORTAL_URL }}
+      PUBLIC_DOCS_API_BASE_URL: ${{ vars.PUBLIC_DOCS_API_BASE_URL }}
+      PUBLIC_DOCS_BROKER_HOST: ${{ vars.PUBLIC_DOCS_BROKER_HOST }}
+      # Secrets, masked in logs: the hosted commit is never printed (research R4).
+      DOCS_HOSTED_REF: ${{ secrets.DOCS_HOSTED_REF }}
+      DOCS_DENYLIST: ${{ secrets.DOCS_DENYLIST }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # sources.mjs reads the hosted commit with git archive.
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - name: Read sources from the working tree without the hosted commit
+        if: env.DOCS_HOSTED_REF == ''
+        run: |
+          echo "::notice::DOCS_HOSTED_REF is not set here (a fork, or before the owner sets it): building from the working tree."
+          echo "DOCS_SOURCES=worktree" >> "$GITHUB_ENV"
+      # Lint = astro check + design system guardrails + configured literals.
+      - run: pnpm --filter @iot-os/docs sources && pnpm --filter @iot-os/docs lint
+      - run: pnpm --filter @iot-os/docs test
+      # Build = sources + astro build + check-docs (names, features, reference, changelog).
+      - run: pnpm --filter @iot-os/docs build
+      - name: Renaming the product changes it everywhere (SC-005)
+        working-directory: apps/docs
+        run: node scripts/check-docs.mjs rename
+      - run: pnpm --filter @iot-os/docs exec playwright install --with-deps --only-shell chromium
+      - name: Accessibility, privacy, header, footer and landing checks
+        run: pnpm --filter @iot-os/docs test:e2e
+      - name: Largest contentful paint under 2 seconds on mobile (SC-004)
+        working-directory: apps/docs
+        run: pnpm exec lhci autorun
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure()
+        with:
+          name: docs-reports
+          path: |
+            apps/docs/test-results
+            apps/docs/.lighthouseci
+          include-hidden-files: true
+          retention-days: 7
+
   e2e:
     name: Portal and admin end-to-end (mocked API)
     runs-on: ubuntu-latest

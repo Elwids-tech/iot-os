@@ -1,0 +1,70 @@
+---
+// Every integration event type and its data, generated from the hosted contract's
+// IntegrationEvent discriminator (FR-011). check-docs `reference` compares the
+// data-event-type attributes with the contract's IntegrationEventType values.
+import { breakable, inlineMarkdown, markdown } from '../../lib/markdown'
+import { refName, resolveSchema, typeLabel, type Schema } from '../../lib/schema'
+import { readSource } from '../../lib/sources'
+
+const contract = readSource<{ components: { schemas: Record<string, Schema> } }>('integration-openapi.json')
+const schemas = contract.components.schemas
+const mapping = schemas.IntegrationEvent?.discriminator?.mapping ?? {}
+const groups = new Map<string, string[]>()
+for (const [type, ref] of Object.entries(mapping)) {
+  const name = refName(ref)
+  groups.set(name, [...(groups.get(name) ?? []), type])
+}
+---
+
+<div class="event-types not-content">
+  {
+    [...groups].map(([name, types]) => {
+      const schema = schemas[name]
+      const data = resolveSchema(schemas, schema.properties?.data)
+      const required = new Set(data?.required ?? [])
+      return (
+        <section class="event-type">
+          <h3 id={types[0].replaceAll('.', '-')}>
+            {types.map((type, index) => (
+              <>
+                {index > 0 && ', '}
+                <code data-event-type={type}>{type}</code>
+              </>
+            ))}
+          </h3>
+          <Fragment set:html={markdown(schema.description)} />
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Field in <code>data</code></th>
+                <th scope="col">Type</th>
+                <th scope="col">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(data?.properties ?? {}).map(([field, property]) => (
+                <tr>
+                  <td>
+                    <code set:html={breakable(field)} />
+                    {!required.has(field) && <span class="optional"> optional</span>}
+                  </td>
+                  <td set:html={breakable(typeLabel(property))} />
+                  <td set:html={inlineMarkdown(property.description ?? '')} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )
+    })
+  }
+</div>
+
+<style>
+  .event-type { margin-top: 2rem; }
+  .event-type h3 { font-size: var(--sl-text-h4); }
+  .event-type table { width: 100%; margin-top: 0.75rem; border-collapse: collapse; font-size: var(--sl-text-sm); }
+  .event-type th,
+  .event-type td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); text-align: start; vertical-align: top; }
+  .event-type th { color: var(--muted-foreground); font-weight: 600; }  .optional { color: var(--muted-foreground); font-size: var(--sl-text-xs); }
+</style>

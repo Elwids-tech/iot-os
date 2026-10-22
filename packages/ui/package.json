@@ -55,6 +55,7 @@
   },
   "exports": {
     "./globals.css": "./src/styles/globals.css",
+    "./tokens.css": "./src/styles/tokens.css",
     "./components/*": "./src/components/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
     "./lib/*": "./src/lib/*.ts",

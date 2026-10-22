@@ -1,0 +1,7 @@
+{
+  "schema_version": "hosted-release.v1",
+  "features": {
+    "adapters": false,
+    "agent_access": false
+  }
+}

@@ -12,7 +12,7 @@ and falls back to a placeholder. Full list: [contracts/docs-config.md](contracts
 
 | Field | Rule |
 | --- | --- |
-| `productName`, `companyName` | Non-empty. The only place either name is written in `src/` (`literals` check) |
+| `productName`, `companyName`, `companyTagline` | Non-empty. The only place these are written in `src/` (`literals` check) |
 | `siteUrl` | Absolute `https` URL of the platform domain's root, with no path; the landing page is `/` and the docs are under `/docs/` |
 | `marketingUrl`, `contactUrl`, `portalUrl`, `apiBaseUrl` | Absolute `https` URLs; placeholders use `example.com` |
 | `brokerHost` | Hostname only, shown in hardware docs |

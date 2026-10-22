@@ -1,0 +1,21 @@
+---
+// Starlight's theme provider, plus a mirror of its data-theme onto the .dark class
+// and the Dusk palette that the @iot-os/ui tokens key on. Inline, so the right
+// tokens apply before the first paint.
+import Default from '@astrojs/starlight/components/ThemeProvider.astro'
+---
+
+<Default />
+<script is:inline>
+  ;(() => {
+    const root = document.documentElement
+    const sync = () => {
+      const dark = root.dataset.theme === 'dark'
+      root.classList.toggle('dark', dark)
+      if (dark) root.dataset.palette = 'dusk'
+      else delete root.dataset.palette
+    }
+    sync()
+    new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-theme'] })
+  })()
+</script>

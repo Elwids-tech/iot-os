@@ -1,0 +1,11 @@
+---
+// Prints one value from docs.config.ts in Markdown pages, so names, domains and
+// addresses are never written literally (FR-004).
+import { docsConfig, type DocsConfig } from '../../../docs.config'
+
+interface Props { key: keyof DocsConfig; link?: boolean }
+const { key, link = false } = Astro.props
+const value = docsConfig[key]
+---
+
+{link ? <a href={value}>{value}</a> : value}

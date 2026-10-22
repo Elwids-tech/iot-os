@@ -45,9 +45,14 @@ to install it.
 0.42.x, React 19 islands where needed.
 
 **Primary Dependencies**:
-- Astro, `@astrojs/starlight`, `@astrojs/react`, `@tailwindcss/vite` 4
+- Astro 7.4.1 (7.4.2 needs a newer Node than the pinned 22.23.3), `@astrojs/starlight`,
+  `@astrojs/starlight-tailwind`, `@tailwindcss/vite` 4
 - `starlight-openapi`, `starlight-links-validator`
-- `@iot-os/ui` (workspace)
+- `three` for the landing hero, loaded only after the page has loaded and painted
+- `@iot-os/ui` (workspace): `tokens.css`, the kit's tokens without Tailwind's preflight,
+  split out of `globals.css` so Starlight's own reset is kept. Portal and admin CSS is
+  byte-identical after the split
+- No `@astrojs/react`: no page needs a React island
 
 **Storage**: none. The docs are static files.
 
@@ -177,18 +182,27 @@ Sidebar, in `astro.config.mjs`:
   `docs/reference/sparkplug.md`, with a checklist of each requirement and rejection.
 - **Developer quickstart and SDK pages**: show `samples/developer/*.mjs`. They stay
   `draft: true` until the SDK is on npm (FR-021).
-- **Landing page** (US4, FR-022): `src/content/docs/index.mdx` with Starlight's
-  `template: splash`, served at `/`:
-  - a hero with the product name and a one-sentence description, and actions for
-    **Sign in**, **Connect a device** and **API reference**. **Build an integration**
-    is added once that quickstart leaves draft
+- **Landing page** (US4, FR-022): `src/pages/index.astro` through Starlight's
+  `StarlightPage` with the splash template, served at `/`:
+  - a hero with the company name, its tagline and a one-sentence description of the
+    platform. A Three.js scene forms the name from particles and pours each letter into
+    its tagline word, then settles into a drifting constellation
+    (`src/scripts/hero/`). Reduced motion, no WebGL or no JavaScript show the final
+    text at once
+  - actions for **Sign in**, **Read the docs** and **API reference**; **Connect a
+    device** and **Build an integration** appear once those quickstarts are built and
+    not drafts
+  - five-layer cards (Capture, Contextualize, Visualize, Act, Govern) linked to the user
+    guides that describe them
   - link cards for hardware, developers and user guides
   - "Built and run by <company>", linking to the company website
 
   It names no industry products, outcome figures or customers. Every capability it
   mentions links to a docs page, which the `features` and links checks enforce.
-- **Header**: a Starlight `Header` override adds links to the marketing site and the
-  portal's sign-in (FR-002).
+- **Header**: a Starlight `SocialIcons` override, Starlight's slot for header links,
+  adds links to the marketing site and the portal's sign-in (FR-002). A
+  `ThemeProvider` override mirrors Starlight's `data-theme` onto the `.dark` class and
+  the Dusk palette that the kit tokens key on.
 - **Footer**: every docs page gets **Report a problem with this page**, linking to
   the marketing site's contact page with `?type=question&page=<path>` (FR-017).
 - **Theme**: `src/styles/starlight.css` maps Starlight's variables onto the kit
@@ -333,10 +347,12 @@ apps/docs/
 │   └── check-docs.mjs       # literals, rename, names, features, reference, changelog, drafts
 ├── src/
 │   ├── content.config.ts
-│   ├── content/docs/index.mdx   # the landing page at / (splash template)
+│   ├── pages/index.astro    # the landing page at / (StarlightPage, splash template)
 │   ├── content/docs/docs/   # hand-written docs served at /docs (guides/ is generated, ignored)
-│   ├── components/docs/     # Header, Footer, EventTypes, WebhookDelivery, AgentTools, GuideMeta
-│   └── styles/              # docs.css (kit globals), starlight.css (token mapping)
+│   ├── components/docs/     # ThemeProvider, SocialIcons, Footer, PageTitle, EventTypes, WebhookDelivery, AgentTools, Config
+│   ├── components/landing/  # Hero, Layers
+│   ├── scripts/hero/        # the Three.js hero scene, text sampling and colours
+│   └── styles/              # docs.css (kit tokens), starlight.css (token mapping), brand.css (landing accents)
 └── tests/                   # Vitest (scripts), Playwright (axe, privacy, chrome and landing)
 
 packages/integration-sdk/    # license, metadata, README

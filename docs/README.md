@@ -43,6 +43,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 - [Simulators and fixtures](dev/simulators-and-fixtures.md)
 - [Design system](dev/design-system.md)
 - [Spec-driven development](dev/specs.md) (Spec Kit, the [constitution](../.specify/memory/constitution.md), `specs/`)
+- [Docs site](dev/docs-site.md): the platform's landing page and developer docs, how they're generated and checked
 - [Gotchas](dev/gotchas.md)
 
 ## Operations
@@ -51,6 +52,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 - [Pilot environment](ops/pilot.md)
 - [Monitoring](ops/monitoring.md)
 - [MQTT broker](ops/broker.md)
+- [Docs site](ops/docs-site.md): publishing to GitHub Pages, DNS, and updating the hosted commit
 - [Incident runbook](ops/incident-runbook.md)
 
 ## Hardware
@@ -71,6 +73,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 | [`apps/admin`](../apps/admin) | Platform administration React app |
 | [`apps/storybook`](../apps/storybook) | Design-system gallery |
 | [`apps/vertical-demo`](../apps/vertical-demo/README.md) | Sample external app built only on the integration SDK |
+| [`apps/docs`](../apps/docs) | The platform's public landing page and developer docs: Astro and Starlight, published to GitHub Pages ([docs site](dev/docs-site.md)) |
 | [`services/runtime`](../services/runtime) | Go data plane (`cmd/runtime`), plus `cmd/broker-admin` and `cmd/committed-consumer` |
 | [`services/adapters`](../services/adapters) | adapter-manager and the per-tenant Node-RED runtime image |
 | [`packages/ui`](../packages/ui/README.md) | `@iot-os/ui` design-system kit |

@@ -32,8 +32,12 @@ draft: true        # optional: unreleased behaviour, left out of production buil
 
 ## Landing page
 
-`src/content/docs/index.mdx`, served at the root of the platform domain:
-- one sentence on what the platform is, and the company that runs it
+`src/pages/index.astro`, rendered through Starlight's `StarlightPage` with the splash
+template and served at the root of the platform domain:
+- the company name and its tagline, then one sentence on what the platform is
+- a decorative hero animation: the name forms from particles and pours each letter into
+  its tagline word. The DOM text is the content, and reduced motion, no WebGL or no
+  JavaScript show the final text at once
 - actions for sign-in and each published quickstart, and the API reference; never a
   draft page
 - link cards to hardware, developers and user guides, and a link to the company

@@ -1,0 +1,33 @@
+---
+// The tools an AI agent can call, generated from the hosted commit's agent tool
+// catalogue (FR-011). Used only on the gated agents pages.
+import { readSource } from '../../lib/sources'
+
+interface Tool { name: string; title?: string; description: string; access_level: string; permission?: string }
+const catalogue = readSource<{ tools: Tool[] }>('contracts/agents/tools.json')
+---
+
+<table class="agent-tools not-content">
+  <thead>
+    <tr><th scope="col">Tool</th><th scope="col">Access</th><th scope="col">Needs</th><th scope="col">What it does</th></tr>
+  </thead>
+  <tbody>
+    {
+      catalogue.tools.map((tool) => (
+        <tr>
+          <td><code>{tool.name}</code></td>
+          <td>{tool.access_level === 'read' ? 'Read' : 'Read and drafts'}</td>
+          <td>{tool.permission && <code>{tool.permission}</code>}</td>
+          <td>{tool.description}</td>
+        </tr>
+      ))
+    }
+  </tbody>
+</table>
+
+<style>
+  .agent-tools { width: 100%; border-collapse: collapse; font-size: var(--sl-text-sm); }
+  .agent-tools th,
+  .agent-tools td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); text-align: start; vertical-align: top; }
+  .agent-tools th { color: var(--muted-foreground); font-weight: 600; }
+</style>

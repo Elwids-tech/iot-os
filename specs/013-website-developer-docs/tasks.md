@@ -68,17 +68,17 @@ constitution amendment and the rescoped spec, plan and tasks.
 
 **Purpose**: The workspace and its tooling
 
-- [ ] T006 Create apps/docs/package.json for `@iot-os/docs`:
+- [x] T006 Create apps/docs/package.json for `@iot-os/docs` (built without `@astrojs/react`: no page needs an island; with `three` for the landing hero; astro pinned to 7.4.1 for the pinned Node):
   - `private: true`, `type: module`
   - scripts: `dev`, `build` (`node scripts/sources.mjs && astro build && node scripts/check-docs.mjs all`), `preview`, `lint` (`astro check && node ../../packages/ui/scripts/check-ui.mjs src && node scripts/check-docs.mjs literals`), `test` (vitest run), `test:e2e` (playwright test)
   - dependencies: `astro` 7.x, `@astrojs/starlight` 0.42.x, `@astrojs/react`, `starlight-openapi`, `starlight-links-validator`, `react` and `react-dom` ^19.2.0, `@tailwindcss/vite` and `tailwindcss` ^4.1.17 (match apps/portal/package.json), `@iot-os/ui` `workspace:*`
   - devDependencies: `typescript` ~5.9.3, `@astrojs/check`, `vitest`, `@playwright/test` ^1.62.1, `@axe-core/playwright` ^4.10.2, `@lhci/cli`, `ajv`, `ajv-formats`, `yaml`
 
   Run `pnpm install` and commit pnpm-lock.yaml.
-- [ ] T007 [P] Create apps/docs/tsconfig.json (extends `astro/tsconfigs/strict`, `jsx: react-jsx`, includes `src`, `scripts`, `tests`, `samples`) and apps/docs/src/env.d.ts
-- [ ] T008 [P] Add to .gitignore: `apps/docs/.sources/`, `apps/docs/src/content/docs/docs/guides/`, `apps/docs/public/downloads/`, `apps/docs/dist/`, `apps/docs/.lighthouseci/`, plus `apps/docs/.env*` as a safety net. Real local values live in `.local/docs/`, which is already ignored
-- [ ] T009 [P] Confirm turbo.json caches `apps/docs/dist/**` for `build`, adding per-package outputs if the root pipeline doesn't. Confirm `pnpm --filter @iot-os/docs build` runs from the root
-- [ ] T010 [P] Add an `apps/docs` row to the repository map in AGENTS.md and in docs/README.md: "Public developer docs (Astro, Starlight), published to GitHub Pages; ADR-021"
+- [x] T007 [P] Create apps/docs/tsconfig.json (extends `astro/tsconfigs/strict`, `jsx: react-jsx`, includes `src`, `scripts`, `tests`, `samples`) and apps/docs/src/env.d.ts
+- [x] T008 [P] Add to .gitignore: `apps/docs/.sources/`, `apps/docs/src/content/docs/docs/guides/`, `apps/docs/public/downloads/`, `apps/docs/dist/`, `apps/docs/.lighthouseci/`, plus `apps/docs/.env*` as a safety net. Real local values live in `.local/docs/`, which is already ignored
+- [x] T009 [P] Confirm turbo.json caches `apps/docs/dist/**` for `build`, adding per-package outputs if the root pipeline doesn't. Confirm `pnpm --filter @iot-os/docs build` runs from the root
+- [x] T010 [P] Add an `apps/docs` row to the repository map in AGENTS.md and in docs/README.md: "Public developer docs (Astro, Starlight), published to GitHub Pages; ADR-021"
 
 ---
 
@@ -88,28 +88,28 @@ constitution amendment and the rescoped spec, plan and tasks.
 
 **⚠️ CRITICAL**: No story work starts until this phase is complete
 
-- [ ] T011 Create apps/docs/docs.config.ts exactly as contracts/docs-config.md lists:
+- [x] T011 Create apps/docs/docs.config.ts exactly as contracts/docs-config.md lists:
   - before reading, load `.local/docs/docs.env` (resolved from the repository root) with `process.loadEnvFile` when the file exists
   - keys `productName`, `companyName`, `siteUrl`, `marketingUrl`, `contactUrl`, `portalUrl`, `apiBaseUrl`, `brokerHost`, each reading its `PUBLIC_DOCS_*` variable with the placeholder defaults from the contract
   - throw at build time when a URL is not absolute `https`, `siteUrl` has a path, or `brokerHost` is not a bare hostname
-- [ ] T012 Create apps/docs/hosted-release.json and its loader:
+- [x] T012 Create apps/docs/hosted-release.json and its loader:
   - `schema_version: "hosted-release.v1"` and `features.adapters` / `features.agent_access` from the owner. No commit SHA: the hosted commit is a secret (T042)
   - copy specs/013-website-developer-docs/contracts/hosted-release.schema.json to apps/docs/schemas/hosted-release.schema.json
   - create apps/docs/src/lib/hosted-release.ts, which validates the file with ajv and throws on failure
-- [ ] T013 Create apps/docs/scripts/sources.mjs. It reads the hosted commit from `DOCS_HOSTED_REF`, loading `.local/docs/docs.env` the same way as docs.config.ts, and never prints the value. Then:
+- [x] T013 Create apps/docs/scripts/sources.mjs. It reads the hosted commit from `DOCS_HOSTED_REF`, loading `.local/docs/docs.env` the same way as docs.config.ts, and never prints the value. Then:
   - with `DOCS_SOURCES=worktree`, it copies from the working tree
   - otherwise it runs `git archive "$DOCS_HOSTED_REF" contracts/openapi contracts/agents apps/api/resources/help packages/integration-sdk/package.json tooling/simulators | tar -x -C .sources/`. A missing or unknown commit fails with "set DOCS_HOSTED_REF and fetch history (fetch-depth: 0)", without echoing the value
   - it writes `.sources/meta.json` with `contract_version` (`info.version`), `sdk_version`, `operations` (sorted `METHOD /path` under `/integration/v1`), `event_types` and `guide_sections`. Never the commit
-- [ ] T014 In apps/docs/scripts/sources.mjs, write `.sources/integration-openapi.json`:
+- [x] T014 In apps/docs/scripts/sources.mjs, write `.sources/integration-openapi.json`:
   - keep only paths starting `/integration/v1`, the `webhooks` section, and every component reachable from them by a `$ref` walk (schemas, responses, parameters, headers, securitySchemes)
   - set `servers` to `[{ url: apiBaseUrl + '/api' }]`
   - prepend to each operation's `description` a "Requires:" line from `x-abilities` (for example `devices:read`, saying whether all or any are needed) and a "Rate limits:" line from `x-rate-limits` (for example "60 a minute per application, 240 a minute per address"), because the plugin doesn't render vendor extensions (FR-010)
   - fail on any unresolved `$ref`, and on an integration operation missing `x-abilities` or `x-rate-limits`
-- [ ] T015 In apps/docs/scripts/sources.mjs, turn each `.sources/apps/api/resources/help/<slug>.md` into apps/docs/src/content/docs/docs/guides/<slug>.md:
+- [x] T015 In apps/docs/scripts/sources.mjs, turn each `.sources/apps/api/resources/help/<slug>.md` into apps/docs/src/content/docs/docs/guides/<slug>.md:
   - **Parse**: the JSON front matter. Require exactly the HelpCatalog fields (`slug`, `title`, `section`, `contexts`, `keywords`, `required_capabilities`, `revision` as an integer ≥ 1, `summary`, `questions`) and fail on any missing or unknown field
   - **Write**: front matter `title`, `description` (= `summary`), `help_revision` (= `revision`), `requires` (= `required_capabilities`) and `sidebar.label`. Record each guide under its `section` in `meta.json` `guide_sections` (section → ordered slugs)
   - **Links**: rewrite `](/help/<slug>)` to `](/docs/guides/<slug>/)`, failing on an unknown slug
-- [ ] T016 Create apps/docs/astro.config.mjs:
+- [x] T016 Create apps/docs/astro.config.mjs:
   - `site` from `siteUrl`, `output: 'static'`, `integrations: [react(), starlight(…)]`, `vite.plugins: [tailwindcss()]`
   - Starlight: `title` from `productName`, `customCss: ['./src/styles/starlight.css']`, plugins `starlightOpenAPI([{ base: 'docs/reference/api', schema: './.sources/integration-openapi.json' }])` and `starlightLinksValidator()`
   - the sidebar from plan.md "Docs" (Get started, Concepts, Hardware, Developers, User guides, Changelog). User guides is one group per section, built from `.sources/meta.json` `guide_sections` with explicit slugs, so URLs stay `/docs/guides/<slug>/`
@@ -120,39 +120,39 @@ constitution amendment and the rescoped spec, plan and tasks.
   - if it doesn't, use Astro's `glob({ base: './src/content/docs', pattern })` loader with `docsSchema`
 
   Record which one is used in docs/dev/docs-site.md (T038).
-- [ ] T017 [P] Create apps/docs/src/styles/docs.css (`@import "tailwindcss"`, `@import "@iot-os/ui/globals.css"`, `@source` lines for `src/**` and `../../packages/ui/src/**`) and apps/docs/src/styles/starlight.css, mapping Starlight's `--sl-color-*` (accents, grays, backgrounds) and `--sl-font` onto the kit tokens for light and dark (`:root[data-theme='light']`, `:root[data-theme='dark']`)
-- [ ] T018 [P] Override Starlight's `Header` in apps/docs/src/components/docs/Header.astro: keep search and the theme toggle, and add links to the marketing site (`marketingUrl`) and **Sign in** (`portalUrl`) (FR-002). Override `Footer` in apps/docs/src/components/docs/Footer.astro with **Report a problem with this page**, linking to `contactUrl?type=question&page=<current path>` (FR-017)
-- [ ] T019 [P] Extend packages/ui/scripts/check-ui.mjs so its file filter also reads `.astro` files, and update the usage comment. Run `pnpm --filter @iot-os/portal lint` and `pnpm --filter @iot-os/admin lint` to confirm no new findings
-- [ ] T020 Create apps/docs/scripts/check-docs.mjs with a subcommand registry and `all`, which runs every registered check. Each check exits non-zero with file and line on failure. Implement `literals` from contracts/docs-config.md:
+- [x] T017 [P] Create apps/docs/src/styles/docs.css (built on `@iot-os/ui/tokens.css`, split out of the kit's globals.css so Tailwind's preflight stays out of Starlight) (`@import "tailwindcss"`, `@import "@iot-os/ui/globals.css"`, `@source` lines for `src/**` and `../../packages/ui/src/**`) and apps/docs/src/styles/starlight.css, mapping Starlight's `--sl-color-*` (accents, grays, backgrounds) and `--sl-font` onto the kit tokens for light and dark (`:root[data-theme='light']`, `:root[data-theme='dark']`)
+- [x] T018 [P] Override Starlight's `Header` (built as a `SocialIcons` override, Starlight's slot for header links, plus a `ThemeProvider` override that syncs the kit's dark tokens) in apps/docs/src/components/docs/Header.astro: keep search and the theme toggle, and add links to the marketing site (`marketingUrl`) and **Sign in** (`portalUrl`) (FR-002). Override `Footer` in apps/docs/src/components/docs/Footer.astro with **Report a problem with this page**, linking to `contactUrl?type=question&page=<current path>` (FR-017)
+- [x] T019 [P] Extend packages/ui/scripts/check-ui.mjs so its file filter also reads `.astro` files, and update the usage comment. Run `pnpm --filter @iot-os/portal lint` and `pnpm --filter @iot-os/admin lint` to confirm no new findings
+- [x] T020 Create apps/docs/scripts/check-docs.mjs with a subcommand registry and `all`, which runs every registered check. Each check exits non-zero with file and line on failure. Implement `literals` from contracts/docs-config.md:
   - every effective config value found in `src/**` outside docs.config.ts fails
   - `productName` matches as a whole phrase that is not part of a package specifier (`@iot-os/…`)
-- [ ] T021 Implement `rename` in apps/docs/scripts/check-docs.mjs: run the build into a temporary directory with `PUBLIC_DOCS_PRODUCT_NAME="Renamed Product"`, then fail if the default product name appears in any built HTML text (SC-005)
-- [ ] T022 [P] Implement `names` in apps/docs/scripts/check-docs.mjs. It reads newline-separated names from `DOCS_DENYLIST`, or from .local/docs/denylist.txt when the variable is unset, and matches each one case-insensitively as a whole word in `dist/**/*.html` text and `src/**`:
+- [x] T021 Implement `rename` in apps/docs/scripts/check-docs.mjs: run the build into a temporary directory with `PUBLIC_DOCS_PRODUCT_NAME="Renamed Product"`, then fail if the default product name appears in any built HTML text (SC-005)
+- [x] T022 [P] Implement `names` in apps/docs/scripts/check-docs.mjs. It reads newline-separated names from `DOCS_DENYLIST`, or from .local/docs/denylist.txt when the variable is unset, and matches each one case-insensitively as a whole word in `dist/**/*.html` text and `src/**`:
   - With no list, it warns locally.
   - In CI on `main` it fails.
   - On fork pull requests it skips, with a notice.
-- [ ] T023 [P] Write apps/docs/tests/check-docs.test.ts (Vitest) covering `literals`, `rename` and `names`, with fixture trees under apps/docs/tests/fixtures/check-docs/
-- [ ] T024 [P] Create apps/docs/playwright.config.ts (webServer `pnpm preview --port 4321`, projects at 375×812 and 1440×900, each in light and dark `colorScheme`). Create apps/docs/tests/e2e/axe.spec.ts: visit every URL in `dist/sitemap-index.xml`, wait until `document.getAnimations()` is empty, then fail on any serious or critical `@axe-core/playwright` violation
-- [ ] T025 [P] Create apps/docs/tests/e2e/privacy.spec.ts. For every sitemap URL, it asserts:
+- [x] T023 [P] Write apps/docs/tests/check-docs.test.ts (Vitest) covering `literals`, `rename` and `names`, with fixture trees under apps/docs/tests/fixtures/check-docs/
+- [x] T024 [P] Create apps/docs/playwright.config.ts (webServer `pnpm preview --port 4321`, projects at 375×812 and 1440×900, each in light and dark `colorScheme`). Create apps/docs/tests/e2e/axe.spec.ts: visit every URL in `dist/sitemap-index.xml`, wait until `document.getAnimations()` is empty, then fail on any serious or critical `@axe-core/playwright` violation
+- [x] T025 [P] Create apps/docs/tests/e2e/privacy.spec.ts. For every sitemap URL, it asserts:
   - no response carries a `Set-Cookie` header
   - `document.cookie` is empty after load
   - every request goes to the preview origin, none to another origin (FR-008)
-- [ ] T026 [P] Create apps/docs/tests/e2e/chrome.spec.ts. On the docs index, one page per sidebar section and one generated API page, it checks:
+- [x] T026 [P] Create apps/docs/tests/e2e/chrome.spec.ts. On the docs index, one page per sidebar section and one generated API page, it checks:
   - the header links to `marketingUrl` and `portalUrl`
   - the footer's report link carries the page path
   - there is no horizontal scroll at 375 px
   - with `javaScriptEnabled: false` the main heading still renders (FR-002, FR-017)
-- [ ] T027 [P] Create apps/docs/lighthouserc.json: `staticDistDir: ./dist`, the landing page, the docs index, the hardware quickstart, one generated API page and one user guide, mobile preset, assertion `largest-contentful-paint` ≤ 2000 ms (SC-004)
-- [ ] T028 Add a `docs` job to .github/workflows/ci.yml, modelled on the `web` job:
+- [x] T027 [P] Create apps/docs/lighthouserc.json: `staticDistDir: ./dist`, the landing page, the docs index, the hardware quickstart, one generated API page and one user guide, mobile preset, assertion `largest-contentful-paint` ≤ 2000 ms (SC-004)
+- [x] T028 Add a `docs` job to .github/workflows/ci.yml, modelled on the `web` job:
   - checkout with `fetch-depth: 0`; Node from `.nvmrc`; pnpm 11.19.0; store cache; `pnpm install --frozen-lockfile`
   - env: `PUBLIC_DOCS_*` from repository variables, falling back to the placeholders; `DOCS_HOSTED_REF` and `DOCS_DENYLIST` from secrets. When `DOCS_HOSTED_REF` is empty (forks, or before T042), set `DOCS_SOURCES=worktree` and print a notice
   - steps: `pnpm --filter @iot-os/docs lint`, `test`, `build`, `node scripts/check-docs.mjs rename`, `playwright install --with-deps --only-shell chromium`, `test:e2e`, `lhci autorun`
   - same SHA-pinned actions as the existing jobs
-- [ ] T029 Create .github/workflows/docs-deploy.yml:
+- [x] T029 Create .github/workflows/docs-deploy.yml (it runs only once the `DOCS_PAGES_ENABLED` variable is `true`, so `main` stays green before T042):
   - triggers: push to `main` touching `apps/docs/**`, `contracts/**`, `apps/api/resources/help/**`, `packages/integration-sdk/**`, `tooling/simulators/**` or `packages/ui/**`; and `workflow_dispatch`
   - build with `PUBLIC_DOCS_*` variables and the `DOCS_HOSTED_REF` secret, run `check-docs all`, then `actions/upload-pages-artifact` with `apps/docs/dist` and `actions/deploy-pages`
   - `permissions: contents: read, pages: write, id-token: write`; `concurrency: docs-deploy`; the `github-pages` environment; actions pinned by SHA
-- [ ] T030 Make tooling/docs/check_links.py skip `apps/docs/src/content/`, whose links are site routes checked by `starlight-links-validator`. Add or extend a case in tooling/docs/test_*.py
+- [x] T030 Make tooling/docs/check_links.py skip `apps/docs/src/content/`, whose links are site routes checked by `starlight-links-validator`. Add or extend a case in tooling/docs/test_*.py
 
 **Checkpoint**: the docs shell builds from the hosted commit (or the working tree), lints, passes axe, privacy and Lighthouse, and fails on a planted literal or denylisted name
 
@@ -167,16 +167,16 @@ commit, failing closed, and hiding switched-off or unreleased features
 publish only after `DOCS_HOSTED_REF` points at a commit containing them
 (quickstart B1)
 
-- [ ] T031 [P] [US3] Create apps/docs/src/components/docs/EventTypes.astro, which renders a section per entry in `IntegrationEvent`'s discriminator mapping (type name, then a table of its `data` properties with type and description). Create apps/docs/src/components/docs/WebhookDelivery.astro, which renders `webhooks.integrationEvent` (method, headers, signature header, body). Both read `.sources/integration-openapi.json`
-- [ ] T032 [P] [US3] Create apps/docs/src/components/docs/AgentTools.astro, a table of name, access level and description from `.sources/contracts/agents/tools.json`
-- [ ] T033 [P] [US3] Override Starlight's `PageTitle` (or `MarkdownContent`) in apps/docs/src/components/docs/GuideMeta.astro to show "Guide revision N" and "Requires: <capability>" on pages with `help_revision`
-- [ ] T034 [US3] Create the first docs pages in apps/docs/src/content/docs/docs/:
+- [x] T031 [P] [US3] Create apps/docs/src/components/docs/EventTypes.astro, which renders a section per entry in `IntegrationEvent`'s discriminator mapping (type name, then a table of its `data` properties with type and description). Create apps/docs/src/components/docs/WebhookDelivery.astro, which renders `webhooks.integrationEvent` (method, headers, signature header, body). Both read `.sources/integration-openapi.json`
+- [x] T032 [P] [US3] Create apps/docs/src/components/docs/AgentTools.astro, a table of name, access level and description from `.sources/contracts/agents/tools.json`
+- [x] T033 [P] [US3] Override Starlight's `PageTitle` (or `MarkdownContent`) in apps/docs/src/components/docs/GuideMeta.astro to show "Guide revision N" and "Requires: <capability>" on pages with `help_revision`
+- [x] T034 [US3] Create the first docs pages in apps/docs/src/content/docs/docs/:
   - apps/docs/src/content/docs/docs/index.mdx: overview with the two quickstarts (linked once they exist) and the reference sections
   - apps/docs/src/content/docs/docs/developers/events.mdx: the envelope, ordering by commit, cursors and checkpoints, at-least-once delivery and deduplication by event `id`, the 409 after a grant change, `<EventTypes/>` and `<WebhookDelivery/>`
   - apps/docs/src/content/docs/docs/changelog.mdx: a first entry for the hosted contract's `info.version` and SDK 0.5.0
 
   Then create apps/docs/changelog-baseline.json with `node scripts/check-docs.mjs changelog --update`: sorted `operations` and `event_types` from `meta.json`.
-- [ ] T035 [US3] Implement and register four subcommands in apps/docs/scripts/check-docs.mjs:
+- [x] T035 [US3] Implement and register four subcommands in apps/docs/scripts/check-docs.mjs:
   - `features`: fail when built HTML links to a route under a gated folder whose switch is off, or to a `draft: true` page (FR-006)
   - `reference` (SC-003, FR-010):
     - the generated API pages under `/docs/reference/api/` match `meta.json` `operations` one to one
@@ -188,20 +188,20 @@ publish only after `DOCS_HOSTED_REF` points at a commit containing them
     - fail when `operations` or `event_types` differ from apps/docs/changelog-baseline.json
     - `--update` rewrites the baseline after an entry is added
   - `drafts`: list draft pages whose introducing commit (`git log --diff-filter=A --format=%H -- <file> | tail -1`) passes `git merge-base --is-ancestor <commit> "$DOCS_HOSTED_REF"`. Print paths only, never the commit
-- [ ] T036 [P] [US3] Write apps/docs/tests/sources.test.ts and apps/docs/tests/check-reference.test.ts (Vitest) with fixtures:
+- [x] T036 [P] [US3] Write apps/docs/tests/sources.test.ts and apps/docs/tests/check-reference.test.ts (Vitest) with fixtures:
   - the filter keeps exactly the integration paths and their referenced components
   - an unresolved `$ref` fails, and an operation missing `x-abilities` fails
   - descriptions gain "Requires:" and "Rate limits:" lines
   - guide front matter maps correctly, an unknown field fails, and `/help/` links are rewritten
   - `features`, `reference`, `changelog` (including a baseline mismatch and `--update`) and `drafts` behave as in T035
-- [ ] T037 [US3] Update the OpenAPI item under "Integrations" in docs/roadmap.md: publishing the reference is delivered for the integration API by spec 013, and the other items remain
-- [ ] T038 [P] [US3] Create docs/dev/docs-site.md and link it from the Development list in docs/README.md, so the rules outlive the spec freeze (constitution gate: docs change with behaviour). It covers:
+- [x] T037 [US3] Update the OpenAPI item under "Integrations" in docs/roadmap.md: publishing the reference is delivered for the integration API by spec 013, and the other items remain
+- [x] T038 [P] [US3] Create docs/dev/docs-site.md and link it from the Development list in docs/README.md, so the rules outlive the spec freeze (constitution gate: docs change with behaviour). It covers:
   - local development: `pnpm --filter @iot-os/docs dev`, real values and `DOCS_HOSTED_REF` in `.local/docs/docs.env`, the denylist in `.local/docs/denylist.txt`, `DOCS_SOURCES=worktree`
   - the writing rules from contracts/content.md: hand-written pages, `draft: true`, gated folders and which loader does the gating (T016), generated pages and their sources
   - the checks (`literals`, `rename`, `names`, `features`, `reference`, `changelog`, `drafts`), with how to fix each failure, and refreshing the changelog baseline
 
   Later pull requests extend it (T052, T066).
-- [ ] T039 [P] [US3] Create docs/ops/docs-site.md and link it from the Operations list in docs/README.md. Keep concrete hosts in the private inventory. It covers:
+- [x] T039 [P] [US3] Create docs/ops/docs-site.md and link it from the Operations list in docs/README.md. Keep concrete hosts in the private inventory. It covers:
   - the deploy workflow, GitHub Pages settings and HTTPS
   - the platform domain's DNS: the root's four GitHub Pages A records (optionally AAAA), `www` as a CNAME to the organization's `github.io` host, the organization's domain verification (TXT), and that the portal, API, broker and ops records must not change
   - the Actions variables and secrets
@@ -222,12 +222,12 @@ away
 landing page over HTTPS, and the portal, API and broker still answer at their usual
 addresses
 
-- [ ] T040 [US4] Create apps/docs/src/content/docs/index.mdx, the landing page at `/`, following contracts/content.md "Landing page" and FR-022:
+- [x] T040 [US4] Create the landing page at `/` (built as apps/docs/src/pages/index.astro through `StarlightPage`, with the company-name hero animation in src/scripts/hero/), following contracts/content.md "Landing page" and FR-022:
   - Starlight `template: splash`, with a hero: the product name and a one-sentence description from docs.config.ts, and "Built and run by <companyName>" linking to `marketingUrl`
   - hero actions: **Sign in** (`portalUrl`), **Connect a device** (`/docs/get-started/connect-a-device/`), **API reference** (`/docs/reference/api/`). Add an action for a quickstart only when its page is built and not a draft: read the entry with `getEntry` and skip it while `draft` is true
   - link cards to the hardware section, the developers section and the user guides
   - no industry products, outcome figures, customers or testimonials; every capability it mentions links to a docs page
-- [ ] T041 [P] [US4] Create apps/docs/tests/e2e/landing.spec.ts. On `/` it checks:
+- [x] T041 [P] [US4] Create apps/docs/tests/e2e/landing.spec.ts. On `/` it checks:
   - the hero shows the configured product and company names
   - **Sign in** goes to `portalUrl`, **API reference** to a built page, and the company link to `marketingUrl`
   - no link points at a draft or gated page that isn't built
@@ -350,7 +350,7 @@ sample against the fixture organization.
   - **Read** and **Read and drafts**, and that agents never perform live actions
   - `<AgentTools/>`
 - [ ] T066 [P] [US2] Extend docs/dev/docs-site.md with the developer samples: where they live, how `<Code>` imports them, `tooling/verify-docs-samples.mjs`, and the samples gate, with what to write in the pull request description
-- [ ] T067 [US2] After T060, remove `draft: true` from build-an-integration.mdx and add the SDK's npm publication to changelog.mdx (refresh the baseline if needed). Link both quickstarts from apps/docs/src/content/docs/docs/index.mdx, and confirm the landing page (apps/docs/src/content/docs/index.mdx) now shows the **Build an integration** action
+- [ ] T067 [US2] After T060, remove `draft: true` from build-an-integration.mdx and add the SDK's npm publication to changelog.mdx (refresh the baseline if needed). Link both quickstarts from apps/docs/src/content/docs/docs/index.mdx, and confirm the landing page (apps/docs/src/pages/index.astro) now shows the **Build an integration** action
 - [ ] T068 [US2] Run [quickstart.md](quickstart.md) B4 and `./taskw devices:test`, and record the results in the PR 4 description. Tick T061–T068
 
 ---
