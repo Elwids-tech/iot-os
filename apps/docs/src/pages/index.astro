@@ -1,0 +1,100 @@
+---
+// The platform's front door at the root of the platform domain (US4, FR-020, FR-022):
+// who runs it, what it is, and the ways in. It names no industry products, outcome
+// figures or customers, and links only to pages that are built and published.
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
+import { getCollection } from 'astro:content'
+import Hero from '../components/landing/Hero.astro'
+import Layers from '../components/landing/Layers.astro'
+import { docsConfig } from '../../docs.config'
+
+// A quickstart appears only once its page exists and isn't a draft.
+const docs = await getCollection('docs')
+const published = (id: string) => docs.find((entry) => entry.id === id && !entry.data.draft)
+
+const connect = published('docs/get-started/connect-a-device')
+const integrate = published('docs/get-started/build-an-integration')
+
+const actions = [
+  { label: 'Sign in', href: docsConfig.portalUrl, tone: 'primary' as const },
+  ...(connect ? [{ label: 'Connect a device', href: '/docs/get-started/connect-a-device/', tone: 'secondary' as const }] : []),
+  ...(integrate ? [{ label: 'Build an integration', href: '/docs/get-started/build-an-integration/', tone: 'secondary' as const }] : []),
+  { label: 'Read the docs', href: '/docs/', tone: connect || integrate ? ('plain' as const) : ('secondary' as const) },
+  { label: 'API reference', href: '/docs/reference/api/', tone: 'plain' as const },
+]
+
+const buildCards = [
+  ...(connect ? [{ title: 'Connect your first device', text: 'Run a simulated Sparkplug B device and watch its readings arrive.', href: '/docs/get-started/connect-a-device/' }] : []),
+  ...(integrate ? [{ title: 'Build your first integration', text: 'List devices, read values and verify a webhook with the SDK.', href: '/docs/get-started/build-an-integration/' }] : []),
+  { title: 'Integration API reference', text: 'Every operation an application can call, with the abilities it needs and its rate limits.', href: '/docs/reference/api/' },
+  { title: 'Events and webhooks', text: 'Follow alerts, geofences and automations through the ordered feed or signed webhooks.', href: '/docs/developers/events/' },
+  { title: 'User guides', text: 'The guides people read inside the portal, for devices, profiles, dashboards and alerts.', href: '/docs/guides/getting-started/' },
+  { title: 'Changelog', text: 'What changed for applications in each release.', href: '/docs/changelog/' },
+]
+---
+
+<StarlightPage
+  frontmatter={{
+    title: `${docsConfig.companyName}: ${docsConfig.companyTagline}`,
+    description: `${docsConfig.productName} is the platform ${docsConfig.companyName} builds connected operations on. Sign in, or read the developer docs.`,
+    template: 'splash',
+    pagefind: false,
+  }}
+>
+  <Hero actions={actions} />
+  <Layers />
+  <section class="build not-content" aria-labelledby="build-title">
+    <h2 id="build-title">Build on it</h2>
+    <p class="intro">Connect your own devices and write your own applications on the same platform.</p>
+    <ul>
+      {
+        buildCards.map((card) => (
+          <li>
+            <a href={card.href}>
+              <span class="title">{card.title}</span>
+              <span class="text">{card.text}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+  <section class="company not-content">
+    <p>
+      Built and run by <a href={docsConfig.marketingUrl}>{docsConfig.companyName}</a>, who use it to build connected
+      operations with their customers.
+    </p>
+  </section>
+</StarlightPage>
+
+<style>
+  .build { max-width: 72rem; margin: clamp(3rem, 8vh, 5rem) auto 0; padding-inline: 1.5rem; }
+  h2 { margin: 0; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; color: var(--foreground); }
+  .intro { margin: 0.5rem 0 1.5rem; color: var(--muted-foreground); }
+  ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; margin: 0; padding: 0; list-style: none; }
+  li { margin: 0; }
+  ul a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    height: 100%;
+    padding: 1.1rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    color: var(--foreground);
+    text-decoration: none;
+    transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard);
+  }
+  ul a:hover { border-color: var(--primary); background: var(--accent); }
+  ul a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .title { font-weight: 600; }
+  .text { font-size: var(--text-body); line-height: 1.55; color: var(--muted-foreground); }
+  .company { max-width: 72rem; margin: clamp(3rem, 8vh, 4.5rem) auto 1rem; padding: 1.5rem; border-top: 1px solid var(--border); text-align: center; color: var(--muted-foreground); }
+  .company a { color: var(--primary); font-weight: 600; }
+
+  /* The hero is full-bleed and starts right under the header: hide the empty title
+     panel (the hero has the h1) and keep the negative margins from scrolling sideways. */
+  :global(body:has([data-hero])) { overflow-x: clip; }
+  :global(.content-panel:has(> .sl-container:empty)) { display: none; }
+  :global(.content-panel:has([data-hero])) { padding-top: 0; border-top: 0; }
+</style>

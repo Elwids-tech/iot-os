@@ -1,0 +1,20 @@
+---
+// Starlight's page title, hidden on the landing page (its hero has the h1), with a
+// revision and permission line on pages generated from the in-product guides.
+import Default from '@astrojs/starlight/components/PageTitle.astro'
+
+const { entry } = Astro.locals.starlightRoute
+const landing = Astro.url.pathname === '/'
+const revision = entry.data.help_revision as number | undefined
+const requires = (entry.data.requires as string[] | undefined) ?? []
+---
+
+{!landing && <Default />}
+{
+  revision && (
+    <p class="guide-meta">
+      Guide revision {revision}
+      {requires.length > 0 && <> · Needs {requires.map((name, index) => <>{index > 0 && ', '}<code>{name}</code></>)}</>}
+    </p>
+  )
+}

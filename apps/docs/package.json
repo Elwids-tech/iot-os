@@ -1,0 +1,39 @@
+{
+  "name": "@iot-os/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sources": "node scripts/sources.mjs",
+    "dev": "DOCS_SOURCES=${DOCS_SOURCES:-worktree} node scripts/sources.mjs && astro dev --port 4321",
+    "build": "node scripts/sources.mjs && astro build && node scripts/check-docs.mjs all",
+    "preview": "astro preview --port 4321",
+    "lint": "astro check && node ../../packages/ui/scripts/check-ui.mjs src && node scripts/check-docs.mjs literals",
+    "typecheck": "astro check",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.6",
+    "@astrojs/starlight-tailwind": "^5.0.0",
+    "@iot-os/ui": "workspace:*",
+    "@tailwindcss/vite": "^4.1.17",
+    "astro": "7.4.1",
+    "starlight-links-validator": "^0.27.0",
+    "starlight-openapi": "^0.27.0",
+    "tailwindcss": "^4.1.17",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.11",
+    "@axe-core/playwright": "^4.10.2",
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.62.1",
+    "@types/three": "^0.186.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4",
+    "yaml": "^2.9.1"
+  }
+}

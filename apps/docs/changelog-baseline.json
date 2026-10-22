@@ -1,0 +1,32 @@
+{
+  "operations": [
+    "GET /integration/v1/organizations/{organization}/alerts",
+    "GET /integration/v1/organizations/{organization}/alerts/{uuid}",
+    "GET /integration/v1/organizations/{organization}/devices",
+    "GET /integration/v1/organizations/{organization}/devices/{uuid}",
+    "GET /integration/v1/organizations/{organization}/devices/{uuid}/location-bindings",
+    "GET /integration/v1/organizations/{organization}/devices/{uuid}/locations/{event}",
+    "GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/history",
+    "GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/latest",
+    "GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/records",
+    "GET /integration/v1/organizations/{organization}/events",
+    "GET /integration/v1/organizations/{organization}/events/checkpoint",
+    "GET /integration/v1/organizations/{organization}/geofences",
+    "GET /integration/v1/organizations/{organization}/geofences/{uuid}",
+    "GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}",
+    "POST /integration/v1/organizations/{organization}/geofences",
+    "POST /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}/items/{item}/retry",
+    "POST /integration/v1/organizations/{organization}/location-map/query",
+    "PUT /integration/v1/organizations/{organization}/geofences/{uuid}"
+  ],
+  "event_types": [
+    "alert.acknowledged.v1",
+    "alert.activated.v1",
+    "alert.cleared.v1",
+    "automation.triggered.v1",
+    "geofence.entered.v1",
+    "geofence.exited.v1",
+    "geofence.wandering_resolved.v1",
+    "geofence.wandering_started.v1"
+  ]
+}

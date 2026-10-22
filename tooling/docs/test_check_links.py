@@ -80,6 +80,7 @@ class CheckLinksTest(unittest.TestCase):
         repo.write("docs/README.md", "[archive](archive/2026-10/README.md)\n")
         repo.write("docs/archive/2026-10/README.md", "[stale](missing.md)\n")
         repo.write("apps/api/resources/help/devices.md", "[related](/help/alerts)\n")
+        repo.write("apps/docs/src/content/docs/docs/page.md", "[route](/docs/guides/devices/)\n")
         status, output = repo.check()
         self.assertEqual(0, status, output)
 

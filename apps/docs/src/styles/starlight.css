@@ -1,0 +1,92 @@
+/*
+ * Starlight's colour and font variables mapped onto the @iot-os/ui tokens, so the
+ * docs and the portal share one palette. The kit tokens switch with the .dark class
+ * (and the Dusk palette), which the ThemeProvider override keeps in step with
+ * Starlight's data-theme. Unlayered, so it wins over Starlight's own layers.
+ */
+:root,
+:root[data-theme="light"],
+:root[data-theme="dark"] {
+  --sl-font: var(--font-sans);
+  --sl-font-mono: var(--font-mono);
+  --sl-color-white: var(--foreground);
+  --sl-color-gray-1: color-mix(in oklch, var(--foreground) 88%, var(--background));
+  --sl-color-gray-2: color-mix(in oklch, var(--foreground) 76%, var(--background));
+  --sl-color-gray-3: var(--muted-foreground);
+  --sl-color-gray-4: color-mix(in oklch, var(--muted-foreground) 55%, var(--background));
+  --sl-color-gray-5: var(--border);
+  --sl-color-gray-6: var(--sunken);
+  --sl-color-gray-7: var(--card);
+  --sl-color-black: var(--background);
+  --sl-color-accent-low: color-mix(in oklch, var(--primary) 16%, var(--background));
+  --sl-color-accent: var(--primary);
+  --sl-color-accent-high: color-mix(in oklch, var(--primary) 55%, var(--foreground));
+  --sl-color-text: var(--foreground);
+  --sl-color-text-accent: var(--primary);
+  --sl-color-bg-nav: var(--card);
+  --sl-color-bg-sidebar: var(--background);
+  --sl-color-hairline: var(--border);
+  --sl-color-hairline-light: var(--border);
+  --sl-color-hairline-shade: var(--border);
+  /* Starlight's semantic hues (asides, badges, the API reference labels) use the kit's
+     status colours, which meet AA on the kit's backgrounds. */
+  --sl-color-red: var(--destructive);
+  --sl-color-orange: var(--warning);
+  --sl-color-green: var(--success);
+  --sl-color-blue: var(--info);
+  --sl-color-purple: var(--commanded);
+}
+
+/* Header links added beside the theme picker (SocialIcons override). */
+.sl-header-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: var(--sl-text-sm);
+}
+
+.sl-header-links a {
+  color: var(--sl-color-gray-2);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sl-header-links a:hover {
+  color: var(--sl-color-white);
+}
+
+.sl-header-links a.sign-in {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--sl-color-white);
+}
+
+.guide-meta {
+  margin-top: 0.5rem;
+  color: var(--muted-foreground);
+  font-size: var(--sl-text-sm);
+}
+
+.report-problem {
+  margin-top: 1.5rem;
+  font-size: var(--sl-text-sm);
+  color: var(--muted-foreground);
+}
+
+/*
+ * Generated API reference (starlight-openapi): keep the method and path from
+ * scrolling sideways (a scrollable region would need keyboard focus) and give the
+ * "required" label the kit's destructive colour, which meets AA on both themes.
+ */
+html .sl-openapi-operation .sl-openapi-operation-method-path,
+html .sl-openapi-operation-method-path {
+  overflow-x: visible;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Higher specificity than the plugin's scoped rule. */
+html .sl-openapi-key .sl-openapi-key-required {
+  color: var(--destructive);
+}

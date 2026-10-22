@@ -1,0 +1,322 @@
+/*
+ * Design tokens of the @iot-os/ui kit: self-hosted fonts, custom variants, the
+ * Tailwind theme (colours, radii, the named type scale) and the light, dark,
+ * palette and skin values. globals.css imports this after Tailwind. Sites that
+ * must not load Tailwind's preflight (the Starlight docs) import it on its own.
+ */
+/* Self-hosted skin fonts. Browsers only download a face when a skin uses it. */
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/b612/400.css";
+@import "@fontsource/b612/700.css";
+@import "@fontsource/b612-mono/400.css";
+@import "@fontsource/b612-mono/700.css";
+
+@custom-variant dark (&:is(.dark *));
+/*
+ * The shared overlays (dialog, sheet, popover, menus, select, tooltip, accordion)
+ * animate through data-open / data-closed. Radix only sets data-state, so map the
+ * variants to it; the bare attributes keep Base UI style callers working too.
+ */
+@custom-variant data-open (&:is([data-state="open"], [data-open]));
+@custom-variant data-closed (&:is([data-state="closed"], [data-closed]));
+
+@theme inline {
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-commanded: var(--commanded);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-series-6: var(--series-6);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-fill: var(--input-fill);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  /* Multiplied, not offset, so a 0 radius skin stays square at every size. */
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  /* Surfaces: background is the canvas, card the panel, popover the raised layer, sunken sits inside a panel. */
+  --color-sunken: var(--sunken);
+  --shadow-panel: var(--elevation-panel);
+  --shadow-raised: var(--elevation-raised);
+  --shadow-overlay: var(--elevation-overlay);
+}
+
+/*
+ * Design system scale. Use these names instead of raw sizes:
+ *   text-display  KPI numbers          text-body  default copy
+ *   text-title    the page h1          text-meta  captions, column heads, timestamps
+ *   text-heading  panel and section    text-code  ids and keys, with font-mono
+ * text-micro is for initials and count badges only.
+ * max-w-reading bounds entity pages, max-w-form bounds settings and wizards.
+ */
+@theme {
+  --text-display: 1.75rem;
+  --text-display--line-height: 2rem;
+  --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.02em;
+  --text-title: 1.125rem;
+  --text-title--line-height: 1.5rem;
+  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.01em;
+  --text-heading: 0.875rem;
+  --text-heading--line-height: 1.25rem;
+  --text-heading--font-weight: 600;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1rem;
+  --text-code: 0.8125rem;
+  --text-code--line-height: 1.25rem;
+  /* Initials, count badges and other tiny marks only. */
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
+  --container-reading: 75rem;
+  --container-form: 45rem;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/*
+ * Two independent axes on <html>:
+ *   class="dark"           light or dark colours (next-themes)
+ *   data-skin="console | instrument | flight-deck"   fonts, shape, density, label case;
+ *                          dark colours for flight deck. Set before paint by index.html.
+ * Tailwind reads --font-sans and --font-mono directly (font-sans, font-mono, preflight).
+ */
+:root {
+  color-scheme: light;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 4px;
+  --panel-gap: 12px;
+  --row-h: 36px;
+  --label-transform: none;
+  --label-tracking: 0;
+  --rail-width: 20rem;
+  --split-list-width: 25rem;
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+  /* Panels lift off the canvas with a hairline ring; light mode adds a soft shadow. */
+  --elevation-panel: 0 0 0 1px var(--border), 0 1px 2px oklch(0.3 0.03 260 / 6%);
+  --elevation-raised: 0 0 0 1px var(--border), 0 8px 24px oklch(0.3 0.03 260 / 12%);
+  --elevation-overlay: 0 16px 48px oklch(0.3 0.03 260 / 18%);
+  --success: oklch(0.43 0.11 155);
+  --warning: oklch(0.46 0.12 65);
+  --info: oklch(0.49 0.2 260);
+  --commanded: #7c3aed;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #9085e9;
+  --json-key: oklch(0.43 0.17 260);
+  --json-string: oklch(0.4 0.1 160);
+  --json-number: oklch(0.45 0.12 60);
+  --json-keyword: oklch(0.45 0.16 310);
+  --background: oklch(0.972 0.005 255);
+  --foreground: oklch(0.23 0.03 260);
+  --card: oklch(1 0 0);
+  --sunken: oklch(0.966 0.005 255);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.49 0.2 260);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.48 0.015 260);
+  --accent: oklch(0.94 0.025 260);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.51 0.2 27.3); /* darker than stock so destructive button text passes AA on its tinted background */
+  --border: oklch(0.922 0 0);
+  /* Field borders sit at 3:1 or better on their surface (WCAG 1.4.11); page borders stay hairlines. */
+  --input: oklch(0.64 0 0);
+  --input-fill: oklch(1 0 0);
+  --ring: oklch(0.56 0.2 260);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.49 0.2 260);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  color-scheme: dark;
+  --success: #0ca30c;
+  --warning: #fab219;
+  --info: #7fb0ff;
+  --destructive: #ff5c5c;
+  --commanded: #c792ff;
+  --json-key: oklch(0.76 0.12 255);
+  --json-string: oklch(0.8 0.12 155);
+  --json-number: oklch(0.82 0.13 70);
+  --json-keyword: oklch(0.8 0.13 310);
+  --background: #000;
+  --foreground: #fff;
+  --card: #050505;
+  --sunken: #0c0c0c;
+  --elevation-panel: 0 0 0 1px var(--border);
+  --elevation-raised: 0 0 0 1px var(--border), 0 10px 28px rgb(0 0 0 / 60%);
+  --elevation-overlay: 0 0 0 1px var(--border), 0 16px 48px rgb(0 0 0 / 70%);
+  --card-foreground: #fff;
+  --popover: #0a0a0a;
+  --popover-foreground: #fff;
+  --primary: #7fb0ff;
+  --primary-foreground: #000;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #fff;
+  --muted: #111;
+  --muted-foreground: #9a9a9a;
+  --accent: #161616;
+  --accent-foreground: #fff;
+  --border: #1c1c1c;
+  --input: #5e5e5e; /* 3.2:1 on black and on cards */
+  --input-fill: #000;
+  --ring: #7fb0ff;
+  --sidebar: #000;
+  --sidebar-foreground: #fff;
+  --sidebar-primary: #7fb0ff;
+  --sidebar-primary-foreground: #000;
+  --sidebar-accent: #111;
+  --sidebar-accent-foreground: #fff;
+  --sidebar-border: #1c1c1c;
+  --sidebar-ring: #7fb0ff;
+}
+
+/*
+ * Dark palette axis on <html>: data-palette="dusk" (default) | "ink".
+ * Ink is the pure-black block above. Dusk lowers text contrast to a comfortable
+ * 15:1 and raises surface, border and field contrast so structure is visible:
+ * background < card < popover, hairline borders at 1.45:1, field borders at
+ * 3:1 or better on their surface. Flight Deck keeps its own dark colours.
+ */
+.dark[data-palette="dusk"]:not([data-skin="flight-deck"]) {
+  --background: oklch(0.19 0.012 255);
+  --foreground: oklch(0.93 0.008 255);
+  --card: oklch(0.225 0.012 255);
+  --card-foreground: oklch(0.93 0.008 255);
+  --sunken: oklch(0.205 0.012 255);
+  --popover: oklch(0.26 0.012 255);
+  --popover-foreground: oklch(0.93 0.008 255);
+  --primary: oklch(0.78 0.14 255);
+  --primary-foreground: oklch(0.17 0.03 255);
+  --secondary: oklch(0.29 0.014 255);
+  --secondary-foreground: oklch(0.93 0.008 255);
+  --muted: oklch(0.26 0.012 255);
+  --muted-foreground: oklch(0.72 0.02 255);
+  --accent: oklch(0.31 0.03 255);
+  --accent-foreground: oklch(0.93 0.008 255);
+  --border: oklch(0.32 0.014 255);
+  --input: oklch(0.52 0.02 255);
+  --input-fill: oklch(0.165 0.012 255);
+  --ring: oklch(0.78 0.14 255);
+  --success: oklch(0.78 0.17 150);
+  --warning: oklch(0.83 0.16 80);
+  --info: oklch(0.8 0.12 240);
+  --destructive: oklch(0.72 0.19 25);
+  --sidebar: oklch(0.165 0.012 255);
+  --sidebar-foreground: oklch(0.93 0.008 255);
+  --sidebar-primary: oklch(0.78 0.14 255);
+  --sidebar-primary-foreground: oklch(0.17 0.03 255);
+  --sidebar-accent: oklch(0.225 0.012 255);
+  --sidebar-accent-foreground: oklch(0.93 0.008 255);
+  --sidebar-border: oklch(0.26 0.012 255);
+  --sidebar-ring: oklch(0.78 0.14 255);
+}
+
+[data-skin="instrument"] {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 0px;
+  --panel-gap: 0px;
+  --row-h: 32px;
+  --label-transform: uppercase;
+  --label-tracking: 0.06em;
+}
+
+[data-skin="flight-deck"] {
+  --font-sans: "B612", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "B612 Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 0px;
+  --panel-gap: 0px;
+  --row-h: 34px;
+  --label-transform: uppercase;
+  --label-tracking: 0.12em;
+}
+
+/* Light flight deck: darker cyan that keeps 4.5:1 on white. */
+[data-skin="flight-deck"]:not(.dark) {
+  --primary: #00708a;
+  --ring: #00708a;
+  --sidebar-primary: #00708a;
+}
+
+.dark[data-skin="flight-deck"] {
+  --success: #2bd96b;
+  --warning: #ffb020;
+  --info: #3fd8ff;
+  --destructive: #ff4040;
+  --commanded: #ff4fd8;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #9085e9;
+  --series-4: #199e70;
+  --series-5: #c98500;
+  --series-6: #d55181;
+  --card: rgb(0 0 0 / 72%);
+  --sunken: #0b1014;
+  --popover: #070a0c;
+  --secondary: #141a20;
+  --muted: #0e1317;
+  --muted-foreground: #a9b4bf;
+  --accent: #141a20;
+  --border: #192026;
+  --input: #606c79; /* 3.1:1 on the translucent black panels */
+  --input-fill: #000;
+  --primary: #3fd8ff;
+  --ring: #3fd8ff;
+  --sidebar-primary: #3fd8ff;
+  --sidebar-accent: #0e1317;
+  --sidebar-border: #192026;
+  --sidebar-ring: #3fd8ff;
+}

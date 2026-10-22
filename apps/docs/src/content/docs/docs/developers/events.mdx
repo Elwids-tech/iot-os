@@ -1,0 +1,45 @@
+---
+title: Events and the event feed
+description: Follow alert, geofence and automation events through the ordered feed or signed webhooks.
+---
+
+import EventTypes from '../../../../components/docs/EventTypes.astro'
+import WebhookDelivery from '../../../../components/docs/WebhookDelivery.astro'
+
+Everything that happens to an application's granted devices (an alert activating, a device leaving a geofence, an automation firing) is written to the organization's event journal. An application reads it in two ways: by **polling the feed**, or by receiving each event as a **signed webhook**. Both carry the same envelope.
+
+## The envelope
+
+Each event has a stable `id`, a `schema_version` of `integration-event.v1`, a `type`, `occurred_at` (when the change happened), `recorded_at` (when it was written) and `data`, a snapshot taken when the event was written. Apply `data` as the authoritative state; don't merge it with older values.
+
+## Reading the feed
+
+1. Call `GET events/checkpoint` to get a cursor at the current head of the journal.
+2. Read the current state you care about (for example the active alerts) through the API.
+3. Call `GET events?cursor=…&limit=…` (`limit` 1–100) and apply each event in order. Each page returns `data`, `next_cursor` and `has_more`.
+4. Store `next_cursor` together with your processed results, in the same transaction, even when the page was empty. Don't advance it after a failed request.
+
+Things to rely on:
+
+- **Order is commit order**, not event time. Apply events in the order the feed returns them.
+- **Delivery is at least once.** The same `id` can arrive more than once; record processed IDs and skip repeats.
+- **Cursors survive token rotation.** Changing the application's grants invalidates them: the feed answers `409`, and you rebuild from a fresh checkpoint.
+- **The feed is filtered by device.** Events for devices the application isn't granted never appear.
+
+## Event types
+
+<EventTypes />
+
+## Webhooks
+
+Instead of polling, an application can register one HTTPS endpoint. Each event is delivered to it in journal order, one at a time.
+
+<WebhookDelivery />
+
+Verify the signature on the **raw request body**, before parsing it:
+
+1. Read the `X-Iot-Timestamp`, `X-Iot-Delivery-Id` and `X-Iot-Signature` headers.
+2. Reject the request if the timestamp is more than 300 seconds from your clock.
+3. Compute HMAC-SHA256 over `timestamp + "." + deliveryId + "." + rawBody`, keyed with your endpoint's signing secret, and hex-encode it.
+4. Compare it with the value after `v1=` using a constant-time comparison.
+5. Deduplicate by the event's `id` before returning a 2xx response: a valid signature can be replayed.

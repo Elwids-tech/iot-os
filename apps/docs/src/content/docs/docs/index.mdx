@@ -1,0 +1,34 @@
+---
+title: Overview
+description: Connect devices, read their data and act on it through the platform's API, events and guides.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components'
+import Config from '../../../components/docs/Config.astro'
+
+<Config key="productName" /> collects data from devices over Sparkplug B, stores it with its quality and age, and lets people and software act on it. These docs are for engineers who connect devices to it and build applications on it.
+
+<CardGrid>
+  <LinkCard
+    title="Integration API reference"
+    href="/docs/reference/api/"
+    description="Every operation an application can call, with the abilities it needs and its rate limits."
+  />
+  <LinkCard
+    title="Events and webhooks"
+    href="/docs/developers/events/"
+    description="The ordered event feed, the event types and the signed webhook delivery."
+  />
+  <LinkCard
+    title="User guides"
+    href="/docs/guides/getting-started/"
+    description="The same guides people read inside the portal: devices, profiles, dashboards, alerts and automations."
+  />
+  <LinkCard title="Changelog" href="/docs/changelog/" description="Changes to the integration API, its events and the SDK." />
+</CardGrid>
+
+## What these docs describe
+
+They describe the hosted service as it runs today. The reference and the user guides are generated from the release customers use, and features that aren't switched on for the hosted service aren't documented. To report something that doesn't match what you see, use the link at the bottom of any page.
+
+To use the API you need an application and a token, created in the portal under **Connect → Integrations** by someone with permission to manage devices. Keep the token on your server.

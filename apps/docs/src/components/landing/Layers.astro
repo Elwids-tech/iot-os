@@ -1,0 +1,85 @@
+---
+// The five layers of the platform, each linked to the user guide that describes it
+// (FR-022: every capability the landing page mentions links to a docs page). A card
+// whose guide isn't published is left out.
+import { getCollection } from 'astro:content'
+import { hostedRelease } from '../../lib/hosted-release'
+
+const layers = [
+  {
+    title: 'Capture',
+    text: hostedRelease.features.adapters
+      ? 'Devices publish over Sparkplug B, the industrial MQTT standard. Vendor MQTT devices come in through adapters.'
+      : 'Devices and gateways publish over Sparkplug B, the industrial MQTT standard, and appear for review before they are trusted.',
+    guide: 'discovery',
+  },
+  {
+    title: 'Contextualize',
+    text: 'Versioned device profiles give every value its unit, conversion, calculations and how long it stays fresh.',
+    guide: 'profiles',
+  },
+  {
+    title: 'Visualize',
+    text: 'Dashboards show live and historical readings. Missing data shows as unknown, never as zero.',
+    guide: 'dashboards',
+  },
+  {
+    title: 'Act',
+    text: 'Automations and alerts respond to what devices report, and commands are confirmed or flagged as uncertain.',
+    guide: 'automations',
+  },
+  {
+    title: 'Govern',
+    text: 'Organizations, roles and an audit trail keep each customer’s devices and data apart.',
+    guide: 'members',
+  },
+]
+
+const ids = new Set((await getCollection('docs')).map((entry) => entry.id))
+const cards = layers.filter((layer) => ids.has(`docs/guides/${layer.guide}`))
+---
+
+<section class="layers not-content" aria-labelledby="layers-title">
+  <h2 id="layers-title">One platform, five layers</h2>
+  <ol>
+    {
+      cards.map((layer, index) => (
+        <li>
+          <a href={`/docs/guides/${layer.guide}/`}>
+            <span class="step" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+            <span class="title">{layer.title}</span>
+            <span class="text">{layer.text}</span>
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+</section>
+
+<style>
+  .layers { max-width: 72rem; margin: clamp(3rem, 8vh, 5rem) auto 0; padding-inline: 1.5rem; }
+  h2 { margin: 0 0 1.5rem; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; color: var(--foreground); }
+  ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr)); gap: 1rem; margin: 0; padding: 0; list-style: none; }
+  li { margin: 0; }
+  a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    height: 100%;
+    padding: 1.25rem;
+    border-radius: var(--radius-xl);
+    background: var(--card);
+    box-shadow: var(--shadow-panel);
+    color: var(--foreground);
+    text-decoration: none;
+    transition: box-shadow var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
+  }
+  a:hover { box-shadow: var(--shadow-raised); transform: translateY(-2px); }
+  a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .step { font-family: var(--font-mono); font-size: var(--text-meta); color: var(--muted-foreground); }
+  .title { font-size: 1.05rem; font-weight: 600; }
+  .text { font-size: var(--text-body); line-height: 1.55; color: var(--muted-foreground); }
+  li:nth-child(1) .step, li:nth-child(2) .step { color: var(--brand-mark-life); }
+  li:nth-child(3) .step { color: var(--brand-mark-signal); }
+  li:nth-child(4) .step, li:nth-child(5) .step { color: var(--brand-mark-energy); }
+</style>

@@ -1,0 +1,21 @@
+{
+  "ci": {
+    "collect": {
+      "staticDistDir": "./dist",
+      "url": [
+        "http://localhost/index.html",
+        "http://localhost/docs/index.html",
+        "http://localhost/docs/reference/api/operations/readdevices/index.html",
+        "http://localhost/docs/guides/devices/index.html"
+      ],
+      "numberOfRuns": 1,
+      "settings": { "preset": "perf", "formFactor": "mobile", "screenEmulation": { "mobile": true } }
+    },
+    "assert": {
+      "assertions": {
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2000 }]
+      }
+    },
+    "upload": { "target": "filesystem", "outputDir": "./.lighthouseci" }
+  }
+}

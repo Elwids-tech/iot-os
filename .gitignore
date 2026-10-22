@@ -38,3 +38,13 @@ deploy/compose/data/
 
 # Storybook build output
 storybook-static/
+
+# Docs site (apps/docs): sources extracted from the hosted commit, the guide pages
+# generated from them, the simulator kit, Astro's generated types and Lighthouse
+# output. Real values live in .local/docs/, never in the app folder.
+apps/docs/.sources/
+apps/docs/src/content/docs/docs/guides/
+apps/docs/public/downloads/
+apps/docs/.astro/
+apps/docs/.lighthouseci/
+apps/docs/.env*

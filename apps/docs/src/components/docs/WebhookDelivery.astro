@@ -1,0 +1,51 @@
+---
+// The signed webhook delivery, generated from the hosted contract's
+// webhooks.integrationEvent (FR-011).
+import { Code } from '@astrojs/starlight/components'
+import { inlineMarkdown, markdown } from '../../lib/markdown'
+import type { Schema } from '../../lib/schema'
+import { typeLabel } from '../../lib/schema'
+import { readSource } from '../../lib/sources'
+
+interface Delivery {
+  summary?: string
+  description?: string
+  parameters?: { name: string; in: string; required?: boolean; description?: string; schema?: Schema }[]
+  requestBody?: { content?: Record<string, { example?: unknown }> }
+}
+const contract = readSource<{ webhooks?: Record<string, { post?: Delivery }> }>('integration-openapi.json')
+const delivery = contract.webhooks?.integrationEvent?.post
+if (!delivery) throw new Error('the hosted contract has no webhooks.integrationEvent')
+const headers = (delivery.parameters ?? []).filter((parameter) => parameter.in === 'header')
+const example = delivery.requestBody?.content?.['application/json']?.example
+---
+
+<div class="webhook-delivery not-content">
+  <p><strong>{delivery.summary}</strong>: <code>POST</code> to your endpoint.</p>
+  <Fragment set:html={markdown(delivery.description)} />
+  <table>
+    <thead>
+      <tr><th scope="col">Header</th><th scope="col">Format</th><th scope="col">Description</th></tr>
+    </thead>
+    <tbody>
+      {
+        headers.map((header) => (
+          <tr>
+            <td><code>{header.name}</code></td>
+            <td>{typeLabel(header.schema)}</td>
+            <td set:html={inlineMarkdown(header.description ?? '')} />
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+{example !== undefined && <Code code={JSON.stringify(example, null, 2)} lang="json" title="Example body" />}
+
+<style>
+  .webhook-delivery table { width: 100%; margin-block: 0.75rem 1rem; border-collapse: collapse; font-size: var(--sl-text-sm); }
+  .webhook-delivery th,
+  .webhook-delivery td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); text-align: start; vertical-align: top; }
+  .webhook-delivery th { color: var(--muted-foreground); font-weight: 600; }
+  .webhook-delivery :global(p) { margin-block: 0.75rem; }
+</style>

@@ -228,6 +228,10 @@ Things that have cost time before. Add to this list when something surprises you
   mouseup. Playwright checks only the first event's hit target, so it reports
   the click as done while `click` fires on a parent. Wait for
   `document.getAnimations().length === 0` before clicking.
+- **Phone emulation hides sideways scrolling from `window.innerWidth`.** With
+  `isMobile` (Playwright's phone devices), the viewport widens to fit content that
+  overflows, so `scrollWidth - innerWidth` stays 0. Compare
+  `document.documentElement.scrollWidth` with its `clientWidth`.
 - **`rtk npx` rewrites to an npm script.** `rtk npx vite build` becomes
   `npm run vite`. Use `rtk proxy npx vite …` and `rtk proxy npx playwright …`.
 
@@ -259,3 +263,22 @@ Things that have cost time before. Add to this list when something surprises you
   already in flight, without refetching. A chat that polls only while a run is
   active then never shows the new run. Call `invalidateQueries` for that key
   first, or pass `staleTime: 0`.
+
+## Docs site
+
+- **Astro runs one preview server per project.** A second `astro preview` (for
+  example Playwright's `webServer`) exits at once. `apps/docs` tests reuse the
+  server on port 4321; start it with `pnpm --filter @iot-os/docs preview`.
+- **`test.use({ reducedMotion })` does nothing in Playwright.** Use
+  `test.use({ contextOptions: { reducedMotion: 'reduce' } })`.
+- **Starlight's `docsLoader` takes no pattern.** To leave a folder out of the
+  build, use Astro's `glob()` loader with `docsSchema()`, as
+  `apps/docs/src/content.config.ts` does for gated features.
+- **starlight-openapi ignores `x-` extensions and external `$ref`s.** The sources
+  step writes abilities and rate limits into each description and inlines schema
+  files from `contracts/`; a new external `$ref` must stay under `contracts/`.
+- **pnpm's release-age policy can refuse a dependency's newest patch**, and that
+  patch may need a newer Node than the repository pins. Pin the previous version
+  (as `apps/docs` does with `astro`) instead of adding `minimumReleaseAgeExclude`.
+- **An empty Actions secret reads as an empty string, not unset.** Scripts that
+  read optional secrets (`DOCS_DENYLIST`) treat `""` as unset.
