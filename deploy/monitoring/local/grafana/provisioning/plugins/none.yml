@@ -1,0 +1,3 @@
+# Grafana provisions no plugin apps. Without this directory it logs an error on every
+# start, which fires ServiceErrorLogs.
+apiVersion: 1

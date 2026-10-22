@@ -202,6 +202,24 @@ def verify_archive(archive, commit):
     return digest
 
 
+def unpack(archive, directory):
+    """Unpack the source so that containers not running as root can read what they mount from it.
+
+    Grafana (uid 472) mounts its provisioning directory from the source. The tarfile data
+    filter ignores the modes an archive gives directories, so under ship's umask 077 every
+    directory came out 0700. The modes are set explicitly instead: the source is public,
+    and secrets live in the private directory.
+    """
+    with tarfile.open(archive) as tar:
+        tar.extractall(directory, filter="data")
+    for parent, _, files in os.walk(directory):
+        os.chmod(parent, 0o755)
+        for name in files:
+            path = Path(parent, name)
+            if not path.is_symlink():
+                path.chmod(0o755 if path.stat().st_mode & 0o100 else 0o644)
+
+
 _tooling = []
 _loads = itertools.count()
 
@@ -337,8 +355,7 @@ def ship(args):
     candidate.mkdir(mode=0o700)
     installed = False
     try:
-        with tarfile.open(archive) as tar:
-            tar.extractall(candidate, filter="data")
+        unpack(archive, candidate)
         checks = load_checks([candidate / CHECKS, release_dir / "checks.json"], operations.env.get("DOMAIN", ""))
         # The release's own tooling validates the configuration before anything changes.
         load_tooling(candidate).Deployment(env_path, manifest_path).validate()

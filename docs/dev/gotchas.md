@@ -170,6 +170,21 @@ Things that have cost time before. Add to this list when something surprises you
   exactly 2 in `increase(...[15m])`; after a reset from a non-zero count,
   Prometheus extrapolates them to 2.03 and the alert fires. So the restarts one
   deploy left behind made the next deploy's two restarts alert.
+- **Python's `tarfile` data filter leaves directory modes to the umask.**
+  `extractall(..., filter="data")` ignores the modes an archive records for
+  directories. The release tooling runs under umask 077, so from the 2026-10-10
+  deploy on, every directory of the pilot's installed source was 0700 and owned by
+  root (files kept 0644). Single-file mounts such as Loki's config and
+  `mosquitto.conf` still worked, because only the mounted file's own mode counts.
+  Grafana (uid 472) mounts its provisioning *directory*. It logged `can't read
+  dashboard provisioning files ... permission denied` on every start and ran on
+  what its database already held. [`ship.py`](../../tooling/release/ship.py) now
+  sets 0755 and 0644 after unpacking. A directory mounted into a container that does
+  not run as root must be readable by others (`find <dir> -type d ! -perm -0005`
+  lists the ones that are not). A `source-before-…` tree kept from before the fix
+  still has 0700 directories. Grafana also logs an error for a missing `alerting/`
+  or `plugins/` provisioning directory, which fires `ServiceErrorLogs` too, so each
+  holds an `apiVersion: 1` file.
 
 ## Device adapters
 

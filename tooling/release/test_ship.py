@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -139,6 +140,14 @@ class ShipTests(unittest.TestCase):
         self.assertEqual(host.release / "release.json", deployed.manifest)
         host.deploy.assert_called_once_with(deployed, "backup.env")
         self.assertIn("Shipped " + STAGED[:12], host.output)
+
+    def test_ship_installs_a_source_that_containers_not_running_as_root_can_read(self):
+        # main() sets umask 077; Grafana (uid 472) mounts a directory from the source.
+        self.addCleanup(os.umask, os.umask(0o077))
+        host = self.host()
+        host.ship()
+        for path in [host.source, *host.source.rglob("*")]:
+            self.assertEqual(oct(0o755 if path.is_dir() else 0o644), oct(path.stat().st_mode & 0o777), path)
 
     def test_ship_never_reuses_a_previous_source_directory(self):
         # A hand-picked source-before name that already existed once made the rename fail.

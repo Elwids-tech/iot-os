@@ -1,7 +1,9 @@
 import fcntl
 import importlib.util
 import json
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -13,6 +15,9 @@ import yaml
 spec = importlib.util.spec_from_file_location("release", Path(__file__).with_name("manage.py"))
 release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
+spec = importlib.util.spec_from_file_location("ship", Path(__file__).with_name("ship.py"))
+ship = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(ship)
 
 
 class ReleaseTests(unittest.TestCase):
@@ -254,6 +259,32 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(compose["services"]["api"]["environment"]["APP_DEBUG"], "false")
         self.assertEqual(compose["services"]["migrate"]["restart"], "no")
         self.assertEqual(compose["services"]["simulator"]["profiles"], ["demo"])
+
+    def test_the_installed_source_is_readable_by_the_containers_that_mount_it(self):
+        # Grafana (uid 472) reads its provisioning directory from the installed source.
+        # Unpacked under ship's umask 077, every directory was 0700 and Grafana could not.
+        mounts = set()
+        for name in ("compose.yml", "compose.adapters.yml", "compose.database.yml", "compose.external-db.yml"):
+            for service in yaml.safe_load((release.RELEASE/name).read_text())["services"].values():
+                for volume in service.get("volumes", []):
+                    source = volume.split(":")[0] if isinstance(volume, str) else volume.get("source", "")
+                    if source.startswith("."):
+                        mounts.add((release.RELEASE/source).resolve().relative_to(release.ROOT))
+        self.assertIn(Path("deploy/monitoring/local/grafana/provisioning"), mounts)
+        with tempfile.TemporaryDirectory() as temp:
+            archive, installed = Path(temp)/"source.tar.gz", Path(temp)/"source"
+            subprocess.run(["git", "archive", "--format=tar.gz", "-o", archive, "HEAD"], cwd=release.ROOT, check=True)
+            installed.mkdir(mode=0o700)
+            umask = os.umask(0o077)
+            try:
+                ship.unpack(archive, installed)
+            finally:
+                os.umask(umask)
+            for mount in mounts:
+                self.assertTrue((installed/mount).exists(), f"{mount} is mounted but not in the source")
+            for path in [installed, *installed.rglob("*")]:
+                expected = {"0o755"} if path.is_dir() else {"0o644", "0o755"}
+                self.assertIn(oct(path.stat().st_mode & 0o777), expected, path.relative_to(installed))
 
     def test_restore_refuses_nonempty_state_before_touching_docker(self):
         with tempfile.TemporaryDirectory() as temp:
