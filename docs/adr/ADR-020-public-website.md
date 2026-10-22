@@ -1,6 +1,6 @@
 # ADR-020: The Public Website and Developer Docs Are a Static Site Outside the Product
 
-**Status:** Accepted
+**Status:** Accepted; amended by [ADR-021](ADR-021-developer-docs-only.md)
 **Date:** 2026-10-17
 **Relates to:** [ADR-001](ADR-001-react-experience-layer.md), [ADR-007](ADR-007-monorepo-and-shadcn-ui.md), [ADR-012](ADR-012-design-system-and-charts.md), [ADR-016](ADR-016-public-api-contract.md)
 
