@@ -192,8 +192,9 @@ try:
         "public tables verified.",
     )
 finally:
+    # -v also removes the restored database's anonymous volume (2-3 GB per drill).
     subprocess.run(
-        ["docker", "rm", "-f", container],
+        ["docker", "rm", "-f", "-v", container],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
