@@ -155,6 +155,21 @@ Things that have cost time before. Add to this list when something surprises you
   and only `docker rm -v` removes it. The pilot restore drill left 2-3 GB per run
   until it passed `-v`. Before removing dangling volumes on a server, check that
   each one is a drill leftover (`PG_VERSION` in a volume no container uses).
+- **A deploy recreates services in parallel unless `depends_on` orders them.**
+  `Deployment.deploy` recreates every application in one
+  `up -d --force-recreate --no-deps`. Compose still orders the services named in
+  that command by `depends_on`, but the runtime had none, so it started while
+  `api-web` was being replaced. Its first control-plane call failed with
+  `lookup api-web on 127.0.0.11:53: server misbehaving` and Docker restarted it
+  twice on every pilot deploy. The runtime now waits up to two minutes for the
+  control plane (`awaitControlPlane`), and the release `runtime` starts after
+  `api-web`. A service that calls another one at startup needs both.
+- **Two restarts can trip `ContainerFailure` despite its `> 2`.**
+  `iot_container_restarts_total` is Docker's `RestartCount` for the service's
+  current container, so a recreate resets it. From zero, two restarts read as
+  exactly 2 in `increase(...[15m])`; after a reset from a non-zero count,
+  Prometheus extrapolates them to 2.03 and the alert fires. So the restarts one
+  deploy left behind made the next deploy's two restarts alert.
 
 ## Device adapters
 

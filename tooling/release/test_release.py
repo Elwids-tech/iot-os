@@ -241,6 +241,11 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(path.read_text(), "second")
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
+    def test_runtime_starts_after_the_control_plane(self):
+        services = yaml.safe_load((release.RELEASE/"compose.yml").read_text())["services"]
+        self.assertTrue(services["runtime"]["environment"]["DEVICE_CONTROL_URL"].startswith("http://api-web/"))
+        self.assertEqual(services["runtime"]["depends_on"], {"api-web": {"condition": "service_started"}})
+
     def test_release_exposes_only_ingress_and_mqtt(self):
         compose = yaml.safe_load((release.RELEASE/"compose.yml").read_text())
         public = {key: value["ports"] for key, value in compose["services"].items() if value.get("ports")}

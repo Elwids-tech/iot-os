@@ -177,6 +177,10 @@ services:
       IOT_NATS_TELEMETRY_MAX_BYTES: ${IOT_NATS_TELEMETRY_MAX_BYTES:-12884901888}
       IOT_NATS_COMMITTED_MAX_BYTES: ${IOT_NATS_COMMITTED_MAX_BYTES:-4294967296}
       IOT_NATS_DEAD_LETTER_MAX_BYTES: ${IOT_NATS_DEAD_LETTER_MAX_BYTES:-268435456}
+    # A deploy recreates both in one `up`; without this order the runtime can
+    # start while `api-web` does not resolve yet. The runtime retries the rest.
+    depends_on:
+      api-web: {condition: service_started}
     mem_limit: 256m
     stop_grace_period: 40s
   runtime-migrate:

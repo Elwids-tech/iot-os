@@ -133,7 +133,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 		nc.Close()
 		return nil, e
 	}
-	if e = a.syncState(); e != nil {
+	if e = awaitControlPlane(ctx, logger, controlPlaneStartupWait, startupDelay, a.syncState); e != nil {
 		nc.Close()
 		return nil, e
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -52,6 +53,52 @@ func (c *ControlClient) request(ctx context.Context, method, path string, input,
 	}
 	return nil
 }
+
+// A deploy recreates the control plane alongside the runtime, so its name may
+// not resolve yet. Exiting restarts the container and two restarts trip the
+// ContainerFailure alert; giving up after this wait still lets a real outage
+// show as restarts.
+const controlPlaneStartupWait = 2 * time.Minute
+
+// startupDelay backs off from 500 ms to a 10 s ceiling between attempts.
+func startupDelay(attempt int) time.Duration {
+	delay := 500 * time.Millisecond
+	for i := 1; i < attempt && delay < 10*time.Second; i++ {
+		delay *= 2
+	}
+	return min(delay, 10*time.Second)
+}
+
+// awaitControlPlane retries fetch until it succeeds, fails permanently, the
+// wait runs out or ctx ends.
+func awaitControlPlane(ctx context.Context, logger *slog.Logger, wait time.Duration, delay func(int) time.Duration, fetch func() error) error {
+	deadline := time.Now().Add(wait)
+	for attempt := 1; ; attempt++ {
+		e := fetch()
+		if e == nil {
+			if attempt > 1 {
+				logger.Info("control plane reachable", "attempts", attempt)
+			}
+			return nil
+		}
+		if isPermanent(e) || ctx.Err() != nil {
+			return e
+		}
+		pause := delay(attempt)
+		if time.Now().Add(pause).After(deadline) {
+			return fmt.Errorf("control plane unreachable after %d attempts: %w", attempt, e)
+		}
+		logger.Warn("control plane not ready, retrying", "attempt", attempt, "retry_in", pause.String(), "error", e)
+		timer := time.NewTimer(pause)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
 func (a *Application) relay(ctx context.Context) {
 	ticker := time.NewTimer(0)
 	defer ticker.Stop()
