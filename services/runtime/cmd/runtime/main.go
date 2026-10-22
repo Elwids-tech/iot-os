@@ -37,6 +37,11 @@ func main() {
 		}
 		runtime, err := app.New(shutdownContext, store, logger)
 		if err != nil {
+			if shutdownContext.Err() != nil {
+				// Stopped while waiting for the control plane; not a failure.
+				logger.Info("runtime stopped during startup", "error", err)
+				return
+			}
 			logger.Error("device runtime startup failed", "error", err)
 			os.Exit(1)
 		}
