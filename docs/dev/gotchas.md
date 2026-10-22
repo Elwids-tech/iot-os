@@ -150,6 +150,11 @@ Things that have cost time before. Add to this list when something surprises you
   The main checkout's vendor can lag its own `composer.lock`; if `package:discover`
   fails with a missing class (such as `Laravel\Passport\Passport`), run
   `composer install` in the worktree.
+- **`docker rm -f` keeps a container's anonymous volumes.** An image that declares
+  a `VOLUME` (PostgreSQL, TimescaleDB) gets a new anonymous volume per container,
+  and only `docker rm -v` removes it. The pilot restore drill left 2-3 GB per run
+  until it passed `-v`. Before removing dangling volumes on a server, check that
+  each one is a drill leftover (`PG_VERSION` in a volume no container uses).
 
 ## Device adapters
 

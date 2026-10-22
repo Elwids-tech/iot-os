@@ -1,4 +1,4 @@
-FROM php:8.4-cli-bookworm AS vendor
+FROM php:8.4.27-cli-bookworm AS vendor
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git libpq-dev libzip-dev unzip \
@@ -16,7 +16,7 @@ RUN composer install \
     --prefer-dist \
     --optimize-autoloader
 
-FROM php:8.4-cli-bookworm
+FROM php:8.4.27-cli-bookworm
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl libpq-dev poppler-utils \

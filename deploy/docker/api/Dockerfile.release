@@ -1,4 +1,6 @@
-FROM php:8.4-fpm-bookworm AS api
+# PHP is pinned to a patch release, as in tooling/versions.env and the dev Dockerfile;
+# bump all three for each PHP security release.
+FROM php:8.4.27-fpm-bookworm AS api
 RUN apt-get update && apt-get install -y --no-install-recommends libpq-dev libzip-dev unzip curl poppler-utils \
     && docker-php-ext-install pdo_pgsql pcntl opcache \
     && rm -rf /var/lib/apt/lists/*
