@@ -35,10 +35,12 @@ final class WorkflowController
     public function index(Request $request, Organization $organization): array
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
-        $request->validate(['page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'], 'search' => ['sometimes', 'nullable', 'string', 'max:255']]);
-        $page = Workflow::where('organization_id', $organization->id)->where('workflow->schema_version', 'automation-workflow.v1')->when($request->filled('search'), fn ($query) => $query->where('name', 'like', '%'.$request->string('search').'%'))->orderBy('id')->paginate($request->integer('per_page', 25));
+        $request->validate(['page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'], 'search' => ['sometimes', 'nullable', 'string', 'max:255'], 'kind' => ['sometimes', 'in:geofence,all']]);
+        // Geofence (v1) workflows unless the caller opts into DAG automations (v2) with kind=all.
+        $versions = $request->input('kind') === 'all' ? ['automation-workflow.v1', 'automation-workflow.v2'] : ['automation-workflow.v1'];
+        $page = Workflow::where('organization_id', $organization->id)->whereIn('workflow->schema_version', $versions)->when($request->filled('search'), fn ($query) => $query->where('name', 'like', '%'.$request->string('search').'%'))->orderBy('id')->paginate($request->integer('per_page', 25));
 
-        return ['data' => $page->getCollection()->map(fn ($w) => $this->view($w)), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];
+        return ['data' => $page->getCollection()->map(fn ($w) => [...$this->view($w), 'kind' => $w->kind()]), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];
     }
 
     public function show(Request $request, Organization $organization, Workflow $workflow): array
@@ -249,7 +251,7 @@ final class WorkflowController
     {
         $graph = $workflow->workflow;
         foreach ($graph['nodes'] as &$node) {
-            if ($node['config'] === []) {
+            if (($node['config'] ?? null) === []) {
                 $node['config'] = (object) [];
             }
         }

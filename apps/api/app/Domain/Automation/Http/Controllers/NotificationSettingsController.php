@@ -58,6 +58,6 @@ final class NotificationSettingsController
 
     private function view(Workflow $workflow): array
     {
-        return ['workflow_name' => $workflow->name, 'recipients' => User::whereIn('id', $workflow->notification_settings['recipient_ids'] ?? [])->get(['id', 'name'])->toArray(), 'revision' => $workflow->notification_revision ?? 0, ...($workflow->notification_settings ?? ['enabled' => false, 'notify_on_clear' => false, 'recipient_ids' => []])];
+        return ['workflow_name' => $workflow->name, 'workflow_kind' => $workflow->kind(), 'recipients' => User::whereIn('id', $workflow->notification_settings['recipient_ids'] ?? [])->get(['id', 'name'])->toArray(), 'revision' => $workflow->notification_revision ?? 0, ...($workflow->notification_settings ?? ['enabled' => false, 'notify_on_clear' => false, 'recipient_ids' => []])];
     }
 }

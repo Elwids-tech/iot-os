@@ -68,6 +68,7 @@ export type NotificationRecipient = {
 };
 export type NotificationSettings = {
   workflow_name: string;
+  workflow_kind: WorkflowKind;
   revision: number;
   enabled: boolean;
   notify_on_clear: boolean;
@@ -91,6 +92,10 @@ export type AutomationWorkflow = {
   applied_deployment_uuid: string | null;
   pending_operation_uuid: string | null;
 };
+/** DAG automations (schema v2) or geofence workflows (v1). */
+export type WorkflowKind = "automation" | "geofence";
+/** A row of GET workflows. `kind=all` lists DAG automations next to geofence workflows. */
+export type WorkflowListItem = AutomationWorkflow & { kind: WorkflowKind };
 export type WorkflowDeployment = {
   uuid: string;
   generation: number;

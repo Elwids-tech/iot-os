@@ -367,6 +367,32 @@ final class AlertTest extends TestCase
         $this->getJson($url.'/notifications')->assertJsonPath('data.enabled', true);
     }
 
+    public function test_the_workflow_list_adds_dag_automations_only_when_asked(): void
+    {
+        $actor = $this->workflow->updated_by;
+        $geofence = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Paddock boundary', 'workflow' => ['schema_version' => 'automation-workflow.v1', 'nodes' => [['id' => 'source', 'type' => 'location.source.v1', 'config' => []]], 'edges' => []], 'definition' => [], 'definition_hash' => str_repeat('b', 64), 'updated_by' => $actor]);
+        $dag = ['schema_version' => 'automation-workflow.v2', 'bindings' => [], 'nodes' => [['id' => 'source', 'type' => 'source.parameter.v1', 'config' => ['binding' => 'pump']]], 'edges' => []];
+        $automation = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Pump pressure', 'workflow' => $dag, 'definition' => [], 'definition_hash' => str_repeat('c', 64), 'updated_by' => $actor]);
+        $northstar = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        Workflow::create(['organization_id' => $northstar->id, 'name' => 'Pump foreign', 'workflow' => $dag, 'definition' => [], 'definition_hash' => str_repeat('d', 64), 'updated_by' => $actor]);
+        $url = $this->base.'/workflows';
+
+        // Callers that do not ask keep geofence workflows only.
+        $this->getJson($url)->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $geofence->uuid)->assertJsonPath('data.0.kind', 'geofence');
+        $this->getJson($url.'?kind=all')->assertOk()->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('data.0.uuid', $geofence->uuid)->assertJsonPath('data.0.kind', 'geofence')
+            ->assertJsonPath('data.1.uuid', $automation->uuid)->assertJsonPath('data.1.kind', 'automation')->assertJsonPath('data.1.deployment_status', 'inactive');
+        $this->getJson($url.'?kind=all&search=Pump')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $automation->uuid);
+        $this->getJson($url.'?kind=automation')->assertUnprocessable()->assertJsonValidationErrors('kind');
+        $this->getJson($url.'/'.$automation->uuid.'/notifications')->assertOk()->assertJsonPath('data.workflow_kind', 'automation');
+        $this->getJson($url.'/'.$geofence->uuid.'/notifications')->assertOk()->assertJsonPath('data.workflow_kind', 'geofence');
+
+        // Members who can view devices list both kinds for the Alerts filter but cannot open the settings.
+        $this->actingAs($this->recipient, 'sanctum');
+        $this->getJson($url.'?kind=all')->assertOk()->assertJsonPath('meta.total', 2);
+        $this->getJson($url.'/'.$automation->uuid.'/notifications')->assertForbidden();
+    }
+
     private function episode(Deployment $deployment, int $episode, array $values = []): Alert
     {
         return Alert::create(['organization_id' => Workflow::findOrFail($deployment->automation_workflow_id)->organization_id, 'automation_workflow_id' => $deployment->automation_workflow_id, 'automation_deployment_id' => $deployment->id, 'episode' => $episode, 'activated_at' => now()->subMinutes(60 - $episode)->startOfSecond(), ...$values]);

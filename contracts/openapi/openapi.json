@@ -21048,6 +21048,17 @@
               ],
               "maxLength": 255
             }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "geofence",
+                "all"
+              ]
+            }
           }
         ],
         "responses": {

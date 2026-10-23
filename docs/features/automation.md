@@ -221,6 +221,8 @@ execution starts unknown; episodes are not carried across versions.
 The v1 endpoints (`GET/POST /workflows`, `PUT {w}`, `simulate`, `deployments`,
 `transitions`) still check `Device.view`, `Device.manage` and `Device.activate`,
 not `Workflow.*`. Hand-authoring v1 graphs is possible only through the API.
+`GET /workflows?kind=all` also lists DAG automations, for Settings → Notifications
+and the Alerts workflow filter ([alerts](alerts.md#per-workflow-recipients)).
 
 ## Shared runtime behaviour
 

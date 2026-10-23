@@ -1997,8 +1997,9 @@ export class ApiClient {
     return this.request<{ data: import("./alerts").AlertDelivery[] }>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/deliveries`)
   }
 
-  dashboardWorkflows(org: string, search: string, page: number) {
-    return this.request<{data: {uuid: string; name: string}[]; meta: {current_page: number; last_page: number; total: number}}>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?${new URLSearchParams({search,page:String(page)})}`)
+  /** Geofence workflows by default; `kind: "all"` adds DAG automations. */
+  dashboardWorkflows(org: string, search: string, page: number, kind: "geofence" | "all" = "geofence") {
+    return this.request<{data: {uuid: string; name: string}[]; meta: {current_page: number; last_page: number; total: number}}>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?${new URLSearchParams({search,page:String(page),kind})}`)
   }
   workflowLocationOverview(org: string, id: string, signal?: AbortSignal) {
     return this.data<import("./dashboards").WorkflowLocationOverview>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/location-overview`, "GET", undefined, signal)
@@ -2035,8 +2036,9 @@ export class ApiClient {
   retryGeofenceActivation(org: string, fence: string, batch: string, item: number) {
     return this.data<import("./geospatial").GeofenceActivationBatch>(`/api/v1/organizations/${encodeURIComponent(org)}/geofences/${encodeURIComponent(fence)}/activations/${encodeURIComponent(batch)}/items/${item}/retry`, "POST", {})
   }
+  /** Geofence workflows and DAG automations, for Settings → Notifications. */
   notificationWorkflows(org: string, page: number) {
-    return this.request<import("./alerts").AlertPage<import("./alerts").AutomationWorkflow>>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?page=${page}`)
+    return this.request<import("./alerts").AlertPage<import("./alerts").WorkflowListItem>>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows?kind=all&page=${page}`)
   }
   automation<T>(org: string, path: string, method = "GET", input?: unknown) {
     return this.request<T>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows${path}`, { method, ...(input === undefined ? {} : { body: JSON.stringify(input) }) })
