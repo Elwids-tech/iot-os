@@ -38,6 +38,8 @@ x-api-env: &api-env
   DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN:?}
   DEVICE_MQTT_URL: ssl://mqtt.${DOMAIN}:8883
   DEVICE_MQTT_PUBLIC_URL: ssl://mqtt.${DOMAIN}:8883
+  # The broker's certificate is publicly trusted; connection kits ship the same CAs the runtime trusts.
+  DEVICE_MQTT_CA_FILE: /etc/ssl/certs/ca-certificates.crt
   DEVICE_BROKER_ADMIN_URL: http://broker-admin:8082
   DEVICE_BROKER_ADMIN_TOKEN: ${DEVICE_BROKER_ADMIN_TOKEN:?}
   IOT_STAGING_DEMO_ENABLED: ${IOT_STAGING_DEMO_ENABLED:-false}
