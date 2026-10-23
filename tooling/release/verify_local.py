@@ -87,9 +87,10 @@ def main():
                 source = str(RELEASE/source[2:])
             volumes.append(':'.join([source,target,*flags]))
         service['volumes'] = volumes
-        if name in ['runtime','runtime-migrate','simulator','gps-simulator','broker-admin']:
+        if name in ['runtime','runtime-migrate','simulator','gps-simulator','broker-admin','api']:
             service['volumes'].append(str(certs/'fullchain.pem')+':/certs/ca.pem:ro')
-        if name == 'runtime': service['environment']['DEVICE_MQTT_CA_FILE'] = '/certs/ca.pem'
+        # The api's connection kits must name the same local CA the runtime trusts.
+        if name in ['runtime','api']: service['environment']['DEVICE_MQTT_CA_FILE'] = '/certs/ca.pem'
         if name == 'broker-admin': service['environment']['BROKER_CA_FILE'] = '/certs/ca.pem'
     for name, port, target in [('api-web',18091,80),('portal',18092,80),('admin',18093,80),(broker,18896,8883)]:
         compose['services'][name]['ports'] = [f'127.0.0.1:{port}:{target}']

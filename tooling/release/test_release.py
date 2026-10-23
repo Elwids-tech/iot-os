@@ -251,6 +251,12 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue(services["runtime"]["environment"]["DEVICE_CONTROL_URL"].startswith("http://api-web/"))
         self.assertEqual(services["runtime"]["depends_on"], {"api-web": {"condition": "service_started"}})
 
+    def test_connection_kits_ship_the_cas_the_runtime_trusts(self):
+        services = yaml.safe_load((release.RELEASE/"compose.yml").read_text())["services"]
+        trusted = services["runtime"]["environment"]["DEVICE_MQTT_CA_FILE"]
+        for name in ("api", "default-worker"):
+            self.assertEqual(services[name]["environment"]["DEVICE_MQTT_CA_FILE"], trusted)
+
     def test_release_exposes_only_ingress_and_mqtt(self):
         compose = yaml.safe_load((release.RELEASE/"compose.yml").read_text())
         public = {key: value["ports"] for key, value in compose["services"].items() if value.get("ports")}

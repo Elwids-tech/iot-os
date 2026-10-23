@@ -48,7 +48,9 @@ environment label).
   records only after checking IPv6 firewall rules. `ops` resolves to the VPN address
   privately; public requests get 403.
 - MQTT certificates: `MQTT_ACME_CHALLENGE=webroot` (port 80 must reach Caddy) or
-  `cloudflare` with a private credentials file.
+  `cloudflare` with a private credentials file. The certificate is publicly
+  trusted, so the runtime and the API's device connection kits both use the image's
+  system CA bundle (`DEVICE_MQTT_CA_FILE=/etc/ssl/certs/ca-certificates.crt`).
 - SMTP credentials and verified senders (`MAIL_*`; optional separate
   `ALERT_FROM_ADDRESS`, `ALERT_SMTP_USERNAME`, `ALERT_SMTP_PASSWORD` for
   Alertmanager). Add the provider's SPF/DKIM/DMARC records.
