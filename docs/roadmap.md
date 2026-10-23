@@ -62,8 +62,8 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 - **Retire workflow v1.** Move geofences onto DAG automation (the `geofence.v1` node
   exists), move the remaining v1 endpoints from `Device.*` to `Workflow.*`, and let
-  the Alerts workflow filter, the dashboard alert picker and Settings → Notifications
-  list DAG workflows ([ADR-011](adr/ADR-011-dag-automation-in-go.md)).
+  the dashboard alert picker list DAG workflows (the Alerts workflow filter and
+  Settings → Notifications already do) ([ADR-011](adr/ADR-011-dag-automation-in-go.md)).
 - **Notification policies** (requirement-led): reminders, cooldowns, escalation,
   SMS or push.
 - **New automation nodes** ([spec 014](../specs/014-automation-nodes/spec.md)): no data,

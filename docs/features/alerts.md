@@ -36,18 +36,20 @@ Each deployment and episode number has exactly one alert. Its condition is
 
 The inbox groups repeats of one workflow on one device, shows active alerts first,
 and filters by condition, acknowledgement, device and workflow. The workflow filter
-currently lists only geofence (v1) workflows ([roadmap](../roadmap.md#next)).
+lists geofence workflows and DAG automations.
 
 ## Email
 
 ### Per-workflow recipients
 
-**Settings → Notifications** lists every workflow with its email state. Email is
-**off by default**. Per workflow you choose up to 20 verified members who can view
-devices, and whether to send a recovery email when the alert clears
-(`notify_on_clear`). Settings are revisioned separately from the workflow draft;
-stale updates return 409. This list also shows only geofence (v1) workflows
-today.
+**Settings → Notifications** lists every workflow, geofence workflows and DAG
+automations together, with its kind and email state. Email is **off by default**.
+Per workflow you choose up to 20 verified members who can view devices, and whether
+to send a recovery email when the alert clears (`notify_on_clear`). Settings are
+revisioned separately from the workflow draft; stale updates return 409. A geofence
+workflow's page can also activate and disable it; a DAG automation's page shows its
+state and links to the automation editor, where it is activated with its command
+grants.
 
 - One activation email per episode and recipient; recovery is optional. No
   reminders, escalation, cooldowns, SMS or push.
@@ -117,7 +119,8 @@ Under `/api/v1/organizations/{organization}`:
 | `POST alerts/{uuid}/acknowledge`, `POST alerts/acknowledge` | Acknowledge one, or several | `Device.manage` |
 | `PUT alerts/{uuid}/assignee`, `POST alerts/{uuid}/comments` | Assign, comment (max 5000 characters) | `Device.manage` |
 | `GET alerts/{uuid}/deliveries`, `POST .../deliveries/{d}/retry` | Delivery history, retry with `{retry_generation}` | `Device.manage` |
-| `GET/PUT workflows/{uuid}/notifications`, `GET workflows/{uuid}/notification-recipients` | Recipients and options (`{revision, enabled, notify_on_clear, recipient_ids}`) | `Device.manage` |
+| `GET workflows?kind=all` | Geofence workflows and DAG automations, each with `kind` (`geofence` or `automation`); without `kind=all`, geofence workflows only | `Device.view` |
+| `GET/PUT workflows/{uuid}/notifications`, `GET workflows/{uuid}/notification-recipients` | Recipients and options (`{revision, enabled, notify_on_clear, recipient_ids}`; reads also return `workflow_kind`) | `Device.manage` |
 
 `acknowledged_by`, `assigned_to` and `recipient_ids` are integer user ids
 ([ADR-013](../adr/ADR-013-integer-user-ids.md)). Personal preferences and the event

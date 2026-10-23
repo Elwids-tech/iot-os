@@ -15,6 +15,8 @@ import {
   type WorkflowDeployment,
   type WorkflowDeploymentInput,
   type WorkflowDeploymentStatus,
+  type WorkflowKind,
+  type WorkflowListItem,
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
 import { FieldDescription } from "@iot-os/ui/components/field";
@@ -44,7 +46,9 @@ import { useDeviceOrganization } from "../devices/shared";
 /** Settings → Notifications and its per-workflow pages. */
 export const notificationsPath = (org: string) => `/organizations/${org}/settings/notifications`;
 
-/** Settings → Notifications: every workflow with its email state. Each workflow opens its own page. */
+const kindLabels: Record<WorkflowKind, string> = { automation: "Automation", geofence: "Geofence" };
+
+/** Settings → Notifications: every workflow, DAG automations and geofences, with its email state. Each workflow opens its own page. */
 export function NotificationsList() {
   const { org, capabilities, query: organization } = useDeviceOrganization();
   const [page, setPage] = useState(1);
@@ -65,13 +69,19 @@ export function NotificationsList() {
   const email = new Map(rows.map((workflow, index) => [workflow.uuid, settings[index]?.data]));
   const denied = !organization.isPending && !capabilities.manage;
   const base = notificationsPath(org);
-  const columns: DataColumn<AutomationWorkflow>[] = [
+  const columns: DataColumn<WorkflowListItem>[] = [
     {
       id: "workflow",
       header: "Workflow",
       mobile: "title",
       value: (workflow) => workflow.name,
       cell: (workflow) => <RowLink to={`${base}/${workflow.uuid}`}>{workflow.name}</RowLink>,
+    },
+    {
+      id: "kind",
+      header: "Kind",
+      value: (workflow) => kindLabels[workflow.kind],
+      cell: (workflow) => kindLabels[workflow.kind],
     },
     {
       id: "state",
@@ -198,7 +208,11 @@ function WorkflowSettings({
         />
       ) : query.data ? (
         <>
-          <WorkflowState org={org} uuid={workflow} name={name} />
+          {query.data.workflow_kind === "automation" ? (
+            <AutomationState org={org} uuid={workflow} />
+          ) : (
+            <WorkflowState org={org} uuid={workflow} name={name} />
+          )}
           <SettingsForm org={org} workflow={workflow} initial={query.data} />
         </>
       ) : query.isPending ? (
@@ -225,6 +239,40 @@ function WorkflowSettings({
         {body}
       </section>
     </>
+  );
+}
+
+/** A DAG automation's state. It is activated and disabled in its editor, which also grants its device commands. */
+function AutomationState({ org, uuid }: { org: string; uuid: string }) {
+  const workflow = useQuery({
+    queryKey: ["workflow", org, uuid],
+    queryFn: () => api.workflow(org, uuid),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+  if (workflow.isPending) return <Skeleton className="h-16 w-full" />;
+  if (!workflow.data) return <RequestError error={workflow.error} />;
+  const { tone, label } = statusOf(workflow.data.deployment_status, "automation");
+  return (
+    <Panel>
+      <PanelHeader>
+        <PanelTitle>Automation</PanelTitle>
+      </PanelHeader>
+      <PanelContent>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-body">
+          <StatusMark tone={tone}>{label}</StatusMark>
+          <span className="text-muted-foreground">
+            Draft revision {workflow.data.draft_revision}
+          </span>
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+            <span className="text-meta text-muted-foreground">Activate or disable it in the editor</span>
+            <Button variant="outline" asChild>
+              <Link to={`/organizations/${org}/automation/${uuid}`}>Open automation</Link>
+            </Button>
+          </div>
+        </div>
+      </PanelContent>
+    </Panel>
   );
 }
 

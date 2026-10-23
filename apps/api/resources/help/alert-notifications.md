@@ -19,7 +19,7 @@
     "devices.view",
     "devices.manage"
   ],
-  "revision": 1,
+  "revision": 2,
   "summary": "Notification settings control who receives supported workflow/alert updates in your organization.",
   "questions": [
     "How do I choose notification recipients?",
@@ -35,7 +35,7 @@ Configuration requires device management permission. Recipients must be eligible
 
 ## Steps
 1. Open the notification settings from **Alerts**.
-2. Choose the relevant workflow or notification configuration.
+2. Choose the workflow. Geofence workflows and DAG automations are listed together; the **Kind** column tells them apart.
 3. Select recipients and supported delivery options.
 4. Save the settings.
 5. Check the alert and delivery evidence when testing an expected notification.

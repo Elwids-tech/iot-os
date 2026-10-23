@@ -235,7 +235,7 @@ function AlertsPage() {
   const [workflowPage, setWorkflowPage] = useState(1);
   const workflows = useQuery({
     queryKey: ["alert-workflow-options", org, workflowSearch, workflowPage],
-    queryFn: () => api.dashboardWorkflows(org, workflowSearch, workflowPage),
+    queryFn: () => api.dashboardWorkflows(org, workflowSearch, workflowPage, "all"),
     enabled: listed,
   });
   // Selection belongs to one list: changing filters, page or grouping starts over.
