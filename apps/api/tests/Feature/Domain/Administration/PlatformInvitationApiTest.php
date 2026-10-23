@@ -6,6 +6,7 @@ namespace Tests\Feature\Domain\Administration;
 
 use App\Domain\Administration\Models\OrganizationInvitation;
 use App\Domain\Authorization\Models\Role;
+use App\Domain\Automation\Models\Workflow;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -154,6 +155,59 @@ final class PlatformInvitationApiTest extends TestCase
         $this->assertAuthenticatedAs($user, 'web');
         $this->assertTrue($user->organizations()->whereKey($organization->id)->exists());
         $this->assertNotNull($invitation->fresh()->accepted_at);
+    }
+
+    public function test_accounts_created_by_accepting_an_invitation_are_verified_alert_recipients(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $organization = Organization::query()->where('slug', 'acme-manufacturing')->firstOrFail();
+        $role = Role::query()->where('organization_id', $organization->id)->where('name', 'member')->firstOrFail();
+        $superAdmin = User::query()->where('email', 'super-admin@example.test')->firstOrFail();
+        $token = Str::random(64);
+
+        OrganizationInvitation::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'organization_id' => $organization->id,
+            'email' => 'invited.recipient@example.test',
+            'role_ids' => [$role->id],
+            'token_hash' => hash('sha256', $token),
+            'expires_at' => now()->addDays(7),
+        ]);
+
+        $this->postJson("/api/v1/invitations/{$token}/accept", [
+            'name' => 'Invited Recipient',
+            'password' => 'safe-password',
+            'password_confirmation' => 'safe-password',
+        ])->assertOk();
+
+        $user = User::query()->where('email', 'invited.recipient@example.test')->firstOrFail();
+        $this->assertNotNull($user->email_verified_at);
+
+        $workflow = Workflow::query()->create([
+            'organization_id' => $organization->id,
+            'name' => 'Boiler room',
+            'workflow' => ['nodes' => []],
+            'definition' => ['binding' => ['device_uuid' => (string) Str::uuid()]],
+            'definition_hash' => str_repeat('a', 64),
+            'updated_by' => $superAdmin->id,
+        ]);
+        $base = "/api/v1/organizations/{$organization->uuid}/workflows/{$workflow->uuid}";
+
+        $this->actingAs($superAdmin, 'sanctum')
+            ->getJson("{$base}/notification-recipients")
+            ->assertOk()
+            ->assertJsonFragment(['id' => $user->id, 'email' => 'invited.recipient@example.test']);
+
+        $this->actingAs($superAdmin, 'sanctum')
+            ->putJson("{$base}/notifications", [
+                'revision' => 0,
+                'enabled' => true,
+                'notify_on_clear' => false,
+                'recipient_ids' => [$user->id],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.recipient_ids', [$user->id]);
     }
 
     public function test_existing_users_must_be_authenticated_as_the_invited_email_before_accepting(): void
