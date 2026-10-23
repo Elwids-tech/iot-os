@@ -161,9 +161,8 @@ and any listed members receive the alert email. It keeps the kit under
 three hours) while the environment answers 503 for connection kits.
 
 Incidents show up in **Alerts**, where they can be acknowledged, assigned and
-commented on, and the emails arrive in Mailpit. Settings → Notifications lists
-only geofence workflows today; open an automation's email settings from an
-alert's **Notification settings** link.
+commented on, and the emails arrive in Mailpit. Each automation's recipients are
+under Settings → Notifications.
 
 ### D1
 
