@@ -14,6 +14,12 @@ Things that have cost time before. Add to this list when something surprises you
   time with a "last activity" time misses activity in the second someone read;
   support tickets count activity with sequence numbers instead
   ([support](../features/support.md#history)).
+- **`create()` silently drops attributes outside `#[Fillable]`.** `User` does not
+  list `email_verified_at`, so `User::query()->create([..., 'email_verified_at' => now()])`
+  saves an unverified account without any error, and unverified members can never
+  be chosen as alert recipients. Use `forceCreate` or `forceFill` for attributes
+  that are deliberately not fillable. Seeders are unaffected: `db:seed` unguards
+  models.
 - **PHPUnit runs on SQLite.** [`apps/api/phpunit.xml`](../../apps/api/phpunit.xml)
   forces an in-memory SQLite database. SQLite never raises Postgres's `22P02`
   invalid-UUID error, so a malformed id that would be a 500 on Postgres passes in
@@ -108,6 +114,12 @@ Things that have cost time before. Add to this list when something surprises you
   (`IOT_ADAPTER_MANAGER_TOKEN` and `IOT_ADAPTER_HOST_STATE_DIR` are required).
   `compose.adapters.yml` does not define `portal` or `admin`, so a
   frontend-only rebuild does not need it.
+- **Your shell's environment beats the env files.** Compose fills `${VAR}` from the
+  shell before `--env-file`, so an `OPENAI_API_KEY` exported by your shell profile
+  replaces the stack's key on rebuild without any warning. Compare each value's
+  hash in `docker compose ... config --format json` with the running container's
+  env first, and run compose under `env -u OPENAI_API_KEY` (or whichever variable
+  differs).
 - **Infrastructure config is bind-mounted from where compose ran.** NATS and Mosquitto
   mount `deploy/compose/*.conf` from that checkout. If it was a worktree that is
   later removed, Docker mounts an empty directory instead, and the service fails on

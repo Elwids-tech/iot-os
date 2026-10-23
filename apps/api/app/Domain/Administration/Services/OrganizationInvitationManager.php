@@ -210,7 +210,9 @@ final class OrganizationInvitationManager
                     ]);
                 }
 
-                $user = User::query()->create([
+                // Following the emailed link proves the address. email_verified_at is not fillable,
+                // so create() would drop it and leave the account unverified for good.
+                $user = User::query()->forceCreate([
                     'name' => trim($name),
                     'email' => $invitation->email,
                     'password' => $password,
