@@ -8,7 +8,15 @@ test('the ways in are one click away', async ({ page }) => {
   await expect(hero.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', /^https:\/\//)
   await expect(hero.getByRole('link', { name: 'Read the docs' })).toHaveAttribute('href', '/docs/')
   await expect(hero.getByRole('link', { name: 'API reference' })).toHaveAttribute('href', '/docs/reference/api/')
-  await expect(page.locator('.company a')).toHaveAttribute('href', /^https:\/\//)
+  await expect(page.locator('.landing-footer').getByRole('link', { name: /website$/ })).toHaveAttribute('href', /^https:\/\//)
+})
+
+test('the slogan is one colour, with no highlighted initials', async ({ page }) => {
+  await page.goto('/')
+  const colours = await page.locator('[data-slogan]').evaluate((slogan) =>
+    [slogan, ...slogan.querySelectorAll('*')].map((element) => getComputedStyle(element).color),
+  )
+  expect(new Set(colours).size).toBe(1)
 })
 
 test('names no outcome figures', async ({ page }) => {

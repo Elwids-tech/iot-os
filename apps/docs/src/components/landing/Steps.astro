@@ -1,0 +1,138 @@
+---
+// How the platform is used, in three steps, each linked to the guide that walks
+// through it. A step whose guide isn't published is left out.
+import { getCollection } from 'astro:content'
+import Icon from './Icon.astro'
+
+const steps = [
+  {
+    icon: 'plug',
+    title: 'Connect',
+    text: 'Point a Sparkplug B gateway at the broker over TLS. New sources wait in discovery until you approve them.',
+    guide: 'discovery',
+  },
+  {
+    icon: 'boxes',
+    title: 'Model',
+    text: 'Give each value a profile: its unit, its conversions and how long a reading stays fresh.',
+    guide: 'profiles',
+  },
+  {
+    icon: 'zap',
+    title: 'Act',
+    text: 'Build dashboards, alerts and automations on values you know are current.',
+    guide: 'automations',
+  },
+]
+
+const ids = new Set((await getCollection('docs')).map((entry) => entry.id))
+const shown = steps.filter((step) => ids.has(`docs/guides/${step.guide}`))
+---
+
+{
+  shown.length > 0 && (
+    <section class="steps not-content reveal" aria-labelledby="steps-title">
+      <p class="kicker">How it works</p>
+      <h2 id="steps-title">Connect, model, act</h2>
+      <ol>
+        {shown.map((step, index) => (
+          <li>
+            <span class="marker" aria-hidden="true">
+              <Icon name={step.icon} size={18} />
+            </span>
+            <span class="number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+            <h3>{step.title}</h3>
+            <p>{step.text}</p>
+            <a href={`/docs/guides/${step.guide}/`}>
+              Read the guide<span class="sr-only"> to {step.title.toLowerCase()}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+<style>
+  .steps { max-width: 72rem; margin: clamp(4rem, 10vh, 6.5rem) auto 0; padding-inline: 1.5rem; }
+  .kicker {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brand-accent);
+  }
+  h2 {
+    margin: 0.5rem 0 2rem;
+    font-family: var(--font-display);
+    font-size: var(--landing-heading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--foreground);
+  }
+  ol {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  /* The line that joins the three markers on wide screens. */
+  @media (min-width: 52rem) {
+    ol::before {
+      content: '';
+      position: absolute;
+      top: 1.25rem;
+      left: 1.25rem;
+      right: 1.25rem;
+      height: 1px;
+      background: linear-gradient(90deg, var(--brand-from), var(--brand-to));
+      opacity: 0.45;
+    }
+  }
+  li { position: relative; margin: 0; }
+  .marker {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 50%;
+    background: var(--brand-surface);
+    color: var(--brand-accent);
+  }
+  /* Sits on the joining line, so it carries the page colour behind it. */
+  .number {
+    position: relative;
+    margin-left: 0.5rem;
+    padding: 0 0.4rem;
+    background: var(--brand-ink);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+  }
+  h3 {
+    margin: 1rem 0 0.4rem;
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+  p { margin: 0; line-height: 1.6; color: var(--muted-foreground); }
+  a {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--brand-accent);
+    text-decoration: none;
+  }
+  a::after { content: '→' / ''; margin-left: 0.4rem; }
+  a:hover { text-decoration: underline; }
+  a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+</style>

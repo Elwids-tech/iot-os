@@ -19,23 +19,24 @@ export function cssColor(element: Element, property: string, fallback: RGB): RGB
   return [red / 255, green / 255, blue / 255]
 }
 
+/** The logo gradient: deep blue (from) through azure (mid) to cyan (to). */
 export interface Palette {
   dark: boolean
-  life: RGB
-  signal: RGB
-  energy: RGB
+  from: RGB
+  mid: RGB
+  to: RGB
 }
 
 export function readPalette(element: Element): Palette {
   return {
     dark: document.documentElement.classList.contains('dark'),
-    life: cssColor(element, '--brand-life', [0.3, 0.7, 0.65]),
-    signal: cssColor(element, '--brand-signal', [0.25, 0.45, 0.9]),
-    energy: cssColor(element, '--brand-energy', [0.9, 0.65, 0.2]),
+    from: cssColor(element, '--brand-from', [0.04, 0.37, 0.69]),
+    mid: cssColor(element, '--brand-mid', [0.0, 0.47, 0.71]),
+    to: cssColor(element, '--brand-to', [0.0, 0.57, 0.8]),
   }
 }
 
-/** Interpolates life → signal → energy for a position from 0 to 1. */
+/** Interpolates from → mid → to for a position from 0 to 1. */
 export function gradient(palette: Palette, position: number): RGB {
   const mix = (from: RGB, to: RGB, amount: number): RGB => [
     from[0] + (to[0] - from[0]) * amount,
@@ -43,6 +44,6 @@ export function gradient(palette: Palette, position: number): RGB {
     from[2] + (to[2] - from[2]) * amount,
   ]
   return position < 0.5
-    ? mix(palette.life, palette.signal, position * 2)
-    : mix(palette.signal, palette.energy, (position - 0.5) * 2)
+    ? mix(palette.from, palette.mid, position * 2)
+    : mix(palette.mid, palette.to, (position - 0.5) * 2)
 }

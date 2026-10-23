@@ -94,6 +94,12 @@ importers:
       '@astrojs/starlight-tailwind':
         specifier: ^5.0.0
         version: 5.0.0(@astrojs/starlight@0.42.6(astro@7.4.1(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(supports-color@10.2.2)(typescript@5.9.3))(tailwindcss@4.3.3)
+      '@fontsource-variable/space-grotesk':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/michroma':
+        specifier: 5.3.0
+        version: 5.3.0
       '@iot-os/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -103,6 +109,9 @@ importers:
       astro:
         specifier: 7.4.1
         version: 7.4.1(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+      lucide-static:
+        specifier: 1.55.0
+        version: 1.55.0
       starlight-links-validator:
         specifier: ^0.27.0
         version: 0.27.0(@astrojs/starlight@0.42.6(astro@7.4.1(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(supports-color@10.2.2)(typescript@5.9.3))(astro@7.4.1(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(supports-color@10.2.2)
@@ -1111,6 +1120,9 @@ packages:
   '@fontsource-variable/geist@5.3.0':
     resolution: {integrity: sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA==}
 
+  '@fontsource-variable/space-grotesk@5.3.0':
+    resolution: {integrity: sha512-2IxmvfB08i9vnGB3Ym/AXvhRE+8XOjWMXIyDum03c+tPwH0FUoMNQfGpU8NXPxjbws0Vvss3AH0Zqt4oJBBAdw==}
+
   '@fontsource/b612-mono@5.3.0':
     resolution: {integrity: sha512-G0Ihm+ekqqP5PZJ1zrx6GbeS2q4GDmYnM01zrNrPARRg64GoG0D2pTf+FsbDWvbg/9tVWFRmFIz8xYLjgFrUpg==}
 
@@ -1122,6 +1134,9 @@ packages:
 
   '@fontsource/ibm-plex-sans@5.3.0':
     resolution: {integrity: sha512-CbE4CbbEEZJX860XyUiRpsksXIQR8Rp2XDva2VO53NJox9tVNtusrysd2x5YkUEY3ErQ66W1IiiQL8/wihhw5w==}
+
+  '@fontsource/michroma@5.3.0':
+    resolution: {integrity: sha512-9sbGD7ek1hGvq0TmgNPFbuI3k7qwXVdZ+zCDsTHDGRIQqfYrpYWwEYcwH2fzOtvn8uiGqzAoJ72vuFE3v/hDdg==}
 
   '@formatjs/ecma402-abstract@2.3.6':
     resolution: {integrity: sha512-HJnTFeRM2kVFVr5gr5kH1XP6K0JcJtE7Lzvtr3FS/so5f1kpsqqqxy5JF+FRaO6H2qmcMfAUIox7AJteieRtVw==}
@@ -5046,6 +5061,9 @@ packages:
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0-rc
 
+  lucide-static@1.55.0:
+    resolution: {integrity: sha512-h18lunTFsIJWnY0FMRPjXeO9KcAtNi7fDqtqgWHOFbssfgUWsctn/pA7bpiyrd4g1DuBOJ24CsRnPfkYblwm/A==}
+
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
     hasBin: true
@@ -7686,6 +7704,8 @@ snapshots:
 
   '@fontsource-variable/geist@5.3.0': {}
 
+  '@fontsource-variable/space-grotesk@5.3.0': {}
+
   '@fontsource/b612-mono@5.3.0': {}
 
   '@fontsource/b612@5.3.0': {}
@@ -7693,6 +7713,8 @@ snapshots:
   '@fontsource/ibm-plex-mono@5.3.0': {}
 
   '@fontsource/ibm-plex-sans@5.3.0': {}
+
+  '@fontsource/michroma@5.3.0': {}
 
   '@formatjs/ecma402-abstract@2.3.6':
     dependencies:
@@ -11646,6 +11668,8 @@ snapshots:
   lucide-react@0.468.0(react@19.2.8):
     dependencies:
       react: 19.2.8
+
+  lucide-static@1.55.0: {}
 
   lz-string@1.5.0: {}
 

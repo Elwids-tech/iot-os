@@ -1,12 +1,14 @@
 ---
-// The landing hero (US4): the company name, the tagline it stands for, what the
-// platform is, and the ways in. With motion allowed, a Three.js scene forms the name
-// from data particles and pours each letter into its word (src/scripts/hero).
+// The landing hero (US4): the company wordmark, the tagline it stands for, what the
+// platform is, the ways in, and three facts that each link to their docs. With motion
+// allowed, a Three.js scene forms the name from data particles and pours each letter
+// into its word (src/scripts/hero).
 import { docsConfig } from '../../../docs.config'
 
 interface Action { label: string; href: string; tone: 'primary' | 'secondary' | 'plain' }
-interface Props { actions: Action[] }
-const { actions } = Astro.props
+interface Fact { label: string; text: string; href: string }
+interface Props { actions: Action[]; facts: Fact[] }
+const { actions, facts } = Astro.props
 
 const name = docsConfig.companyName
 const words = docsConfig.companyTagline.split(/\s+/).filter(Boolean)
@@ -15,10 +17,6 @@ const letters = [...name].filter((character) => character.trim())
 const acronym =
   letters.length === words.length &&
   letters.every((letter, index) => letter.toLocaleUpperCase() === words[index][0]?.toLocaleUpperCase())
-const tone = (index: number) => {
-  const position = words.length > 1 ? index / (words.length - 1) : 0.5
-  return position < 0.34 ? 'life' : position < 0.67 ? 'signal' : 'energy'
-}
 let letterIndex = 0
 ---
 
@@ -40,7 +38,11 @@ let letterIndex = 0
     })()
   </script>
   <div class="hero-inner">
-    <h1 class="wordmark" data-wordmark aria-label={name}>
+    <p class="eyebrow">
+      <span class="eyebrow-dot" aria-hidden="true"></span>
+      {docsConfig.productName} · Industrial IoT platform
+    </p>
+    <h1 class="wordmark brand-wordmark" data-wordmark aria-label={name}>
       {
         [...name].map((character) =>
           character.trim() ? (
@@ -59,21 +61,13 @@ let letterIndex = 0
           <>
             {index > 0 && ' '}
             <span class="slogan-word" data-word={index}>
-              {acronym ? (
-                <>
-                  <span class="initial" data-tone={tone(index)}>
-                    {word[0]}
-                  </span>
-                  {word.slice(1)}
-                </>
-              ) : (
-                word
-              )}
+              {word}
             </span>
           </>
         ))
       }
     </p>
+    <p class="headline">From device data to <span class="headline-accent">decisions you can trust.</span></p>
     <p class="lead">
       {docsConfig.productName} is the platform {name} builds connected operations on. It takes data from devices,
       keeps track of its quality and age, and gives people and software the tools to watch it, automate on it and
@@ -83,6 +77,20 @@ let letterIndex = 0
       {actions.map((action) => <a class:list={['action', action.tone]} href={action.href}>{action.label}</a>)}
     </div>
   </div>
+  {
+    facts.length > 0 && (
+      <dl class="facts">
+        {facts.map((fact) => (
+          <div class="fact">
+            <dt>{fact.label}</dt>
+            <dd>
+              <a href={fact.href}>{fact.text}</a>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    )
+  }
 </section>
 
 <script>
@@ -111,11 +119,25 @@ let letterIndex = 0
     isolation: isolate;
     overflow: hidden;
     margin-inline: calc(50% - 50vw);
-    padding: clamp(4rem, 13vh, 8.5rem) 1.5rem clamp(3.5rem, 9vh, 6rem);
+    padding: clamp(3.5rem, 11vh, 7rem) 1.5rem 0;
     background:
-      radial-gradient(ellipse 70% 55% at 50% 32%, var(--brand-glow), transparent 70%),
+      radial-gradient(ellipse 65% 50% at 50% 30%, var(--brand-glow), transparent 72%),
       linear-gradient(180deg, var(--brand-hero-from), var(--brand-hero-to));
     border-bottom: 1px solid var(--border);
+  }
+
+  /* A faint measurement grid, fading out towards the edges. */
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background-image:
+      linear-gradient(var(--brand-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--brand-grid) 1px, transparent 1px);
+    background-size: 3rem 3rem;
+    background-position: center top;
+    mask-image: radial-gradient(ellipse 75% 70% at 50% 35%, #000 25%, transparent 78%);
   }
 
   .hero-canvas {
@@ -128,22 +150,39 @@ let letterIndex = 0
   }
 
   .hero-inner {
-    max-width: 62rem;
+    max-width: 60rem;
     margin-inline: auto;
     text-align: center;
   }
 
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0 0 1.75rem;
+    padding: 0.3rem 0.85rem;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--brand-surface) 70%, transparent);
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--brand-accent);
+  }
+
+  .eyebrow-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--brand-to);
+    box-shadow: 0 0 0 0.25rem color-mix(in oklab, var(--brand-to) 25%, transparent);
+  }
+
   .wordmark {
     margin: 0;
-    font-family: var(--font-sans);
     font-size: var(--hero-wordmark);
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0.06em;
-    background: linear-gradient(90deg, var(--brand-mark-life), var(--brand-mark-signal) 50%, var(--brand-mark-energy));
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
+    line-height: 1.05;
     transition: opacity 700ms var(--ease-standard);
   }
 
@@ -152,11 +191,13 @@ let letterIndex = 0
   }
 
   .slogan {
-    margin: 1.4rem 0 0;
+    margin: 1.1rem 0 0;
+    font-family: var(--font-display);
     font-size: var(--hero-slogan);
     font-weight: 500;
     line-height: 1.35;
-    color: var(--foreground);
+    letter-spacing: 0.01em;
+    color: var(--muted-foreground);
   }
 
   .slogan-word {
@@ -166,25 +207,39 @@ let letterIndex = 0
       transform 600ms var(--ease-standard);
   }
 
-  .initial {
-    font-weight: 700;
+  .headline {
+    max-width: 46rem;
+    margin: clamp(2rem, 5vh, 3rem) auto 0;
+    font-family: var(--font-display);
+    font-size: var(--hero-headline);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.025em;
+    color: var(--foreground);
+    text-wrap: balance;
   }
-  .initial[data-tone="life"] { color: var(--brand-mark-life); }
-  .initial[data-tone="signal"] { color: var(--brand-mark-signal); }
-  .initial[data-tone="energy"] { color: var(--brand-mark-energy); }
+
+  .headline-accent {
+    background: linear-gradient(90deg, var(--brand-from), var(--brand-to));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
 
   .lead {
-    max-width: 44rem;
-    margin: 1.75rem auto 0;
+    max-width: 42rem;
+    margin: 1.25rem auto 0;
     font-size: var(--hero-lead);
-    line-height: 1.6;
+    line-height: 1.65;
     color: var(--muted-foreground);
+    text-wrap: pretty;
   }
 
   .actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
+    align-items: center;
     gap: 0.75rem;
     margin-top: 2rem;
   }
@@ -192,19 +247,63 @@ let letterIndex = 0
   .action {
     display: inline-flex;
     align-items: center;
-    min-height: 2.75rem;
-    padding: 0 1.25rem;
-    border-radius: var(--radius-lg);
+    min-height: 2.875rem;
+    padding: 0 1.4rem;
+    border-radius: 999px;
+    font-family: var(--font-display);
     font-weight: 600;
     text-decoration: none;
-    transition: background-color var(--duration-base) var(--ease-standard);
+    transition:
+      background-color var(--duration-base) var(--ease-standard),
+      border-color var(--duration-base) var(--ease-standard),
+      box-shadow var(--duration-base) var(--ease-standard),
+      transform var(--duration-base) var(--ease-standard);
   }
-  .action.primary { background: var(--primary); color: var(--primary-foreground); }
-  .action.primary:hover { background: color-mix(in oklch, var(--primary) 88%, var(--foreground)); }
-  .action.secondary { border: 1px solid var(--border); background: var(--card); color: var(--foreground); }
-  .action.secondary:hover { background: var(--accent); }
-  .action.plain { color: var(--primary); }
-  .action.plain:hover { text-decoration: underline; }
+  .action.primary {
+    background: linear-gradient(90deg, var(--brand-button-from), var(--brand-button-to));
+    color: var(--brand-button-text);
+    box-shadow: 0 0.5rem 1.5rem -0.6rem color-mix(in oklab, var(--brand-mid) 70%, transparent);
+  }
+  .action.primary:hover { transform: translateY(-1px); box-shadow: 0 0.75rem 1.75rem -0.6rem color-mix(in oklab, var(--brand-mid) 80%, transparent); }
+  .action.secondary {
+    border: 1px solid var(--brand-surface-line);
+    background: color-mix(in oklab, var(--brand-surface) 75%, transparent);
+    color: var(--foreground);
+  }
+  .action.secondary:hover { border-color: var(--brand-accent); }
+  .action.plain { color: var(--brand-accent); }
+  .action.plain::after { content: '→' / ''; margin-left: 0.4rem; transition: transform var(--duration-base) var(--ease-standard); }
+  .action.plain:hover::after { transform: translateX(3px); }
+  .action:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1.25rem 2rem;
+    max-width: 68rem;
+    margin: clamp(3rem, 8vh, 4.5rem) auto 0;
+    padding: 1.5rem 0 1.75rem;
+    border-top: 1px solid var(--brand-surface-line);
+    text-align: left;
+  }
+  .fact { margin: 0; }
+  .fact dt {
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .fact dd { margin: 0.4rem 0 0; }
+  .fact a {
+    font-family: var(--font-display);
+    font-weight: 500;
+    color: var(--foreground);
+    text-decoration: none;
+  }
+  .fact a:hover { color: var(--brand-accent); }
+  .fact a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
   /* While the intro plays: the name forms from particles, then each word appears as
      its particles land. Without JavaScript or with reduced motion none of this applies. */
@@ -215,9 +314,5 @@ let letterIndex = 0
   .hero:is([data-animate="pending"], [data-animate="playing"]) .slogan-word:not([data-revealed]) {
     opacity: 0;
     transform: translateY(0.35em);
-  }
-
-  @media (forced-colors: active) {
-    .wordmark { color: CanvasText; background: none; }
   }
 </style>

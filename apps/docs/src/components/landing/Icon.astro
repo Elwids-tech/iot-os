@@ -1,0 +1,18 @@
+---
+// A lucide icon, inlined at build time from lucide-static, so the page loads no icon
+// font or script. Decorative: the text beside it carries the meaning.
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+
+interface Props { name: string; size?: number }
+const { name, size = 20 } = Astro.props
+
+const require = createRequire(import.meta.url)
+// Keeps the file's ISC licence comment.
+const svg = readFileSync(require.resolve(`lucide-static/icons/${name}.svg`), 'utf8')
+  .replace(/\swidth="\d+"/, ` width="${size}"`)
+  .replace(/\sheight="\d+"/, ` height="${size}"`)
+  .replace('<svg', '<svg aria-hidden="true" focusable="false"')
+---
+
+<Fragment set:html={svg} />

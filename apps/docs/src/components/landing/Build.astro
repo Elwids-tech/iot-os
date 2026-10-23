@@ -1,0 +1,210 @@
+---
+// "Build on it": the developer ways in, with a real request generated from the hosted
+// contract (its server and the latest-telemetry path), so the sample can't drift from
+// the API. The AI assistant card appears only once agent access is published.
+// The sample is highlighted here rather than with Starlight's <Code>, which would add
+// its stylesheet and script to the landing page's critical path.
+import { getCollection } from 'astro:content'
+import { hostedRelease } from '../../lib/hosted-release'
+import { readSource } from '../../lib/sources'
+import Icon from './Icon.astro'
+
+interface Link { title: string; text: string; href: string }
+interface Props { links: Link[] }
+const { links } = Astro.props
+
+const contract = readSource<{ servers?: { url: string }[]; paths: Record<string, unknown> }>('integration-openapi.json')
+const server = contract.servers?.[0]?.url
+const latest = Object.keys(contract.paths).find((path) => path.endsWith('/telemetry/latest'))
+// The version prefix goes into $API so the request line stays short enough not to wrap.
+const version = latest?.match(/^\/integration\/v\d+/)?.[0] ?? ''
+const sample =
+  server && latest
+    ? [
+        `API=${server}${version}`,
+        '',
+        `curl "$API${latest.slice(version.length).replace('{organization}', '$ORG').replace('{uuid}', '$DEVICE')}" \\`,
+        '  -H "Authorization: Bearer $TOKEN"',
+      ].join('\n')
+    : null
+
+// Shell highlighting for the sample's few token kinds: command, flag, string, variable.
+const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+const highlighted = sample
+  ?.split('\n')
+  .map((line) =>
+    escape(line)
+      .replace(/("[^"]*")/g, '<span class="tok-string">$1</span>')
+      .replace(/(\$[A-Z]+)/g, '<span class="tok-var">$1</span>')
+      .replace(/^([A-Z]+)=/, '<span class="tok-var">$1</span>=')
+      .replace(/^curl\b/, '<span class="tok-command">curl</span>')
+      .replace(/^(\s+)-H\b/, '$1<span class="tok-flag">-H</span>'),
+  )
+  .join('\n')
+
+const ids = new Set((await getCollection('docs')).map((entry) => entry.id))
+const agents = hostedRelease.features.agent_access && ids.has('docs/developers/agents/connect')
+---
+
+<section class="build not-content reveal" aria-labelledby="build-title">
+  <div class="panel">
+    <div class="copy">
+      <p class="kicker">Developers</p>
+      <h2 id="build-title">Build on it</h2>
+      <p class="intro">
+        Connect your own devices and write your own applications on the same platform: an integration API with
+        application tokens, an ordered event feed and signed webhooks.
+      </p>
+      <ul>
+        {
+          links.map((link) => (
+            <li>
+              <a href={link.href}>
+                <span class="title">{link.title}</span>
+                <span class="text">{link.text}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    {
+      highlighted && (
+        <figure class="sample">
+          <figcaption class="sample-label">
+            <Icon name="terminal" size={16} /> Read a device’s latest values
+          </figcaption>
+          <div class="window">
+            <span class="window-dots" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <pre><code set:html={highlighted} /></pre>
+          </div>
+        </figure>
+      )
+    }
+  </div>
+  {
+    agents && (
+      <a class="assistant" href="/docs/developers/agents/connect/">
+        <span class="assistant-icon">
+          <Icon name="sparkles" size={20} />
+        </span>
+        <span class="assistant-copy">
+          <span class="title">Ask your AI assistant</span>
+          <span class="text">
+            Connect an assistant to your organization over MCP, with only the abilities you grant. For example:
+            “Which devices stopped reporting in the last hour?”
+          </span>
+        </span>
+      </a>
+    )
+  }
+</section>
+
+<style>
+  .build { max-width: 72rem; margin: clamp(4rem, 10vh, 6.5rem) auto 0; padding-inline: 1.5rem; }
+  .panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: clamp(1.5rem, 4vw, 3rem);
+    align-items: start;
+    padding: clamp(1.5rem, 4vw, 2.75rem);
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 1.5rem;
+    background:
+      radial-gradient(90% 120% at 0% 0%, color-mix(in oklab, var(--brand-from) 10%, transparent), transparent 55%),
+      var(--brand-surface);
+  }
+  @media (max-width: 56rem) {
+    .panel { grid-template-columns: minmax(0, 1fr); }
+  }
+  .kicker {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brand-accent);
+  }
+  h2 {
+    margin: 0.5rem 0 0;
+    font-family: var(--font-display);
+    font-size: var(--landing-heading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--foreground);
+  }
+  .intro { margin: 0.75rem 0 1.5rem; line-height: 1.65; color: var(--muted-foreground); }
+  ul { display: grid; gap: 0.25rem; margin: 0; padding: 0; list-style: none; }
+  li { margin: 0; }
+  ul a {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.7rem 0.85rem;
+    margin-inline: -0.85rem;
+    border-radius: 0.75rem;
+    color: var(--foreground);
+    text-decoration: none;
+    transition: background-color var(--duration-base) var(--ease-standard);
+  }
+  ul a:hover { background: color-mix(in oklab, var(--brand-accent) 8%, transparent); }
+  ul a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .title { font-family: var(--font-display); font-weight: 600; }
+  ul .title::after { content: '→' / ''; margin-left: 0.4rem; color: var(--brand-accent); }
+  .text { font-size: 0.95rem; line-height: 1.55; color: var(--muted-foreground); }
+
+  .sample { min-width: 0; margin: 0; }
+  .window {
+    overflow: hidden;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 1rem;
+    background: var(--brand-code-bg);
+  }
+  .window-dots { display: flex; gap: 0.4rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--brand-surface-line); }
+  .window-dots span { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--brand-surface-line); }
+  pre {
+    margin: 0;
+    padding: 1rem 1.25rem 1.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: var(--brand-code-text);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  pre :global(.tok-command) { color: var(--brand-code-command); font-weight: 600; }
+  pre :global(.tok-flag) { color: var(--brand-code-flag); }
+  pre :global(.tok-string) { color: var(--brand-code-string); }
+  pre :global(.tok-var) { color: var(--brand-code-var); }
+  .sample-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.6rem;
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+
+  .assistant {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-top: 1rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 1.25rem;
+    background: var(--brand-surface);
+    color: var(--foreground);
+    text-decoration: none;
+  }
+  .assistant:hover { border-color: var(--brand-accent); }
+  .assistant:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .assistant-icon { color: var(--brand-accent); }
+  .assistant-copy { display: grid; gap: 0.25rem; }
+</style>

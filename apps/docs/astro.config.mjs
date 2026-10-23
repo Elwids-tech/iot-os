@@ -27,6 +27,7 @@ export default defineConfig({
       expressiveCode: { defaultProps: { wrap: true } },
       components: {
         ThemeProvider: './src/components/docs/ThemeProvider.astro',
+        SiteTitle: './src/components/docs/SiteTitle.astro',
         SocialIcons: './src/components/docs/SocialIcons.astro',
         Footer: './src/components/docs/Footer.astro',
         PageTitle: './src/components/docs/PageTitle.astro',

@@ -1,0 +1,39 @@
+---
+// The header's site title: the company wordmark, in the logo's font and gradient,
+// with the product name beside it. Both names come from docs.config.ts.
+import { docsConfig } from '../../../docs.config'
+
+const { siteTitleHref } = Astro.locals.starlightRoute
+---
+
+<a href={siteTitleHref} class="site-title brand-title sl-flex">
+  <span class="brand-wordmark" translate="no">{docsConfig.companyName}</span>
+  <span class="product" translate="no">{docsConfig.productName}</span>
+</a>
+
+<style>
+  .brand-title {
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .brand-wordmark {
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  .product {
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-family: var(--font-display);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+  .brand-title:hover .product {
+    border-color: var(--brand-accent);
+    color: var(--foreground);
+  }
+</style>
