@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fire-watch box (simulated)</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f5f7; --panel: #ffffff; --ink: #14161a; --muted: #5d6470; --line: #dfe2e7;
+    --on: #b42318; --on-bg: #fde8e6; --warn: #8a5300; --warn-bg: #fff2d6; --ok: #11683c; --ok-bg: #e2f5ea;
+    --accent: #1f4fd1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101216; --panel: #181b21; --ink: #eef0f3; --muted: #9aa2ae; --line: #2a2f38;
+      --on: #ff8a7a; --on-bg: #3a1714; --warn: #ffc864; --warn-bg: #33270f; --ok: #6fdc9e; --ok-bg: #0f2b1c;
+      --accent: #8fb0ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 40px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+  .badge { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .link { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .link.online .dot { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+  .grid { display: grid; gap: 16px; grid-template-columns: 1.15fr 1fr; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .reading { display: flex; align-items: baseline; gap: 8px; }
+  .reading strong { font-size: 52px; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .reading span { color: var(--muted); }
+  .scale { position: relative; height: 12px; border-radius: 6px; margin: 16px 0 6px;
+    background: linear-gradient(90deg, #2b3a8f 0%, #6a3fa0 18%, #c13b6b 35%, #ef6a2b 52%, #f7b733 72%, #fff6c2 100%); }
+  .scale i { position: absolute; top: -5px; width: 4px; height: 22px; border-radius: 2px; background: var(--ink); transform: translateX(-2px); transition: left .6s ease; }
+  .ticks { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+  .stat { border-top: 1px solid var(--line); padding-top: 10px; }
+  .stat small { display: block; color: var(--muted); font-size: 12px; }
+  .stat b { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 18px; }
+  .chip { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: 13px; color: var(--muted); }
+  .chip b { display: block; color: var(--ink); font-size: 14px; }
+  .chip.on { border-color: transparent; background: var(--on-bg); color: var(--on); }
+  .chip.on b { color: var(--on); }
+  .chip.warn { border-color: transparent; background: var(--warn-bg); color: var(--warn); }
+  .chip.warn b { color: var(--warn); }
+  .actions { display: grid; gap: 8px; }
+  button.incident { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left;
+    padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
+  button.incident small { display: block; color: var(--muted); font-size: 12px; }
+  button.incident em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  button.incident[aria-pressed="true"] { border-color: var(--on); background: var(--on-bg); }
+  button.incident[aria-pressed="true"] em { color: var(--on); }
+  button.incident:focus-visible, button.clear:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .battery { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 13px; color: var(--muted); }
+  .battery input { flex: 1; accent-color: var(--accent); }
+  button.clear { margin-top: 14px; width: 100%; padding: 11px; border-radius: 10px; border: 0; background: var(--ink); color: var(--panel); font: inherit; font-weight: 600; cursor: pointer; }
+  ol { list-style: none; margin: 0; padding: 0; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+  ol li:first-child { color: var(--ink); }
+  .log { grid-column: 1 / -1; }
+  .error { color: var(--on); font-size: 13px; min-height: 1.2em; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Thermal fire-watch box</h1>
+    <span class="badge">Simulated device</span>
+    <span class="link" id="link"><span class="dot"></span><span id="link-text">Waiting for the platform</span></span>
+  </header>
+  <div class="grid">
+    <section class="panel" aria-labelledby="sees">
+      <h2 id="sees">What the box sees</h2>
+      <div class="reading"><strong id="max">–</strong><span>°C hottest point</span></div>
+      <div class="scale" aria-hidden="true"><i id="marker" style="left:0"></i></div>
+      <div class="ticks"><span>0 °C</span><span>80 °C alert</span><span>160 °C</span></div>
+      <div class="stats">
+        <div class="stat"><small>Scene</small><b id="scene">–</b></div>
+        <div class="stat"><small>Flame confidence</small><b id="confidence">–</b></div>
+        <div class="stat"><small>Battery</small><b id="battery">–</b></div>
+      </div>
+      <div class="chips" id="chips"></div>
+    </section>
+    <section class="panel" aria-labelledby="stage">
+      <h2 id="stage">Stage an incident</h2>
+      <div class="actions" id="actions"></div>
+      <label class="battery">Battery <input id="battery-level" type="range" min="0" max="100" step="1" value="100"> <span id="battery-value">100 %</span></label>
+      <button class="clear" id="clear" type="button">All clear</button>
+      <div class="error" id="error" role="status"></div>
+    </section>
+    <section class="panel log" aria-labelledby="events">
+      <h2 id="events">Box event log</h2>
+      <ol id="log"><li>No events yet.</li></ol>
+    </section>
+  </div>
+</main>
+<script>
+const incidents = [
+  ["hot_spot", "Hot work ignites", "Hottest point climbs past 80 °C; flame, then smoke"],
+  ["smoke", "Smoke drifts in", "Smoke detected after a few seconds"],
+  ["intrusion", "Person enters exclusion zone", "Someone walks into the hot work area"],
+  ["camera_blocked", "Cover the camera", "The box can no longer see the site"],
+  ["power_cut", "Cut mains power", "The box runs on its battery"],
+];
+const detections = [
+  ["flame", "Flame"], ["smoke", "Smoke"], ["person", "Person in zone"],
+  ["camera_blocked", "Camera view"], ["on_battery", "Power"],
+];
+const $ = (id) => document.getElementById(id);
+const actions = $("actions");
+for (const [key, label, hint] of incidents) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "incident";
+  button.dataset.incident = key;
+  button.setAttribute("aria-pressed", "false");
+  button.innerHTML = `<span><b></b><small></small></span><em>Start</em>`;
+  button.querySelector("b").textContent = label;
+  button.querySelector("small").textContent = hint;
+  button.addEventListener("click", () => send({ incident: key, active: button.getAttribute("aria-pressed") !== "true" }));
+  actions.append(button);
+}
+$("clear").addEventListener("click", () => send({ clear: true }));
+const slider = $("battery-level");
+let dragging = false;
+slider.addEventListener("input", () => { dragging = true; $("battery-value").textContent = slider.value + " %"; });
+slider.addEventListener("change", () => { dragging = false; send({ battery: Number(slider.value) }); });
+
+async function send(body) {
+  try {
+    const response = await fetch("/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "The box refused the change.");
+    $("error").textContent = "";
+    render(data);
+  } catch (error) {
+    $("error").textContent = error.message;
+  }
+}
+
+function render(state) {
+  const r = state.readings;
+  const seen = r.thermal_max !== null;
+  $("link").classList.toggle("online", state.online);
+  $("link-text").textContent = !state.powered ? "Powered off" : state.online ? "Publishing to the platform" : "Waiting for the platform";
+  $("max").textContent = seen ? r.thermal_max.toFixed(1) : "–";
+  $("marker").style.visibility = seen ? "visible" : "hidden";
+  if (seen) $("marker").style.left = Math.max(0, Math.min(100, (r.thermal_max / 160) * 100)) + "%";
+  $("scene").textContent = seen ? r.thermal_scene.toFixed(1) + " °C" : "Unknown";
+  $("confidence").textContent = seen ? Math.round(r.flame_confidence) + " %" : "Unknown";
+  $("battery").textContent = Math.round(r.battery) + " %";
+  if (!dragging) { slider.value = Math.round(r.battery); $("battery-value").textContent = Math.round(r.battery) + " %"; }
+  const chips = $("chips");
+  chips.replaceChildren(...detections.map(([key, label]) => {
+    const chip = document.createElement("div");
+    const on = r[key];
+    chip.className = "chip" + (on ? (key === "on_battery" || key === "camera_blocked" ? " warn" : " on") : "");
+    const text = { flame: ["Flame detected", "No flame"], smoke: ["Smoke detected", "No smoke"], person: ["Person detected", "Zone clear"],
+      camera_blocked: ["View blocked", "View clear"], on_battery: ["On battery", "Mains power"] }[key];
+    chip.innerHTML = "<b></b>";
+    chip.querySelector("b").textContent = on === null ? "Unknown" : on ? text[0] : text[1];
+    chip.append(label);
+    return chip;
+  }));
+  for (const button of actions.querySelectorAll("button")) {
+    const active = state.incidents.includes(button.dataset.incident);
+    button.setAttribute("aria-pressed", String(active));
+    button.querySelector("em").textContent = active ? "Stop" : "Start";
+  }
+  const log = $("log");
+  log.replaceChildren(...(state.log.length ? state.log : ["No events yet."]).map((line) => {
+    const item = document.createElement("li");
+    item.textContent = line;
+    return item;
+  }));
+}
+
+async function poll() {
+  try {
+    const response = await fetch("/state");
+    if (response.ok) render(await response.json());
+  } catch {}
+  setTimeout(poll, 1000);
+}
+poll();
+</script>
+</body>
+</html>

@@ -197,6 +197,11 @@ Things that have cost time before. Add to this list when something surprises you
   still has 0700 directories. Grafana also logs an error for a missing `alerting/`
   or `plugins/` provisioning directory, which fires `ServiceErrorLogs` too, so each
   holds an `apiVersion: 1` file.
+- **A deliberate paho `disconnect()` ends the `loop_start()` thread.** A simulator
+  that powers its box off with `disconnect()` and later calls `reconnect()` opens a
+  socket nobody reads: no CONNACK, no `on_connect`, no birth. Call `loop_stop()`,
+  then `connect_async()` and `loop_start()` again, outside any lock the callbacks
+  take ([`fire_watch_box.py`](../../tooling/simulators/fire_watch_box.py)).
 
 ## Device adapters
 
@@ -310,6 +315,11 @@ Things that have cost time before. Add to this list when something surprises you
   already in flight, without refetching. A chat that polls only while a run is
   active then never shows the new run. Call `invalidateQueries` for that key
   first, or pass `staleTime: 0`.
+- **Dashboard threshold bands run upward from their value.** A source's `base`
+  band covers everything below its first threshold, and each threshold starts a
+  band that lasts until the next one. A "low battery" warning is therefore the
+  `base` band with a threshold at 20 labelled OK. A threshold at 20 labelled Low
+  marks everything above 20 as low.
 
 ## Docs site
 
