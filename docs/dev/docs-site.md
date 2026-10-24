@@ -79,13 +79,18 @@ Without `DOCS_HOSTED_REF`, set `DOCS_SOURCES=worktree` to read the working tree.
 `src/pages/index.astro` renders the landing page through Starlight's `StarlightPage`
 with the splash template, so it shares the docs header and theme.
 
-- **Content:** it names no industry products, outcome figures or customers. Actions
-  and cards appear only for pages that are built and not drafts, and every capability
-  it mentions links to a docs page.
+- **Content:** it names no industry products, outcome figures or customers. Actions,
+  cards, steps and footer links appear only for pages that are built and not drafts,
+  and every capability it mentions links to a docs page. The sections live in
+  `src/components/landing/`: `Hero`, `Layers` (a bento grid of the five layers),
+  `Steps` (connect, model, act), `Build` (developer links and a request generated from
+  the hosted contract) and `LandingFooter`. The drawings in the layer cards are
+  decorative, not product data.
 - **Hero animation** (`src/components/landing/Hero.astro`, `src/scripts/hero/`): a
   Three.js scene forms the company name from data particles and pours each letter into
-  its word of the tagline when the name is an acronym of it. Then the particles settle
-  into a drifting constellation.
+  its word of the tagline when the name is an acronym of it. The tagline is one colour;
+  only the particles carry the logo gradient. Then the particles settle into a
+  drifting constellation.
   - The DOM text is always the content; the canvas only decorates it.
   - Three.js loads only after the page has loaded and painted, so it never delays
     the largest contentful paint. The inline script checks for WebGL without creating
@@ -93,9 +98,13 @@ with the splash template, so it shares the docs header and theme.
   - With reduced motion or without JavaScript, the final text shows at once; without
     a WebGL context, as soon as the scene finds none. If the scene never starts, an
     inline script shows the text after three seconds.
-- **Palette:** `src/styles/brand.css` is an accent layer on the kit tokens: life
-  (teal), signal (the kit's blue) and energy (amber), for light and dark. The hero is
-  the one place with display sizes beyond the named type scale (`--hero-*`).
+- **Brand:** `src/styles/brand.css` follows the company logo: the wordmark in Michroma
+  with a deep-blue-to-cyan gradient (`--brand-from`, `--brand-mid`, `--brand-to`),
+  headings in Space Grotesk and text in IBM Plex Sans, all self-hosted. In dark mode
+  the whole site sits on a deep navy ink that replaces the kit's Dusk greys. The
+  landing page is the one place with display sizes beyond the named type scale
+  (`--hero-*`, `--landing-heading`). Sections fade in on scroll with CSS scroll-driven
+  animations, only where motion is allowed.
 
 ## Styling
 
@@ -106,9 +115,10 @@ Overrides in `src/components/docs/`:
 
 - `ThemeProvider` mirrors Starlight's `data-theme` onto the `.dark` class and the Dusk
   palette that the kit tokens key on
+- `SiteTitle` shows the company wordmark with the product name beside it
 - `SocialIcons` adds the company website and **Sign in** to the header
 - `Footer` adds **Report a problem with this page**, linking to the company contact
-  page with the page address
+  page with the page address; the landing page has its own footer instead
 - `PageTitle` hides the title on the landing page and shows the revision on generated
   guides
 

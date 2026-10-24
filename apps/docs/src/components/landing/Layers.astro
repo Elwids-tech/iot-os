@@ -1,12 +1,16 @@
 ---
-// The five layers of the platform, each linked to the user guide that describes it
-// (FR-022: every capability the landing page mentions links to a docs page). A card
-// whose guide isn't published is left out.
+// The five layers of the platform as a bento grid, each linked to the user guide
+// that describes it (FR-022: every capability the landing page mentions links to a
+// docs page). A card whose guide isn't published is left out. The small drawings
+// illustrate the idea of each layer; they are decorative, not product data.
 import { getCollection } from 'astro:content'
 import { hostedRelease } from '../../lib/hosted-release'
+import Icon from './Icon.astro'
 
 const layers = [
   {
+    key: 'capture',
+    icon: 'radio-tower',
     title: 'Capture',
     text: hostedRelease.features.adapters
       ? 'Devices publish over Sparkplug B, the industrial MQTT standard. Vendor MQTT devices come in through adapters.'
@@ -14,21 +18,29 @@ const layers = [
     guide: 'discovery',
   },
   {
+    key: 'context',
+    icon: 'tags',
     title: 'Contextualize',
     text: 'Versioned device profiles give every value its unit, conversion, calculations and how long it stays fresh.',
     guide: 'profiles',
   },
   {
+    key: 'visualize',
+    icon: 'chart-spline',
     title: 'Visualize',
     text: 'Dashboards show live and historical readings. Missing data shows as unknown, never as zero.',
     guide: 'dashboards',
   },
   {
+    key: 'act',
+    icon: 'workflow',
     title: 'Act',
     text: 'Automations and alerts respond to what devices report, and commands are confirmed or flagged as uncertain.',
     guide: 'automations',
   },
   {
+    key: 'govern',
+    icon: 'shield-check',
     title: 'Govern',
     text: 'Organizations, roles and an audit trail keep each customer’s devices and data apart.',
     guide: 'members',
@@ -39,47 +51,203 @@ const ids = new Set((await getCollection('docs')).map((entry) => entry.id))
 const cards = layers.filter((layer) => ids.has(`docs/guides/${layer.guide}`))
 ---
 
-<section class="layers not-content" aria-labelledby="layers-title">
+<section class="layers not-content reveal" aria-labelledby="layers-title">
+  <p class="kicker">Platform</p>
   <h2 id="layers-title">One platform, five layers</h2>
-  <ol>
+  <p class="intro">From the first reading a device sends to the people who act on it.</p>
+  <ul class="bento">
     {
-      cards.map((layer, index) => (
-        <li>
+      cards.map((layer) => (
+        <li class:list={['card', `card-${layer.key}`]}>
           <a href={`/docs/guides/${layer.guide}/`}>
-            <span class="step" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+            <span class="icon">
+              <Icon name={layer.icon} size={20} />
+            </span>
             <span class="title">{layer.title}</span>
             <span class="text">{layer.text}</span>
+            <span class="art" aria-hidden="true">
+              {layer.key === 'capture' && (
+                <>
+                  <code class="topic">spBv1.0/plant/DDATA/edge-1/meter</code>
+                  <span class="chips">
+                    <span class="chip live">
+                      <span class="dot" /> online
+                    </span>
+                    <span class="chip">waiting for review</span>
+                  </span>
+                </>
+              )}
+              {layer.key === 'context' && (
+                <span class="chips">
+                  <span class="chip">flow · L/min</span>
+                  <span class="chip">energy · kWh</span>
+                  <span class="chip">temperature · °C</span>
+                  <span class="chip accent">fresh for 5 min</span>
+                </span>
+              )}
+              {layer.key === 'visualize' && (
+                <span class="spark-wrap">
+                  <svg class="spark" viewBox="0 0 240 64" preserveAspectRatio="none">
+                    <path class="area" d="M0 50 L20 44 L40 46 L60 34 L80 38 L100 26 L100 64 L0 64 Z" />
+                    <path class="line" d="M0 50 L20 44 L40 46 L60 34 L80 38 L100 26" />
+                    <path class="gap" d="M100 26 L150 26" />
+                    <path class="line" d="M150 30 L170 22 L190 28 L210 16 L240 20" />
+                  </svg>
+                  <span class="gap-label">unknown</span>
+                </span>
+              )}
+              {layer.key === 'act' && (
+                <span class="rule">
+                  <span class="chip">When temperature stays above 80 °C</span>
+                  <span class="then">then</span>
+                  <span class="chip accent">Notify on call · Fan on</span>
+                </span>
+              )}
+              {layer.key === 'govern' && (
+                <span class="chips">
+                  <span class="chip">Admin</span>
+                  <span class="chip">Moderator</span>
+                  <span class="chip">Member</span>
+                  <span class="chip accent">audit trail</span>
+                </span>
+              )}
+            </span>
+            <span class="more">Read the guide</span>
           </a>
         </li>
       ))
     }
-  </ol>
+  </ul>
 </section>
 
 <style>
-  .layers { max-width: 72rem; margin: clamp(3rem, 8vh, 5rem) auto 0; padding-inline: 1.5rem; }
-  h2 { margin: 0 0 1.5rem; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; color: var(--foreground); }
-  ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr)); gap: 1rem; margin: 0; padding: 0; list-style: none; }
-  li { margin: 0; }
-  a {
+  .layers { max-width: 72rem; margin: clamp(4rem, 10vh, 6.5rem) auto 0; padding-inline: 1.5rem; }
+  .kicker {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brand-accent);
+  }
+  h2 {
+    margin: 0.5rem 0 0;
+    font-family: var(--font-display);
+    font-size: var(--landing-heading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--foreground);
+  }
+  .intro { max-width: 40rem; margin: 0.75rem 0 2rem; color: var(--muted-foreground); }
+
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .card { grid-column: span 2; margin: 0; }
+  .card-capture, .card-context { grid-column: span 3; }
+  @media (max-width: 60rem) {
+    .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card, .card-capture, .card-context { grid-column: span 1; }
+    .card-capture { grid-column: span 2; }
+  }
+  @media (max-width: 40rem) {
+    .bento { grid-template-columns: minmax(0, 1fr); }
+    .card, .card-capture { grid-column: span 1; }
+  }
+
+  .card a {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.6rem;
     height: 100%;
-    padding: 1.25rem;
-    border-radius: var(--radius-xl);
-    background: var(--card);
-    box-shadow: var(--shadow-panel);
+    padding: 1.5rem;
+    overflow: hidden;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 1.25rem;
+    background:
+      radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--brand-to) 8%, transparent), transparent 60%),
+      var(--brand-surface);
     color: var(--foreground);
     text-decoration: none;
-    transition: box-shadow var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
+    transition:
+      border-color var(--duration-base) var(--ease-standard),
+      transform var(--duration-base) var(--ease-standard),
+      box-shadow var(--duration-base) var(--ease-standard);
   }
-  a:hover { box-shadow: var(--shadow-raised); transform: translateY(-2px); }
-  a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-  .step { font-family: var(--font-mono); font-size: var(--text-meta); color: var(--muted-foreground); }
-  .title { font-size: 1.05rem; font-weight: 600; }
-  .text { font-size: var(--text-body); line-height: 1.55; color: var(--muted-foreground); }
-  li:nth-child(1) .step, li:nth-child(2) .step { color: var(--brand-mark-life); }
-  li:nth-child(3) .step { color: var(--brand-mark-signal); }
-  li:nth-child(4) .step, li:nth-child(5) .step { color: var(--brand-mark-energy); }
+  .card a:hover {
+    border-color: color-mix(in oklab, var(--brand-accent) 60%, transparent);
+    transform: translateY(-2px);
+    box-shadow: 0 1rem 2.5rem -1.5rem color-mix(in oklab, var(--brand-mid) 55%, transparent);
+  }
+  .card a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+  .icon {
+    display: inline-grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, color-mix(in oklab, var(--brand-from) 18%, transparent), color-mix(in oklab, var(--brand-to) 18%, transparent));
+    color: var(--brand-accent);
+  }
+  .title { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; }
+  .text { line-height: 1.6; color: var(--muted-foreground); }
+  .more { margin-top: auto; padding-top: 0.25rem; font-family: var(--font-display); font-weight: 600; color: var(--brand-accent); }
+  .more::after { content: '→' / ''; margin-left: 0.4rem; display: inline-block; transition: transform var(--duration-base) var(--ease-standard); }
+  .card a:hover .more::after { transform: translateX(3px); }
+
+  .art {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+    padding: 0.9rem;
+    border: 1px dashed var(--brand-surface-line);
+    border-radius: 0.9rem;
+    background: color-mix(in oklab, var(--brand-ink) 60%, transparent);
+  }
+  .topic {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--foreground);
+    overflow-wrap: anywhere;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 999px;
+    background: var(--brand-surface);
+    font-size: 0.8rem;
+    color: var(--foreground);
+  }
+  .chip.accent { border-color: color-mix(in oklab, var(--brand-accent) 45%, transparent); color: var(--brand-accent); }
+  .chip.live .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--success); }
+  .rule { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
+  .then { font-family: var(--font-display); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted-foreground); }
+
+  .spark-wrap { position: relative; display: block; padding-top: 1.1rem; }
+  .spark { display: block; width: 100%; height: 4rem; overflow: visible; }
+  .spark .line { fill: none; stroke: var(--brand-mid); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+  .spark .area { fill: color-mix(in oklab, var(--brand-mid) 14%, transparent); stroke: none; }
+  .spark .gap { fill: none; stroke: var(--muted-foreground); stroke-width: 1.5; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+  .gap-label {
+    position: absolute;
+    top: 0;
+    left: 52%;
+    transform: translateX(-50%);
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+  }
 </style>

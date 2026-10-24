@@ -1,7 +1,7 @@
 /*
  * The docs site's stylesheet: Tailwind's theme and utilities without its preflight
- * (Starlight has its own reset), the @iot-os/ui tokens, Starlight mapped onto them,
- * and the brand accent layer used by the landing page.
+ * (Starlight has its own reset), the @iot-os/ui tokens, the brand fonts, Starlight
+ * mapped onto the tokens, and the brand layer (brand.css).
  */
 @layer base, starlight, theme, components, utilities;
 
@@ -9,6 +9,8 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "@iot-os/ui/tokens.css";
+@import "@fontsource/michroma/400.css";
+@import "@fontsource-variable/space-grotesk";
 @import "./starlight.css";
 @import "./brand.css";
 

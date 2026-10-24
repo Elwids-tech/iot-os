@@ -289,7 +289,7 @@ export async function playHero(hero: HTMLElement): Promise<void> {
   let lineColors = new Float32Array(0)
   let textBand = { top: 0, bottom: 0 }
 
-  const nodeColor = (hue: number): RGB => (hue < 0.35 ? palette.life : hue < 0.82 ? palette.signal : palette.energy)
+  const nodeColor = (hue: number): RGB => (hue < 0.35 ? palette.from : hue < 0.82 ? palette.mid : palette.to)
 
   const buildNodes = () => {
     const count = nodeCount()
@@ -358,7 +358,7 @@ export async function playHero(hero: HTMLElement): Promise<void> {
     })
     let segment = 0
     const maxSegments = linePositions.length / 6
-    const [red, green, blue] = palette.signal
+    const [red, green, blue] = palette.mid
     for (let a = 0; a < nodes.length && segment < maxSegments; a += 1) {
       const ax = nodePositions[a * 3]
       const ay = nodePositions[a * 3 + 1]

@@ -352,7 +352,7 @@ apps/docs/
 │   ├── components/docs/     # ThemeProvider, SocialIcons, Footer, PageTitle, EventTypes, WebhookDelivery, AgentTools, Config
 │   ├── components/landing/  # Hero, Layers
 │   ├── scripts/hero/        # the Three.js hero scene, text sampling and colours
-│   └── styles/              # docs.css (kit tokens), starlight.css (token mapping), brand.css (landing accents)
+│   └── styles/              # docs.css (kit tokens), starlight.css (token mapping), brand.css (brand fonts and palette)
 └── tests/                   # Vitest (scripts), Playwright (axe, privacy, chrome and landing)
 
 packages/integration-sdk/    # license, metadata, README

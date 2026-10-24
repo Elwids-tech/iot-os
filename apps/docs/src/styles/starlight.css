@@ -7,7 +7,7 @@
 :root,
 :root[data-theme="light"],
 :root[data-theme="dark"] {
-  --sl-font: var(--font-sans);
+  --sl-font: var(--font-body);
   --sl-font-mono: var(--font-mono);
   --sl-color-white: var(--foreground);
   --sl-color-gray-1: color-mix(in oklch, var(--foreground) 88%, var(--background));

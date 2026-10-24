@@ -1,13 +1,23 @@
 ---
 // Starlight's footer, plus a way to report a problem with the page (FR-017). The
-// report goes to the company website's contact page with the page address.
+// report goes to the company website's contact page with the page address. The
+// landing page has its own footer, so it gets neither.
 import Default from '@astrojs/starlight/components/Footer.astro'
 import { docsConfig } from '../../../docs.config'
 
+const landing = Astro.url.pathname === '/'
 const report = new URL(docsConfig.contactUrl)
 report.searchParams.set('type', 'question')
 report.searchParams.set('page', Astro.url.pathname)
 ---
 
-<Default />
-<p class="report-problem"><a href={report.toString()}>Report a problem with this page</a></p>
+{
+  !landing && (
+    <>
+      <Default />
+      <p class="report-problem">
+        <a href={report.toString()}>Report a problem with this page</a>
+      </p>
+    </>
+  )
+}
