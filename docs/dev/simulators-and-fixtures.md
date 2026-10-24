@@ -93,6 +93,77 @@ It publishes as a direct Sparkplug edge node: 12 L/min by default (`--flow-rate`
 a total that starts at 1,000 L and integrates running time only, alias-based
 NDATA, rebirth on request and NDEATH on clean shutdown.
 
+### Thermal fire-watch box
+
+[`fire_watch_box.py`](../../tooling/simulators/fire_watch_box.py) stands in for an
+edge-AI fire-watch kit (colour and thermal cameras with on-board detection, a
+battery) that reports its detections as a direct Sparkplug edge node. It publishes
+ten metrics every second: hottest point and scene temperature, flame (with
+confidence), smoke, person in the exclusion zone, camera view blocked, battery,
+running on battery and a detection counter. Nothing happens until someone stages
+an incident on its loopback-only control page (`--control-port`, default
+`http://127.0.0.1:8767`): hot work igniting (the hottest point passes 80 °C, then
+flame, then smoke after 15 s), smoke, a person entering the zone, covering the
+camera, cutting mains power, or setting the battery level.
+
+Two behaviours are deliberate. A covered camera publishes everything the cameras
+see as Sparkplug nulls, which the runtime stores as invalid readings, so an alert
+that was active stays active instead of reading "clear". An empty battery sends
+NDEATH and disconnects; restoring mains reconnects with a new session and births
+again.
+
+[`setup-fire-watch-demo.mjs`](../../tooling/setup-fire-watch-demo.mjs) builds the
+whole demo through the public API, local stack only, and is safe to rerun:
+
+```sh
+node tooling/setup-fire-watch-demo.mjs
+```
+
+It signs in as the seeded super administrator and does the following:
+
+- Creates the organization **Fire watch demo (simulated)**
+  (`FIRE_WATCH_ORG_NAME`, `FIRE_WATCH_ORG_SLUG`).
+- Invites two administrators, Site Supervisor and Fire Watch Lead. It accepts
+  their invitations through Mailpit and keeps the generated passwords in
+  `.local/demos/fire-watch/demo.json`.
+- Publishes the **Thermal fire-watch box** profile.
+- Onboards the box as a direct device and writes its connection kit to
+  `.local/demos/fire-watch/kit/`.
+- Waits for the box's birth, then maps and activates it.
+
+Start the box while it waits:
+
+```sh
+.local/devices/python/bin/python tooling/simulators/fire_watch_box.py \
+  --config .local/demos/fire-watch/kit/device-config.json \
+  --state-file .local/demos/fire-watch/box-state
+```
+
+It then activates six automations: flame, hot spot above 80 °C (cleared below
+60 °C), smoke, person in the exclusion zone, camera view blocked and battery
+below 20 %. Each automation emails both people when its alert activates and when
+it clears. The script finishes with the **Fire watch · Hot work area** dashboard.
+`--refresh-dashboard` rewrites the dashboard from the script.
+
+To set up the same demo in an existing organization on a hosted environment, point
+the script at it. You sign in at a prompt, and the password is not echoed:
+
+```sh
+FIRE_WATCH_API_URL=https://api.<domain> FIRE_WATCH_PORTAL_URL=https://app.<domain> \
+  node tooling/setup-fire-watch-demo.mjs --organization <organization-uuid> \
+  [--recipients colleague@example.com]
+```
+
+Hosted mode creates no accounts and never changes anyone's email preferences: you
+and any listed members receive the alert email. It keeps the kit under
+`.local/demos/fire-watch-<api host>-<organization>/`, prints a box command with
+`--control-port 8768` so a local box can keep running on 8767, and waits (up to
+three hours) while the environment answers 503 for connection kits.
+
+Incidents show up in **Alerts**, where they can be acknowledged, assigned and
+commented on, and the emails arrive in Mailpit. Each automation's recipients are
+under Settings → Notifications.
+
 ### D1
 
 [`d1_simulator.py`](../../tooling/simulators/d1_simulator.py) is a minimal

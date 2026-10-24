@@ -12,6 +12,6 @@ Everything else here is described in the docs: test harnesses (`test-*.mjs`) and
 verification scripts (`verify-*`), the contract checker's tests (`contracts/`) and the
 documentation link checker (`docs/`) in
 [testing](../docs/dev/testing.md);
-`simulators/` in [simulators and fixtures](../docs/dev/simulators-and-fixtures.md);
+`simulators/` and `setup-fire-watch-demo.mjs` in [simulators and fixtures](../docs/dev/simulators-and-fixtures.md);
 `hardware/` in [hardware](../docs/hardware/waveshare-audio-board.md); `release/` in
 [release](../docs/ops/release.md); `monitoring/` in [monitoring](../docs/ops/monitoring.md).
