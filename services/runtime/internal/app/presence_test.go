@@ -42,6 +42,10 @@ func doubleMetric(name string, alias uint64, value float64) *pb.Payload_Metric {
 	return &pb.Payload_Metric{Name: proto.String(name), Alias: proto.Uint64(alias), Datatype: proto.Uint32(uint32(pb.DataType_Double)), Value: &pb.Payload_Metric_DoubleValue{DoubleValue: value}}
 }
 
+func bdSeqMetric(value uint64) *pb.Payload_Metric {
+	return &pb.Payload_Metric{Name: proto.String("bdSeq"), Datatype: proto.Uint32(uint32(pb.DataType_Int64)), Value: &pb.Payload_Metric_LongValue{LongValue: value}}
+}
+
 // newEdgesFixture puts two live edge nodes on one broker connection, with a
 // configured device on each and a same-named edge on a second connection.
 func newEdgesFixture(t *testing.T) edgesFixture {
@@ -70,7 +74,7 @@ func newEdgesFixture(t *testing.T) edgesFixture {
 	f.elsewhere = define(other, "edge-a", "meter")
 	for _, connection := range f.connectionUUIDs {
 		for _, edge := range []string{"edge-a", "edge-b"} {
-			birth, err := a.Engine.Accept(connection, "spBv1.0/group/NBIRTH/"+edge, sparkplugPayload(t, 0, &pb.Payload_Metric{Name: proto.String("bdSeq"), Datatype: proto.Uint32(uint32(pb.DataType_Int64)), Value: &pb.Payload_Metric_LongValue{LongValue: 0}}, doubleMetric("Uptime", 1, 1)), time.Now())
+			birth, err := a.Engine.Accept(connection, "spBv1.0/group/NBIRTH/"+edge, sparkplugPayload(t, 0, bdSeqMetric(0), doubleMetric("Uptime", 1, 1)), time.Now())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -167,6 +171,50 @@ func TestRejectedPacketOnlyAffectsItsEdgeAndDevice(t *testing.T) {
 	}
 	if !f.rebirthWanted(c.UUID + "/edge-b") {
 		t.Fatal("no rebirth requested for edge-b")
+	}
+}
+
+// An edge keeps sending until its rebirth arrives. Each device is reported unknown
+// once, and again only after its presence has changed.
+func TestRejectedPacketsReportEachDeviceOnceUntilItsPresenceChanges(t *testing.T) {
+	f := newEdgesFixture(t)
+	a, c := f.a, f.c
+	edgeA := []devices.Definition{f.meterA, f.nodeA}
+	count := func(d devices.Definition, presence string) int {
+		t.Helper()
+		n := 0
+		for _, reported := range f.devicePresence(d) {
+			if reported == presence {
+				n++
+			}
+		}
+		return n
+	}
+
+	for _, seq := range []uint64{5, 6, 7} {
+		a.packet(c, "spBv1.0/group/DDATA/edge-a/meter", sparkplugPayload(t, seq, doubleMetric("", 1, 231)))
+	}
+	for _, d := range edgeA {
+		if presence := f.devicePresence(d); len(presence) != 1 || presence[0] != "unknown" {
+			t.Fatalf("source %s presence %v after three rejected packets, want one unknown", d.Source.Key(), presence)
+		}
+	}
+
+	// The rebirth brings edge-a back, and the accepted path reports its devices online.
+	if _, err := a.Engine.Accept(c.UUID, "spBv1.0/group/NBIRTH/edge-a", sparkplugPayload(t, 0, bdSeqMetric(1), doubleMetric("Uptime", 1, 2)), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Engine.Accept(c.UUID, "spBv1.0/group/DBIRTH/edge-a/meter", sparkplugPayload(t, 1, doubleMetric("Voltage", 1, 230)), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range edgeA {
+		a.devicePresence(d, "online", "", time.Now().UTC(), true)
+	}
+	a.packet(c, "spBv1.0/group/DDATA/edge-a/meter", sparkplugPayload(t, 9, doubleMetric("", 1, 231)))
+	for _, d := range edgeA {
+		if unknown, online := count(d, "unknown"), count(d, "online"); unknown != 2 || online != 1 {
+			t.Fatalf("source %s reported unknown %d and online %d times, want 2 and 1", d.Source.Key(), unknown, online)
+		}
 	}
 }
 

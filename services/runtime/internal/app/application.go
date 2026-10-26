@@ -38,6 +38,7 @@ type broker struct {
 	StateTimestamp *atomic.Int64
 }
 type rebirthRequest struct{ Connection, Group, Edge string }
+type reportedPresence struct{ Presence, Diagnostic string }
 type Application struct {
 	captures          *telemetry.Manager
 	committedFailures atomic.Uint64
@@ -67,6 +68,7 @@ type Application struct {
 	rebirth           map[string]time.Time
 	rebirthPending    map[string]rebirthRequest
 	presenceAt        map[string]time.Time
+	reported          map[string]reportedPresence
 	subscriptions     []*nats.Subscription
 	tlsConfig         *tls.Config
 }
@@ -474,6 +476,10 @@ func (a *Application) devicePresence(d devices.Definition, presence, diagnostic 
 		return
 	}
 	a.presenceAt[d.DeviceUUID] = time.Now()
+	if a.reported == nil {
+		a.reported = map[string]reportedPresence{}
+	}
+	a.reported[d.DeviceUUID] = reportedPresence{presence, diagnostic}
 	generation := a.generations[d.DeviceUUID]
 	a.mu.Unlock()
 	payload := map[string]any{"organization_uuid": d.OrganizationUUID, "device_uuid": d.DeviceUUID, "configuration_uuid": d.ConfigurationUUID, "generation": generation, "presence": presence, "diagnostic": diagnostic}
@@ -507,7 +513,8 @@ func (a *Application) connectionLost(connection string, e error) {
 // edges on the connection keep their presence. A sequence gap or a bad birth, alias,
 // metric or datatype drops the edge's whole session in the engine; data from a
 // device with no birth drops only that device; a packet the engine ignored (bad
-// protobuf, a stale death) changes nothing.
+// protobuf, a stale death) changes nothing. The edge keeps sending until its
+// rebirth arrives, so each device is reported once, not once per packet.
 func (a *Application) rejectedPresence(c devices.Connection, p sparkplug.Packet, diagnostic string) {
 	edgeOnline := a.Engine.NodeOnline(c.UUID, p.Topic.Edge)
 	// Only the packet that ended a session carries it; a rejected NBIRTH's session was never announced.
@@ -520,9 +527,12 @@ func (a *Application) rejectedPresence(c devices.Connection, p sparkplug.Packet,
 		if d.Source.ConnectionUUID != c.UUID || d.Source.EdgeNodeID != p.Topic.Edge || edgeOnline && d.Source.DeviceID != p.Topic.Device {
 			continue
 		}
-		if _, _, online := a.Engine.Snapshot(d.Source); !online {
+		if _, _, online := a.Engine.Snapshot(d.Source); online {
+			continue
+		}
+		a.compatible[d.DeviceUUID] = false
+		if a.reported[d.DeviceUUID] != (reportedPresence{"unknown", diagnostic}) {
 			defs = append(defs, d)
-			a.compatible[d.DeviceUUID] = false
 		}
 	}
 	a.mu.Unlock()
@@ -576,6 +586,7 @@ func (a *Application) activate(d devices.Definition, generation int, operation .
 	a.sessions[d.DeviceUUID] = session
 	a.compatible[d.DeviceUUID] = true
 	a.reviewRequired[d.DeviceUUID] = false
+	delete(a.reported, d.DeviceUUID) // the control plane resets presence on device.applied.v1
 	a.mu.Unlock()
 	a.requestRebirth(d.Source.ConnectionUUID, d.Source.GroupID, d.Source.EdgeNodeID)
 	return nil
@@ -622,6 +633,7 @@ func (a *Application) deactivate(device, org string, generation int, operation .
 	delete(a.compatible, device)
 	delete(a.reviewRequired, device)
 	delete(a.presenceAt, device)
+	delete(a.reported, device)
 	a.generations[device] = generation
 	for id, pending := range a.pending {
 		if pending.Request.DeviceUUID == device {
