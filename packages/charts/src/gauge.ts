@@ -38,7 +38,14 @@ export function gaugeOption(theme: ChartTheme, input: GaugeInput): ChartOption {
         radius: "100%",
         center: ["50%", "66%"],
         axisLine: { lineStyle: { width: 10, color: stops } },
-        progress: { show: input.value !== null, width: 10, itemStyle: { color: theme.color(input.color) } },
+        // Always shown: ECharts only keeps the arc while progress is on, and a
+        // gauge that starts without a reading would throw when one arrives.
+        // Without a reading the arc is transparent instead.
+        progress: {
+          show: true,
+          width: 10,
+          itemStyle: { color: theme.color(input.color), opacity: input.value === null ? 0 : 1 },
+        },
         pointer: { show: false },
         anchor: { show: false },
         axisTick: { show: false },
