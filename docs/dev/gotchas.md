@@ -78,6 +78,14 @@ Things that have cost time before. Add to this list when something surprises you
   must not set it: the runtime omits `last_seen_at` from that `device.presence.v1`,
   and `RuntimeController` keeps the stored value. Until 2026-10 it sent the current
   time, so every device on a connection looked freshly seen after each deploy.
+- **A rejected Sparkplug packet is one edge node's problem.** `sparkplug.Engine.Accept`
+  drops only that edge node's session (sequence gap, bad alias, metric or datatype)
+  or one device's (data before its DBIRTH), so the runtime's `rejectedPresence`
+  reports unknown for those sources alone, once per device rather than once per
+  packet while the edge waits for its rebirth. `connection.presence.v1` makes every
+  gateway and candidate on the connection unknown in Laravel; send it only when the
+  broker connection is lost. Until 2026-10 every rejected packet sent it, so one edge
+  needing a rebirth (after a runtime restart, say) blanked every device beside it.
 
 - **`User` holds Passport tokens, not Sanctum's.** Passport and Sanctum both define a
   `HasApiTokens` trait with incompatible signatures, so a model can use only one,

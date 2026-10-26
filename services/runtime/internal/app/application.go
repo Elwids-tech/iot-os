@@ -38,6 +38,7 @@ type broker struct {
 	StateTimestamp *atomic.Int64
 }
 type rebirthRequest struct{ Connection, Group, Edge string }
+type reportedPresence struct{ Presence, Diagnostic string }
 type Application struct {
 	captures          *telemetry.Manager
 	committedFailures atomic.Uint64
@@ -67,6 +68,7 @@ type Application struct {
 	rebirth           map[string]time.Time
 	rebirthPending    map[string]rebirthRequest
 	presenceAt        map[string]time.Time
+	reported          map[string]reportedPresence
 	subscriptions     []*nats.Subscription
 	tlsConfig         *tls.Config
 }
@@ -201,11 +203,7 @@ func (a *Application) connect(c devices.Connection) error {
 	stateTimestamp.Store(timestamp)
 	will, _ := json.Marshal(map[string]any{"online": false, "timestamp": timestamp})
 	options := mqtt.NewClientOptions().AddBroker(c.BrokerURL).SetClientID(c.HostID).SetUsername(c.Username).SetPassword(c.Password).SetTLSConfig(a.tlsConfig.Clone()).SetAutoReconnect(true).SetConnectRetry(true).SetConnectRetryInterval(2*time.Second).SetCleanSession(true).SetOrderMatters(true).SetKeepAlive(20*time.Second).SetConnectTimeout(5*time.Second).SetWill("spBv1.0/STATE/"+c.HostID, string(will), 1, true)
-	options.SetConnectionLostHandler(func(_ mqtt.Client, e error) {
-		a.Engine.Disconnect(c.UUID)
-		a.Logger.Warn("MQTT connection lost", "connection", c.UUID, "error", e)
-		a.connectionPresence(c.UUID, "unknown", "Broker connection was lost; waiting for fresh birth certificates.")
-	})
+	options.SetConnectionLostHandler(func(_ mqtt.Client, e error) { a.connectionLost(c.UUID, e) })
 	options.SetReconnectingHandler(func(_ mqtt.Client, opts *mqtt.ClientOptions) {
 		next := time.Now().UnixMilli()
 		stateTimestamp.Store(next)
@@ -323,8 +321,8 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 		if errors.Is(e, sparkplug.ErrDuplicate) {
 			return
 		}
-		a.Logger.Warn("Sparkplug packet rejected", "edge", parsed.Edge, "reason", e)
-		a.connectionPresence(c.UUID, "unknown", e.Error())
+		a.Logger.Warn("Sparkplug packet rejected", "connection", c.UUID, "edge", parsed.Edge, "reason", e)
+		a.rejectedPresence(c, p, e.Error())
 		a.requestRebirth(c.UUID, c.GroupID, parsed.Edge)
 		return
 	}
@@ -478,6 +476,10 @@ func (a *Application) devicePresence(d devices.Definition, presence, diagnostic 
 		return
 	}
 	a.presenceAt[d.DeviceUUID] = time.Now()
+	if a.reported == nil {
+		a.reported = map[string]reportedPresence{}
+	}
+	a.reported[d.DeviceUUID] = reportedPresence{presence, diagnostic}
 	generation := a.generations[d.DeviceUUID]
 	a.mu.Unlock()
 	payload := map[string]any{"organization_uuid": d.OrganizationUUID, "device_uuid": d.DeviceUUID, "configuration_uuid": d.ConfigurationUUID, "generation": generation, "presence": presence, "diagnostic": diagnostic}
@@ -499,6 +501,43 @@ func (a *Application) connectionPresence(connection, presence, diagnostic string
 	a.mu.Unlock()
 	for _, d := range defs {
 		a.devicePresence(d, presence, diagnostic, time.Time{}, true)
+	}
+}
+func (a *Application) connectionLost(connection string, e error) {
+	a.Engine.Disconnect(connection)
+	a.Logger.Warn("MQTT connection lost", "connection", connection, "error", e)
+	a.connectionPresence(connection, "unknown", "Broker connection was lost; waiting for fresh birth certificates.")
+}
+
+// rejectedPresence reports what a rejected packet cost, and nothing more: other
+// edges on the connection keep their presence. A sequence gap or a bad birth, alias,
+// metric or datatype drops the edge's whole session in the engine; data from a
+// device with no birth drops only that device; a packet the engine ignored (bad
+// protobuf, a stale death) changes nothing. The edge keeps sending until its
+// rebirth arrives, so each device is reported once, not once per packet.
+func (a *Application) rejectedPresence(c devices.Connection, p sparkplug.Packet, diagnostic string) {
+	edgeOnline := a.Engine.NodeOnline(c.UUID, p.Topic.Edge)
+	// Only the packet that ended a session carries it; a rejected NBIRTH's session was never announced.
+	if !edgeOnline && p.Session != "" && p.Topic.Kind != "NBIRTH" {
+		a.emit("gateway.presence.v1", map[string]any{"connection_uuid": c.UUID, "edge_node_id": p.Topic.Edge, "session_id": p.Session, "presence": "unknown", "last_seen_at": p.Received})
+	}
+	a.mu.Lock()
+	defs := []devices.Definition{}
+	for _, d := range a.definitions {
+		if d.Source.ConnectionUUID != c.UUID || d.Source.EdgeNodeID != p.Topic.Edge || edgeOnline && d.Source.DeviceID != p.Topic.Device {
+			continue
+		}
+		if _, _, online := a.Engine.Snapshot(d.Source); online {
+			continue
+		}
+		a.compatible[d.DeviceUUID] = false
+		if a.reported[d.DeviceUUID] != (reportedPresence{"unknown", diagnostic}) {
+			defs = append(defs, d)
+		}
+	}
+	a.mu.Unlock()
+	for _, d := range defs {
+		a.devicePresence(d, "unknown", diagnostic, time.Time{}, true)
 	}
 }
 func (a *Application) activate(d devices.Definition, generation int, operation ...string) error {
@@ -547,6 +586,7 @@ func (a *Application) activate(d devices.Definition, generation int, operation .
 	a.sessions[d.DeviceUUID] = session
 	a.compatible[d.DeviceUUID] = true
 	a.reviewRequired[d.DeviceUUID] = false
+	delete(a.reported, d.DeviceUUID) // the control plane resets presence on device.applied.v1
 	a.mu.Unlock()
 	a.requestRebirth(d.Source.ConnectionUUID, d.Source.GroupID, d.Source.EdgeNodeID)
 	return nil
@@ -593,6 +633,7 @@ func (a *Application) deactivate(device, org string, generation int, operation .
 	delete(a.compatible, device)
 	delete(a.reviewRequired, device)
 	delete(a.presenceAt, device)
+	delete(a.reported, device)
 	a.generations[device] = generation
 	for id, pending := range a.pending {
 		if pending.Request.DeviceUUID == device {
