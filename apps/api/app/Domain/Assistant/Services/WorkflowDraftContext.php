@@ -72,7 +72,8 @@ final class WorkflowDraftContext
             if (! $device?->applied_configuration_uuid) {
                 $outdated[$role] = "Binding {$role}: device {$uuid} no longer exists in this organization or has no applied configuration. Ask the user which device should replace it, then use find_devices.";
             } elseif ($device->applied_configuration_uuid !== ($binding['configuration_uuid'] ?? null) || $device->deployment_generation !== ($binding['generation'] ?? null)) {
-                $outdated[$role] = "Binding {$role}: device {$uuid} was reconfigured and now has configuration {$device->applied_configuration_uuid}, generation {$device->deployment_generation}. Call find_devices with device_uuid {$uuid} and copy the current configuration_uuid, generation and the parameter's uuid, data_type and unit.";
+                $given = json_encode(['configuration_uuid' => $binding['configuration_uuid'] ?? null, 'generation' => $binding['generation'] ?? null], JSON_UNESCAPED_SLASHES);
+                $outdated[$role] = "Binding {$role}: device {$uuid} was reconfigured and now has configuration {$device->applied_configuration_uuid}, generation {$device->deployment_generation}; the draft has {$given}. Call find_devices with device_uuid {$uuid} and copy the current configuration_uuid, generation and the parameter's uuid, data_type and unit.";
             }
         }
 

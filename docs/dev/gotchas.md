@@ -105,6 +105,10 @@ Things that have cost time before. Add to this list when something surprises you
 - **A git worktree can be served the same way.** Run compose from the worktree
   with the main checkout's env files:
   `docker compose --env-file <main>/.env --env-file <main>/.local/devices/devices.env -f deploy/compose/compose.dev.yml -f deploy/compose/compose.app.yml -f deploy/compose/compose.devices.yml up -d --build --no-deps api alerts-worker webhooks-worker assistant-worker automation-worker portal admin`.
+- **A shell-exported key beats the env file.** Compose interpolation prefers the
+  shell's variables over `--env-file`, so an `OPENAI_API_KEY` exported in your
+  profile silently replaces the one in `.env` on rebuild. Compare env hashes first and
+  run compose with `env -u OPENAI_API_KEY` when they differ.
 - **Check which files the running stack was started with before rebuilding.**
   The stack may have been started from another worktree, or with extra overlays
   (monitoring, adapters) and env files that no longer exist. Read the labels:
@@ -286,6 +290,14 @@ Things that have cost time before. Add to this list when something surprises you
   `document.documentElement.scrollWidth` with its `clientWidth`.
 - **`rtk npx` rewrites to an npm script.** `rtk npx vite build` becomes
   `npm run vite`. Use `rtk proxy npx vite …` and `rtk proxy npx playwright …`.
+
+## Assistant
+
+- **Models mistype UUIDs and number types.** A tool argument can carry a UUID with one
+  character changed, `"1"` for `1`, or leave a field out. Compare exact values only after
+  normalizing, and make every refusal say which field is wrong and what it held; a vague
+  "invalid binding" makes the model give up. Refused automation tool calls are logged
+  as "Automation assistant tool refused".
 
 ## UI
 

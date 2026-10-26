@@ -13,6 +13,7 @@ use App\Domain\Shared\Models\Organization;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
@@ -66,6 +67,9 @@ final class WorkflowAssistantTools implements Tool
 
             return $encoded;
         } catch (Throwable $e) {
+            // The model corrects refusals itself; logging them makes repeated ones diagnosable.
+            Log::info('Automation assistant tool refused', ['run' => $this->run->id, 'action' => $request['action'] ?? null, 'errors' => $e instanceof ValidationException ? $e->errors() : $e->getMessage()]);
+
             return json_encode(['error' => 'The automation operation was not completed.', 'details' => $e instanceof ValidationException ? $e->errors() : [], 'reason' => $e instanceof HttpExceptionInterface ? $e->getMessage() : null], JSON_THROW_ON_ERROR);
         }
     }
