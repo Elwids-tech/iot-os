@@ -244,7 +244,7 @@ test("contextual guidance, citations and panel switching preserve unsaved workfl
   ).toBeVisible();
   await help.getByRole("button", { name: "Suggestions", exact: true }).click();
   await expect(help.getByRole("button", { name: /^Continue with Unsaved bench workflow/ })).toBeVisible();
-  await help.getByRole("button", { name: /^Ask how to use IoT OS/ }).click();
+  await help.getByRole("button", { name: /^Ask how to use the portal/ }).click();
   await help
     .getByLabel("Ask a usage question")
     .fill("Does simulation send commands?");
@@ -263,7 +263,7 @@ test("contextual guidance, citations and panel switching preserve unsaved workfl
     .click();
   await help.getByRole("tab", { name: "Ask", exact: true }).click();
   await help.getByRole("button", { name: "Suggestions", exact: true }).click();
-  await help.getByRole("button", { name: /^Ask how to use IoT OS/ }).click();
+  await help.getByRole("button", { name: /^Ask how to use the portal/ }).click();
   await expect(help.getByLabel("Ask a usage question")).toHaveValue(
     "Does simulation send commands?",
   );
@@ -332,7 +332,7 @@ test("mobile Help fits the viewport, supports search and restores keyboard focus
     (await new AxeBuilder({ page }).include('[role="dialog"]').analyze())
       .violations,
   ).toEqual([]);
-  await help.getByRole("button", { name: /^Ask how to use IoT OS/ }).click();
+  await help.getByRole("button", { name: /^Ask how to use the portal/ }).click();
   await expect(
     help.getByText("Usage help unavailable", { exact: true }),
   ).toBeVisible();
@@ -394,7 +394,7 @@ test("all sections offer Help; navigation retains an article and organization sw
     }),
   ).toBeVisible();
   await help.getByRole("tab", { name: "Ask", exact: true }).click();
-  await help.getByRole("button", { name: /^Ask how to use IoT OS/ }).click();
+  await help.getByRole("button", { name: /^Ask how to use the portal/ }).click();
   await help.getByLabel("Ask a usage question").fill("Private Acme draft");
   await page.getByRole("button", { name: "Organization: Acme" }).click();
   await page.getByRole("menuitemradio", { name: "Northstar" }).click();

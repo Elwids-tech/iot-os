@@ -35,8 +35,8 @@ AI must be enabled on the server and have remaining allowance. Reading guides an
 
 ## Steps
 1. Choose **Assistant** beside **Help** at the top of any page. On a page with its own assistant, such as the automation editor or a device profile, **Ask** opens on it. Elsewhere **Ask** opens on suggestions for that page.
-2. Choose a suggestion, or choose **Suggestions** to return to them. **Create a device profile** and **Ask how to use IoT OS** work from any page; an automation suggestion opens a new automation with its request ready in the editor's assistant.
-3. In Help, choose **This page** for contextual guidance or **All guides** to search. For a usage question, choose **Ask how to use IoT OS** or one of the page's questions, then follow cited article headings inside the panel.
+2. Choose a suggestion, or choose **Suggestions** to return to them. **Create a device profile** and **Ask how to use the portal** work from any page; an automation suggestion opens a new automation with its request ready in the editor's assistant.
+3. In Help, choose **This page** for contextual guidance or **All guides** to search. For a usage question, choose **Ask how to use the portal** or one of the page's questions, then follow cited article headings inside the panel.
 4. For profile authoring, describe the profile or provide relevant documentation. Review each proposal before saving a section.
 5. For automation authoring, edit the request and send it. Review the proposal and choose **Use this draft**, then save and review activation separately.
 6. Stop a response or delete your private conversation when needed.
