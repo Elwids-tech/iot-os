@@ -1,7 +1,7 @@
 import { Scenarios } from "./Scenarios";
 import { Directory } from "./AutomationDirectory";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, Route, Routes, useParams } from "react-router-dom";
+import { Link, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@iot-os/api-client";
 import {
@@ -13,7 +13,7 @@ import {
   type Resource,
   type WorkflowNode,
 } from "@iot-os/workflow-editor";
-import { Redo2Icon, SparklesIcon, Undo2Icon } from "lucide-react";
+import { MailIcon, Redo2Icon, SparklesIcon, Undo2Icon } from "lucide-react";
 import { Button } from "@iot-os/ui/components/button";
 import {
   Card,
@@ -113,9 +113,11 @@ export default function AutomationRoutes() {
 }
 function Workspace() {
   const { organizationUuid: org = "", workflowUuid = "new" } = useParams();
-  return <Editor key={`${org}:${workflowUuid}`} org={org} id={workflowUuid} />;
+  // A suggestion from the workspace assistant opens a fresh editor whose assistant takes its request.
+  const handoff = (useLocation().state as { assistant?: string } | null)?.assistant;
+  return <Editor key={`${org}:${workflowUuid}:${handoff ?? ""}`} org={org} id={workflowUuid} handoff={handoff} />;
 }
-function Editor({ org, id }: { org: string; id: string }) {
+function Editor({ org, id, handoff }: { org: string; id: string; handoff?: string }) {
   const [tab, setTab] = useState("editor");
   const [evidenceTarget, setEvidenceTarget] = useState<(EvidenceTarget & { sequence: number })>();
   // A recorded evaluation the assistant explains instead of the draft; cleared from the panel.
@@ -358,6 +360,11 @@ function Editor({ org, id }: { org: string; id: string }) {
       </div>
     );
   const status = deploymentState(live?.deployment_status ?? "inactive");
+  // Email is switched on per automation in Settings → Notifications; link there once a saved draft raises alerts.
+  const alertEmail =
+    saved && graph.nodes.some((node) => node.type === "action.alert.v1")
+      ? `/organizations/${org}/settings/notifications/${saved.uuid}`
+      : undefined;
   return (
     <>
       <WorkspacePage
@@ -374,6 +381,14 @@ function Editor({ org, id }: { org: string; id: string }) {
         back={{ to: url(org), label: "Automations" }}
         helpContext={`automation.${tab}`}
         actions={<>
+            {alertEmail && (
+              <Button variant="ghost" size="sm" asChild>
+                <Link to={alertEmail}>
+                  <MailIcon data-icon="inline-start" />
+                  Alert email
+                </Link>
+              </Button>
+            )}
             {live?.applied_deployment_uuid && (
               <Button
                 variant="ghost"
@@ -415,7 +430,7 @@ function Editor({ org, id }: { org: string; id: string }) {
               <TooltipContent>Redo</TooltipContent>
             </Tooltip>
           </div>
-          <WorkflowAssistant org={org} editorId={editorId} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={nodeTypes} disabled={busy || (id !== "new" && !saved)} onApply={change} onEvidence={showEvidence} execution={explain} onClearExecution={() => setExplain(undefined)} size="sm" />
+          <WorkflowAssistant org={org} editorId={editorId} handoff={handoff} workflowId={saved?.uuid} name={name} graph={graph} revision={saved?.draft_revision} registry={nodeTypes} disabled={busy || (id !== "new" && !saved)} onApply={change} onEvidence={showEvidence} execution={explain} onClearExecution={() => setExplain(undefined)} />
 </>}
         draft={
           <DraftBar
@@ -711,6 +726,15 @@ function Editor({ org, id }: { org: string; id: string }) {
               <p className="text-sm text-muted-foreground">
                 Alerts use existing notification preferences. Saving or
                 activating does not enable email.
+                {alertEmail && (
+                  <>
+                    {" "}
+                    <Link className="text-primary underline" to={alertEmail}>
+                      Choose who gets this automation’s alert email
+                    </Link>
+                    .
+                  </>
+                )}
               </p>
             </FieldGroup>
             <DialogFooter className="shrink-0">

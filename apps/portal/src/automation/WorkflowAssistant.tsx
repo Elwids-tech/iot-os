@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { AssistantRun } from "@iot-os/api-client"
 import type { NodeType, Workflow } from "@iot-os/workflow-editor"
-import { ArrowLeftIcon, SparklesIcon, SendIcon, SquareIcon } from "lucide-react"
+import { ArrowLeftIcon, SendIcon, SquareIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@iot-os/ui/components/button"
 import { Badge } from "@iot-os/ui/components/badge"
@@ -33,6 +33,8 @@ type Session = { id?: string; text: string; used: string[] }
 
 type AssistantProps = {
   org: string; editorId: string; workflowId?: string; name: string; graph: Workflow; revision?: number;
+  /** The workspace assistant's hand-off this editor was opened for. */
+  handoff?: string;
   registry: NodeType[]; disabled: boolean; onApply: (graph: Workflow) => void;
   /** A recorded evaluation to explain instead of the editable draft. */
   execution?: ExecutionSelection; onClearExecution?: () => void; onEvidence: (target: EvidenceTarget) => void;
@@ -41,27 +43,25 @@ type AssistantProps = {
 const explanationPrompt = "Explain this execution. What happened, which conditions were decisive, and what is known about action delivery? Cite the recorded evidence."
 
 /**
- * The editor's entry to the workspace panel: a toolbar button, plus the
- * conversation itself portalled into the panel's Ask tab while the editor is
- * mounted, so it keeps the editor's draft, registry and evidence handlers.
+ * The editor's conversation, portalled into the workspace panel's Ask tab while
+ * the editor is mounted, so it keeps the editor's draft, registry and evidence
+ * handlers. The header's Assistant control opens it.
  */
-export function WorkflowAssistant({ size = "default", ...props }: AssistantProps & { size?: "default" | "sm" }) {
+export function WorkflowAssistant(props: AssistantProps) {
   const panel = usePanel()
-  const { execution, name, disabled } = props
+  const { execution, name } = props
   const target = usePanelSlot(
     execution ? `Evaluation ${execution.id}` : name || "This automation",
     execution
       ? `Explaining evaluation ${execution.id} · deployment ${execution.generation} · draft ${execution.draft_revision}`
       : `Build or refine “${name || "this automation"}”. Review suggestions before using them in your draft.`,
   )
-  return <>
-    <Button variant="outline" size={size} disabled={disabled} aria-expanded={panel.open && panel.tab === "ask"} onClick={() => panel.openPanel("ask")}><SparklesIcon data-icon="inline-start" />AI assistant</Button>
-    {target && createPortal(<WorkflowAssistantBody {...props} onClose={panel.closePanel} />, target)}
-  </>
+  return target && createPortal(<WorkflowAssistantBody {...props} onClose={panel.closePanel} />, target)
 }
 
-function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revision, registry, disabled, onApply, execution: selectedExecution, onClearExecution, onEvidence, onClose }: AssistantProps & { onClose: () => void }) {
+function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revision, registry, disabled, onApply, execution: selectedExecution, onClearExecution, onEvidence, onClose, handoff }: AssistantProps & { onClose: () => void }) {
   const cache = useQueryClient()
+  const panel = usePanel()
   const sessionIds = assistantSessionIds(editorId, workflowId, selectedExecution?.id)
   const sessionId = sessionIds[0]
   const key = ["workflow-assistant-session", org, sessionId]
@@ -71,6 +71,14 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
     setSession(cache.getQueryData<Session>(["workflow-assistant-session", org, sessionId]) ?? { text: "", used: [] })
     setError(undefined)
   }, [cache, org, sessionId])
+  // A request chosen in the workspace assistant waits in the composer for the person to edit and send.
+  const { handoff: pendingHandoff, takeHandoff } = panel
+  useEffect(() => {
+    if (pendingHandoff?.to !== "automation" || pendingHandoff.id !== handoff) return
+    const text = pendingHandoff.text
+    takeHandoff()
+    setSession(current => ({ ...current, text }))
+  }, [pendingHandoff, handoff, takeHandoff])
   const [autoExplain, setAutoExplain] = useState(false)
   const explained = useRef<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)

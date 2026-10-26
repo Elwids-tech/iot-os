@@ -40,6 +40,7 @@ import {
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { PageHelpContext } from "@iot-os/ui/components/page-help"
 import { helpContextForPath } from "./help/context"
+import { useLastDashboardPath } from "./dashboards/lastPlace"
 import { PortalCommandPalette } from "./components/PortalCommandPalette"
 import {
   DropdownMenu,
@@ -593,6 +594,8 @@ function PortalSidebar({
   const location = useLocation()
   const { setOpenMobile } = useSidebar()
   const closeMobile = () => setOpenMobile(false)
+  // Dashboards reopens the dashboard (or the library) the viewer was last on.
+  const dashboards = useLastDashboardPath(user.id, organization?.uuid ?? "")
   // Shared with the Home page so badges and the summary come from one request.
   const overview = useQuery({
     queryKey: ["overview", organization?.uuid],
@@ -688,7 +691,7 @@ function PortalSidebar({
                   <SidebarGroupContent>
                     <SidebarMenu>
                       {items.map((item) => {
-                        const to = sectionPath(organization.uuid, item.path)
+                        const to = item.path === "dashboards" ? dashboards : sectionPath(organization.uuid, item.path)
                         const [count, countLabel] = badges[item.path] ?? []
                         return (
                           <SidebarMenuItem key={item.path}>
@@ -881,10 +884,22 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
   const [, , , page, resource] = location.pathname.split("/")
   const profileContext = page === "device-profiles" || (page === "devices" && resource === "onboard")
   const helpContext = helpOverride ?? helpContextForPath(location.pathname)
+  // Every page header carries the Assistant beside Help; on phones they shrink to their icons.
   const helpIntegration = useMemo(() => org ? {
-    trigger: <Button variant="ghost" size="sm" aria-expanded={helpOpen} onClick={openHelp}><BookOpenIcon data-icon="inline-start" />Help</Button>,
+    trigger: (
+      <>
+        <Button variant="ghost" size="sm" aria-expanded={assistantOpen} onClick={openAssistant}>
+          <SparklesIcon data-icon="inline-start" />
+          <span className="max-sm:sr-only">Assistant</span>
+        </Button>
+        <Button variant="ghost" size="sm" aria-expanded={helpOpen} onClick={openHelp}>
+          <BookOpenIcon data-icon="inline-start" />
+          <span className="max-sm:sr-only">Help</span>
+        </Button>
+      </>
+    ),
     onContextChange: setHelpOverride,
-  } : null, [org?.uuid, helpOpen, panel])
+  } : null, [org?.uuid, assistantOpen, helpOpen, panel])
 
   // ⌘K / Ctrl+K opens search from anywhere in the workspace.
   const [searchOpen, setSearchOpen] = useState(false)
@@ -970,14 +985,18 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
               organizationName={org.name}
               context={helpContext}
               profileAssistant={
-                profileContext ? (
-                  <ProfileAssistantBody
-                    org={org.uuid}
-                    organizationName={org.name}
-                    viewedProfile={params.profileUuid}
-                  />
-                ) : null
+                <ProfileAssistantBody
+                  org={org.uuid}
+                  organizationName={org.name}
+                  viewedProfile={params.profileUuid}
+                />
               }
+              profilePage={profileContext}
+              viewedProfile={params.profileUuid}
+              can={{
+                profiles: profilesEditable(org),
+                adapters: org.capabilities?.features?.device_adapters === true && devicesCan("manage")(org),
+              }}
             />
           </Suspense>
         )}

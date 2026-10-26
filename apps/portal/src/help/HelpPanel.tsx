@@ -1,9 +1,11 @@
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation } from "react-router-dom";
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { usePanel, type PanelTab } from "../panel/context";
+import { AssistantHome } from "../assistant/AssistantHome";
+import { assistantSuggestions, type Suggestion } from "../assistant/suggestions";
 import type {
+  DeviceDetail,
   HelpArticle,
   HelpArticleSummary,
   HelpDetail,
@@ -194,31 +196,51 @@ function GuideList({
 
 /**
  * The workspace panel: one docked rail (a sheet below xl) with an Ask tab for
- * the assistant of the current context and two tabs of guides. Pages that own
- * an assistant portal it into the Ask tab through the panel slot; the profile
- * assistant arrives as `profileAssistant`; everywhere else Ask answers usage
- * questions from the guides.
+ * the assistant and two tabs of guides. Ask follows the page: pages that own an
+ * assistant portal it in through the panel slot, profile pages open the profile
+ * assistant, and every other page opens on suggestions for the work the
+ * assistant can do there. The profile assistant and usage help are one choice
+ * away from any page; an automation suggestion opens a new automation's editor.
  */
 export default function HelpPanel({
   org,
   organizationName,
   context,
   profileAssistant,
+  profilePage,
+  viewedProfile,
+  can,
 }: {
   org: string;
   organizationName: string;
   context: string;
-  /** The device-profile authoring body, when the page is a profile page. */
-  profileAssistant?: ReactNode;
+  /** The device-profile authoring body; shown when Ask is on the profile assistant. */
+  profileAssistant: ReactNode;
+  /** Profile pages open Ask on the profile assistant. */
+  profilePage: boolean;
+  viewedProfile?: string;
+  can: { profiles: boolean; adapters: boolean };
 }) {
   const cache = useQueryClient();
   const location = useLocation();
+  const navigate = useNavigate();
   const workspace = usePanel();
-  const { open, tab, setTab, slot, setSlotTarget, askMode, setAskMode } = workspace;
+  const { open, tab, setTab, slot, setSlotTarget, askMode, setAskMode, handoff, startTask, takeHandoff } = workspace;
   const onClose = workspace.closePanel;
-  const hasContext = Boolean(slot) || Boolean(profileAssistant);
-  // With a context assistant present, Ask can still answer usage questions from the guides.
-  const askHelp = tab === "ask" && (!hasContext || askMode === "help");
+  // What Ask shows: "auto" follows the page; an automation suggestion waits for its editor to open.
+  const ask =
+    askMode === "auto"
+      ? slot
+        ? "context"
+        : handoff?.to === "automation"
+          ? "opening"
+          : profilePage
+            ? "profile"
+            : "home"
+      : askMode === "context" && !slot
+        ? "home"
+        : askMode;
+  const askHelp = tab === "ask" && ask === "help";
   const [article, setArticle] = useState<ArticleTarget | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -255,6 +277,17 @@ export default function HelpPanel({
     const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
     return () => window.clearTimeout(timer);
   }, [search]);
+  // A question chosen from the suggestions starts a new Help conversation with it ready to send.
+  useEffect(() => {
+    if (handoff?.to !== "help") return;
+    takeHandoff();
+    setSelected(null);
+    pending.current = null;
+    setError(null);
+    setArticle(null);
+    const text = handoff.text;
+    setDrafts((current) => ({ ...current, new: text }));
+  }, [handoff, takeHandoff]);
   useEffect(() => {
     if (!open) return;
     trigger.current =
@@ -318,6 +351,13 @@ export default function HelpPanel({
     queryFn: () => api.helpConversation(org, selected!),
     enabled: open && Boolean(selected),
     refetchInterval: (query) => (activeRun(query.state.data) ? 1000 : false),
+  });
+  // On a device's page, the device the page already loaded names the profile to improve.
+  const [, , , section, resource] = location.pathname.split("/");
+  const device = useQuery<DeviceDetail>({
+    queryKey: ["device", org, resource],
+    queryFn: skipToken,
+    enabled: section === "devices" && Boolean(resource),
   });
   const active = activeRun(detail.data);
   const available = settings.data?.enabled === true;
@@ -402,6 +442,49 @@ export default function HelpPanel({
     await cache.invalidateQueries({ queryKey: ["help", org, "conversations"] });
   }
 
+  const suggestions = assistantSuggestions({
+    pathname: location.pathname,
+    slot: slot?.title,
+    profile: viewedProfile,
+    deviceProfile: device.data?.profile,
+    can,
+  });
+  function choose(suggestion: Suggestion) {
+    const action = suggestion.action;
+    setArticle(null);
+    switch (action.kind) {
+      case "context":
+        setAskMode("context");
+        return;
+      case "profile":
+        startTask("profile", { to: "profile", profile: action.profile });
+        return;
+      case "help":
+        setAskMode("help");
+        return;
+      case "adapter":
+        // The adapter's assistant lives on its page, beside the code it edits.
+        onClose();
+        navigate(location.pathname, { state: { tab: "ai" } });
+        return;
+      case "automation": {
+        // The automation assistant edits an editor's draft, so a new automation opens for it.
+        const id = crypto.randomUUID();
+        startTask("auto", { to: "automation", text: action.text, id });
+        navigate(`/organizations/${encodeURIComponent(org)}/automation/new`, { state: { assistant: id } });
+        return;
+      }
+    }
+  }
+  const taskLabel =
+    ask === "context"
+      ? slot?.title
+      : ask === "profile"
+        ? "Device profiles"
+        : ask === "opening"
+          ? "New automation"
+          : "Usage help";
+
   const content = (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-start justify-between gap-2 border-b p-4">
@@ -411,11 +494,13 @@ export default function HelpPanel({
             Assistant
           </h2>
           <p id="help-description" className="truncate text-xs text-muted-foreground">
-            {slot
-              ? (slot.description ?? `Working on ${slot.title}`)
-              : profileAssistant
-                ? `Device profiles · ${organizationName}`
-                : `Guides and usage questions · ${organizationName}`}
+            {tab !== "ask" || ask === "help"
+              ? `Guides and usage questions · ${organizationName}`
+              : ask === "context" && slot
+                ? (slot.description ?? `Working on ${slot.title}`)
+                : ask === "profile"
+                  ? `Device profiles · ${organizationName}`
+                  : `Suggestions for this page · ${organizationName}`}
           </p>
         </div>
         <Button
@@ -443,24 +528,20 @@ export default function HelpPanel({
             <TabsTrigger value="guides">All guides</TabsTrigger>
           </TabsList>
         </div>
-        {tab === "ask" && hasContext && !article && (
-          <div className="border-b p-3">
-            <ToggleGroup
-              type="single"
-              variant="outline"
+        {tab === "ask" && ask !== "home" && !article && (
+          <div className="flex items-center gap-2 border-b px-3 py-2">
+            <Button
+              variant="ghost"
               size="sm"
-              spacing={0}
-              aria-label="Ask about"
-              value={askMode}
-              onValueChange={(value) => {
-                if (value === "context" || value === "help") setAskMode(value);
+              onClick={() => {
+                takeHandoff();
+                setAskMode("home");
               }}
             >
-              <ToggleGroupItem value="context">
-                {slot?.title ?? "This profile"}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="help">Usage help</ToggleGroupItem>
-            </ToggleGroup>
+              <ArrowLeftIcon data-icon="inline-start" />
+              Suggestions
+            </Button>
+            <span className="min-w-0 truncate text-meta text-muted-foreground">{taskLabel}</span>
           </div>
         )}
         {/* Always mounted: the page that owns the context assistant portals its body here. */}
@@ -468,20 +549,35 @@ export default function HelpPanel({
           ref={setSlotTarget}
           data-slot="panel-slot"
           className={
-            tab === "ask" && slot && askMode === "context" && !article
+            tab === "ask" && ask === "context" && !article
               ? "flex min-h-0 flex-1 flex-col"
               : "hidden"
           }
         />
-        {tab === "ask" && !slot && profileAssistant && askMode === "context" && !article && (
+        {tab === "ask" && ask === "profile" && !article && (
           <div className="flex min-h-0 flex-1 flex-col">
             <Suspense fallback={<Skeleton className="m-4 h-40" />}>{profileAssistant}</Suspense>
+          </div>
+        )}
+        {tab === "ask" && ask === "home" && !article && (
+          <AssistantHome
+            page={page.data?.title}
+            here={suggestions.here}
+            more={suggestions.more}
+            questions={page.data?.articles[0]?.questions ?? []}
+            onChoose={choose}
+            onQuestion={(question) => startTask("help", { to: "help", text: question })}
+          />
+        )}
+        {tab === "ask" && ask === "opening" && !article && (
+          <div className="p-4">
+            <Thinking>Opening a new automation…</Thinking>
           </div>
         )}
         <TabsContent
           value={tab}
           className={
-            tab === "ask" && hasContext && askMode === "context" && !article
+            tab === "ask" && ask !== "help" && !article
               ? "hidden"
               : "flex min-h-0 flex-1 flex-col"
           }

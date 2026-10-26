@@ -1808,3 +1808,26 @@ test("GPS map loads its worker, colours membership, and queries selectable dashe
   await page.screenshot({ path: info.outputPath("gps-trails-mobile.png"), fullPage: true })
   expect(errors).toEqual([])
 })
+
+test("Dashboards in the sidebar reopens the dashboard last viewed, or the library", async ({ page }) => {
+  const { dashboards } = await library(page)
+  const sidebar = page.getByRole("navigation", { name: "Workspace" })
+  const dashboardsLink = sidebar.getByRole("link", { name: "Dashboards", exact: true })
+  const plant = `${basePath}/${dashboards[0].uuid}`
+  await page.goto(basePath)
+  await page.getByRole("link", { name: "Plant overview", exact: true }).click()
+  await expect(page).toHaveURL(plant)
+  await expect(dashboardsLink).toHaveAttribute("href", plant)
+
+  // Away and back: the dashboard opens again, without a stop at the library.
+  await sidebar.getByRole("link", { name: "Devices", exact: true }).click()
+  await expect(page).toHaveURL(`/organizations/${org}/devices`)
+  await dashboardsLink.click()
+  await expect(page).toHaveURL(plant)
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Plant overview")
+
+  // Choosing the library is remembered too.
+  await page.getByRole("link", { name: "Back to Dashboards" }).click()
+  await expect(page).toHaveURL(basePath)
+  await expect(dashboardsLink).toHaveAttribute("href", basePath)
+})

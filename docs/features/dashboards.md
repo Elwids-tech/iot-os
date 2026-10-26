@@ -21,6 +21,13 @@ menu creates one from a template, from a device profile, or by importing JSON.
 Bulk actions export JSON and delete. Stars and "last viewed" are per user and
 never change a dashboard's revision.
 
+**Dashboards** in the sidebar reopens where the viewer last was in Dashboards: the
+dashboard with its time range and variables, or the library if they went back to it
+([`lastPlace.ts`](../../apps/portal/src/dashboards/lastPlace.ts)). It is kept per
+person and organization in the browser; kiosk mode and an open panel editor are not
+remembered, and a dashboard that is deleted or no longer shared falls back to the
+library. The header's back link always opens the library.
+
 ## Editing
 
 Enter **Edit dashboard** and choose **Add panel**. Adding starts from data: search

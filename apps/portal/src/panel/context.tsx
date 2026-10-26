@@ -12,7 +12,9 @@ import {
  * for the current context, the other tabs hold the guides. Pages that own an
  * assistant (the automation editor) register a slot: a title for the context
  * line and a DOM target they portal their conversation into, so the
- * conversation keeps the page's state while living in the panel.
+ * conversation keeps the page's state while living in the panel. Every page
+ * opens Ask from the header; where no assistant belongs to the page, Ask
+ * suggests the work it can do there and starts it.
  */
 
 export type PanelTab = "ask" | "page" | "guides"
@@ -23,8 +25,19 @@ export type PanelSlot = {
   description?: string
 }
 
-/** With a page assistant present, Ask shows it ("context") or guide-based usage help ("help"). */
-export type AskMode = "context" | "help"
+/**
+ * What Ask shows. "auto" follows the page: its own assistant ("context"), the
+ * profile assistant on profile pages, otherwise the suggestions ("home").
+ * "profile" and "help" are open from any page.
+ */
+export type AskMode = "auto" | "home" | "context" | "profile" | "help"
+
+/** Work a suggestion hands to an assistant; that assistant takes it once, when it is showing. */
+export type AssistantHandoff =
+  | { to: "profile"; profile?: string }
+  /** `id` travels in the navigation state, so only the editor opened for it takes it. */
+  | { to: "automation"; text: string; id: string }
+  | { to: "help"; text: string }
 
 export type PanelContextValue = {
   open: boolean
@@ -37,6 +50,11 @@ export type PanelContextValue = {
   setTab: (tab: PanelTab) => void
   askMode: AskMode
   setAskMode: (mode: AskMode) => void
+  handoff: AssistantHandoff | null
+  /** Opens Ask on the mode and leaves the work for its assistant. */
+  startTask: (mode: AskMode, handoff?: AssistantHandoff) => void
+  /** Clears the hand-off once its assistant has taken it. */
+  takeHandoff: () => void
   slot: PanelSlot | null
   setSlot: (slot: PanelSlot | null) => void
   /** Where a slot owner portals its body; null until the panel has mounted. */
@@ -56,7 +74,8 @@ export function usePanel() {
 export function PanelProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<PanelTab>("page")
-  const [askMode, setAskMode] = useState<AskMode>("context")
+  const [askMode, setAskMode] = useState<AskMode>("auto")
+  const [handoff, setHandoff] = useState<AssistantHandoff | null>(null)
   const [slot, setSlot] = useState<PanelSlot | null>(null)
   const [slotTarget, setSlotTarget] = useState<HTMLElement | null>(null)
   const value = useMemo<PanelContextValue>(
@@ -64,31 +83,39 @@ export function PanelProvider({ children }: { children: ReactNode }) {
       open,
       tab,
       openPanel: (next = "ask") => {
-        if (next === "ask") setAskMode("context")
+        if (next === "ask") setAskMode("auto")
         setTab(next)
         setOpen(true)
       },
       closePanel: () => setOpen(false),
       togglePanel: (next) => {
-        // The Assistant control closes the panel only when it already shows the context assistant;
-        // from usage help it returns to the context assistant instead.
-        if (open && tab === next && (next !== "ask" || askMode === "context")) {
+        // The Assistant control closes the panel only when Ask already follows the page;
+        // from another task it returns to the page's assistant or suggestions instead.
+        if (open && tab === next && (next !== "ask" || askMode === "auto")) {
           setOpen(false)
           return
         }
-        if (next === "ask") setAskMode("context")
+        if (next === "ask") setAskMode("auto")
         setTab(next)
         setOpen(true)
       },
       setTab,
       askMode,
       setAskMode,
+      handoff,
+      startTask: (mode, next) => {
+        setHandoff(next ?? null)
+        setAskMode(mode)
+        setTab("ask")
+        setOpen(true)
+      },
+      takeHandoff: () => setHandoff(null),
       slot,
       setSlot,
       slotTarget,
       setSlotTarget,
     }),
-    [open, tab, askMode, slot, slotTarget],
+    [open, tab, askMode, handoff, slot, slotTarget],
   )
   return <PanelContext.Provider value={value}>{children}</PanelContext.Provider>
 }
