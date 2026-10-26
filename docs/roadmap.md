@@ -28,6 +28,26 @@ Grouped by area. Links point at the decision or doc that explains the item.
   inside the MQTT callback, holds one global lock and runs as a single instance
   (advisory lock). Measure the ceiling with the simulators, then pipeline it with
   per-device subjects and sharded state.
+- **Batched event delivery.** Runtime events reach Laravel one HTTP request at a
+  time: the `devices-control-inbox` consumer allows one unacknowledged message and
+  posts each event to `/api/internal/devices/events` on its own
+  ([ADR-014](adr/ADR-014-control-plane-data-plane-http-integration.md)). Accept a
+  batch per request, still deduplicated per event in `device_inbox`, so bursts such
+  as a gateway's births or a deploy's presence changes do not queue behind each other.
+- **Parallel control consumers.** The runtime applies control messages one at a time
+  for every organization (`devices-control` with `MaxAckPending(1)`), and acknowledges
+  each claimed outbox row with its own request. Acknowledge a claim in one request,
+  and apply messages in parallel across devices while keeping each device's messages
+  in order (generation fences already reject stale ones). A change that reaches
+  thousands of devices at once, such as a profile-wide setting, is the first case that
+  needs it.
+- **Dropped runtime events.** Events emitted outside a state change (presence,
+  discovery, connection presence, the heartbeat) are written to
+  `device_runtime.outbox` in a transaction of their own. If that insert fails, the
+  runtime only logs it and the event is lost, so Laravel can show a stale presence
+  until the next change. Retry these in memory with backoff, count failures in
+  `/internal/status` and alert on them. Events written with a state change already
+  commit together with it.
 - **Typed runtime events.** Give the internal runtime events JSON Schemas in
   `contracts/` and validate them on both sides instead of untyped maps.
 - **Unused infrastructure.** Redis, MinIO and the stock Node-RED service run in the
@@ -45,6 +65,12 @@ Grouped by area. Links point at the decision or doc that explains the item.
 - **Typed runtime gateway.** Replace the generic `RuntimeClient::request` with one
   method per internal endpoint, and stop passing runtime responses straight through
   public endpoints.
+- **Runtime tables stay the runtime's.** `Operations.php` builds its operations
+  metrics by querying `device_runtime` tables directly (latest readings, the outbox
+  backlog, DAG executions and timers), which ties both schemas to one database.
+  Serve these from the runtime's own metrics or `/internal/status`. The restore step
+  `QuarantineRestoredSideEffects` also writes `device_runtime.commands`; move it into
+  the runtime's restore path or document it as the one deliberate exception.
 
 ### Security
 
