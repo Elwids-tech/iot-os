@@ -158,6 +158,27 @@ final class AlertTest extends TestCase
         $this->getJson($this->base.'/alerts/'.Alert::firstOrFail()->uuid.'/deliveries')->assertOk()->assertJsonPath('data.0.status', 'sent');
     }
 
+    public function test_email_names_the_device_and_links_to_the_alert_and_its_automation(): void
+    {
+        config(['app.frontend_url' => 'https://portal.example.test/']);
+        Device::create(['uuid' => $this->deployment->definition['binding']['device_uuid'], 'organization_id' => $this->org->id, 'code' => 'tractor-7', 'name' => 'Tractor 7']);
+        $this->settings();
+        $this->transition('activated');
+        $this->deliver(AlertDelivery::firstOrFail());
+        $alert = Alert::firstOrFail();
+        $portal = 'https://portal.example.test/organizations/'.$this->org->uuid;
+        Mail::assertSent(AlertEmail::class, function (AlertEmail $mail) use ($alert, $portal): bool {
+            $mail->assertHasSubject('IoT alert active: North paddock — Tractor 7');
+            $mail->assertSeeInText('Device: Tractor 7');
+            $mail->assertSeeInText('Organization: '.$this->org->name);
+            $mail->assertSeeInText('Open this alert: '.$portal.'/alerts/'.$alert->uuid);
+            $mail->assertSeeInText('Open the automation: '.$portal.'/automation/'.$this->workflow->uuid);
+            $mail->assertSeeInText($portal.'/settings/notifications');
+
+            return true;
+        });
+    }
+
     public function test_transport_retries_are_recorded_and_bounded(): void
     {
         $this->settings();
