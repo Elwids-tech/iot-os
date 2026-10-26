@@ -64,7 +64,8 @@ export function LocationDashboardPanel({ org, widget, view }: PanelProps) {
       <span className="text-sm text-muted-foreground">{query.data.geofence?.name ?? "Watch only · no fence selected"}</span>
     </div>
     <p className="text-xs text-muted-foreground">Green: inside · Red: outside · Grey: stale or unknown · Dashed lines: movement trails</p>
-    <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden xl:grid-cols-[minmax(0,1fr)_16rem]">
+    {/* Stacked on narrow screens, the map keeps a usable height and the panel scrolls to the details. */}
+    <div className="grid min-h-fit flex-1 grid-rows-[minmax(16rem,1fr)] gap-3 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_16rem] xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden">
       <div className="relative h-full min-h-0 overflow-hidden rounded-md">
         <Suspense fallback={<Skeleton className="h-full min-h-0 w-full" />}><LocationMap devices={query.data.devices} polygon={query.data.geofence?.geometry.coordinates} selected={current?.device_uuid} onSelect={setSelected} showLabels={widget.config.show_labels ?? true} /></Suspense>
       </div>

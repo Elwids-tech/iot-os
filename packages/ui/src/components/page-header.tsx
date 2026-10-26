@@ -73,7 +73,8 @@ export function PageHeader({
           </div>
         )}
         {(actions || help) && (
-          <div className="ml-auto flex shrink-0 items-center gap-2">{actions}{help?.trigger}</div>
+          // Wraps rather than widening the page when the actions outgrow a phone screen.
+          <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">{actions}{help?.trigger}</div>
         )}
       </div>
       {children && (

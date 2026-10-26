@@ -17,7 +17,12 @@ function FilterBar({ className, ...props }: React.ComponentProps<"div">) {
       role="group"
       aria-label="Filters"
       // Full width, so inside a header row it takes its own line instead of squeezing beside tabs.
-      className={cn("flex w-full flex-wrap items-center gap-x-3 gap-y-2", className)}
+      // Segmented groups scroll on phones instead of widening the page.
+      className={cn(
+        "flex w-full flex-wrap items-center gap-x-3 gap-y-2",
+        "max-md:[&>[data-slot=toggle-group]]:max-w-full max-md:[&>[data-slot=toggle-group]]:overflow-x-auto max-md:[&>[data-slot=toggle-group]]:scrollbar-none",
+        className,
+      )}
       {...props}
     />
   )

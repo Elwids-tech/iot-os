@@ -625,6 +625,39 @@ test("device table selects and exports rows, hides columns, groups and filters b
   expect(state.errors).toEqual([])
 })
 
+test("phone cards keep row actions, selection and sorting", async ({ page }) => {
+  const state = await setup(page, { devices: [meter, idle, generated], serverSort: true })
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto(`${base}/devices`)
+  const cards = page.getByRole("list", { name: "Devices" })
+  const card = cards.getByRole("listitem").filter({ hasText: "Boiler room sensor" })
+  await expect(card).toBeVisible()
+
+  // The ⋯ menu sits above the card's row link, so it opens instead of the device.
+  await card.getByRole("button", { name: "Actions for Boiler room sensor" }).click()
+  await expect(page.getByRole("menuitem", { name: "Command log" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page).toHaveURL(`${base}/devices`)
+
+  // Card checkboxes and Select all open the bulk bar, as the table's do.
+  await card.getByRole("checkbox", { name: "Select Boiler room sensor" }).click()
+  await expect(page.getByText("1 selected")).toBeVisible()
+  await page.getByText("Select all", { exact: true }).click()
+  await expect(page.getByText("3 selected")).toBeVisible()
+  await page.getByRole("button", { name: "Clear" }).click()
+  await expect(page.getByText("3 selected")).toHaveCount(0)
+
+  // Phones have no column headers, so the toolbar sorts instead.
+  await page.getByRole("button", { name: /^Sort: Device/ }).click()
+  await page.getByRole("menuitemradio", { name: "Descending" }).click()
+  await expect(page).toHaveURL(/sort=-name/)
+  await expect(cards.getByRole("listitem").first()).toContainText("Energy Meter Simulator")
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
+    .toBe(true)
+  expect(state.errors).toEqual([])
+})
+
 test("device headers sort on the server and keep the sort in the address", async ({ page }) => {
   const state = await setup(page, { devices: [meter, idle, generated], serverSort: true })
   await page.setViewportSize({ width: 1280, height: 800 })

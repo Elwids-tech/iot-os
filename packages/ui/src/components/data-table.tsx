@@ -506,10 +506,46 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
     return [...buckets.entries()]
   }, [group, pageRows])
 
+  // The table's first column and the phone card both select with this box.
+  const selectBox = (row: (typeof pageRows)[number], className?: string) => (
+    <Checkbox
+      className={className}
+      aria-label={props.rowLabel ? `Select ${props.rowLabel(row.original)}` : "Select row"}
+      checked={row.getIsSelected()}
+      onClick={(event) => row.getToggleSelectedHandler()(event)}
+    />
+  )
+  const pageChecked = table.getIsAllPageRowsSelected()
+    ? true
+    : table.getIsSomePageRowsSelected()
+      ? "indeterminate"
+      : false
+
+  // Rows with nothing to do (rowActions returns null) get no menu button.
+  const rowMenu = (row: T, className?: string) => {
+    const actions = rowActions?.(row)
+    if (!actions) return null
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={className}
+            aria-label={props.rowLabel ? `Actions for ${props.rowLabel(row)}` : "Row actions"}
+          >
+            <EllipsisIcon />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          {actions}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
   const renderRow = (row: (typeof pageRows)[number]) => {
     const href = rowHref?.(row.original)
-    // Rows with nothing to do (rowActions returns null) get no menu button.
-    const actions = rowActions?.(row.original)
     return (
       <TableRow
         key={row.id}
@@ -527,15 +563,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
             : undefined
         }
       >
-        {selectable && (
-          <TableCell className="w-10 pr-0">
-            <Checkbox
-              aria-label={props.rowLabel ? `Select ${props.rowLabel(row.original)}` : "Select row"}
-              checked={row.getIsSelected()}
-              onClick={(event) => row.getToggleSelectedHandler()(event)}
-            />
-          </TableCell>
-        )}
+        {selectable && <TableCell className="w-10 pr-0">{selectBox(row)}</TableCell>}
         {visible.map((column) => (
           <TableCell
             key={column.id}
@@ -545,24 +573,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
           </TableCell>
         ))}
         {rowActions && (
-          <TableCell className="w-10 pl-0 text-right">
-            {actions ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={props.rowLabel ? `Actions for ${props.rowLabel(row.original)}` : "Row actions"}
-                >
-                  <EllipsisIcon />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {actions}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            ) : null}
-          </TableCell>
+          <TableCell className="w-10 pl-0 text-right">{rowMenu(row.original)}</TableCell>
         )}
       </TableRow>
     )
@@ -618,6 +629,16 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
           visible: column.getIsVisible(),
           toggle: (value: boolean) => column.toggleVisibility(value),
         }))}
+        // Phones have no column headers to sort by, so the toolbar offers a menu instead.
+        sorting={
+          phone
+            ? {
+                columns: visible.filter((column) => column.sortable),
+                value: userSort[0],
+                onChange: (column, desc) => onSortingChange([{ id: column, desc }]),
+              }
+            : undefined
+        }
         extra={props.toolbar}
       />
       {activeFilters.length > 0 && (
@@ -718,13 +739,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
                         <Checkbox
                           aria-label="Select all rows on this page"
                           disabled={loading}
-                          checked={
-                            table.getIsAllPageRowsSelected()
-                              ? true
-                              : table.getIsSomePageRowsSelected()
-                                ? "indeterminate"
-                                : false
-                          }
+                          checked={pageChecked}
                           onCheckedChange={(value) => table.toggleAllPageRowsSelected(value === true)}
                         />
                       </TableHead>
@@ -846,6 +861,19 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
               </Table>
             </div>
           ) : (
+            <>
+            {selectable && !loading && pageRows.length > 0 && (
+              <label
+                data-slot="data-table-select-all"
+                className="flex items-center gap-3 border-b bg-sunken px-4 py-2 text-meta text-muted-foreground"
+              >
+                <Checkbox
+                  checked={pageChecked}
+                  onCheckedChange={(value) => table.toggleAllPageRowsSelected(value === true)}
+                />
+                {pageCount > 1 ? "Select all on this page" : "Select all"}
+              </label>
+            )}
             <ul aria-label={label} className="divide-y">
               {loading
                 ? Array.from({ length: 3 }, (_, index) => (
@@ -860,21 +888,27 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
                       <li
                         key={row.id}
                         data-slot="data-table-card"
-                        className="group/card relative flex min-w-0 flex-col gap-1 px-4 py-3 has-[[data-row-link]:focus-visible]:ring-2 has-[[data-row-link]:focus-visible]:ring-ring has-[[data-row-link]:focus-visible]:ring-inset"
+                        data-state={row.getIsSelected() ? "selected" : undefined}
+                        className="group/card relative flex min-w-0 items-start gap-3 px-4 py-3 data-[state=selected]:bg-muted has-[[data-row-link]:focus-visible]:ring-2 has-[[data-row-link]:focus-visible]:ring-ring has-[[data-row-link]:focus-visible]:ring-inset"
                       >
-                        <div className="flex min-w-0 items-start justify-between gap-2">
-                          <div className="min-w-0">{titleColumn?.cell(row.original)}</div>
-                          {badgeColumn && <div className="shrink-0">{badgeColumn.cell(row.original)}</div>}
+                        {/* Above the stretched row link, so tapping them does not open the row. */}
+                        {selectable && selectBox(row, "relative z-10 mt-0.5")}
+                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                          <div className="flex min-w-0 items-start justify-between gap-2">
+                            <div className="min-w-0">{titleColumn?.cell(row.original)}</div>
+                            {badgeColumn && <div className="shrink-0">{badgeColumn.cell(row.original)}</div>}
+                          </div>
+                          {metaColumns.length > 0 && (
+                            <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-0.5 text-meta text-muted-foreground">
+                              {metaColumns.map((column) => (
+                                <span key={column.id} className="min-w-0 truncate">
+                                  {column.header} {column.cell(row.original)}
+                                </span>
+                              ))}
+                            </p>
+                          )}
                         </div>
-                        {metaColumns.length > 0 && (
-                          <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-0.5 text-meta text-muted-foreground">
-                            {metaColumns.map((column) => (
-                              <span key={column.id} className="min-w-0 truncate">
-                                {column.header} {column.cell(row.original)}
-                              </span>
-                            ))}
-                          </p>
-                        )}
+                        {rowMenu(row.original, "relative z-10 -my-1 -mr-2 shrink-0")}
                       </li>
                     )
                     return heading
@@ -891,6 +925,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
                       : [card]
                   })}
             </ul>
+            </>
           )
         )}
         <PanelFooter>
@@ -955,6 +990,7 @@ function Toolbar<T>({
   groupId,
   onGroup,
   columns,
+  sorting,
   extra,
 }: {
   label: string
@@ -965,10 +1001,16 @@ function Toolbar<T>({
   groupId: string
   onGroup: (id: string) => void
   columns: { id: string; header: string; visible: boolean; toggle: (value: boolean) => void }[]
+  sorting?: {
+    columns: DataColumn<T>[]
+    value: SortingState[number] | undefined
+    onChange: (column: string, desc: boolean) => void
+  }
   extra?: React.ReactNode
 }) {
   const active = filters.filter((filter) => filter.value.length > 0).length
   const filterTitleId = React.useId()
+  const sortedBy = sorting?.columns.find((column) => column.id === sorting.value?.id)
   return (
     <div data-slot="data-table-toolbar" className="flex flex-wrap items-center gap-2">
       {views && (
@@ -1029,6 +1071,47 @@ function Toolbar<T>({
               ))}
             </PopoverContent>
           </Popover>
+        )}
+        {sorting && sorting.columns.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <ArrowUpDownIcon data-icon="inline-start" />
+                {sortedBy ? `Sort: ${sortedBy.header}` : "Sort"}
+                {sortedBy &&
+                  (sorting.value?.desc ? (
+                    <ArrowDownIcon data-icon="inline-end" aria-label="descending" />
+                  ) : (
+                    <ArrowUpIcon data-icon="inline-end" aria-label="ascending" />
+                  ))}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>Sort rows by</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={sortedBy?.id ?? ""}
+                onValueChange={(column) => sorting.onChange(column, false)}
+              >
+                {sorting.columns.map((column) => (
+                  <DropdownMenuRadioItem key={column.id} value={column.id}>
+                    {column.header}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              {sortedBy && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuRadioGroup
+                    value={sorting.value?.desc ? "desc" : "asc"}
+                    onValueChange={(direction) => sorting.onChange(sortedBy.id, direction === "desc")}
+                  >
+                    <DropdownMenuRadioItem value="asc">Ascending</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="desc">Descending</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
         {groups.length > 0 && (
           <DropdownMenu>

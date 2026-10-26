@@ -1,4 +1,5 @@
 import { runtimeConfig } from "@iot-os/api-client"
+import { cn } from "@iot-os/ui/lib/utils"
 import { useEffect, useRef, useState } from "react"
 import * as maplibregl from "maplibre-gl"
 import type { GeoJSONSource, Map as MapLibreMap, Marker, MapMouseEvent } from "maplibre-gl"
@@ -20,12 +21,13 @@ const FALLBACK_STYLE: maplibregl.StyleSpecification = {
 const EMPTY_VERTICES: number[][] = []
 
 export function LocationMap({ devices, polygon, selected, onSelect, showLabels = true, editable = false,
-  vertices = EMPTY_VERTICES, selectedVertex = null, onVerticesChange, onSelectedVertex, onPick }: {
+  vertices = EMPTY_VERTICES, selectedVertex = null, onVerticesChange, onSelectedVertex, onPick, className }: {
   devices: LocationMapDevice[]; polygon?: number[][][] | null; selected?: string | null; onSelect?: (device: string) => void
   showLabels?: boolean; editable?: boolean; vertices?: number[][]; selectedVertex?: number | null
   onVerticesChange?: (vertices: number[][]) => void; onSelectedVertex?: (index: number | null) => void
   /** Click-to-pick a coordinate, e.g. a simulated GPS fix. */
   onPick?: (point: { latitude: number; longitude: number }) => void
+  className?: string
 }) {
   const [ready, setReady] = useState(false)
   const container = useRef<HTMLDivElement>(null)
@@ -119,7 +121,7 @@ export function LocationMap({ devices, polygon, selected, onSelect, showLabels =
     render()
   }, [ready, devices, polygon, selected, showLabels, editable, vertices, selectedVertex, onSelect, onSelectedVertex, onVerticesChange, picking])
 
-  return <div ref={container} className="h-full min-h-0 w-full overflow-hidden rounded-md border" aria-label={editable ? "Geofence editor map" : picking ? "Location picker map" : "GPS location map"} />
+  return <div ref={container} className={cn("h-full min-h-0 w-full overflow-hidden rounded-md border", className)} aria-label={editable ? "Geofence editor map" : picking ? "Location picker map" : "GPS location map"} />
 }
 
 function setSource(map: MapLibreMap, id: string, data: object) {
