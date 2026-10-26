@@ -298,6 +298,11 @@ Things that have cost time before. Add to this list when something surprises you
   `document.documentElement.scrollWidth` with its `clientWidth`.
 - **`rtk npx` rewrites to an npm script.** `rtk npx vite build` becomes
   `npm run vite`. Use `rtk proxy npx vite …` and `rtk proxy npx playwright …`.
+- **`playwright install --with-deps` in CI waits on an Ubuntu mirror.** GitHub's
+  Ubuntu runner already has Chromium's libraries, so the flag only adds fonts
+  through apt. That took 30 s on one run and 11 min 40 s on another, which
+  pushed the docs job past its 20-minute limit. CI installs the headless shell
+  without it.
 
 ## Assistant
 
@@ -352,6 +357,10 @@ Things that have cost time before. Add to this list when something surprises you
 - **Astro runs one preview server per project.** A second `astro preview` (for
   example Playwright's `webServer`) exits at once. `apps/docs` tests reuse the
   server on port 4321; start it with `pnpm --filter @iot-os/docs preview`.
+  In an AI agent's shell (`AI_AGENT` or `CLAUDECODE` set), even the first
+  `astro preview` starts in the background and returns, so Playwright reports
+  "Process from config.webServer exited early". Start the server first and run
+  the tests without `CI`, which makes them reuse it.
 - **`test.use({ reducedMotion })` does nothing in Playwright.** Use
   `test.use({ contextOptions: { reducedMotion: 'reduce' } })`.
 - **Starlight's `docsLoader` takes no pattern.** To leave a folder out of the

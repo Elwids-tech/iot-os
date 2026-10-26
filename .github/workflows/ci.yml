@@ -152,6 +152,11 @@ jobs:
     name: Docs site (spec 013)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Lighthouse takes as long as the browser checks, so each gets its own runner.
+        check: [browser, lighthouse]
     env:
       # Placeholders apply when a variable is unset (forks, before the owner sets them).
       PUBLIC_DOCS_PRODUCT_NAME: ${{ vars.PUBLIC_DOCS_PRODUCT_NAME }}
@@ -190,23 +195,32 @@ jobs:
           echo "::notice::DOCS_HOSTED_REF is not set here (a fork, or before the owner sets it): building from the working tree."
           echo "DOCS_SOURCES=worktree" >> "$GITHUB_ENV"
       # Lint = astro check + design system guardrails + configured literals.
-      - run: pnpm --filter @iot-os/docs sources && pnpm --filter @iot-os/docs lint
-      - run: pnpm --filter @iot-os/docs test
+      - if: matrix.check == 'browser'
+        run: pnpm --filter @iot-os/docs sources && pnpm --filter @iot-os/docs lint
+      - if: matrix.check == 'browser'
+        run: pnpm --filter @iot-os/docs test
       # Build = sources + astro build + check-docs (names, features, reference, changelog).
       - run: pnpm --filter @iot-os/docs build
       - name: Renaming the product changes it everywhere (SC-005)
+        if: matrix.check == 'browser'
         working-directory: apps/docs
         run: node scripts/check-docs.mjs rename
-      - run: pnpm --filter @iot-os/docs exec playwright install --with-deps --only-shell chromium
+      # No --with-deps: the runner image has Chromium's libraries, and the apt step
+      # it adds once took 12 minutes on a slow mirror.
+      - if: matrix.check == 'browser'
+        run: pnpm --filter @iot-os/docs exec playwright install --only-shell chromium
       - name: Accessibility, privacy, header, footer and landing checks
-        run: pnpm --filter @iot-os/docs test:e2e
+        if: matrix.check == 'browser'
+        run: pnpm --filter @iot-os/docs test:e2e --workers=100%
+      # Lighthouse uses the runner's Chrome.
       - name: Largest contentful paint under 2 seconds on mobile (SC-004)
+        if: matrix.check == 'lighthouse'
         working-directory: apps/docs
         run: pnpm exec lhci autorun
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
-          name: docs-reports
+          name: docs-reports-${{ matrix.check }}
           path: |
             apps/docs/test-results
             apps/docs/.lighthouseci
@@ -233,7 +247,8 @@ jobs:
           restore-keys: pnpm-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @iot-os/portal build
-      - run: pnpm --filter @iot-os/portal exec playwright install --with-deps --only-shell chromium
+      # No --with-deps, as in the docs job.
+      - run: pnpm --filter @iot-os/portal exec playwright install --only-shell chromium
       - name: Run the specs that mock the API
         working-directory: apps/portal
         env:
@@ -245,12 +260,13 @@ jobs:
             cat "$RUNNER_TEMP/preview.log"
             exit 1
           fi
-          # studio.spec.ts drives a live API, so it stays a local check.
-          pnpm exec playwright test $(ls e2e/*.spec.ts | grep -v '^e2e/studio\.spec\.ts$')
+          # studio.spec.ts drives a live API, so it stays a local check. The config runs
+          # one worker for it; the mocked specs share no state, so they run in parallel.
+          pnpm exec playwright test --workers=100% --fully-parallel $(ls e2e/*.spec.ts | grep -v '^e2e/studio\.spec\.ts$')
       # Admin mocks every API call; its config starts a Vite dev server on 4174.
       - name: Run the admin specs
         working-directory: apps/admin
-        run: pnpm exec playwright test
+        run: pnpm exec playwright test --workers=100%
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
