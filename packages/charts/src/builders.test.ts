@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { gaugeOption } from "./gauge"
+import { init } from "./core"
+import { gaugeOption, type GaugeInput } from "./gauge"
 import type { ChartTheme } from "./theme"
 import { timelineOption } from "./timeline"
 import { timeSeriesOption, type TimeLine } from "./timeSeries"
@@ -115,6 +116,23 @@ describe("gaugeOption", () => {
       [1, "rgba(200, 0, 0, 0.45)"],
     ])
     expect(option.series[0].data[0].value).toBe(80)
-    expect((gaugeOption(theme, { min: 0, max: 1, value: null, color: "x", bands: [] }) as any).series[0].progress.show).toBe(false)
+    const empty = (gaugeOption(theme, { min: 0, max: 1, value: null, color: "x", bands: [] }) as any).series[0]
+    expect(empty.progress).toMatchObject({ show: true, itemStyle: { opacity: 0 } })
+  })
+
+  it("renders a reading that arrives after the gauge was drawn without one", () => {
+    const chart = init(null, undefined, { renderer: "svg", ssr: true, width: 200, height: 120 })
+    const input = (value: number | null): GaugeInput => ({ min: 0, max: 100, value, color: "rgb(1, 1, 1)", bands: [] })
+    try {
+      // The same sequence as a dashboard loading: no reading yet, then one.
+      for (const value of [null, 42, null, 64]) {
+        chart.setOption(gaugeOption(theme, input(value)), { notMerge: true })
+        const arc = chart.renderToSVGString().split("\n").find((tag) => tag.includes('fill="rgb(1, 1, 1)"'))
+        expect(arc).toBeDefined()
+        expect(arc?.includes('fill-opacity="0"')).toBe(value === null)
+      }
+    } finally {
+      chart.dispose()
+    }
   })
 })

@@ -320,6 +320,12 @@ Things that have cost time before. Add to this list when something surprises you
   band that lasts until the next one. A "low battery" warning is therefore the
   `base` band with a threshold at 20 labelled OK. A threshold at 20 labelled Low
   marks everything above 20 as low.
+- **Don't switch an ECharts gauge's `progress` off and on.** ECharts 6 records
+  the arc only while `progress.show` is true, and the next update reads that
+  record, so a gauge drawn first without progress throws `Cannot read properties
+  of undefined (reading '0')` (in `GaugeView._renderPointer`, which names the
+  needle, not the axis pointer) when progress turns on. `gaugeOption` keeps it on
+  and makes the arc transparent while there is no reading.
 
 ## Docs site
 
