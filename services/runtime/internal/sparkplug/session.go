@@ -356,6 +356,14 @@ func (e *Engine) Snapshot(source devices.Source) (string, []devices.Metric, bool
 	}
 	return n.Session, metrics, true
 }
+
+// NodeOnline reports whether an edge node still has a session the engine accepts data for.
+func (e *Engine) NodeOnline(connection, edge string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	n := e.nodes[connection+"/"+edge]
+	return n != nil && n.Online
+}
 func (e *Engine) Disconnect(connection string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()

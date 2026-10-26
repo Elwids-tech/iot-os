@@ -281,6 +281,10 @@ Knowing another organization's UUID never bypasses these checks.
   uncertain without replay.
 - **Broker interruption**: presence becomes unavailable and controls block; TLS
   reconnect, Host STATE and rebirth restore the session.
+- **Edge node out of step** (sequence gap, unknown alias or metric, datatype
+  change, data before a birth): only that edge node and its devices, or only the
+  one device that sent data before its DBIRTH, become unknown until a rebirth.
+  Other gateways and devices on the same broker connection keep their presence.
 - **NATS interruption**: readiness fails; outboxes and durable consumers resume
   without duplicate storage or dispatch. JetStream keeps seven days within byte
   limits; exhausted capacity needs an operator ([monitoring](../ops/monitoring.md)).
