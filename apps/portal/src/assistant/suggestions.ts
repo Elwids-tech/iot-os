@@ -50,7 +50,7 @@ const buildAutomation: Suggestion = {
 }
 const askHelp: Suggestion = {
   id: "help",
-  title: "Ask how to use IoT OS",
+  title: "Ask how to use the portal",
   description: "Answers come from the approved guides and link to the steps.",
   action: { kind: "help" },
 }

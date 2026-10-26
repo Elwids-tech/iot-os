@@ -52,7 +52,7 @@ These hold for every assistant surface:
 | `profile` | Device profiles and the Add device wizard; any page through **Create a device profile** | Read the profile schema and authorized profiles, sources and retained facts; ask structured questions; preview and validate a section; apply an approved section ([`ProfileAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/ProfileAssistantTools.php), [`ApplyProfileSection`](../../apps/api/app/Domain/Assistant/Tools/ApplyProfileSection.php)) |
 | `automation` | Automation editor; any page through an automation suggestion | Read the node registry, applied configurations, controllable settings and geofences; propose a compiler-validated graph ([`WorkflowAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/WorkflowAssistantTools.php)) |
 | `adapter` | Device adapter workbench | Propose decoder revisions from documentation and samples ([`AdapterAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/AdapterAssistantTools.php)) |
-| `help` | Any page, through **Ask how to use IoT OS** or a question about the page | No tools; answers only from approved guide excerpts |
+| `help` | Any page, through **Ask how to use the portal** or a question about the page | No tools; answers only from approved guide excerpts |
 
 The telemetry viewer's **AI troubleshoot** is a separate one-shot request on one
 captured sample ([devices](devices.md#telemetry-viewer)).
