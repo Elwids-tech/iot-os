@@ -1,4 +1,4 @@
 paho-mqtt==2.1.0
-protobuf==6.33.0
+protobuf==6.33.6
 
 jsonschema==4.26.0
