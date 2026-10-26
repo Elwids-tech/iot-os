@@ -2,5 +2,5 @@
   "name": "@iot-os/vertical-demo", "private": true, "type": "module",
   "scripts": { "build": "vite build", "typecheck": "tsc --noEmit", "start": "node dist/server.js", "test": "node --test test/*.test.mjs" },
   "dependencies": { "@iot-os/integration-sdk": "workspace:*", "@iot-os/ui": "workspace:*", "react": "^19.2.0", "react-dom": "^19.2.0" },
-  "devDependencies": { "@tailwindcss/vite": "^4.1.17", "@types/node": "^22.0.0", "@types/react": "^19.2.0", "@types/react-dom": "^19.2.0", "typescript": "~5.9.3", "vite": "^7.2.4" }
+  "devDependencies": { "@tailwindcss/vite": "^4.1.17", "@types/node": "^22.0.0", "@types/react": "^19.2.0", "@types/react-dom": "^19.2.0", "typescript": "~5.9.3", "vite": "^7.3.7" }
 }
