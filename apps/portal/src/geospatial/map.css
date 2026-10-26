@@ -6,3 +6,4 @@
 .geofence-vertex::before{position:absolute;top:50%;left:50%;width:1.65rem;height:1.65rem;transform:translate(-50%,-50%);border:2px solid var(--ring);border-radius:9999px;background:color-mix(in srgb,var(--ring) 12%,transparent);content:"";opacity:0;pointer-events:none;transition:opacity 120ms ease}
 .geofence-vertex:hover::before,.geofence-vertex[data-selected="true"]::before{opacity:1}
 .geofence-vertex[data-selected="true"]{z-index:1;background:var(--ring);outline:2px solid white;outline-offset:1px}
+@media (pointer:coarse){.geofence-vertex{width:1.5rem;height:1.5rem}.geofence-vertex::before{width:2.4rem;height:2.4rem}}

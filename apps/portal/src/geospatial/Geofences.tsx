@@ -158,12 +158,16 @@ function GeofenceEditor() {
     <WorkspacePage
       title={existing.data ? existing.data.name : "New geofence"}
       back={back}
-      tools={<p className="text-body text-muted-foreground">Right-click the map to add a point. Drag points to move them; right-click a point to delete it.</p>}
+      tools={<p className="text-body text-muted-foreground">
+        {/* Touch screens have no right-click; the panel's buttons do the same there. */}
+        <span className="pointer-coarse:hidden">Right-click the map to add a point. Drag points to move them; right-click a point to delete it.</span>
+        <span className="hidden pointer-coarse:inline">Tap Add point, then drag points to move them. Tap a point, then Delete point to remove it.</span>
+      </p>}
       draft={<DraftBar tone={existing.data ? "good" : "info"} status={existing.data ? "Active" : "Not saved yet"} revision={existing.data ? `Revision ${existing.data.revision}` : undefined} />}
     >
     <RequestError error={existing.error ?? bindings.error ?? activation.error ?? events.error ?? save.error ?? retry.error} />
     <div className="grid min-h-[42rem] gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-      <Suspense fallback={<Skeleton className="h-full w-full" />}><LocationMap devices={[]} editable vertices={vertices} selectedVertex={selectedVertex} onSelectedVertex={setSelectedVertex} onVerticesChange={changeVertices} /></Suspense>
+      <Suspense fallback={<Skeleton className="h-full w-full max-xl:h-80" />}><LocationMap className="max-xl:h-80" devices={[]} editable vertices={vertices} selectedVertex={selectedVertex} onSelectedVertex={setSelectedVertex} onVerticesChange={changeVertices} /></Suspense>
       <Card className="overflow-y-auto"><CardHeader><CardTitle>Fence and automation</CardTitle><CardDescription>Saving immediately deploys one independent rule per assigned device.</CardDescription></CardHeader><CardContent><FieldGroup>
         <Button variant="outline" disabled={Boolean(validation)} onClick={async () => {
           try { await navigator.clipboard.writeText(JSON.stringify({ type: "Polygon", coordinates: [closeRing(vertices)] }, null, 2)); toast.success("Geometry JSON copied. Paste it into an automation geofence node") }

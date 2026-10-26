@@ -86,7 +86,9 @@ sortable headers, selection with "Select all N", bulk actions (Export CSV), row
 actions, subtotal and total rows, rows per page, server or client paging, "Load
 more" paging for cursor APIs without a total, a bounded height with a sticky
 header, run separators for logs, skeleton rows, empty and filtered-empty states, a
-phone card layout and a polling note.
+phone card layout and a polling note. Phone cards keep the row's selection box and
+⋯ menu, with "Select all" above them, and the toolbar adds a Sort menu in place of
+the sortable headers.
 
 **Errors.** Each app's root route has `RouteError` as its `errorElement`, and each
 layout wraps its `<Outlet />` in `ErrorBoundary` keyed on the pathname, so a page

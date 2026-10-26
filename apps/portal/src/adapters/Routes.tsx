@@ -433,7 +433,8 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
         </Alert>
       )}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="h-auto flex-wrap">
+        {/* Wraps on phones; the triggers drop their 100% height so a second row adds height instead of overlapping. */}
+        <TabsList className="flex-wrap *:h-auto group-data-[orientation=horizontal]/tabs:h-auto">
           <TabsTrigger value="type">1 · Device type</TabsTrigger>
           <TabsTrigger value="source">2 · Connection</TabsTrigger>
           <TabsTrigger value="decoder">3 · Decode & test</TabsTrigger>

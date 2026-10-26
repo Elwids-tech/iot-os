@@ -273,7 +273,9 @@ Things that have cost time before. Add to this list when something surprises you
   `@playwright/test` is not installed but another build is, point
   `launchOptions.executablePath` at the installed one
   (`~/Library/Caches/ms-playwright/chromium_headless_shell-<build>/...`) in a
-  scratch config instead of downloading.
+  scratch config instead of downloading. With no Playwright build at all, set
+  `channel: "chrome"` to drive the installed Google Chrome, and `video: "off"` for
+  the admin config, whose failure videos need Playwright's ffmpeg.
 - **`vite preview` listens on `localhost` (::1).** E2E against it needs
   `STUDIO_BASE_URL=http://localhost:<port>`, not `127.0.0.1`.
 - **`e2e/studio.spec.ts` needs a live API** at `STUDIO_API_URL` (default
@@ -330,6 +332,15 @@ Things that have cost time before. Add to this list when something surprises you
   action bar needs `ref={keepToastsAbove}`, and a panel docked to the right edge
   needs `keepToastsLeftOf`, both from `@iot-os/ui/components/sonner`, or toasts
   will cover their buttons.
+- **A `DataTable` phone card is one big link.** The title's `RowLink` stretches
+  over the whole card, so a button or switch rendered in a card's cell gets the
+  link's tap instead. Give it `relative z-10`, as `RefLink`, the card's checkbox
+  and its ⋯ menu have.
+- **A wrapping `TabsList` overlaps what follows it.** Triggers are
+  `h-[calc(100%-1px)]` of the list, so once `flex-wrap` adds a row each trigger
+  grows with the list and the second row spills over the next element. Use
+  `flex-wrap *:h-auto group-data-[orientation=horizontal]/tabs:h-auto`, as the
+  device adapter wizard does.
 - **A Radix `Select` keeps its old label when its options change.** Changing the
   value and the item list in the same render (for example switching provider and
   model together) leaves the trigger showing the placeholder. Give the `Select` a
