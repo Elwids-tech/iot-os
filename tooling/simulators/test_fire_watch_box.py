@@ -77,6 +77,15 @@ class FireWatchBoxTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.box.change(body)
 
+    def test_a_full_disk_does_not_stop_the_box(self):
+        notes = []
+        self.box.note = notes.append
+        with mock.patch.object(Path, 'write_text', side_effect=OSError(28, 'No space left on device')):
+            self.run_for(3)
+        self.assertEqual(notes, ['Could not save box state (No space left on device); still publishing'])
+        self.run_for(1)
+        self.assertIsNone(self.box.save_error)
+
     def test_controls_accept_only_local_same_origin_requests(self):
         server = serve_controls(self.box, 0)
         url = f'http://127.0.0.1:{server.server_port}/state'

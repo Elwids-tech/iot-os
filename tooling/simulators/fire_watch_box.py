@@ -49,6 +49,7 @@ class FireWatchBox(Simulator):
         self.flame_confidence = 0.0
         self.powered = True
         self.log = []
+        self.save_error = None
         self.last = self.readings_now()
         self.known = dict(self.last)
 
@@ -98,9 +99,16 @@ class FireWatchBox(Simulator):
                 self.note(label + (' (started)' if current[key] else ' (cleared)'))
                 self.known[key] = current[key]
         self.last = current
-        temporary = self.box_file.with_suffix('.tmp')
-        temporary.write_text(json.dumps({'battery': self.battery, 'detections': self.detections}))
-        temporary.replace(self.box_file)
+        # A full disk must not take the box offline; it only loses battery and counter across restarts.
+        try:
+            temporary = self.box_file.with_suffix('.tmp')
+            temporary.write_text(json.dumps({'battery': self.battery, 'detections': self.detections}))
+            temporary.replace(self.box_file)
+            self.save_error = None
+        except OSError as error:
+            if self.save_error is None:
+                self.note(f'Could not save box state ({error.strerror}); still publishing')
+            self.save_error = error
 
     def note(self, text):
         line = time.strftime('%H:%M:%S ') + text
