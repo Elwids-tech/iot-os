@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import type {
   AdapterDraft,
   AdapterProfile,
@@ -234,6 +234,11 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
   const { setDirty: clearGlobalDirty } = useDirtyContext();
   const navigate = useNavigate();
   const [tab, setTab] = useState(adapter ? "source" : "type");
+  // The workspace assistant sends people here for the adapter's own assistant.
+  const location = useLocation();
+  useEffect(() => {
+    if (adapter && (location.state as { tab?: string } | null)?.tab === "ai") setTab("ai");
+  }, [adapter?.uuid, location.key]);
   const [draft, setDraft] = useState<AdapterDraft>(
     adapter
       ? {

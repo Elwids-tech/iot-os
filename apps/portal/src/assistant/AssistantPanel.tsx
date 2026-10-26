@@ -71,6 +71,7 @@ import {
 import { toast } from "sonner"
 import { api } from "../lib/api"
 import { useDirtyContext } from "../lib/unsaved"
+import { usePanel } from "../panel/context"
 import { Choice, Confirm, RequestError } from "../components/forms"
 import { ProposalReview } from "./ProposalReview"
 import { applyTextEvents } from "./state"
@@ -286,6 +287,19 @@ export default function ProfileAssistantBody({
   useEffect(() => {
     cache.setQueryData(["assistant-selected", org], selected)
   }, [cache, org, selected])
+  // Chosen in the workspace assistant's suggestions: a new profile, or a conversation about the viewed one.
+  const { handoff, takeHandoff } = usePanel()
+  useEffect(() => {
+    if (handoff?.to !== "profile") return
+    const profile = handoff.profile
+    takeHandoff()
+    setSelected(null)
+    setReview(null)
+    if (profile)
+      void perform(async () => {
+        await create(profile)
+      })
+  }, [handoff, takeHandoff])
   useEffect(() => {
     const restored = () => setSessionEpoch((value) => value + 1)
     window.addEventListener("iot-session-restored", restored)

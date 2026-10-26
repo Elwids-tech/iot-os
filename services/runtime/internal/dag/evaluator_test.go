@@ -3,6 +3,7 @@ package dag
 import (
 	"encoding/json"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +100,29 @@ func TestCompilerRejectsUnsafeGraphs(t *testing.T) {
 				t.Fatal("accepted unsafe graph")
 			}
 		})
+	}
+}
+func TestCompilerNamesTheBindingFieldToFix(t *testing.T) {
+	w := fixture()
+	w.Bindings[0].FreshSeconds = 0
+	w.Bindings[0].DataType = "integer"
+	w.Bindings = append(w.Bindings, w.Bindings[0])
+	_, d := Compile(w)
+	var messages []string
+	for _, diagnostic := range d {
+		if diagnostic.Code == "binding" {
+			messages = append(messages, diagnostic.Message)
+		}
+	}
+	want := []string{
+		`Binding "sensor": how long a reading stays current must be 1 to 86400 seconds (fresh_seconds)`,
+		`Binding "sensor": use number for numeric and integer parameters, boolean or string (data_type)`,
+		`Binding "sensor": another binding already uses this role (role)`,
+	}
+	for _, message := range want {
+		if !slices.Contains(messages, message) {
+			t.Fatalf("missing %q in %q", message, messages)
+		}
 	}
 }
 func TestHashIgnoresArrayOrder(t *testing.T) {

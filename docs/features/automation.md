@@ -222,7 +222,9 @@ The v1 endpoints (`GET/POST /workflows`, `PUT {w}`, `simulate`, `deployments`,
 `transitions`) still check `Device.view`, `Device.manage` and `Device.activate`,
 not `Workflow.*`. Hand-authoring v1 graphs is possible only through the API.
 `GET /workflows?kind=all` also lists DAG automations, for Settings → Notifications
-and the Alerts workflow filter ([alerts](alerts.md#per-workflow-recipients)).
+and the Alerts workflow filter ([alerts](alerts.md#per-workflow-recipients)). Saving or
+activating never turns on email; once a saved draft has an alert node, **Alert email** in
+the editor header (and a link in the activation review) opens its recipients.
 
 ## Shared runtime behaviour
 

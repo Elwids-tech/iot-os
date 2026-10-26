@@ -53,6 +53,10 @@ grants.
 
 - One activation email per episode and recipient; recovery is optional. No
   reminders, escalation, cooldowns, SMS or push.
+- The plain-text email ([`AlertEmail`](../../apps/api/app/Domain/Automation/Mail/AlertEmail.php))
+  names the organization and the bound device and links to the alert, the automation
+  and **Settings → Notifications** under `FRONTEND_URL`, so the recipient can
+  acknowledge from the portal in one click.
 - If the alert clears before its activation email is sent, that email is cancelled.
 - The worker rechecks membership, verification, permission, subscription, personal
   preferences and the applied execution before every send; losing access or

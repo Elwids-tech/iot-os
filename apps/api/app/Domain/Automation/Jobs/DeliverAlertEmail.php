@@ -86,7 +86,7 @@ final class DeliverAlertEmail implements ShouldQueue
             $delivery->cycle_attempts++;
             $failed = false;
             try {
-                Mail::to($user->email)->send(new AlertEmail($delivery->uuid, $workflow->name, $alert->uuid, $alert->episode, $delivery->type, ($delivery->type === 'activated' ? $alert->activated_at : $alert->cleared_at)->toIso8601String()));
+                Mail::to($user->email)->send(new AlertEmail($delivery->uuid, $alert, $org, $delivery->type));
             } catch (Throwable) {
                 $failed = true;
             }

@@ -1,4 +1,6 @@
+import { useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { useLocation } from "react-router-dom"
 import { LockIcon } from "lucide-react"
 import { ApiError, type DashboardCapabilities } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
@@ -11,6 +13,7 @@ import { useDashboardCapabilities } from "./access"
 import { dashboardPath, withCompactLayouts } from "./model"
 import { DashboardWorkspace } from "./DashboardWorkspace"
 import { DashboardLibrary } from "./LibraryPage"
+import { rememberDashboardPlace } from "./lastPlace"
 
 export function DashboardPage({ org, id }: { org: string; id?: string }) {
   const session = useQuery({
@@ -23,6 +26,11 @@ export function DashboardPage({ org, id }: { org: string; id?: string }) {
   const canManageDevices =
     session.data?.organizations.find((o) => o.uuid === org)?.capabilities
       ?.devices?.manage ?? false
+  const viewer = session.data?.id
+  // The library is a place too: back at the list, Dashboards in the sidebar opens the list.
+  useEffect(() => {
+    if (viewer !== undefined && !id) rememberDashboardPlace(viewer, org, null)
+  }, [viewer, org, id])
   if (session.data && !capabilities.view)
     return (
       <>
@@ -37,7 +45,7 @@ export function DashboardPage({ org, id }: { org: string; id?: string }) {
       </>
     )
   return id ? (
-    <DashboardDetail key={org + id} org={org} id={id} capabilities={capabilities} canManageDevices={canManageDevices} />
+    <DashboardDetail key={org + id} org={org} id={id} viewer={viewer} capabilities={capabilities} canManageDevices={canManageDevices} />
   ) : (
     <DashboardLibrary key={org} org={org} capabilities={capabilities} />
   )
@@ -46,11 +54,13 @@ export function DashboardPage({ org, id }: { org: string; id?: string }) {
 function DashboardDetail({
   org,
   id,
+  viewer,
   capabilities,
   canManageDevices,
 }: {
   org: string
   id: string
+  viewer?: number
   capabilities: DashboardCapabilities
   canManageDevices: boolean
 }) {
@@ -64,6 +74,14 @@ function DashboardDetail({
     refetchOnWindowFocus: true,
     retry: (count, error) => !(error instanceof ApiError && error.status === 403) && count < 2,
   })
+  const { search } = useLocation()
+  const gone = query.error instanceof ApiError && [403, 404].includes(query.error.status)
+  // Remember this dashboard and its view; one that is gone or no longer shared falls back to the library.
+  useEffect(() => {
+    if (viewer === undefined) return
+    if (query.data) rememberDashboardPlace(viewer, org, id, search)
+    else if (gone) rememberDashboardPlace(viewer, org, null)
+  }, [viewer, org, id, search, Boolean(query.data), gone])
   if (query.data)
     return (
       <DashboardWorkspace org={org} saved={query.data} capabilities={capabilities} canManageDevices={canManageDevices} />

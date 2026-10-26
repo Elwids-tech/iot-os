@@ -214,6 +214,13 @@ const openHelp = async (page: Page) =>
     .first()
     .getByRole("button", { name: "Help", exact: true })
     .click();
+// The header's Assistant; the sidebar foot has one too.
+const openAssistant = async (page: Page) =>
+  page
+    .locator('[data-slot="page-header"]')
+    .first()
+    .getByRole("button", { name: "Assistant", exact: true })
+    .click();
 
 test("contextual guidance, citations and panel switching preserve unsaved workflow and question drafts", async ({
   page,
@@ -230,17 +237,19 @@ test("contextual guidance, citations and panel switching preserve unsaved workfl
   await expect(
     help.getByRole("heading", { name: "Simulate a saved workflow" }),
   ).toBeVisible();
-  // In the automation editor the Ask tab opens on the workflow assistant; usage help is one toggle away.
+  // In the automation editor the Ask tab opens on the workflow assistant; usage help is among the suggestions.
   await help.getByRole("tab", { name: "Ask", exact: true }).click();
   await expect(
     help.getByRole("region", { name: "Automation assistant" }),
   ).toBeVisible();
-  await help.getByRole("radio", { name: "Usage help" }).click();
+  await help.getByRole("button", { name: "Suggestions", exact: true }).click();
+  await expect(help.getByRole("button", { name: /^Continue with Unsaved bench workflow/ })).toBeVisible();
+  await help.getByRole("button", { name: /^Ask how to use IoT OS/ }).click();
   await help
     .getByLabel("Ask a usage question")
     .fill("Does simulation send commands?");
-  // The shared Assistant control returns the Ask tab to the editor's assistant in the same panel.
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  // The header's Assistant returns the Ask tab to the editor's assistant in the same panel.
+  await openAssistant(page);
   await expect(
     help.getByRole("region", { name: "Automation assistant" }),
   ).toBeVisible();
@@ -253,7 +262,8 @@ test("contextual guidance, citations and panel switching preserve unsaved workfl
     .getByRole("button", { name: "Help", exact: true })
     .click();
   await help.getByRole("tab", { name: "Ask", exact: true }).click();
-  await help.getByRole("radio", { name: "Usage help" }).click();
+  await help.getByRole("button", { name: "Suggestions", exact: true }).click();
+  await help.getByRole("button", { name: /^Ask how to use IoT OS/ }).click();
   await expect(help.getByLabel("Ask a usage question")).toHaveValue(
     "Does simulation send commands?",
   );
@@ -286,7 +296,7 @@ test("contextual guidance, citations and panel switching preserve unsaved workfl
   );
   await help.getByRole("button", { name: "Close assistant" }).click();
   await expect(help).toBeHidden();
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await openAssistant(page);
   await expect(
     help.getByRole("region", { name: "Automation assistant" }),
   ).toBeVisible();
@@ -317,6 +327,12 @@ test("mobile Help fits the viewport, supports search and restores keyboard focus
     }),
   ).toBeVisible();
   await help.getByRole("tab", { name: "Ask", exact: true }).click();
+  await expect(help.getByRole("heading", { name: "What can I help with?" })).toBeVisible();
+  expect(
+    (await new AxeBuilder({ page }).include('[role="dialog"]').analyze())
+      .violations,
+  ).toEqual([]);
+  await help.getByRole("button", { name: /^Ask how to use IoT OS/ }).click();
   await expect(
     help.getByText("Usage help unavailable", { exact: true }),
   ).toBeVisible();
@@ -359,12 +375,9 @@ test("all sections offer Help; navigation retains an article and organization sw
     "automation",
   ]) {
     await page.goto(`/organizations/${org}/${section}`);
-    await expect(
-      page
-        .locator('[data-slot="page-header"]')
-        .first()
-        .getByRole("button", { name: "Help", exact: true }),
-    ).toBeVisible();
+    const header = page.locator('[data-slot="page-header"]').first();
+    await expect(header.getByRole("button", { name: "Help", exact: true })).toBeVisible();
+    await expect(header.getByRole("button", { name: "Assistant", exact: true })).toBeVisible();
   }
   await page.goto(`/organizations/${org}/dashboards`);
   await openHelp(page);
@@ -381,6 +394,7 @@ test("all sections offer Help; navigation retains an article and organization sw
     }),
   ).toBeVisible();
   await help.getByRole("tab", { name: "Ask", exact: true }).click();
+  await help.getByRole("button", { name: /^Ask how to use IoT OS/ }).click();
   await help.getByLabel("Ask a usage question").fill("Private Acme draft");
   await page.getByRole("button", { name: "Organization: Acme" }).click();
   await page.getByRole("menuitemradio", { name: "Northstar" }).click();
@@ -390,5 +404,45 @@ test("all sections offer Help; navigation retains an article and organization sw
   await expect(
     help.getByText("Guides and usage questions · Northstar"),
   ).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("the header Assistant suggests work for the page and starts it from any page", async ({
+  page,
+}) => {
+  const { errors } = await setup(page);
+  await page.goto(`/organizations/${org}/devices`);
+  await openAssistant(page);
+  const help = page.getByRole("complementary", { name: "Assistant", exact: true });
+  await expect(help.getByRole("heading", { name: "What can I help with?" })).toBeVisible();
+  const here = help.getByRole("region", { name: "Suggested here" });
+  await expect(here.getByRole("button")).toHaveCount(2);
+  await expect(here.getByRole("button", { name: /^Alert me when a reading crosses a limit/ })).toBeVisible();
+
+  // The profile assistant opens beside the device list; no detour through Device profiles.
+  await here.getByRole("button", { name: /^Describe a new kind of device/ }).click();
+  await expect(help.getByRole("region", { name: "Profile assistant" })).toBeVisible();
+  await expect(page).toHaveURL(`/organizations/${org}/devices`);
+  await help.getByRole("button", { name: "Suggestions", exact: true }).click();
+
+  // A guide question becomes a usage question, ready to send.
+  await help
+    .getByRole("region", { name: "Questions about this page" })
+    .getByRole("button", { name: "How do I register a device?" })
+    .click();
+  await expect(help.getByLabel("Ask a usage question")).toHaveValue("How do I register a device?");
+  await help.getByRole("button", { name: "Suggestions", exact: true }).click();
+
+  // An automation suggestion opens a new automation with its request in the assistant's composer.
+  await here.getByRole("button", { name: /^Alert me when a reading crosses a limit/ }).click();
+  await expect(page).toHaveURL(`/organizations/${org}/automation/new`);
+  await expect(help.getByRole("region", { name: "Automation assistant" })).toBeVisible();
+  await expect(help.getByLabel("Message the automation assistant")).toHaveValue(/above 60 °C for 5 minutes/);
+
+  // The header button toggles: closed on the page's own assistant, then back to it.
+  await openAssistant(page);
+  await expect(help).toBeHidden();
+  await openAssistant(page);
+  await expect(help.getByRole("region", { name: "Automation assistant" })).toBeVisible();
   expect(errors).toEqual([]);
 });

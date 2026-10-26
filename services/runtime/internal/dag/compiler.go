@@ -23,9 +23,29 @@ func Compile(w Workflow) (*Plan, []Diagnostic) {
 		fail("", "nodes", "limit", "Use 2–100 nodes, up to 200 edges and 32 bindings")
 	}
 	p := &Plan{Workflow: w, Incoming: map[string][]Edge{}, Bindings: map[string]Binding{}}
+	// Each problem names its field, so the editor and the assistant can correct it rather than guess.
 	for _, b := range w.Bindings {
-		if !id.MatchString(b.Role) || p.Bindings[b.Role].Role != "" || !uuid.MatchString(b.Device) || !uuid.MatchString(b.Configuration) || !uuid.MatchString(b.Parameter) || b.Generation < 1 || b.FreshSeconds < 1 || b.FreshSeconds > 86400 || !slices.Contains([]string{"number", "boolean", "string"}, b.DataType) {
-			fail("", "bindings", "binding", "Invalid or duplicate binding "+b.Role)
+		problem := func(field, message string) {
+			fail("", "bindings", "binding", fmt.Sprintf("Binding %q: %s", b.Role, message)+" ("+field+")")
+		}
+		if !id.MatchString(b.Role) {
+			problem("role", "the role must start with a letter and use up to 64 letters, digits, - or _")
+		} else if p.Bindings[b.Role].Role != "" {
+			problem("role", "another binding already uses this role")
+		}
+		for _, field := range [][2]string{{"device_uuid", b.Device}, {"configuration_uuid", b.Configuration}, {"parameter_uuid", b.Parameter}} {
+			if !uuid.MatchString(field[1]) {
+				problem(field[0], "copy the UUID from the device's applied configuration")
+			}
+		}
+		if b.Generation < 1 {
+			problem("generation", "use the device's current deployment generation, 1 or more")
+		}
+		if b.FreshSeconds < 1 || b.FreshSeconds > 86400 {
+			problem("fresh_seconds", "how long a reading stays current must be 1 to 86400 seconds")
+		}
+		if !slices.Contains([]string{"number", "boolean", "string"}, b.DataType) {
+			problem("data_type", "use number for numeric and integer parameters, boolean or string")
 		}
 		p.Bindings[b.Role] = b
 	}

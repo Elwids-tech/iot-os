@@ -1,10 +1,21 @@
 # Assistant and help
 
 The portal has one workspace panel for guidance and AI help. Its tabs are **Ask**
-(the assistant for the current page), **This page** (the guide for the current
-screen) and **All guides** (search). It docks as a rail from 1280 px and opens as a
-sheet below that. The sidebar **Assistant** control and the page **Help** button
+(the assistant), **This page** (the guide for the current screen) and **All guides**
+(search). It docks as a rail from 1280 px and opens as a sheet below that. Every page
+header has **Assistant** beside **Help**, and the sidebar foot has both too; they
 open the same panel.
+
+**Ask** follows the page. Where the page has an assistant of its own (the automation
+editor) or is a profile page, it opens on that assistant. Everywhere else it opens
+on suggestions for the page ([`suggestions.ts`](../../apps/portal/src/assistant/suggestions.ts)):
+the work the assistants can do there, the guide's questions about the page, then the
+tasks available from any page. The profile assistant and usage help open in the
+panel from any page. An automation suggestion opens a new automation, and its example
+request waits in that editor's assistant to be edited and sent; the hand-off carries
+an id in the navigation state, so only the editor opened for it takes it. A device
+adapter's assistant stays on the adapter's **AI assistant** tab, which its suggestion
+opens. **Suggestions** at the top of the Ask tab returns to the list.
 
 The platform works fully without AI. Guides and search always work; AI features
 are off until configured.
@@ -38,10 +49,10 @@ These hold for every assistant surface:
 
 | Scope | Where | Tools |
 | --- | --- | --- |
-| `profile` | Device profiles, Add device wizard | Read the profile schema and authorized profiles, sources and retained facts; ask structured questions; preview and validate a section; apply an approved section ([`ProfileAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/ProfileAssistantTools.php), [`ApplyProfileSection`](../../apps/api/app/Domain/Assistant/Tools/ApplyProfileSection.php)) |
-| `automation` | Automation editor | Read the node registry, applied configurations, controllable settings and geofences; propose a compiler-validated graph ([`WorkflowAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/WorkflowAssistantTools.php)) |
+| `profile` | Device profiles and the Add device wizard; any page through **Create a device profile** | Read the profile schema and authorized profiles, sources and retained facts; ask structured questions; preview and validate a section; apply an approved section ([`ProfileAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/ProfileAssistantTools.php), [`ApplyProfileSection`](../../apps/api/app/Domain/Assistant/Tools/ApplyProfileSection.php)) |
+| `automation` | Automation editor; any page through an automation suggestion | Read the node registry, applied configurations, controllable settings and geofences; propose a compiler-validated graph ([`WorkflowAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/WorkflowAssistantTools.php)) |
 | `adapter` | Device adapter workbench | Propose decoder revisions from documentation and samples ([`AdapterAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/AdapterAssistantTools.php)) |
-| `help` | Every other page, or **Usage help** | No tools; answers only from approved guide excerpts |
+| `help` | Any page, through **Ask how to use IoT OS** or a question about the page | No tools; answers only from approved guide excerpts |
 
 The telemetry viewer's **AI troubleshoot** is a separate one-shot request on one
 captured sample ([devices](devices.md#telemetry-viewer)).
@@ -81,6 +92,21 @@ outdated, and a preview with one names the binding role, so the model refreshes 
 the device first. A draft whose device was deleted is refused with the binding's role;
 rebind it in the editor. Each new automation has its own conversation; once saved, its
 conversation continues when the automation is reopened.
+
+Models copy values loosely, so the preview completes bindings the way the editor writes
+them ([`WorkflowProposalService`](../../apps/api/app/Domain/Assistant/Services/WorkflowProposalService.php)):
+whole numbers sent as `"1"` or `1.0` become integers, UUIDs are lower-cased, a missing
+configuration and generation become the device's applied ones (only when what is present
+matches them), and a missing `fresh_seconds` takes the editor's 120. An outdated binding's
+message shows what the draft had beside the current values, because the model sometimes
+mistypes a character of a UUID. The runtime compiler names the binding field it rejects.
+Refused tool calls are logged as "Automation assistant tool refused" with their messages.
+
+"Email me when…" is the most common request. There is no email node: the assistant builds
+one `action.alert.v1` whose condition clears (a hysteresis for "and again when it drops
+below…"), and recipients are chosen in the automation's notification settings. The editor
+links there as **Alert email** once a saved draft raises alerts, and so does the activation
+review.
 
 **Explain this execution** (Execution timeline) opens a conversation on one
 recorded evaluation. The server fetches the evidence through the authorized

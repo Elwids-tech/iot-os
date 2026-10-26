@@ -20,6 +20,7 @@ use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -221,7 +222,10 @@ final class WorkflowAssistantTest extends TestCase
         $conversation = $this->conversation();
         $run = AssistantRun::findOrFail($this->message($conversation, graph: $graph)->assertAccepted()->json('data.id'));
         $instructions = (new WorkflowAssistant($run))->instructions();
-        $this->assertStringContainsString("Outdated bindings in the current draft:\n- Binding sensor: device {$device->uuid} was reconfigured and now has configuration {$device->applied_configuration_uuid}, generation 2.", $instructions);
+        $this->assertStringContainsString("Outdated bindings in the current draft:\n- Binding sensor: device {$device->uuid} was reconfigured and now has configuration {$device->applied_configuration_uuid}, generation 2; the draft has {\"configuration_uuid\":\"{$earlier->uuid}\",\"generation\":1}.", $instructions);
+        // "Email me when…" is the most common request; email is an alert plus its notification settings.
+        $this->assertStringContainsString('there is no email node', $instructions);
+        $this->assertStringContainsString('Settings → Notifications', $instructions);
         $run->update(['status' => 'running']);
         config(['devices.runtime_token' => str_repeat('x', 40), 'devices.runtime_url' => 'http://runtime:8081']);
         Http::fake(['*' => fn ($request) => Http::response(['valid' => true, 'diagnostics' => [], 'definition' => $request['workflow']])]);
@@ -242,6 +246,20 @@ final class WorkflowAssistantTest extends TestCase
         $result = $this->preview($run, [...$graph, 'bindings' => [$refreshed]]);
         $this->assertArrayHasKey('id', $result, json_encode($result));
         $this->assertSame($refreshed, $conversation->proposals()->findOrFail($result['id'])->changes[0]['values']['workflow']['bindings'][0]);
+
+        // Whole numbers written as text or decimals, and upper-case UUIDs, are the same binding, not an outdated one.
+        $loose = [...$refreshed, 'generation' => '2', 'fresh_seconds' => 120.0, 'configuration_uuid' => strtoupper($device->applied_configuration_uuid)];
+        $result = $this->preview($run, [...$graph, 'bindings' => [$loose]]);
+        $this->assertArrayHasKey('id', $result, json_encode($result));
+        $this->assertSame($refreshed, $conversation->proposals()->findOrFail($result['id'])->changes[0]['values']['workflow']['bindings'][0]);
+
+        // Left out, the configuration and generation can only be the applied ones, and freshness takes the editor's 120 s.
+        $result = $this->preview($run, [...$graph, 'bindings' => [Arr::except($refreshed, ['configuration_uuid', 'generation', 'fresh_seconds'])]]);
+        $this->assertArrayHasKey('id', $result, json_encode($result));
+        $this->assertEquals([...$refreshed, 'fresh_seconds' => 120], $conversation->proposals()->findOrFail($result['id'])->changes[0]['values']['workflow']['bindings'][0]);
+        // A configuration that is present but earlier is still refused, saying what the draft has.
+        $result = $this->preview($run, [...$graph, 'bindings' => [Arr::except($binding, ['generation'])]]);
+        $this->assertStringContainsString('the draft has {"configuration_uuid":"'.$earlier->uuid.'","generation":null}', $result['details']['bindings'][0]);
     }
 
     public function test_drafts_with_detailed_geofences_send_their_geometry_by_reference(): void
