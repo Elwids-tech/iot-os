@@ -508,7 +508,11 @@ const generated = {
 }
 
 test("device directory shows one health status, short codes, pending sources and phone cards", async ({ page }, info) => {
-  const state = await setup(page, { devices: [meter, idle, generated], pending: 2 })
+  const state = await setup(page, {
+    devices: [meter, idle, generated],
+    pending: 2,
+    details: { [generated.uuid]: { ...detail, ...generated } },
+  })
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.goto(`${base}/devices`)
   const table = page.getByRole("table")
@@ -557,6 +561,8 @@ test("device directory shows one health status, short codes, pending sources and
   await page.screenshot({ path: info.outputPath("devices-phone.png") })
   await card.getByRole("link", { name: "Boiler room sensor" }).click()
   await expect(page).toHaveURL(`${base}/devices/${generated.uuid}`)
+  // Errors from the device page arrive after the URL changes, so wait for it to render.
+  await expect(page.getByRole("heading", { name: "Boiler room sensor", level: 1 })).toBeVisible()
   expect(state.errors).toEqual([])
 })
 
