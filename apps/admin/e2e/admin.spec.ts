@@ -896,6 +896,10 @@ for (const account of [superAdmin, platformAdmin]) {
 test("keeps user search and organization filters in the URL", async ({ page }) => {
   await mockApi(page)
   await page.goto("/users")
+  // A slow CPU renders the cleared search after the filter is picked, as on a
+  // busy CI runner. The filter must not bring the search back.
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 })
 
   // Search applies as you type.
   await page.getByRole("searchbox", { name: "Search" }).fill("Shared")

@@ -367,6 +367,14 @@ Things that have cost time before. Add to this list when something surprises you
   of undefined (reading '0')` (in `GaugeView._renderPointer`, which names the
   needle, not the axis pointer) when progress turns on. `gaugeOption` keeps it on
   and makes the arc transparent while there is no reading.
+- **`setSearchParams(updater)` starts from the last rendered address.** React
+  Router hands the updater the search params from the last render, which can lag
+  the address bar. On a slow machine, clearing a table's search and then picking
+  a filter put the old search back (CI's admin users test failed this way).
+  Change table state through `useUrlState` from `@iot-os/ui/hooks/use-url-state`,
+  which starts each change from the address bar. In a browser test, wait for a
+  search box to show what you typed before clearing it: until that render the
+  controlled box still reads "", so filling "" changes nothing.
 
 ## Docs site
 
