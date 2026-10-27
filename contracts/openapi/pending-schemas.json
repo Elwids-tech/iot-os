@@ -47,7 +47,6 @@
     { "operation": "GET /v1/organizations/{organization}/dashboards", "domain": "Dashboards" },
     { "operation": "GET /v1/organizations/{organization}/dashboards/{dashboard}", "domain": "Dashboards" },
     { "operation": "GET /v1/organizations/{organization}/dashboards/{dashboard}/access", "domain": "Dashboards" },
-    { "operation": "GET /v1/organizations/{organization}/dashboards/{dashboard}/revisions", "domain": "Dashboards" },
     { "operation": "GET /v1/organizations/{organization}/dashboards/{dashboard}/revisions/{number}", "domain": "Dashboards" },
     { "operation": "GET /v1/organizations/{organization}/device-adapter-profiles", "domain": "DeviceAdapters" },
     { "operation": "GET /v1/organizations/{organization}/device-adapters", "domain": "DeviceAdapters" },

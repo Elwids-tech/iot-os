@@ -249,6 +249,23 @@ test("a link added from the toolbar stays in the draft until the reply is sent",
   expect(errors).toEqual([])
 })
 
+test("opens with a draft another page hands over, without putting it in the URL", async ({ page }) => {
+  const { errors } = await setup(page)
+  await page.goto(`/organizations/${org}/support`)
+  await expect(page.getByText("No tickets yet")).toBeVisible()
+  // In-app navigation with router state, as the dashboard assistant's feature request does.
+  await page.evaluate((path) => {
+    window.history.pushState({ usr: { draft: { title: "Total energy across meters", body: "Asked for: **one total** for all meters." } }, key: "draft", idx: 1 }, "", path)
+    window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }))
+  }, `/organizations/${org}/support/new?type=feature_request`)
+
+  await expect(page.getByRole("radio", { name: "Feature request" })).toBeChecked()
+  await expect(page.getByRole("textbox", { name: "Title" })).toHaveValue("Total energy across meters")
+  await expect(page.getByRole("textbox", { name: "Description" }).locator("strong")).toHaveText("one total")
+  expect(page.url()).toMatch(/\/support\/new\?type=feature_request$/)
+  expect(errors).toEqual([])
+})
+
 test("a declined ticket takes no replies and offers a new one", async ({ page }) => {
   const declined = ticket({ status: "declined", closed_at: now, abilities: { reply: false, close: false, edit_title: true, manage_people: true, leave: false } })
   const { errors } = await setup(page, { tickets: [declined] })

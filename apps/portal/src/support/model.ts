@@ -35,6 +35,19 @@ export function clientId() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
+/**
+ * A title and description another page hands to the form in `location.state.draft`, such
+ * as the dashboard assistant's feature request. Draft text never goes in the URL.
+ */
+export function ticketDraft(state: unknown): { title: string; body: string } {
+  const draft = state && typeof state === "object" ? (state as { draft?: unknown }).draft : undefined
+  const values = draft && typeof draft === "object" ? (draft as Record<string, unknown>) : {}
+  return {
+    title: typeof values.title === "string" ? values.title.slice(0, 150) : "",
+    body: typeof values.body === "string" ? values.body : "",
+  }
+}
+
 /** What the form records about where the reporter was. */
 export function browserContext(path: string) {
   return {

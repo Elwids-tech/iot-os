@@ -3,13 +3,6 @@ import { createPortal } from "react-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import {
-  Responsive,
-  WidthProvider,
-  type ResponsiveLayouts,
-} from "react-grid-layout/legacy"
-import "react-grid-layout/css/styles.css"
-import "react-resizable/css/styles.css"
-import {
   ApiError,
   type Dashboard,
   type DashboardView,
@@ -125,6 +118,7 @@ import {
 import { PanelEditor } from "./PanelEditor"
 import { AddPanelDialog } from "./AddPanelDialog"
 import { PanelBody, widgetRegistry } from "./registry"
+import { DashboardGrid, ROW_HEIGHT } from "./DashboardGrid"
 import { TimeControls } from "./TimeControls"
 import { ContextRail } from "./ContextRail"
 import { panelCsvRows } from "./panelData"
@@ -134,10 +128,7 @@ import { dashboardAbilities } from "./access"
 import { DuplicateDialog, SettingsDialog } from "./LibraryDialogs"
 import { definition, downloadJson } from "./importExport"
 
-const Grid = WidthProvider(Responsive)
-const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
 const COLS = GRID_COLUMNS
-const ROW_HEIGHT = 48
 const RAIL_KEY = "iot-dashboard-rail"
 // Per-viewer Status display by panel id; absent means fit automatically.
 const DISPLAY_KEY = "iot-dashboard-status-display"
@@ -183,10 +174,6 @@ export function DashboardWorkspace({
   )
   const [base, setBase] = useState(saved)
   const dashboard = draft ?? saved
-  const gridLayouts = useMemo(
-    () => responsiveLayouts(dashboard.layouts),
-    [dashboard.layouts],
-  )
   const [editor, setEditor] = useState<DashboardWidget | null>(null)
   const [editorDirty, setEditorDirty] = useState(false)
   const [editorDiscard, setEditorDiscard] = useState(false)
@@ -208,7 +195,6 @@ export function DashboardWorkspace({
   const [displays, setDisplays] = useState<
     Record<string, "cells" | "table">
   >(() => readStorage(DISPLAY_KEY, {}))
-  const layoutAction = useRef(false)
   const panelContent = useRef(new Map<string, HTMLDivElement>())
   useEffect(() => {
     if (!revealWidget || editor) return
@@ -695,224 +681,141 @@ export function DashboardWorkspace({
       )}
     </Empty>
   ) : (
-    <div className={cn(!gap && "border-t border-l")}>
-      <Grid
-        className="dashboard-grid"
-        autoSize
-        isBounded={false}
-        // Panels stick to the panel above or the top, as in Grafana; dragging down only reorders.
-        compactType="vertical"
-        layouts={gridLayouts as ResponsiveLayouts}
-        breakpoints={BREAKPOINTS}
-        cols={COLS}
-        rowHeight={ROW_HEIGHT}
-        margin={[gap, gap]}
-        containerPadding={[0, 0]}
-        isDraggable={Boolean(draft) && !saving && !kiosk}
-        isResizable={Boolean(draft) && !saving && !kiosk}
-        resizeHandles={["s", "e", "se"]}
-        draggableHandle=".dashboard-drag-handle"
-        onBreakpointChange={setBreakpoint}
-        onDragStart={() => {
-          layoutAction.current = true
-        }}
-        onResizeStart={() => {
-          layoutAction.current = true
-        }}
-        onLayoutChange={(_, layouts) => {
-          if (draft && layoutAction.current) {
-            setDraft((current) =>
-              current ? { ...current, layouts: cleanLayouts(layouts) } : null,
-            )
-            layoutAction.current = false
-          }
-        }}
-      >
-        {dashboard.widgets.map((widget) => {
-          const devices = [
-            ...new Set(
-              widget.config.sources.flatMap((s) =>
-                s.device_name ? [s.device_name] : [],
-              ),
-            ),
-          ]
-          const meta =
-            widget.type === "controls"
-              ? "Live · 1 s"
-              : devices.length > 2
-                ? `${devices.length} devices`
-                : devices.join(", ")
-          return (
-            // Chart dimensions must settle with the grid, not animate through
-            // intermediate sizes that trigger synchronous measurement updates.
-            <div key={widget.id} style={{ transition: "none" }}>
-              <div
-                id={`panel-${widget.id}`}
-                className={cn(
-                  "flex h-full flex-col overflow-hidden bg-card text-card-foreground",
-                  gap ? "border" : "border-r border-b",
-                  invalidPanel === widget.id && "ring-2 ring-destructive ring-inset",
-                )}
+    <DashboardGrid
+      widgets={dashboard.widgets}
+      layouts={dashboard.layouts}
+      {...bodyProps}
+      display={(widget) => displays[widget.id]}
+      editable={Boolean(draft) && !saving && !kiosk}
+      invalid={invalidPanel}
+      onBreakpointChange={setBreakpoint}
+      onLayoutChange={(layouts) =>
+        setDraft((current) =>
+          current ? { ...current, layouts: cleanLayouts(layouts) } : null,
+        )
+      }
+      panelRef={(id, node) => {
+        if (node) panelContent.current.set(id, node)
+        else panelContent.current.delete(id)
+      }}
+      handle={
+        draft
+          ? (widget) => (
+              <button
+                type="button"
+                aria-label="Drag panel"
+                title="Drag, or use arrow keys to move"
+                disabled={saving}
+                className="dashboard-drag-handle -ml-1.5 mt-0.5 shrink-0 cursor-move rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onKeyDown={(event) => {
+                  if (event.key.startsWith("Arrow")) {
+                    event.preventDefault()
+                    nudge(widget.id, event.key)
+                  }
+                }}
               >
-                <div className="flex items-start gap-2 border-b py-1.5 pr-1.5 pl-3">
-                  {draft && (
-                    <button
-                      type="button"
-                      aria-label="Drag panel"
-                      title="Drag, or use arrow keys to move"
-                      disabled={saving}
-                      className="dashboard-drag-handle -ml-1.5 mt-0.5 shrink-0 cursor-move rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onKeyDown={(event) => {
-                        if (event.key.startsWith("Arrow")) {
-                          event.preventDefault()
-                          nudge(widget.id, event.key)
-                        }
-                      }}
-                    >
-                      <GripVerticalIcon className="size-4" />
-                    </button>
-                  )}
-                  <div className="min-w-0 flex-1 py-0.5">
-                    <h2
-                      id={`panel-title-${widget.id}`}
-                      className="skin-label truncate text-sm font-medium"
-                      title={widget.title}
-                    >
-                      {widget.title}
-                    </h2>
-                    {widget.description && (
-                      <p
-                        className="truncate text-xs text-muted-foreground"
-                        title={widget.description}
-                      >
-                        {widget.description}
-                      </p>
-                    )}
-                  </div>
-                  {meta && (
-                    <span className="hidden max-w-[40%] truncate py-0.5 text-xs text-muted-foreground sm:block">
-                      {meta}
-                    </span>
-                  )}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label={`Panel menu: ${widget.title}`}
-                      >
-                        <MoreHorizontalIcon />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuGroup>
-                        <DropdownMenuItem onSelect={() => setParam("panel", widget.id)}>
-                          <MaximizeIcon />
-                          View fullscreen
-                        </DropdownMenuItem>
-                        {!NO_CSV.includes(widget.type) && (
-                          <DropdownMenuItem onSelect={() => downloadCsv(widget)}>
-                            <DownloadIcon />
-                            Download CSV
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem
-                          onSelect={() => void copy(link({ panel: widget.id }), "Panel link")}
-                        >
-                          <LinkIcon />
-                          Copy link
-                        </DropdownMenuItem>
-                      </DropdownMenuGroup>
-                      {widget.type === "status" && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel className="text-xs text-muted-foreground">
-                            Show as
-                          </DropdownMenuLabel>
-                          <DropdownMenuRadioGroup
-                            value={displays[widget.id] ?? "auto"}
-                            onValueChange={(value) => chooseDisplay(widget.id, value)}
-                          >
-                            <DropdownMenuRadioItem value="auto">
-                              Fit automatically
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="cells">
-                              Cells
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="table">
-                              Table
-                            </DropdownMenuRadioItem>
-                          </DropdownMenuRadioGroup>
-                        </>
-                      )}
-                      {draft && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuGroup>
-                            <DropdownMenuItem
-                              disabled={saving}
-                              onSelect={() => openEditor(widget)}
-                            >
-                              <PencilIcon />
-                              Edit panel
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              disabled={saving}
-                              onSelect={() => fitPanelHeight(widget.id)}
-                            >
-                              <ChevronsUpDownIcon />
-                              Fit height to content
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              disabled={saving}
-                              onSelect={() =>
-                                applyWidget({
-                                  ...structuredClone(widget),
-                                  id: crypto.randomUUID(),
-                                  title: `${widget.title.slice(0, 110)} (copy)`,
-                                })
-                              }
-                            >
-                              <CopyIcon />
-                              Duplicate panel
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              disabled={saving}
-                              onSelect={() => removePanel(widget)}
-                            >
-                              <Trash2Icon />
-                              Remove panel
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div
-                  ref={(node) => {
-                    if (node) panelContent.current.set(widget.id, node)
-                    else panelContent.current.delete(widget.id)
-                  }}
-                  // Focusable so keyboard users can scroll a panel whose
-                  // content is taller than its grid cell.
-                  role="group"
-                  tabIndex={0}
-                  aria-labelledby={`panel-title-${widget.id}`}
-                  className="min-h-0 flex-1 overflow-auto p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                <GripVerticalIcon className="size-4" />
+              </button>
+            )
+          : undefined
+      }
+      menu={(widget) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Panel menu: ${widget.title}`}
+            >
+              <MoreHorizontalIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuGroup>
+              <DropdownMenuItem onSelect={() => setParam("panel", widget.id)}>
+                <MaximizeIcon />
+                View fullscreen
+              </DropdownMenuItem>
+              {!NO_CSV.includes(widget.type) && (
+                <DropdownMenuItem onSelect={() => downloadCsv(widget)}>
+                  <DownloadIcon />
+                  Download CSV
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onSelect={() => void copy(link({ panel: widget.id }), "Panel link")}
+              >
+                <LinkIcon />
+                Copy link
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            {widget.type === "status" && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  Show as
+                </DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={displays[widget.id] ?? "auto"}
+                  onValueChange={(value) => chooseDisplay(widget.id, value)}
                 >
-                  <PanelBody
-                    {...bodyProps}
-                    widget={widget}
-                    display={displays[widget.id]}
-                  />
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </Grid>
-    </div>
+                  <DropdownMenuRadioItem value="auto">
+                    Fit automatically
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="cells">
+                    Cells
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="table">
+                    Table
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </>
+            )}
+            {draft && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    disabled={saving}
+                    onSelect={() => openEditor(widget)}
+                  >
+                    <PencilIcon />
+                    Edit panel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={saving}
+                    onSelect={() => fitPanelHeight(widget.id)}
+                  >
+                    <ChevronsUpDownIcon />
+                    Fit height to content
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={saving}
+                    onSelect={() =>
+                      applyWidget({
+                        ...structuredClone(widget),
+                        id: crypto.randomUUID(),
+                        title: `${widget.title.slice(0, 110)} (copy)`,
+                      })
+                    }
+                  >
+                    <CopyIcon />
+                    Duplicate panel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={saving}
+                    onSelect={() => removePanel(widget)}
+                  >
+                    <Trash2Icon />
+                    Remove panel
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    />
   )
 
   const fullscreen = (

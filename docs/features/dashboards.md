@@ -44,7 +44,10 @@ Suggestions are deterministic and follow the profile: a parameter's
 and enum parameters suggest Status then State history; colours suggest Colour
 history; a numeric parameter with a range suggests a gauge (display range, else
 validation limits, else 0–100 for `%`; never for counters); several same-unit
-numbers suggest one Time series. A chart never mixes units.
+numbers suggest one Time series. A chart never mixes units. The server has the same
+rules (`PanelSuggestions`, `DashboardLayout`) for the dashboard assistant, pinned to
+the portal's by
+[`panel-suggestions.fixture.json`](../../contracts/dashboards/v1/panel-suggestions.fixture.json).
 
 Edits stay in a local draft. **Apply to dashboard** changes the draft; only **Save
 dashboard** persists panels, layout, name and viewing defaults. Panels stick to
@@ -161,7 +164,11 @@ Under `/api/v1/organizations/{organization}`:
 
 Updates send the full editable document with the current `revision`. Tags (up to
 10) and folder are optional. Sources and workflow references must belong to the
-organization.
+organization. Every save goes through `SaveDashboard` after
+`DashboardDefinition::validateDocument`, which also checks documents that are not
+saved yet. Each version records its `origin`: null for a person's save, `assistant`
+for a dashboard assistant proposal (**Version history** shows "Created with the
+assistant"), and `agent` reserved for agent drafts.
 
 Public links and server-resolved kiosk displays are not built
 ([roadmap](../roadmap.md#next)).
