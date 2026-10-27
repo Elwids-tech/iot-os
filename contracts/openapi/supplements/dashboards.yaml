@@ -4,7 +4,43 @@
 # the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
 # Success bodies stay pending until the domain is described.
 # Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    DashboardRevisionSummary:
+      type: object
+      description: One saved version of a dashboard. The 50 most recent are kept.
+      required: [revision, name, created_at, origin, widget_count, updated_by_name]
+      properties:
+        revision:
+          type: integer
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        origin:
+          type: [string, 'null']
+          enum: [assistant, agent, null]
+          description: Who made the version when it was not a person alone; `assistant` for a proposal from the dashboard assistant (spec 019), `agent` reserved for agent drafts (spec 004). Null for a person's save.
+        widget_count:
+          type: integer
+        updated_by_name:
+          type: [string, 'null']
 operations:
+  GET /v1/organizations/{organization}/dashboards/{dashboard}/revisions:
+    responses:
+      '200':
+        description: The dashboard's versions, newest first.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/DashboardRevisionSummary'
   POST /v1/organizations/{organization}/dashboards:
     responses:
       '422':

@@ -412,8 +412,8 @@ saves.
 
 **Independent Test**: Quickstart B7.
 
-- [ ] T075 [US5] Add an array entry point `validateDocument(array, Organization, bool $updating)` to apps/api/app/Domain/Dashboards/Services/DashboardDefinition.php, and make `validate(Request, …)` call it with unchanged behaviour
-- [ ] T076 [US5] Extract apps/api/app/Domain/Dashboards/Actions/SaveDashboard.php (create, and update with revision lock and snapshot) from `DashboardController::store` and `update`, and move the controller onto it with identical responses
+- [x] T075 [US5] Add an array entry point `validateDocument(array, Organization, bool $updating)` to apps/api/app/Domain/Dashboards/Services/DashboardDefinition.php, and make `validate(Request, …)` call it with unchanged behaviour (delivered by spec 019, [T003](../019-dashboard-assistant/tasks.md))
+- [x] T076 [US5] Extract apps/api/app/Domain/Dashboards/Actions/SaveDashboard.php (create, and update with revision lock and snapshot) from `DashboardController::store` and `update`, and move the controller onto it with identical responses (delivered by spec 019, [T005](../019-dashboard-assistant/tasks.md); versions also record an `origin`, `agent` reserved for this spec)
 - [ ] T077 [US5] Implement `DashboardApplier` and `prepare_dashboard`:
   - `Dashboard.create` for new dashboards, the edit ability for existing ones;
   - `Device.view` on every referenced device;

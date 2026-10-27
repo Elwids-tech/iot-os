@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { BugIcon, LightbulbIcon, TrendingUpIcon } from "lucide-react"
 import { toast } from "sonner"
@@ -18,7 +18,7 @@ import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import { fieldError, RequestError } from "../components/forms"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
-import { browserContext, clientId, supportPath, ticketGuidance } from "./model"
+import { browserContext, clientId, supportPath, ticketDraft, ticketGuidance } from "./model"
 
 const types: { value: TicketType; title: string; description: string; icon: ReactNode }[] = [
   { value: "bug", title: "Bug", description: "Something doesn't work as it should.", icon: <BugIcon /> },
@@ -35,9 +35,11 @@ export function NewTicketPage() {
   const [params] = useSearchParams()
   const initialType = isType(params.get("type")) ? (params.get("type") as TicketType) : "bug"
   const context = useRef(browserContext(params.get("from") ?? window.location.pathname)).current
+  const location = useLocation()
+  const draft = useRef(ticketDraft(location.state)).current
   const [type, setType] = useState<TicketType>(initialType)
-  const [title, setTitle] = useState("")
-  const [body, setBody] = useState("")
+  const [title, setTitle] = useState(draft.title)
+  const [body, setBody] = useState(draft.body)
   const [files, setFiles] = useState<ComposerFile[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>()

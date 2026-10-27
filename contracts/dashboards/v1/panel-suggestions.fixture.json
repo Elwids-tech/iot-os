@@ -1,0 +1,3949 @@
+{
+  "version": 1,
+  "palette": [
+    "#3987e5",
+    "#d95926",
+    "#199e70",
+    "#c98500",
+    "#d55181",
+    "#9085e9"
+  ],
+  "neutral": {
+    "label": "Current",
+    "color": "#64748b"
+  },
+  "tones": {
+    "good": "#006133",
+    "info": "#0056cf",
+    "warning": "#844600",
+    "critical": "#be1218"
+  },
+  "suggestions": [
+    {
+      "id": "single_counter",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000001",
+            "label": "Energy",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "consumption",
+          "reason": "Usage per hour, day or month, with meter resets handled."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the running total now."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": null,
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000001",
+          "device_name": "Meter A",
+          "label": "Energy",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "integer_counter",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000002",
+            "label": "Pulses",
+            "kind": "counter",
+            "data_type": "integer",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "consumption",
+          "reason": "Usage per hour, day or month, with meter resets handled."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the running total now."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": null,
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000002",
+          "device_name": "Meter A",
+          "label": "Pulses",
+          "unit": null,
+          "data_type": "integer",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "counter_with_display_range",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000003",
+            "label": "Energy",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {
+              "min": 0,
+              "max": 100
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "consumption",
+          "reason": "Usage per hour, day or month, with meter resets handled."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the running total now."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": null,
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000003",
+          "device_name": "Meter A",
+          "label": "Energy",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "ranged_number",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000004",
+            "label": "Active power",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "kW",
+            "format": null,
+            "display": {
+              "min": 0,
+              "max": 80
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "gauge",
+          "reason": "Profile range 0–80 kW."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000004",
+          "device_name": "Pump 1",
+          "label": "Active power",
+          "unit": "kW",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "validation_range",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000005",
+            "label": "Pressure",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "bar",
+            "format": null,
+            "display": {},
+            "validation": {
+              "rule": {
+                "and": [
+                  {
+                    ">=": [
+                      {
+                        "var": "value"
+                      },
+                      0
+                    ]
+                  },
+                  {
+                    "<=": [
+                      {
+                        "var": "value"
+                      },
+                      10
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "gauge",
+          "reason": "Profile range 0–10 bar."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000005",
+          "device_name": "Pump 1",
+          "label": "Pressure",
+          "unit": "bar",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "unranged_number",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000006",
+            "label": "Voltage",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000006",
+          "device_name": "Pump 1",
+          "label": "Voltage",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "unitless_number",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000007",
+            "label": "Flow index",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000007",
+          "device_name": "Pump 1",
+          "label": "Flow index",
+          "unit": null,
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "percent_without_range",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000008",
+            "label": "Humidity",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "%",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "gauge",
+          "reason": "Profile range 0–100 %."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000008",
+          "device_name": "Pump 1",
+          "label": "Humidity",
+          "unit": "%",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "boolean_state",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000009",
+            "label": "Running",
+            "kind": "state",
+            "data_type": "boolean",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows the current state with its label."
+        },
+        {
+          "type": "state_history",
+          "reason": "Shows time spent in each state."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": null,
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000009",
+          "device_name": "Pump 1",
+          "label": "Running",
+          "unit": null,
+          "data_type": "boolean",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "enum_state",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000010",
+            "label": "Mode",
+            "kind": "state",
+            "data_type": "enum",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows the current state with its label."
+        },
+        {
+          "type": "state_history",
+          "reason": "Shows time spent in each state."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": null,
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000010",
+          "device_name": "Pump 1",
+          "label": "Mode",
+          "unit": null,
+          "data_type": "enum",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hex_colour",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000011",
+            "label": "Colour",
+            "kind": "state",
+            "data_type": "string",
+            "unit": null,
+            "format": "hex_color",
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows the current colour."
+        },
+        {
+          "type": "color_history",
+          "reason": "Shows colour changes over time."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": null,
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000011",
+          "device_name": "Lamp",
+          "label": "Colour",
+          "unit": null,
+          "data_type": "string",
+          "format": "hex_color",
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "colour_widget",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000012",
+            "label": "Colour",
+            "kind": "state",
+            "data_type": "string",
+            "unit": null,
+            "format": null,
+            "display": {
+              "widget": "color"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows the current colour."
+        },
+        {
+          "type": "color_history",
+          "reason": "Shows colour changes over time."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": null,
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000012",
+          "device_name": "Lamp",
+          "label": "Colour",
+          "unit": null,
+          "data_type": "string",
+          "format": null,
+          "display_widget": "color",
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "writable_state",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000013",
+            "label": "Power",
+            "kind": "state",
+            "data_type": "boolean",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": true
+        }
+      ],
+      "expected": [
+        {
+          "type": "controls",
+          "reason": "Writable, so it can be changed from the dashboard."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current state with its label."
+        },
+        {
+          "type": "state_history",
+          "reason": "Shows time spent in each state."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": null,
+        "state_history": null,
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000013",
+          "device_name": "Lamp",
+          "label": "Power",
+          "unit": null,
+          "data_type": "boolean",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "writable_number",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000014",
+            "label": "Brightness",
+            "kind": "state",
+            "data_type": "integer",
+            "unit": "%",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": true
+        }
+      ],
+      "expected": [
+        {
+          "type": "controls",
+          "reason": "Writable, so it can be changed from the dashboard."
+        },
+        {
+          "type": "gauge",
+          "reason": "Profile range 0–100 %."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": null,
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000014",
+          "device_name": "Lamp",
+          "label": "Brightness",
+          "unit": "%",
+          "data_type": "integer",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "string",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000015",
+            "label": "Firmware",
+            "kind": "measurement",
+            "data_type": "string",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        },
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000015",
+          "device_name": "Pump 1",
+          "label": "Firmware",
+          "unit": null,
+          "data_type": "string",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_stat",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000016",
+            "label": "Voltage",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {
+              "visualization": "stat"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Suggested by the device profile."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000016",
+          "device_name": "Pump 1",
+          "label": "Voltage",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_state",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000017",
+            "label": "Mode",
+            "kind": "state",
+            "data_type": "enum",
+            "unit": null,
+            "format": null,
+            "display": {
+              "visualization": "state"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Suggested by the device profile."
+        },
+        {
+          "type": "state_history",
+          "reason": "Shows time spent in each state."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": null,
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000017",
+          "device_name": "Pump 1",
+          "label": "Mode",
+          "unit": null,
+          "data_type": "enum",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_gauge",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000018",
+            "label": "Voltage",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {
+              "visualization": "gauge"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "gauge",
+          "reason": "Suggested by the device profile."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000018",
+          "device_name": "Pump 1",
+          "label": "Voltage",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_meter",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000019",
+            "label": "Tank level",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "%",
+            "format": null,
+            "display": {
+              "visualization": "meter"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "gauge",
+          "reason": "Suggested by the device profile."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000019",
+          "device_name": "Pump 1",
+          "label": "Tank level",
+          "unit": "%",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_timeseries",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000020",
+            "label": "Voltage",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {
+              "visualization": "timeseries"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "timeseries",
+          "reason": "Suggested by the device profile."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000020",
+          "device_name": "Pump 1",
+          "label": "Voltage",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_consumption",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000021",
+            "label": "Energy",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {
+              "visualization": "consumption"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "consumption",
+          "reason": "Suggested by the device profile."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the running total now."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": null,
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000021",
+          "device_name": "Meter A",
+          "label": "Energy",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_state_timeline",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000022",
+            "label": "Running",
+            "kind": "state",
+            "data_type": "boolean",
+            "unit": null,
+            "format": null,
+            "display": {
+              "visualization": "state_timeline"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "state_history",
+          "reason": "Suggested by the device profile."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current state with its label."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": null,
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000022",
+          "device_name": "Pump 1",
+          "label": "Running",
+          "unit": null,
+          "data_type": "boolean",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_table",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000023",
+            "label": "Voltage",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {
+              "visualization": "table"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "table",
+          "reason": "Suggested by the device profile."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000023",
+          "device_name": "Pump 1",
+          "label": "Voltage",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_color",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000024",
+            "label": "Colour",
+            "kind": "state",
+            "data_type": "string",
+            "unit": null,
+            "format": "hex_color",
+            "display": {
+              "visualization": "color"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "color_history",
+          "reason": "Suggested by the device profile."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current colour."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": null,
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000024",
+          "device_name": "Lamp",
+          "label": "Colour",
+          "unit": null,
+          "data_type": "string",
+          "format": "hex_color",
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_control",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000025",
+            "label": "Power",
+            "kind": "state",
+            "data_type": "boolean",
+            "unit": null,
+            "format": null,
+            "display": {
+              "visualization": "control"
+            },
+            "validation": {}
+          },
+          "writable": true
+        }
+      ],
+      "expected": [
+        {
+          "type": "controls",
+          "reason": "Suggested by the device profile."
+        },
+        {
+          "type": "status",
+          "reason": "Shows the current state with its label."
+        },
+        {
+          "type": "state_history",
+          "reason": "Shows time spent in each state."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": null,
+        "state_history": null,
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000025",
+          "device_name": "Lamp",
+          "label": "Power",
+          "unit": null,
+          "data_type": "boolean",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_ignored_when_incompatible",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000026",
+            "label": "Voltage",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {
+              "visualization": "consumption"
+            },
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows the current value and how fresh it is."
+        },
+        {
+          "type": "timeseries",
+          "reason": "Follows the dashboard time range."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000026",
+          "device_name": "Pump 1",
+          "label": "Voltage",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "hint_ignored_for_several",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000027",
+            "label": "Voltage L1",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {
+              "visualization": "gauge"
+            },
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000028",
+            "label": "Voltage L2",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "timeseries",
+          "reason": "One unit, so a single chart compares them."
+        },
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000027",
+          "device_name": "Pump 1",
+          "label": "Voltage L1",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000028",
+          "device_name": "Pump 1",
+          "label": "Voltage L2",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "same_unit",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000029",
+            "label": "Voltage",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000002",
+            "name": "Meter B"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000030",
+            "label": "Voltage",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "timeseries",
+          "reason": "One unit, so a single chart compares them."
+        },
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000029",
+          "device_name": "Meter A",
+          "label": "Voltage",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000002",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000030",
+          "device_name": "Meter B",
+          "label": "Voltage",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "same_unit_ranged",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000031",
+            "label": "Humidity in",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "%",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000032",
+            "label": "Humidity out",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "%",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "timeseries",
+          "reason": "One unit, so a single chart compares them."
+        },
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        },
+        {
+          "type": "gauge",
+          "reason": "Ranges come from the profile."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000031",
+          "device_name": "Pump 1",
+          "label": "Humidity in",
+          "unit": "%",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000032",
+          "device_name": "Pump 1",
+          "label": "Humidity out",
+          "unit": "%",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "mixed_units",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000033",
+            "label": "Voltage",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000034",
+            "label": "Current",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "A",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": "Needs parameters with one unit.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000033",
+          "device_name": "Pump 1",
+          "label": "Voltage",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000034",
+          "device_name": "Pump 1",
+          "label": "Current",
+          "unit": "A",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "two_counters",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000035",
+            "label": "Energy",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000002",
+            "name": "Meter B"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000036",
+            "label": "Energy",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "consumption",
+          "reason": "Compares usage per period, with meter resets handled."
+        },
+        {
+          "type": "timeseries",
+          "reason": "One unit, so a single chart compares them."
+        },
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": null,
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000035",
+          "device_name": "Meter A",
+          "label": "Energy",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000002",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000036",
+          "device_name": "Meter B",
+          "label": "Energy",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "counters_with_mixed_units",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000037",
+            "label": "Energy",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000038",
+            "label": "Water",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "L",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": "Needs parameters with one unit.",
+        "consumption": "Needs parameters with one unit.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000037",
+          "device_name": "Meter A",
+          "label": "Energy",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000038",
+          "device_name": "Meter A",
+          "label": "Water",
+          "unit": "L",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "five_counters",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000039",
+            "label": "Energy 1",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000040",
+            "label": "Energy 2",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000041",
+            "label": "Energy 3",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000042",
+            "label": "Energy 4",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000043",
+            "label": "Energy 5",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "timeseries",
+          "reason": "One unit, so a single chart compares them."
+        },
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Shows up to 4 parameters.",
+        "timeseries": null,
+        "consumption": "Shows up to 4 counters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000039",
+          "device_name": "Meter A",
+          "label": "Energy 1",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000040",
+          "device_name": "Meter A",
+          "label": "Energy 2",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000041",
+          "device_name": "Meter A",
+          "label": "Energy 3",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#199e70",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000042",
+          "device_name": "Meter A",
+          "label": "Energy 4",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#c98500",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000043",
+          "device_name": "Meter A",
+          "label": "Energy 5",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d55181",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "mixed_counters_and_measurements",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000044",
+            "label": "Energy",
+            "kind": "counter",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000045",
+            "label": "Energy today",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "kWh",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "timeseries",
+          "reason": "One unit, so a single chart compares them."
+        },
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": null,
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000044",
+          "device_name": "Meter A",
+          "label": "Energy",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000045",
+          "device_name": "Meter A",
+          "label": "Energy today",
+          "unit": "kWh",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "several_states",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000046",
+            "label": "Running",
+            "kind": "state",
+            "data_type": "boolean",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000047",
+            "label": "Mode",
+            "kind": "state",
+            "data_type": "enum",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows each current state with its label."
+        },
+        {
+          "type": "state_history",
+          "reason": "Shows time spent in each state."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": null,
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000046",
+          "device_name": "Pump 1",
+          "label": "Running",
+          "unit": null,
+          "data_type": "boolean",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000047",
+          "device_name": "Pump 1",
+          "label": "Mode",
+          "unit": null,
+          "data_type": "enum",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "several_colours",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000048",
+            "label": "Colour 1",
+            "kind": "state",
+            "data_type": "string",
+            "unit": null,
+            "format": "hex_color",
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000049",
+            "label": "Colour 2",
+            "kind": "state",
+            "data_type": "string",
+            "unit": null,
+            "format": "hex_color",
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows the current colour."
+        },
+        {
+          "type": "color_history",
+          "reason": "Shows colour changes over time."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": null,
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000048",
+          "device_name": "Lamp",
+          "label": "Colour 1",
+          "unit": null,
+          "data_type": "string",
+          "format": "hex_color",
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000049",
+          "device_name": "Lamp",
+          "label": "Colour 2",
+          "unit": null,
+          "data_type": "string",
+          "format": "hex_color",
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "all_writable",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000050",
+            "label": "Power",
+            "kind": "state",
+            "data_type": "boolean",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": true
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000051",
+            "label": "Night mode",
+            "kind": "state",
+            "data_type": "boolean",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": true
+        }
+      ],
+      "expected": [
+        {
+          "type": "controls",
+          "reason": "All writable, so they can be changed from the dashboard."
+        },
+        {
+          "type": "status",
+          "reason": "Shows each current state with its label."
+        },
+        {
+          "type": "state_history",
+          "reason": "Shows time spent in each state."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": null,
+        "state_history": null,
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000050",
+          "device_name": "Lamp",
+          "label": "Power",
+          "unit": null,
+          "data_type": "boolean",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000051",
+          "device_name": "Lamp",
+          "label": "Night mode",
+          "unit": null,
+          "data_type": "boolean",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "mixed_writable",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000004",
+            "name": "Lamp"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000052",
+            "label": "Power",
+            "kind": "state",
+            "data_type": "boolean",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": true
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000053",
+            "label": "Running",
+            "kind": "state",
+            "data_type": "boolean",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "status",
+          "reason": "Shows each current state with its label."
+        },
+        {
+          "type": "state_history",
+          "reason": "Shows time spent in each state."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": null,
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000004",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000052",
+          "device_name": "Lamp",
+          "label": "Power",
+          "unit": null,
+          "data_type": "boolean",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000053",
+          "device_name": "Pump 1",
+          "label": "Running",
+          "unit": null,
+          "data_type": "boolean",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "mixed_data_types",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000054",
+            "label": "Voltage",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000003",
+            "name": "Pump 1"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000055",
+            "label": "Firmware",
+            "kind": "measurement",
+            "data_type": "string",
+            "unit": null,
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        },
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Needs numeric parameters.",
+        "timeseries": "Needs numeric parameters.",
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000054",
+          "device_name": "Pump 1",
+          "label": "Voltage",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000003",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000055",
+          "device_name": "Pump 1",
+          "label": "Firmware",
+          "unit": null,
+          "data_type": "string",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    },
+    {
+      "id": "seven_sources_wrap_the_palette",
+      "candidates": [
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000056",
+            "label": "Voltage 1",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000057",
+            "label": "Voltage 2",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000058",
+            "label": "Voltage 3",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000059",
+            "label": "Voltage 4",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000060",
+            "label": "Voltage 5",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000061",
+            "label": "Voltage 6",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        },
+        {
+          "device": {
+            "uuid": "10000000-0000-4000-8000-000000000001",
+            "name": "Meter A"
+          },
+          "parameter": {
+            "uuid": "00000000-0000-4000-8000-000000000062",
+            "label": "Voltage 7",
+            "kind": "measurement",
+            "data_type": "number",
+            "unit": "V",
+            "format": null,
+            "display": {},
+            "validation": {}
+          },
+          "writable": false
+        }
+      ],
+      "expected": [
+        {
+          "type": "timeseries",
+          "reason": "One unit, so a single chart compares them."
+        },
+        {
+          "type": "status",
+          "reason": "Shows each current value."
+        },
+        {
+          "type": "table",
+          "reason": "Lists every value in rows."
+        }
+      ],
+      "incompatible": {
+        "status": null,
+        "gauge": "Shows up to 4 parameters.",
+        "timeseries": null,
+        "consumption": "Needs counter parameters.",
+        "table": null,
+        "controls": "Needs writable parameters.",
+        "state_history": "Needs boolean or enum parameters.",
+        "color_history": "Needs colour parameters.",
+        "device_health": "Configured without device parameters.",
+        "location": "Configured without device parameters.",
+        "alerts": "Configured without device parameters.",
+        "text": "Configured without device parameters."
+      },
+      "sources": [
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000056",
+          "device_name": "Meter A",
+          "label": "Voltage 1",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000057",
+          "device_name": "Meter A",
+          "label": "Voltage 2",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d95926",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000058",
+          "device_name": "Meter A",
+          "label": "Voltage 3",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#199e70",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000059",
+          "device_name": "Meter A",
+          "label": "Voltage 4",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#c98500",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000060",
+          "device_name": "Meter A",
+          "label": "Voltage 5",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#d55181",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000061",
+          "device_name": "Meter A",
+          "label": "Voltage 6",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#9085e9",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        },
+        {
+          "device_uuid": "10000000-0000-4000-8000-000000000001",
+          "parameter_uuid": "00000000-0000-4000-8000-000000000062",
+          "device_name": "Meter A",
+          "label": "Voltage 7",
+          "unit": "V",
+          "data_type": "number",
+          "format": null,
+          "display_widget": null,
+          "precision": null,
+          "color": "#3987e5",
+          "base": {
+            "label": "Current",
+            "color": "#64748b"
+          },
+          "thresholds": []
+        }
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "id": "empty_dashboard",
+      "existing": {},
+      "add": [
+        "a"
+      ],
+      "placement": "available",
+      "expected": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          }
+        ]
+      }
+    },
+    {
+      "id": "third_panel_wraps",
+      "existing": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          }
+        ]
+      },
+      "add": [
+        "b",
+        "c"
+      ],
+      "placement": "available",
+      "expected": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          },
+          {
+            "i": "b",
+            "x": 6,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          },
+          {
+            "i": "c",
+            "x": 0,
+            "y": 6,
+            "w": 6,
+            "h": 6
+          }
+        ]
+      }
+    },
+    {
+      "id": "fills_the_first_gap",
+      "existing": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          },
+          {
+            "i": "b",
+            "x": 0,
+            "y": 6,
+            "w": 6,
+            "h": 6
+          }
+        ]
+      },
+      "add": [
+        "c"
+      ],
+      "placement": "available",
+      "expected": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          },
+          {
+            "i": "b",
+            "x": 0,
+            "y": 6,
+            "w": 6,
+            "h": 6
+          },
+          {
+            "i": "c",
+            "x": 6,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          }
+        ]
+      }
+    },
+    {
+      "id": "after_a_full_width_panel",
+      "existing": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 4
+          }
+        ]
+      },
+      "add": [
+        "b"
+      ],
+      "placement": "available",
+      "expected": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 4
+          },
+          {
+            "i": "b",
+            "x": 0,
+            "y": 4,
+            "w": 6,
+            "h": 6
+          }
+        ]
+      }
+    },
+    {
+      "id": "bottom_placement",
+      "existing": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 4
+          },
+          {
+            "i": "b",
+            "x": 6,
+            "y": 4,
+            "w": 6,
+            "h": 6
+          }
+        ]
+      },
+      "add": [
+        "c",
+        "d"
+      ],
+      "placement": "bottom",
+      "expected": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 4
+          },
+          {
+            "i": "b",
+            "x": 6,
+            "y": 4,
+            "w": 6,
+            "h": 6
+          },
+          {
+            "i": "c",
+            "x": 6,
+            "y": 10,
+            "w": 6,
+            "h": 6
+          },
+          {
+            "i": "d",
+            "x": 6,
+            "y": 16,
+            "w": 6,
+            "h": 6
+          }
+        ]
+      }
+    },
+    {
+      "id": "bottom_of_an_empty_dashboard",
+      "existing": {
+        "lg": []
+      },
+      "add": [
+        "a"
+      ],
+      "placement": "bottom",
+      "expected": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          }
+        ]
+      }
+    },
+    {
+      "id": "every_saved_breakpoint",
+      "existing": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          }
+        ],
+        "md": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 5,
+            "h": 6
+          }
+        ],
+        "sm": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          }
+        ]
+      },
+      "add": [
+        "b"
+      ],
+      "placement": "available",
+      "expected": {
+        "lg": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          },
+          {
+            "i": "b",
+            "x": 6,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          }
+        ],
+        "md": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 5,
+            "h": 6
+          },
+          {
+            "i": "b",
+            "x": 5,
+            "y": 0,
+            "w": 5,
+            "h": 6
+          }
+        ],
+        "sm": [
+          {
+            "i": "a",
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 6
+          },
+          {
+            "i": "b",
+            "x": 0,
+            "y": 6,
+            "w": 3,
+            "h": 6
+          }
+        ]
+      }
+    }
+  ],
+  "claims": []
+}

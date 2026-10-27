@@ -11,6 +11,7 @@ import type {
 import { configurationProfile } from "@iot-os/api-client"
 import { verticalCompactor } from "react-grid-layout/core"
 import { csvCell, isColorSource } from "../history/model"
+import { TONE_COLOR } from "./profileDisplay"
 
 export const DEFAULT_VIEW: DashboardView = {
   range: { mode: "relative", preset: "6h" },
@@ -58,9 +59,24 @@ export function seriesColor(color: string) {
   return index < 0 ? color : `var(--series-${index + 1})`
 }
 export const NEUTRAL: DashboardBand = { label: "Current", color: "#64748b" }
-/** Neutral bands read as muted text colour in every skin. */
-export const bandColor = (color: string) =>
-  color === NEUTRAL.color ? "var(--muted-foreground)" : color
+/**
+ * Band colours the server saves for a named tone, as listed in
+ * contracts/dashboards/v1/panel-suggestions.fixture.json (the dashboard assistant).
+ */
+export const TONE_BANDS = {
+  good: "#006133",
+  info: "#0056cf",
+  warning: "#844600",
+  critical: "#be1218",
+} as const
+/** Neutral bands read as muted text colour and tone bands as the skin's tone colours, in every skin. */
+export function bandColor(color: string) {
+  if (color === NEUTRAL.color) return "var(--muted-foreground)"
+  const tone = (Object.keys(TONE_BANDS) as (keyof typeof TONE_BANDS)[]).find(
+    (key) => TONE_BANDS[key] === color.toLowerCase(),
+  )
+  return tone ? TONE_COLOR[tone] : color
+}
 export const PANEL_LABELS: Record<DashboardWidget["type"], string> = {
   status: "Status",
   timeseries: "Time series",

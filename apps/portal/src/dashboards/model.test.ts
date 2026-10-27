@@ -4,10 +4,12 @@ import type {
   DeviceDetail,
   Measurement,
 } from "@iot-os/api-client";
+import fixture from "../../../../contracts/dashboards/v1/panel-suggestions.fixture.json";
 import {
   absoluteError,
   appendLayout,
   appliedParameters,
+  bandColor,
   bandFor,
   cleanLayouts,
   compactLayouts,
@@ -16,6 +18,7 @@ import {
   gaugeSegments,
   historyRefresh,
   inputDate,
+  NEUTRAL,
   newWidget,
   profilePrecision,
   seriesColor,
@@ -30,6 +33,7 @@ import {
   widgetError,
   writeView,
 } from "./model";
+import { TONE_COLOR } from "./profileDisplay";
 import { createRequestQueue } from "./requests";
 
 const source: DashboardSource = {
@@ -93,6 +97,16 @@ describe("per-parameter thresholds", () => {
     expect(newWidget("status").config.columns).toBeUndefined();
   });
 });
+describe("band colours", () => {
+  it("draws the server's tone bands in the skin's tone colours", () => {
+    // The server saves these hex values for named tones (PanelSuggestions::TONES).
+    for (const [tone, hex] of Object.entries(fixture.tones))
+      expect(bandColor(hex)).toBe(TONE_COLOR[tone as keyof typeof TONE_COLOR]);
+    expect(bandColor(NEUTRAL.color)).toBe("var(--muted-foreground)");
+    expect(bandColor("#123456")).toBe("#123456");
+  });
+});
+
 describe("historical viewing state", () => {
   it("rolls relative ranges but never moves absolute ranges", () => {
     const at = Date.parse("2026-09-09T12:00:00Z");

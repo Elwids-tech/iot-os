@@ -127,6 +127,8 @@ export type DashboardInput = Pick<
 export type DashboardRevisionSummary = {
   revision: number;
   name: string;
+  /** Who made the version besides the person: the dashboard assistant, or an agent draft (reserved). Null for a person's save. */
+  origin?: "assistant" | "agent" | null;
   widget_count: number;
   updated_by_name: string | null;
   created_at: string;

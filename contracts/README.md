@@ -14,6 +14,7 @@ valid and invalid examples.
 | [`events/v1`](events/README.md) | `telemetry.committed.v1` | Runtime committed-telemetry feed and its consumers |
 | [`rules/v1`](rules/v1) | Workflow v1, `geofence-rule.v1` definition, state, transition, deployment, simulation request and expected trace | Geofence rules |
 | [`rules/v2`](rules/v2) | `automation-workflow.v2` DAG schema and a reference graph | DAG automation |
+| [`dashboards/v1`](dashboards/v1) | Panel suggestion parity cases: the **Add panel** ranking with its reasons, every panel type's incompatibility, new-source defaults, panel placement and the band colours for named tones | `PanelSuggestionsContractTest` (PHP), `suggest.test.ts` and `model.test.ts` (portal) |
 | [`location/v1`](location/v1) | `location-binding.v1`, `location-fix.v1`, 30 location scenarios | Location resolver, geofences, integration API |
 | [`ingestion/v1`](ingestion/v1) | Canonical telemetry envelope family (`telemetry.envelope.v1`, `source.presence.v1`, `source.announcement.v1`, `ingestion.rejection.v1`), read strictly. Only the empty catalogue exists so far | Reference reader in the runtime, not wired into any live path |
 | [`internal`](internal) | Control-plane and runtime protocol: control messages, runtime events, delivery wrappers and the `/state` snapshot, read tolerantly. The catalogue and its schema exist; entries are added with each contract | Laravel and the Go runtime ([ADR-014](../docs/adr/ADR-014-control-plane-data-plane-http-integration.md)) |

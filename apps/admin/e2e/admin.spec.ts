@@ -896,12 +896,17 @@ for (const account of [superAdmin, platformAdmin]) {
 test("keeps user search and organization filters in the URL", async ({ page }) => {
   await mockApi(page)
   await page.goto("/users")
+  // A slow CPU renders the cleared search after the filter is picked, as on a
+  // busy CI runner. The filter must not bring the search back. Full speed
+  // returns before the checks, which would otherwise time out on CI.
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 })
 
   // Search applies as you type.
   await page.getByRole("searchbox", { name: "Search" }).fill("Shared")
 
   await expect(page).toHaveURL(/search=Shared/)
-  await expect(page.getByRole("row", { name: /Shared Operations Admin/ })).toBeVisible()
+  await expect(page.getByRole("row", { name: /Shared Operations Admin/ })).toBeVisible({ timeout: 15000 })
   await expect(page.getByRole("row", { name: /Acme Member/ })).toHaveCount(0)
 
   await page.getByRole("searchbox", { name: "Search" }).fill("")
@@ -909,6 +914,7 @@ test("keeps user search and organization filters in the URL", async ({ page }) =
   await page.getByRole("combobox", { name: "Organization" }).click()
   await page.getByRole("option", { name: "Northstar Utilities" }).click()
   await page.keyboard.press("Escape")
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 })
 
   await expect(page).toHaveURL(new RegExp(`organization=${organizations[1].uuid}`))
   await expect(page.getByRole("row", { name: /Northstar Member/ })).toBeVisible()

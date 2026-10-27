@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest"
-import type { DeviceProfileParameter } from "@iot-os/api-client"
-import { incompatibility, panelFor, suggestPanels, type Candidate } from "./suggest"
+import type { DashboardLayout, DashboardSource, DeviceProfileParameter } from "@iot-os/api-client"
+import fixture from "../../../../contracts/dashboards/v1/panel-suggestions.fixture.json"
+import { appendLayout, COLORS, NEUTRAL } from "./model"
+import {
+  incompatibility,
+  OTHER_PANELS,
+  PARAMETER_PANELS,
+  panelFor,
+  sourceFor,
+  suggestPanels,
+  type Candidate,
+  type PanelType,
+  type Suggestion,
+} from "./suggest"
 import { displayRange, displayStates, stateFor } from "./profileDisplay"
+
+type SuggestionCase = {
+  id: string
+  candidates: Candidate[]
+  expected: Suggestion[]
+  incompatible: Record<PanelType, string | null>
+  sources: DashboardSource[]
+}
+type LayoutCase = {
+  id: string
+  existing: DashboardLayout
+  add: string[]
+  placement: "available" | "bottom"
+  expected: DashboardLayout
+}
+const suggestions = fixture.suggestions as unknown as SuggestionCase[]
+const layouts = fixture.layouts as unknown as LayoutCase[]
 
 const device = { uuid: "d1", name: "Line 2 meter" }
 let next = 0
@@ -29,54 +58,23 @@ const candidate = (values: Partial<DeviceProfileParameter>, writable = false): C
   parameter: parameter(values),
   writable,
 })
-const types = (candidates: Candidate[]) => suggestPanels(candidates).map((s) => s.type)
 
 describe("panel suggestions", () => {
-  it("leads with Stat for a numeric value without a range", () => {
-    expect(types([candidate({ unit: "V" })])).toEqual(["status", "timeseries", "table"])
+  // The server's PanelSuggestions and DashboardLayout read the same cases.
+  it.each(suggestions.map((entry) => [entry.id, entry] as const))("%s", (_, entry) => {
+    expect(suggestPanels(entry.candidates)).toEqual(entry.expected)
+    const types = [...PARAMETER_PANELS, ...OTHER_PANELS]
+    expect(Object.fromEntries(types.map((type) => [type, incompatibility(type, entry.candidates)]))).toEqual(entry.incompatible)
+    expect(entry.candidates.map((c, index) => sourceFor(c.device, c.parameter, index))).toEqual(entry.sources)
   })
 
-  it("leads with a gauge when the profile defines a range", () => {
-    const power = candidate({ unit: "kW", display: { min: 0, max: 80 } })
-    const suggestions = suggestPanels([power])
-    expect(suggestions[0]).toEqual({ type: "gauge", reason: "Profile range 0–80 kW." })
-    expect(types([candidate({ unit: "%" })])[0]).toBe("gauge")
-    expect(types([candidate({ validation: { rule: { and: [{ ">=": [{ var: "value" }, 0] }, { "<=": [{ var: "value" }, 10] }] } } as DeviceProfileParameter["validation"] })])[0]).toBe("gauge")
+  it.each(layouts.map((entry) => [entry.id, entry] as const))("places panels: %s", (_, entry) => {
+    expect(entry.add.reduce((result, id) => appendLayout(result, id, entry.placement), entry.existing)).toEqual(entry.expected)
   })
 
-  it("shows running totals as consumption and never as a gauge", () => {
-    const energy = candidate({ kind: "counter", unit: "kWh", display: { min: 0, max: 100 } })
-    expect(types([energy])).toEqual(["consumption", "status", "timeseries", "table"])
-    expect(types([energy, candidate({ kind: "counter", unit: "kWh" })])[0]).toBe("consumption")
-    expect(incompatibility("consumption", [candidate({ unit: "kW" })])).toBe("Needs counter parameters.")
-    expect(incompatibility("consumption", [energy, candidate({ kind: "counter", unit: "L" })])).toBe("Needs parameters with one unit.")
-  })
-
-  it("compares same-unit values in one chart and avoids mixed-unit charts", () => {
-    expect(types([candidate({ unit: "V" }), candidate({ unit: "V" })])[0]).toBe("timeseries")
-    const mixed = [candidate({ unit: "V" }), candidate({ unit: "A" })]
-    expect(types(mixed)).not.toContain("timeseries")
-    expect(incompatibility("timeseries", mixed)).toBe("Needs parameters with one unit.")
-  })
-
-  it("uses state panels for enums and controls for writable states", () => {
-    expect(types([candidate({ data_type: "enum", kind: "state" })])).toEqual(["status", "state_history", "table"])
-    expect(types([candidate({ data_type: "boolean", kind: "state" }, true)])[0]).toBe("controls")
-    expect(incompatibility("controls", [candidate({ data_type: "boolean" })])).toBe("Needs writable parameters.")
-  })
-
-  it("lets the profile hint win for a single parameter", () => {
-    expect(types([candidate({ unit: "V", display: { visualization: "timeseries" } })])[0]).toBe("timeseries")
-  })
-
-  it("falls back to a table for mixed data types", () => {
-    expect(types([candidate({ unit: "V" }), candidate({ data_type: "string" })])).toEqual(["table", "status"])
-  })
-
-  it("rejects non-parameter panels and oversized gauges with reasons", () => {
-    const five = Array.from({ length: 5 }, () => candidate({ unit: "V" }))
-    expect(incompatibility("gauge", five)).toBe("Shows up to 4 parameters.")
-    expect(incompatibility("text", five)).toBe("Configured without device parameters.")
+  it("shares the palette and neutral band with the server", () => {
+    expect(COLORS).toEqual(fixture.palette)
+    expect(NEUTRAL).toEqual(fixture.neutral)
   })
 })
 

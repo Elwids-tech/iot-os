@@ -10,6 +10,7 @@ use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Geospatial\Models\Geofence;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -49,7 +50,19 @@ final class DashboardDefinition
 
     public function validate(Request $request, Organization $organization, bool $updating): array
     {
-        $data = $request->validate([
+        return $this->validateDocument($request->all(), $organization, $updating);
+    }
+
+    /**
+     * Checks a dashboard document without saving it and returns it with each source's
+     * metadata taken from the applied profile.
+     *
+     * @param  array<string, mixed>  $document
+     * @return array<string, mixed>
+     */
+    public function validateDocument(array $document, Organization $organization, bool $updating): array
+    {
+        $data = Validator::make($document, [
             'name' => ['required', 'string', 'max:120'],
             'revision' => [$updating ? 'required' : 'sometimes', 'integer', 'min:1'],
             'widgets' => ['present', 'array', 'max:100'],
@@ -116,7 +129,7 @@ final class DashboardDefinition
             'defaults.range.preset' => ['required_if:defaults.range.mode,relative', 'in:15m,1h,6h,24h,7d,30d'],
             'defaults.range.from' => ['required_if:defaults.range.mode,absolute', 'date'],
             'defaults.range.to' => ['required_if:defaults.range.mode,absolute', 'date', 'after:defaults.range.from', 'before_or_equal:now'],
-        ]);
+        ])->validate();
         $data['name'] = trim($data['name']);
         if ($data['defaults']['range']['mode'] === 'absolute' && strtotime($data['defaults']['range']['to']) - strtotime($data['defaults']['range']['from']) > 400 * 86400) {
             $this->fail('defaults.range', 'Choose a range of 400 days or less.');

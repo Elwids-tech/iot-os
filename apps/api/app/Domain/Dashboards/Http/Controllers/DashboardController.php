@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Dashboards\Http\Controllers;
 
 use App\Domain\Authorization\Models\Role;
+use App\Domain\Dashboards\Actions\SaveDashboard;
 use App\Domain\Dashboards\Models\Dashboard;
 use App\Domain\Dashboards\Models\DashboardRevision;
 use App\Domain\Dashboards\Models\DashboardShare;
@@ -20,12 +21,10 @@ use Illuminate\Validation\ValidationException;
 
 final class DashboardController
 {
-    private const KEPT_REVISIONS = 50;
-
     /** The most members and roles one dashboard can be shared with. */
     private const MAX_SHARES = 100;
 
-    public function __construct(private readonly DashboardAccess $access) {}
+    public function __construct(private readonly DashboardAccess $access, private readonly SaveDashboard $save) {}
 
     /** Only the dashboards this person can open, each with what they may do to it. */
     public function index(Request $request, Organization $organization): array
@@ -42,13 +41,9 @@ final class DashboardController
     {
         abort_unless($this->access->capabilities($request->user(), $organization)['create'], 403);
         $values = app(DashboardDefinition::class)->validate($request, $organization, false);
+        $dashboard = $this->save->create($organization, $request->user(), $values);
 
-        return DB::transaction(function () use ($organization, $request, $values): array {
-            $dashboard = Dashboard::create(['tags' => [], 'folder' => null, ...$values, 'revision' => 1, 'access' => DashboardAccess::ORGANIZATION, 'organization_id' => $organization->id, 'created_by' => $request->user()->id, 'updated_by' => $request->user()->id]);
-            $this->snapshot($dashboard);
-
-            return ['data' => $this->view($dashboard, null, $this->access->abilities($request->user(), $organization, $dashboard))];
-        });
+        return ['data' => $this->view($dashboard, null, $this->access->abilities($request->user(), $organization, $dashboard))];
     }
 
     public function show(Request $request, Organization $organization, Dashboard $dashboard): array
@@ -64,7 +59,7 @@ final class DashboardController
         $abilities = $this->authorizeDashboard($request, $organization, $dashboard, 'edit');
         $values = app(DashboardDefinition::class)->validate($request, $organization, true);
 
-        return DB::transaction(fn (): array => $this->save($request, $this->lockCurrent($dashboard, (int) $values['revision']), $values, $abilities));
+        return $this->saved($request, $this->save->update($dashboard, $request->user(), $values, (int) $values['revision']), $abilities);
     }
 
     public function star(Request $request, Organization $organization, Dashboard $dashboard): array
@@ -91,7 +86,7 @@ final class DashboardController
             foreach ($dashboard->shares()->get() as $share) {
                 $copy->shares()->create($share->only(['role_id', 'user_id', 'level']));
             }
-            $this->snapshot($copy);
+            $this->save->snapshot($copy);
 
             return ['data' => $this->view($copy, null, $this->access->abilities($request->user(), $organization, $copy))];
         });
@@ -100,10 +95,10 @@ final class DashboardController
     public function revisions(Request $request, Organization $organization, Dashboard $dashboard): array
     {
         $this->authorizeDashboard($request, $organization, $dashboard, 'view');
-        $revisions = DashboardRevision::where('dashboard_id', $dashboard->id)->with('creator:id,name')->orderByDesc('revision')->limit(self::KEPT_REVISIONS)->get();
+        $revisions = DashboardRevision::where('dashboard_id', $dashboard->id)->with('creator:id,name')->orderByDesc('revision')->limit(SaveDashboard::KEPT_REVISIONS)->get();
 
         return ['data' => $revisions->map(fn (DashboardRevision $revision) => [
-            ...$revision->only(['revision', 'name', 'created_at']),
+            ...$revision->only(['revision', 'name', 'created_at', 'origin']),
             'widget_count' => count($revision->widgets ?? []),
             'updated_by_name' => $revision->creator?->name,
         ])->all()];
@@ -132,17 +127,18 @@ final class DashboardController
 
         // The stale check comes first: a newer save may have pruned the snapshot or changed what validates.
         return DB::transaction(function () use ($abilities, $dashboard, $expected, $number, $organization, $request): array {
-            $locked = $this->lockCurrent($dashboard, $expected);
+            $locked = $this->save->lock($dashboard, $expected);
             $revision = $this->findRevision($locked, $number);
             // Re-validated like an update so devices that left the organization since cannot come back.
-            $request->merge([
+            $values = app(DashboardDefinition::class)->validateDocument([
                 ...$revision->only(['name', 'layouts', 'folder']),
                 'widgets' => DashboardDefinition::normalize($revision->widgets ?? []),
                 'defaults' => $revision->defaults ?? DashboardDefinition::defaults(),
                 'tags' => $revision->tags ?? [],
-            ]);
+                'revision' => $expected,
+            ], $organization, true);
 
-            return $this->save($request, $locked, app(DashboardDefinition::class)->validate($request, $organization, true), $abilities);
+            return $this->saved($request, $this->save->update($locked, $request->user(), $values, $expected), $abilities);
         });
     }
 
@@ -154,28 +150,12 @@ final class DashboardController
         return response()->noContent();
     }
 
-    /** Call inside a transaction. */
-    private function lockCurrent(Dashboard $dashboard, int $expected): Dashboard
+    /**
+     * @param  array{view: bool, edit: bool, share: bool, delete: bool}  $abilities
+     */
+    private function saved(Request $request, Dashboard $dashboard, array $abilities): array
     {
-        $locked = Dashboard::whereKey($dashboard->id)->lockForUpdate()->firstOrFail();
-        abort_unless($locked->revision === $expected, 409, 'This dashboard changed in another session. Your draft is preserved. Reload the latest version before editing again.');
-
-        return $locked;
-    }
-
-    private function save(Request $request, Dashboard $locked, array $values, array $abilities): array
-    {
-        $locked->update([...$values, 'revision' => $locked->revision + 1, 'updated_by' => $request->user()->id]);
-        $this->snapshot($locked);
-
-        return ['data' => $this->view($locked, $this->preference($request, $locked), $abilities)];
-    }
-
-    private function snapshot(Dashboard $dashboard): void
-    {
-        DashboardRevision::create([...$dashboard->only(['revision', 'name', 'widgets', 'layouts', 'defaults', 'tags', 'folder']), 'dashboard_id' => $dashboard->id, 'created_by' => $dashboard->updated_by]);
-        $oldestKept = DashboardRevision::where('dashboard_id', $dashboard->id)->orderByDesc('revision')->skip(self::KEPT_REVISIONS - 1)->value('revision');
-        DashboardRevision::where('dashboard_id', $dashboard->id)->where('revision', '<', $oldestKept ?? 0)->delete();
+        return ['data' => $this->view($dashboard, $this->preference($request, $dashboard), $abilities)];
     }
 
     private function findRevision(Dashboard $dashboard, int $number): DashboardRevision

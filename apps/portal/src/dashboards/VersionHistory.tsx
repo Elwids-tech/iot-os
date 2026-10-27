@@ -120,6 +120,7 @@ export function VersionHistory({
                     {item.widget_count}{" "}
                     {item.widget_count === 1 ? "panel" : "panels"}
                     {item.updated_by_name && ` · ${item.updated_by_name}`}
+                    {item.origin === "assistant" && " · Created with the assistant"}
                     {item.revision === revision && " · Current"}
                   </span>
                 </button>
