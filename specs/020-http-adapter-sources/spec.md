@@ -69,9 +69,10 @@ Reading the code turned up three facts that shape the requirements:
    side.
 
 The feature changes no existing permission or role. It adds two source types, their
-routes and settings, and additive decoder-contract fields. Existing MQTT adapters keep
-their behaviour, except for the timestamp label (FR-050) and the shared no-drop and
-deduplication fixes (FR-062, FR-063).
+routes and settings, additive decoder-contract fields, a setup checklist, and turns
+the adapter assistant into a device onboarding assistant for every kind of device.
+Existing MQTT adapters keep their behaviour, except for the timestamp label (FR-050)
+and the shared no-drop and deduplication fixes (FR-062, FR-063).
 
 **Terms**: a *source type* is how an adapter receives vendor data: tenant MQTT broker,
 vendor MQTT broker, HTTP webhook or HTTP polling. A *delivery* is one HTTP request a
@@ -108,6 +109,28 @@ receiver* is the platform-owned service at the public edge that receives deliver
   receipt-timed for every adapter source, or only for the new HTTP sources? → A:
   Every adapter source, MQTT included. Only the label changes; deployed adapters with
   location bindings and no `observedAt` are listed before release.
+
+### Session 2026-10-27 (before planning)
+
+- Q: How should a person onboard a webhook or polling vendor in the portal? → A: A
+  setup checklist at the top of the adapter workbench that shows which steps are done
+  and what to do next: device type, connect, capture samples, decoder, test and
+  deploy, activate devices. Captured deliveries and fetched records become test
+  samples with one action. No separate wizard.
+- Q: Which assistant helps with onboarding? → A: One **device onboarding assistant**
+  replaces the adapter assistant. It asks how the device sends data, recommends the
+  path, picks an existing adapter or proposes a new one, and continues through
+  samples, settings and the decoder.
+- Q: What should the assistant do when no device profile fits the device? → A: Draft
+  the profile in the same conversation. The person reviews each section and
+  publishes it, then the assistant continues to the adapter.
+- Q: Which devices does the onboarding assistant cover? → A: Every device. For native
+  Sparkplug B devices and gateways it explains the path and opens the existing setup
+  form; the adapter path continues in the conversation.
+- Q: May the assistant run Fetch now itself? → A: Yes, read-only, within Fetch now's
+  limit, and without ever seeing the credentials. Credentials, webhook secrets, the
+  revision test that gates deployment, deployment, activation and cursor resets stay
+  with the person.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -294,6 +317,58 @@ then `401`. Each case shows on the adapter with its reason within one minute.
 
 ---
 
+### User Story 6 - Onboard a device with the assistant (Priority: P2)
+
+A person has a box of devices and the vendor's documentation, and does not know which
+of the platform's paths fits. On **Add device** they open the onboarding assistant
+and describe the device. The assistant asks how the device sends data, with choices.
+For a native Sparkplug B device or a gateway it explains the path and opens the
+existing setup form. For a vendor cloud it recommends the adapter source, reuses an
+adapter that already handles this device type or proposes a new one, and drafts the
+device profile in the same conversation when none fits. After the person enters the
+credentials in the form, it runs Fetch now (or waits for the first webhook delivery),
+picks the samples, drafts the decoder and the settings, and tells the person what is
+left: run the tests, deploy, activate. The workbench's setup checklist shows the same
+progress whether or not the assistant is used.
+
+**Why this priority**: the source types work without it, but most of the time to
+first reading is spent working out which path to take, where the records sit in a
+vendor response and how to decode them.
+
+**Independent Test**: with the assistant enabled and the vendor API simulator running,
+a person starts on Add device with only the simulator's documentation, follows the
+assistant's questions and approvals, enters the API key in the form, and reaches an
+activated tracker with source-timed readings. At no point does the assistant's
+context, reply or tool result contain the API key.
+
+**Acceptance Scenarios**:
+
+1. **Given** the assistant is disabled, **Then** the setup checklist, Fetch now,
+   samples and every other step still work, and the onboarding page offers no
+   assistant (principle V).
+2. **Given** a person describes a device that publishes Sparkplug B, **Then** the
+   assistant recommends a direct connection and opens the Add device form with that
+   choice selected; it creates nothing.
+3. **Given** an existing adapter for the same device type, **Then** the assistant
+   proposes reusing it, and the conversation continues on that adapter once the
+   person accepts.
+4. **Given** no adapter fits, **Then** the assistant proposes a new draft adapter with
+   its name, profile, source type and non-secret settings, and creates it only when
+   the person approves the proposal.
+5. **Given** no profile fits, **Then** the assistant drafts the profile in the same
+   conversation; each section is applied only after the person's review, and the
+   assistant continues to the adapter after the profile is published.
+6. **Given** saved credentials, **When** the assistant runs Fetch now, **Then** the
+   person sees the fetch in the conversation, the stored cursor does not move, and
+   the assistant receives the redacted response and the records only.
+7. **Given** a person pastes something that looks like a credential into the chat,
+   **Then** the assistant does not repeat it and points to the credentials field.
+8. **Given** a proposal that changes the decoder, the source settings or the fixtures,
+   **Then** it is applied to the draft only by the person, as one new draft revision,
+   and it cannot change credentials or webhook secrets.
+
+---
+
 ### Edge Cases
 
 - **One delivery carries several messages.** A vendor posts a JSON array of messages
@@ -475,7 +550,8 @@ then `401`. Each case shows on the adapter with its reason within one minute.
   credentials without moving the cursor or publishing anything. It shows the HTTP
   status, the duration, response headers and an excerpt of up to 256 KiB with
   credentials redacted, the first 20 records, and the next cursor, and lets the
-  person save records as fixtures. It is limited to 6 a minute per adapter.
+  person save records as fixtures. The person or the onboarding assistant can run
+  it (FR-106); both share a limit of 6 a minute per adapter.
 - **FR-040**: A full page whose cursor did not advance MUST stop the run's paging with
   **Cursor did not advance**.
 
@@ -548,10 +624,53 @@ then `401`. Each case shows on the adapter with its reason within one minute.
   `Device.manage-connections`.
 - **FR-082**: Secret creation, rotation and revocation, polling credential changes and
   cursor resets MUST be recorded in the device audit log.
-- **FR-083**: The adapter assistant MAY propose decoders and non-secret source
-  settings from fixtures and saved deliveries. It MUST NOT see secrets or
-  credentials, and MUST NOT rotate, revoke, run Fetch now, reset a cursor or deploy
-  (principle V).
+- **FR-083**: The device onboarding assistant (FR-102) MUST NOT see secrets or
+  credentials, and MUST NOT save credentials, create, rotate or revoke webhook
+  secrets, run the revision test that gates deployment, deploy, pause, roll back,
+  activate devices or reset a cursor (principle V).
+
+**Device onboarding: setup checklist and assistant**
+
+- **FR-100**: The adapter workbench MUST show a setup checklist with six steps: device
+  type, connect, capture samples, decoder, test and deploy, activate devices. Each
+  step shows done, waiting (for example **Waiting for the first delivery**), needs
+  attention or not started, derived from the adapter's saved state, and links to the
+  action that completes it. It works the same with the assistant disabled.
+- **FR-101**: A captured webhook delivery (a sample or a failed delivery), a Fetch now
+  record and a discovered source's preview MUST be addable to the draft's fixtures in
+  one action, keeping the input fields the decoder would see (FR-019, FR-035). Fixture
+  topics become optional for sources that have none.
+- **FR-102**: The adapter assistant MUST become the **device onboarding assistant**: one
+  conversation that can start on Add device with no adapter, continues on the adapter
+  it creates or picks, and opens from the device onboarding page, the adapter
+  workbench and the workspace assistant's suggestions. Existing adapter conversations
+  continue as onboarding conversations.
+- **FR-103**: The assistant MUST ask how the device sends data, offering choices, and
+  recommend one path: a direct Sparkplug B connection, a gateway, or an adapter with
+  its source type (devices publish to the tenant broker, vendor MQTT broker, HTTP
+  webhook or HTTP polling). For a direct connection or a gateway it explains the path
+  and opens the existing Add device form with that choice; it creates nothing there.
+- **FR-104**: The assistant MUST look up the adapters and profiles the person can
+  view, propose reusing an adapter that fits, or propose a new draft adapter with its
+  name, profile, source type and non-secret source settings. The adapter is created
+  only when the person approves the proposal, with the same permissions as creating
+  it in the form.
+- **FR-105**: When no profile fits, the assistant MUST draft the profile in the same
+  conversation, section by section, with the profile assistant's existing review: no
+  section is saved without the person's approval, and the person publishes the
+  profile. The assistant then continues to the adapter.
+- **FR-106**: On an adapter, the assistant MAY read captured samples, discovered
+  sources, attached documents and Fetch now results; run Fetch now with the saved
+  draft and credentials (FR-039); test decoder code against samples without recording
+  a revision test; and propose one change at a time that may combine decoder code,
+  non-secret source settings and fixtures. The person applies a proposal as one new
+  draft revision; a proposal cannot touch credentials or secrets.
+- **FR-107**: The assistant MUST ask the person to enter credentials and secrets in
+  the form, never in the chat, and MUST NOT repeat text that looks like a credential.
+  Tool results it receives are redacted like the portal's Fetch now view.
+- **FR-108**: The assistant MUST tell the person the next step from the checklist's
+  state, and offer a button that opens it (for example **Run tests**, **Deploy** or
+  **Activate**) instead of performing it.
 
 **Contracts, docs and test tools**
 
@@ -588,6 +707,11 @@ then `401`. Each case shows on the adapter with its reason within one minute.
 - **Poll run**: start, end, outcome, HTTP status, pages, records, published and
   failed counts, cursor before and after, error, next attempt.
 - **Deduplication entry**: adapter, source device, message identifier, first seen.
+- **Onboarding conversation**: one person's conversation with the onboarding
+  assistant; optionally bound to the profile it drafts and the adapter it creates or
+  picks; holds the questions asked and the answers given.
+- **Onboarding proposal**: an immutable, reviewable change: reuse an adapter, create a
+  draft adapter, or change a draft's decoder, non-secret source settings and fixtures.
 
 ## Success Criteria *(mandatory)*
 
@@ -614,6 +738,12 @@ then `401`. Each case shows on the adapter with its reason within one minute.
   its reason, within 1 minute.
 - **SC-009**: A page of 1,000 records is decoded and published within one 5-minute
   interval on the pilot reference host.
+- **SC-010**: Starting on Add device with only the vendor API simulator's
+  documentation, a person reaches an activated tracker with readings in under 20
+  minutes using the onboarding assistant, and in under 30 minutes without it using
+  the setup checklist.
+- **SC-011**: Across the onboarding evaluation set, no assistant reply, context or tool
+  result contains a saved credential or webhook secret.
 
 ## Assumptions
 

@@ -40,3 +40,6 @@
   in FR-012 and the polling request definition in FR-030) and the scope of the
   timestamp label fix (FR-050) were resolved with the owner in `/speckit-clarify` on
   2026-10-27.
+- A second clarification round on 2026-10-27, before planning, added the setup
+  checklist, the device onboarding assistant (User Story 6, FR-100–FR-108) and the
+  assistant's read-only Fetch now, and replaced FR-083.
