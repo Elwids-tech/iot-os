@@ -19599,6 +19599,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
           },

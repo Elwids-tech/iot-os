@@ -9,3 +9,7 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  PUT /v1/organizations/{organization}/location-bindings/{device}:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'

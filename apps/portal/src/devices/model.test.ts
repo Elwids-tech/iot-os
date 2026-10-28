@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type {
   Device,
   DeviceConfiguration,
+  LocationBinding,
   Measurement,
   WorkflowAlert,
 } from "@iot-os/api-client"
@@ -12,7 +13,10 @@ import {
   groupAlerts,
   healthDetails,
   lastPosition,
+  locationBindingInput,
+  locationDraft,
   locationParameters,
+  locationProblems,
   recentDataMs,
   RECENT_DATA_MS,
   shortDeviceCode,
@@ -169,6 +173,67 @@ describe("device position", () => {
     expect(lastPosition([reading("lat", 51.05, { quality: "invalid" }), reading("lng", -114.07)], where)).toBeNull()
     expect(lastPosition([reading("lat", 91), reading("lng", -114.07)], where)).toBeNull()
     expect(lastPosition([reading("lat", 0), reading("lng", 0)], where)).toBeNull()
+  })
+})
+
+describe("location binding form", () => {
+  const parameter = (uuid: string, key: string, unit: string | null, data_type = "number") => ({ uuid, key, unit, data_type })
+  const parameters = [
+    parameter("lat", "gps.latitude", "deg"),
+    parameter("lng", "gps.longitude", "deg"),
+    parameter("acc", "gps.accuracy", "m"),
+    parameter("name", "gps.label", null, "string"),
+    parameter("alt", "gps.altitude", "m"),
+  ]
+  const binding = {
+    latitude_parameter_uuid: "lng",
+    longitude_parameter_uuid: "lat",
+    accuracy_parameter_uuid: null,
+    max_age_seconds: 300,
+    max_future_skew_seconds: 0,
+    allow_unknown_accuracy: false,
+  } as LocationBinding
+  it("starts from the profile's guess and the API defaults", () => {
+    expect(locationDraft(undefined, parameters)).toEqual({
+      latitude: "lat",
+      longitude: "lng",
+      accuracy: "acc",
+      max_age_seconds: "90",
+      max_future_skew_seconds: "5",
+      allow_unknown_accuracy: true,
+    })
+  })
+  it("keeps the saved choices while the applied profile still has them", () => {
+    expect(locationDraft(binding, parameters)).toMatchObject({ latitude: "lng", longitude: "lat", accuracy: "", max_age_seconds: "300" })
+    const reconfigured = { ...binding, latitude_parameter_uuid: "gone" }
+    expect(locationDraft(reconfigured, parameters)).toMatchObject({ latitude: "lat", longitude: "lng", accuracy: "acc", max_age_seconds: "300" })
+  })
+  it("needs degrees for coordinates, metres for accuracy and the API's limits", () => {
+    expect(locationProblems(locationDraft(undefined, parameters), parameters)).toEqual({})
+    const draft = locationDraft(undefined, parameters)
+    expect(locationProblems({ ...draft, latitude: "", longitude: "alt", accuracy: "lat", max_age_seconds: "0", max_future_skew_seconds: "2.5" }, parameters)).toEqual({
+      latitude: "Choose the latitude parameter.",
+      longitude: "Maps need degrees. Set this parameter's unit to deg in its profile.",
+      accuracy: "Accuracy must be in metres. Set this parameter's unit to m in its profile.",
+      max_age_seconds: "Enter whole seconds from 1 to 86,400.",
+      max_future_skew_seconds: "Enter whole seconds from 0 to 300.",
+    })
+    expect(locationProblems({ ...draft, longitude: "lat", accuracy: "alt" }, parameters)).toEqual({
+      longitude: "Choose a different parameter from latitude.",
+    })
+    expect(locationProblems({ ...draft, accuracy: "lat" }, parameters).accuracy).toBe("Choose a parameter that isn't a coordinate.")
+  })
+  it("sends numbers, the revision and no accuracy for an empty choice", () => {
+    expect(locationBindingInput({ ...locationDraft(undefined, parameters), accuracy: "", max_age_seconds: " 120 " }, "config", 3)).toEqual({
+      revision: 3,
+      configuration_uuid: "config",
+      latitude_parameter_uuid: "lat",
+      longitude_parameter_uuid: "lng",
+      accuracy_parameter_uuid: null,
+      max_age_seconds: 120,
+      max_future_skew_seconds: 5,
+      allow_unknown_accuracy: true,
+    })
   })
 })
 

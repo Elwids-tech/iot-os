@@ -165,3 +165,4 @@ Statuses found after spec 001 by tests that exercise an operation for the first 
 | Operation | Source | Discrepancy | Resolution | Pull request |
 | --- | --- | --- | --- | --- |
 | `DELETE /v1/organizations/{organization}/roles/{role}` | inference | 422 missing: `OrganizationRoleManager::delete` refuses a built-in role, a role a member holds and a role on a pending invitation | `422: ValidationFailed` in `supplements/administration.yaml` | spec 005 |
+| `PUT /v1/organizations/{organization}/location-bindings/{device}` | inference | 409 missing: `LocationBindingController::update` refuses a stale binding `revision` | `409: Conflict` in `supplements/geospatial.yaml` | location binding editor |

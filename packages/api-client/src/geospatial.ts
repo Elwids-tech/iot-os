@@ -18,6 +18,19 @@ export interface LocationBinding {
   allow_unknown_accuracy: boolean
 }
 
+/** Saves a device's binding; `revision` is the saved binding's (0 for a new one), so a concurrent edit gets 409. */
+export type LocationBindingInput = Pick<
+  LocationBinding,
+  | "revision"
+  | "configuration_uuid"
+  | "latitude_parameter_uuid"
+  | "longitude_parameter_uuid"
+  | "accuracy_parameter_uuid"
+  | "max_age_seconds"
+  | "max_future_skew_seconds"
+  | "allow_unknown_accuracy"
+>
+
 export interface LocationPoint {
   latitude: number
   longitude: number

@@ -31,15 +31,26 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
 import { formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
 import { LayoutDashboardIcon } from "lucide-react"
+import { toast } from "sonner"
 import { api } from "../lib/api"
+import { RequestError } from "../components/forms"
 import { useDashboardCapabilities } from "../dashboards/access"
 import { dashboardPath } from "../dashboards/model"
 import { telemetryRequest } from "../dashboards/requests"
 import {
+  bindingConfiguration,
+  LocationBindingSheet,
+  useSaveLocationBinding,
+} from "../geospatial/LocationBindingSheet"
+import {
   configurationSummary,
   groupAlerts,
   lastPosition,
+  locationBindingInput,
+  locationDraft,
   locationParameters,
+  locationProblems,
+  numericParameters,
 } from "./model"
 import {
   deviceProfile,
@@ -106,7 +117,7 @@ export function DeviceOverview({
         aria-label="Device summary"
         className="flex min-w-0 flex-col gap-6 xl:border-l xl:pl-6"
       >
-        <DeviceLocation org={org} device={device} />
+        <DeviceLocation org={org} device={device} editable={editable && device.lifecycle !== "archived"} />
         <DeviceDetails org={org} device={device} />
         {!!device.installations?.length && <Section title="Physical installation"><p className="text-sm text-muted-foreground">Readings belong to virtual device <code className="break-all">{device.uuid}</code>.</p>{device.installations.map(installation => <div key={installation.uuid} className="mt-3 flex flex-col gap-1 text-sm"><p>{installation.manufacturer_serial} · {installation.ended_at ? "Previous installation" : "Current hardware"}</p><p className="text-muted-foreground">Installed {formatDateTime(installation.started_at)}</p><code className="break-all text-xs">{installation.uuid}</code></div>)}</Section>}
         <UsedIn org={org} device={device} />
@@ -694,8 +705,19 @@ function DeviceAlerts({ org, device }: { org: string; device: DeviceDetail }) {
   )
 }
 
-/** Last known position on a small map, from the location binding or the profile's latitude/longitude. */
-function DeviceLocation({ org, device }: { org: string; device: DeviceDetail }) {
+/**
+ * Last known position on a small map, from the location binding or the profile's
+ * latitude/longitude, and the binding itself: maps and geofences only see saved ones.
+ */
+function DeviceLocation({
+  org,
+  device,
+  editable,
+}: {
+  org: string
+  device: DeviceDetail
+  editable: boolean
+}) {
   const bindings = useQuery({
     queryKey: ["location-bindings", org],
     queryFn: () => api.locationBindings(org),
@@ -707,10 +729,28 @@ function DeviceLocation({ org, device }: { org: string; device: DeviceDetail }) 
     const configuration = device.configurations?.find((c) => c.uuid === id)
     return configuration ? configurationProfile(configuration).parameters : []
   }, [device])
-  const where = locationParameters(
-    bindings.data?.data.find((binding) => binding.device_uuid === device.uuid),
-    parameters,
-  )
+  const binding = bindings.data?.data.find((b) => b.device_uuid === device.uuid)
+  const where = locationParameters(binding, parameters)
+  // Two parameters in degrees are worth offering setup for when their keys don't say latitude/longitude.
+  const locatable = numericParameters(parameters).filter((p) => p.unit === "deg").length >= 2
+  const [editing, setEditing] = useState(false),
+    [saving, setSaving] = useState(false),
+    [error, setError] = useState<unknown>(null)
+  const save = useSaveLocationBinding(org)
+  const suggestion = locationDraft(undefined, parameters)
+  const saveable = where && Object.keys(locationProblems(suggestion, parameters)).length === 0
+  async function saveSuggestion() {
+    setSaving(true)
+    setError(null)
+    try {
+      await save(device.uuid, locationBindingInput(suggestion, bindingConfiguration(device), 0))
+      toast.success("Location saved. Dashboard maps and geofences can use it now.")
+    } catch (reason) {
+      setError(reason)
+    } finally {
+      setSaving(false)
+    }
+  }
   const latest = useLatest(org, device)
   const position = where ? lastPosition(latest.data?.data ?? [], where) : null
   const key = position && JSON.stringify(position)
@@ -750,7 +790,7 @@ function DeviceLocation({ org, device }: { org: string; device: DeviceDetail }) 
     // Rebuild only when the position changes, not on every 5 s poll.
     [device.uuid, device.name, key],
   )
-  if (!where) return null
+  if (!where && !(editable && locatable && bindings.isSuccess)) return null
   return (
     <Section
       title="Location"
@@ -762,25 +802,58 @@ function DeviceLocation({ org, device }: { org: string; device: DeviceDetail }) 
           </>
         ) : undefined
       }
+      actions={
+        editable && where && bindings.isSuccess ? (
+          <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setEditing(true)}>
+            Edit
+          </Button>
+        ) : undefined
+      }
     >
-      {position ? (
-        <div className="flex flex-col gap-1">
-          <div className="h-48">
-            <Suspense fallback={<Skeleton className="h-full w-full" />}>
-              <LocationMap devices={marker} showLabels={false} />
-            </Suspense>
+      <div className="flex flex-col gap-3">
+        {!where ? null : position ? (
+          <div className="flex flex-col gap-1">
+            <div className="h-48">
+              <Suspense fallback={<Skeleton className="h-full w-full" />}>
+                <LocationMap devices={marker} showLabels={false} />
+              </Suspense>
+            </div>
+            <p className="font-mono text-xs text-muted-foreground tabular-nums">
+              {position.latitude.toFixed(5)}, {position.longitude.toFixed(5)}
+              {position.accuracy !== null && ` · ±${formatNumber(position.accuracy, 0)} m`}
+            </p>
           </div>
-          <p className="font-mono text-xs text-muted-foreground tabular-nums">
-            {position.latitude.toFixed(5)}, {position.longitude.toFixed(5)}
-            {position.accuracy !== null && ` · ±${formatNumber(position.accuracy, 0)} m`}
+        ) : latest.isPending && latest.fetchStatus !== "idle" ? (
+          <Skeleton className="h-6 w-full" />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {latest.isError ? "Position unavailable right now." : "No position reported yet."}
           </p>
-        </div>
-      ) : latest.isPending && latest.fetchStatus !== "idle" ? (
-        <Skeleton className="h-6 w-full" />
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          {latest.isError ? "Position unavailable right now." : "No position reported yet."}
-        </p>
+        )}
+        {bindings.isSuccess && !binding && (
+          <div className="flex flex-col items-start gap-2 text-sm">
+            <div>
+              <StatusMark tone="muted">
+                {where ? "Not saved as this device's location" : "No location set up"}
+              </StatusMark>
+              <p className="text-muted-foreground">Dashboard maps and geofences need a saved location.</p>
+            </div>
+            {editable && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={saving}
+                onClick={saveable ? saveSuggestion : () => setEditing(true)}
+              >
+                {saveable ? "Save location" : "Set up location"}
+              </Button>
+            )}
+            <RequestError error={error} />
+          </div>
+        )}
+      </div>
+      {editing && (
+        <LocationBindingSheet org={org} device={device} binding={binding} onClose={() => setEditing(false)} />
       )}
     </Section>
   )

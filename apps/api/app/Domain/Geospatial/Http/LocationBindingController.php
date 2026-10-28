@@ -33,6 +33,8 @@ final class LocationBindingController
             'accuracy_parameter_uuid' => 'nullable|uuid|different:latitude_parameter_uuid|different:longitude_parameter_uuid',
             'max_age_seconds' => 'required|integer|between:1,86400', 'max_future_skew_seconds' => 'required|integer|between:0,300',
             'allow_unknown_accuracy' => 'required|boolean']);
+        // Accuracy is optional: leaving the key out saves no accuracy parameter, the same as null.
+        $input['accuracy_parameter_uuid'] ??= null;
         $configuration = DeviceConfiguration::where('device_id', $device->id)->where('uuid', $input['configuration_uuid'])->firstOrFail();
         abort_unless($device->applied_configuration_uuid === $configuration->uuid || $device->last_applied_configuration_uuid === $configuration->uuid, 422, 'Use the current applied device configuration.');
         $parameters = collect(json_decode($configuration->definition['profile_canonical_json'], true, 512, JSON_THROW_ON_ERROR)['parameters'] ?? [])->pluck('uuid');

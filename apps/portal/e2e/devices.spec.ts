@@ -160,6 +160,8 @@ async function setup(page: Page, options: Options = {}) {
     saved: null as null | Record<string, any>,
     history: [] as URLSearchParams[],
     sorts: [] as string[],
+    bindings: [...(options.bindings ?? [])],
+    savedBindings: [] as Record<string, any>[],
   }
   page.on("pageerror", (error) => state.errors.push(error.message))
   page.on("console", (message) => {
@@ -252,7 +254,25 @@ async function setup(page: Page, options: Options = {}) {
           limit_reached: false,
         },
       })
-    if (path.endsWith("/location-bindings")) return json({ data: options.bindings ?? [] })
+    if (path.endsWith("/location-bindings")) return json({ data: state.bindings })
+    const bound = /\/location-bindings\/([^/]+)$/.exec(path)?.[1]
+    if (bound && request.method() === "PUT") {
+      const input = request.postDataJSON()
+      state.savedBindings.push(input)
+      const saved = {
+        ...input,
+        schema_version: "location-binding.v1",
+        uuid: "abababab-abab-4bab-8bab-abababababab",
+        revision: input.revision + 1,
+        organization_uuid: org,
+        device_uuid: bound,
+        device_name: "GPS Demo Tracker",
+        generation: 1,
+        pairing: "same_event",
+      }
+      state.bindings = [...state.bindings.filter((b) => b.device_uuid !== bound), saved]
+      return json({ data: saved })
+    }
     if (path.endsWith("/measurements/latest"))
       return json({
         presence: "online",
@@ -748,22 +768,23 @@ test("device overview explains unavailable live values and groups repeated alert
   expect(state.errors).toEqual([])
 })
 
-test("GPS tracker overview shows its last position and age on a map", async ({ page }, info) => {
-  const trackerId = "12121212-1212-4212-8212-121212121212"
-  const gps = "45454545-4545-4545-8545-454545454545"
+const trackerId = "12121212-1212-4212-8212-121212121212"
+const trackerConfiguration = "45454545-4545-4545-8545-454545454545"
+/** A GPS tracker 2 min after its last fix, with the given saved location bindings. */
+async function trackerSetup(page: Page, bindings: Record<string, any>[] = []) {
   const tracker = {
     ...detail,
     uuid: trackerId,
     code: "gps-demo-tracker",
     name: "GPS Demo Tracker",
-    desired_configuration_uuid: gps,
-    applied_configuration_uuid: gps,
-    last_applied_configuration_uuid: gps,
+    desired_configuration_uuid: trackerConfiguration,
+    applied_configuration_uuid: trackerConfiguration,
+    last_applied_configuration_uuid: trackerConfiguration,
     profile: { uuid: profileId, name: "GPS tracker", revision: 1 },
     configurations: [
       {
         ...detail.configurations[0],
-        uuid: gps,
+        uuid: trackerConfiguration,
         profile_name: "GPS tracker",
         definition: { profile_canonical_json: JSON.stringify(gpsProfile), mappings: [] },
       },
@@ -774,9 +795,10 @@ test("GPS tracker overview shows its last position and age on a map", async ({ p
     "location.longitude": -114.0719,
     "location.accuracy": 4,
   }
-  const state = await setup(page, {
+  return setup(page, {
     details: { [trackerId]: tracker },
     history: "empty",
+    bindings,
     latest: () =>
       gpsProfile.parameters.map((p) => ({
         parameter_uuid: p.uuid,
@@ -791,6 +813,10 @@ test("GPS tracker overview shows its last position and age on a map", async ({ p
         historical: false,
       })),
   })
+}
+
+test("GPS tracker overview shows its last position and age on a map", async ({ page }, info) => {
+  const state = await trackerSetup(page)
   await page.setViewportSize({ width: 1280, height: 1000 })
   await page.goto(`${base}/devices/${trackerId}`)
   const location = page.getByRole("complementary", { name: "Device summary" })
@@ -799,6 +825,62 @@ test("GPS tracker overview shows its last position and age on a map", async ({ p
   await expect(page.getByRole("button", { name: "GPS Demo Tracker: unknown" })).toBeVisible()
   await expect(page.getByRole("heading", { name: "Latest measurements" })).toBeVisible()
   await page.screenshot({ path: info.outputPath("overview-gps.png") })
+  expect(state.errors).toEqual([])
+})
+
+test("a GPS tracker's suggested location saves as its binding and can be edited", async ({ page }, info) => {
+  const [latitude, longitude, accuracy] = gpsProfile.parameters.map((p) => p.uuid)
+  const state = await trackerSetup(page)
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.goto(`${base}/devices/${trackerId}`)
+  const summary = page.getByRole("complementary", { name: "Device summary" })
+  await expect(summary.getByText("Not saved as this device's location")).toBeVisible()
+  await expect(summary.getByText("Dashboard maps and geofences need a saved location.")).toBeVisible()
+  await summary.getByRole("button", { name: "Save location", exact: true }).click()
+  await expect.poll(() => state.savedBindings).toEqual([
+    {
+      revision: 0,
+      configuration_uuid: trackerConfiguration,
+      latitude_parameter_uuid: latitude,
+      longitude_parameter_uuid: longitude,
+      accuracy_parameter_uuid: accuracy,
+      max_age_seconds: 90,
+      max_future_skew_seconds: 5,
+      allow_unknown_accuracy: true,
+    },
+  ])
+  await expect(page.getByText("Location saved. Dashboard maps and geofences can use it now.")).toBeVisible()
+  await expect(summary.getByText("Not saved as this device's location")).toHaveCount(0)
+  await summary.getByRole("button", { name: "Edit", exact: true }).click()
+  const sheet = page.getByRole("dialog", { name: "Edit location" })
+  await expect(sheet.getByRole("combobox", { name: "Latitude" })).toHaveText("Latitude · location.latitude (deg)")
+  await expect(sheet.getByText("No unsaved changes")).toBeVisible()
+  await sheet.getByRole("combobox", { name: "Accuracy" }).click()
+  await page.getByRole("option", { name: "No accuracy parameter", exact: true }).click()
+  await sheet.getByLabel("Maximum age (seconds)").fill("0")
+  await expect(sheet.getByText("Enter whole seconds from 1 to 86,400.")).toBeVisible()
+  await expect(sheet.getByRole("button", { name: "Save location" })).toBeDisabled()
+  await sheet.getByLabel("Maximum age (seconds)").fill("300")
+  await axe(page)
+  await page.screenshot({ path: info.outputPath("location-sheet.png") })
+  await sheet.getByRole("button", { name: "Save location" }).click()
+  await expect(sheet).toHaveCount(0)
+  expect(state.savedBindings.at(-1)).toMatchObject({ revision: 1, accuracy_parameter_uuid: null, max_age_seconds: 300 })
+  expect(state.errors).toEqual([])
+})
+
+test("the location card offers no setup without device management", async ({ page }) => {
+  const state = await trackerSetup(page)
+  await page.route("**/api/v1/organizations/*/context", (route) =>
+    route.fulfill({
+      json: { data: { uuid: org, name: "Acme", slug: "acme", capabilities: { devices: { view: true, manage: false } } } },
+    }),
+  )
+  await page.goto(`${base}/devices/${trackerId}`)
+  const summary = page.getByRole("complementary", { name: "Device summary" })
+  await expect(summary.getByText("Not saved as this device's location")).toBeVisible()
+  await expect(summary.getByRole("button", { name: "Save location" })).toHaveCount(0)
+  await expect(summary.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0)
   expect(state.errors).toEqual([])
 })
 
