@@ -23,8 +23,29 @@ func TestAdapterProvenanceRequiresEnrolledInstallation(t *testing.T) {
 	if got := Readings(d, p, []Metric{metric}, map[string]Reading{}, time.Now()); got[0].Quality != "invalid" || got[0].Value != nil {
 		t.Fatal(got)
 	}
+	// A preview published before the installation was bound has no provenance and is left out.
+	if got := Readings(d, p, []Metric{{Name: "flow_rate", Datatype: "Double", Value: 12.0}}, map[string]Reading{}, time.Now()); len(got) != 0 {
+		t.Fatal("an unbound preview became a reading", got)
+	}
 	d.Adapter = nil
 	if got := Readings(d, p, []Metric{metric}, map[string]Reading{}, time.Now()); got[0].Quality != "good" || got[0].InstallationUUID != "" {
 		t.Fatal("native device incorrectly acquired adapter provenance", got)
+	}
+}
+
+// Spec 020, FR-050: an adapter result without a decoder observation time is stamped
+// with the receipt time and must not be labelled as the device's own time.
+func TestReceiptStampedAdapterReadingsAreReceiptTimed(t *testing.T) {
+	d := Definition{DeviceUUID: "tracker", Mappings: []Mapping{{ParameterUUID: "lat", Metric: "latitude", Datatype: "Double", ConversionMode: "none"}}}
+	p := Profile{Parameters: []Parameter{{UUID: "lat", Key: "latitude", Kind: "measurement", DataType: "number", ReportsState: true}}}
+	stamp := time.Now().Add(-time.Second).UTC()
+	metric := Metric{Name: "latitude", Datatype: "Double", Value: 51.0, Timestamp: &stamp}
+	if got := Readings(d, p, []Metric{metric}, map[string]Reading{}, time.Now()); got[0].TimestampSource != "source" {
+		t.Fatal("a timestamped metric should stay source-timed", got[0].TimestampSource)
+	}
+	metric.TimestampSource = "receipt"
+	got := Readings(d, p, []Metric{metric}, map[string]Reading{}, time.Now())
+	if got[0].TimestampSource != "receipt" || !got[0].ObservedAt.Equal(stamp) {
+		t.Fatal("receipt-stamped metric was labelled", got[0].TimestampSource)
 	}
 }

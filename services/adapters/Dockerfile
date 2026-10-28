@@ -7,6 +7,18 @@ COPY services/adapters/ ./
 EXPOSE 8090
 CMD ["node", "manager.cjs"]
 
+# The public webhook receiver (ADR-022): no Docker CLI, no socket, runs as node.
+FROM node:22-alpine AS webhook-receiver
+WORKDIR /app
+COPY services/adapters/package*.json ./
+RUN npm ci --omit=dev --ignore-scripts
+COPY services/adapters/ ./
+USER node
+EXPOSE 8095 9105
+HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:8095/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+CMD ["node", "receiver.cjs"]
+
 FROM nodered/node-red:4.1.13-22 AS tenant-runtime
 USER root
 WORKDIR /opt/iot-adapter

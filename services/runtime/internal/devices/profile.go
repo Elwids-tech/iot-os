@@ -143,6 +143,13 @@ func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string
 		if !ok {
 			continue
 		}
+		// Spec 020: a birth or preview the adapter published before this device's
+		// installation was bound carries no provenance at all. It is not this
+		// installation's reading, so it is left out instead of stored as invalid;
+		// a provenance that does not match stays invalid below.
+		if d.Adapter != nil && metric.InstallationUUID == "" && metric.AdapterRevisionUUID == "" {
+			continue
+		}
 		parameter := params[mapping.ParameterUUID]
 		observed := received
 		if metric.Timestamp != nil {
@@ -150,7 +157,7 @@ func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string
 		}
 		r := Reading{ParameterUUID: parameter.UUID, Key: parameter.Key, Label: parameter.Label, DataType: parameter.DataType, Unit: parameter.Unit, Value: metric.Value, Quality: "good", ObservedAt: observed, ReceivedAt: received, Historical: metric.Historical}
 		r.TimestampSource = "receipt"
-		if metric.Timestamp != nil {
+		if metric.Timestamp != nil && metric.TimestampSource != "receipt" {
 			r.TimestampSource = "source"
 		}
 		if observed.After(received.Add(5 * time.Minute)) {

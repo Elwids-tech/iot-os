@@ -8,6 +8,8 @@ services:
       IOT_ADAPTER_PORT_BASE: ${IOT_ADAPTER_PORT_BASE:-19000}
       IOT_ADAPTER_PORT_LIMIT: ${IOT_ADAPTER_PORT_LIMIT:-19999}
       IOT_ADAPTER_QUEUE_CONNECTION: database
+      IOT_WEBHOOK_PUBLIC_URL: ${IOT_WEBHOOK_PUBLIC_URL:-}
+      IOT_WEBHOOK_RECEIVER_TOKEN: ${IOT_WEBHOOK_RECEIVER_TOKEN:-}
   assistant-worker:
     environment: *adapter-env
   adapter-worker:
@@ -52,6 +54,27 @@ services:
       - ${STATE_DIR}/device-adapters:/state
     networks: [private]
     mem_limit: 256m
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+  # Public webhook receiver (ADR-022), reached through Caddy at hooks.${DOMAIN}.
+  webhook-receiver:
+    # The manager image carries the receiver; it runs here without the Docker socket.
+    image: ${ADAPTER_MANAGER_IMAGE:?}
+    command: [node, receiver.cjs]
+    user: node
+    environment:
+      IOT_WEBHOOK_ROUTES_FILE: /routes/routes.json
+      IOT_WEBHOOK_REPORT_URL: http://api:8000/api/internal/adapters/receiver-reports
+      IOT_WEBHOOK_RECEIVER_TOKEN: ${IOT_WEBHOOK_RECEIVER_TOKEN:-}
+      IOT_WEBHOOK_TRUSTED_PROXIES: ${IOT_WEBHOOK_TRUSTED_PROXIES:-172.16.0.0/12,10.0.0.0/8}
+    volumes:
+      - ${STATE_DIR}/device-adapters/webhooks:/routes:ro
+    networks: [private]
+    mem_limit: 192m
+    read_only: true
+    security_opt: [no-new-privileges:true]
     restart: unless-stopped
     logging:
       driver: json-file

@@ -7,7 +7,10 @@ const schema = `syntax = "proto2"; message Payload {
 }`;
 const Payload = protobuf.parse(schema).root.lookupType("Payload");
 const types = { Int64: 4, Double: 10, Boolean: 11, String: 12 };
-function metric(name, datatype, value, timestamp, provenance) {
+// Adapter metrics carry their provenance and, for results without a decoder
+// observedAt, `timestamp_source: receipt` so the runtime does not treat the receipt
+// time as the device's (spec 020, FR-050).
+function metric(name, datatype, value, timestamp, provenance, options = {}) {
   const result = { name, datatype: types[datatype], timestamp };
   if (value == null) result.isNull = true;
   else
@@ -19,14 +22,21 @@ function metric(name, datatype, value, timestamp, provenance) {
         String: "stringValue",
       }[datatype]
     ] = value;
-  if (provenance)
-    result.properties = {
-      keys: ["installation_uuid", "adapter_revision_uuid"],
-      values: [
-        { type: 12, stringValue: provenance.installation_uuid },
-        { type: 12, stringValue: provenance.adapter_revision_uuid },
-      ],
-    };
+  if (options.historical) result.isHistorical = true;
+  const keys = [];
+  const values = [];
+  if (provenance) {
+    keys.push("installation_uuid", "adapter_revision_uuid");
+    values.push(
+      { type: 12, stringValue: provenance.installation_uuid },
+      { type: 12, stringValue: provenance.adapter_revision_uuid },
+    );
+  }
+  if (options.receipt) {
+    keys.push("timestamp_source");
+    values.push({ type: 12, stringValue: "receipt" });
+  }
+  if (keys.length) result.properties = { keys, values };
   return result;
 }
 function encode(seq, metrics = [], timestamp = Date.now()) {

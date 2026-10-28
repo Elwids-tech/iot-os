@@ -1,11 +1,10 @@
 function flowNodes(body, source, upstream, callbackUrl) {
   const tab = "adapter-" + body.adapter_uuid;
   const nodeId = (kind) => tab + "-" + kind;
-  const sourceCredentials = {
-    username: source.username,
-    password: source.password,
-    ca_certificate: source.ca_certificate,
-  };
+  const secretFields = ["username", "password", "ca_certificate", "api_key", "token"];
+  const sourceCredentials = Object.fromEntries(
+    secretFields.filter((field) => source[field] != null).map((field) => [field, source[field]]),
+  );
   const upstreamCredentials = {
     username: upstream.username,
     password: upstream.password,
@@ -13,10 +12,8 @@ function flowNodes(body, source, upstream, callbackUrl) {
   };
   source = { ...source };
   upstream = { ...upstream };
-  for (const field of ["username", "password", "ca_certificate"]) {
-    delete source[field];
-    delete upstream[field];
-  }
+  for (const field of secretFields) delete source[field];
+  for (const field of ["username", "password", "ca_certificate"]) delete upstream[field];
   if (body.action === "pause") return [];
   return [
     { id: tab, type: "tab", label: body.name, disabled: false },
@@ -24,9 +21,11 @@ function flowNodes(body, source, upstream, callbackUrl) {
       id: nodeId("source"),
       z: tab,
       type: "iot-adapter-source",
-      name: "MQTT source",
+      name: { webhook: "Webhook source", poll: "HTTP polling source" }[source.type] || "MQTT source",
       adapter_uuid: body.adapter_uuid,
+      revision_uuid: body.revision_uuid,
       source,
+      ...(source.type === "poll" ? { cursor: body.cursor || {} } : {}),
       credentials: sourceCredentials,
       wires: [[nodeId("decoder")], [nodeId("reporter")]],
     },
@@ -50,6 +49,7 @@ function flowNodes(body, source, upstream, callbackUrl) {
       upstream,
       credentials: upstreamCredentials,
       bindings: body.bindings || [],
+      retention_days: body.retention_days || null,
       wires: [[nodeId("reporter")]],
     },
     {

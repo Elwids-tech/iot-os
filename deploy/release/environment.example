@@ -60,6 +60,11 @@ IOT_ADAPTER_BIND_ADDRESS=127.0.0.1
 IOT_ADAPTER_DOCKER_NETWORK=
 IOT_ADAPTER_PORT_BASE=19000
 IOT_ADAPTER_PORT_LIMIT=19999
+# Webhook adapter sources (ADR-022): the receiver's public HTTPS address, for example
+# https://hooks.example.com (add its DNS record first); empty disables webhooks. The
+# token (64 hex) authenticates the receiver's reports to the API.
+IOT_WEBHOOK_PUBLIC_URL=
+IOT_WEBHOOK_RECEIVER_TOKEN=
 # Previous base domain after a rename, e.g. staging.elwids.xyz. Its app/admin/api/ops
 # hosts redirect to DOMAIN and mqtt.<LEGACY_DOMAIN> stays on the broker certificate.
 LEGACY_DOMAIN=

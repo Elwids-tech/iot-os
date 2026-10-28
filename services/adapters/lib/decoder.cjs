@@ -20,6 +20,8 @@ const PROGRESS_CPU_MS = 1;
 // decoder's code starts.
 const SETUP_CPU_LIMIT_MS = 5000;
 
+// One decoder input. MQTT sources pass the packet's retain flag and QoS; webhook
+// deliveries add `http` and polled records add `poll` (spec 020, decoder-io.md).
 function inputFromMessage(payload, topic, metadata = {}) {
   const bytes = Buffer.isBuffer(payload)
     ? payload
@@ -31,14 +33,20 @@ function inputFromMessage(payload, topic, metadata = {}) {
   try {
     parsed = JSON.parse(bytes.toString("utf8"));
   } catch {}
+  const received = Date.parse(metadata.receivedAt);
   return {
     payload: parsed,
     bytes: Array.from(bytes),
     payloadBase64: bytes.toString("base64"),
-    topic,
-    receivedAt: new Date().toISOString(),
+    topic: topic ?? "",
+    receivedAt: new Date(
+      Number.isFinite(received) ? received : Date.now(),
+    ).toISOString(),
     retained: !!metadata.retain,
     qos: metadata.qos ?? 0,
+    source: metadata.source || "mqtt",
+    ...(metadata.http ? { http: metadata.http } : {}),
+    ...(metadata.poll ? { poll: metadata.poll } : {}),
   };
 }
 
@@ -204,4 +212,82 @@ function validateOutput(result, profile) {
     ...(messageId ? { messageId } : {}),
   };
 }
-module.exports = { decode, inputFromMessage, validateOutput };
+// A decoder may return one result or a list of 1 to 500. Each result is validated
+// alone, so one bad result never discards the others.
+function validateResults(result, profile) {
+  if (!Array.isArray(result))
+    return { results: [validateOutput(result, profile)], failures: [] };
+  if (!result.length || result.length > 500)
+    throw Error("Return one result or a list of 1 to 500 results");
+  const results = [];
+  const failures = [];
+  result.forEach((item, index) => {
+    try {
+      results.push(validateOutput(item, profile));
+    } catch (error) {
+      failures.push({ index, error: String(error.message).slice(0, 300) });
+    }
+  });
+  return { results, failures };
+}
+
+const observed = (result) =>
+  result.observedAt ? Date.parse(result.observedAt) : Infinity;
+
+// Decodes one input or a polled page, at most `concurrency` workers at a time, and
+// returns the results oldest observation first. Receipt-timed results keep their
+// input order after the source-timed ones.
+async function decodeBatch(code, inputs, profile, { concurrency = 2 } = {}) {
+  const outcomes = new Array(inputs.length);
+  let next = 0;
+  async function work() {
+    while (next < inputs.length) {
+      const index = next++;
+      let decoded;
+      try {
+        decoded = await decode(code, inputs[index]);
+      } catch (error) {
+        outcomes[index] = {
+          failures: [
+            { reason: "decode_failed", error: String(error.message).slice(0, 300) },
+          ],
+        };
+        continue;
+      }
+      try {
+        const { results, failures } = validateResults(decoded, profile);
+        outcomes[index] = {
+          results,
+          failures: failures.map((f) => ({ ...f, reason: "validation_failed" })),
+        };
+      } catch (error) {
+        outcomes[index] = {
+          failures: [
+            {
+              reason: "validation_failed",
+              error: String(error.message).slice(0, 300),
+            },
+          ],
+        };
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, inputs.length) }, work),
+  );
+  const results = [];
+  const failures = [];
+  outcomes.forEach((outcome, input) => {
+    for (const result of outcome.results || []) results.push({ ...result, input });
+    for (const failure of outcome.failures) failures.push({ ...failure, input });
+  });
+  results.sort((a, b) => observed(a) - observed(b) || a.input - b.input);
+  return { results, failures };
+}
+module.exports = {
+  decode,
+  decodeBatch,
+  inputFromMessage,
+  validateOutput,
+  validateResults,
+};

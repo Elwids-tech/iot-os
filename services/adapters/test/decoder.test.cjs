@@ -215,3 +215,25 @@ test("retained flags and binary bytes survive input normalization", () => {
   assert.deepEqual(input.bytes, [0, 255]);
   assert.equal(input.payload, null);
 });
+test("a decoder may return a list; each result fails alone and a page is ordered oldest first", async () => {
+  const { decodeBatch, validateResults } = require("../lib/decoder.cjs");
+  const trackers = { parameters: [{ uuid: "t", key: "temperature", data_type: "number" }] };
+  const code = `function decode(input){ return input.payload.map(r => ({ sourceDeviceId: r.id, metrics: [{ name: 'temperature', value: r.t }], ...(r.at ? { observedAt: r.at } : {}) })) }`;
+  const inputs = [
+    inputFromMessage([{ id: "a", t: 1, at: "2026-10-27T10:00:00Z" }, { id: "b", t: "bad" }], "", { source: "poll" }),
+    inputFromMessage([{ id: "c", t: 3, at: "2026-10-27T09:00:00Z" }, { id: "d", t: 4 }], "", { source: "poll" }),
+    inputFromMessage("not json", "", { source: "poll" }),
+  ];
+  const { results, failures } = await decodeBatch(code, inputs, trackers);
+  assert.deepEqual(results.map((r) => r.sourceDeviceId), ["c", "a", "d"]);
+  assert.deepEqual(failures.map((f) => [f.input, f.reason]), [[0, "validation_failed"], [2, "decode_failed"]]);
+  assert.throws(() => validateResults([], trackers), /1 to 500/);
+  assert.throws(() => validateResults(Array.from({ length: 501 }, () => ({})), trackers), /1 to 500/);
+});
+test("new input fields describe webhook deliveries and polled records", () => {
+  const webhook = inputFromMessage("{}", "/uplink", { source: "webhook", receivedAt: "2026-10-27T10:00:00Z", http: { method: "POST", path: "/uplink" } });
+  assert.equal(webhook.source, "webhook");
+  assert.equal(webhook.receivedAt, "2026-10-27T10:00:00.000Z");
+  assert.equal(webhook.http.path, "/uplink");
+  assert.equal(inputFromMessage("{}", "meters/1").source, "mqtt");
+});

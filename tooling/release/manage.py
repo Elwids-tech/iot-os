@@ -248,10 +248,21 @@ class Deployment:
                 raise ValueError("Enabled adapters require both immutable adapter images")
             if not re.fullmatch(r"[a-f0-9]{64}", self.env.get("IOT_ADAPTER_MANAGER_TOKEN", "")):
                 raise ValueError("Adapters require a generated private manager token")
+            if self.webhook_host() and not re.fullmatch(r"[a-f0-9]{64}", self.env.get("IOT_WEBHOOK_RECEIVER_TOKEN", "")):
+                raise ValueError("Webhook sources require a generated private IOT_WEBHOOK_RECEIVER_TOKEN")
         for key in actual:
             if not re.fullmatch(r"[a-z0-9./_-]+@sha256:[a-f0-9]{64}", self.env[key]):
                 raise ValueError(f"{key} is not an immutable image digest")
         self.compose("config", "--quiet", stdout=subprocess.DEVNULL)
+
+    def webhook_host(self):
+        url = self.env.get("IOT_WEBHOOK_PUBLIC_URL", "")
+        if not url:
+            return ""
+        match = re.fullmatch(r"https://([a-z0-9-]+(?:\.[a-z0-9-]+)+)/?", url)
+        if not match:
+            raise ValueError("IOT_WEBHOOK_PUBLIC_URL must be an https:// host name, for example https://hooks.example.com")
+        return match.group(1)
 
     def render(self):
         from monitoring import render as render_monitoring
@@ -265,6 +276,10 @@ class Deployment:
         challenge = f"http://mqtt.{legacy} {{\n    handle /.well-known/acme-challenge/* {{\n        root * /var/www/acme\n        file_server\n    }}\n    handle {{\n        respond 404\n    }}\n}}\n" if legacy else ""
         private_write(self.config / "legacy.Caddyfile", redirects, 0o644)
         private_write(self.config / "legacy-acme.Caddyfile", challenge, 0o644)
+        # Webhook adapter sources (ADR-022): only /w/* reaches the receiver.
+        host = self.webhook_host() if self.adapters_enabled else ""
+        hooks = f"{host} {{\n    @ingest path /w/*\n    handle @ingest {{\n        reverse_proxy webhook-receiver:8095\n    }}\n    respond 404\n}}\n" if host else ""
+        private_write(self.config / "webhooks.Caddyfile", hooks, 0o644)
         capacity = self.nats_capacity()
         # Sync every JetStream write: the default 2-minute interval lets a host crash drop
         # acknowledged telemetry and break the workflow checkpoint's continuity.
