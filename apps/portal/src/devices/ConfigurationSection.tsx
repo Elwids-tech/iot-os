@@ -1,5 +1,5 @@
 import { RelativeTime } from "@iot-os/ui/components/freshness"
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useSearchParams } from "react-router-dom"
 import {
@@ -8,6 +8,8 @@ import {
   type DeviceMapping,
   type DeviceDraft,
   type DeviceProfileArtifact,
+  type DeviceProfileParameter,
+  type DeviceValidation,
 } from "@iot-os/api-client"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Button } from "@iot-os/ui/components/button"
@@ -18,13 +20,19 @@ import {
 } from "@iot-os/ui/components/alert"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@iot-os/ui/components/collapsible"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@iot-os/ui/components/dropdown-menu"
-import { FieldGroup } from "@iot-os/ui/components/field"
+import { FieldError, FieldGroup } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
+import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import { StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark"
 import {
   Table,
@@ -34,10 +42,10 @@ import {
   TableHeader,
   TableRow,
 } from "@iot-os/ui/components/table"
-import { ChevronDownIcon } from "lucide-react"
+import { ChevronDownIcon, CircleAlertIcon, Loader2Icon } from "lucide-react"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
-import { Choice, SaveBar, RequestError, Confirm } from "../components/forms"
+import { Choice, RequestError, Confirm } from "../components/forms"
 import {
   configurationRevision,
   DevicePages,
@@ -54,11 +62,14 @@ import {
   conversionEquation,
 } from "../profiles/IncomingConversionFields"
 import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "@iot-os/ui/components/accordion"
+  autoMatches,
+  conversionMatters,
+  conversionShort,
+  draftProblems,
+  isAutoMatch,
+  sameConfiguration,
+  type DraftProblems,
+} from "./mapping"
 import { MeasurementTable } from "./MeasurementsSection"
 import { UsedIn } from "./DeviceOverview"
 import type { DeviceOperation } from "./DeviceWorkspace"
@@ -81,6 +92,103 @@ function Step({ number, children }: { number: number; children: ReactNode }) {
       <span className="mr-2 font-normal text-muted-foreground">{number}</span>
       {children}
     </>
+  )
+}
+const stages = {
+  draft: "Saving draft…",
+  saving: "Saving…",
+  checking: "Checking…",
+  applying: "Applying…",
+}
+
+/** A row's incoming conversion, offered only when units can differ (see conversionMatters). */
+function ConvertUnits({
+  parameter: p,
+  mapping,
+  problem,
+  disabled,
+  onChange,
+}: {
+  parameter: DeviceProfileParameter
+  mapping: DeviceMapping
+  problem?: string
+  disabled: boolean
+  onChange: (conversion: Partial<DeviceMapping>) => void
+}) {
+  const mode = mapping.conversion_mode ?? "profile"
+  const active =
+    mode === "none" ? null : mode === "custom" ? mapping.ingress_conversion : p.ingress_conversion
+  const summary =
+    mode === "none"
+      ? "Off"
+      : active
+        ? `${mode === "custom" ? "Custom" : "Profile"} · ${conversionShort(active)}`
+        : null
+  return (
+    <Collapsible defaultOpen={Boolean(problem)} className="group/convert mt-1">
+      <div className="flex flex-wrap items-center gap-x-2">
+        <CollapsibleTrigger asChild>
+          <Button
+            variant="link"
+            size="xs"
+            className="h-auto px-0"
+            aria-label={`Convert units for ${p.label}`}
+          >
+            Convert units
+            <ChevronDownIcon
+              data-icon="inline-end"
+              className="transition-transform group-data-[state=open]/convert:rotate-180"
+            />
+          </Button>
+        </CollapsibleTrigger>
+        {summary && <span className="text-meta text-muted-foreground">{summary}</span>}
+      </div>
+      {problem && <FieldError>{problem}</FieldError>}
+      <CollapsibleContent>
+        <FieldGroup className="pt-3">
+          <Choice
+            label={`Conversion mode for ${p.label}`}
+            value={mode}
+            disabled={disabled}
+            options={[
+              { value: "profile", label: "Use profile default" },
+              { value: "custom", label: "Custom conversion" },
+              { value: "none", label: "No conversion" },
+            ]}
+            onChange={(next) =>
+              onChange({
+                conversion_mode: next as DeviceMapping["conversion_mode"],
+                ingress_conversion:
+                  next === "custom"
+                    ? (p.ingress_conversion ?? { source_unit: null, multiplier: 1, offset: 0 })
+                    : null,
+              })
+            }
+          />
+          <p className="text-meta text-muted-foreground">
+            {mode === "custom"
+              ? "Device override"
+              : mode === "none"
+                ? "Conversion bypassed"
+                : "Selected published profile"}
+            : {conversionEquation(active)}. Stored unit: {p.unit ?? "No unit"}.
+          </p>
+          {mode === "custom" && (
+            <IncomingConversionFields
+              toggle={false}
+              value={mapping.ingress_conversion ?? null}
+              storedUnit={p.unit}
+              dataType={p.data_type}
+              disabled={disabled}
+              onChange={(value) => onChange({ ingress_conversion: value })}
+            />
+          )}
+          <p className="text-meta text-muted-foreground">
+            Apply checks the conversion against captured source samples.
+          </p>
+        </FieldGroup>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -125,7 +233,10 @@ export function ConfigurationSection({
     [profileSearch, setProfileSearch] = useState(""),
     [error, setError] = useState<unknown>(null),
     [loading, setLoading] = useState(false),
-    [activate, setActivate] = useState(false),
+    [confirmApply, setConfirmApply] = useState(false),
+    [stage, setStage] = useState<keyof typeof stages | null>(null),
+    [problems, setProblems] = useState<DraftProblems | null>(null),
+    [reviewing, setReviewing] = useState(false),
     [rollback, setRollback] = useState<string | null>(null),
     [replace, setReplace] = useState<{
       title: string
@@ -135,8 +246,8 @@ export function ConfigurationSection({
   const dirty = JSON.stringify(draft) !== base
   useUnsaved(dirty)
   const writable = editable && device.lifecycle !== "archived"
-  // Validation results live in the query cache per saved draft revision, so they survive tab switches.
-  const validationKey = ["device-validation", org, device.uuid, revision]
+  // The last check against captured samples lives in the query cache, so it survives tab switches.
+  const validationKey = ["device-validation", org, device.uuid]
   const validationQuery = useQuery({
     queryKey: validationKey,
     queryFn: () => api.validateDevice(org, device.uuid, revision),
@@ -225,12 +336,37 @@ export function ConfigurationSection({
       label: `${m.name} · ${m.datatype}`,
     })),
   ]
+  const matches = useMemo(
+    () => autoMatches(parameters, candidate?.metrics ?? []),
+    // parameters is rebuilt from the artifact on every render, so key on the artifact.
+    [artifact, candidate?.metrics],
+  )
+  const automatic = new Map(matches.map((m) => [m.parameter_uuid, m]))
+  const everyMatched = parameters.length > 0 && matches.length === parameters.length
+  // Fill an empty draft once per profile revision and source when every parameter has a match.
+  const filled = useRef("")
+  useEffect(() => {
+    const key = `${artifact?.uuid}:${candidate?.uuid}`
+    if (!writable || !everyMatched || filled.current === key) return
+    filled.current = key
+    setDraft((d) => (d.mappings.length ? d : { ...d, mappings: matches }))
+  }, [writable, everyMatched, matches, artifact?.uuid, candidate?.uuid])
+  const autoMatched =
+    everyMatched &&
+    !problems &&
+    parameters.every((p) => isAutoMatch(mapped.get(p.uuid), automatic.get(p.uuid)))
+  const expanded = !autoMatched || reviewing
   function changeMapping(
     uuid: string,
     metric: string,
     command: string | null = null,
     conversion?: Partial<DeviceMapping>,
   ) {
+    if (problems?.rows[uuid]) {
+      const rows = { ...problems.rows }
+      delete rows[uuid]
+      setProblems({ ...problems, rows })
+    }
     setDraft((current) => ({
       ...current,
       mappings: [
@@ -284,30 +420,34 @@ export function ConfigurationSection({
       label: `Revision ${artifact.revision} (selected)`,
     })
 
-  const validateReason = !writable
-    ? "View only"
-    : dirty
-      ? "Save the draft first"
-      : !draft.artifact_uuid
-        ? "Choose a profile revision first"
-        : !draft.candidate_uuid
-          ? "Choose a discovered source first"
-          : revision !== device.draft_revision
-            ? "Load the newer saved draft first"
-            : undefined
-  const applyReason = !canActivate
-    ? "Your role cannot apply configurations"
-    : dirty
-      ? "Save the draft first"
-      : device.deployment_status === "pending"
-        ? "Waiting for the runtime to confirm the last request"
-        : validation?.draft_revision !== device.draft_revision
-          ? "Validate the saved draft first"
-          : undefined
   const applied = device.configurations.find(
     (c) => c.uuid === device.applied_configuration_uuid,
   )
   const appliedRevision = configurationRevision(device, device.applied_configuration_uuid)
+  const upToDate =
+    !dirty &&
+    device.deployment_status === "applied" &&
+    sameConfiguration(draft, applied?.definition)
+  const working = busy || loading || stage !== null
+  const flagged = problems ? Object.keys(problems.rows).length : 0
+  const blocked = Boolean(problems && (problems.general.length || flagged))
+  const applyReason = !draft.artifact_uuid
+    ? "Choose a profile revision first"
+    : !draft.candidate_uuid
+      ? "Choose a discovered source first"
+      : revision !== device.draft_revision
+        ? "Load the newer saved draft first"
+        : candidate && draft.birth_revision !== candidate.birth_revision
+          ? "Review the source's new metrics first"
+          : mappedCount < parameters.length
+            ? `Map all ${parameters.length} parameters first`
+            : !canActivate
+              ? undefined
+              : device.deployment_status === "pending"
+                ? "Waiting for the runtime to confirm the last request"
+                : upToDate
+                  ? `Configuration ${appliedRevision} is applied`
+                  : undefined
   const setup: Array<[string, StatusTone, string]> = [
     [
       "Profile and source",
@@ -318,26 +458,131 @@ export function ConfigurationSection({
     ],
     [
       "Mappings",
-      !mappedCount ? "muted" : dirty ? "warning" : "good",
-      `${mappedCount} of ${parameters.length} mapped${dirty ? ", unsaved" : ""}`,
+      !mappedCount ? "muted" : mappedCount < parameters.length ? "warning" : "good",
+      autoMatched
+        ? `${mappedCount} of ${parameters.length} matched automatically`
+        : `${mappedCount} of ${parameters.length} mapped`,
     ],
     [
-      "Validate",
-      validation ? (validation.preview.valid ? "good" : "warning") : "muted",
-      validation ? `Draft ${validation.draft_revision} validated` : "Not validated",
-    ],
-    [
-      "Review and apply",
-      appliedRevision !== undefined && !dirty ? "good" : "muted",
-      dirty
-        ? "Save first"
-        : appliedRevision !== undefined
-          ? `Applied rev ${appliedRevision}`
-          : applyReason
-            ? "Not ready"
-            : "Ready to apply",
+      "Apply",
+      blocked
+        ? "warning"
+        : device.deployment_status === "failed"
+          ? "critical"
+          : upToDate
+            ? "good"
+            : device.deployment_status === "pending"
+              ? "warning"
+              : "muted",
+      blocked
+        ? "Fix the problems found"
+        : device.deployment_status === "failed"
+          ? "Last request failed"
+          : upToDate
+            ? `Applied rev ${appliedRevision}`
+            : device.deployment_status === "pending"
+              ? "Waiting for the runtime"
+              : appliedRevision !== undefined
+                ? `Applied rev ${appliedRevision}, changes not applied`
+                : "Not applied yet",
     ],
   ]
+  /**
+   * Saves the draft if it changed, checks it against the captured birth and applies it. Each call
+   * passes the revision the previous one returned, so a concurrent edit fails with 409. Problems
+   * stop the run before apply and show on their rows; the saved draft is kept either way.
+   */
+  async function apply() {
+    setError(null)
+    setProblems(null)
+    const outcome: { checked?: DeviceValidation; problems?: DraftProblems; failure?: unknown } = {}
+    try {
+      const result = await run(async () => {
+        let saved: DeviceDetail | null = null
+        if (dirty) {
+          setStage("saving")
+          try {
+            saved = await api.saveDeviceConfiguration(org, device.uuid, {
+              ...draft,
+              draft_revision: revision,
+            })
+          } catch (reason) {
+            outcome.problems = draftProblems(reason, draft.mappings) ?? undefined
+            if (outcome.problems) return null
+            throw reason
+          }
+        }
+        const at = saved?.draft_revision ?? revision
+        try {
+          setStage("checking")
+          outcome.checked = await api.validateDevice(org, device.uuid, at)
+          if (!outcome.checked.preview.valid) {
+            outcome.problems = {
+              rows: {},
+              general: ["The captured samples do not fit this configuration."],
+            }
+            return saved
+          }
+          if (!canActivate) return saved
+          setStage("applying")
+          return await api.deviceAction(org, device.uuid, "activate", at)
+        } catch (reason) {
+          outcome.problems =
+            draftProblems(reason, saved?.draft?.mappings ?? draft.mappings) ?? undefined
+          if (!outcome.problems) {
+            if (!saved) throw reason
+            outcome.failure = reason
+          }
+          return saved
+        }
+      })
+      if (result) {
+        setDraft(result.draft ?? emptyDraft)
+        setBase(JSON.stringify(result.draft ?? emptyDraft))
+        setRevision(result.draft_revision)
+      }
+    } catch (reason) {
+      setError(reason)
+    } finally {
+      setStage(null)
+      if (outcome.checked) cache.setQueryData(validationKey, outcome.checked)
+      if (outcome.problems) {
+        setProblems(outcome.problems)
+        setReviewing(true)
+      }
+      if (outcome.failure) setError(outcome.failure)
+    }
+  }
+  async function saveDraft() {
+    setError(null)
+    setProblems(null)
+    setStage("draft")
+    let found: DraftProblems | null = null
+    try {
+      const result = await run(async () => {
+        try {
+          return await api.saveDeviceConfiguration(org, device.uuid, {
+            ...draft,
+            draft_revision: revision,
+          })
+        } catch (reason) {
+          found = draftProblems(reason, draft.mappings)
+          if (found) return null
+          throw reason
+        }
+      })
+      if (result) {
+        setDraft(result.draft ?? emptyDraft)
+        setBase(JSON.stringify(result.draft ?? emptyDraft))
+        setRevision(result.draft_revision)
+      }
+    } catch (reason) {
+      setError(reason)
+    } finally {
+      setStage(null)
+      setProblems(found)
+    }
+  }
 
   return (
     <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-6">
@@ -407,7 +652,7 @@ export function ConfigurationSection({
               {artifact && (
                 <p className="text-sm text-muted-foreground">
                   <Link
-                    className="text-primary underline-offset-4 hover:underline"
+                    className="text-primary underline underline-offset-4"
                     to={profilePath(org, artifact.profile_uuid)}
                   >
                     Open profile
@@ -513,7 +758,7 @@ export function ConfigurationSection({
                   {announced} {candidate.birth_revision} ·{" "}
                   {metricCount(candidate.metrics.length)} ·{" "}
                   <Link
-                    className="text-primary underline-offset-4 hover:underline"
+                    className="text-primary underline underline-offset-4"
                     to={discoveryPath(org, candidate.gateway.uuid)}
                   >
                     View in discovery
@@ -547,9 +792,12 @@ export function ConfigurationSection({
         )}
         <Section
           title={<Step number={2}>Parameter mappings</Step>}
-          meta={artifact ? `${mappedCount} of ${parameters.length} mapped` : undefined}
+          meta={
+            artifact && !autoMatched ? `${mappedCount} of ${parameters.length} mapped` : undefined
+          }
           actions={
-            artifact && (
+            artifact &&
+            expanded && (
               <>
                 <Input
                   aria-label="Find a parameter"
@@ -562,31 +810,15 @@ export function ConfigurationSection({
                   variant="outline"
                   size="sm"
                   disabled={!writable || !candidate || busy}
-                  onClick={() => {
-                    const normalize = (v: string) =>
-                      v.toLowerCase().replace(/[\s._-]/g, "")
+                  onClick={() =>
                     setDraft((d) => ({
                       ...d,
                       mappings: parameters.flatMap((p) => {
-                        const current = mapped.get(p.uuid)
-                        if (current) return [current]
-                        const metric = candidate?.metrics.find(
-                          (m) =>
-                            normalize(m.name) === normalize(p.label) ||
-                            normalize(m.name) === normalize(p.key),
-                        )
-                        return metric
-                          ? [
-                              {
-                                parameter_uuid: p.uuid,
-                                metric: metric.name,
-                                command_metric: null,
-                              },
-                            ]
-                          : []
+                        const current = mapped.get(p.uuid) ?? automatic.get(p.uuid)
+                        return current ? [current] : []
                       }),
                     }))
-                  }}
+                  }
                 >
                   Suggest matching metrics
                 </Button>
@@ -625,222 +857,134 @@ export function ConfigurationSection({
               Choose a profile revision to map its parameters.
             </p>
           ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Parameter</TableHead>
-                    <TableHead>Source metric</TableHead>
-                    <TableHead>Command target</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visible.map((p) => {
-                    const mapping = mapped.get(p.uuid)
-                    return (
-                      <TableRow key={p.uuid}>
-                        <TableCell className="align-top">
-                          {p.label}
-                          <p className="font-mono text-xs text-muted-foreground">
-                            {p.data_type}
-                            {p.unit ? ` · ${p.unit}` : ""}
-                          </p>
-                        </TableCell>
-                        <TableCell className="min-w-64 align-top whitespace-normal">
-                          <Choice
-                            label={`Source for ${p.label}`}
-                            value={mapping?.metric ?? ""}
-                            disabled={!writable || busy}
-                            onChange={(v) =>
-                              changeMapping(
-                                p.uuid,
-                                v,
-                                mapping?.command_metric ?? null,
-                              )
-                            }
-                            options={metricOptions}
-                          />
-                          {mapping && conversionEligible(p) && (
-                            <Accordion type="single" collapsible>
-                              <AccordionItem value="conversion">
-                                <AccordionTrigger>
-                                  Incoming conversion for {p.label}
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                  <FieldGroup>
-                                    <Choice
-                                      label={`Conversion mode for ${p.label}`}
-                                      value={mapping.conversion_mode ?? "profile"}
-                                      disabled={!writable || busy}
-                                      options={[
-                                        { value: "profile", label: "Use profile default" },
-                                        { value: "custom", label: "Custom conversion" },
-                                        { value: "none", label: "No conversion" },
-                                      ]}
-                                      onChange={(mode) =>
-                                        changeMapping(
-                                          p.uuid,
-                                          mapping.metric,
-                                          mapping.command_metric,
-                                          {
-                                            conversion_mode:
-                                              mode as DeviceMapping["conversion_mode"],
-                                            ingress_conversion:
-                                              mode === "custom"
-                                                ? (p.ingress_conversion ?? {
-                                                    source_unit: null,
-                                                    multiplier: 1,
-                                                    offset: 0,
-                                                  })
-                                                : null,
-                                          },
-                                        )
-                                      }
-                                    />
-                                    <p className="text-sm text-muted-foreground">
-                                      {mapping.conversion_mode === "custom"
-                                        ? "Device override"
-                                        : mapping.conversion_mode === "none"
-                                          ? "Conversion bypassed"
-                                          : "Selected published profile"}
-                                      :{" "}
-                                      {conversionEquation(
-                                        mapping.conversion_mode === "none"
-                                          ? null
-                                          : mapping.conversion_mode === "custom"
-                                            ? mapping.ingress_conversion
-                                            : p.ingress_conversion,
-                                      )}
-                                      . Stored unit: {p.unit ?? "No unit"}.
-                                    </p>
-                                    {mapping.conversion_mode === "custom" && (
-                                      <IncomingConversionFields
-                                        toggle={false}
-                                        value={mapping.ingress_conversion ?? null}
-                                        storedUnit={p.unit}
-                                        dataType={p.data_type}
-                                        disabled={!writable || busy}
-                                        onChange={(value) =>
-                                          changeMapping(
-                                            p.uuid,
-                                            mapping.metric,
-                                            mapping.command_metric,
-                                            { ingress_conversion: value },
-                                          )
-                                        }
-                                      />
-                                    )}
-                                    <p className="text-sm text-muted-foreground">
-                                      Save and validate to check captured source
-                                      samples. Changes apply after you apply the
-                                      configuration.
-                                    </p>
-                                  </FieldGroup>
-                                </AccordionContent>
-                              </AccordionItem>
-                            </Accordion>
-                          )}
-                        </TableCell>
-                        <TableCell className="align-top whitespace-normal">
-                          {p.accepts_command ? (
-                            <div className="flex flex-col gap-3">
-                              <label className="flex items-center gap-2 text-sm">
-                                <Checkbox
-                                  checked={Boolean(mapping?.command_metric)}
-                                  disabled={!writable || !mapping?.metric || busy}
-                                  onCheckedChange={(checked) =>
+            <Collapsible open={expanded} onOpenChange={setReviewing}>
+              {autoMatched && (
+                <p className="flex flex-wrap items-center gap-x-2 text-body">
+                  <StatusMark tone="good">
+                    {mappedCount} of {parameters.length} matched automatically
+                  </StatusMark>
+                  <span aria-hidden="true" className="text-muted-foreground">
+                    ·
+                  </span>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="link" size="sm" className="h-auto px-0">
+                      {expanded ? "Hide mappings" : "Review"}
+                    </Button>
+                  </CollapsibleTrigger>
+                </p>
+              )}
+              <CollapsibleContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Parameter</TableHead>
+                      <TableHead>Source metric</TableHead>
+                      <TableHead>Command target</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visible.map((p) => {
+                      const mapping = mapped.get(p.uuid)
+                      const problem = problems?.rows[p.uuid]
+                      const metric = candidate?.metrics.find((m) => m.name === mapping?.metric)
+                      return (
+                        <TableRow key={p.uuid}>
+                          <TableCell className="align-top">
+                            {p.label}
+                            <p className="font-mono text-meta text-muted-foreground">
+                              {p.data_type}
+                              {p.unit ? ` · ${p.unit}` : ""}
+                            </p>
+                          </TableCell>
+                          <TableCell className="min-w-64 align-top whitespace-normal">
+                            <Choice
+                              label={`Source for ${p.label}`}
+                              labelHidden
+                              value={mapping?.metric ?? ""}
+                              disabled={!writable || busy}
+                              error={problem?.metric}
+                              onChange={(v) =>
+                                changeMapping(
+                                  p.uuid,
+                                  v,
+                                  mapping?.command_metric ?? null,
+                                )
+                              }
+                              options={metricOptions}
+                            />
+                            {mapping &&
+                              conversionEligible(p) &&
+                              (conversionMatters(p, mapping, metric) || problem?.conversion) && (
+                                <ConvertUnits
+                                  parameter={p}
+                                  mapping={mapping}
+                                  problem={problem?.conversion}
+                                  disabled={!writable || busy}
+                                  onChange={(conversion) =>
                                     changeMapping(
                                       p.uuid,
-                                      mapping!.metric,
-                                      checked ? mapping!.metric : null,
+                                      mapping.metric,
+                                      mapping.command_metric,
+                                      conversion,
                                     )
                                   }
                                 />
-                                Enable {p.label} command
-                              </label>
-                              {mapping?.command_metric && (
-                                <Choice
-                                  label={`Command target for ${p.label}`}
-                                  value={mapping.command_metric}
-                                  disabled={!writable || busy}
-                                  options={metricOptions}
-                                  onChange={(v) =>
-                                    changeMapping(p.uuid, mapping.metric, v || null)
-                                  }
-                                />
                               )}
-                            </div>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">
-                              Read only
-                            </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-              {parameters.length > 100 && (
-                <p className="text-sm text-muted-foreground">
-                  Showing up to 100 matching parameters. Search to edit others;
-                  all mappings are kept.
-                </p>
-              )}
-            </>
+                          </TableCell>
+                          <TableCell className="align-top whitespace-normal">
+                            {p.accepts_command ? (
+                              <div className="flex flex-col gap-3">
+                                <label className="flex items-center gap-2 text-body">
+                                  <Checkbox
+                                    checked={Boolean(mapping?.command_metric)}
+                                    disabled={!writable || !mapping?.metric || busy}
+                                    onCheckedChange={(checked) =>
+                                      changeMapping(
+                                        p.uuid,
+                                        mapping!.metric,
+                                        checked ? mapping!.metric : null,
+                                      )
+                                    }
+                                  />
+                                  Enable {p.label} command
+                                </label>
+                                {mapping?.command_metric ? (
+                                  <Choice
+                                    label={`Command target for ${p.label}`}
+                                    value={mapping.command_metric}
+                                    disabled={!writable || busy}
+                                    error={problem?.command}
+                                    options={metricOptions}
+                                    onChange={(v) =>
+                                      changeMapping(p.uuid, mapping.metric, v || null)
+                                    }
+                                  />
+                                ) : (
+                                  problem?.command && <FieldError>{problem.command}</FieldError>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-body text-muted-foreground">
+                                Read only
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+                {parameters.length > 100 && (
+                  <p className="text-body text-muted-foreground">
+                    Showing up to 100 matching parameters. Search to edit others;
+                    all mappings are kept.
+                  </p>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           )}
         </Section>
-        <Section
-          title={<Step number={3}>Validate</Step>}
-          actions={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy || Boolean(validateReason)}
-              onClick={async () => {
-                setError(null)
-                try {
-                  await run(() =>
-                    cache.fetchQuery({
-                      queryKey: validationKey,
-                      queryFn: () => api.validateDevice(org, device.uuid, revision),
-                      staleTime: 0,
-                      gcTime: 30 * 60_000,
-                    }),
-                  )
-                } catch (reason) {
-                  setError(reason)
-                }
-              }}
-            >
-              Validate saved draft
-            </Button>
-          }
-        >
-          {validation ? (
-            <div className="flex flex-col gap-3">
-              <p className="flex flex-wrap items-center gap-x-2 text-sm">
-                <StatusMark tone={validation.preview.valid ? "good" : "warning"}>
-                  Draft {validation.draft_revision}{" "}
-                  {validation.preview.valid ? "validated" : "has problems"}
-                </StatusMark>
-                <span className="text-muted-foreground">
-                  <RelativeTime at={new Date(validationQuery.dataUpdatedAt).toISOString()} />
-                  {dirty && " · save to validate your changes"}
-                </span>
-                <span className="ml-auto text-muted-foreground">
-                  Captured samples, not live readings
-                </span>
-              </p>
-              <MeasurementTable readings={validation.preview.readings} />
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {validateReason ?? "Checks the saved draft against captured source values."}
-            </p>
-          )}
-        </Section>
-        <Section title={<Step number={4}>Review and apply</Step>}>
+        <Section title={<Step number={3}>Review and apply</Step>}>
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <dt className="text-muted-foreground">Profile</dt>
@@ -892,17 +1036,47 @@ export function ConfigurationSection({
               </dd>
             </div>
           </dl>
-          <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4">
-            <Button
-              disabled={busy || Boolean(applyReason)}
-              onClick={() => setActivate(true)}
-            >
-              Apply new configuration
-            </Button>
-            {applyReason && (
-              <span className="text-sm text-muted-foreground">{applyReason}</span>
-            )}
-          </div>
+          {blocked && problems && (
+            <Alert variant="destructive" className="mt-4">
+              <CircleAlertIcon />
+              <AlertTitle>
+                {canActivate ? "Not applied. Fix these first" : "Fix these before applying"}
+              </AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc pl-4">
+                  {problems.general.map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                  {flagged > 0 && (
+                    <li>
+                      {flagged === 1
+                        ? "1 mapping needs attention."
+                        : `${flagged} mappings need attention.`}{" "}
+                      They are marked in the table.
+                    </li>
+                  )}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+          {validation && (
+            <div className="mt-4 flex flex-col gap-3 border-t pt-4">
+              <p className="flex flex-wrap items-center gap-x-2 text-body">
+                <StatusMark tone={validation.preview.valid ? "good" : "warning"}>
+                  Draft {validation.draft_revision}{" "}
+                  {validation.preview.valid ? "checked" : "has problems"}
+                </StatusMark>
+                <span className="text-muted-foreground">
+                  <RelativeTime at={new Date(validationQuery.dataUpdatedAt).toISOString()} />
+                  {dirty && " · Apply checks your changes"}
+                </span>
+                <span className="ml-auto text-muted-foreground">
+                  Captured samples, not live readings
+                </span>
+              </p>
+              <MeasurementTable readings={validation.preview.readings} />
+            </div>
+          )}
         </Section>
         {device.configurations.length > 0 && (
           <Section
@@ -1000,34 +1174,60 @@ export function ConfigurationSection({
           </Section>
         )}
         {writable && (
-          <form
-            className="sticky bottom-0 z-10"
-            onSubmit={async (e) => {
-              e.preventDefault()
-              setError(null)
-              try {
-                const result = await run(() =>
-                  api.saveDeviceConfiguration(org, device.uuid, {
-                    ...draft,
-                    draft_revision: revision,
-                  }),
-                )
-                setDraft(result.draft!)
-                setBase(JSON.stringify(result.draft))
-                setRevision(result.draft_revision)
-              } catch (reason) {
-                setError(reason)
-              }
-            }}
+          <div
+            ref={keepToastsAbove}
+            className="sticky bottom-0 z-10 flex w-full flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4"
           >
-            <SaveBar
-              dirty={dirty}
-              busy={busy || loading}
-              disabled={!draft.artifact_uuid}
-              onCancel={useSaved}
-              label="Save configuration draft"
-            />
-          </form>
+            <span className="text-meta text-muted-foreground" role="status">
+              {stage
+                ? stages[stage]
+                : [
+                    dirty && "Unsaved changes",
+                    blocked ? "Not applied: fix the problems above" : applyReason,
+                    !canActivate && "Your role can check but not apply configurations",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") ||
+                  (device.deployment_status === "failed"
+                    ? "The last request failed. Apply to try again"
+                    : "Saved draft, not applied yet")}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {dirty && (
+                <Button variant="ghost" disabled={working} onClick={useSaved}>
+                  Cancel
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                disabled={!dirty || working || !draft.artifact_uuid}
+                onClick={saveDraft}
+              >
+                {stage === "draft" && (
+                  <Loader2Icon data-icon="inline-start" className="animate-spin" aria-hidden="true" />
+                )}
+                Save draft
+              </Button>
+              <Button
+                disabled={working || Boolean(applyReason)}
+                onClick={() =>
+                  canActivate &&
+                  (device.applied_configuration_uuid || device.desired_configuration_uuid)
+                    ? setConfirmApply(true)
+                    : void apply()
+                }
+              >
+                {stage && stage !== "draft" && (
+                  <Loader2Icon data-icon="inline-start" className="animate-spin" aria-hidden="true" />
+                )}
+                {stage && stage !== "draft"
+                  ? stages[stage]
+                  : canActivate
+                    ? "Apply"
+                    : "Save and check"}
+              </Button>
+            </div>
+          </div>
         )}
       </div>
       <aside
@@ -1087,18 +1287,13 @@ export function ConfigurationSection({
         onConfirm={() => replace?.apply()}
       />
       <Confirm
-        open={activate}
-        title="Apply this configuration?"
-        description={`Apply ${artifact?.definition.profile.name ?? "the selected profile"}, revision ${artifact?.revision}, to ${device.name}. The currently applied version stays in use until the runtime accepts this request.`}
-        action="Apply new configuration"
+        open={confirmApply}
+        title="Apply these changes?"
+        description={`Apply ${artifact?.definition.profile.name ?? "the selected profile"}, revision ${artifact?.revision}, to ${device.name}. The draft is saved and checked against captured samples first; the current configuration stays in use until the runtime accepts the new one.`}
+        action="Apply"
         destructive={false}
-        onClose={() => setActivate(false)}
-        onConfirm={async () => {
-          const result = await run(() =>
-            api.deviceAction(org, device.uuid, "activate", device.draft_revision),
-          )
-          setRevision(result.draft_revision)
-        }}
+        onClose={() => setConfirmApply(false)}
+        onConfirm={apply}
       />
       <Confirm
         open={Boolean(rollback)}
