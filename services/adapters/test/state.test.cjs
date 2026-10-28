@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { DedupLog, readJson, writeJson } = require("../lib/state.cjs");
+const { BirthStore, DedupLog, readJson, writeJson } = require("../lib/state.cjs");
 
 const directory = () => fs.mkdtempSync(path.join(os.tmpdir(), "adapter-state-"));
 
@@ -45,4 +45,38 @@ test("JSON state is replaced atomically and missing state reads as the fallback"
   writeJson(file, { cursor: "2026-10-27T09:12:00Z" });
   assert.deepEqual(readJson(file), { cursor: "2026-10-27T09:12:00Z" });
   assert.equal(fs.readdirSync(path.dirname(file)).length, 1);
+});
+
+test("source births survive a redeploy and still encode as a Sparkplug birth", () => {
+  const sparkplug = require("../lib/sparkplug.cjs");
+  const file = path.join(directory(), "births.json");
+  let clock = 1000;
+  const births = new BirthStore(file, { intervalMs: 30000, now: () => clock });
+  const provenance = { installation_uuid: "inst-1", adapter_revision_uuid: "rev-1" };
+  const metrics = [
+    sparkplug.metric("ambient_temperature", "Double", 24.375, 1793201136040, provenance),
+    sparkplug.metric("battery_voltage", "Double", null, 1793201136040, undefined, { receipt: true }),
+  ];
+  births.set("src-a", { metrics, names: '[["ambient_temperature",10]]' });
+  births.flush();
+  births.set("src-b", { metrics: metrics.slice(0, 1), names: "[]" });
+  births.flush();
+  assert.deepEqual([...new BirthStore(file).sources.keys()], ["src-a"], "writes at most once per interval");
+  births.flush(true);
+  const reloaded = new BirthStore(file).sources;
+  assert.deepEqual([...reloaded.keys()], ["src-a", "src-b"]);
+  const decoded = sparkplug.Payload.decode(sparkplug.encode(0, reloaded.get("src-a").metrics));
+  assert.equal(decoded.metrics[0].doubleValue, 24.375);
+  assert.equal(Number(decoded.metrics[0].timestamp), 1793201136040);
+  assert.deepEqual(decoded.metrics[0].properties.keys, ["installation_uuid", "adapter_revision_uuid"]);
+  assert.equal(decoded.metrics[1].isNull, true);
+  assert.deepEqual(decoded.metrics[1].properties.keys, ["timestamp_source"]);
+});
+
+test("a malformed birth file is ignored", () => {
+  const file = path.join(directory(), "births.json");
+  fs.writeFileSync(file, JSON.stringify({ good: { metrics: [], names: "[]" }, bad: { metrics: "x" }, worse: null }));
+  assert.deepEqual([...new BirthStore(file).sources.keys()], ["good"]);
+  fs.writeFileSync(file, "{not json");
+  assert.equal(new BirthStore(file).sources.size, 0);
 });

@@ -686,7 +686,7 @@ async function remove(body) {
   await job;
   const runtime = path.join(stateRoot, id(body.tenant.uuid), "runtime");
   await Promise.all(
-    ["poll-" + adapter + ".json", "dedup-" + adapter + ".log", "observed-" + adapter + ".json", "bdseq-" + adapter + ".json"].map(
+    ["poll-" + adapter + ".json", "dedup-" + adapter + ".log", "observed-" + adapter + ".json", "bdseq-" + adapter + ".json", "births-" + adapter + ".json"].map(
       (file) => fs.rm(path.join(runtime, file), { force: true }),
     ),
   );

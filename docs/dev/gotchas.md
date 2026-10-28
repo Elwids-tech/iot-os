@@ -327,6 +327,22 @@ Things that have cost time before. Add to this list when something surprises you
   moved to a public certificate; Docker had created that host path as an empty
   directory, so the deploy job sent `ca_certificate: null`. The worker now uses the
   system bundle like the API.
+- **Every adapter redeploy used to take all its sources offline.** The publisher kept
+  its sources' births only in memory and sends NDEATH on close, so after a redeploy
+  each source stayed offline until it reported again. Activating a device redeploys
+  the adapter, so activating a second device before the others reported failed with
+  "Source is offline or needs a fresh birth certificate" (minutes to an hour for
+  cellular trackers). The same gap made a polling cursor reset rewind each active
+  device's latest values: the first old record re-read after the redeploy went out
+  as a fresh DBIRTH, and the runtime takes birth values as current. The publisher
+  now keeps births in `births-<adapter>.json`. The first deploy after the runtime
+  image changes can still time out while the old container's webhook source stops;
+  deploying again succeeds.
+- **A backfill could leave a new source in Discovery as `src-<hash>`.** The Reporter
+  drops reports while four are in flight, and the preview report is what tells
+  Laravel the vendor's serial for a Sparkplug source. A tracker with one record in a
+  large backfill lost its only preview. A source's first preview is now queued and
+  retried like run reports; later previews may still be dropped.
 
 ## Browser tests and screenshots
 
