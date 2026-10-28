@@ -9,7 +9,7 @@ import uuid
 from email.utils import formatdate
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import pytest
+import unittest
 
 from vendor_webhook_cloud import (
     MAX_ATTEMPTS,
@@ -50,7 +50,7 @@ def expected_signature(secret, message, encoding='hex', prefix='sha256='):
     return prefix + (digest.hex() if encoding == 'hex' else base64.b64encode(digest).decode())
 
 
-class TestSigning:
+class TestSigning(unittest.TestCase):
     def test_hex_over_the_raw_body(self):
         body = b'[{"a":1}]'
         assert sign(SECRET, body, None) == 'sha256=' + hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
@@ -70,7 +70,7 @@ class TestSigning:
         assert sign(SECRET, body, '1793092801') != sign(SECRET, body, '1793092800')
 
 
-class TestMessages:
+class TestMessages(unittest.TestCase):
     def test_message_shape_and_ranges(self):
         messages = make_messages(0, 6, 3, int(NOW * 1000), random.Random(1), counting_ids())
         assert len(messages) == 6
@@ -97,7 +97,7 @@ class TestMessages:
         assert abs(a['temperature_c'] - b['temperature_c']) < 0.5 and abs(a['humidity_pct'] - b['humidity_pct']) < 1.5
 
 
-class TestAuthentication:
+class TestAuthentication(unittest.TestCase):
     messages = [{'messageId': 'm1', 'deviceId': 'SNS-2001'}]
 
     def test_hmac_default_headers(self):
@@ -156,20 +156,21 @@ class TestAuthentication:
         assert gzip.decompress(delivery.wire) == delivery.body
         assert delivery.headers['x-signature'] == expected_signature(SECRET, delivery.body)
 
-    @pytest.mark.parametrize('argv', [
+    def test_invalid_combinations_are_rejected(self):
+        for argv in [
         [], ['--auth', 'url', '--bad-signature'], ['--auth', 'url', '--no-secret'], ['--no-secret', '--bad-signature'],
         ['--stale-timestamp'], ['--auth', 'header', '--timestamp-header', 'x-timestamp'],
         ['--interval', '0'], ['--batch', '0'], ['--devices', '0'], ['--burst', '-1'],
-    ])
-    def test_invalid_combinations_are_rejected(self, argv):
-        base = ['--url', URL]
-        if argv != []:
-            base += ['--secret', SECRET]
-        with pytest.raises(SystemExit):
-            parse_args(base + argv)
+    ]:
+            with self.subTest(argv=argv):
+                base = ['--url', URL]
+                if argv != []:
+                    base += ['--secret', SECRET]
+                with self.assertRaises(SystemExit):
+                    parse_args(base + argv)
 
     def test_url_must_be_http(self):
-        with pytest.raises(SystemExit):
+        with self.assertRaises(SystemExit):
             parse_args(['--url', 'ftp://example.test/x', '--secret', SECRET])
 
     def test_batch_defaults_to_the_device_count(self):
@@ -177,14 +178,16 @@ class TestAuthentication:
         assert args_for('--devices', '5', '--batch', '2').batch == 2
 
 
-class TestRetryPolicy:
-    @pytest.mark.parametrize('status', [None, 408, 429, 500, 502, 503, 504, 599])
-    def test_retried(self, status):
-        assert retryable(status) and retry_delay(status, 1) == 1
+class TestRetryPolicy(unittest.TestCase):
+    def test_retried(self):
+        for status in [None, 408, 429, 500, 502, 503, 504, 599]:
+            with self.subTest(status=status):
+                assert retryable(status) and retry_delay(status, 1) == 1
 
-    @pytest.mark.parametrize('status', [200, 202, 204, 301, 400, 401, 403, 404, 405, 409, 413, 422])
-    def test_final(self, status):
-        assert not retryable(status) and retry_delay(status, 1) is None
+    def test_final(self):
+        for status in [200, 202, 204, 301, 400, 401, 403, 404, 405, 409, 413, 422]:
+            with self.subTest(status=status):
+                assert not retryable(status) and retry_delay(status, 1) is None
 
     def test_backoff_doubles_up_to_sixty_seconds(self):
         assert [retry_delay(503, attempt, max_attempts=10) for attempt in range(1, 10)] == \
@@ -204,7 +207,7 @@ class TestRetryPolicy:
     def test_parse_retry_after(self):
         assert parse_retry_after('7', NOW) == 7
         assert parse_retry_after(' 2.5 ', NOW) == 2.5
-        assert parse_retry_after(formatdate(NOW + 90, usegmt=True), NOW) == pytest.approx(90, abs=1)
+        assert abs(parse_retry_after(formatdate(NOW + 90, usegmt=True), NOW) - 90) <= 1
         assert parse_retry_after(formatdate(NOW - 90, usegmt=True), NOW) == 0
         assert parse_retry_after('-5', NOW) == 0
         for junk in (None, '', 'soon', 'nan', 'inf'):
@@ -243,7 +246,7 @@ def one_delivery():
     return Delivery('delivery', b'[]', b'[]', {}, 1)
 
 
-class TestDeliver:
+class TestDeliver(unittest.TestCase):
     def run_deliver(self, harness, attempts=MAX_ATTEMPTS):
         return deliver(harness.send, harness.wait, harness.clock, harness.lines.append, one_delivery(), attempts)
 
@@ -267,12 +270,13 @@ class TestDeliver:
         assert harness.waits == [1, 2, 4]
         assert 'status=error error=ConnectionRefusedError' in harness.lines[0]
 
-    @pytest.mark.parametrize('status', [400, 401, 403, 404, 413])
-    def test_other_4xx_are_never_retried(self, status):
-        harness = Harness([status, 202])
-        assert self.run_deliver(harness) == status
-        assert harness.waits == [] and len(harness.requests) == 1
-        assert 'retry_in' not in harness.lines[0] and 'gave_up' not in harness.lines[0]
+    def test_other_4xx_are_never_retried(self):
+        for status in [400, 401, 403, 404, 413]:
+            with self.subTest(status=status):
+                harness = Harness([status, 202])
+                assert self.run_deliver(harness) == status
+                assert harness.waits == [] and len(harness.requests) == 1
+                assert 'retry_in' not in harness.lines[0] and 'gave_up' not in harness.lines[0]
 
     def test_gives_up_after_six_attempts(self):
         harness = Harness([503] * 10)
@@ -292,7 +296,7 @@ class TestDeliver:
         assert len(harness.requests) == 1
 
 
-class TestRun:
+class TestRun(unittest.TestCase):
     def run_with(self, harness, *extra, **kwargs):
         args = args_for('--count', '2', '--interval', '5', *extra)
         run(args, send=harness.send, wait=harness.wait, clock=harness.clock, out=harness.lines.append,
@@ -381,20 +385,27 @@ class Receiver(BaseHTTPRequestHandler):
         pass
 
 
-@pytest.fixture
-def receiver():
+def start_receiver():
     server = ThreadingHTTPServer(('127.0.0.1', 0), Receiver)
     server.seen, server.script = [], []
     thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': 0.01}, daemon=True)
     thread.start()
-    yield server, f'http://127.0.0.1:{server.server_address[1]}/w/abc123/tok?x=1'
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=5)
+
+    def stop():
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    return (server, f'http://127.0.0.1:{server.server_address[1]}/w/abc123/tok?x=1'), stop
 
 
-class TestOverHttp:
-    def test_two_signed_deliveries_reach_a_real_server_and_verify(self, receiver):
+class TestOverHttp(unittest.TestCase):
+    def setUp(self):
+        self.receiver, stop = start_receiver()
+        self.addCleanup(stop)
+
+    def test_two_signed_deliveries_reach_a_real_server_and_verify(self):
+        receiver = self.receiver
         server, url = receiver
         lines, waits = [], []
         args = args_for('--count', '2', '--interval', '0.1', '--timestamp-header', 'x-timestamp', url=url)
@@ -408,7 +419,8 @@ class TestOverHttp:
             assert len(json.loads(body)) == 3
         assert all('status=202 delivery_id=abc' in line for line in lines)
 
-    def test_retry_after_and_server_errors_over_the_wire(self, receiver):
+    def test_retry_after_and_server_errors_over_the_wire(self):
+        receiver = self.receiver
         server, url = receiver
         server.script = [(503, {}), (429, {'Retry-After': '3'}), (202, {})]
         harness = Harness()
@@ -417,12 +429,13 @@ class TestOverHttp:
         assert harness.waits == [1, 3] and len(server.seen) == 3
         assert len({body for _, _, body in server.seen}) == 1
 
-    def test_gzip_body_is_decodable_by_the_receiver(self, receiver):
+    def test_gzip_body_is_decodable_by_the_receiver(self):
+        receiver = self.receiver
         server, url = receiver
         run(args_for('--count', '1', '--gzip', url=url), out=lambda line: None)
         _, headers, body = server.seen[0]
         assert headers['content-encoding'] == 'gzip' and len(json.loads(gzip.decompress(body))) == 3
 
     def test_connection_refused_is_a_network_error(self):
-        with pytest.raises(OSError):
+        with self.assertRaises(OSError):
             post('http://127.0.0.1:9/w/x', b'[]', {})

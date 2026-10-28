@@ -6,7 +6,7 @@ import urllib.parse
 import urllib.request
 from collections import Counter
 
-import pytest
+import unittest
 
 from vendor_tracker_api import (
     MAX_BATCH,
@@ -44,7 +44,7 @@ def walk(fetch_page, limit):
         start = page['maxDate']
 
 
-class TestDeterminism:
+class TestDeterminism(unittest.TestCase):
     def test_two_fleets_with_the_same_seed_serve_identical_records(self):
         first = [row[2] for row in received_between(Fleet(seed=7), NOW_MS - 3 * DAY_MS, NOW_MS)]
         second = [row[2] for row in received_between(Fleet(seed=7), NOW_MS - 3 * DAY_MS, NOW_MS)]
@@ -61,7 +61,7 @@ class TestDeterminism:
         assert shared and all(early[key] == later[key] for key in shared)
 
 
-class TestUploads:
+class TestUploads(unittest.TestCase):
     def test_record_shape_and_value_ranges(self):
         rows = everything()
         assert rows
@@ -130,22 +130,23 @@ class TestUploads:
 
     def test_fleet_rejects_nonsense(self):
         for bad in ({'trackers': 0}, {'reading_every': 0}, {'upload_every': 2}, {'offline_max': -1}, {'days': 0}):
-            with pytest.raises(ValueError):
+            with self.assertRaises(ValueError):
                 Fleet(**bad)
 
 
-class TestPaging:
-    @pytest.mark.parametrize('limit', [1000, 250, 50])
-    def test_maxdate_walks_every_record_exactly_once(self, limit):
-        fleet = Fleet(days=1)  # keeps the small-page walk short
-        def fetch(start, size):
-            return page_body(history(fleet, NOW_MS, None if start is None else parse_time(start), None, size))
+class TestPaging(unittest.TestCase):
+    def test_maxdate_walks_every_record_exactly_once(self):
+        for limit in [1000, 250, 50]:
+            with self.subTest(limit=limit):
+                fleet = Fleet(days=1)  # keeps the small-page walk short
+                def fetch(start, size):
+                    return page_body(history(fleet, NOW_MS, None if start is None else parse_time(start), None, size))
 
-        pages, seen = walk(fetch, limit)
-        expected = [row[1] for row in received_between(fleet, NOW_MS - DAY_MS - 1, NOW_MS)]
-        assert seen == expected
-        assert len(set(seen)) == len(seen)
-        assert all(page['count'] == len(page['data']) <= limit for page in pages)
+                pages, seen = walk(fetch, limit)
+                expected = [row[1] for row in received_between(fleet, NOW_MS - DAY_MS - 1, NOW_MS)]
+                assert seen == expected
+                assert len(set(seen)) == len(seen)
+                assert all(page['count'] == len(page['data']) <= limit for page in pages)
 
     def test_start_is_exclusive_and_end_is_inclusive(self):
         rows = everything()
@@ -166,7 +167,7 @@ class TestPaging:
         assert [(row[0], row[1]) for row in rows] == sorted((row[0], row[1]) for row in rows)
 
 
-class TestTimeParameters:
+class TestTimeParameters(unittest.TestCase):
     def test_iso_forms_and_epoch_milliseconds_agree(self):
         for text in ('2026-10-27T09:20:00Z', '2026-10-27T09:20:00.000Z', '2026-10-27T09:20:00+00:00',
                      '2026-10-27T11:20:00+02:00', '2026-10-27T11:20:00 02:00', '2026-10-27T09:20:00',
@@ -176,10 +177,11 @@ class TestTimeParameters:
     def test_milliseconds_are_kept(self):
         assert parse_time('2026-10-27T09:20:00.125Z') == NOW_MS + 125
 
-    @pytest.mark.parametrize('text', ['', 'yesterday', '2026-13-45T00:00:00Z', '12.5', '1' * 30])
-    def test_invalid_times_are_rejected(self, text):
-        with pytest.raises(ValueError):
-            parse_time(text)
+    def test_invalid_times_are_rejected(self):
+        for text in ['', 'yesterday', '2026-13-45T00:00:00Z', '12.5', '1' * 30]:
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError):
+                    parse_time(text)
 
 
 class Clock:
@@ -195,17 +197,19 @@ class Sleeps(list):
         self.append(seconds)
 
 
-@pytest.fixture
-def api():
+def start_api():
     clock, sleeps = Clock(), Sleeps()
     server = create_server(Fleet(), KEY, 'A1', '127.0.0.1', 0, clock=clock, sleep=sleeps)
     thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': 0.01}, daemon=True)
     thread.start()
     base = f'http://127.0.0.1:{server.server_address[1]}'
-    yield base, server.state, clock, sleeps
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=5)
+
+    def stop():
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    return (base, server.state, clock, sleeps), stop
 
 
 def call(base, path, method='GET', key=KEY, body=None):
@@ -224,8 +228,13 @@ def history_path(**params):
     return '/accounts/A1/streams/history' + (f'?{query}' if query else '')
 
 
-class TestHttpApi:
-    def test_history_response_shape(self, api):
+class TestHttpApi(unittest.TestCase):
+    def setUp(self):
+        self.api, stop = start_api()
+        self.addCleanup(stop)
+
+    def test_history_response_shape(self):
+        api = self.api
         base, *_ = api
         status, headers, body = call(base, history_path(limit=5))
         assert status == 200 and headers['Content-Type'] == 'application/json'
@@ -234,49 +243,59 @@ class TestHttpApi:
         assert body['maxDate'] == body['data'][-1]['receivedDate']
         assert list(body['data'][0]) == RECORD_FIELDS
 
-    def test_api_key_is_required(self, api):
+    def test_api_key_is_required(self):
+        api = self.api
         base, *_ = api
         for key in (None, 'wrong', ''):
             assert call(base, history_path(), key=key)[::2] == (401, {'error': 'unauthorized'})
         assert call(base, history_path())[0] == 200
 
-    def test_unknown_account_is_404_and_unknown_path_is_404(self, api):
+    def test_unknown_account_is_404_and_unknown_path_is_404(self):
+        api = self.api
         base, *_ = api
         assert call(base, '/accounts/ZZ/streams/history')[0] == 404
         assert call(base, '/nope')[0] == 404
         assert call(base, '/accounts/ZZ/streams/history', key='wrong')[0] == 401
 
-    def test_only_get_is_allowed_on_history(self, api):
+    def test_only_get_is_allowed_on_history(self):
+        api = self.api
         base, *_ = api
         assert call(base, history_path(), method='POST', body={})[0] == 405
 
-    @pytest.mark.parametrize('params', [{'limit': 0}, {'limit': 1001}, {'limit': 'many'}, {'limit': ''},
-                                        {'limit': -3}, {'start': 'yesterday'}, {'end': '2026-99-01'}])
-    def test_invalid_parameters_are_400(self, api, params):
-        base, *_ = api
-        status, _, body = call(base, history_path(**params))
-        assert status == 400 and body['error'] == 'bad_request' and body['message']
+    def test_invalid_parameters_are_400(self):
+        api = self.api
+        for params in [{'limit': 0}, {'limit': 1001}, {'limit': 'many'}, {'limit': ''},
+                                        {'limit': -3}, {'start': 'yesterday'}, {'end': '2026-99-01'}]:
+            with self.subTest(params=params):
+                base, *_ = api
+                status, _, body = call(base, history_path(**params))
+                assert status == 400 and body['error'] == 'bad_request' and body['message']
 
-    def test_limit_defaults_to_and_is_capped_at_1000(self, api):
+    def test_limit_defaults_to_and_is_capped_at_1000(self):
+        api = self.api
         base, *_ = api
         assert call(base, history_path())[2]['count'] == 1000
         assert call(base, history_path(limit=1000))[2]['count'] == 1000
 
-    @pytest.mark.parametrize('style', ['iso', 'epoch'])
-    def test_paging_over_http_visits_every_record_once(self, api, style):
-        base, state, *_ = api
+    def test_paging_over_http_visits_every_record_once(self):
+        api = self.api
+        for style in ['iso', 'epoch']:
+            with self.subTest(style=style):
+                base, state, *_ = api
+                call(base, '/_served/reset', 'POST', None, {})  # each style walks from a clean list
 
-        def fetch(start, limit):
-            if start is not None and style == 'epoch':
-                start = parse_time(start)
-            return call(base, history_path(start=start, limit=limit))[2]
+                def fetch(start, limit):
+                    if start is not None and style == 'epoch':
+                        start = parse_time(start)
+                    return call(base, history_path(start=start, limit=limit))[2]
 
-        pages, seen = walk(fetch, 400)
-        expected = [row[1] for row in received_between(state.fleet, NOW_MS - 3 * DAY_MS - 1, NOW_MS)]
-        assert seen == expected and len(pages) == -(-len(expected) // 400) + 1
-        assert call(base, '/_served')[2] == {'ids': expected}
+                pages, seen = walk(fetch, 400)
+                expected = [row[1] for row in received_between(state.fleet, NOW_MS - 3 * DAY_MS - 1, NOW_MS)]
+                assert seen == expected and len(pages) == -(-len(expected) // 400) + 1
+                assert call(base, '/_served')[2] == {'ids': expected}
 
-    def test_offset_in_the_query_works_encoded_or_not(self, api):
+    def test_offset_in_the_query_works_encoded_or_not(self):
+        api = self.api
         base, *_ = api
         expected = call(base, history_path(start='2026-10-27T08:20:00Z', limit=3))[2]
         assert expected['count'] == 3
@@ -284,14 +303,16 @@ class TestHttpApi:
         assert call(base, path + '%2B02:00')[2] == expected
         assert call(base, path + '+02:00')[2] == expected
 
-    def test_end_bounds_the_page(self, api):
+    def test_end_bounds_the_page(self):
+        api = self.api
         base, state, *_ = api
         rows = received_between(state.fleet, NOW_MS - 3 * DAY_MS - 1, NOW_MS)
         end = format_time(rows[4][0])
         body = call(base, history_path(end=end))[2]
         assert [r['id'] for r in body['data']] == [row[1] for row in rows[:5]]
 
-    def test_new_uploads_show_up_when_the_clock_advances(self, api):
+    def test_new_uploads_show_up_when_the_clock_advances(self):
+        api = self.api
         base, _, clock, _ = api
         cursor = call(base, history_path())[2]['maxDate']  # a full page; follow it to the end
         while True:
@@ -303,7 +324,8 @@ class TestHttpApi:
         fresh = call(base, history_path(start=cursor))[2]
         assert fresh['count'] > 0 and fresh['maxDate'] > cursor
 
-    def test_two_servers_serve_identical_bytes(self, api):
+    def test_two_servers_serve_identical_bytes(self):
+        api = self.api
         base, *_ = api
         other = create_server(Fleet(), 'another-key', 'A1', '127.0.0.1', 0, clock=Clock())
         thread = threading.Thread(target=other.serve_forever, kwargs={'poll_interval': 0.01}, daemon=True)
@@ -316,55 +338,69 @@ class TestHttpApi:
             other.shutdown()
             other.server_close()
 
-    def test_health(self, api):
+    def test_health(self):
+        api = self.api
         base, *_ = api
         assert call(base, '/_health', key=None)[::2] == (200, {'status': 'ok'})
 
 
-class TestControls:
-    def test_each_fault_applies_to_the_next_n_history_requests_only(self, api):
+class TestControls(unittest.TestCase):
+    def setUp(self):
+        self.api, stop = start_api()
+        self.addCleanup(stop)
+
+    def test_each_fault_applies_to_the_next_n_history_requests_only(self):
+        api = self.api
         base, *_ = api
         for fault, status in (('500', 500), ('429', 429), ('401', 401)):
             assert call(base, '/_control', 'POST', None, {'fault': fault, 'count': 2, 'retry_after': 7})[0] == 200
             assert [call(base, history_path(limit=1))[0] for _ in range(3)] == [status, status, 200]
 
-    def test_429_carries_retry_after(self, api):
+    def test_429_carries_retry_after(self):
+        api = self.api
         base, *_ = api
         call(base, '/_control', 'POST', None, {'fault': '429', 'count': 1, 'retry_after': 7})
         status, headers, body = call(base, history_path())
         assert status == 429 and headers['Retry-After'] == '7' and body['error'] == 'rate_limited'
 
-    def test_defaults_to_one_request(self, api):
+    def test_defaults_to_one_request(self):
+        api = self.api
         base, *_ = api
         call(base, '/_control', 'POST', None, {'fault': '500'})
         assert [call(base, history_path(limit=1))[0] for _ in range(2)] == [500, 200]
 
-    def test_none_clears_a_pending_fault(self, api):
+    def test_none_clears_a_pending_fault(self):
+        api = self.api
         base, *_ = api
         call(base, '/_control', 'POST', None, {'fault': '500', 'count': 5})
         assert call(base, '/_control', 'POST', None, {'fault': 'none'})[0] == 200
         assert call(base, history_path(limit=1))[0] == 200
 
-    def test_faults_are_not_used_up_by_requests_that_fail_authentication(self, api):
+    def test_faults_are_not_used_up_by_requests_that_fail_authentication(self):
+        api = self.api
         base, *_ = api
         call(base, '/_control', 'POST', None, {'fault': '500', 'count': 1})
         assert call(base, history_path(), key='wrong')[0] == 401
         assert call(base, history_path(limit=1))[0] == 500
 
-    def test_slow_delays_then_answers_normally(self, api):
+    def test_slow_delays_then_answers_normally(self):
+        api = self.api
         base, _, _, sleeps = api
         call(base, '/_control', 'POST', None, {'fault': 'slow', 'count': 1})
         status, _, body = call(base, history_path(limit=2))
         assert status == 200 and body['count'] == 2 and sleeps == [35.0]
         assert call(base, history_path(limit=1))[0] == 200 and sleeps == [35.0]
 
-    @pytest.mark.parametrize('body', [{'fault': 'explode'}, {'fault': '500', 'count': -1}, {'fault': '500', 'count': 'x'},
-                                      {'fault': '429', 'retry_after': -2}, ['500']])
-    def test_invalid_control_requests_are_400(self, api, body):
-        base, *_ = api
-        assert call(base, '/_control', 'POST', None, body)[0] == 400
+    def test_invalid_control_requests_are_400(self):
+        api = self.api
+        for body in [{'fault': 'explode'}, {'fault': '500', 'count': -1}, {'fault': '500', 'count': 'x'},
+                                      {'fault': '429', 'retry_after': -2}, ['500']]:
+            with self.subTest(body=body):
+                base, *_ = api
+                assert call(base, '/_control', 'POST', None, body)[0] == 400
 
-    def test_served_lists_only_ids_from_200_responses_and_can_be_reset(self, api):
+    def test_served_lists_only_ids_from_200_responses_and_can_be_reset(self):
+        api = self.api
         base, *_ = api
         call(base, '/_control', 'POST', None, {'fault': '500', 'count': 1})
         call(base, history_path(limit=3))

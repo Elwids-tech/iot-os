@@ -223,7 +223,8 @@ exercise the receiver: `--bad-signature`, `--no-secret`, `--stale-timestamp` (ne
 `--timestamp-header`), `--oversize` (one 1.1 MiB delivery first), `--burst N` (N
 deliveries as fast as possible, not retried), `--duplicate` (same body and message ids
 twice) and `--gzip` (the signature covers the uncompressed body). Both scripts have
-pytest tests beside them (`python3 -m pytest tooling/simulators/test_vendor_*.py`).
+unittest tests beside them, run with the other simulator tests by
+`python -m unittest discover -s tooling/simulators -p 'test_*.py'`.
 
 ## Seeders
 

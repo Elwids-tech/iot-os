@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Assistant\Jobs;
 
-use App\Domain\Assistant\Agents\OnboardingAssistant;
 use App\Domain\Assistant\Agents\HelpAgent;
+use App\Domain\Assistant\Agents\OnboardingAssistant;
 use App\Domain\Assistant\Agents\ProfileAssistant;
 use App\Domain\Assistant\Agents\WorkflowAssistant;
 use App\Domain\Assistant\Models\AssistantRun;

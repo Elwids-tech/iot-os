@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace App\Domain\Assistant\Http\Controllers;
 
-use App\Domain\Assistant\Jobs\RunAssistant;
 use App\Domain\Assistant\Enums\AssistantScope;
+use App\Domain\Assistant\Jobs\RunAssistant;
 use App\Domain\Assistant\Models\AssistantConversation;
 use App\Domain\Assistant\Models\AssistantProposal;
 use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Models\AssistantSource;
 use App\Domain\Assistant\Services\AssistantAccess;
-use App\Domain\Assistant\Services\OnboardingProposals;
 use App\Domain\Assistant\Services\AssistantBudget;
 use App\Domain\Assistant\Services\AssistantEvents;
 use App\Domain\Assistant\Services\AssistantProvider;
 use App\Domain\Assistant\Services\AssistantRecovery;
 use App\Domain\Assistant\Services\ExecutionEvidence;
+use App\Domain\Assistant\Services\OnboardingProposals;
 use App\Domain\Assistant\Services\ProfileKnowledge;
 use App\Domain\Assistant\Services\ProfileProposalService;
 use App\Domain\Assistant\Services\WorkflowDraftContext;

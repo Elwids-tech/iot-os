@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Devices\Services;
 
 use App\Domain\DeviceAdapters\Models\AdapterRevision;
-use App\Domain\DeviceAdapters\Services\AdapterDiagnostics;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
+use App\Domain\DeviceAdapters\Services\AdapterDiagnostics;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
 

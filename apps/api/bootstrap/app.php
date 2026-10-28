@@ -2,9 +2,9 @@
 
 use App\Domain\Agents\Console\ExportToolCatalogue;
 use App\Domain\Agents\Console\PruneAgents;
+use App\Domain\Automation\Console\AutomationWorker;
 use App\Domain\DeviceAdapters\Console\PruneAdapterRecords;
 use App\Domain\DeviceAdapters\Console\TimestampAudit;
-use App\Domain\Automation\Console\AutomationWorker;
 use App\Domain\DeviceProfiles\Exceptions\ProfileDraftConflictException;
 use App\Domain\DeviceProfiles\Exceptions\ProfileValidationException;
 use App\Domain\Help\Console\ValidateHelp;
