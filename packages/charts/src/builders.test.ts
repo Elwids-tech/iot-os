@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { init } from "./core"
-import { gaugeOption, type GaugeInput } from "./gauge"
+import { GAUGE_ASPECT, gaugeOption, gaugeThickness, type GaugeInput } from "./gauge"
 import type { ChartTheme } from "./theme"
 import { timelineOption } from "./timeline"
 import { timeSeriesOption, type TimeLine } from "./timeSeries"
@@ -134,5 +134,28 @@ describe("gaugeOption", () => {
     } finally {
       chart.dispose()
     }
+  })
+
+  it("fills a box of GAUGE_ASPECT, so the arc scales with its panel", () => {
+    const series = (gaugeOption(theme, { min: 0, max: 1, value: 0.5, color: "x", bands: [], thickness: 20 }) as any).series[0]
+    const height = 200
+    const width = GAUGE_ASPECT * height
+    // ECharts reads the radius against half the shorter side.
+    const radius = (Number.parseFloat(series.radius) / 100) * (height / 2)
+    const centre = (Number.parseFloat(series.center[1]) / 100) * height
+    expect(centre - radius).toBeGreaterThanOrEqual(0)
+    expect(centre + radius * Math.sin((25 * Math.PI) / 180)).toBeLessThanOrEqual(height)
+    expect(2 * radius).toBeLessThanOrEqual(width)
+    expect(2 * radius).toBeGreaterThan(0.95 * width)
+    expect(series.axisLine.lineStyle.width).toBe(20)
+    expect(series.progress.width).toBe(20)
+  })
+
+  it("thickens the arc in steps with the gauge's width", () => {
+    expect(gaugeThickness(60)).toBe(8)
+    expect(gaugeThickness(180)).toBe(10)
+    expect(gaugeThickness(185)).toBe(10)
+    expect(gaugeThickness(450)).toBe(25)
+    expect(gaugeThickness(2000)).toBe(32)
   })
 })
