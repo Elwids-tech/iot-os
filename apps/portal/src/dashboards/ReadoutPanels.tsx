@@ -1,7 +1,13 @@
 import { RelativeTime } from "@iot-os/ui/components/freshness"
-import { useMemo } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
-import { EChart, gaugeOption, useChartTheme } from "@iot-os/charts"
+import {
+  EChart,
+  GAUGE_ASPECT,
+  gaugeOption,
+  gaugeThickness,
+  useChartTheme,
+} from "@iot-os/charts"
 import type {
   DashboardBand,
   DashboardSource,
@@ -120,7 +126,7 @@ export const readingTime = (reading: Measurement) =>
     ? reading.last_valid_received_at
     : reading.received_at
 
-/** The arc of one gauge; the value and range around it are HTML. */
+/** The arc of one gauge; the value and range around it are HTML. It fills its positioned parent, a box of GAUGE_ASPECT. */
 function GaugeArc({
   source,
   min,
@@ -136,12 +142,23 @@ function GaugeArc({
 }) {
   const theme = useChartTheme()
   const segments = gaugeSegments(source, min, max)
+  // The arc thickens with the gauge; thickness moves in steps, so a resize redraws rarely.
+  const box = useRef<HTMLDivElement>(null)
+  const [thickness, setThickness] = useState<number>()
+  useEffect(() => {
+    const observer = new ResizeObserver(([entry]) =>
+      setThickness(gaugeThickness(entry.contentRect.width)),
+    )
+    observer.observe(box.current!)
+    return () => observer.disconnect()
+  }, [])
   const option = useMemo(
     () =>
       gaugeOption(theme, {
         min,
         max,
         value,
+        thickness,
         // The filled arc takes the colour of the band the value is in.
         color: band.color === NEUTRAL.color ? seriesColor(source.color) : bandColor(band.color),
         bands: segments.map((segment) => ({
@@ -150,9 +167,14 @@ function GaugeArc({
           neutral: segment.color === NEUTRAL.color,
         })),
       }),
-    [theme, min, max, value, band.color, source.color, JSON.stringify(segments)],
+    [theme, min, max, value, thickness, band.color, source.color, JSON.stringify(segments)],
   )
-  return <EChart option={option} label={`${source.label} gauge`} className="h-32 w-full in-data-kiosk:h-48" />
+  // Out of flow, so the chart's last drawn size never holds the box open while it shrinks.
+  return (
+    <div ref={box} className="absolute inset-0 overflow-hidden">
+      <EChart option={option} label={`${source.label} gauge`} className="size-full" />
+    </div>
+  )
 }
 
 export function GaugePanel({ org, widget, view }: PanelProps) {
@@ -167,10 +189,12 @@ export function GaugePanel({ org, widget, view }: PanelProps) {
       </p>
     )
   return (
+    // Gauges share the panel's height, so they grow and shrink with it.
     <ul
-      className="grid gap-4"
+      className="grid h-full gap-4"
       style={{
         gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 12rem), 1fr))",
+        gridAutoRows: "minmax(min-content, 1fr)",
       }}
     >
       {rows.map(({ source, query, reading, band, precision }) => {
@@ -182,48 +206,59 @@ export function GaugePanel({ org, widget, view }: PanelProps) {
               <span className="truncate">{source.label}</span>
               {showBand(source, band) && <BandMark band={band} />}
             </div>
-            {/* The meter carries the value for assistive technology; the arc inside it is presentational. */}
-            <div
-              role="meter"
-              aria-label={source.label}
-              aria-valuemin={min}
-              aria-valuemax={max}
-              aria-valuenow={value ?? undefined}
-              aria-valuetext={
-                value === null
-                  ? "No reading"
-                  : `${formatNumber(value, precision)}${source.unit ? " " + source.unit : ""}, ${band.label}`
-              }
-              className="relative"
-            >
-              <GaugeArc source={source} min={min} max={max} value={value} band={band} />
-              <div className="absolute inset-x-0 top-[46%] flex justify-center">
-                {query?.isPending ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <p className="font-mono text-2xl tabular-nums in-data-kiosk:text-5xl">
-                    {/* Keyed by the shown text so a changed reading remounts and runs one highlight. */}
-                    <span
-                      key={value === null ? "—" : formatNumber(value, precision)}
-                      className="-mx-1 rounded-sm px-1 motion-safe:animate-value-flash"
-                    >
-                      {value === null ? "—" : formatNumber(value, precision)}
-                    </span>
-                    {source.unit && (
-                      <span className="ml-1 text-sm text-muted-foreground">
-                        {source.unit}
-                      </span>
+            {/* The space left in the cell (container-type: size); the gauge and its
+                range take the largest width that keeps the arc's shape. */}
+            <div className="flex min-h-28 flex-1 justify-center [container-type:size]">
+              <div
+                className="flex flex-col gap-1"
+                style={{ width: `min(100cqw, (100cqh - 1.25rem) * ${GAUGE_ASPECT})` }}
+              >
+                {/* The meter carries the value for assistive technology; the arc inside it is presentational. */}
+                <div
+                  role="meter"
+                  aria-label={source.label}
+                  aria-valuemin={min}
+                  aria-valuemax={max}
+                  aria-valuenow={value ?? undefined}
+                  aria-valuetext={
+                    value === null
+                      ? "No reading"
+                      : `${formatNumber(value, precision)}${source.unit ? " " + source.unit : ""}, ${band.label}`
+                  }
+                  className="relative [container-type:inline-size]"
+                  style={{ aspectRatio: GAUGE_ASPECT }}
+                >
+                  <GaugeArc source={source} min={min} max={max} value={value} band={band} />
+                  {/* The value scales with the gauge's width. */}
+                  <div className="absolute inset-x-0 bottom-[30%] flex justify-center font-mono text-[length:clamp(1.25rem,18cqw,6rem)] leading-tight tabular-nums">
+                    {query?.isPending ? (
+                      <Skeleton className="h-[1em] w-[3em]" />
+                    ) : (
+                      <p className="whitespace-nowrap">
+                        {/* Keyed by the shown text so a changed reading remounts and runs one highlight. */}
+                        <span
+                          key={value === null ? "—" : formatNumber(value, precision)}
+                          className="-mx-1 rounded-sm px-1 motion-safe:animate-value-flash"
+                        >
+                          {value === null ? "—" : formatNumber(value, precision)}
+                        </span>
+                        {source.unit && (
+                          <span className="ml-1 text-[0.5em] text-muted-foreground">
+                            {source.unit}
+                          </span>
+                        )}
+                      </p>
                     )}
-                  </p>
-                )}
+                  </div>
+                </div>
+                <div className="flex h-4 justify-between gap-2 font-mono text-xs text-muted-foreground tabular-nums">
+                  <span>{formatNumber(min)}</span>
+                  {reading && (
+                    <RelativeTime bare className="truncate font-mono" at={readingTime(reading)} now={now} timezone={view.timezone} />
+                  )}
+                  <span>{formatNumber(max)}</span>
+                </div>
               </div>
-            </div>
-            <div className="flex justify-between font-mono text-xs text-muted-foreground tabular-nums">
-              <span>{formatNumber(min)}</span>
-              {reading && (
-                <RelativeTime bare className="font-mono" at={readingTime(reading)} now={now} timezone={view.timezone} />
-              )}
-              <span>{formatNumber(max)}</span>
             </div>
             {query?.error && (
               <RequestError error={query.error}>

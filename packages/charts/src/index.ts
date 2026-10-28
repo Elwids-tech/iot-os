@@ -13,4 +13,4 @@ export {
   type ValueLine,
 } from "./timeSeries"
 export { timelineOption, type TimelineInput, type TimeSegment } from "./timeline"
-export { gaugeOption, type GaugeInput } from "./gauge"
+export { GAUGE_ASPECT, gaugeOption, gaugeThickness, type GaugeInput } from "./gauge"

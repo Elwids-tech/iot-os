@@ -395,6 +395,12 @@ Things that have cost time before. Add to this list when something surprises you
   of undefined (reading '0')` (in `GaugeView._renderPointer`, which names the
   needle, not the axis pointer) when progress turns on. `gaugeOption` keeps it on
   and makes the arc transparent while there is no reading.
+- **A chart inside an `aspect-ratio` box holds the box open.** ECharts sizes
+  its inner element in pixels, and a box sized by `aspect-ratio` grows to fit
+  its content. When the box narrows, the chart's last size keeps the height,
+  the chart then measures the box at that height, and the arc is clipped. The
+  gauge draws its chart in an `absolute inset-0` layer, so only the box's width
+  and shape set its height.
 - **`setSearchParams(updater)` starts from the last rendered address.** React
   Router hands the updater the search params from the last render, which can lag
   the address bar. On a slow machine, clearing a table's search and then picking
