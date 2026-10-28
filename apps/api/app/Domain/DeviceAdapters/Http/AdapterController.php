@@ -45,7 +45,7 @@ final class AdapterController
 
         $diagnostics = app(AdapterDiagnostics::class);
 
-        return ['data' => DeviceAdapter::where('organization_id', $organization->id)->latest()->limit(100)->get()->map(fn ($a) => [...$a->only(['uuid', 'name', 'status', 'source', 'health', 'diagnostic']), 'profile_name' => $a->artifact->profile->name, 'source_state' => $diagnostics->sourceState($a)]),
+        return ['data' => DeviceAdapter::where('organization_id', $organization->id)->latest()->limit(100)->get()->map(fn ($a) => [...$a->only(['uuid', 'name', 'status', 'source', 'health', 'diagnostic']), 'profile_name' => $a->artifact->profile->name, 'source_state' => $diagnostics->sourceState($a), 'deletable' => $this->service->inUse($a) === null]),
             'webhooks_available' => app(WebhookRoutes::class)->available(), 'tenant' => AdapterTenant::where('organization_id', $organization->id)->first()?->only(['uuid', 'status', 'broker_url', 'diagnostic']), 'capabilities' => $this->authorization->capabilities($r->user(), $organization)];
     }
 
@@ -93,6 +93,15 @@ final class AdapterController
         $revision = $r->validate(['draft_revision' => 'required|integer|min:1'])['draft_revision'];
 
         return ['data' => $this->service->view($this->service->save($organization, $r->all(), $r->user()->id, $adapter, $revision))];
+    }
+
+    public function destroy(Request $r, Organization $organization, DeviceAdapter $adapter)
+    {
+        $this->authorize($r, $organization, $adapter);
+        $this->authorization->authorize($r->user(), DevicePermission::CONNECTIONS, $organization);
+        $this->service->delete($adapter, $r->user()->id);
+
+        return response()->noContent();
     }
 
     public function test(Request $r, Organization $organization, DeviceAdapter $adapter): array

@@ -7,6 +7,7 @@ namespace App\Domain\Devices\Services;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 final class BrokerProvisioner
 {
@@ -44,6 +45,15 @@ final class BrokerProvisioner
         $this->provision($connection->username, $connection->password, $rules);
         $connection->update(['status' => 'ready', 'diagnostic' => null]);
         DeviceAudit::enqueue('connection.changed.v1', ['connection_uuid' => $connection->uuid]);
+    }
+
+    /**
+     * Retires a gateway's identity: a random password nobody keeps, and only the STATE
+     * subscription left because broker-admin needs at least one rule.
+     */
+    public function revoke(SparkplugGateway $gateway): void
+    {
+        $this->provision($gateway->username, Str::random(48), [$this->rule('subscribe', 'spBv1.0/STATE/'.$gateway->connection->host_id)]);
     }
 
     public function gateway(SparkplugGateway $gateway): void

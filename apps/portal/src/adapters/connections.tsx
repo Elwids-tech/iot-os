@@ -24,7 +24,6 @@ import {
 } from "@iot-os/ui/components/field";
 import { Input } from "@iot-os/ui/components/input";
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert";
-import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import {
   Table,
   TableBody,
@@ -43,6 +42,7 @@ import {
   AlertDialogCancel,
 } from "@iot-os/ui/components/alert-dialog";
 import { api } from "../lib/api";
+import { ActivateAdapterDevice } from "./ActivateDevice";
 import { RequestError } from "../components/forms";
 
 function download(kit: AdapterKit) {
@@ -245,47 +245,12 @@ export function AdapterDevices({
   adapter: DeviceAdapter;
   canActivate: boolean;
 }) {
-  const cache = useQueryClient();
   const query = useQuery({
     queryKey: ["adapter-candidates", org, adapter.uuid],
     queryFn: () => api.adapterCandidates(org, adapter.uuid),
     refetchInterval: 3000,
   });
   const [selected, setSelected] = useState<AdapterCandidate | null>(null);
-  const [name, setName] = useState("");
-  const [device, setDevice] = useState("");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
-  const devices = useQuery({
-    queryKey: ["adapter-link-devices", org, search, page],
-    queryFn: () =>
-      api.devices(org, { search, page, lifecycle: "registered", per_page: 20 }),
-    enabled: !!selected,
-  });
-  async function activate() {
-    if (!selected) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api.activateAdapterCandidate(org, adapter.uuid, selected.uuid, {
-        name,
-        ...(device ? { device_uuid: device } : {}),
-      });
-      setSelected(null);
-      await cache.invalidateQueries({
-        queryKey: ["adapter-candidates", org, adapter.uuid],
-      });
-      await cache.invalidateQueries({
-        queryKey: ["adapter", org, adapter.uuid],
-      });
-    } catch (reason) {
-      setError(reason);
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <Card>
       <CardHeader>
@@ -354,14 +319,9 @@ export function AdapterDevices({
                         adapter.status !== "running" ||
                         !!c.preview.retained
                       }
-                      onClick={() => {
-                        setSelected(c);
-                        setName(c.source_device_id);
-                        setDevice("");
-                        setError(null);
-                      }}
+                      onClick={() => setSelected(c)}
                     >
-                      Review & activate
+                      Activate
                     </Button>
                   )}
                 </TableCell>
@@ -376,77 +336,16 @@ export function AdapterDevices({
           </p>
         )}
       </CardContent>
-      <AlertDialog
-        open={!!selected}
-        onOpenChange={(open) => {
-          if (!open && !busy) setSelected(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Activate {selected?.source_device_id}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Confirm the virtual device that will own this physical device’s
-              readings.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <FieldGroup>
-            <SearchableSelect
-              label="Platform device"
-              value={device}
-              options={[
-                { value: "", label: "Create a new virtual device" },
-                ...(devices.data?.data ?? [])
-                  .filter(
-                    (d) =>
-                      !d.applied_configuration_uuid &&
-                      !d.desired_configuration_uuid,
-                  )
-                  .map((d) => ({
-                    value: d.uuid,
-                    label: `${d.name} · ${d.code}`,
-                  })),
-              ]}
-              search={search}
-              onSearchChange={(value) => {
-                setSearch(value);
-                setPage(1);
-              }}
-              onChange={setDevice}
-              loading={devices.isPending}
-              page={page}
-              onPageChange={setPage}
-              hasNextPage={
-                !!devices.data &&
-                devices.data.meta.current_page < devices.data.meta.last_page
-              }
-            />
-            <Field>
-              <FieldLabel htmlFor="adapter-device-name">Device name</FieldLabel>
-              <Input
-                id="adapter-device-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={busy}
-              />
-            </Field>
-          </FieldGroup>
-          <RequestError error={error || devices.error} />
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>
-              Keep reviewing
-            </AlertDialogCancel>
-            <Button
-              disabled={busy || !name.trim()}
-              onClick={() => void activate()}
-            >
-              Activate & start storing
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {selected && (
+        <ActivateAdapterDevice
+          key={selected.uuid}
+          org={org}
+          adapter={adapter}
+          candidate={selected.uuid}
+          serial={selected.source_device_id}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </Card>
   );
 }

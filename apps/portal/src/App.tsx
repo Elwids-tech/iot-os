@@ -127,6 +127,7 @@ const NotificationCenter = lazy(() => import("./notifications/NotificationCenter
 const SupportRoutes = lazy(() => import("./support/Support"))
 const HelpPanel = lazy(() => import("./help/HelpPanel"))
 const ProfileAssistantBody = lazy(() => import("./assistant/AssistantPanel"))
+const OnboardingAssistantBody = lazy(() => import("./adapters/OnboardingAssistant"))
 const ProfileWorkspace = lazy(() =>
   import("./profiles/ProfileWorkspace").then((module) => ({
     default: module.ProfileWorkspace,
@@ -882,7 +883,11 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
   // current page (profile authoring, the automation editor's slot, or usage help).
   const openAssistant = () => panel.togglePanel("ask")
   const [, , , page, resource] = location.pathname.split("/")
-  const profileContext = page === "device-profiles" || (page === "devices" && resource === "onboard")
+  const adaptersUsable = Boolean(org && org.capabilities?.features?.device_adapters === true && devicesCan("manage")(org))
+  // Add device and the adapter pages open Ask on onboarding, which also drafts missing profiles.
+  const onboardingContext = adaptersUsable && (page === "device-adapters" || (page === "devices" && resource === "onboard"))
+  const profileContext = page === "device-profiles" || (page === "devices" && resource === "onboard" && !onboardingContext)
+  const viewedAdapter = page === "device-adapters" && resource && resource !== "new" ? resource : undefined
   const helpContext = helpOverride ?? helpContextForPath(location.pathname)
   // Every page header carries the Assistant beside Help; on phones they shrink to their icons.
   const helpIntegration = useMemo(() => org ? {
@@ -992,11 +997,12 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
                 />
               }
               profilePage={profileContext}
+              onboardingAssistant={
+                <OnboardingAssistantBody org={org.uuid} adapterUuid={viewedAdapter} canEdit={adaptersUsable} />
+              }
+              onboardingPage={onboardingContext}
               viewedProfile={params.profileUuid}
-              can={{
-                profiles: profilesEditable(org),
-                adapters: org.capabilities?.features?.device_adapters === true && devicesCan("manage")(org),
-              }}
+              can={{ profiles: profilesEditable(org), adapters: adaptersUsable }}
             />
           </Suspense>
         )}

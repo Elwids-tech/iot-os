@@ -643,8 +643,9 @@ context, reply or tool result contain the API key.
 - **FR-102**: The adapter assistant MUST become the **device onboarding assistant**: one
   conversation that can start on Add device with no adapter, continues on the adapter
   it creates or picks, and opens from the device onboarding page, the adapter
-  workbench and the workspace assistant's suggestions. Existing adapter conversations
-  continue as onboarding conversations.
+  workbench and the workspace assistant's suggestions. It is a conversation in the
+  workspace assistant panel beside the page, never a tab of its own. Existing adapter
+  conversations continue as onboarding conversations.
 - **FR-103**: The assistant MUST ask how the device sends data, offering choices, and
   recommend one path: a direct Sparkplug B connection, a gateway, or an adapter with
   its source type (devices publish to the tenant broker, vendor MQTT broker, HTTP

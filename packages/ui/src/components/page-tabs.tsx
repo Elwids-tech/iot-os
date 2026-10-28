@@ -27,7 +27,7 @@ export function PageTabs({
             cn(
               "relative inline-flex h-9 shrink-0 items-center px-2 text-body font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
               "after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full",
-              isActive && "text-foreground after:bg-foreground",
+              isActive && "text-primary hover:text-primary after:bg-primary",
             )
           }
         >

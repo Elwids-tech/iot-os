@@ -80,7 +80,9 @@ const emptyDraft: DeviceDraft = {
   birth_revision: null,
   mappings: [],
 }
-const sourceName = (id: string) => id || "Gateway measurements"
+// A device adapter's source goes by the manufacturer serial it decoded.
+const sourceName = (c: { source_device_id: string; adapter?: { serial: string | null } | null }) =>
+  c.adapter?.serial || c.source_device_id || "Gateway measurements"
 const announced = (
   <abbr title="Sparkplug birth certificate revision" className="cursor-help">
     Announced revision
@@ -717,7 +719,7 @@ export function ConfigurationSection({
                 loading={candidates.isLoading}
                 selectedLabel={
                   candidate
-                    ? sourceName(candidate.source_device_id) +
+                    ? sourceName(candidate) +
                       " · " +
                       candidate.gateway.name
                     : undefined
@@ -741,15 +743,17 @@ export function ConfigurationSection({
                 options={[
                   { value: "", label: "Not connected yet" },
                   ...(candidates.data?.data ?? [])
+                    // Adapter sources are activated through their adapter, never mapped here.
                     .filter(
                       (c) =>
                         c.status !== "rejected" &&
                         (!c.assigned_device_uuid ||
-                          c.assigned_device_uuid === device.uuid),
+                          c.assigned_device_uuid === device.uuid) &&
+                        (!c.adapter || c.uuid === draft.candidate_uuid),
                     )
                     .map((c) => ({
                       value: c.uuid,
-                      label: `${sourceName(c.source_device_id)} · ${c.gateway.name}`,
+                      label: `${sourceName(c)} · ${c.gateway.name}`,
                     })),
                 ]}
               />
@@ -1009,7 +1013,7 @@ export function ConfigurationSection({
               <dd>
                 {candidate ? (
                   <>
-                    <span className="font-mono">{sourceName(candidate.source_device_id)}</span>
+                    <span className="font-mono">{sourceName(candidate)}</span>
                     <span className="text-muted-foreground"> · {candidate.gateway.name}</span>
                   </>
                 ) : (
@@ -1263,7 +1267,7 @@ export function ConfigurationSection({
               </dd>
               <dt className="text-muted-foreground">Source</dt>
               <dd className="min-w-0 font-mono break-words">
-                {sourceName(candidate.source_device_id)}
+                {sourceName(candidate)}
               </dd>
               <dt className="text-muted-foreground">{announced}</dt>
               <dd>

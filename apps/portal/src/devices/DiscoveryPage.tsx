@@ -82,7 +82,7 @@ export function DiscoveryPage() {
           <div className="relative z-10 flex gap-2">
             {c.status !== "rejected" && (
               <Button size="xs" onClick={() => setSelected(c)}>
-                Onboard
+                {c.adapter ? "Activate" : "Onboard"}
               </Button>
             )}
             <Button size="xs" variant="ghost" onClick={() => setReview(c)}>

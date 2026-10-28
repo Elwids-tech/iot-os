@@ -208,10 +208,11 @@ The details are in [research.md](research.md) (decisions R1–R16),
 - `adapters/OnboardingAssistant.tsx` replaces `AdapterAssistant.tsx`: messages,
   questions, path recommendations that open the Add device form, adapter proposals
   (reuse, create, change with code, settings and fixtures diffs), profile section
-  reviews through the shared `ProposalReview`, and next-step buttons. It renders in the
-  workbench's **Assistant** tab and on a new route
-  `organizations/:org/device-adapters/onboarding` opened from Add device and from the
-  workspace assistant's suggestions.
+  reviews through the shared `ProposalReview`, and next-step buttons. It is a body of
+  the workspace assistant panel, like the profile assistant: Ask opens it on Add device
+  and device adapter pages, and from the suggestions and the checklist's **Ask the
+  assistant** anywhere. Proposals are chat cards whose code and settings open in a
+  review dialog; next-step buttons open the workbench tab.
 - `devices/DeviceOnboarding.tsx`: the adapter card reads "Manufacturer data (MQTT,
   webhook or vendor API)" and offers the onboarding assistant when it is enabled.
 - `packages/api-client`: source types, webhook, polling, deliveries, runs and

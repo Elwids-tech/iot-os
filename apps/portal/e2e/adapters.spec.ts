@@ -168,6 +168,7 @@ async function setup(
   page: Page,
   retained = false,
   kind: "platform" | "webhook" | "poll" = "platform",
+  overrides: Record<string, unknown> = {},
 ) {
   const errors: string[] = [],
     requests: { path: string; body: any }[] = [];
@@ -177,6 +178,7 @@ async function setup(
     name: "Acme",
     slug: "acme",
     capabilities: {
+      features: { device_adapters: true },
       devices: {
         view: true,
         manage: true,
@@ -240,8 +242,11 @@ async function setup(
     operations: [],
     health: { source_connected: true, upstream_connected: true },
     diagnostic: null,
+    deletion: { allowed: true, reason: null },
+    ...overrides,
   };
   let linked = false;
+  let deleted = false;
   let secrets: any[] = [];
   let secretCount = 0;
   // Derived fields the API computes from the saved source.
@@ -343,13 +348,17 @@ async function setup(
       return route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          data: [adapter],
+          data: deleted ? [] : [{ ...adapter, deletable: adapter.deletion.allowed }],
           tenant: null,
           capabilities: organization.capabilities.devices,
         }),
       });
     }
     if (path.endsWith(`/device-adapters/${id}`)) {
+      if (method === "DELETE") {
+        deleted = true;
+        return route.fulfill({ status: 204 });
+      }
       if (method === "PUT") {
         const { secrets: saved, ...values } = route.request().postDataJSON();
         adapter = {
@@ -580,11 +589,11 @@ test("hardware kit download and discovered serial activation stay in the tenant 
     page.getByText("test-only-password", { exact: true }),
   ).toHaveCount(0);
   await page.getByRole("tab", { name: "5 · Devices" }).click();
-  await page.getByRole("button", { name: "Review & activate" }).click();
-  await page
-    .getByLabel("Device name", { exact: true })
-    .fill("Workshop water meter");
-  await page.getByRole("button", { name: "Activate & start storing" }).click();
+  await page.getByRole("button", { name: "Activate", exact: true }).click();
+  const activate = page.getByRole("dialog", { name: "Activate WM-1042" });
+  await expect(activate.getByLabel("Device name", { exact: true })).toHaveValue("WM-1042");
+  await activate.getByLabel("Device name", { exact: true }).fill("Workshop water meter");
+  await activate.getByRole("button", { name: "Activate", exact: true }).click();
   await expect(
     page.getByRole("link", { name: "Workshop water meter", exact: true }),
   ).toHaveAttribute("href", `/organizations/${org}/devices/${device}/overview`);
@@ -595,12 +604,46 @@ test("hardware kit download and discovered serial activation stay in the tenant 
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
+test("Discovery shows an adapter's source by serial and activates it in one step", async ({ page }) => {
+  const { errors, requests } = await setup(page);
+  const source = {
+    uuid: "50000000-0000-4000-8000-000000000001",
+    source_device_id: "src-4f2a9c",
+    status: "pending",
+    presence: "online",
+    session_id: "s-1",
+    birth_revision: 1,
+    metrics: [{ name: "flow_rate", datatype: "Double", value: 12 }],
+    last_seen_at: new Date().toISOString(),
+    assigned_device_uuid: null,
+    setup_device_uuid: null,
+    gateway: { uuid: "60000000-0000-4000-8000-000000000001", name: "Manufacturer water meter", edge_node_id: `adapter-${id}`, presence: "online", last_seen_at: null, connection_uuid: "c", group_id: "adapters-acme", sources_count: 1 },
+    adapter: { uuid: id, name: "Manufacturer water meter", candidate_uuid: candidate, serial: "WM-1042" },
+  };
+  await page.route("**/discovery-candidates**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: [source], meta: { current_page: 1, last_page: 1, total: 1 } }),
+    }),
+  );
+  await page.goto(`/organizations/${org}/discovery`);
+  const row = page.getByRole("row", { name: /WM-1042/ });
+  await expect(row).not.toContainText("src-4f2a9c");
+  await row.getByRole("button", { name: "Activate", exact: true }).click();
+  const activate = page.getByRole("dialog", { name: "Activate WM-1042" });
+  await expect(activate).toContainText("Manufacturer water meter decodes this device");
+  await activate.getByRole("button", { name: "Activate", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/organizations/${org}/devices/${device}`));
+  expect(requests.find((r) => r.path.endsWith(`/candidates/${candidate}/activate`))?.body).toEqual({ name: "WM-1042" });
+  expect(errors).toEqual([]);
+});
+
 test("retained samples cannot activate physical devices", async ({ page }) => {
   const { requests } = await setup(page, true);
   await page.goto(base + "/" + id);
   await page.getByRole("tab", { name: "5 · Devices" }).click();
   await expect(
-    page.getByRole("button", { name: "Review & activate" }),
+    page.getByRole("button", { name: "Activate", exact: true }),
   ).toBeDisabled();
   expect(requests.some((r) => r.path.endsWith("/activate"))).toBe(false);
 });
@@ -824,6 +867,148 @@ test("the setup checklist shows each step's state and opens its tab", async ({
   await expect(waiting).toContainText(ingestUrl);
   await settled(page);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("an unused adapter is deleted after confirming", async ({ page }) => {
+  const { errors, requests } = await setup(page);
+  await page.goto(base + "/" + id);
+  await page.getByRole("button", { name: "More adapter actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete adapter" }).click();
+  const confirm = page.getByRole("alertdialog", { name: "Delete Manufacturer water meter?" });
+  await expect(confirm).toContainText("No device uses it.");
+  await confirm.getByRole("button", { name: "Delete adapter" }).click();
+  await expect(page).toHaveURL(base);
+  expect(requests.some((r) => r.path.endsWith(`/device-adapters/${id}`) && r.body === null)).toBe(true);
+  await expect(page.getByText("Connect your first manufacturer device")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("an adapter that devices use cannot be deleted and says why", async ({ page }) => {
+  const reason = "A device was activated through this adapter.";
+  const { errors, requests } = await setup(page, false, "platform", { deletion: { allowed: false, reason } });
+  await page.goto(base);
+  await page.getByRole("button", { name: "Actions for Manufacturer water meter" }).click();
+  await expect(page.getByRole("menuitem", { name: "Delete (devices use it)" })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await page.goto(base + "/" + id);
+  await page.getByRole("button", { name: "More adapter actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Delete adapter" })).toBeDisabled();
+  await expect(page.getByRole("menu")).toContainText(`${reason} Adapters in use cannot be deleted.`);
+  expect(requests.some((r) => r.body === null)).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test("the onboarding assistant works in the workspace panel beside the workbench", async ({
+  page,
+}) => {
+  const { errors, requests } = await setup(page, false, "webhook");
+  const empty = (r: any) =>
+    r.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
+  await page.route("**/deliveries**", empty);
+  await page.route("**/candidates", empty);
+  const conversation = {
+    id: "c-1",
+    title: "Water meters",
+    scope: "onboarding",
+    adapter_uuid: id,
+    profile_uuid: null,
+    profile_name: null,
+    updated_at: minutes(5),
+  };
+  let applied = false;
+  const detail = () => ({
+    ...conversation,
+    runs: [
+      {
+        id: "r-1",
+        request_id: "q-1",
+        status: "completed",
+        prompt: "Draft the decoder from the captured samples.",
+        answer: "I proposed a decoder that reads the flow rate.",
+        source_ids: [],
+        usage: null,
+        cost_usd: 0.01,
+        error_code: null,
+        error_message: null,
+        created_at: minutes(3),
+      },
+    ],
+    sources: [],
+    proposals: [],
+    adapter_proposals: [
+      {
+        uuid: "p-1",
+        kind: "change",
+        name: null,
+        artifact_uuid: null,
+        code: "function decode(input) {return {sourceDeviceId:input.payload.serial,metrics:[{name:'flow_rate',value:input.payload.flow_ml_min/1000}]};}",
+        source: null,
+        fixtures: [{ topic: "meters/fixed/telemetry", payload: { serial: "WM-1042", flow_ml_min: 12000 } }],
+        summary: "Read the flow rate in litres per minute",
+        evidence: [],
+        content_hash: "hash-1",
+        draft_revision: 1,
+        status: applied ? "applied" : "pending",
+        adapter_uuid: id,
+        adapter_name: "Manufacturer water meter",
+        created_at: minutes(2),
+      },
+    ],
+    onboarding_state: applied
+      ? { next_step: { step: "secret", message: "Create a secret and paste it into the vendor cloud.", adapter_uuid: id, at: minutes(0) } }
+      : null,
+    cursor: 0,
+  });
+  await page.route("**/assistant/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const data = (value: unknown) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: value }) });
+    if (route.request().method() === "POST") {
+      requests.push({ path, body: route.request().postDataJSON() });
+      applied = true;
+      return data({ status: "applied", adapter: null, run: null, notice: null });
+    }
+    if (path.endsWith("/settings"))
+      return data({ enabled: true, provider: { label: "OpenAI" }, supported_extensions: [], max_file_bytes: 1 });
+    if (path.endsWith("/conversations")) return data([conversation]);
+    if (path.endsWith("/conversations/c-1")) return data(detail());
+    return data([]);
+  });
+  await page.route("**/help/page**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: { key: "adapters", title: "Device adapters", overview: "adapters", articles: [] } }),
+    }),
+  );
+  await page.goto(base + "/" + id);
+  // The assistant is a conversation in the panel, not a tab of the workbench.
+  await expect(page.getByRole("tab", { name: "Assistant" })).toHaveCount(0);
+  await page
+    .getByRole("region", { name: "Setup checklist" })
+    .getByRole("button", { name: "Ask the assistant" })
+    .click();
+  const chat = page
+    .getByRole("complementary", { name: "Assistant", exact: true })
+    .getByRole("region", { name: "Onboarding assistant" });
+  await expect(chat).toContainText("I proposed a decoder that reads the flow rate.");
+  await expect(chat).toContainText("Change the adapter draft");
+  await chat.getByRole("button", { name: "Review", exact: true }).click();
+  const review = page.getByRole("dialog", { name: "Change the adapter draft" });
+  await expect(review.getByText("Current decoder")).toBeVisible();
+  await expect(review.getByText("Proposed decoder")).toBeVisible();
+  await expect(review.getByText("1 test sample to add")).toBeVisible();
+  await review.getByRole("button", { name: "Apply to draft" }).click();
+  await expect(review).toBeHidden();
+  expect(requests.find((r) => r.path.endsWith("/adapter-proposals/p-1/decision"))?.body).toMatchObject({
+    action: "apply",
+    content_hash: "hash-1",
+  });
+  await expect(chat).toContainText("Applied a change to the adapter draft");
+  // The suggested step opens its workbench tab beside the panel.
+  await page.getByRole("tab", { name: "4 · Review & deploy" }).click();
+  await chat.getByRole("button", { name: "Create a webhook secret" }).click();
+  await expect(page.getByRole("tab", { name: "2 · Connection" })).toHaveAttribute("aria-selected", "true");
   expect(errors).toEqual([]);
 });
 

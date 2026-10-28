@@ -14,9 +14,11 @@ tasks available from any page. The profile assistant and usage help open in the
 panel from any page. An automation suggestion opens a new automation, and its example
 request waits in that editor's assistant to be edited and sent; the hand-off carries
 an id in the navigation state, so only the editor opened for it takes it. The device
-onboarding assistant opens from **Add device**, the device adapters page and an
-adapter's **Assistant** tab; it keeps one conversation from the first question to the
-activated device. **Suggestions** at the top of the Ask tab returns to the list.
+onboarding assistant is the Ask tab on **Add device** and every device adapter page
+(**Ask the onboarding assistant** on Add device starts a new conversation; an adapter's
+page continues its latest one). It keeps one conversation from the first question to
+the activated device. Every assistant is a conversation in this panel, never a tab of
+its page. **Suggestions** at the top of the Ask tab returns to the list.
 
 The platform works fully without AI. Guides and search always work; AI features
 are off until configured.
@@ -52,7 +54,7 @@ These hold for every assistant surface:
 | --- | --- | --- |
 | `profile` | Device profiles and the Add device wizard; any page through **Create a device profile** | Read the profile schema and authorized profiles, sources and retained facts; ask structured questions; preview and validate a section; apply an approved section ([`ProfileAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/ProfileAssistantTools.php), [`ApplyProfileSection`](../../apps/api/app/Domain/Assistant/Tools/ApplyProfileSection.php)) |
 | `automation` | Automation editor; any page through an automation suggestion | Read the node registry, applied configurations, controllable settings and geofences; propose a compiler-validated graph ([`WorkflowAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/WorkflowAssistantTools.php)) |
-| `onboarding` | Add device, device adapters, an adapter's **Assistant** tab | Ask how the device sends data and recommend the path; find adapters and profiles; propose reusing or creating an adapter; draft a missing profile with the profile tools; read samples; run Fetch now read-only; test decoder code; propose decoder, non-secret settings and fixtures; point to the next step ([`OnboardingTools`](../../apps/api/app/Domain/Assistant/Tools/OnboardingTools.php)) |
+| `onboarding` | Ask on Add device and device adapter pages; **Ask the assistant** on an adapter's setup checklist | Ask how the device sends data and recommend the path; find adapters and profiles; propose reusing or creating an adapter; draft a missing profile with the profile tools; read samples; run Fetch now read-only; test decoder code; propose decoder, non-secret settings and fixtures; point to the next step ([`OnboardingTools`](../../apps/api/app/Domain/Assistant/Tools/OnboardingTools.php)) |
 | `help` | Any page, through **Ask how to use the portal** or a question about the page | No tools; answers only from approved guide excerpts |
 
 The telemetry viewer's **AI troubleshoot** is a separate one-shot request on one
@@ -73,7 +75,9 @@ It asks how the device sends data, with choices, then recommends a path:
 On an adapter it reads captured samples and attached documents, may run **Fetch now**
 itself (read-only, within the adapter's 6-a-minute limit), tests decoder code against
 samples, and proposes one change at a time: decoder, non-secret source settings and
-fixtures together. Applying a proposal saves one draft revision. Credentials and
+fixtures together. A proposal is a card in the chat; **Review** opens its code,
+settings and samples beside the current draft. Applying a proposal saves one draft
+revision, and applying a new adapter opens its workbench beside the panel. Credentials and
 webhook secrets go in the form, never the chat; the assistant never sees them and
 does not repeat text that looks like one. Running the gating test, deploying,
 activating devices and resetting a cursor stay with the person; the assistant offers

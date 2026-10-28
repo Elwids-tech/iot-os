@@ -181,9 +181,11 @@ export type DeviceAdapter = AdapterDraft & {
     diagnostic: string | null;
     revision_uuid: string;
   }[];
+  /** An adapter can be deleted while nothing uses it; `reason` says what does. */
+  deletion: { allowed: boolean; reason: string | null };
 };
 export type AdapterDirectory = {
-  data: Pick<
+  data: (Pick<
     DeviceAdapter,
     | "uuid"
     | "name"
@@ -193,7 +195,7 @@ export type AdapterDirectory = {
     | "health"
     | "diagnostic"
     | "source_state"
-  >[];
+  > & { deletable: boolean })[];
   tenant: {
     uuid: string;
     status: string;

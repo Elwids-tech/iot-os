@@ -118,8 +118,9 @@ The workbench shows a **setup checklist** above its tabs, worked out from the
 adapter's saved state: device type, connect, capture samples, decoder, test and
 deploy, activate devices. Each step says what is done, what it is waiting for (for
 example **Waiting for the first delivery**) and opens the place to act. The **device
-onboarding assistant** ([assistant](assistant.md#device-onboarding-assistant)) can
-walk the same steps from **Add device**.
+onboarding assistant** ([assistant](assistant.md#device-onboarding-assistant)) walks
+the same steps in the workspace panel: **Ask the assistant** on the checklist, or the
+header **Assistant** on any adapter page.
 
 1. Create an adapter: pick a published profile and name the reusable device-type
    adapter.
@@ -139,13 +140,30 @@ walk the same steps from **Add device**.
 7. For devices that can be pointed at a broker, create a hardware credential and
    download its kit (`device-config.json`, `ca.crt`, `quickstart.md`). Credentials
    can be rotated and revoked.
-8. Review a discovered serial number, create or link an inactive virtual device,
-   and activate it. Unknown serials and retained messages stay previews; nothing
-   is stored as production telemetry until a device is activated.
+8. Activate a discovered serial number: a new device named after the serial, or an
+   inactive registered one, gets every profile reading mapped and applied in one
+   step. Unknown serials and retained messages stay previews; nothing is stored as
+   production telemetry until a device is activated. The same **Activate** appears
+   wherever the source shows up: the adapter's Devices tab, **Discovery** and
+   **Add device** (which list it by serial, not by its `src-…` Sparkplug ID), and the
+   onboarding assistant once serials are waiting. Adapter sources never go through
+   manual mapping: the device configuration page does not offer them, and the API
+   refuses them for a device not activated through the adapter, so readings always
+   keep their installation and adapter revision.
 
 Stored observations and committed events keep `installation_uuid`,
 `adapter_revision_uuid` and the manufacturer serial next to the stable device
 UUID, so replacing hardware later can keep the device's history.
+
+**Delete** (the workbench's ⋯ menu, or the list's row menu) removes an adapter
+nothing uses: no device was ever activated through it, and no device or onboarding
+uses a source its gateway reported. Otherwise the menu says why and the API answers
+409. Deleting removes the runtime first (the flow, the tenant broker identities,
+the webhook route and the cursor, dedup and birth files), retires the gateway's
+platform broker identity, then deletes the adapter's records and its gateway in
+one transaction ([`AdapterService::delete`](../../apps/api/app/Domain/DeviceAdapters/Services/AdapterService.php)).
+Presence and birth events never recreate an adapter gateway, so a death the
+publisher sends while stopping cannot bring it back.
 
 ## Decoder contract
 
@@ -279,7 +297,7 @@ tenant containers and restart only those that were running
 
 Under `/api/v1/organizations/{organization}/device-adapters`
 ([routes](../../apps/api/app/Domain/DeviceAdapters/routes.php)): list, create,
-read and update adapters; `test`, `connection-test`, `deploy`; `candidates` and
+read, update and delete adapters; `test`, `connection-test`, `deploy`; `candidates` and
 `candidates/{c}/activate`; `credentials` with `kit`, `rotate` and `revoke`;
 `webhook`, `webhook/secrets` and `…/revoke`, `deliveries`; `fetch-now`, `poll-runs`,
 `cursor`, `resume`; assistant `proposals` and `decision`. Reads need `Device.view`,

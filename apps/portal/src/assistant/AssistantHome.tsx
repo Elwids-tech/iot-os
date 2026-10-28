@@ -15,7 +15,6 @@ const icons: Record<SuggestionAction["kind"], LucideIcon> = {
   profile: BoxesIcon,
   automation: WorkflowIcon,
   help: BookOpenIcon,
-  adapter: CableIcon,
   onboarding: CableIcon,
 }
 
@@ -29,21 +28,23 @@ function Choices({
   onChoose: (suggestion: Suggestion) => void
 }) {
   return (
-    <section aria-label={label} className="flex flex-col gap-2">
-      <h4 className="text-meta font-medium text-muted-foreground">{label}</h4>
+    <section aria-label={label} className="flex flex-col gap-2.5">
+      <h4 className="skin-label text-meta font-medium text-muted-foreground">{label}</h4>
       {items.map((item) => {
         const ItemIcon = icons[item.action.kind]
         return (
           <Button
             key={item.id}
             variant="outline"
-            className="h-auto w-full justify-start whitespace-normal py-3 text-left"
+            className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-3 text-left"
             onClick={() => onChoose(item)}
           >
-            <ItemIcon data-icon="inline-start" />
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+              <ItemIcon />
+            </span>
             <span className="min-w-0">
-              <span className="block">{item.title}</span>
-              <span className="mt-1 block text-meta font-normal text-muted-foreground">
+              <span className="block text-body font-medium">{item.title}</span>
+              <span className="mt-0.5 block text-meta font-normal text-muted-foreground">
                 {item.description}
               </span>
             </span>
@@ -74,19 +75,19 @@ export function AssistantHome({
   onQuestion: (question: string) => void
 }) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-4">
-      <div className="mb-5 flex flex-col gap-1">
-        <h3 className="text-heading">What can I help with?</h3>
-        <p className="text-meta text-muted-foreground">
+    <div className="min-h-0 flex-1 overflow-y-auto p-5">
+      <div className="mb-6 flex flex-col gap-1.5">
+        <h3 className="text-title">What can I help with?</h3>
+        <p className="text-body text-muted-foreground">
           {page ? `Suggestions for ${page}. ` : ""}I draft changes for your review; nothing is
           saved, activated or sent without you.
         </p>
       </div>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-7">
         {here.length > 0 && <Choices label="Suggested here" items={here} onChoose={onChoose} />}
         {questions.length > 0 && (
-          <section aria-label="Questions about this page" className="flex flex-col gap-2">
-            <h4 className="text-meta font-medium text-muted-foreground">Questions about this page</h4>
+          <section aria-label="Questions about this page" className="flex flex-col gap-1">
+            <h4 className="skin-label mb-1.5 text-meta font-medium text-muted-foreground">Questions about this page</h4>
             {questions.map((question) => (
               <Button
                 key={question}
