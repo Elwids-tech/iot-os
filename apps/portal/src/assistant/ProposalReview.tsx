@@ -33,6 +33,11 @@ import {
 } from "@iot-os/ui/components/tabs"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import {
+  Panel,
+  PanelContent,
+  PanelHeader,
+} from "@iot-os/ui/components/panel"
+import {
   Table,
   TableBody,
   TableCell,
@@ -87,7 +92,7 @@ function ValueField({
     )
   if (typeof value === "boolean")
     return (
-      <Field orientation="horizontal">
+      <Field orientation="horizontal" className="w-auto">
         <Checkbox
           id={id}
           checked={value}
@@ -101,27 +106,22 @@ function ValueField({
     return (
       <fieldset className="flex min-w-0 flex-col gap-3 rounded-lg border p-3">
         <legend className="px-1 text-sm font-medium">{label(name)}</legend>
-        <FieldGroup>
-          {entries.map(([key, child]) => (
-            <ValueField
-              key={key}
-              name={key}
-              value={child}
-              onChange={(next) => {
-                if (Array.isArray(value)) {
-                  const changed = [...value]
-                  changed[Number(key)] = next
-                  onChange(changed)
-                } else onChange({ ...value, [key]: next })
-              }}
-            />
-          ))}
-          {!entries.length && (
-            <p className="text-sm text-muted-foreground">
-              No values proposed. Ask the assistant to add the details you need.
-            </p>
-          )}
-        </FieldGroup>
+        {entries.length ? (
+          <Fields
+            entries={entries}
+            onChange={(key, next) => {
+              if (Array.isArray(value)) {
+                const changed = [...value]
+                changed[Number(key)] = next
+                onChange(changed)
+              } else onChange({ ...value, [key]: next })
+            }}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No values proposed. Ask the assistant to add the details you need.
+          </p>
+        )}
       </fieldset>
     )
   }
@@ -151,6 +151,46 @@ function ValueField({
         )
       }
     />
+  )
+}
+
+// Short fields sit in two columns, checkboxes share a row and nested groups span both.
+function Fields({
+  entries,
+  onChange,
+}: {
+  entries: [string, AssistantValue][]
+  onChange: (key: string, value: AssistantValue) => void
+}) {
+  const nested = (value: AssistantValue) =>
+    value !== null && typeof value === "object"
+  const field = ([key, value]: [string, AssistantValue]) => (
+    <ValueField
+      key={key}
+      name={key}
+      value={value}
+      onChange={(next) => onChange(key, next)}
+    />
+  )
+  const flags = entries.filter(([, value]) => typeof value === "boolean")
+  return (
+    <FieldGroup className="grid gap-x-4 sm:grid-cols-2">
+      {entries
+        .filter(([, value]) => typeof value !== "boolean" && !nested(value))
+        .map(field)}
+      {flags.length > 0 && (
+        <div className="flex flex-wrap gap-x-6 gap-y-3 sm:col-span-2">
+          {flags.map(field)}
+        </div>
+      )}
+      {entries
+        .filter(([, value]) => nested(value))
+        .map((entry) => (
+          <div key={entry[0]} className="min-w-0 sm:col-span-2">
+            {field(entry)}
+          </div>
+        ))}
+    </FieldGroup>
   )
 }
 
@@ -189,21 +229,44 @@ const show = (value: AssistantValue | undefined) =>
     : typeof value === "object"
       ? JSON.stringify(value)
       : String(value)
-const changeTitle = (proposal: AssistantProposal, change: AssistantChange) =>
-  `${
-    change.operation === "remove"
-      ? "Remove"
-      : change.uuid ||
-          (proposal.section === "identity" && proposal.draft_revision !== null)
-        ? "Update"
-        : "Add"
-  }: ${String(
-    change.values.label ??
-      change.values.name ??
-      change.values.key ??
-      change.uuid ??
-      proposal.section,
-  )}`
+const operation = (proposal: AssistantProposal, change: AssistantChange) =>
+  change.operation === "remove"
+    ? "Remove"
+    : change.uuid ||
+        (proposal.section === "identity" && proposal.draft_revision !== null)
+      ? "Update"
+      : "Add"
+const operationBadge = {
+  Add: "success",
+  Update: "info",
+  Remove: "destructive",
+} as const
+
+function ChangeTitle({
+  id,
+  proposal,
+  change,
+}: {
+  id?: string
+  proposal: AssistantProposal
+  change: AssistantChange
+}) {
+  const action = operation(proposal, change)
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Badge variant={operationBadge[action]}>{action}</Badge>
+      <h3 id={id} className="truncate skin-label text-heading">
+        {String(
+          change.values.label ??
+            change.values.name ??
+            change.values.key ??
+            change.uuid ??
+            label(proposal.section),
+        )}
+      </h3>
+    </div>
+  )
+}
 
 export function ProposalReview({
   org,
@@ -230,6 +293,7 @@ export function ProposalReview({
   ) => Promise<void>
 }) {
   const cache = useQueryClient()
+  const id = useId()
   const draftKey = ["assistant-review-draft", org, proposal.id]
   const cached = cache.getQueryData<{
     changes: AssistantChange[]
@@ -302,8 +366,8 @@ export function ProposalReview({
             Review {label(proposal.section).toLowerCase()}
           </DialogTitle>
           <DialogDescription>
-            {proposal.summary}. This saves a draft section. Publication is a
-            separate step.
+            {proposal.summary.replace(/\.$/, "")}. This saves a draft section.
+            Publication is a separate step.
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
@@ -334,84 +398,85 @@ export function ProposalReview({
             </TabsList>
             <TabsContent value="fields" className="flex flex-col gap-4">
               {changes.map((change, index) => (
-                <fieldset
-                  key={index}
-                  disabled={!pending || saving || busy}
-                  className="flex flex-col gap-4 rounded-lg border p-4"
-                >
-                  <legend className="px-1 text-sm font-medium">
-                    {changeTitle(proposal, change)}
-                  </legend>
-                  {change.operation === "remove" ? (
-                    <Alert>
-                      <AlertTitle>Removal</AlertTitle>
-                      <AlertDescription>
-                        This item will be removed from the draft. Existing
-                        published versions remain available.
-                      </AlertDescription>
-                    </Alert>
-                  ) : (
-                    <FieldGroup>
-                      {proposal.section === "parameters" &&
-                        "ingress_conversion" in change.values && (
-                          <IncomingConversionFields
-                            value={
-                              change.values
-                                .ingress_conversion as IngressConversion | null
-                            }
-                            storedUnit={
-                              typeof change.values.unit === "string"
-                                ? change.values.unit
-                                : null
-                            }
-                            dataType={String(change.values.data_type)}
-                            eligible={
-                              ["measurement", "counter"].includes(
-                                String(change.values.kind),
-                              ) &&
-                              ["number", "integer"].includes(
-                                String(change.values.data_type),
-                              ) &&
-                              change.values.accepts_command !== true &&
-                              change.values.reports_state !== false
-                            }
-                            onChange={(value) =>
-                              setChanges((current) =>
-                                current.map((item, i) =>
-                                  i === index
-                                    ? {
-                                        ...item,
-                                        values: {
-                                          ...item.values,
-                                          ingress_conversion: value,
-                                        },
-                                      }
-                                    : item,
-                                ),
-                              )
-                            }
-                          />
-                        )}
-                      {proposal.section === "calculations" &&
-                        change.values.output && (
-                          <p className="text-sm text-muted-foreground">
-                            This saves the new output and its formula together.
-                            Inputs use stored values after any incoming
-                            conversion.
-                          </p>
-                        )}
-                      {Object.entries(change.values)
-                        .filter(
-                          ([key]) =>
-                            key !== "ingress_conversion" ||
-                            proposal.section !== "parameters",
-                        )
-                        .map(([key, value]) => (
-                          <ValueField
-                            key={key}
-                            name={key}
-                            value={value}
-                            onChange={(next) =>
+                <Panel key={index} className="shrink-0 border">
+                  <PanelHeader>
+                    <ChangeTitle
+                      id={`${id}-change-${index}`}
+                      proposal={proposal}
+                      change={change}
+                    />
+                  </PanelHeader>
+                  <PanelContent>
+                    <fieldset
+                      aria-labelledby={`${id}-change-${index}`}
+                      disabled={!pending || saving || busy}
+                      className="min-w-0"
+                    >
+                      {change.operation === "remove" ? (
+                        <Alert>
+                          <AlertTitle>Removal</AlertTitle>
+                          <AlertDescription>
+                            This item will be removed from the draft. Existing
+                            published versions remain available.
+                          </AlertDescription>
+                        </Alert>
+                      ) : (
+                        <FieldGroup>
+                          {proposal.section === "parameters" &&
+                            "ingress_conversion" in change.values && (
+                              <IncomingConversionFields
+                                value={
+                                  change.values
+                                    .ingress_conversion as IngressConversion | null
+                                }
+                                storedUnit={
+                                  typeof change.values.unit === "string"
+                                    ? change.values.unit
+                                    : null
+                                }
+                                dataType={String(change.values.data_type)}
+                                eligible={
+                                  ["measurement", "counter"].includes(
+                                    String(change.values.kind),
+                                  ) &&
+                                  ["number", "integer"].includes(
+                                    String(change.values.data_type),
+                                  ) &&
+                                  change.values.accepts_command !== true &&
+                                  change.values.reports_state !== false
+                                }
+                                onChange={(value) =>
+                                  setChanges((current) =>
+                                    current.map((item, i) =>
+                                      i === index
+                                        ? {
+                                            ...item,
+                                            values: {
+                                              ...item.values,
+                                              ingress_conversion: value,
+                                            },
+                                          }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                              />
+                            )}
+                          {proposal.section === "calculations" &&
+                            change.values.output && (
+                              <p className="text-sm text-muted-foreground">
+                                This saves the new output and its formula together.
+                                Inputs use stored values after any incoming
+                                conversion.
+                              </p>
+                            )}
+                          <Fields
+                            entries={Object.entries(change.values).filter(
+                              ([key]) =>
+                                key !== "ingress_conversion" ||
+                                proposal.section !== "parameters",
+                            )}
+                            onChange={(key, next) =>
                               setChanges((current) =>
                                 current.map((item, i) =>
                                   i === index
@@ -424,10 +489,11 @@ export function ProposalReview({
                               )
                             }
                           />
-                        ))}
-                    </FieldGroup>
-                  )}
-                </fieldset>
+                        </FieldGroup>
+                      )}
+                    </fieldset>
+                  </PanelContent>
+                </Panel>
               ))}
               <p className="text-sm text-muted-foreground">
                 Need a different structure, more fields, or another parameter?
@@ -442,9 +508,7 @@ export function ProposalReview({
                 )
                 return (
                   <section key={index} className="flex min-w-0 flex-col gap-2">
-                    <h3 className="text-sm font-medium">
-                      {changeTitle(proposal, change)}
-                    </h3>
+                    <ChangeTitle proposal={proposal} change={change} />
                     {rows.length ? (
                       <Table>
                         <TableHeader>
