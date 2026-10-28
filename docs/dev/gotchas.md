@@ -313,6 +313,13 @@ Things that have cost time before. Add to this list when something surprises you
   `OnboardingTools::find` matches any word and ranks by matches. Give each tool's
   description the exact argument shapes, and keep results small: the per-reply
   budget (`IOT_ASSISTANT_RUN_BUDGET_USD`, 0.04 by default) is spent on context.
+- **In a release, reach the API at `http://api-web`, never `api:8000`.** The dev
+  stack's `api` serves HTTP on 8000; the release's `api` is php-fpm and `api-web`
+  (nginx) serves it on port 80. The release adapter overlay had copied the dev URLs,
+  so the webhook receiver's delivery reports and the tenant runtimes' deploy
+  acknowledgements were refused, while deliveries still got `202`: no samples, and
+  no adapter could finish deploying on the pilot. `test_release.py` now checks every
+  release service URL that points at the API.
 
 ## Browser tests and screenshots
 

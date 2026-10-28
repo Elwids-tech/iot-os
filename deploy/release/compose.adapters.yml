@@ -47,7 +47,7 @@ services:
       IOT_ADAPTER_PROJECT: ${COMPOSE_PROJECT_NAME:?}
       IOT_ADAPTER_PUBLIC_HOST: ${IOT_ADAPTER_PUBLIC_HOST:?}
       IOT_ADAPTER_BIND_ADDRESS: ${IOT_ADAPTER_BIND_ADDRESS:?}
-      IOT_ADAPTER_CALLBACK_URL: http://api:8000/api/internal/adapters/events
+      IOT_ADAPTER_CALLBACK_URL: http://api-web/api/internal/adapters/events
       IOT_ADAPTER_RUNTIME_IMAGE: ${ADAPTER_RUNTIME_IMAGE:?}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -66,7 +66,7 @@ services:
     user: node
     environment:
       IOT_WEBHOOK_ROUTES_FILE: /routes/routes.json
-      IOT_WEBHOOK_REPORT_URL: http://api:8000/api/internal/adapters/receiver-reports
+      IOT_WEBHOOK_REPORT_URL: http://api-web/api/internal/adapters/receiver-reports
       IOT_WEBHOOK_RECEIVER_TOKEN: ${IOT_WEBHOOK_RECEIVER_TOKEN:-}
       IOT_WEBHOOK_TRUSTED_PROXIES: ${IOT_WEBHOOK_TRUSTED_PROXIES:-172.16.0.0/12,10.0.0.0/8}
     volumes:
