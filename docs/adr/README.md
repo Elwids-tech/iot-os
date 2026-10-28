@@ -25,7 +25,7 @@ the code as evidence.
 | [ADR-007](ADR-007-monorepo-and-shadcn-ui.md) | Cross-language monorepo with a shared shadcn UI foundation | Accepted |
 | [ADR-008](ADR-008-laravel-sanctum-authentication.md) | Sanctum session cookies for the React apps, tokens for machine clients | Accepted; amended by ADR-018 |
 | [ADR-009](ADR-009-mosquitto-default-broker.md) | Mosquitto is the default MQTT broker | Superseded by ADR-019 |
-| [ADR-010](ADR-010-per-tenant-adapter-runtimes.md) | One Mosquitto ingress and Node-RED runtime per tenant, decoders in QuickJS | Accepted |
+| [ADR-010](ADR-010-per-tenant-adapter-runtimes.md) | One Mosquitto ingress and Node-RED runtime per tenant, decoders in QuickJS | Accepted; amended by ADR-022 |
 | [ADR-011](ADR-011-dag-automation-in-go.md) | Automation runs as a typed DAG (v2) in the Go runtime; workflow v1 is legacy | Accepted |
 | [ADR-012](ADR-012-design-system-and-charts.md) | One design-system kit on shadcn/Radix with templates and guardrails; ECharts for charts | Accepted |
 | [ADR-013](ADR-013-integer-user-ids.md) | Users are identified by integer id in API contracts | Accepted |
@@ -36,6 +36,8 @@ the code as evidence.
 | [ADR-019](ADR-019-mosquitto-only-broker.md) | Mosquitto is the only MQTT broker, in releases and development; supersedes ADR-009 | Accepted |
 | [ADR-020](ADR-020-public-website.md) | Public website and developer docs: a static Astro site on Cloudflare, outside the product's deployment profiles | Accepted; amended by ADR-021 |
 | [ADR-021](ADR-021-developer-docs-only.md) | The marketing website moves to its own repository; the platform's front door and developer docs stay here, published to GitHub Pages on the platform domain; amends ADR-020 | Accepted |
+| [ADR-022](ADR-022-webhook-receiver.md) | A platform webhook receiver checks secrets and limits, then hands deliveries to each tenant's ingress broker; amends ADR-010 | Accepted |
+| [ADR-023](ADR-023-protocol-connectors.md) | Every protocol is a connector feeding one telemetry envelope; Sparkplug B is the edge-gateway uplink; typed protocols use point maps | Accepted (direction) |
 
 ## Template
 

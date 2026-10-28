@@ -8,6 +8,11 @@ services:
       IOT_ADAPTER_PORT_BASE: ${IOT_ADAPTER_PORT_BASE:-19000}
       IOT_ADAPTER_PORT_LIMIT: ${IOT_ADAPTER_PORT_LIMIT:-19999}
       IOT_ADAPTER_QUEUE_CONNECTION: database
+      # Spec 020: webhook sources need the receiver's public address; polling can reach
+      # simulators on private addresses only with the development switch.
+      IOT_WEBHOOK_PUBLIC_URL: ${IOT_WEBHOOK_PUBLIC_URL:-}
+      IOT_WEBHOOK_RECEIVER_TOKEN: ${IOT_WEBHOOK_RECEIVER_TOKEN:-}
+      IOT_ADAPTER_ALLOW_PRIVATE_BROKERS: ${IOT_ADAPTER_ALLOW_PRIVATE_BROKERS:-false}
   assistant-worker:
     environment: *adapter-env
   adapter-worker:
@@ -64,6 +69,27 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+  # Public webhook receiver (ADR-022). It reads the routing file adapter-manager writes
+  # and holds no Docker socket or database credentials.
+  webhook-receiver:
+    build:
+      context: ../..
+      dockerfile: services/adapters/Dockerfile
+      target: webhook-receiver
+    environment:
+      IOT_WEBHOOK_ROUTES_FILE: /routes/routes.json
+      IOT_WEBHOOK_REPORT_URL: http://api:8000/api/internal/adapters/receiver-reports
+      IOT_WEBHOOK_RECEIVER_TOKEN: ${IOT_WEBHOOK_RECEIVER_TOKEN:-}
+      IOT_WEBHOOK_TRUSTED_PROXIES: ${IOT_WEBHOOK_TRUSTED_PROXIES:-127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128}
+    volumes:
+      - ${IOT_ADAPTER_HOST_STATE_DIR:?}/webhooks:/routes:ro
+    ports:
+      - "${IOT_WEBHOOK_BIND_ADDRESS:-127.0.0.1}:${IOT_WEBHOOK_PORT:-8095}:8095"
+    networks: [internal]
+    mem_limit: 192m
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
   adapter-runtime-image:
     profiles: [adapter-build]
     image: ${IOT_ADAPTER_RUNTIME_IMAGE:-iot-device-adapter-runtime:local}

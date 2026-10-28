@@ -1,0 +1,15 @@
+{
+  "status": 200,
+  "duration_ms": 142,
+  "headers": {"content-type": "application/json", "x-ratelimit-remaining": "58"},
+  "excerpt": "{\"data\":[{\"id\":\"TRK-1001-1\",\"deviceId\":\"TRK-1001\",\"battery\":87,\"timestamp\":\"2026-10-27T09:11:58Z\"},{\"id\":\"TRK-1001-2\",\"deviceId\":\"TRK-1001\",\"battery\":87,\"timestamp\":\"2026-10-27T09:12:00Z\"}],\"maxDate\":\"2026-10-27T09:12:00.000Z\"}",
+  "truncated": false,
+  "record_count": 2,
+  "records": [
+    {"id": "TRK-1001-1", "deviceId": "TRK-1001", "battery": 87, "timestamp": "2026-10-27T09:11:58Z"},
+    {"id": "TRK-1001-2", "deviceId": "TRK-1001", "battery": 87, "timestamp": "2026-10-27T09:12:00Z"}
+  ],
+  "next_cursor": "2026-10-27T09:12:00.000Z",
+  "more": false,
+  "error": null
+}

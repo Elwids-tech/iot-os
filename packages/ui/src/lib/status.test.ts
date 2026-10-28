@@ -17,6 +17,15 @@ describe("status vocabulary", () => {
     expect(statusOf("pending", "delivery")).toEqual({ tone: "info", label: "Pending" })
   })
 
+  it("reads adapter source, checklist and run states in their domains", () => {
+    expect(statusOf("idle")).toEqual({ tone: "muted", label: "Not configured" })
+    expect(statusOf("idle", "source")).toEqual({ tone: "muted", label: "Idle" })
+    expect(statusOf("rejecting", "source")).toEqual({ tone: "warning", label: "Rejecting" })
+    expect(statusOf("waiting", "checklist")).toEqual({ tone: "info", label: "Waiting" })
+    expect(statusOf("stopped", "poll_run")).toEqual({ tone: "critical", label: "Stopped" })
+    expect(statusOf("pending", "ingest")).toEqual({ tone: "info", label: "Pending" })
+  })
+
   it("humanizes values it does not know", () => {
     expect(statusOf("needs_review")).toEqual({ tone: "muted", label: "Needs review" })
     expect(statusOf(null)).toEqual({ tone: "muted", label: "Unknown" })

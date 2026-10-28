@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Assistant\Http\Controllers;
 
+use App\Domain\Assistant\Enums\AssistantScope;
 use App\Domain\Assistant\Jobs\RunAssistant;
 use App\Domain\Assistant\Models\AssistantConversation;
 use App\Domain\Assistant\Models\AssistantProposal;
@@ -15,11 +16,13 @@ use App\Domain\Assistant\Services\AssistantEvents;
 use App\Domain\Assistant\Services\AssistantProvider;
 use App\Domain\Assistant\Services\AssistantRecovery;
 use App\Domain\Assistant\Services\ExecutionEvidence;
+use App\Domain\Assistant\Services\OnboardingProposals;
 use App\Domain\Assistant\Services\ProfileKnowledge;
 use App\Domain\Assistant\Services\ProfileProposalService;
 use App\Domain\Assistant\Services\WorkflowDraftContext;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Services\DagAuthoring;
+use App\Domain\DeviceAdapters\Models\AdapterProposal;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Permissions\DevicePermission;
@@ -44,19 +47,19 @@ final class AssistantController
 
     public function settings(Request $request, Organization $organization)
     {
-        $scope = $request->validate(['scope' => 'sometimes|in:profile,automation,help,adapter'])['scope'] ?? 'profile';
+        $scope = AssistantScope::fromRequest($request->validate(['scope' => AssistantScope::rule()])['scope'] ?? null)->value;
         if ($scope === 'help') {
             app(HelpAccess::class)->organization($request->user(), $organization);
 
             return response()->json(['data' => ['enabled' => app(AssistantProvider::class)->configured() && (bool) config('assistant.help_enabled'), 'provider' => $this->provider()]]);
         }
-        if ($scope === 'adapter') {
+        if ($scope === 'onboarding') {
             abort_unless(config('adapters.enabled'), 404);
             app(DeviceAuthorization::class)->authorize($request->user(), DevicePermission::MANAGE, $organization);
             // The adapter workspace lists only its own conversations; without the filter the tab could reopen another adapter's thread.
             $adapterUuid = $request->validate(['adapter_uuid' => 'sometimes|string|max:64'])['adapter_uuid'] ?? null;
 
-            return response()->json(['data' => str_ends_with($request->path(), 'settings') ? ['enabled' => app(AssistantProvider::class)->configured(), 'provider' => $this->provider()] : AssistantConversation::where('scope', 'adapter')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->when($adapterUuid, fn ($query) => $query->whereHas('adapter', fn ($adapter) => $adapter->where('uuid', $adapterUuid)))->latest('updated_at')->limit(100)->get()->map(fn ($conversation) => $this->conversationData($conversation))]);
+            return response()->json(['data' => str_ends_with($request->path(), 'settings') ? ['enabled' => app(AssistantProvider::class)->configured(), 'provider' => $this->provider(), 'supported_extensions' => ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'txt', 'md', 'json', 'csv'], 'max_file_bytes' => config('assistant.max_file_kib') * 1024] : AssistantConversation::where('scope', 'onboarding')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->when($adapterUuid, fn ($query) => $query->whereHas('adapter', fn ($adapter) => $adapter->where('uuid', $adapterUuid)))->latest('updated_at')->limit(100)->get()->map(fn ($conversation) => $this->conversationData($conversation))]);
         }
         if ($request->query('scope') === 'automation') {
             $this->access->automation($request->user(), $organization);
@@ -77,20 +80,20 @@ final class AssistantController
 
     public function index(Request $request, Organization $organization)
     {
-        $scope = $request->validate(['scope' => 'sometimes|in:profile,automation,help,adapter'])['scope'] ?? 'profile';
+        $scope = AssistantScope::fromRequest($request->validate(['scope' => AssistantScope::rule()])['scope'] ?? null)->value;
         if ($scope === 'help') {
             app(HelpAccess::class)->organization($request->user(), $organization);
             $conversations = AssistantConversation::where('scope', 'help')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->latest('updated_at')->limit(100)->get();
 
             return response()->json(['data' => $conversations->map(fn ($conversation) => $this->conversationData($conversation))]);
         }
-        if ($scope === 'adapter') {
+        if ($scope === 'onboarding') {
             abort_unless(config('adapters.enabled'), 404);
             app(DeviceAuthorization::class)->authorize($request->user(), DevicePermission::MANAGE, $organization);
             // The adapter workspace lists only its own conversations; without the filter the tab could reopen another adapter's thread.
             $adapterUuid = $request->validate(['adapter_uuid' => 'sometimes|string|max:64'])['adapter_uuid'] ?? null;
 
-            return response()->json(['data' => str_ends_with($request->path(), 'settings') ? ['enabled' => app(AssistantProvider::class)->configured(), 'provider' => $this->provider()] : AssistantConversation::where('scope', 'adapter')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->when($adapterUuid, fn ($query) => $query->whereHas('adapter', fn ($adapter) => $adapter->where('uuid', $adapterUuid)))->latest('updated_at')->limit(100)->get()->map(fn ($conversation) => $this->conversationData($conversation))]);
+            return response()->json(['data' => str_ends_with($request->path(), 'settings') ? ['enabled' => app(AssistantProvider::class)->configured(), 'provider' => $this->provider(), 'supported_extensions' => ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'txt', 'md', 'json', 'csv'], 'max_file_bytes' => config('assistant.max_file_kib') * 1024] : AssistantConversation::where('scope', 'onboarding')->where('organization_id', $organization->id)->where('user_id', $request->user()->id)->when($adapterUuid, fn ($query) => $query->whereHas('adapter', fn ($adapter) => $adapter->where('uuid', $adapterUuid)))->latest('updated_at')->limit(100)->get()->map(fn ($conversation) => $this->conversationData($conversation))]);
         }
         if ($request->query('scope') === 'automation') {
             $this->access->automation($request->user(), $organization);
@@ -106,7 +109,7 @@ final class AssistantController
 
     public function store(Request $request, Organization $organization)
     {
-        $scope = $request->validate(['scope' => 'sometimes|in:profile,automation,help,adapter'])['scope'] ?? 'profile';
+        $scope = AssistantScope::fromRequest($request->validate(['scope' => AssistantScope::rule()])['scope'] ?? null)->value;
         if ($scope === 'help') {
             app(HelpAccess::class)->organization($request->user(), $organization);
             $values = $request->validate(['title' => 'nullable|string|max:255', 'profile_uuid' => 'prohibited', 'workflow_uuid' => 'prohibited']);
@@ -114,12 +117,12 @@ final class AssistantController
 
             return response()->json(['data' => $this->conversationData($conversation)], 201);
         }
-        if ($scope === 'adapter') {
+        if ($scope === 'onboarding') {
             abort_unless(config('adapters.enabled'), 404);
-            $values = $request->validate(['adapter_uuid' => 'required|uuid', 'title' => 'nullable|string|max:255']);
-            $adapter = DeviceAdapter::where('organization_id', $organization->id)->where('uuid', $values['adapter_uuid'])->firstOrFail();
+            $values = $request->validate(['adapter_uuid' => 'nullable|uuid', 'title' => 'nullable|string|max:255']);
+            $adapter = isset($values['adapter_uuid']) ? DeviceAdapter::where('organization_id', $organization->id)->where('uuid', $values['adapter_uuid'])->firstOrFail() : null;
             app(DeviceAuthorization::class)->authorize($request->user(), DevicePermission::MANAGE, $organization, $adapter);
-            $conversation = AssistantConversation::create(['scope' => 'adapter', 'organization_id' => $organization->id, 'user_id' => $request->user()->id, 'device_adapter_id' => $adapter->id, 'title' => $values['title'] ?? $adapter->name]);
+            $conversation = AssistantConversation::create(['scope' => 'onboarding', 'organization_id' => $organization->id, 'user_id' => $request->user()->id, 'device_adapter_id' => $adapter?->id, 'title' => $values['title'] ?? $adapter?->name ?? 'Device onboarding']);
 
             return response()->json(['data' => $this->conversationData($conversation)], 201);
         }
@@ -158,6 +161,7 @@ final class AssistantController
             'sources' => $conversation->sources()->oldest()->get()->map(fn ($source) => $source->only(['id', 'name', 'mime', 'size', 'pages'])),
             'proposals' => $conversation->proposals()->oldest()->get()->map(fn ($proposal) => $this->proposalData($proposal)),
             'onboarding_state' => $conversation->onboarding_state,
+            ...($conversation->scope === 'onboarding' ? ['adapter_proposals' => app(OnboardingProposals::class)->list($conversation)] : []),
             'cursor' => (int) DB::table('assistant_events')->where('conversation_id', $conversation->id)->max('id'),
         ]]);
     }
@@ -232,7 +236,7 @@ final class AssistantController
     public function preview(Request $request, Organization $organization, AssistantConversation $conversation)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
-        abort_unless($conversation->scope === 'profile', 422);
+        abort_unless(in_array($conversation->scope, ['profile', 'onboarding'], true), 422);
         abort_if($conversation->runs()->whereIn('status', ['queued', 'running'])->exists(), 409, 'Wait for the current response before editing its proposal.');
         $proposal = $this->proposals->preview($conversation, $request->all());
 
@@ -242,7 +246,7 @@ final class AssistantController
     public function decide(Request $request, Organization $organization, AssistantConversation $conversation, AssistantProposal $proposal)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
-        abort_unless($conversation->scope === 'profile', 422, 'Use the proposal in the automation editor, then save and review activation separately.');
+        abort_unless(in_array($conversation->scope, ['profile', 'onboarding'], true), 422, 'Use the proposal in the automation editor, then save and review activation separately.');
         abort_unless($proposal->conversation_id === $conversation->id, 404);
         $values = $request->validate(['decision' => ['required', 'in:approve,reject'], 'content_hash' => ['required', 'string', 'size:64'], 'request_id' => ['required', 'uuid']]);
         abort_unless(hash_equals($proposal->content_hash, $values['content_hash']), 409, 'Review the latest proposal.');
@@ -283,6 +287,26 @@ final class AssistantController
         return response()->json(['data' => ['result' => $result, 'run' => $run ? $this->runData($run) : null, 'notice' => $notice]]);
     }
 
+    /** Applies or rejects an onboarding proposal, then lets the assistant continue (spec 020, FR-104, FR-106). */
+    public function decideAdapterProposal(Request $request, Organization $organization, AssistantConversation $conversation, AdapterProposal $adapterProposal)
+    {
+        $this->access->conversation($request->user(), $organization, $conversation);
+        abort_unless($conversation->scope === 'onboarding' && $adapterProposal->conversation_id === $conversation->id, 404);
+        $values = $request->validate(['action' => 'required|in:apply,reject', 'content_hash' => 'required|string|size:64', 'request_id' => 'required|uuid']);
+        abort_if($conversation->runs()->whereIn('status', ['queued', 'running'])->exists(), 409, 'Wait for the current response before deciding.');
+        $result = app(OnboardingProposals::class)->decide($adapterProposal, $request->user(), $organization, $values['action'], $values['content_hash']);
+        $kind = ['reuse' => 'chose this adapter', 'create' => 'created this adapter draft', 'change' => 'applied this change to the draft'][$adapterProposal->kind] ?? 'applied this proposal';
+        $run = null;
+        $notice = null;
+        try {
+            $run = $this->queueRun($conversation->fresh(), $values['request_id'], $values['action'] === 'apply' ? "I {$kind}. Continue onboarding." : 'I rejected this proposal. Ask me what to change.');
+        } catch (HttpException) {
+            $notice = 'Your decision was recorded. Continue the conversation when the assistant is available.';
+        }
+
+        return response()->json(['data' => [...$result, 'run' => $run ? $this->runData($run) : null, 'notice' => $notice]]);
+    }
+
     public function cancel(Request $request, Organization $organization, AssistantConversation $conversation, AssistantRun $run)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
@@ -305,7 +329,7 @@ final class AssistantController
     public function upload(Request $request, Organization $organization, AssistantConversation $conversation)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
-        abort_unless($conversation->scope === 'profile', 422);
+        abort_unless(in_array($conversation->scope, ['profile', 'onboarding'], true), 422);
         $request->validate(['file' => ['required', 'file', 'max:'.config('assistant.max_file_kib')]]);
         $file = $request->file('file');
         $extension = strtolower($file->getClientOriginalExtension());
@@ -335,7 +359,7 @@ final class AssistantController
     public function source(Request $request, Organization $organization, AssistantConversation $conversation, AssistantSource $source)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
-        abort_unless($conversation->scope === 'profile', 422);
+        abort_unless(in_array($conversation->scope, ['profile', 'onboarding'], true), 422);
         abort_unless($source->conversation_id === $conversation->id, 404);
 
         return Storage::disk('local')->download($source->path, $source->name, ['X-Content-Type-Options' => 'nosniff']);

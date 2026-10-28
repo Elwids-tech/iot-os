@@ -1,0 +1,1070 @@
+[
+  {
+    "description": "outcomes, a rejection, a sample and a secret's use",
+    "valid": true,
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "accepted deliveries only",
+    "valid": true,
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 3},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [],
+          "samples": []
+        }
+      ]
+    }
+  },
+  {
+    "description": "a rate-limited delivery with no content type",
+    "valid": true,
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "rate_limited",
+              "address": "2001:db8::7",
+              "path": "/uplink",
+              "size": 0,
+              "content_type": null
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "two adapters",
+    "valid": true,
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        },
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000014",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [],
+          "samples": []
+        }
+      ]
+    }
+  },
+  {
+    "description": "a count as a string",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/reports/0/outcomes/accepted"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": "12", "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "no report id",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": ""},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "an entry without secrets_used",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": "/reports/0"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "another schema version",
+    "valid": false,
+    "error": {"keyword": "const", "instance_location": "/schema_version"},
+    "data": {
+      "schema_version": "receiver-report.v2",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "a report id of 65 characters",
+    "valid": false,
+    "error": {"keyword": "maxLength", "instance_location": "/report_id"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "21 rejections",
+    "valid": false,
+    "error": {"keyword": "maxItems", "instance_location": "/reports/0/rejections"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            },
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "21 samples",
+    "valid": false,
+    "error": {"keyword": "maxItems", "instance_location": "/reports/0/samples"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            },
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "an unknown rejection reason",
+    "valid": false,
+    "error": {"keyword": "enum", "instance_location": "/reports/0/rejections/0/reason"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "teapot",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "a count of 0",
+    "valid": false,
+    "error": {"keyword": "minimum", "instance_location": "/reports/0/outcomes/accepted"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 0, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "a negative size",
+    "valid": false,
+    "error": {"keyword": "minimum", "instance_location": "/reports/0/samples/0/size"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": -1,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "a body that is not base64",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/reports/0/samples/0/body_base64"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "not base64!"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "a header value that is not a string",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/reports/0/samples/0/headers/x-vendor-event"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": 7},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "a rejection that keeps its body",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": "/reports/0/rejections/0"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json",
+              "body_base64": "e30="
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "an outcome added by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": "/reports/0/outcomes"},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1, "quarantined": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "description": "a field added by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": ""},
+    "data": {
+      "schema_version": "receiver-report.v1",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "reports": [
+        {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "outcomes": {"accepted": 12, "unauthenticated": 1},
+          "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+          "rejections": [
+            {
+              "at": "2026-10-27T09:19:58.420Z",
+              "reason": "unauthenticated",
+              "address": "203.0.113.7",
+              "path": "",
+              "size": 512,
+              "content_type": "application/json"
+            }
+          ],
+          "samples": [
+            {
+              "at": "2026-10-27T09:19:57.100Z",
+              "delivery_id": "30000000-0000-4000-8000-000000000011",
+              "path": "/uplink",
+              "query": {"kind": "env"},
+              "content_type": "application/json",
+              "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+              "size": 46,
+              "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+            }
+          ]
+        }
+      ],
+      "receiver_id": "receiver-1"
+    }
+  }
+]

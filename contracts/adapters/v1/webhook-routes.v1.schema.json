@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/webhook-routes.v1.schema.json",
+  "title": "Webhook routing file",
+  "description": "The webhook receiver's routing table, <state>/webhooks/routes.json. Producer: adapter-manager (POST /webhook), which rewrites the whole file atomically on every routing or secret change. Consumer: the webhook receiver (services/adapters/receiver.cjs), which re-reads the file when it changes and ignores a file whose schema_version it does not support. Delivery: replacement of the whole file, so the receiver always holds the latest complete table; there is no history. Deduplication: none; a route is keyed by its ingest identifier and one adapter has at most one route. The file holds credentials (broker.password and HMAC keys, marked secret) and is readable only by the manager and the receiver; hashes of header and URL tokens are stored instead of the tokens. Read tolerantly by the receiver, which reads only the fields it uses.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "webhook-routes.v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "routes": {
+      "type": "object",
+      "description": "Routes by ingest identifier: 16 to 64 letters and digits.",
+      "patternProperties": {
+        "^[A-Za-z0-9]{16,64}$": {
+          "type": "object",
+          "properties": {
+            "adapter_uuid": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "tenant_uuid": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "state": {
+              "enum": [
+                "sampling",
+                "running",
+                "paused"
+              ],
+              "description": "A removed adapter has no route."
+            },
+            "broker": {
+              "type": "object",
+              "description": "The adapter's tenant ingress broker and the receiver's publish-only identity on it.",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^mqtts://[A-Za-z0-9.-]+:8883$"
+                },
+                "ca": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 16384,
+                  "description": "The tenant broker's CA certificate, PEM."
+                },
+                "username": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "password": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The publish-only identity's password. Secret.",
+                  "$comment": "secret"
+                }
+              },
+              "required": [
+                "url",
+                "ca",
+                "username",
+                "password"
+              ],
+              "additionalProperties": false
+            },
+            "topic": {
+              "type": "string",
+              "pattern": "^iot-os/webhook/[0-9a-fA-F-]{36}$"
+            },
+            "status_topic": {
+              "type": "string",
+              "pattern": "^iot-os/webhook/[0-9a-fA-F-]{36}/status$"
+            },
+            "auth": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "const": "hmac"
+                    },
+                    "header": {
+                      "type": "null"
+                    },
+                    "scheme": {
+                      "type": "null"
+                    },
+                    "signature_header": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[a-z0-9!#$%&'*+.^_`|~-]+$"
+                    },
+                    "encoding": {
+                      "enum": [
+                        "hex",
+                        "base64"
+                      ]
+                    },
+                    "prefix": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "timestamp_header": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[a-z0-9!#$%&'*+.^_`|~-]+$"
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "header",
+                    "scheme",
+                    "signature_header",
+                    "encoding",
+                    "prefix",
+                    "timestamp_header"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "const": "header"
+                    },
+                    "header": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[a-z0-9!#$%&'*+.^_`|~-]+$"
+                    },
+                    "scheme": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 32
+                    },
+                    "signature_header": {
+                      "type": "null"
+                    },
+                    "encoding": {
+                      "type": "null"
+                    },
+                    "prefix": {
+                      "type": "null"
+                    },
+                    "timestamp_header": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "header",
+                    "scheme",
+                    "signature_header",
+                    "encoding",
+                    "prefix",
+                    "timestamp_header"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "const": "url"
+                    },
+                    "header": {
+                      "type": "null"
+                    },
+                    "scheme": {
+                      "type": "null"
+                    },
+                    "signature_header": {
+                      "type": "null"
+                    },
+                    "encoding": {
+                      "type": "null"
+                    },
+                    "prefix": {
+                      "type": "null"
+                    },
+                    "timestamp_header": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "header",
+                    "scheme",
+                    "signature_header",
+                    "encoding",
+                    "prefix",
+                    "timestamp_header"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "secrets": {
+              "type": "array",
+              "maxItems": 2,
+              "items": {
+                "type": "object",
+                "description": "Exactly one of key (HMAC mode) or sha256 (header and URL modes).",
+                "properties": {
+                  "uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The HMAC signing key. Secret.",
+                    "$comment": "secret"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "SHA-256 of the header or URL token, hex. The token itself is never written."
+                  },
+                  "expires_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "uuid",
+                  "expires_at"
+                ],
+                "additionalProperties": false,
+                "not": {
+                  "required": [
+                    "key",
+                    "sha256"
+                  ]
+                }
+              }
+            }
+          },
+          "required": [
+            "adapter_uuid",
+            "tenant_uuid",
+            "state",
+            "broker",
+            "topic",
+            "status_topic",
+            "auth",
+            "secrets"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "auth": {
+                    "properties": {
+                      "mode": {
+                        "const": "hmac"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ]
+                  }
+                },
+                "required": [
+                  "auth"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "secrets": {
+                    "items": {
+                      "required": [
+                        "key"
+                      ]
+                    }
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "secrets": {
+                    "items": {
+                      "required": [
+                        "sha256"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "generated_at",
+    "routes"
+  ],
+  "additionalProperties": false
+}

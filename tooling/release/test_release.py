@@ -137,6 +137,21 @@ class ReleaseTests(unittest.TestCase):
             caddy = yaml.safe_load((release.RELEASE/'compose.yml').read_text())['services']['caddy']['volumes']
             self.assertIn('${CONFIG_DIR:?}/legacy.Caddyfile:/etc/caddy/legacy.Caddyfile:ro', caddy)
 
+    def test_webhook_receiver_host_is_rendered_only_with_adapters(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.render()
+            self.assertEqual('', (deployment.config/'webhooks.Caddyfile').read_text())
+            deployment.env.update(IOT_WEBHOOK_PUBLIC_URL='https://hooks.staging.example.test', IOT_ADAPTERS_ENABLED='true')
+            deployment.render()
+            hooks = (deployment.config/'webhooks.Caddyfile').read_text()
+            self.assertIn('hooks.staging.example.test {', hooks)
+            self.assertIn('@ingest path /w/*', hooks)
+            self.assertIn('reverse_proxy webhook-receiver:8095', hooks)
+            deployment.env['IOT_WEBHOOK_PUBLIC_URL'] = 'http://hooks.staging.example.test'
+            with self.assertRaisesRegex(ValueError, 'IOT_WEBHOOK_PUBLIC_URL'):
+                deployment.render()
+
     def test_stream_budget_requires_headroom(self):
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)

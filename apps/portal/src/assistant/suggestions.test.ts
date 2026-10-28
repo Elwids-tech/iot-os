@@ -57,9 +57,12 @@ describe("assistant suggestions", () => {
     expect(ids({ pathname: `${org}/device-profiles/p-1`, profile: "p-1", can: none }).here).toEqual([])
   })
 
-  it("send adapter work to a saved adapter's own assistant", () => {
+  it("send adapter work to a saved adapter's own assistant, and new devices to onboarding", () => {
     expect(ids({ pathname: `${org}/device-adapters/a-1`, can: all }).here).toEqual(["adapter"])
-    expect(ids({ pathname: `${org}/device-adapters/new`, can: all }).here).toEqual([])
+    expect(ids({ pathname: `${org}/device-adapters/new`, can: all }).here).toEqual(["onboarding"])
+    expect(ids({ pathname: `${org}/device-adapters`, can: all }).here).toEqual(["onboarding"])
+    expect(ids({ pathname: `${org}/device-adapters/onboarding`, can: all }).here).toEqual([])
+    expect(ids({ pathname: `${org}/devices/onboard`, can: all }).here[0]).toBe("onboarding")
     expect(ids({ pathname: `${org}/device-adapters/a-1`, can: { profiles: true, adapters: false } }).here).toEqual([])
   })
 

@@ -3,6 +3,8 @@
 use App\Domain\Agents\Console\ExportToolCatalogue;
 use App\Domain\Agents\Console\PruneAgents;
 use App\Domain\Automation\Console\AutomationWorker;
+use App\Domain\DeviceAdapters\Console\PruneAdapterRecords;
+use App\Domain\DeviceAdapters\Console\TimestampAudit;
 use App\Domain\DeviceProfiles\Exceptions\ProfileDraftConflictException;
 use App\Domain\DeviceProfiles\Exceptions\ProfileValidationException;
 use App\Domain\Help\Console\ValidateHelp;
@@ -22,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withCommands([WebhookWorker::class, AutomationWorker::class, ValidateHelp::class, PruneAgents::class, ExportToolCatalogue::class])
+    ->withCommands([WebhookWorker::class, AutomationWorker::class, ValidateHelp::class, PruneAgents::class, ExportToolCatalogue::class, PruneAdapterRecords::class, TimestampAudit::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         // A signed-out person starting an agent connection signs in on the portal, which

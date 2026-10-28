@@ -26,6 +26,7 @@ Schedule::call(fn () => Operations::heartbeat('scheduler'))->everyMinute();
 Schedule::command('assistant:recover')->everyMinute()->withoutOverlapping();
 Schedule::command('devices:prune-ledgers')->dailyAt('03:15')->withoutOverlapping();
 Schedule::command('agents:prune')->dailyAt('03:30')->withoutOverlapping();
+Schedule::command('adapters:prune')->dailyAt('03:40')->withoutOverlapping();
 Schedule::command('passport:purge')->dailyAt('03:35')->withoutOverlapping();
 
 Schedule::call(function (): void {

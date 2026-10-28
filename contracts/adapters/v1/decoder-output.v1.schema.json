@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/decoder-output.v1.schema.json",
+  "title": "Decoder output",
+  "description": "What an adapter's decoder returns: one result or a list of 1 to 500 results. Producer: the adapter's decoder (user code). Consumer: validateResults in services/adapters/lib/decoder.cjs, which checks every result alone against the device profile and publishes it as Sparkplug; a result that fails does so alone with a diagnostic and never discards the others. Delivery: at least once with its input (decoder-input.v1). Deduplication key: messageId per adapter and source device, for 7 days. Results of one input are published oldest observation first, and a result older than the newest already published for its source device is historical. Read tolerantly: fields the schema does not list are ignored. Not expressible here: metric names must exist in the device profile and be unique within a result, each value must match the parameter's data_type, a unit must match the profile's, and observedAt may be at most 5 minutes in the future.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/result"
+    },
+    {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "$ref": "#/$defs/result"
+      }
+    }
+  ],
+  "$defs": {
+    "result": {
+      "type": "object",
+      "properties": {
+        "sourceDeviceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "\\S",
+          "description": "The manufacturer's device identifier, not blank."
+        },
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2000,
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "A profile parameter key; unique within the result."
+              },
+              "value": {
+                "type": [
+                  "number",
+                  "integer",
+                  "boolean",
+                  "string"
+                ],
+                "maxLength": 16384,
+                "description": "Typed by the profile parameter's data_type: a finite number (an integer must be a safe integer), a boolean or a string."
+              },
+              "unit": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "When given it equals the profile parameter's unit."
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the device observed the values; at most 5 minutes in the future. Without it the result is receipt-timed."
+        },
+        "messageId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Deduplicates per adapter and source device for 7 days."
+        }
+      },
+      "required": [
+        "sourceDeviceId",
+        "metrics"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

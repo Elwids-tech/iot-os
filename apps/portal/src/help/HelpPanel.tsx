@@ -467,6 +467,10 @@ export default function HelpPanel({
         onClose();
         navigate(location.pathname, { state: { tab: "ai" } });
         return;
+      case "onboarding":
+        onClose();
+        navigate(`/organizations/${encodeURIComponent(org)}/device-adapters/onboarding`);
+        return;
       case "automation": {
         // The automation assistant edits an editor's draft, so a new automation opens for it.
         const id = crypto.randomUUID();

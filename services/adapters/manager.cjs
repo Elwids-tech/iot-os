@@ -7,10 +7,12 @@ const mqtt = require("mqtt");
 const {
   decode,
   inputFromMessage,
-  validateOutput,
+  validateResults,
 } = require("./lib/decoder.cjs");
 const { brokerUrl, secureLookup } = require("./lib/broker.cjs");
 const { flowNodes, replaceFlow } = require("./lib/flow.cjs");
+const poll = require("./lib/poll.cjs");
+const { hashToken } = require("./lib/webhook.cjs");
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const stateRoot = process.env.IOT_ADAPTER_STATE_DIR || "/state";
 const hostStateRoot = process.env.IOT_ADAPTER_HOST_STATE_DIR || stateRoot;
@@ -29,6 +31,10 @@ const scope = crypto
   .slice(0, 8);
 const locks = new Map();
 let testsRunning = 0;
+let fetchesRunning = 0;
+const allowPrivate = () => process.env.IOT_ADAPTER_ALLOW_PRIVATE_BROKERS === "true";
+// Topics under this prefix belong to the platform (webhook hand-off, ADR-022).
+const RESERVED = "iot-os/";
 function ensure(condition, message) {
   if (!condition) throw Error(message);
 }
@@ -92,8 +98,14 @@ async function tenantState(tenant) {
 function prefix(tenant) {
   return "adapter-" + scope + "-" + id(tenant.uuid);
 }
-async function ensureContainer(name, args, env) {
+async function ensureContainer(name, args, env, revision = "") {
   let current;
+  // Containers are recreated when their arguments or mounted configuration change.
+  const spec = crypto
+    .createHash("sha256")
+    .update(JSON.stringify(args) + revision)
+    .digest("hex")
+    .slice(0, 16);
   try {
     current = JSON.parse(await docker(["inspect", name]))[0];
   } catch {}
@@ -106,7 +118,7 @@ async function ensureContainer(name, args, env) {
     const desired = (
       await docker(["image", "inspect", "--format", "{{.Id}}", image])
     ).trim();
-    if (current.Image === desired) {
+    if (current.Image === desired && current.Config.Labels?.["iot.adapter.spec"] === spec) {
       await docker(["start", name]);
       return;
     }
@@ -123,6 +135,8 @@ async function ensureContainer(name, args, env) {
       "iot.adapter.managed=true",
       "--label",
       "iot.adapter.project=" + project,
+      "--label",
+      "iot.adapter.spec=" + spec,
       "--restart",
       "unless-stopped",
       ...args,
@@ -274,15 +288,15 @@ async function provisionTenant(tenant) {
     ],
     { BOOTSTRAP_PASSWORD: tenant.ingress_admin_password },
   );
-  await fs.writeFile(
-    path.join(state.dir, "mosquitto.conf"),
-    `listener 8883\nallow_anonymous false\ncertfile /certs/server.crt\nkeyfile /certs/server.key\nplugin /usr/lib/mosquitto_dynamic_security.so\nplugin_opt_config_file /mosquitto/data/dynamic-security.json\npersistence true\npersistence_location /mosquitto/data/\nmessage_size_limit 1048576\nmax_queued_messages 1000\nmax_inflight_messages 20\n`,
-  );
+  // Persistent sessions hold webhook deliveries while the runtime restarts; the
+  // receiver bounds that backlog below these limits (ADR-022).
+  const brokerConfig = `listener 8883\nallow_anonymous false\ncertfile /certs/server.crt\nkeyfile /certs/server.key\nplugin /usr/lib/mosquitto_dynamic_security.so\nplugin_opt_config_file /mosquitto/data/dynamic-security.json\npersistence true\npersistence_location /mosquitto/data/\nautosave_interval 30\nmessage_size_limit 1048576\nmax_queued_messages 2000\nmax_queued_bytes 67108864\nmax_inflight_messages 20\n`;
+  await fs.writeFile(path.join(state.dir, "mosquitto.conf"), brokerConfig);
   await ensureContainer(name + "-mqtt", [
     "--network",
     network,
     "--memory",
-    "128m",
+    "256m",
     "--cpus",
     "0.5",
     "--security-opt",
@@ -296,7 +310,7 @@ async function provisionTenant(tenant) {
     "-v",
     hostDir + "/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro",
     brokerImage,
-  ]);
+  ], undefined, brokerConfig);
   const ca = await fs.readFile(path.join(tlsDir, "ca.crt"), "utf8");
   const url = `mqtts://${name}-mqtt:8883`;
   let ready = false;
@@ -346,6 +360,8 @@ async function provisionTenant(tenant) {
       "IOT_NODE_RED_CREDENTIAL_SECRET",
       "-e",
       `IOT_ADAPTER_ALLOW_PRIVATE_BROKERS=${process.env.IOT_ADAPTER_ALLOW_PRIVATE_BROKERS || "false"}`,
+      "-e",
+      `IOT_ADAPTER_POLL_REQUESTS_PER_MINUTE=${Number(process.env.IOT_ADAPTER_POLL_REQUESTS_PER_MINUTE) || 60}`,
       runtimeImage,
     ],
     {
@@ -373,6 +389,7 @@ function topics(values) {
         topic.length <= 255 &&
         !topic.startsWith("$") &&
         !topic.startsWith("spBv1.0/") &&
+        !topic.startsWith(RESERVED) &&
         !/\0/.test(topic) &&
         topic !== "#" &&
         !topic.startsWith("+") &&
@@ -403,7 +420,12 @@ async function provisionClient(
         ]
       : [{ acltype: "publishClientSend", topic, allow: true, priority: 0 }],
   );
-  await control(ctx.url, ctx.ca, tenant.ingress_admin_password, [
+  await control(ctx.url, ctx.ca, tenant.ingress_admin_password, clientCommands(username, password, acls));
+  return ctx;
+}
+function clientCommands(username, password, acls) {
+  ensure(password && password.length >= 32, "Invalid ingress credential");
+  return [
     { command: "createRole", rolename: username },
     { command: "createClient", username },
     { command: "disableClient", username },
@@ -416,8 +438,103 @@ async function provisionClient(
       groups: [],
     },
     { command: "enableClient", username },
-  ]);
-  return ctx;
+  ];
+}
+const webhookTopic = (adapter) => RESERVED + "webhook/" + id(adapter);
+const routesFile = () => path.join(stateRoot, "webhooks", "routes.json");
+let routesLock = Promise.resolve();
+async function readRoutes() {
+  try {
+    return JSON.parse(await fs.readFile(routesFile(), "utf8"));
+  } catch {
+    return { schema_version: "webhook-routes.v1", routes: {} };
+  }
+}
+async function writeRoutes(data) {
+  const dir = path.dirname(routesFile());
+  const uid = Number(process.env.IOT_WEBHOOK_RECEIVER_UID || 1000);
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+  const temporary = routesFile() + ".tmp";
+  await fs.writeFile(temporary, JSON.stringify({ ...data, schema_version: "webhook-routes.v1", generated_at: new Date().toISOString() }), { mode: 0o600 });
+  try {
+    await fs.chown(dir, uid, uid);
+    await fs.chown(temporary, uid, uid);
+  } catch {}
+  await fs.rename(temporary, routesFile());
+}
+// The webhook receiver's routing entry for one adapter, and its publish-only broker
+// identity (ADR-022). Laravel calls this on every routing or secret change.
+async function webhook(body) {
+  const adapter = id(body.adapter_uuid);
+  ensure(/^[A-Za-z0-9]{16,64}$/.test(body.ingest_id || ""), "Invalid ingest identifier");
+  ensure(["sampling", "running", "paused", "removed"].includes(body.state), "Invalid webhook state");
+  const mode = body.auth?.mode;
+  ensure(body.state === "removed" || ["header", "hmac", "url"].includes(mode), "Invalid webhook authentication");
+  const ctx = await provisionTenant(body.tenant);
+  const username = "webhook-" + adapter;
+  const job = routesLock.then(async () => {
+    const data = await readRoutes();
+    for (const [key, route] of Object.entries(data.routes))
+      if (route.adapter_uuid === adapter && key !== body.ingest_id) delete data.routes[key];
+    if (body.state === "removed") {
+      await control(ctx.url, ctx.ca, body.tenant.ingress_admin_password, [{ command: "disableClient", username }]).catch(() => {});
+      delete data.routes[body.ingest_id];
+      await writeRoutes(data);
+      return { configured: true };
+    }
+    const existing = data.routes[body.ingest_id];
+    const known = existing?.adapter_uuid === adapter && existing.broker?.password && existing.broker.url === ctx.url;
+    const password = known ? existing.broker.password : crypto.randomBytes(32).toString("hex");
+    const topic = webhookTopic(adapter);
+    // Re-provisioning disables the client, which would drop the receiver's live
+    // connection on every secret change; the identity only changes with the broker.
+    if (!known)
+      await control(ctx.url, ctx.ca, body.tenant.ingress_admin_password, clientCommands(username, password, [
+        { acltype: "publishClientSend", topic, allow: true, priority: 0 },
+        { acltype: "subscribeLiteral", topic: topic + "/status", allow: true, priority: 0 },
+        { acltype: "publishClientReceive", topic: topic + "/status", allow: true, priority: 0 },
+      ]));
+    ensure(Array.isArray(body.secrets) && body.secrets.length <= 2, "At most two active secrets");
+    data.routes[body.ingest_id] = {
+      adapter_uuid: adapter,
+      tenant_uuid: id(body.tenant.uuid),
+      state: body.state,
+      broker: { url: ctx.url, ca: ctx.ca, username, password },
+      topic,
+      status_topic: topic + "/status",
+      auth: {
+        mode,
+        header: body.auth.header || null,
+        scheme: body.auth.scheme ?? null,
+        signature_header: body.auth.signature_header || null,
+        encoding: body.auth.encoding || null,
+        prefix: body.auth.prefix || null,
+        timestamp_header: body.auth.timestamp_header || null,
+      },
+      secrets: body.secrets.map((secret) => ({
+        uuid: id(secret.uuid),
+        ...(mode === "hmac" ? { key: String(secret.value) } : { sha256: hashToken(secret.value) }),
+        expires_at: secret.expires_at || null,
+      })),
+    };
+    await writeRoutes(data);
+    return { configured: true };
+  });
+  routesLock = job.catch(() => {});
+  return job;
+}
+async function pollTest(body) {
+  ensure(fetchesRunning < 4, "Fetch now capacity reached; try again shortly");
+  fetchesRunning++;
+  try {
+    const { api_key, token, username, password, ca_certificate, ...settings } = body.source || {};
+    const secrets = { api_key, token, username, password, ca_certificate };
+    poll.validateSettings(settings, { allowPrivate: allowPrivate() });
+    const page = await poll.fetchPage(settings, secrets, body.cursor ?? null, { allowPrivate: allowPrivate() });
+    return poll.fetchResult(page, secrets);
+  } finally {
+    fetchesRunning--;
+  }
 }
 async function admin(ctx, method, url, body) {
   const response = await fetch(`http://${ctx.name}-runtime:1880${url}`, {
@@ -449,7 +566,27 @@ async function deploy(body) {
   const ctx = await provisionTenant(body.tenant);
   const current = await runtimeReady(ctx);
   let source;
-  if (body.source.type === "platform") {
+  if (body.source.type === "webhook") {
+    const topic = webhookTopic(adapter);
+    await control(ctx.url, ctx.ca, body.tenant.ingress_admin_password, clientCommands("adapter-" + adapter, body.source.password, [
+      { acltype: "subscribeLiteral", topic, allow: true, priority: 0 },
+      { acltype: "publishClientReceive", topic, allow: true, priority: 0 },
+      { acltype: "publishClientSend", topic: topic + "/status", allow: true, priority: 0 },
+    ]));
+    source = {
+      type: "webhook",
+      url: ctx.url,
+      username: "adapter-" + adapter,
+      password: body.source.password,
+      ca_certificate: ctx.ca,
+      topics: [topic],
+      managed: true,
+    };
+  } else if (body.source.type === "poll") {
+    const { api_key, token, username, password, ca_certificate, ...settings } = body.source;
+    poll.validateSettings(settings, { allowPrivate: allowPrivate() });
+    source = { ...settings, api_key, token, username, password, ca_certificate, managed: false };
+  } else if (body.source.type === "platform") {
     await provisionClient(
       body.tenant,
       "adapter-" + adapter,
@@ -577,11 +714,20 @@ async function handle(route, body) {
           const payload = fixture.payload_base64
             ? Buffer.from(fixture.payload_base64, "base64")
             : fixture.payload;
-          const input = inputFromMessage(payload, fixture.topic || "sample");
-          const output = validateOutput(
+          const source = ["webhook", "poll"].includes(fixture.source) ? fixture.source : "mqtt";
+          const input = inputFromMessage(payload, fixture.topic ?? (source === "mqtt" ? "sample" : ""), {
+            source,
+            receivedAt: fixture.received_at,
+            qos: source === "webhook" ? 1 : 0,
+            ...(source === "webhook" && fixture.http ? { http: fixture.http } : {}),
+            ...(source === "poll" && fixture.poll ? { poll: fixture.poll } : {}),
+          });
+          const { results: outputs, failures } = validateResults(
             await decode(body.code, input),
             body.profile,
           );
+          ensure(!failures.length, failures[0]?.error);
+          const output = outputs[0];
           const expected = fixture.expected;
           ensure(
             !expected ||
@@ -594,7 +740,7 @@ async function handle(route, body) {
                 )),
             "Output does not match expected metrics",
           );
-          results.push({ passed: !fixture.expect_error, output });
+          results.push({ passed: !fixture.expect_error, output, ...(outputs.length > 1 ? { outputs } : {}) });
         } catch (error) {
           results.push({
             passed: !!fixture.expect_error,
@@ -613,6 +759,8 @@ async function handle(route, body) {
     }
   }
   if (route === "/connection-test") return connectionTest(body);
+  if (route === "/webhook") return webhook(body);
+  if (route === "/poll-test") return pollTest(body);
   if (route === "/provision")
     return provisionTenant(body.tenant).then((ctx) => ({
       broker_url: ctx.broker_url,

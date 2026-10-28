@@ -186,6 +186,46 @@ adapters** ([adapters](../features/adapters.md)).
 for the environment sensor (no device or credentials). Both scripts take `--kit`,
 `--serial`, `--topic`, `--interval` and `--count`.
 
+## HTTP vendor simulators (webhook and polling sources)
+
+These stand in for vendor clouds that reach devices over HTTP instead of MQTT, for
+adapters whose source is **Vendor cloud sends webhooks** or **Poll a vendor API**
+([HTTP adapter sources quickstart](../../specs/020-http-adapter-sources/quickstart.md)).
+They use only the Python standard library (Python 3.12 or newer).
+
+| Script | Vendor | Key options |
+| --- | --- | --- |
+| [`vendor_tracker_api.py`](../../tooling/simulators/vendor_tracker_api.py) | Cellular asset-tracker history REST API ("Example Tracker Cloud"): trackers record every 5 minutes, upload every 15 and sometimes come back from a coverage gap with a backlog, so records are minutes to hours old | `--api-key` (required), `--port 8096`, `--host 0.0.0.0` for containers, `--account A1`, `--trackers 3`, `--reading-every`, `--upload-every`, `--offline-max`, `--days 3`, `--seed 7` |
+| [`vendor_webhook_cloud.py`](../../tooling/simulators/vendor_webhook_cloud.py) | Sensor cloud that POSTs a JSON array of messages (`messageId`, `deviceId`, `ts`, temperature, humidity, battery, rssi) | `--url` and `--secret` (required), `--auth hmac\|header\|url`, `--timestamp-header`, `--prefix`, `--encoding hex\|base64`, `--devices`, `--interval`, `--count`, `--batch` |
+
+```bash
+.local/devices/python/bin/python tooling/simulators/vendor_tracker_api.py \
+  --host 0.0.0.0 --port 8096 --api-key <key>
+.local/devices/python/bin/python tooling/simulators/vendor_webhook_cloud.py \
+  --url <ingest URL> --secret <secret> --timestamp-header x-timestamp
+```
+
+The tracker API serves `GET /accounts/<account>/streams/history?start=&end=&limit=` with
+the key in `x-api-key`: `start` exclusive, `end` inclusive, ISO 8601 or epoch
+milliseconds, `limit` up to 1000, answered as `{"data", "count", "maxDate"}`. Records are
+ordered by `receivedDate`, so `maxDate` is the next `start`. The data depends only on
+the clock and `--seed`, so a restart serves the same records. Control endpoints need no
+key: `POST /_control` with `{"fault": "none|429|500|401|slow", "count": n,
+"retry_after": s}` fails the next `n` history requests, `GET /_served` lists every record
+id answered with `200` (for exactly-once checks) and `POST /_served/reset` clears it. The
+vendor's own documentation, which the onboarding assistant can read, is
+[`vendor_tracker_api.md`](../../tooling/simulators/vendor_tracker_api.md).
+
+The webhook sender retries network errors, `408`, `429` and `5xx` with backoff (1, 2, 4
+… 60 s, six attempts, honouring `Retry-After`) and never other `4xx`. It prints one line
+per attempt with the status and the `delivery_id` from the receiver's `202`. Fault flags
+exercise the receiver: `--bad-signature`, `--no-secret`, `--stale-timestamp` (needs
+`--timestamp-header`), `--oversize` (one 1.1 MiB delivery first), `--burst N` (N
+deliveries as fast as possible, not retried), `--duplicate` (same body and message ids
+twice) and `--gzip` (the signature covers the uncompressed body). Both scripts have
+unittest tests beside them, run with the other simulator tests by
+`python -m unittest discover -s tooling/simulators -p 'test_*.py'`.
+
 ## Seeders
 
 | Seeder | What it creates | Notes |

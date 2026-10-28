@@ -16,6 +16,7 @@ const icons: Record<SuggestionAction["kind"], LucideIcon> = {
   automation: WorkflowIcon,
   help: BookOpenIcon,
   adapter: CableIcon,
+  onboarding: CableIcon,
 }
 
 function Choices({

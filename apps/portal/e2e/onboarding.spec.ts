@@ -142,7 +142,7 @@ test("adding a device starts from how it sends data", async ({ page }) => {
     `${base}/device-profiles?returnTo=${encodeURIComponent(`${base}/devices/onboard`)}`,
   )
 
-  await choices.getByText("Manufacturer MQTT / JSON").click()
+  await choices.getByText("Manufacturer data (MQTT, webhook or vendor API)").click()
   await page.getByRole("link", { name: "Continue to device adapters" }).click()
   await expect(page).toHaveURL(`${base}/device-adapters`)
   expect(state.errors).toEqual([])
@@ -153,7 +153,7 @@ test("the adapter choice is hidden when device adapters are off", async ({ page 
   await page.goto(`${base}/devices/onboard`)
   const choices = page.getByRole("radiogroup", { name: "How the device sends data" })
   await expect(choices.getByRole("radio")).toHaveCount(3)
-  await expect(page.getByText("Manufacturer MQTT / JSON")).toHaveCount(0)
+  await expect(page.getByText("Manufacturer data (MQTT, webhook or vendor API)")).toHaveCount(0)
   expect(state.errors).toEqual([])
 })
 

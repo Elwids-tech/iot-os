@@ -125,6 +125,8 @@ function DeviceOnboardingForm() {
         ...emptyForm(),
         ...JSON.parse(sessionStorage.getItem(storageKey) ?? "{}"),
         ...(params.get("profile") ? { profile: params.get("profile")! } : {}),
+        // The onboarding assistant links here with the path it recommended.
+        ...(["direct", "gateway", "adapter", "discovery"].includes(params.get("mode") ?? "") ? { mode: params.get("mode") as Form["mode"] } : {}),
       };
     } catch {
       return emptyForm();
@@ -540,8 +542,8 @@ function DeviceOnboardingForm() {
                     type="radio"
                     value="adapter"
                     checked={mode === "adapter"}
-                    title="Manufacturer MQTT / JSON"
-                    description="Your hardware sends its manufacturer’s own MQTT or JSON messages. A device adapter translates them."
+                    title="Manufacturer data (MQTT, webhook or vendor API)"
+                    description="Your hardware or its vendor cloud sends the manufacturer’s own messages: over MQTT, as webhooks, or from a vendor API the platform polls. A device adapter translates them."
                   />
                 )}
                 <ChoiceCard
@@ -557,6 +559,15 @@ function DeviceOnboardingForm() {
                   description="Pick a source that reports through a gateway but isn’t a device yet."
                 />
               </RadioGroup>
+              {adaptersEnabled && capabilities.manage && (
+                <p className="text-sm text-muted-foreground">
+                  Not sure how your device connects?{" "}
+                  <Link className="underline" to={`/organizations/${encodeURIComponent(org)}/device-adapters/onboarding`}>
+                    Ask the onboarding assistant
+                  </Link>
+                  . It asks a few questions and walks you through the setup.
+                </p>
+              )}
               {!capabilities.connections && (
                 <p className="text-sm text-muted-foreground">
                   Sparkplug B devices that connect directly need
@@ -569,14 +580,23 @@ function DeviceOnboardingForm() {
                 <div className="flex flex-col items-start gap-3">
                   <p className="text-sm text-muted-foreground">
                     An adapter decodes one device type’s messages into profile
-                    measurements. Choose an existing adapter to add another
-                    device of that type, or create one for a new device type.
+                    measurements, whether they arrive over MQTT, by webhook from
+                    the vendor’s cloud or from the vendor’s API. Choose an
+                    existing adapter to add another device of that type, or
+                    create one for a new device type.
                   </p>
-                  <Button asChild>
-                    <Link to={`/organizations/${encodeURIComponent(org)}/device-adapters`}>
-                      Continue to device adapters
-                    </Link>
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild>
+                      <Link to={`/organizations/${encodeURIComponent(org)}/device-adapters`}>
+                        Continue to device adapters
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                      <Link to={`/organizations/${encodeURIComponent(org)}/device-adapters/onboarding`}>
+                        Ask the onboarding assistant
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               )}
               {mode === "discovery" && (

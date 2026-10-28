@@ -1,0 +1,33 @@
+{
+  "schema_version": "receiver-report.v1",
+  "report_id": "30000000-0000-4000-8000-000000000012",
+  "reports": [
+    {
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "outcomes": {"accepted": 12, "unauthenticated": 1},
+      "secrets_used": {"30000000-0000-4000-8000-000000000004": "2026-10-27T09:19:57.100Z"},
+      "rejections": [
+        {
+          "at": "2026-10-27T09:19:58.420Z",
+          "reason": "unauthenticated",
+          "address": "203.0.113.7",
+          "path": "",
+          "size": 512,
+          "content_type": "application/json"
+        }
+      ],
+      "samples": [
+        {
+          "at": "2026-10-27T09:19:57.100Z",
+          "delivery_id": "30000000-0000-4000-8000-000000000011",
+          "path": "/uplink",
+          "query": {"kind": "env"},
+          "content_type": "application/json",
+          "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+          "size": 46,
+          "body_base64": "W3siZGV2aWNlSWQiOiJTTlMtMjAwMSIsInRlbXBlcmF0dXJlX2MiOjIxLjV9XQ=="
+        }
+      ]
+    }
+  ]
+}

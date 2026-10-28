@@ -7,6 +7,7 @@ namespace App\Domain\Assistant\Tools;
 use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\AssistantEvents;
+use App\Domain\Assistant\Services\AssistantQuestions;
 use App\Domain\Assistant\Services\ProfileKnowledge;
 use App\Domain\Assistant\Services\ProfileProposalService;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
@@ -99,19 +100,7 @@ final class ProfileAssistantTools implements Tool
 
     private function questions(array $arguments): array
     {
-        $data = Validator::make($arguments, [
-            'questions' => ['required', 'array', 'min:1', 'max:3'],
-            'questions.*.id' => ['required', 'string', 'max:80'],
-            'questions.*.prompt' => ['required', 'string', 'max:800'],
-            'questions.*.required' => ['required', 'boolean'],
-            'questions.*.options' => ['required', 'array', 'max:7'],
-            'questions.*.options.*' => ['string', 'max:200'],
-        ])->validate();
-        $conversation = $this->run->conversation;
-        $conversation->update(['onboarding_state' => [...($conversation->fresh()->onboarding_state ?? []), 'questions' => $data['questions']]]);
-        app(AssistantEvents::class)->emit($conversation, $this->run, 'questions', $data);
-
-        return ['shown' => true, 'questions' => $data['questions']];
+        return app(AssistantQuestions::class)->ask($this->run, $arguments);
     }
 
     private function testCalculation(array $arguments): array

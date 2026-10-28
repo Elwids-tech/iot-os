@@ -12,6 +12,6 @@ final class AdapterProposal extends DeviceModel
 
     protected function casts(): array
     {
-        return ['evidence' => 'array', 'draft_revision' => 'integer'];
+        return ['evidence' => 'array', 'draft_revision' => 'integer', 'source' => 'array', 'fixtures' => 'array'];
     }
 }

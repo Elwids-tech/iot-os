@@ -111,6 +111,9 @@ type Metric struct {
 	Historical          bool       `json:"historical,omitempty"`
 	IsNull              bool       `json:"is_null,omitempty"`
 	Diagnostic          string     `json:"diagnostic,omitempty"`
+	// TimestampSource is "receipt" when the publisher says Timestamp is when the
+	// platform received the message, not when the device observed it.
+	TimestampSource string `json:"timestamp_source,omitempty"`
 }
 type Reading struct {
 	InstallationUUID    string     `json:"installation_uuid,omitempty"`

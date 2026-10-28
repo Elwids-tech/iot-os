@@ -30,3 +30,19 @@ func TestMalformedAndUnsafeValuesDoNotBecomeZero(t *testing.T) {
 		t.Fatal("explicit false was rejected")
 	}
 }
+
+func TestTimestampSourcePropertyMarksReceiptTime(t *testing.T) {
+	stamp := uint64(1793143430789)
+	str := uint32(pb.DataType_String)
+	receipt := "receipt"
+	other := "device"
+	metric := func(value string) *pb.Payload_Metric {
+		return &pb.Payload_Metric{Timestamp: &stamp, Value: &pb.Payload_Metric_DoubleValue{DoubleValue: 1}, Properties: &pb.Payload_PropertySet{Keys: []string{"timestamp_source"}, Values: []*pb.Payload_PropertyValue{{Type: &str, Value: &pb.Payload_PropertyValue_StringValue{StringValue: value}}}}}
+	}
+	if got := decodeMetric(metric(receipt), "t", pb.DataType_Double, 0); got.TimestampSource != "receipt" || got.Timestamp == nil {
+		t.Fatal(got)
+	}
+	if got := decodeMetric(metric(other), "t", pb.DataType_Double, 0); got.TimestampSource != "" {
+		t.Fatal("only the receipt marker is recognised", got)
+	}
+}

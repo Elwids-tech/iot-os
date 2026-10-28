@@ -252,6 +252,12 @@ func decodeMetric(m *pb.Payload_Metric, name string, datatype pb.DataType, fallb
 				metric.InstallationUUID = value.GetStringValue()
 			case "adapter_revision_uuid":
 				metric.AdapterRevisionUUID = value.GetStringValue()
+			case "timestamp_source":
+				// Adapters must stamp every metric; this marks the stamp as the
+				// platform's receipt time rather than the device's (spec 020).
+				if value.GetStringValue() == "receipt" {
+					metric.TimestampSource = "receipt"
+				}
 			}
 		}
 	}

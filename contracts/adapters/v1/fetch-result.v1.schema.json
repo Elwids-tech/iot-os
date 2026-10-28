@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/fetch-result.v1.schema.json",
+  "title": "Fetch now result",
+  "description": "One request against a polling source's vendor API, as shown by Fetch now. Producer: adapter-manager POST /poll-test (fetchResult in services/adapters/lib/poll.cjs), relayed by Laravel (PollingService::fetch) as the data of POST .../device-adapters/{adapter}/fetch-now. Consumers: the portal and the onboarding assistant. Delivery: one synchronous request and response, never retried and never queued; it does not move the cursor or publish anything, and Laravel keeps only a summary (time, ok, record count, error) in the adapter's health. Deduplication: none. Credentials are redacted from the headers, excerpt and records; set-cookie and authorization headers are dropped. A request that got no answer has status and duration_ms null and an error.",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 100,
+      "maximum": 599,
+      "description": "The vendor API's HTTP status; null when nothing answered."
+    },
+    "duration_ms": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "headers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "excerpt": {
+      "type": "string",
+      "maxLength": 262144,
+      "description": "The start of the response body, up to 256 KiB of text."
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "record_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5000,
+      "description": "Records found at the configured location."
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "description": "One record as the vendor returned it."
+      }
+    },
+    "next_cursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "more": {
+      "type": "boolean"
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "status",
+    "duration_ms",
+    "headers",
+    "excerpt",
+    "truncated",
+    "record_count",
+    "records",
+    "next_cursor",
+    "more",
+    "error"
+  ],
+  "additionalProperties": false
+}

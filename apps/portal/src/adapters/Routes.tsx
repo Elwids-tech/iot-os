@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 import type {
   AdapterDraft,
+  AdapterFixture,
   AdapterProfile,
+  AdapterSource,
+  AdapterSourceType,
   DeviceAdapter,
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
 import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table";
 import { EmptyState } from "@iot-os/ui/components/empty-state";
-import { Status } from "@iot-os/ui/components/status-mark";
+import { Status, StatusMark } from "@iot-os/ui/components/status-mark";
 import { CollectionPage } from "@iot-os/ui/templates/collection-page";
 import { PlugIcon, PlusIcon } from "lucide-react";
 import { Badge } from "@iot-os/ui/components/badge";
@@ -38,10 +42,15 @@ import { DraftBar } from "@iot-os/ui/components/draft-bar";
 import { statusOf } from "@iot-os/ui/lib/status";
 import { WorkspacePage } from "@iot-os/ui/templates/workspace-page";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
+import { ChoiceCard } from "@iot-os/ui/components/choice-card";
+import { RadioGroup } from "@iot-os/ui/components/radio-group";
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@iot-os/ui/components/toggle-group";
+  Panel,
+  PanelContent,
+  PanelDescription,
+  PanelHeader,
+  PanelTitle,
+} from "@iot-os/ui/components/panel";
 import {
   Tabs,
   TabsContent,
@@ -62,8 +71,29 @@ import { api } from "../lib/api";
 import { useDirtyContext, useUnsaved } from "../lib/unsaved";
 import { RequestError } from "../components/forms";
 import { useDeviceOrganization } from "../devices/shared";
-import { AdapterAssistant } from "./AdapterAssistant";
+import { OnboardingAssistant, type OnboardingStep } from "./OnboardingAssistant";
+import { OnboardingPage } from "./OnboardingPage";
 import { AdapterDevices, AdapterCredentials } from "./connections";
+import { Activity } from "./Activity";
+import { Samples } from "./Samples";
+import { SetupChecklist } from "./SetupChecklist";
+import {
+  CursorStartField,
+  cursorStartError,
+  FetchNow,
+  PollSource,
+} from "./sources/PollSource";
+import { WebhookAuthentication, WebhookSecrets } from "./sources/WebhookSource";
+import {
+  appendFixture,
+  authLabels,
+  defaultSource,
+  isMqtt,
+  localInput,
+  secretsForSave,
+  sourceForSave,
+  sourceLabel,
+} from "./source";
 
 const path = (org: string, id = "") =>
   `/organizations/${org}/device-adapters${id ? `/${id}` : ""}`;
@@ -101,6 +131,7 @@ export default function AdapterRoutes() {
     <Routes>
       <Route index element={<Directory />} />
       <Route path="new" element={<Workbench key="new" />} />
+      <Route path="onboarding" element={<OnboardingPage />} />
       <Route path=":adapterUuid" element={<Existing />} />
     </Routes>
   );
@@ -130,9 +161,18 @@ function Directory() {
       {
         id: "source",
         header: "Source",
-        mobile: "hidden",
-        value: (a) => sourceLabel(a),
-        cell: (a) => <span className="text-muted-foreground">{sourceLabel(a)}</span>,
+        mobile: "meta",
+        value: (a) => sourceLabel(a.source.type),
+        cell: (a) => (
+          <span className="flex flex-col gap-0.5">
+            <span className="text-muted-foreground">{sourceLabel(a.source.type)}</span>
+            {a.source_state && (
+              <StatusMark tone={statusOf(a.source_state.state, "source").tone} className="text-meta">
+                {a.source_state.label || statusOf(a.source_state.state, "source").label}
+              </StatusMark>
+            )}
+          </span>
+        ),
       },
       {
         id: "deployment",
@@ -153,7 +193,7 @@ function Directory() {
   return (
     <CollectionPage
       title="Device adapters"
-      description="Decoders for manufacturer MQTT devices, run in your organization's private Node-RED runtime."
+      description="Decoders for manufacturer devices that publish MQTT, send webhooks from a vendor cloud or keep their data behind a vendor API, run in your organization's private Node-RED runtime."
       actions={
         manage && (
           <Button size="sm" asChild>
@@ -182,7 +222,7 @@ function Directory() {
           onChange: setSearch,
         }}
         groups={[
-          { id: "source", label: "Source", value: sourceLabel },
+          { id: "source", label: "Source", value: (a) => sourceLabel(a.source.type) },
           { id: "type", label: "Device type", value: (a) => a.profile_name },
         ]}
         refreshSeconds={5}
@@ -191,7 +231,7 @@ function Directory() {
             inset
             icon={<PlugIcon />}
             title="Connect your first manufacturer device"
-            description="Choose a profile, provide a sample payload, and test how the decoder maps it to platform readings. Topics and MQTT credentials stay isolated to your organization."
+            description="Choose a profile, connect the manufacturer's MQTT broker, webhook or API, and test how the decoder maps a real sample to platform readings. Credentials and secrets stay isolated to your organization."
             action={
               manage && (
                 <Button size="sm" asChild>
@@ -207,8 +247,6 @@ function Directory() {
 }
 
 type AdapterRow = NonNullable<Awaited<ReturnType<typeof api.deviceAdapters>>>["data"][number];
-const sourceLabel = (a: AdapterRow) =>
-  a.source.type === "platform" ? "Tenant MQTT broker" : "Vendor MQTT broker";
 
 function Existing() {
   const { org } = useDeviceOrganization();
@@ -253,7 +291,15 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
   const [fixtureText, setFixtureText] = useState(
     JSON.stringify(draft.fixtures, null, 2),
   );
-  const [topicText, setTopicText] = useState(draft.source.topics.join("\n"));
+  // Add as fixture reads the latest text without re-creating every table's columns.
+  const fixtureRef = useRef(fixtureText);
+  fixtureRef.current = fixtureText;
+  const [topicText, setTopicText] = useState(topicsOf(draft.source));
+  // Each source type keeps what was typed while the person compares types; only the chosen one is saved.
+  const sourceMemory = useRef<Partial<Record<AdapterSourceType, AdapterSource>>>({});
+  const [cursorStart, setCursorStart] = useState(() =>
+    localInput(Date.now() - 3_600_000),
+  );
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -280,7 +326,8 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
         source: next.source,
       });
       setFixtureText(JSON.stringify(next.fixtures, null, 2));
-      setTopicText(next.source.topics.join("\n"));
+      setTopicText(topicsOf(next.source));
+      sourceMemory.current = {};
       setDirty(false);
       revision.current = next.draft_revision;
       cache.setQueryData(["adapter", org, next.uuid], next);
@@ -306,13 +353,14 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
       const values = {
         ...draft,
         fixtures,
-        source: {
-          ...draft.source,
-          topics: topicText
+        source: sourceForSave(
+          draft.source,
+          topicText
             .split("\n")
             .map((t) => t.trim())
             .filter(Boolean),
-        },
+        ),
+        secrets: secretsForSave(draft.source, draft.secrets),
       };
       const next = adapter
         ? await api.saveDeviceAdapter(org, adapter.uuid, {
@@ -364,6 +412,32 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
       setBusy(false);
     }
   }
+  function setSource(source: AdapterSource) {
+    change({ source });
+  }
+  function chooseSource(type: AdapterSourceType) {
+    if (type === draft.source.type) return;
+    sourceMemory.current[draft.source.type] = draft.source;
+    change({
+      source: sourceMemory.current[type] ?? defaultSource(type),
+      secrets: undefined,
+    });
+  }
+  const addFixture = useCallback((fixture: AdapterFixture) => {
+    try {
+      const { text, count } = appendFixture(fixtureRef.current, fixture);
+      setFixtureText(text);
+      setDirty(true);
+      setNotice("");
+      toast.success(
+        count > 10
+          ? `Added as fixture ${count}. Tests run at most 10 fixtures: remove some before testing, then save the draft.`
+          : `Added as fixture ${count}. Save the draft to keep it.`,
+      );
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "The fixture could not be added.");
+    }
+  }, []);
   function selectProfile(value: string) {
     const profile = profiles.data?.find((p) => p.uuid === value);
     change({
@@ -381,13 +455,18 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
   const shownNotice = notice === deployNotice && adapter?.status && !pending ? "" : notice;
   const applied =
     adapter?.revisions.find((r) => r.uuid === adapter.applied_revision_uuid)?.revision ?? "none";
+  // The first deployment of a polling source chooses where its cursor starts (FR-033).
+  const firstPoll =
+    adapter?.source.type === "poll" &&
+    (!adapter.polling || adapter.polling.state === "not_deployed");
+  const webhookAvailable = adapter ? adapter.webhook?.available !== false : true;
   return (
     <WorkspacePage
       title={adapter ? adapter.name : "New device adapter"}
       back={{ to: path(org), label: "Device adapters" }}
       tools={
         <p className="text-body text-muted-foreground">
-          One tested workflow per device type, with a stable platform device for each activated serial.
+          One tested workflow per device type, from MQTT, webhooks or a vendor API, with a stable platform device for each activated serial.
         </p>
       }
       draft={
@@ -398,7 +477,15 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
             revision={`Draft ${adapter.draft_revision} · applied ${applied}`}
             dirty={dirty}
           >
-            <span>Source {connectionStatus(adapter, "source_connected")}</span>
+            {isMqtt(adapter.source) ? (
+              <span>Source {connectionStatus(adapter, "source_connected")}</span>
+            ) : (
+              <span>
+                {sourceLabel(adapter.source.type)}:{" "}
+                {adapter.source_state?.label ??
+                  statusOf(adapter.source_state?.state, "source").label}
+              </span>
+            )}
             <span>Publisher {connectionStatus(adapter, "upstream_connected")}</span>
           </DraftBar>
         )
@@ -432,6 +519,9 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
           <AlertDescription>{adapter.diagnostic}</AlertDescription>
         </Alert>
       )}
+      {adapter && adapter.checklist?.length > 0 && (
+        <SetupChecklist checklist={adapter.checklist} onOpen={setTab} />
+      )}
       <Tabs value={tab} onValueChange={setTab}>
         {/* Wraps on phones; the triggers drop their 100% height so a second row adds height instead of overlapping. */}
         <TabsList className="flex-wrap *:h-auto group-data-[orientation=horizontal]/tabs:h-auto">
@@ -444,8 +534,11 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
           <TabsTrigger value="devices" disabled={!adapter}>
             5 · Devices
           </TabsTrigger>
+          <TabsTrigger value="activity" disabled={!adapter}>
+            Activity
+          </TabsTrigger>
           <TabsTrigger value="ai" disabled={!adapter}>
-            AI assistant
+            Assistant
           </TabsTrigger>
         </TabsList>
         <TabsContent value="type">
@@ -520,155 +613,131 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
         </TabsContent>
         <TabsContent value="source">
           <div className="flex flex-col gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Where does the device publish?</CardTitle>
-                <CardDescription>
-                  Keep the manufacturer payload and topics. Select the broker
-                  that receives them.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FieldGroup>
-                  <Field>
-                    <FieldLabel>MQTT source</FieldLabel>
-                    <ToggleGroup
-                      type="single"
-                      value={draft.source.type}
-                      onValueChange={(value) => {
-                        if (value === "platform" || value === "vendor")
-                          change({
-                            source: { ...draft.source, type: value },
-                            secrets: undefined,
-                          });
-                      }}
-                      disabled={!canEdit}
-                    >
-                      <ToggleGroupItem value="platform">
-                        Our tenant broker
-                      </ToggleGroupItem>
-                      <ToggleGroupItem value="vendor">
-                        Vendor broker
-                      </ToggleGroupItem>
-                    </ToggleGroup>
-                    <FieldDescription>
-                      {draft.source.type === "platform"
-                        ? "Download a hardware connection kit after saving. Devices publish to your organization’s isolated broker."
-                        : "The adapter subscribes to an internet-reachable broker using the manufacturer’s credentials."}
-                    </FieldDescription>
-                  </Field>
-                  {draft.source.type === "vendor" && (
-                    <>
-                      <Field>
-                        <FieldLabel htmlFor="adapter-url">
-                          Broker URL
-                        </FieldLabel>
-                        <Input
-                          id="adapter-url"
-                          value={draft.source.url ?? ""}
-                          placeholder="mqtts://mqtt.vendor.example:8883"
-                          disabled={!canEdit}
-                          onChange={(e) =>
-                            change({
-                              source: { ...draft.source, url: e.target.value },
-                            })
-                          }
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="adapter-user">Username</FieldLabel>
-                        <Input
-                          id="adapter-user"
-                          autoComplete="off"
-                          value={draft.secrets?.username ?? ""}
-                          disabled={!canEdit}
-                          placeholder={
-                            adapter?.credentials_configured
-                              ? "Saved · enter to replace"
-                              : "Vendor username"
-                          }
-                          onChange={(e) =>
-                            change({
-                              secrets: {
-                                ...draft.secrets,
-                                username: e.target.value,
-                              },
-                            })
-                          }
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="adapter-password">
-                          Password
-                        </FieldLabel>
-                        <Input
-                          id="adapter-password"
-                          type="password"
-                          autoComplete="new-password"
-                          value={draft.secrets?.password ?? ""}
-                          disabled={!canEdit}
-                          placeholder={
-                            adapter?.credentials_configured
-                              ? "Saved · enter to replace"
-                              : "Vendor password"
-                          }
-                          onChange={(e) =>
-                            change({
-                              secrets: {
-                                ...draft.secrets,
-                                password: e.target.value,
-                              },
-                            })
-                          }
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="adapter-ca" optional>
-                          Custom CA certificate
-                        </FieldLabel>
-                        <Textarea
-                          id="adapter-ca"
-                          rows={3}
-                          value={draft.secrets?.ca_certificate ?? ""}
-                          disabled={!canEdit}
-                          placeholder="PEM certificate. Leave blank to preserve the saved value."
-                          onChange={(e) =>
-                            change({
-                              secrets: {
-                                ...draft.secrets,
-                                ca_certificate: e.target.value,
-                              },
-                            })
-                          }
-                        />
-                      </Field>
-                    </>
-                  )}
-                  <Field>
-                    <FieldLabel htmlFor="adapter-topics">
-                      Manufacturer topic filters
-                    </FieldLabel>
-                    <Textarea
-                      id="adapter-topics"
-                      value={topicText}
-                      disabled={!canEdit}
-                      rows={3}
-                      onChange={(e) => {
-                        setTopicText(e.target.value);
-                        setDirty(true);
-                      }}
-                    />
-                    <FieldDescription>
-                      One filter per line, for example meters/+/telemetry.
-                      Sparkplug and broker control topics are reserved.
-                    </FieldDescription>
-                  </Field>
-                </FieldGroup>
-              </CardContent>
-              <CardFooter className="flex-wrap gap-2">
-                <Button disabled={busy || !canEdit} onClick={() => void save()}>
-                  Save connection
-                </Button>
+            <Panel>
+              <PanelHeader>
+                <PanelTitle>Where does the data come from?</PanelTitle>
+                <PanelDescription>
+                  Keep the manufacturer’s own format. Choose how it reaches the
+                  adapter.
+                </PanelDescription>
+              </PanelHeader>
+              <PanelContent>
+                <RadioGroup
+                  value={draft.source.type}
+                  onValueChange={(value) =>
+                    value && chooseSource(value as AdapterSourceType)
+                  }
+                  className="grid gap-3 md:grid-cols-2"
+                  aria-label="Source type"
+                  disabled={!canEdit}
+                >
+                  <ChoiceCard
+                    value="platform"
+                    checked={draft.source.type === "platform"}
+                    disabled={!canEdit}
+                    title="Devices publish to our broker"
+                    description="Each device gets a connection kit for your organization’s isolated MQTT broker."
+                  />
+                  <ChoiceCard
+                    value="vendor"
+                    checked={draft.source.type === "vendor"}
+                    disabled={!canEdit}
+                    title="Vendor MQTT broker"
+                    description="The adapter subscribes to the manufacturer’s internet-reachable broker with its credentials."
+                  />
+                  <ChoiceCard
+                    value="webhook"
+                    checked={draft.source.type === "webhook"}
+                    disabled={!canEdit || !webhookAvailable}
+                    title="Vendor cloud sends webhooks"
+                    description={
+                      webhookAvailable
+                        ? "The vendor cloud posts each message to an HTTPS ingest URL with a secret you control."
+                        : "This deployment does not accept webhooks yet: an operator has to configure a public ingest address first."
+                    }
+                  />
+                  <ChoiceCard
+                    value="poll"
+                    checked={draft.source.type === "poll"}
+                    disabled={!canEdit}
+                    title="Poll a vendor API"
+                    description="The adapter calls the vendor’s REST API on a schedule and resumes where the last run stopped."
+                  />
+                </RadioGroup>
+              </PanelContent>
+            </Panel>
+            {isMqtt(draft.source) && (
+              <Panel>
+                <PanelHeader>
+                  <PanelTitle>
+                    {draft.source.type === "platform"
+                      ? "Tenant broker topics"
+                      : "Vendor broker"}
+                  </PanelTitle>
+                  <PanelDescription>
+                    {draft.source.type === "platform"
+                      ? "Download a hardware connection kit after saving. Devices publish to your organization’s isolated broker."
+                      : "The adapter subscribes to an internet-reachable broker using the manufacturer’s credentials."}
+                  </PanelDescription>
+                </PanelHeader>
+                <PanelContent>
+                  <FieldGroup>
+                    {draft.source.type === "vendor" && (
+                      <VendorBroker
+                        source={draft.source}
+                        secrets={draft.secrets}
+                        saved={!!adapter?.credentials_configured}
+                        disabled={!canEdit}
+                        onSource={setSource}
+                        onSecrets={(secrets) => change({ secrets })}
+                      />
+                    )}
+                    <Field>
+                      <FieldLabel htmlFor="adapter-topics">
+                        Manufacturer topic filters
+                      </FieldLabel>
+                      <Textarea
+                        id="adapter-topics"
+                        value={topicText}
+                        disabled={!canEdit}
+                        rows={3}
+                        onChange={(e) => {
+                          setTopicText(e.target.value);
+                          setDirty(true);
+                        }}
+                      />
+                      <FieldDescription>
+                        One filter per line, for example meters/+/telemetry.
+                        Sparkplug and broker control topics are reserved.
+                      </FieldDescription>
+                    </Field>
+                  </FieldGroup>
+                </PanelContent>
+              </Panel>
+            )}
+            {draft.source.type === "webhook" && (
+              <WebhookAuthentication
+                auth={draft.source.auth}
+                onChange={(auth) => setSource({ type: "webhook", auth })}
+                disabled={!canEdit}
+              />
+            )}
+            {draft.source.type === "poll" && (
+              <PollSource
+                adapter={adapter}
+                source={draft.source}
+                onChange={setSource}
+                secrets={draft.secrets}
+                onSecretsChange={(secrets) => change({ secrets })}
+                canEdit={canEdit}
+                error={error}
+              />
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={busy || !canEdit} onClick={() => void save()}>
+                Save connection
+              </Button>
+              {isMqtt(draft.source) && (
                 <Button
                   variant="outline"
                   disabled={!adapter || dirty || busy || !canEdit}
@@ -681,25 +750,52 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                 >
                   Test broker connection
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setTab("decoder")}
-                  disabled={!draft.artifact_uuid}
-                >
-                  Continue to decoder
-                </Button>
-              </CardFooter>
-            </Card>
-            {adapter && draft.source.type === "platform" && (
+              )}
+              <Button
+                variant="outline"
+                onClick={() => setTab("decoder")}
+                disabled={!draft.artifact_uuid}
+              >
+                Continue to decoder
+              </Button>
+            </div>
+            {adapter && draft.source.type === "platform" && adapter.source.type === "platform" && (
               <AdapterCredentials
                 org={org}
                 adapter={adapter}
                 disabled={dirty || !capabilities.connections}
               />
             )}
+            {draft.source.type === "webhook" &&
+              (adapter?.source.type === "webhook" ? (
+                <WebhookSecrets
+                  org={org}
+                  adapter={adapter}
+                  canManage={capabilities.connections}
+                />
+              ) : (
+                <Alert>
+                  <AlertDescription>
+                    Save the connection to get this adapter’s ingest URL, then
+                    create the secret the vendor cloud signs or sends with each
+                    delivery.
+                  </AlertDescription>
+                </Alert>
+              ))}
+            {draft.source.type === "poll" && (
+              <FetchNow
+                org={org}
+                adapter={adapter}
+                dirty={dirty}
+                canConnect={capabilities.connections}
+                onAddFixture={addFixture}
+              />
+            )}
           </div>
         </TabsContent>
         <TabsContent value="decoder">
+          <div className="flex flex-col gap-4">
+          {adapter && <Samples org={org} adapter={adapter} onAdd={addFixture} />}
           <Card>
             <CardHeader>
               <CardTitle>Decode a real manufacturer payload</CardTitle>
@@ -711,10 +807,12 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
             <CardContent className="flex flex-col gap-4">
               <Alert>
                 <AlertDescription>
-                  Input: payload, bytes, payloadBase64, topic, receivedAt,
-                  retained and qos. Helpers: uint16BE and uint32BE. Use
-                  synchronous code; network, files, modules and persistent state
-                  are unavailable.
+                  {decoderInput(draft.source)} Return one result or a list of up
+                  to 500, each with sourceDeviceId and metrics. Add observedAt
+                  from the device’s own time; without it readings are
+                  receipt-timed and locations are untrusted. Helpers: uint16BE
+                  and uint32BE. Use synchronous code; network, files, modules and
+                  persistent state are unavailable.
                 </AlertDescription>
               </Alert>
               <div className="grid gap-4 xl:grid-cols-2">
@@ -736,9 +834,11 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                 />
               </div>
               <p className="text-sm text-muted-foreground">
-                A fixture contains topic and payload (or payload_base64), plus
-                expected metrics or expect_error. Include at least one
-                successful sample.
+                A fixture contains a payload (or payload_base64), plus expected
+                metrics or expect_error. topic is optional for webhooks and
+                polling; source, received_at, http and poll reproduce a captured
+                input. Include at least one successful sample; tests run 1 to 10
+                fixtures.
               </p>
               {adapter?.revision.test_result && (
                 <div className="flex flex-col gap-3">
@@ -819,6 +919,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
               </Button>
             </CardFooter>
           </Card>
+          </div>
         </TabsContent>
         <TabsContent value="deploy">
           {adapter && (
@@ -836,11 +937,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                   {adapter.draft_revision}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Source:{" "}
-                  {adapter.source.type === "platform"
-                    ? "Your tenant MQTT broker"
-                    : adapter.source.url}
-                  . Topics: {adapter.source.topics.join(", ")}
+                  Source: {sourceSummary(adapter)}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Revision hash:{" "}
@@ -873,6 +970,17 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                     }))}
                   disabled={busy || pending || !canEdit}
                 />
+                {firstPoll && (
+                  <FieldGroup>
+                    <CursorStartField
+                      value={cursorStart}
+                      onChange={setCursorStart}
+                      disabled={busy || pending || !canEdit}
+                      label="Start polling from"
+                      help="The first run reads records from this time. Up to 30 days back; 1 hour ago by default. You can reset the cursor later from Activity."
+                    />
+                  </FieldGroup>
+                )}
                 {adapter.operations.map((o) => (
                   <p key={o.uuid} className="text-sm">
                     {o.action} · {o.status}
@@ -882,7 +990,13 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
               </CardContent>
               <CardFooter className="flex-wrap gap-2">
                 <Button
-                  disabled={!tested || busy || pending || !canEdit}
+                  disabled={
+                    !tested ||
+                    busy ||
+                    pending ||
+                    !canEdit ||
+                    (firstPoll && !!cursorStartError(cursorStart))
+                  }
                   onClick={() =>
                     void run(
                       () =>
@@ -890,6 +1004,9 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                           draft_revision: adapter.draft_revision,
                           action: "deploy",
                           request_uuid: crypto.randomUUID(),
+                          ...(firstPoll
+                            ? { cursor_start_at: new Date(cursorStart).toISOString() }
+                            : {}),
                         }),
                       deployNotice,
                     )
@@ -955,14 +1072,27 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
             />
           )}
         </TabsContent>
+        <TabsContent value="activity">
+          {adapter && (
+            <Activity
+              org={org}
+              adapter={adapter}
+              canReset={capabilities.manage && capabilities.connections}
+              onAddFixture={addFixture}
+            />
+          )}
+        </TabsContent>
         <TabsContent value="ai">
           {adapter && (
-            <AdapterAssistant
+            <OnboardingAssistant
               org={org}
               adapter={adapter}
               dirty={dirty}
               canEdit={canEdit}
               onApplied={adopt}
+              onOpenStep={(step: OnboardingStep) =>
+                setTab(({ credentials: "source", secret: "source", test: "decoder", deploy: "deploy", activate: "devices", cursor: "activity" } as const)[step])
+              }
             />
           )}
         </TabsContent>
@@ -988,6 +1118,97 @@ function starter(
       { topic: "sample/telemetry", payload: { serial: "REPLACE-WITH-SERIAL" } },
     ],
   };
+}
+
+function topicsOf(source: AdapterSource) {
+  return isMqtt(source) ? source.topics.join("\n") : "";
+}
+
+function decoderInput(source: AdapterSource) {
+  if (source.type === "webhook")
+    return "Input: payload (parsed JSON or null), bytes, payloadBase64, topic (the path below the ingest URL, empty when none), receivedAt, source \"webhook\" and http with method, path, query, contentType, headers and deliveryId.";
+  if (source.type === "poll")
+    return "Input: one record as payload, its JSON as bytes and payloadBase64, an empty topic, receivedAt (when the page arrived), source \"poll\" and poll with page, index, count and cursor.";
+  return "Input: payload, bytes, payloadBase64, topic, receivedAt, retained, qos and source \"mqtt\".";
+}
+
+function sourceSummary(adapter: DeviceAdapter) {
+  const source = adapter.source;
+  if (source.type === "platform")
+    return `your tenant MQTT broker. Topics: ${source.topics.join(", ")}`;
+  if (source.type === "vendor")
+    return `${source.url || "vendor MQTT broker"}. Topics: ${source.topics.join(", ")}`;
+  if (source.type === "webhook")
+    return `HTTP webhook, ${authLabels[source.auth.mode].toLowerCase()}, at ${adapter.webhook?.ingest_url ?? "its ingest URL"}.`;
+  const minutes = Math.round(source.interval_seconds / 60);
+  return `polls ${source.request.method} ${source.request.url} every ${minutes} min, up to ${source.page.max_pages} pages a run.`;
+}
+
+function VendorBroker({
+  source,
+  secrets,
+  saved,
+  disabled,
+  onSource,
+  onSecrets,
+}: {
+  source: Extract<AdapterSource, { type: "vendor" }>;
+  secrets: AdapterDraft["secrets"];
+  saved: boolean;
+  disabled: boolean;
+  onSource: (source: AdapterSource) => void;
+  onSecrets: (secrets: NonNullable<AdapterDraft["secrets"]>) => void;
+}) {
+  return (
+    <>
+      <Field>
+        <FieldLabel htmlFor="adapter-url">Broker URL</FieldLabel>
+        <Input
+          id="adapter-url"
+          value={source.url ?? ""}
+          placeholder="mqtts://mqtt.vendor.example:8883"
+          disabled={disabled}
+          onChange={(e) => onSource({ ...source, url: e.target.value })}
+        />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="adapter-user">Username</FieldLabel>
+        <Input
+          id="adapter-user"
+          autoComplete="off"
+          value={secrets?.username ?? ""}
+          disabled={disabled}
+          placeholder={saved ? "Saved · enter to replace" : "Vendor username"}
+          onChange={(e) => onSecrets({ ...secrets, username: e.target.value })}
+        />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="adapter-password">Password</FieldLabel>
+        <Input
+          id="adapter-password"
+          type="password"
+          autoComplete="new-password"
+          value={secrets?.password ?? ""}
+          disabled={disabled}
+          placeholder={saved ? "Saved · enter to replace" : "Vendor password"}
+          onChange={(e) => onSecrets({ ...secrets, password: e.target.value })}
+        />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="adapter-ca" optional>
+          Custom CA certificate
+        </FieldLabel>
+        <Textarea
+          id="adapter-ca"
+          rows={3}
+          value={secrets?.ca_certificate ?? ""}
+          disabled={disabled}
+          placeholder="PEM certificate. Leave blank to preserve the saved value."
+          onChange={(e) => onSecrets({ ...secrets, ca_certificate: e.target.value })}
+        />
+      </Field>
+    </>
+  );
 }
 
 function connectionStatus(

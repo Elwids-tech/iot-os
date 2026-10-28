@@ -1,6 +1,6 @@
 # ADR-010: Per-Tenant Adapter Runtime Isolation
 
-**Status:** Accepted (recorded retroactively)
+**Status:** Accepted (recorded retroactively); amended by [ADR-022](ADR-022-webhook-receiver.md)
 **Date:** 2026-10-11; decided during pilot delivery, October 2026
 **Supersedes:** [ADR-004](ADR-004-node-red-adapter-runtime.md)
 

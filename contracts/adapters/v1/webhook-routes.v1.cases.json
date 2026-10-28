@@ -1,0 +1,881 @@
+[
+  {
+    "description": "an HMAC route and a URL token route",
+    "valid": true,
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        },
+        "Qz98Yx76Wv54Ut32Sr10Pn98Om76Lk54": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000014",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "sampling",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000014",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014/status",
+          "auth": {
+            "mode": "url",
+            "header": null,
+            "scheme": null,
+            "signature_header": null,
+            "encoding": null,
+            "prefix": null,
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "sha256": "4e057db774de2f937bb41df728cbe6cb3ad867ed7843aac38fd8b909e27ccfcc",
+              "expires_at": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "no routes",
+    "valid": true,
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {}
+    }
+  },
+  {
+    "description": "a paused route with a raw-secret header",
+    "valid": true,
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000014",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "paused",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000014",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014/status",
+          "auth": {
+            "mode": "header",
+            "header": "x-api-token",
+            "scheme": null,
+            "signature_header": null,
+            "encoding": null,
+            "prefix": null,
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "sha256": "4e057db774de2f937bb41df728cbe6cb3ad867ed7843aac38fd8b909e27ccfcc",
+              "expires_at": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "a route whose HMAC uses a base64 signature with a timestamp",
+    "valid": true,
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "base64",
+            "prefix": "sha256=",
+            "timestamp_header": "x-timestamp"
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "generated_at as a number",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/generated_at"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": 1793006400,
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        },
+        "Qz98Yx76Wv54Ut32Sr10Pn98Om76Lk54": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000014",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "sampling",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000014",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014/status",
+          "auth": {
+            "mode": "url",
+            "header": null,
+            "scheme": null,
+            "signature_header": null,
+            "encoding": null,
+            "prefix": null,
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "sha256": "4e057db774de2f937bb41df728cbe6cb3ad867ed7843aac38fd8b909e27ccfcc",
+              "expires_at": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "a route without a broker",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": "/routes/Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "no routes key",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": ""},
+    "data": {"schema_version": "webhook-routes.v1", "generated_at": "2026-10-27T09:20:00.000Z"}
+  },
+  {
+    "description": "another schema version",
+    "valid": false,
+    "error": {"keyword": "const", "instance_location": "/schema_version"},
+    "data": {
+      "schema_version": "webhook-routes.v2",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        },
+        "Qz98Yx76Wv54Ut32Sr10Pn98Om76Lk54": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000014",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "sampling",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000014",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014/status",
+          "auth": {
+            "mode": "url",
+            "header": null,
+            "scheme": null,
+            "signature_header": null,
+            "encoding": null,
+            "prefix": null,
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "sha256": "4e057db774de2f937bb41df728cbe6cb3ad867ed7843aac38fd8b909e27ccfcc",
+              "expires_at": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "a removed route",
+    "valid": false,
+    "error": {"keyword": "enum", "instance_location": "/routes/Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56/state"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "removed",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "three secrets",
+    "valid": false,
+    "error": {"keyword": "maxItems", "instance_location": "/routes/Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56/secrets"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-2",
+              "expires_at": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "an HMAC route holding a token hash",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": "/routes/Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56/secrets/0"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "sha256": "4e057db774de2f937bb41df728cbe6cb3ad867ed7843aac38fd8b909e27ccfcc",
+              "expires_at": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "a URL token route holding an HMAC key",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": "/routes/Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56/secrets/0"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000014",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "sampling",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000014",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014/status",
+          "auth": {
+            "mode": "url",
+            "header": null,
+            "scheme": null,
+            "signature_header": null,
+            "encoding": null,
+            "prefix": null,
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "a secret holding both a key and a hash",
+    "valid": false,
+    "error": {"keyword": "not", "instance_location": "/routes/Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56/secrets/0"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null,
+              "sha256": "4e057db774de2f937bb41df728cbe6cb3ad867ed7843aac38fd8b909e27ccfcc"
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "a secret without an expiry key",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": "/routes/Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56/secrets/0"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {"uuid": "30000000-0000-4000-8000-000000000004", "key": "placeholder-hmac-signing-key-1"},
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "an HMAC route without a signature header",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/routes/Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56/auth/signature_header"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": null,
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "a topic outside the reserved prefix",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/routes/Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56/topic"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "vendor/telemetry",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "an ingest identifier that is too short",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": "/routes"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "abc": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "description": "a field added by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": ""},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ]
+        },
+        "Qz98Yx76Wv54Ut32Sr10Pn98Om76Lk54": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000014",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "sampling",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000014",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000014/status",
+          "auth": {
+            "mode": "url",
+            "header": null,
+            "scheme": null,
+            "signature_header": null,
+            "encoding": null,
+            "prefix": null,
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "sha256": "4e057db774de2f937bb41df728cbe6cb3ad867ed7843aac38fd8b909e27ccfcc",
+              "expires_at": null
+            }
+          ]
+        }
+      },
+      "generation": 7
+    }
+  },
+  {
+    "description": "a field added to a route by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": "/routes/Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56"},
+    "data": {
+      "schema_version": "webhook-routes.v1",
+      "generated_at": "2026-10-27T09:20:00.000Z",
+      "routes": {
+        "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56": {
+          "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+          "tenant_uuid": "30000000-0000-4000-8000-000000000002",
+          "state": "running",
+          "broker": {
+            "url": "mqtts://adapter-5f2c1d0e-30000000-0000-4000-8000-000000000002-mqtt:8883",
+            "ca": "-----BEGIN CERTIFICATE-----\nplaceholder-tenant-ca\n-----END CERTIFICATE-----\n",
+            "username": "webhook-30000000-0000-4000-8000-000000000001",
+            "password": "placeholder-webhook-broker-password"
+          },
+          "topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001",
+          "status_topic": "iot-os/webhook/30000000-0000-4000-8000-000000000001/status",
+          "auth": {
+            "mode": "hmac",
+            "header": null,
+            "scheme": null,
+            "signature_header": "x-signature",
+            "encoding": "hex",
+            "prefix": "sha256=",
+            "timestamp_header": null
+          },
+          "secrets": [
+            {
+              "uuid": "30000000-0000-4000-8000-000000000004",
+              "key": "placeholder-hmac-signing-key-1",
+              "expires_at": null
+            },
+            {
+              "uuid": "30000000-0000-4000-8000-000000000005",
+              "key": "placeholder-hmac-signing-key-0",
+              "expires_at": "2026-11-03T09:20:00.000Z"
+            }
+          ],
+          "rate_limit": 10
+        }
+      }
+    }
+  }
+]

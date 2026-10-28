@@ -1,0 +1,21 @@
+{
+  "payload": {"deviceId": "SNS-2001", "temperature_c": 21.5},
+  "bytes": [
+    123, 34, 100, 101, 118, 105, 99, 101, 73, 100, 34, 58, 34, 83, 78, 83, 45, 50, 48, 48, 49, 34, 44, 34,
+    116, 101, 109, 112, 101, 114, 97, 116, 117, 114, 101, 95, 99, 34, 58, 50, 49, 46, 53, 125
+  ],
+  "payloadBase64": "eyJkZXZpY2VJZCI6IlNOUy0yMDAxIiwidGVtcGVyYXR1cmVfYyI6MjEuNX0=",
+  "topic": "/uplink",
+  "receivedAt": "2026-10-27T09:12:01.250Z",
+  "retained": false,
+  "qos": 1,
+  "source": "webhook",
+  "http": {
+    "method": "POST",
+    "path": "/uplink",
+    "query": {"kind": "env"},
+    "contentType": "application/json",
+    "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+    "deliveryId": "30000000-0000-4000-8000-000000000011"
+  }
+}

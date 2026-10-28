@@ -1,0 +1,672 @@
+[
+  {
+    "description": "a successful polling run",
+    "valid": true,
+    "data": {
+      "kind": "poll_run",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "run_id": "30000000-0000-4000-8000-000000000013",
+      "started_at": "2026-10-27T09:12:00.000Z",
+      "finished_at": "2026-10-27T09:12:02.480Z",
+      "outcome": "ok",
+      "http_status": 200,
+      "pages": 1,
+      "records": 2,
+      "published": 2,
+      "failed": 0,
+      "duplicates": 0,
+      "cursor_before": "2026-10-27T09:00:00.000Z",
+      "cursor_after": "2026-10-27T09:12:00.000Z",
+      "committed_at": "2026-10-27T09:12:02.470Z",
+      "error": null,
+      "state": "polling",
+      "reason": null,
+      "next_attempt_at": "2026-10-27T09:17:02.480Z"
+    }
+  },
+  {
+    "description": "a polling run stopped by a rejected credential",
+    "valid": true,
+    "data": {
+      "kind": "poll_run",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "run_id": "30000000-0000-4000-8000-000000000016",
+      "started_at": "2026-10-27T09:12:00.000Z",
+      "finished_at": "2026-10-27T09:12:02.480Z",
+      "outcome": "stopped",
+      "http_status": 401,
+      "pages": 0,
+      "records": 0,
+      "published": 0,
+      "failed": 0,
+      "duplicates": 0,
+      "cursor_before": "2026-10-27T09:00:00.000Z",
+      "cursor_after": "2026-10-27T09:00:00.000Z",
+      "committed_at": null,
+      "error": "Credentials rejected",
+      "state": "stopped",
+      "reason": "Credentials rejected",
+      "next_attempt_at": null
+    }
+  },
+  {
+    "description": "a decoded device",
+    "valid": true,
+    "data": {
+      "kind": "sample",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "source_device_id": "TRK-1001",
+      "sparkplug_device_id": "src-d5714868c0bfa673bc122a7f07d62d65",
+      "preview": {
+        "sourceDeviceId": "TRK-1001",
+        "metrics": [
+          {
+            "name": "latitude",
+            "value": 51.0,
+            "datatype": "Double",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000007",
+            "unit": null
+          },
+          {
+            "name": "longitude",
+            "value": -114.0,
+            "datatype": "Double",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000008",
+            "unit": null
+          },
+          {
+            "name": "battery_percent",
+            "value": 87,
+            "datatype": "Int64",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000006",
+            "unit": "%"
+          }
+        ],
+        "observedAt": "2026-10-27T09:11:58.000Z",
+        "messageId": "TRK-1001-7731"
+      },
+      "retained": false,
+      "received_at": "2026-10-27T09:12:01.250Z"
+    }
+  },
+  {
+    "description": "the source's health",
+    "valid": true,
+    "data": {
+      "kind": "health",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "source_connected": true,
+      "source_state": "polling"
+    }
+  },
+  {
+    "description": "the publisher's health",
+    "valid": true,
+    "data": {
+      "kind": "health",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "upstream_connected": true
+    }
+  },
+  {
+    "description": "a diagnostic",
+    "valid": true,
+    "data": {
+      "kind": "diagnostic",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "message": "Managed publisher rejected a message"
+    }
+  },
+  {
+    "description": "a webhook input that failed decoding",
+    "valid": true,
+    "data": {
+      "kind": "failure",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "source": "webhook",
+      "received_at": "2026-10-27T09:12:01.250Z",
+      "reason": "decode_failed",
+      "error": "Cannot read properties of undefined (reading 'deviceId')",
+      "input": {
+        "topic": "/uplink",
+        "payload_base64": "eyJkZXZpY2VJZCI6IlNOUy0yMDAxIiwidGVtcGVyYXR1cmVfYyI6MjEuNX0=",
+        "source": "webhook",
+        "received_at": "2026-10-27T09:12:01.250Z",
+        "http": {
+          "method": "POST",
+          "path": "/uplink",
+          "query": {"kind": "env"},
+          "contentType": "application/json",
+          "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+          "deliveryId": "30000000-0000-4000-8000-000000000011"
+        }
+      },
+      "delivery_id": "30000000-0000-4000-8000-000000000011"
+    }
+  },
+  {
+    "description": "a polled record that failed validation",
+    "valid": true,
+    "data": {
+      "kind": "failure",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "report_id": "30000000-0000-4000-8000-000000000017",
+      "source": "poll",
+      "received_at": "2026-10-27T09:12:00.000Z",
+      "reason": "validation_failed",
+      "error": "Unknown or duplicate profile metric",
+      "input": {
+        "topic": "",
+        "payload_base64": "eyJpZCI6IlRSSy0xMDAxLTEiLCJkZXZpY2VJZCI6IlRSSy0xMDAxIn0=",
+        "truncated": true,
+        "source": "poll",
+        "received_at": "2026-10-27T09:12:00.000Z",
+        "poll": {"page": 1, "index": 0, "count": 2, "cursor": null}
+      }
+    }
+  },
+  {
+    "description": "outcome counts",
+    "valid": true,
+    "data": {
+      "kind": "outcomes",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "report_id": "30000000-0000-4000-8000-000000000018",
+      "bucket": "2026-10-27T09:00:00.000Z",
+      "counts": {"decoded": 7, "decode_failed": 1, "duplicate": 2}
+    }
+  },
+  {
+    "description": "an unknown kind",
+    "valid": false,
+    "error": {"keyword": "const", "instance_location": "/kind"},
+    "data": {
+      "kind": "metric",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "message": "Managed publisher rejected a message"
+    }
+  },
+  {
+    "description": "a page count as a string",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/pages"},
+    "data": {
+      "kind": "poll_run",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "run_id": "30000000-0000-4000-8000-000000000013",
+      "started_at": "2026-10-27T09:12:00.000Z",
+      "finished_at": "2026-10-27T09:12:02.480Z",
+      "outcome": "ok",
+      "http_status": 200,
+      "pages": "1",
+      "records": 2,
+      "published": 2,
+      "failed": 0,
+      "duplicates": 0,
+      "cursor_before": "2026-10-27T09:00:00.000Z",
+      "cursor_after": "2026-10-27T09:12:00.000Z",
+      "committed_at": "2026-10-27T09:12:02.470Z",
+      "error": null,
+      "state": "polling",
+      "reason": null,
+      "next_attempt_at": "2026-10-27T09:17:02.480Z"
+    }
+  },
+  {
+    "description": "a run without a run id",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": ""},
+    "data": {
+      "kind": "poll_run",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "started_at": "2026-10-27T09:12:00.000Z",
+      "finished_at": "2026-10-27T09:12:02.480Z",
+      "outcome": "ok",
+      "http_status": 200,
+      "pages": 1,
+      "records": 2,
+      "published": 2,
+      "failed": 0,
+      "duplicates": 0,
+      "cursor_before": "2026-10-27T09:00:00.000Z",
+      "cursor_after": "2026-10-27T09:12:00.000Z",
+      "committed_at": "2026-10-27T09:12:02.470Z",
+      "error": null,
+      "state": "polling",
+      "reason": null,
+      "next_attempt_at": "2026-10-27T09:17:02.480Z"
+    }
+  },
+  {
+    "description": "an event without an adapter",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": ""},
+    "data": {
+      "kind": "outcomes",
+      "report_id": "30000000-0000-4000-8000-000000000018",
+      "bucket": "2026-10-27T09:00:00.000Z",
+      "counts": {"decoded": 7, "decode_failed": 1, "duplicate": 2}
+    }
+  },
+  {
+    "description": "an unknown run outcome",
+    "valid": false,
+    "error": {"keyword": "enum", "instance_location": "/outcome"},
+    "data": {
+      "kind": "poll_run",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "run_id": "30000000-0000-4000-8000-000000000013",
+      "started_at": "2026-10-27T09:12:00.000Z",
+      "finished_at": "2026-10-27T09:12:02.480Z",
+      "outcome": "done",
+      "http_status": 200,
+      "pages": 1,
+      "records": 2,
+      "published": 2,
+      "failed": 0,
+      "duplicates": 0,
+      "cursor_before": "2026-10-27T09:00:00.000Z",
+      "cursor_after": "2026-10-27T09:12:00.000Z",
+      "committed_at": "2026-10-27T09:12:02.470Z",
+      "error": null,
+      "state": "polling",
+      "reason": null,
+      "next_attempt_at": "2026-10-27T09:17:02.480Z"
+    }
+  },
+  {
+    "description": "an error of 301 characters",
+    "valid": false,
+    "error": {"keyword": "maxLength", "instance_location": "/error"},
+    "data": {
+      "kind": "poll_run",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "run_id": "30000000-0000-4000-8000-000000000016",
+      "started_at": "2026-10-27T09:12:00.000Z",
+      "finished_at": "2026-10-27T09:12:02.480Z",
+      "outcome": "stopped",
+      "http_status": 401,
+      "pages": 0,
+      "records": 0,
+      "published": 0,
+      "failed": 0,
+      "duplicates": 0,
+      "cursor_before": "2026-10-27T09:00:00.000Z",
+      "cursor_after": "2026-10-27T09:00:00.000Z",
+      "committed_at": null,
+      "error": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "state": "stopped",
+      "reason": "Credentials rejected",
+      "next_attempt_at": null
+    }
+  },
+  {
+    "description": "a cursor of 513 characters",
+    "valid": false,
+    "error": {"keyword": "maxLength", "instance_location": "/cursor_after"},
+    "data": {
+      "kind": "poll_run",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "run_id": "30000000-0000-4000-8000-000000000013",
+      "started_at": "2026-10-27T09:12:00.000Z",
+      "finished_at": "2026-10-27T09:12:02.480Z",
+      "outcome": "ok",
+      "http_status": 200,
+      "pages": 1,
+      "records": 2,
+      "published": 2,
+      "failed": 0,
+      "duplicates": 0,
+      "cursor_before": "2026-10-27T09:00:00.000Z",
+      "cursor_after": "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "committed_at": "2026-10-27T09:12:02.470Z",
+      "error": null,
+      "state": "polling",
+      "reason": null,
+      "next_attempt_at": "2026-10-27T09:17:02.480Z"
+    }
+  },
+  {
+    "description": "a source device id of 129 characters",
+    "valid": false,
+    "error": {"keyword": "maxLength", "instance_location": "/source_device_id"},
+    "data": {
+      "kind": "sample",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "source_device_id": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+      "sparkplug_device_id": "src-d5714868c0bfa673bc122a7f07d62d65",
+      "preview": {
+        "sourceDeviceId": "TRK-1001",
+        "metrics": [
+          {
+            "name": "latitude",
+            "value": 51.0,
+            "datatype": "Double",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000007",
+            "unit": null
+          },
+          {
+            "name": "longitude",
+            "value": -114.0,
+            "datatype": "Double",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000008",
+            "unit": null
+          },
+          {
+            "name": "battery_percent",
+            "value": 87,
+            "datatype": "Int64",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000006",
+            "unit": "%"
+          }
+        ],
+        "observedAt": "2026-10-27T09:11:58.000Z",
+        "messageId": "TRK-1001-7731"
+      },
+      "retained": false,
+      "received_at": "2026-10-27T09:12:01.250Z"
+    }
+  },
+  {
+    "description": "a Sparkplug id that is not the hash form",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/sparkplug_device_id"},
+    "data": {
+      "kind": "sample",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "source_device_id": "TRK-1001",
+      "sparkplug_device_id": "TRK-1001",
+      "preview": {
+        "sourceDeviceId": "TRK-1001",
+        "metrics": [
+          {
+            "name": "latitude",
+            "value": 51.0,
+            "datatype": "Double",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000007",
+            "unit": null
+          },
+          {
+            "name": "longitude",
+            "value": -114.0,
+            "datatype": "Double",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000008",
+            "unit": null
+          },
+          {
+            "name": "battery_percent",
+            "value": 87,
+            "datatype": "Int64",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000006",
+            "unit": "%"
+          }
+        ],
+        "observedAt": "2026-10-27T09:11:58.000Z",
+        "messageId": "TRK-1001-7731"
+      },
+      "retained": false,
+      "received_at": "2026-10-27T09:12:01.250Z"
+    }
+  },
+  {
+    "description": "a preview metric without its datatype",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": "/preview/metrics/0"},
+    "data": {
+      "kind": "sample",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "source_device_id": "TRK-1001",
+      "sparkplug_device_id": "src-d5714868c0bfa673bc122a7f07d62d65",
+      "preview": {
+        "sourceDeviceId": "TRK-1001",
+        "metrics": [
+          {
+            "name": "latitude",
+            "value": 51.0,
+            "parameter_uuid": "30000000-0000-4000-8000-000000000007",
+            "unit": null
+          },
+          {
+            "name": "longitude",
+            "value": -114.0,
+            "datatype": "Double",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000008",
+            "unit": null
+          },
+          {
+            "name": "battery_percent",
+            "value": 87,
+            "datatype": "Int64",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000006",
+            "unit": "%"
+          }
+        ],
+        "observedAt": "2026-10-27T09:11:58.000Z",
+        "messageId": "TRK-1001-7731"
+      },
+      "retained": false,
+      "received_at": "2026-10-27T09:12:01.250Z"
+    }
+  },
+  {
+    "description": "health that reports no connection",
+    "valid": false,
+    "error": {"keyword": "anyOf", "instance_location": ""},
+    "data": {"kind": "health", "adapter_uuid": "30000000-0000-4000-8000-000000000001"}
+  },
+  {
+    "description": "an unknown source state",
+    "valid": false,
+    "error": {"keyword": "enum", "instance_location": "/source_state"},
+    "data": {
+      "kind": "health",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "source_connected": true,
+      "source_state": "paused"
+    }
+  },
+  {
+    "description": "a failure for an unknown reason",
+    "valid": false,
+    "error": {"keyword": "enum", "instance_location": "/reason"},
+    "data": {
+      "kind": "failure",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "source": "webhook",
+      "received_at": "2026-10-27T09:12:01.250Z",
+      "reason": "timeout",
+      "error": "Cannot read properties of undefined (reading 'deviceId')",
+      "input": {
+        "topic": "/uplink",
+        "payload_base64": "eyJkZXZpY2VJZCI6IlNOUy0yMDAxIiwidGVtcGVyYXR1cmVfYyI6MjEuNX0=",
+        "source": "webhook",
+        "received_at": "2026-10-27T09:12:01.250Z",
+        "http": {
+          "method": "POST",
+          "path": "/uplink",
+          "query": {"kind": "env"},
+          "contentType": "application/json",
+          "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+          "deliveryId": "30000000-0000-4000-8000-000000000011"
+        }
+      },
+      "delivery_id": "30000000-0000-4000-8000-000000000011"
+    }
+  },
+  {
+    "description": "a failure without its input",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": ""},
+    "data": {
+      "kind": "failure",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "source": "webhook",
+      "received_at": "2026-10-27T09:12:01.250Z",
+      "reason": "decode_failed",
+      "error": "Cannot read properties of undefined (reading 'deviceId')",
+      "delivery_id": "30000000-0000-4000-8000-000000000011"
+    }
+  },
+  {
+    "description": "a failure input whose http details lack the headers",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": "/input/http"},
+    "data": {
+      "kind": "failure",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "source": "webhook",
+      "received_at": "2026-10-27T09:12:01.250Z",
+      "reason": "decode_failed",
+      "error": "Cannot read properties of undefined (reading 'deviceId')",
+      "input": {
+        "topic": "/uplink",
+        "payload_base64": "eyJkZXZpY2VJZCI6IlNOUy0yMDAxIiwidGVtcGVyYXR1cmVfYyI6MjEuNX0=",
+        "source": "webhook",
+        "received_at": "2026-10-27T09:12:01.250Z",
+        "http": {
+          "method": "POST",
+          "path": "/uplink",
+          "query": {"kind": "env"},
+          "contentType": "application/json",
+          "deliveryId": "30000000-0000-4000-8000-000000000011"
+        }
+      },
+      "delivery_id": "30000000-0000-4000-8000-000000000011"
+    }
+  },
+  {
+    "description": "a truncated flag of false",
+    "valid": false,
+    "error": {"keyword": "const", "instance_location": "/input/truncated"},
+    "data": {
+      "kind": "failure",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "report_id": "30000000-0000-4000-8000-000000000017",
+      "source": "poll",
+      "received_at": "2026-10-27T09:12:00.000Z",
+      "reason": "validation_failed",
+      "error": "Unknown or duplicate profile metric",
+      "input": {
+        "topic": "",
+        "payload_base64": "eyJpZCI6IlRSSy0xMDAxLTEiLCJkZXZpY2VJZCI6IlRSSy0xMDAxIn0=",
+        "truncated": false,
+        "source": "poll",
+        "received_at": "2026-10-27T09:12:00.000Z",
+        "poll": {"page": 1, "index": 0, "count": 2, "cursor": null}
+      }
+    }
+  },
+  {
+    "description": "a report id of 65 characters",
+    "valid": false,
+    "error": {"keyword": "maxLength", "instance_location": "/report_id"},
+    "data": {
+      "kind": "outcomes",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "report_id": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+      "bucket": "2026-10-27T09:00:00.000Z",
+      "counts": {"decoded": 7, "decode_failed": 1, "duplicate": 2}
+    }
+  },
+  {
+    "description": "a count of 0",
+    "valid": false,
+    "error": {"keyword": "minimum", "instance_location": "/counts/decoded"},
+    "data": {
+      "kind": "outcomes",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "report_id": "30000000-0000-4000-8000-000000000018",
+      "bucket": "2026-10-27T09:00:00.000Z",
+      "counts": {"decoded": 0, "decode_failed": 1, "duplicate": 2}
+    }
+  },
+  {
+    "description": "a bucket that is not the start of an hour",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/bucket"},
+    "data": {
+      "kind": "outcomes",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "report_id": "30000000-0000-4000-8000-000000000018",
+      "bucket": "2026-10-27T09:12:00.000Z",
+      "counts": {"decoded": 7, "decode_failed": 1, "duplicate": 2}
+    }
+  },
+  {
+    "description": "a field added to health by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": ""},
+    "data": {
+      "kind": "health",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "source_connected": true,
+      "source_state": "polling",
+      "shard": 3
+    }
+  },
+  {
+    "description": "an outcome added by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": "/counts"},
+    "data": {
+      "kind": "outcomes",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "report_id": "30000000-0000-4000-8000-000000000018",
+      "bucket": "2026-10-27T09:00:00.000Z",
+      "counts": {"decoded": 7, "decode_failed": 1, "duplicate": 2, "quarantined": 1}
+    }
+  },
+  {
+    "description": "a field added to a failure input by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": "/input"},
+    "data": {
+      "kind": "failure",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "report_id": "30000000-0000-4000-8000-000000000012",
+      "source": "webhook",
+      "received_at": "2026-10-27T09:12:01.250Z",
+      "reason": "decode_failed",
+      "error": "Cannot read properties of undefined (reading 'deviceId')",
+      "input": {
+        "topic": "/uplink",
+        "payload_base64": "eyJkZXZpY2VJZCI6IlNOUy0yMDAxIiwidGVtcGVyYXR1cmVfYyI6MjEuNX0=",
+        "source": "webhook",
+        "received_at": "2026-10-27T09:12:01.250Z",
+        "http": {
+          "method": "POST",
+          "path": "/uplink",
+          "query": {"kind": "env"},
+          "contentType": "application/json",
+          "headers": {"user-agent": "vendor-cloud/2.4", "x-vendor-event": "uplink"},
+          "deliveryId": "30000000-0000-4000-8000-000000000011"
+        },
+        "encoding": "gzip"
+      },
+      "delivery_id": "30000000-0000-4000-8000-000000000011"
+    }
+  }
+]

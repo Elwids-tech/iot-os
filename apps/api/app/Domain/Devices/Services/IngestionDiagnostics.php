@@ -7,6 +7,7 @@ namespace App\Domain\Devices\Services;
 use App\Domain\DeviceAdapters\Models\AdapterRevision;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
+use App\Domain\DeviceAdapters\Services\AdapterDiagnostics;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
 
@@ -58,12 +59,7 @@ final class IngestionDiagnostics
                 'failed' => 'problem',
                 default => 'unknown',
             }, "Adapter \"{$adapter->name}\" is {$adapter->status}".($adapter->diagnostic ? ": {$adapter->diagnostic}" : '.')),
-            $this->check('adapter_connectivity', match (true) {
-                ! array_key_exists('source_connected', $health) => 'unknown',
-                $health['source_connected'] === true && ($health['upstream_connected'] ?? true) === true => 'ok',
-                default => 'problem',
-            }, 'Source broker '.$this->flag($health['source_connected'] ?? null).', platform '.$this->flag($health['upstream_connected'] ?? null)
-                .(isset($health['last_message_at']) ? ", last message {$health['last_message_at']}." : ', no message recorded.')),
+            $this->sourceCheck($adapter, $health),
             $this->check('decoder_tests', match (true) {
                 $applied === null => 'unknown',
                 ! is_array($test) => 'unknown',
@@ -71,6 +67,32 @@ final class IngestionDiagnostics
                 default => 'problem',
             }, $applied === null ? 'No decoder revision is deployed.' : 'Decoder revision '.$applied->revision.' fixture tests: '.(is_array($test) ? (($test['valid'] ?? false) ? 'passed.' : 'failed.') : 'not run.')),
         ];
+    }
+
+    /** The adapter's source, worded for MQTT brokers, webhooks or polling (spec 020, FR-074). */
+    private function sourceCheck(DeviceAdapter $adapter, array $health): array
+    {
+        $type = $adapter->source['type'] ?? 'platform';
+        if (in_array($type, ['webhook', 'poll'], true)) {
+            $state = app(AdapterDiagnostics::class)->sourceState($adapter);
+            $status = match ($state['state']) {
+                'receiving', 'polling' => 'ok',
+                'rejecting', 'retrying', 'stopped', 'idle' => 'problem',
+                default => 'unknown',
+            };
+            $kind = $type === 'webhook' ? 'Webhook source' : 'Polling source';
+
+            return $this->check('adapter_connectivity', $status === 'ok' && ($health['upstream_connected'] ?? true) === false ? 'problem' : $status,
+                "{$kind}: {$state['label']}".($state['detail'] ? " ({$state['detail']})" : '').'; platform '.$this->flag($health['upstream_connected'] ?? null)
+                .(isset($health['last_message_at']) ? ", last message {$health['last_message_at']}." : ', no message recorded.'));
+        }
+
+        return $this->check('adapter_connectivity', match (true) {
+            ! array_key_exists('source_connected', $health) => 'unknown',
+            $health['source_connected'] === true && ($health['upstream_connected'] ?? true) === true => 'ok',
+            default => 'problem',
+        }, 'Source broker '.$this->flag($health['source_connected'] ?? null).', platform '.$this->flag($health['upstream_connected'] ?? null)
+            .(isset($health['last_message_at']) ? ", last message {$health['last_message_at']}." : ', no message recorded.'));
     }
 
     private function lifecycle(Device $device): array
