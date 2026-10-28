@@ -1,7 +1,9 @@
 import type { ChecklistItem } from "@iot-os/api-client";
+import { SparklesIcon } from "lucide-react";
 import { Button } from "@iot-os/ui/components/button";
 import {
   Panel,
+  PanelActions,
   PanelContent,
   PanelDescription,
   PanelHeader,
@@ -12,14 +14,17 @@ import { checklistSteps } from "./source";
 
 /**
  * Where setup stands, from the adapter's saved state (FR-100): six steps, each
- * opening the tab that completes it. It needs no assistant.
+ * opening the tab that completes it. It needs no assistant; `onAsk` opens the
+ * onboarding assistant in the workspace panel to walk the same steps.
  */
 export function SetupChecklist({
   checklist,
   onOpen,
+  onAsk,
 }: {
   checklist: ChecklistItem[];
   onOpen: (tab: string) => void;
+  onAsk?: () => void;
 }) {
   const done = checklist.filter((item) => item.state === "done").length;
   const next = checklist.find((item) => item.state !== "done");
@@ -32,9 +37,18 @@ export function SetupChecklist({
             ? "Every step is done."
             : `${done} of ${checklist.length} done${next ? ` · next: ${checklistSteps[next.step]?.label ?? next.step}` : ""}`}
         </PanelDescription>
+        {onAsk && (
+          <PanelActions>
+            <Button variant="outline" size="sm" onClick={onAsk}>
+              <SparklesIcon data-icon="inline-start" />
+              Ask the assistant
+            </Button>
+          </PanelActions>
+        )}
       </PanelHeader>
-      <PanelContent className="p-2">
-        <ol className="grid gap-1 sm:grid-cols-3 xl:grid-cols-6">
+      {/* Columns follow the panel's own width, so the steps still fit beside the docked assistant. */}
+      <PanelContent className="@container p-2">
+        <ol className="grid gap-1 @md:grid-cols-3 @4xl:grid-cols-6">
           {checklist.map((item, index) => {
             const step = checklistSteps[item.step];
             return (

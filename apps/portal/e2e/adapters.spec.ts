@@ -177,6 +177,7 @@ async function setup(
     name: "Acme",
     slug: "acme",
     capabilities: {
+      features: { device_adapters: true },
       devices: {
         view: true,
         manage: true,
@@ -824,6 +825,119 @@ test("the setup checklist shows each step's state and opens its tab", async ({
   await expect(waiting).toContainText(ingestUrl);
   await settled(page);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("the onboarding assistant works in the workspace panel beside the workbench", async ({
+  page,
+}) => {
+  const { errors, requests } = await setup(page, false, "webhook");
+  const empty = (r: any) =>
+    r.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
+  await page.route("**/deliveries**", empty);
+  await page.route("**/candidates", empty);
+  const conversation = {
+    id: "c-1",
+    title: "Water meters",
+    scope: "onboarding",
+    adapter_uuid: id,
+    profile_uuid: null,
+    profile_name: null,
+    updated_at: minutes(5),
+  };
+  let applied = false;
+  const detail = () => ({
+    ...conversation,
+    runs: [
+      {
+        id: "r-1",
+        request_id: "q-1",
+        status: "completed",
+        prompt: "Draft the decoder from the captured samples.",
+        answer: "I proposed a decoder that reads the flow rate.",
+        source_ids: [],
+        usage: null,
+        cost_usd: 0.01,
+        error_code: null,
+        error_message: null,
+        created_at: minutes(3),
+      },
+    ],
+    sources: [],
+    proposals: [],
+    adapter_proposals: [
+      {
+        uuid: "p-1",
+        kind: "change",
+        name: null,
+        artifact_uuid: null,
+        code: "function decode(input) {return {sourceDeviceId:input.payload.serial,metrics:[{name:'flow_rate',value:input.payload.flow_ml_min/1000}]};}",
+        source: null,
+        fixtures: [{ topic: "meters/fixed/telemetry", payload: { serial: "WM-1042", flow_ml_min: 12000 } }],
+        summary: "Read the flow rate in litres per minute",
+        evidence: [],
+        content_hash: "hash-1",
+        draft_revision: 1,
+        status: applied ? "applied" : "pending",
+        adapter_uuid: id,
+        adapter_name: "Manufacturer water meter",
+        created_at: minutes(2),
+      },
+    ],
+    onboarding_state: applied
+      ? { next_step: { step: "secret", message: "Create a secret and paste it into the vendor cloud.", adapter_uuid: id, at: minutes(0) } }
+      : null,
+    cursor: 0,
+  });
+  await page.route("**/assistant/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const data = (value: unknown) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: value }) });
+    if (route.request().method() === "POST") {
+      requests.push({ path, body: route.request().postDataJSON() });
+      applied = true;
+      return data({ status: "applied", adapter: null, run: null, notice: null });
+    }
+    if (path.endsWith("/settings"))
+      return data({ enabled: true, provider: { label: "OpenAI" }, supported_extensions: [], max_file_bytes: 1 });
+    if (path.endsWith("/conversations")) return data([conversation]);
+    if (path.endsWith("/conversations/c-1")) return data(detail());
+    return data([]);
+  });
+  await page.route("**/help/page**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: { key: "adapters", title: "Device adapters", overview: "adapters", articles: [] } }),
+    }),
+  );
+  await page.goto(base + "/" + id);
+  // The assistant is a conversation in the panel, not a tab of the workbench.
+  await expect(page.getByRole("tab", { name: "Assistant" })).toHaveCount(0);
+  await page
+    .getByRole("region", { name: "Setup checklist" })
+    .getByRole("button", { name: "Ask the assistant" })
+    .click();
+  const chat = page
+    .getByRole("complementary", { name: "Assistant", exact: true })
+    .getByRole("region", { name: "Onboarding assistant" });
+  await expect(chat).toContainText("I proposed a decoder that reads the flow rate.");
+  await expect(chat).toContainText("Change the adapter draft");
+  await chat.getByRole("button", { name: "Review", exact: true }).click();
+  const review = page.getByRole("dialog", { name: "Change the adapter draft" });
+  await expect(review.getByText("Current decoder")).toBeVisible();
+  await expect(review.getByText("Proposed decoder")).toBeVisible();
+  await expect(review.getByText("1 test sample to add")).toBeVisible();
+  await review.getByRole("button", { name: "Apply to draft" }).click();
+  await expect(review).toBeHidden();
+  expect(requests.find((r) => r.path.endsWith("/adapter-proposals/p-1/decision"))?.body).toMatchObject({
+    action: "apply",
+    content_hash: "hash-1",
+  });
+  await expect(chat).toContainText("Applied a change to the adapter draft");
+  // The suggested step opens its workbench tab beside the panel.
+  await page.getByRole("tab", { name: "4 · Review & deploy" }).click();
+  await chat.getByRole("button", { name: "Create a webhook secret" }).click();
+  await expect(page.getByRole("tab", { name: "2 · Connection" })).toHaveAttribute("aria-selected", "true");
   expect(errors).toEqual([]);
 });
 

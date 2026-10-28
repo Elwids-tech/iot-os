@@ -52,6 +52,7 @@ import {
 import { Badge } from "@iot-os/ui/components/badge";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { api } from "../lib/api";
+import { usePanel } from "../panel/context";
 import { RequestError, TextField } from "../components/forms";
 import {
   DevicePages,
@@ -111,6 +112,9 @@ export function DeviceOnboarding() {
 }
 
 function DeviceOnboardingForm() {
+  const { startTask } = usePanel();
+  // The onboarding assistant opens in the workspace panel, beside this form.
+  const askAssistant = () => startTask("onboarding", { to: "onboarding", fresh: true });
   const { org, capabilities, query: organization } = useDeviceOrganization();
   const adaptersEnabled =
     organization.data?.capabilities?.features?.device_adapters === true;
@@ -562,9 +566,9 @@ function DeviceOnboardingForm() {
               {adaptersEnabled && capabilities.manage && (
                 <p className="text-sm text-muted-foreground">
                   Not sure how your device connects?{" "}
-                  <Link className="underline" to={`/organizations/${encodeURIComponent(org)}/device-adapters/onboarding`}>
+                  <Button variant="link" className="h-auto p-0 align-baseline" onClick={askAssistant}>
                     Ask the onboarding assistant
-                  </Link>
+                  </Button>
                   . It asks a few questions and walks you through the setup.
                 </p>
               )}
@@ -591,10 +595,8 @@ function DeviceOnboardingForm() {
                         Continue to device adapters
                       </Link>
                     </Button>
-                    <Button asChild variant="outline">
-                      <Link to={`/organizations/${encodeURIComponent(org)}/device-adapters/onboarding`}>
-                        Ask the onboarding assistant
-                      </Link>
+                    <Button variant="outline" onClick={askAssistant}>
+                      Ask the onboarding assistant
                     </Button>
                   </div>
                 </div>

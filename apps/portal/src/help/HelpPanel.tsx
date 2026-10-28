@@ -198,8 +198,9 @@ function GuideList({
  * The workspace panel: one docked rail (a sheet below xl) with an Ask tab for
  * the assistant and two tabs of guides. Ask follows the page: pages that own an
  * assistant portal it in through the panel slot, profile pages open the profile
- * assistant, and every other page opens on suggestions for the work the
- * assistant can do there. The profile assistant and usage help are one choice
+ * assistant, Add device and device adapter pages open the onboarding assistant,
+ * and every other page opens on suggestions for the work the assistant can do
+ * there. The profile and onboarding assistants and usage help are one choice
  * away from any page; an automation suggestion opens a new automation's editor.
  */
 export default function HelpPanel({
@@ -208,6 +209,8 @@ export default function HelpPanel({
   context,
   profileAssistant,
   profilePage,
+  onboardingAssistant,
+  onboardingPage,
   viewedProfile,
   can,
 }: {
@@ -218,6 +221,10 @@ export default function HelpPanel({
   profileAssistant: ReactNode;
   /** Profile pages open Ask on the profile assistant. */
   profilePage: boolean;
+  /** The device onboarding conversation; shown when Ask is on onboarding. */
+  onboardingAssistant: ReactNode;
+  /** Add device and device adapter pages open Ask on the onboarding assistant. */
+  onboardingPage: boolean;
   viewedProfile?: string;
   can: { profiles: boolean; adapters: boolean };
 }) {
@@ -236,7 +243,9 @@ export default function HelpPanel({
           ? "opening"
           : profilePage
             ? "profile"
-            : "home"
+            : onboardingPage
+              ? "onboarding"
+              : "home"
       : askMode === "context" && !slot
         ? "home"
         : askMode;
@@ -462,14 +471,8 @@ export default function HelpPanel({
       case "help":
         setAskMode("help");
         return;
-      case "adapter":
-        // The adapter's assistant lives on its page, beside the code it edits.
-        onClose();
-        navigate(location.pathname, { state: { tab: "ai" } });
-        return;
       case "onboarding":
-        onClose();
-        navigate(`/organizations/${encodeURIComponent(org)}/device-adapters/onboarding`);
+        startTask("onboarding", { to: "onboarding", fresh: action.fresh });
         return;
       case "automation": {
         // The automation assistant edits an editor's draft, so a new automation opens for it.
@@ -485,7 +488,9 @@ export default function HelpPanel({
       ? slot?.title
       : ask === "profile"
         ? "Device profiles"
-        : ask === "opening"
+        : ask === "onboarding"
+          ? "Device onboarding"
+          : ask === "opening"
           ? "New automation"
           : "Usage help";
 
@@ -504,7 +509,9 @@ export default function HelpPanel({
                 ? (slot.description ?? `Working on ${slot.title}`)
                 : ask === "profile"
                   ? `Device profiles · ${organizationName}`
-                  : `Suggestions for this page · ${organizationName}`}
+                  : ask === "onboarding"
+                    ? `Device onboarding · ${organizationName}`
+                    : `Suggestions for this page · ${organizationName}`}
           </p>
         </div>
         <Button
@@ -561,6 +568,11 @@ export default function HelpPanel({
         {tab === "ask" && ask === "profile" && !article && (
           <div className="flex min-h-0 flex-1 flex-col">
             <Suspense fallback={<Skeleton className="m-4 h-40" />}>{profileAssistant}</Suspense>
+          </div>
+        )}
+        {tab === "ask" && ask === "onboarding" && !article && (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Suspense fallback={<Skeleton className="m-4 h-40" />}>{onboardingAssistant}</Suspense>
           </div>
         )}
         {tab === "ask" && ask === "home" && !article && (

@@ -338,6 +338,10 @@ Things that have cost time before. Add to this list when something surprises you
   through apt. That took 30 s on one run and 11 min 40 s on another, which
   pushed the docs job past its 20-minute limit. CI installs the headless shell
   without it.
+- **A mocked spec that opens the workspace panel must mock `/help/page`.** Catch-all
+  mocks answer `{ data: [] }`, and the panel reads `articles[0]` from the page
+  object, so the whole page falls to its error screen. The adapters spec mocks it
+  next to the assistant routes.
 
 ## Assistant
 

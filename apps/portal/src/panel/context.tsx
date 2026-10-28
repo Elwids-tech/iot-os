@@ -9,7 +9,8 @@ import {
 
 /*
  * One workspace panel for the whole portal: the Ask tab holds the assistant
- * for the current context, the other tabs hold the guides. Pages that own an
+ * for the current context, the other tabs hold the guides. Every assistant is a
+ * conversation here, never a tab of its own page. Pages that own an
  * assistant (the automation editor) register a slot: a title for the context
  * line and a DOM target they portal their conversation into, so the
  * conversation keeps the page's state while living in the panel. Every page
@@ -27,14 +28,17 @@ export type PanelSlot = {
 
 /**
  * What Ask shows. "auto" follows the page: its own assistant ("context"), the
- * profile assistant on profile pages, otherwise the suggestions ("home").
- * "profile" and "help" are open from any page.
+ * profile assistant on profile pages, the onboarding assistant on Add device and
+ * device adapter pages, otherwise the suggestions ("home"). "profile",
+ * "onboarding" and "help" are open from any page.
  */
-export type AskMode = "auto" | "home" | "context" | "profile" | "help"
+export type AskMode = "auto" | "home" | "context" | "profile" | "onboarding" | "help"
 
 /** Work a suggestion hands to an assistant; that assistant takes it once, when it is showing. */
 export type AssistantHandoff =
   | { to: "profile"; profile?: string }
+  /** `fresh` starts a new onboarding conversation instead of continuing the open one. */
+  | { to: "onboarding"; fresh?: boolean }
   /** `id` travels in the navigation state, so only the editor opened for it takes it. */
   | { to: "automation"; text: string; id: string }
   | { to: "help"; text: string }

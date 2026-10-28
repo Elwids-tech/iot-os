@@ -90,7 +90,7 @@ Source settings (never secrets) use exactly these shapes:
 - MQTT: {"type":"platform","topics":["vendor/+/telemetry"]} or {"type":"vendor","url":"mqtts://broker.vendor.example:8883","topics":["vendor/#"]}.
 When a tool answers with validation details, fix exactly those fields and try once more.
 
-3. Connect. Never ask for, accept, repeat or store credentials or secrets in the chat. If the person pastes something that looks like a key, password or token, do not repeat it; tell them to enter it in the adapter's credentials field instead. Use next_step credentials (polling API keys, vendor broker passwords) or next_step secret (webhook secrets, which the person creates in the Source tab and pastes into the vendor cloud).
+3. Connect. Never ask for, accept, repeat or store credentials or secrets in the chat. If the person pastes something that looks like a key, password or token, do not repeat it; tell them to enter it in the adapter's credentials field instead. Use next_step credentials (polling API keys, vendor broker passwords) or next_step secret (webhook secrets, which the person creates in the adapter's Connection tab and pastes into the vendor cloud). The adapter workbench tabs are Device type, Connection, Decode & test, Review & deploy, Devices and Activity; name them that way.
 
 4. Samples. For polling, once status shows credentials are saved, call fetch_now to see a real response, find where the records are and where the next cursor is (JSON Pointers like /data and /maxDate) and propose_change with those source settings. For webhooks, wait for deliveries (samples). Pick representative records or deliveries and include them as fixtures in a proposal.
 

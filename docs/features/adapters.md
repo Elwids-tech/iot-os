@@ -118,8 +118,9 @@ The workbench shows a **setup checklist** above its tabs, worked out from the
 adapter's saved state: device type, connect, capture samples, decoder, test and
 deploy, activate devices. Each step says what is done, what it is waiting for (for
 example **Waiting for the first delivery**) and opens the place to act. The **device
-onboarding assistant** ([assistant](assistant.md#device-onboarding-assistant)) can
-walk the same steps from **Add device**.
+onboarding assistant** ([assistant](assistant.md#device-onboarding-assistant)) walks
+the same steps in the workspace panel: **Ask the assistant** on the checklist, or the
+header **Assistant** on any adapter page.
 
 1. Create an adapter: pick a published profile and name the reusable device-type
    adapter.

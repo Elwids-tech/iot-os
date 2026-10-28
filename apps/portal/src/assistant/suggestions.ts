@@ -14,10 +14,8 @@ export type SuggestionAction =
   | { kind: "automation"; text: string }
   /** Usage help from the guides. */
   | { kind: "help" }
-  /** A device adapter's own assistant, on its AI assistant tab. */
-  | { kind: "adapter" }
-  /** Opens the device onboarding assistant on its own page (spec 020). */
-  | { kind: "onboarding" }
+  /** The device onboarding assistant (spec 020); `fresh` starts a new conversation. */
+  | { kind: "onboarding"; fresh?: boolean }
 
 export type Suggestion = {
   id: string
@@ -54,7 +52,7 @@ const onboardDevice: Suggestion = {
   id: "onboarding",
   title: "Onboard a device with the assistant",
   description: "Describe the device; it works out how to connect it, from Sparkplug B to a vendor's webhooks or API.",
-  action: { kind: "onboarding" },
+  action: { kind: "onboarding", fresh: true },
 }
 const askHelp: Suggestion = {
   id: "help",
@@ -136,14 +134,14 @@ export function assistantSuggestions({ pathname, slot, profile, deviceProfile, c
         here.push(geofenceAlert)
         break
       case "device-adapters":
-        if (resource && resource !== "new" && resource !== "onboarding" && can.adapters)
+        if (resource && resource !== "new" && can.adapters)
           here.push({
             id: "adapter",
-            title: "Continue onboarding with the assistant",
+            title: "Continue onboarding this adapter",
             description: "It reads the captured samples, drafts the decoder and settings, and says what is left.",
-            action: { kind: "adapter" },
+            action: { kind: "onboarding" },
           })
-        else if (can.adapters && resource !== "onboarding") here.push(onboardDevice)
+        else if (can.adapters) here.push(onboardDevice)
         break
     }
   // The universal tasks follow, minus any the page already offers in another form.

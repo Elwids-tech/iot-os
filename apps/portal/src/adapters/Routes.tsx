@@ -71,12 +71,11 @@ import { api } from "../lib/api";
 import { useDirtyContext, useUnsaved } from "../lib/unsaved";
 import { RequestError } from "../components/forms";
 import { useDeviceOrganization } from "../devices/shared";
-import { OnboardingAssistant, type OnboardingStep } from "./OnboardingAssistant";
-import { OnboardingPage } from "./OnboardingPage";
 import { AdapterDevices, AdapterCredentials } from "./connections";
 import { Activity } from "./Activity";
 import { Samples } from "./Samples";
 import { SetupChecklist } from "./SetupChecklist";
+import { usePanel } from "../panel/context";
 import {
   CursorStartField,
   cursorStartError,
@@ -131,7 +130,6 @@ export default function AdapterRoutes() {
     <Routes>
       <Route index element={<Directory />} />
       <Route path="new" element={<Workbench key="new" />} />
-      <Route path="onboarding" element={<OnboardingPage />} />
       <Route path=":adapterUuid" element={<Existing />} />
     </Routes>
   );
@@ -272,10 +270,12 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
   const { setDirty: clearGlobalDirty } = useDirtyContext();
   const navigate = useNavigate();
   const [tab, setTab] = useState(adapter ? "source" : "type");
-  // The workspace assistant sends people here for the adapter's own assistant.
+  // The onboarding assistant in the workspace panel opens the step it suggests.
   const location = useLocation();
+  const { startTask } = usePanel();
   useEffect(() => {
-    if (adapter && (location.state as { tab?: string } | null)?.tab === "ai") setTab("ai");
+    const wanted = (location.state as { tab?: string } | null)?.tab;
+    if (adapter && wanted) setTab(wanted);
   }, [adapter?.uuid, location.key]);
   const [draft, setDraft] = useState<AdapterDraft>(
     adapter
@@ -520,7 +520,11 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
         </Alert>
       )}
       {adapter && adapter.checklist?.length > 0 && (
-        <SetupChecklist checklist={adapter.checklist} onOpen={setTab} />
+        <SetupChecklist
+          checklist={adapter.checklist}
+          onOpen={setTab}
+          onAsk={canEdit ? () => startTask("onboarding", { to: "onboarding" }) : undefined}
+        />
       )}
       <Tabs value={tab} onValueChange={setTab}>
         {/* Wraps on phones; the triggers drop their 100% height so a second row adds height instead of overlapping. */}
@@ -536,9 +540,6 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
           </TabsTrigger>
           <TabsTrigger value="activity" disabled={!adapter}>
             Activity
-          </TabsTrigger>
-          <TabsTrigger value="ai" disabled={!adapter}>
-            Assistant
           </TabsTrigger>
         </TabsList>
         <TabsContent value="type">
@@ -1079,20 +1080,6 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
               adapter={adapter}
               canReset={capabilities.manage && capabilities.connections}
               onAddFixture={addFixture}
-            />
-          )}
-        </TabsContent>
-        <TabsContent value="ai">
-          {adapter && (
-            <OnboardingAssistant
-              org={org}
-              adapter={adapter}
-              dirty={dirty}
-              canEdit={canEdit}
-              onApplied={adopt}
-              onOpenStep={(step: OnboardingStep) =>
-                setTab(({ credentials: "source", secret: "source", test: "decoder", deploy: "deploy", activate: "devices", cursor: "activity" } as const)[step])
-              }
             />
           )}
         </TabsContent>
