@@ -1801,18 +1801,28 @@ export class ApiClient {
   saveDeviceAdapter(org: string, id: string, input: import("./adapters").AdapterDraft & {draft_revision: number}) { return this.data<import("./adapters").DeviceAdapter>(this.adapterPath(org,id), "PUT", input) }
   testDeviceAdapter(org: string, id: string, draft_revision: number) { return this.data<import("./adapters").AdapterTest>(this.adapterPath(org,id,"/test"), "POST", {draft_revision}) }
   testAdapterConnection(org: string, id: string) { return this.data<{connected: boolean; broker_url?: string}>(this.adapterPath(org,id,"/connection-test"), "POST", {}) }
-  deployDeviceAdapter(org: string, id: string, input: {draft_revision: number; action: "deploy" | "pause" | "rollback"; revision_uuid?: string; request_uuid: string}) { return this.data<{uuid: string; status: string}>(this.adapterPath(org,id,"/deploy"), "POST", input) }
+  deployDeviceAdapter(org: string, id: string, input: {draft_revision: number; action: "deploy" | "pause" | "rollback"; revision_uuid?: string; request_uuid: string; cursor_start_at?: string}) { return this.data<{uuid: string; status: string}>(this.adapterPath(org,id,"/deploy"), "POST", input) }
   adapterCandidates(org: string, id: string) { return this.data<import("./adapters").AdapterCandidate[]>(this.adapterPath(org,id,"/candidates")) }
   activateAdapterCandidate(org: string,id: string,candidate: string,input: {name: string;device_uuid?: string}) { return this.data<{installation_uuid: string;device: Device}>(this.adapterPath(org,id,`/candidates/${encodeURIComponent(candidate)}/activate`), "POST", input) }
   adapterCredentials(org: string,id: string) { return this.data<import("./adapters").AdapterCredential[]>(this.adapterPath(org,id,"/credentials")) }
   createAdapterCredential(org: string,id: string,name: string) { return this.data<import("./adapters").AdapterKit>(this.adapterPath(org,id,"/credentials"), "POST", {name}) }
   adapterConnectionKit(org: string,id: string,credential: string,action: "kit" | "rotate" = "kit") { return this.data<import("./adapters").AdapterKit>(this.adapterPath(org,id,`/credentials/${encodeURIComponent(credential)}/${action}`), "POST", {}) }
   revokeAdapterCredential(org: string,id: string,credential: string) { return this.data<{revoked: boolean}>(this.adapterPath(org,id,`/credentials/${encodeURIComponent(credential)}/revoke`), "POST", {}) }
+  adapterWebhook(org: string, id: string) { return this.data<import("./adapters").WebhookDetail>(this.adapterPath(org,id,"/webhook")) }
+  createWebhookSecret(org: string, id: string, input: {label: string; value?: string}) { return this.data<import("./adapters").CreatedWebhookSecret>(this.adapterPath(org,id,"/webhook/secrets"), "POST", input) }
+  revokeWebhookSecret(org: string, id: string, secret: string) { return this.data<{revoked: boolean}>(this.adapterPath(org,id,`/webhook/secrets/${encodeURIComponent(secret)}/revoke`), "POST", {}) }
+  adapterDeliveries(org: string, id: string, kind?: import("./adapters").AdapterDelivery["kind"]) { return this.data<import("./adapters").AdapterDelivery[]>(this.adapterPath(org,id,`/deliveries${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`)) }
+  fetchNow(org: string, id: string, draft_revision: number) { return this.data<import("./adapters").FetchResult>(this.adapterPath(org,id,"/fetch-now"), "POST", {draft_revision}) }
+  adapterPollRuns(org: string, id: string) { return this.request<{data: import("./adapters").PollRun[]; polling: import("./adapters").AdapterPolling | null}>(this.adapterPath(org,id,"/poll-runs")) }
+  resetAdapterCursor(org: string, id: string, input: {request_uuid: string; start_at: string}) { return this.data<import("./adapters").AdapterOperation>(this.adapterPath(org,id,"/cursor"), "POST", input) }
+  resumeAdapterPolling(org: string, id: string, input: {request_uuid: string}) { return this.data<import("./adapters").AdapterOperation>(this.adapterPath(org,id,"/resume"), "POST", input) }
   adapterProposals(org: string,id: string) { return this.data<import("./adapters").AdapterProposal[]>(this.adapterPath(org,id,"/proposals")) }
   decideAdapterProposal(org: string,id: string,proposal: string,action: "apply" | "reject",content_hash: string) { return this.data<import("./adapters").DeviceAdapter | {status: string}>(this.adapterPath(org,id,`/proposals/${encodeURIComponent(proposal)}/decision`), "POST", {action,content_hash}) }
-  adapterAssistantSettings(org: string) { return this.data<{enabled: boolean; provider: import("./assistant").AssistantProviderRef}>(this.assistantPath(org,undefined,"/settings?scope=adapter")) }
-  adapterAssistantConversations(org: string, adapter_uuid: string) { return this.data<{id: string; adapter_uuid: string}[]>(this.assistantPath(org,undefined,`/conversations?scope=adapter&adapter_uuid=${encodeURIComponent(adapter_uuid)}`)) }
-  createAdapterConversation(org: string,adapter_uuid: string) { return this.data<{id: string}>(this.assistantPath(org,undefined,"/conversations"),"POST",{scope:"adapter",adapter_uuid}) }
+  // The device onboarding assistant (spec 020) replaced the adapter assistant.
+  onboardingAssistantSettings(org: string) { return this.data<{enabled: boolean; provider: import("./assistant").AssistantProviderRef; supported_extensions: string[]; max_file_bytes: number}>(this.assistantPath(org,undefined,"/settings?scope=onboarding")) }
+  onboardingConversations(org: string, adapter_uuid?: string) { return this.data<import("./assistant").OnboardingConversation[]>(this.assistantPath(org,undefined,`/conversations?scope=onboarding${adapter_uuid ? `&adapter_uuid=${encodeURIComponent(adapter_uuid)}` : ""}`)) }
+  createOnboardingConversation(org: string, adapter_uuid?: string) { return this.data<import("./assistant").OnboardingConversation>(this.assistantPath(org,undefined,"/conversations"),"POST",{scope:"onboarding",...(adapter_uuid ? {adapter_uuid} : {})}) }
+  decideOnboardingProposal(org: string, conversation: string, proposal: string, input: {action: "apply" | "reject"; content_hash: string; request_id: string}) { return this.data<{status: "applied" | "rejected"; adapter: import("./adapters").DeviceAdapter | null; run: import("./assistant").AssistantRun | null; notice: string | null}>(this.assistantPath(org,conversation,`/adapter-proposals/${encodeURIComponent(proposal)}/decision`),"POST",input) }
 
   private assistantPath(org: string, conversation?: string, suffix = "") {
     return `/api/v1/organizations/${encodeURIComponent(org)}/assistant${conversation ? `/conversations/${encodeURIComponent(conversation)}` : ""}${suffix}`

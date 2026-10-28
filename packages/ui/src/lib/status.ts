@@ -82,6 +82,61 @@ const domains = {
     resolved: { tone: "good", label: "Resolved" },
     declined: { tone: "muted", label: "Declined" },
   },
+  /** Device adapter sources (spec 020): whether vendor data is arriving. */
+  source: {
+    connected: { tone: "good", label: "Connected" },
+    disconnected: { tone: "critical", label: "Disconnected" },
+    receiving: { tone: "good", label: "Receiving" },
+    no_deliveries: { tone: "muted", label: "No deliveries yet" },
+    rejecting: { tone: "warning", label: "Rejecting" },
+    idle: { tone: "muted", label: "Idle" },
+    polling: { tone: "good", label: "Polling" },
+    retrying: { tone: "warning", label: "Retrying" },
+    stopped: { tone: "critical", label: "Stopped" },
+    not_deployed: { tone: "muted", label: "Not deployed" },
+  },
+  /** Adapter setup checklist steps. */
+  checklist: {
+    done: { tone: "good", label: "Done" },
+    waiting: { tone: "info", label: "Waiting" },
+    attention: { tone: "warning", label: "Needs attention" },
+    todo: { tone: "muted", label: "Not started" },
+  },
+  /** Adapter poll runs. */
+  poll_run: {
+    ok: { tone: "good", label: "OK" },
+    empty: { tone: "muted", label: "No new records" },
+    partial: { tone: "warning", label: "Partial" },
+    retrying: { tone: "warning", label: "Retrying" },
+    stopped: { tone: "critical", label: "Stopped" },
+  },
+  /** Adapter deliveries: their kind and outcome. */
+  ingest: {
+    sample: { tone: "info", label: "Sample" },
+    preview: { tone: "muted", label: "Device preview" },
+    rejected: { tone: "warning", label: "Rejected" },
+    failed: { tone: "critical", label: "Failed" },
+    accepted: { tone: "good", label: "Accepted" },
+    unauthenticated: { tone: "critical", label: "Unauthenticated" },
+    stale_signature: { tone: "critical", label: "Stale or replayed signature" },
+    too_large: { tone: "warning", label: "Too large" },
+    rate_limited: { tone: "warning", label: "Rate limited" },
+    paused: { tone: "muted", label: "Paused" },
+    broker_unavailable: { tone: "warning", label: "Broker unavailable" },
+    bad_request: { tone: "warning", label: "Bad request" },
+    decoded: { tone: "good", label: "Decoded" },
+    decode_failed: { tone: "critical", label: "Decode failed" },
+    validation_failed: { tone: "critical", label: "Profile validation failed" },
+    duplicate: { tone: "muted", label: "Duplicate" },
+    historical: { tone: "muted", label: "Historical" },
+  },
+  /** Adapter webhook secrets. */
+  secret: {
+    active: { tone: "good", label: "Active" },
+    expiring: { tone: "warning", label: "Expiring" },
+    expired: { tone: "muted", label: "Expired" },
+    revoked: { tone: "muted", label: "Revoked" },
+  },
   /** Support ticket priority, set by the team. */
   priority: {
     low: { tone: "muted", label: "Low" },

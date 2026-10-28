@@ -16,6 +16,8 @@ export type SuggestionAction =
   | { kind: "help" }
   /** A device adapter's own assistant, on its AI assistant tab. */
   | { kind: "adapter" }
+  /** Opens the device onboarding assistant on its own page (spec 020). */
+  | { kind: "onboarding" }
 
 export type Suggestion = {
   id: string
@@ -47,6 +49,12 @@ const buildAutomation: Suggestion = {
   title: "Build an automation",
   description: "Say what should happen and when. I draft the workflow for you to test and activate.",
   action: { kind: "automation", text: "" },
+}
+const onboardDevice: Suggestion = {
+  id: "onboarding",
+  title: "Onboard a device with the assistant",
+  description: "Describe the device; it works out how to connect it, from Sparkplug B to a vendor's webhooks or API.",
+  action: { kind: "onboarding" },
 }
 const askHelp: Suggestion = {
   id: "help",
@@ -98,6 +106,7 @@ export function assistantSuggestions({ pathname, slot, profile, deviceProfile, c
         break
       case "devices":
       case "discovery":
+        if (can.adapters && resource === "onboard") here.push(onboardDevice)
         if (can.profiles && resource && deviceProfile)
           here.push({
             id: "profile.device",
@@ -127,13 +136,14 @@ export function assistantSuggestions({ pathname, slot, profile, deviceProfile, c
         here.push(geofenceAlert)
         break
       case "device-adapters":
-        if (resource && resource !== "new" && can.adapters)
+        if (resource && resource !== "new" && resource !== "onboarding" && can.adapters)
           here.push({
             id: "adapter",
-            title: "Write this adapter's decoder with AI",
-            description: "Open the adapter's assistant to draft and test its decoding code.",
+            title: "Continue onboarding with the assistant",
+            description: "It reads the captured samples, drafts the decoder and settings, and says what is left.",
             action: { kind: "adapter" },
           })
+        else if (can.adapters && resource !== "onboarding") here.push(onboardDevice)
         break
     }
   // The universal tasks follow, minus any the page already offers in another form.

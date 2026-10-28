@@ -84,7 +84,7 @@ const isActive = (detail: AssistantDetail | null) =>
     (run) => run.status === "running" || run.status === "queued",
   ) ?? false
 
-function Questions({
+export function Questions({
   questions,
   busy,
   onAnswer,

@@ -166,3 +166,47 @@ export type AssistantAdminSettingsInput = {
   api_key?: string
 }
 export type AssistantConnectionTest = { ok: boolean; latency_ms: number | null; error: string | null }
+
+/** A device onboarding assistant proposal (spec 020): reuse or create an adapter, or change its draft. */
+export type OnboardingProposal = {
+  uuid: string
+  kind: "reuse" | "create" | "change"
+  name: string | null
+  artifact_uuid: string | null
+  code: string | null
+  source: Record<string, unknown> | null
+  fixtures: Record<string, unknown>[] | null
+  summary: string
+  evidence: { origin: string; source_id?: string; location?: string; note?: string }[]
+  content_hash: string
+  draft_revision: number | null
+  status: "pending" | "applied" | "rejected"
+  adapter_uuid: string | null
+  adapter_name: string | null
+  created_at: string | null
+}
+export type OnboardingState = {
+  questions?: AssistantQuestion[]
+  answers?: AssistantAnswer[]
+  path?: "direct" | "gateway" | "adapter" | null
+  source_type?: "platform" | "vendor" | "webhook" | "poll" | null
+  next_step?: { step: "credentials" | "secret" | "test" | "deploy" | "activate" | "cursor"; message: string; adapter_uuid: string; at: string } | null
+  last_fetch?: { adapter_uuid: string; status: number | null; record_count: number; next_cursor: string | null; error: string | null; at: string } | null
+}
+export type OnboardingConversation = {
+  id: string
+  title: string
+  scope: "onboarding"
+  adapter_uuid: string | null
+  profile_uuid: string | null
+  profile_name: string | null
+  updated_at: string
+}
+export type OnboardingDetail = OnboardingConversation & {
+  runs: AssistantRun[]
+  sources: AssistantSource[]
+  proposals: AssistantProposal[]
+  adapter_proposals: OnboardingProposal[]
+  onboarding_state: OnboardingState | null
+  cursor: number
+}
