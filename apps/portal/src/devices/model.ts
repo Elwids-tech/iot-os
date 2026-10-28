@@ -2,6 +2,7 @@ import type {
   Device,
   DeviceDetail,
   LocationBinding,
+  LocationBindingInput,
   Measurement,
   WorkflowAlert,
 } from "@iot-os/api-client"
@@ -232,6 +233,96 @@ export function locationParameters(
     latitude: latitude.uuid,
     longitude: longitude.uuid,
     accuracy: parameters.find((p) => keyEnds(p.key, ["accuracy"]))?.uuid ?? null,
+  }
+}
+
+type ProfileParameter = { uuid: string; key: string; data_type: string; unit: string | null }
+/** Parameters that can hold a coordinate or an accuracy: numbers only. */
+export const numericParameters = <T extends ProfileParameter>(parameters: T[]) =>
+  parameters.filter((p) => p.data_type === "number" || p.data_type === "integer")
+
+/** The location binding form; numbers stay text until saved. */
+export type LocationDraft = {
+  latitude: string
+  longitude: string
+  /** Empty saves no accuracy parameter. */
+  accuracy: string
+  max_age_seconds: string
+  max_future_skew_seconds: string
+  allow_unknown_accuracy: boolean
+}
+/**
+ * The saved binding while its coordinates are still in the applied profile,
+ * else the profile's guess, with the API's freshness defaults (90 s, 5 s).
+ */
+export function locationDraft(
+  binding: LocationBinding | null | undefined,
+  parameters: ProfileParameter[],
+): LocationDraft {
+  const numeric = numericParameters(parameters),
+    known = (uuid: string | null | undefined) => numeric.some((p) => p.uuid === uuid)
+  const saved =
+    binding && known(binding.latitude_parameter_uuid) && known(binding.longitude_parameter_uuid)
+      ? binding
+      : null
+  const where = locationParameters(saved, numeric)
+  return {
+    latitude: where?.latitude ?? "",
+    longitude: where?.longitude ?? "",
+    accuracy: where?.accuracy && known(where.accuracy) ? where.accuracy : "",
+    max_age_seconds: String(binding?.max_age_seconds ?? 90),
+    max_future_skew_seconds: String(binding?.max_future_skew_seconds ?? 5),
+    allow_unknown_accuracy: binding?.allow_unknown_accuracy ?? true,
+  }
+}
+
+export type LocationProblems = Partial<
+  Record<"latitude" | "longitude" | "accuracy" | "max_age_seconds" | "max_future_skew_seconds", string>
+>
+/**
+ * Why a draft can't be saved: the API's limits, and the units the runtime needs
+ * (coordinates in deg, accuracy in m), without which no position ever resolves.
+ */
+export function locationProblems(
+  draft: LocationDraft,
+  parameters: ProfileParameter[],
+): LocationProblems {
+  const unit = (uuid: string) => parameters.find((p) => p.uuid === uuid)?.unit
+  const problems: LocationProblems = {}
+  for (const field of ["latitude", "longitude"] as const) {
+    if (!draft[field]) problems[field] = `Choose the ${field} parameter.`
+    else if (unit(draft[field]) !== "deg")
+      problems[field] = "Maps need degrees. Set this parameter's unit to deg in its profile."
+  }
+  if (draft.latitude && draft.longitude === draft.latitude)
+    problems.longitude = "Choose a different parameter from latitude."
+  if (draft.accuracy && [draft.latitude, draft.longitude].includes(draft.accuracy))
+    problems.accuracy = "Choose a parameter that isn't a coordinate."
+  else if (draft.accuracy && unit(draft.accuracy) !== "m")
+    problems.accuracy = "Accuracy must be in metres. Set this parameter's unit to m in its profile."
+  const seconds = (value: string, min: number, max: number) =>
+    /^\d+$/.test(value.trim()) && Number(value) >= min && Number(value) <= max
+  if (!seconds(draft.max_age_seconds, 1, 86_400))
+    problems.max_age_seconds = "Enter whole seconds from 1 to 86,400."
+  if (!seconds(draft.max_future_skew_seconds, 0, 300))
+    problems.max_future_skew_seconds = "Enter whole seconds from 0 to 300."
+  return problems
+}
+
+export function locationBindingInput(
+  draft: LocationDraft,
+  configuration_uuid: string,
+  revision: number,
+): LocationBindingInput {
+  return {
+    revision,
+    configuration_uuid,
+    latitude_parameter_uuid: draft.latitude,
+    longitude_parameter_uuid: draft.longitude,
+    accuracy_parameter_uuid: draft.accuracy || null,
+    max_age_seconds: Number(draft.max_age_seconds),
+    max_future_skew_seconds: Number(draft.max_future_skew_seconds),
+    allow_unknown_accuracy: draft.allow_unknown_accuracy,
   }
 }
 

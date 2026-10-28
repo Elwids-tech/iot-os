@@ -74,7 +74,7 @@ keys.
 | `consumption` | Counter usage as bars | 1–4 counter sources of one unit, `bucket`, `period` |
 | `state_history` | Time in boolean or enum states | sources |
 | `color_history` | Reported colours as a timeline | sources |
-| `location` | GPS map: devices with location bindings, trails, optional geofence | `location_device_uuids`, `geofence_uuid`, `show_trails`, `show_labels`, `trail_window` (legacy: `workflow_uuid`) |
+| `location` | GPS map: devices with location bindings (the editor sets up missing ones), trails, optional geofence | `location_device_uuids`, `geofence_uuid`, `show_trails`, `show_labels`, `trail_window` (legacy: `workflow_uuid`) |
 | `alerts` | Active conditions and the latest ten episodes of a workflow | `workflow_uuid` |
 | `text` | Plain text (rendered as text, not HTML) | `text` up to 4000 characters |
 

@@ -161,6 +161,16 @@ A **location binding** says which applied configuration parameters are a device'
 latitude, longitude (unit `deg`) and optional accuracy (`m`), with freshness
 (`max_age_seconds`, default 90) and clock-skew limits (`max_future_skew_seconds`,
 default 5) and whether unknown accuracy is allowed (`PUT location-bindings/{device}`).
+Each save sends the binding's `revision` (0 for a new one); a stale revision gets 409.
+
+In the portal, the device **Overview → Location** card says whether the location is
+saved. When the applied profile has parameters whose keys end in latitude and
+longitude, **Save location** saves them with the defaults; **Edit**, or **Set up
+location** when only the `deg` units suggest coordinates, opens a sheet to choose the
+parameters and limits. The sheet refuses coordinates that aren't in `deg` and
+accuracy that isn't in `m`, because the runtime would never resolve a fix from them.
+The GPS map panel editor lists devices that report coordinates but have no saved
+location and sets them up in place. Both need device management.
 
 The runtime resolves one committed event at a time into a **location fix**
 ([`location.Resolve`](../../services/runtime/internal/location)):

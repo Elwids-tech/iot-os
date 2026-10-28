@@ -171,12 +171,15 @@ export function SaveBar({
   dirty,
   busy,
   disabled,
+  suggested,
   onCancel,
   label = "Save changes",
 }: {
   dirty: boolean
   busy: boolean
   disabled?: boolean
+  /** Saving is allowed without changes: the form holds suggested values that were never saved. */
+  suggested?: boolean
   onCancel: () => void
   label?: string
 }) {
@@ -193,7 +196,15 @@ export function SaveBar({
         role="status"
       >
         {saved && <CheckIcon className="size-3.5" aria-hidden="true" />}
-        {busy ? "Saving…" : dirty ? "Unsaved changes" : saved ? "Saved" : "No unsaved changes"}
+        {busy
+          ? "Saving…"
+          : dirty
+            ? "Unsaved changes"
+            : saved
+              ? "Saved"
+              : suggested
+                ? "Suggested values, not saved yet"
+                : "No unsaved changes"}
       </span>
       <div className="flex gap-2">
         <Button
@@ -204,7 +215,7 @@ export function SaveBar({
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={!dirty || busy || disabled}>
+        <Button type="submit" disabled={!(dirty || suggested) || busy || disabled}>
           {busy && <Loader2Icon data-icon="inline-start" className="animate-spin" aria-hidden="true" />}
           {busy ? "Saving…" : label}
         </Button>

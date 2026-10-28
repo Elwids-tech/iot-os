@@ -435,6 +435,65 @@ test("GPS panels use the full-page editor and long canvas drafts survive kiosk m
   expect(errors).toEqual([])
 })
 
+test("the GPS map editor sets up a location for a tracker that has none", async ({ page }) => {
+  const { dashboards, calls, errors } = await setup(page)
+  const trackerId = "77777777-7777-4777-8777-777777777777"
+  const parameters = [
+    { uuid: "30000000-0000-4000-8000-000000000001", key: "location.latitude", label: "Latitude", data_type: "number", unit: "deg" },
+    { uuid: "30000000-0000-4000-8000-000000000002", key: "location.longitude", label: "Longitude", data_type: "number", unit: "deg" },
+  ]
+  let bindings: Record<string, unknown>[] = []
+  const saved: Record<string, unknown>[] = []
+  await page.route("**/location-bindings", route => route.fulfill({ json: { data: bindings } }))
+  await page.route("**/location-bindings/*", route => {
+    const input = route.request().postDataJSON()
+    saved.push(input)
+    bindings = [{ ...input, uuid: "binding-1", revision: 1, device_uuid: trackerId, device_name: "Field tracker" }]
+    return route.fulfill({ json: { data: bindings[0] } })
+  })
+  await page.route("**/devices?**", route => route.fulfill({ json: {
+    data: [
+      { uuid: trackerId, name: "Field tracker", lifecycle: "active", profile: { uuid: "gps-profile", name: "GPS tracker", revision: 1 } },
+      { uuid: deviceId, name: "Boiler room", lifecycle: "active", profile: { uuid: "boiler-profile", name: "Boiler", revision: 1 } },
+    ],
+    meta: { current_page: 1, last_page: 1, total: 2 },
+  } }))
+  await page.route("**/device-profiles/*", route => route.fulfill({ json: { data: route.request().url().endsWith("/gps-profile")
+    ? { uuid: "gps-profile", parameters }
+    : { uuid: "boiler-profile", parameters: [{ uuid: parameterId, key: "temperature", data_type: "number", unit: "C" }] } } }))
+  await page.route(`**/devices/${trackerId}`, route => route.fulfill({ json: { data: {
+    uuid: trackerId,
+    name: "Field tracker",
+    applied_configuration_uuid: "gps-configuration",
+    last_applied_configuration_uuid: "gps-configuration",
+    configurations: [{ uuid: "gps-configuration", definition: { profile_canonical_json: JSON.stringify({ parameters }), mappings: [] } }],
+  } } }))
+  await page.route("**/geofences?**", route => route.fulfill({ json: { data: [] } }))
+  await page.route("**/location-map/query", route => route.fulfill({ json: { data: { devices: [], geofence: null, trail_window: "24h" } } }))
+  await page.goto(basePath + "/first")
+  await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
+  await page.getByRole("button", { name: "Add panel below", exact: true }).click()
+  await addOther(page, "GPS map")
+  await expect(page.getByText("This device reports coordinates but has no saved location.")).toBeVisible()
+  await expect(page.getByRole("listitem").filter({ hasText: "Boiler room" })).toHaveCount(0)
+  await page.getByRole("listitem").filter({ hasText: "Field tracker" }).getByRole("button", { name: "Set up location" }).click()
+  const sheet = page.getByRole("dialog", { name: "Set up location" })
+  await expect(sheet.getByRole("combobox", { name: "Longitude" })).toHaveText("Longitude · location.longitude (deg)")
+  await expect(sheet.getByText("Suggested values, not saved yet")).toBeVisible()
+  expect((await new AxeBuilder({ page }).include("[role=dialog]").analyze()).violations).toEqual([])
+  await sheet.getByRole("button", { name: "Save location" }).click()
+  await expect(sheet).toHaveCount(0)
+  expect(saved).toEqual([expect.objectContaining({ revision: 0, configuration_uuid: "gps-configuration", accuracy_parameter_uuid: null })])
+  await expect(page.getByText("This device reports coordinates but has no saved location.")).toHaveCount(0)
+  await expect(page.getByRole("combobox", { name: "GPS devices", exact: true })).toHaveText("1 selected")
+  // The dashboard's own draft survives the sheet: applying still adds the panel with the tracker.
+  await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
+  await page.getByRole("button", { name: "Save dashboard", exact: true }).click()
+  await expect.poll(() => calls.writes).toBe(1)
+  expect(dashboards[0].widgets.at(-1)!.config.location_device_uuids).toEqual([trackerId])
+  expect(errors).toEqual([])
+})
+
 test("multiple dashboards, explicit apply/save, and save before switching", async ({
   page,
 }, info) => {

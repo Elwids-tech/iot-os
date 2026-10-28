@@ -2022,6 +2022,9 @@ export class ApiClient {
   locationBindings(org: string) {
     return this.request<{ data: import("./geospatial").LocationBinding[] }>(`/api/v1/organizations/${encodeURIComponent(org)}/location-bindings`)
   }
+  saveLocationBinding(org: string, device: string, input: import("./geospatial").LocationBindingInput) {
+    return this.data<import("./geospatial").LocationBinding>(`/api/v1/organizations/${encodeURIComponent(org)}/location-bindings/${encodeURIComponent(device)}`, "PUT", input)
+  }
   locationMap(org: string, input: { device_uuids: string[]; trail_window: import("./geospatial").TrailWindow; include_trails: boolean; geofence_uuid?: string | null }, signal?: AbortSignal) {
     return this.data<import("./geospatial").LocationMapSnapshot>(`/api/v1/organizations/${encodeURIComponent(org)}/location-map/query`, "POST", input, signal)
   }
