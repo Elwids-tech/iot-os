@@ -1,0 +1,19 @@
+[
+  {
+    "sourceDeviceId": "TRK-1001",
+    "metrics": [
+      {"name": "latitude", "value": 51.0},
+      {"name": "longitude", "value": -114.0},
+      {"name": "battery_percent", "value": 87, "unit": "%"}
+    ],
+    "observedAt": "2026-10-27T09:11:58Z",
+    "messageId": "TRK-1001-7731"
+  },
+  {
+    "sourceDeviceId": "SNS-2001",
+    "metrics": [
+      {"name": "temperature_c", "value": 21.5, "unit": "degC"},
+      {"name": "moving", "value": false}
+    ]
+  }
+]

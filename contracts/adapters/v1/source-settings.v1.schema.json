@@ -1,0 +1,557 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/source-settings.v1.schema.json",
+  "title": "Adapter source settings",
+  "description": "The non-secret settings of an adapter's source, as stored in device_adapters.source and in each revision's definition.source. Producer: Laravel, SourceSettings::normalize (App\\Domain\\DeviceAdapters\\Services), which fills defaults and drops unknown input. Consumers: adapter-manager and the tenant runtime, which validate polling settings again before acting on them (services/adapters/lib/poll.cjs validateSettings), the receiver's routing (webhook auth) and the portal. Delivery: part of an adapter revision, carried by the deploy request; a deploy is idempotent per request_uuid. Deduplication: none; the revision uuid identifies the content. Secrets never appear: polling credentials, webhook secrets and vendor broker credentials are stored encrypted and sent beside the settings. `type` selects the settings: platform and vendor (MQTT topics), webhook (authentication) and poll (an HTTPS API polled on a schedule). Not expressible here: placeholders in query, header and body values are limited to {cursor}, {window_start}, {window_end}, {now} and {page_size}; header names the platform sets itself are refused; the body template must be JSON once placeholders are replaced; a literal non-public address in a polling URL is refused unless the operator allows private endpoints; a request URL uses https unless the operator allows private endpoints.",
+  "oneOf": [
+    {
+      "type": "object",
+      "description": "The platform's own broker.",
+      "properties": {
+        "type": {
+          "const": "platform"
+        },
+        "url": {
+          "type": "null"
+        },
+        "topics": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "A scoped topic filter. The reserved prefixes $, spBv1.0/ and iot-os/, a first level of + or #, wildcards that share a level with other characters, # before the last level and NUL are refused.",
+            "not": {
+              "pattern": "^(\\$|spBv1\\.0/|iot-os/|[#+](/|$))|(^|/)([^/]+[+#]|[+#][^/]+)|#/|\\x00"
+            }
+          }
+        }
+      },
+      "required": [
+        "type",
+        "url",
+        "topics"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "A vendor MQTT broker; its credentials are stored apart.",
+      "properties": {
+        "type": {
+          "const": "vendor"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^(mqtt|mqtts|ssl)://[^@/?#]+/?$",
+          "description": "The vendor broker, without user info, query or fragment."
+        },
+        "topics": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "A scoped topic filter. The reserved prefixes $, spBv1.0/ and iot-os/, a first level of + or #, wildcards that share a level with other characters, # before the last level and NUL are refused.",
+            "not": {
+              "pattern": "^(\\$|spBv1\\.0/|iot-os/|[#+](/|$))|(^|/)([^/]+[+#]|[+#][^/]+)|#/|\\x00"
+            }
+          }
+        }
+      },
+      "required": [
+        "type",
+        "url",
+        "topics"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "webhook"
+        },
+        "auth": {
+          "oneOf": [
+            {
+              "type": "object",
+              "description": "Vendor-style HMAC-SHA256 over the body.",
+              "properties": {
+                "mode": {
+                  "const": "hmac"
+                },
+                "signature_header": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z0-9!#$%&'*+.^_`|~-]+$"
+                },
+                "encoding": {
+                  "enum": [
+                    "hex",
+                    "base64"
+                  ]
+                },
+                "prefix": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1,
+                  "maxLength": 32,
+                  "pattern": "^[\\x21-\\x7e]+$",
+                  "description": "Text before the signature, for example sha256=."
+                },
+                "timestamp_header": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z0-9!#$%&'*+.^_`|~-]+$",
+                  "description": "When set the signed string is <timestamp>.<body> and the timestamp must be within 5 minutes."
+                }
+              },
+              "required": [
+                "mode",
+                "signature_header",
+                "encoding",
+                "prefix",
+                "timestamp_header"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "A secret in a request header.",
+              "properties": {
+                "mode": {
+                  "const": "header"
+                },
+                "header": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z0-9!#$%&'*+.^_`|~-]+$"
+                },
+                "scheme": {
+                  "enum": [
+                    "Bearer",
+                    null
+                  ],
+                  "description": "Bearer, or null when the header carries the raw secret."
+                }
+              },
+              "required": [
+                "mode",
+                "header",
+                "scheme"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "A secret as the first path segment after the ingest identifier.",
+              "properties": {
+                "mode": {
+                  "const": "url"
+                }
+              },
+              "required": [
+                "mode"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "auth"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "poll"
+        },
+        "request": {
+          "type": "object",
+          "description": "Values may use {cursor}, {window_start}, {window_end}, {now} and {page_size}. Header names the platform sets itself (authorization, cookie, host, proxy-authorization, forwarded, x-forwarded-for, x-forwarded-host, x-real-ip, content-length, transfer-encoding, connection) are refused.",
+          "properties": {
+            "method": {
+              "enum": [
+                "GET",
+                "POST"
+              ]
+            },
+            "url": {
+              "type": "string",
+              "maxLength": 2000,
+              "pattern": "^https?://[^{}#]+$",
+              "description": "https, or http only where the operator allows private endpoints. No placeholders, user info or fragment; literal non-public addresses are refused.",
+              "not": {
+                "pattern": "^https?://[^/?]*@"
+              }
+            },
+            "query": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "name",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "headers": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9!#$%&'*+.^_`|~-]+$"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "name",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "body": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 16384,
+              "description": "A JSON template for POST requests, null for GET."
+            }
+          },
+          "required": [
+            "method",
+            "url",
+            "query",
+            "headers",
+            "body"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "method": {
+                    "const": "GET"
+                  }
+                },
+                "required": [
+                  "method"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "body": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "credentials": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "placement": {
+                  "enum": [
+                    "header",
+                    "query"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "required": [
+                "placement",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "placement": {
+                  "enum": [
+                    "none",
+                    "bearer",
+                    "basic"
+                  ]
+                },
+                "name": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "placement",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "Where the secret goes. The secret itself is stored encrypted and never appears here."
+        },
+        "time_format": {
+          "enum": [
+            "iso",
+            "epoch_s",
+            "epoch_ms"
+          ],
+          "description": "How {now}, window bounds and generated cursors are written."
+        },
+        "interval_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "page": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "size_param": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "more": {
+              "enum": [
+                "full_page",
+                "token",
+                "none"
+              ]
+            },
+            "max_pages": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "size",
+            "size_param",
+            "more",
+            "max_pages"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "more": {
+                    "const": "full_page"
+                  }
+                },
+                "required": [
+                  "more"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "size": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "records": {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^(/.*)?$",
+          "description": "A JSON Pointer to the records array; empty for a top-level array."
+        },
+        "cursor": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "timestamp",
+                    "token"
+                  ]
+                },
+                "pointer": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500,
+                  "pattern": "^/",
+                  "description": "A JSON Pointer to the next cursor in the response."
+                },
+                "lag_seconds": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "kind",
+                "pointer",
+                "lag_seconds"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "window"
+                },
+                "pointer": {
+                  "type": "null"
+                },
+                "lag_seconds": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3600
+                }
+              },
+              "required": [
+                "kind",
+                "pointer",
+                "lag_seconds"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "initial_lookback_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 2592000
+        }
+      },
+      "required": [
+        "type",
+        "request",
+        "credentials",
+        "time_format",
+        "interval_seconds",
+        "page",
+        "records",
+        "cursor",
+        "initial_lookback_seconds"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "page": {
+                "properties": {
+                  "more": {
+                    "const": "full_page"
+                  }
+                },
+                "required": [
+                  "more"
+                ]
+              }
+            },
+            "required": [
+              "page"
+            ]
+          },
+          "then": {
+            "properties": {
+              "cursor": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "timestamp",
+                      "token"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "page": {
+                "properties": {
+                  "more": {
+                    "const": "token"
+                  }
+                },
+                "required": [
+                  "more"
+                ]
+              }
+            },
+            "required": [
+              "page"
+            ]
+          },
+          "then": {
+            "properties": {
+              "cursor": {
+                "properties": {
+                  "kind": {
+                    "const": "token"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

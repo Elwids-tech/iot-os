@@ -1,0 +1,207 @@
+[
+  {
+    "description": "a list of results",
+    "valid": true,
+    "data": [
+      {
+        "sourceDeviceId": "TRK-1001",
+        "metrics": [
+          {"name": "latitude", "value": 51.0},
+          {"name": "longitude", "value": -114.0},
+          {"name": "battery_percent", "value": 87, "unit": "%"}
+        ],
+        "observedAt": "2026-10-27T09:11:58Z",
+        "messageId": "TRK-1001-7731"
+      },
+      {
+        "sourceDeviceId": "SNS-2001",
+        "metrics": [
+          {"name": "temperature_c", "value": 21.5, "unit": "degC"},
+          {"name": "moving", "value": false}
+        ]
+      }
+    ]
+  },
+  {
+    "description": "one result",
+    "valid": true,
+    "data": {
+      "sourceDeviceId": "SNS-2001",
+      "metrics": [
+        {"name": "temperature_c", "value": 21.5, "unit": "degC"},
+        {"name": "moving", "value": false}
+      ]
+    }
+  },
+  {
+    "description": "a result without observedAt is receipt-timed",
+    "valid": true,
+    "data": {
+      "sourceDeviceId": "SNS-2001",
+      "metrics": [
+        {"name": "temperature_c", "value": 21.5}
+      ]
+    }
+  },
+  {
+    "description": "string and boolean values, and a unit the profile leaves empty",
+    "valid": true,
+    "data": {
+      "sourceDeviceId": "TRK-1001",
+      "metrics": [
+        {"name": "fix_status", "value": "locked", "unit": null},
+        {"name": "moving", "value": true}
+      ]
+    }
+  },
+  {
+    "description": "an empty list of results",
+    "valid": false,
+    "error": {"keyword": "minItems", "instance_location": ""},
+    "data": []
+  },
+  {
+    "description": "no metrics",
+    "valid": false,
+    "error": {"keyword": "minItems", "instance_location": "/metrics"},
+    "data": {
+      "sourceDeviceId": "SNS-2001",
+      "metrics": []
+    }
+  },
+  {
+    "description": "a result without sourceDeviceId",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": ""},
+    "data": {
+      "metrics": [
+        {"name": "temperature_c", "value": 21.5, "unit": "degC"},
+        {"name": "moving", "value": false}
+      ]
+    }
+  },
+  {
+    "description": "the second result of a list has no metrics",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": "/1"},
+    "data": [
+      {
+        "sourceDeviceId": "SNS-2001",
+        "metrics": [
+          {"name": "temperature_c", "value": 21.5, "unit": "degC"},
+          {"name": "moving", "value": false}
+        ]
+      },
+      {"sourceDeviceId": "TRK-1001"}
+    ]
+  },
+  {
+    "description": "a metric value of null",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/metrics/0/value"},
+    "data": {
+      "sourceDeviceId": "SNS-2001",
+      "metrics": [
+        {"name": "temperature_c", "value": null, "unit": "degC"},
+        {"name": "moving", "value": false}
+      ]
+    }
+  },
+  {
+    "description": "a metric value that is an object",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/metrics/0/value"},
+    "data": {
+      "sourceDeviceId": "SNS-2001",
+      "metrics": [
+        {
+          "name": "temperature_c",
+          "value": {"v": 1},
+          "unit": "degC"
+        },
+        {"name": "moving", "value": false}
+      ]
+    }
+  },
+  {
+    "description": "a sourceDeviceId of 129 characters",
+    "valid": false,
+    "error": {"keyword": "maxLength", "instance_location": "/sourceDeviceId"},
+    "data": {
+      "sourceDeviceId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+      "metrics": [
+        {"name": "temperature_c", "value": 21.5, "unit": "degC"},
+        {"name": "moving", "value": false}
+      ]
+    }
+  },
+  {
+    "description": "a blank sourceDeviceId",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/sourceDeviceId"},
+    "data": {
+      "sourceDeviceId": "   ",
+      "metrics": [
+        {"name": "temperature_c", "value": 21.5, "unit": "degC"},
+        {"name": "moving", "value": false}
+      ]
+    }
+  },
+  {
+    "description": "a messageId of 129 characters",
+    "valid": false,
+    "error": {"keyword": "maxLength", "instance_location": "/messageId"},
+    "data": {
+      "sourceDeviceId": "TRK-1001",
+      "metrics": [
+        {"name": "latitude", "value": 51.0},
+        {"name": "longitude", "value": -114.0},
+        {"name": "battery_percent", "value": 87, "unit": "%"}
+      ],
+      "observedAt": "2026-10-27T09:11:58Z",
+      "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+    }
+  },
+  {
+    "description": "a numeric messageId",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/messageId"},
+    "data": {
+      "sourceDeviceId": "TRK-1001",
+      "metrics": [
+        {"name": "latitude", "value": 51.0},
+        {"name": "longitude", "value": -114.0},
+        {"name": "battery_percent", "value": 87, "unit": "%"}
+      ],
+      "observedAt": "2026-10-27T09:11:58Z",
+      "messageId": 7731
+    }
+  },
+  {
+    "description": "a field added by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": ""},
+    "data": {
+      "sourceDeviceId": "SNS-2001",
+      "metrics": [
+        {"name": "temperature_c", "value": 21.5, "unit": "degC"},
+        {"name": "moving", "value": false}
+      ],
+      "site": "A1"
+    }
+  },
+  {
+    "description": "a field added to a metric by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": "/metrics/0"},
+    "data": {
+      "sourceDeviceId": "SNS-2001",
+      "metrics": [
+        {"name": "temperature_c", "value": 21.5, "unit": "degC", "quality": "good"},
+        {"name": "moving", "value": false}
+      ]
+    }
+  }
+]

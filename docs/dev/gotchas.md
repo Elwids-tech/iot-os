@@ -272,6 +272,34 @@ Things that have cost time before. Add to this list when something surprises you
   builds filled the Mac's disk until the Docker Desktop VM failed with
   `input/output error`.
 
+- **Re-provisioning a Mosquitto Dynamic Security client disconnects it.** The
+  `disableClient` / `modifyClient` / `enableClient` sequence the manager uses kicks a
+  connected client. The webhook receiver's identity was re-provisioned on every
+  secret change, so the first delivery after each one was answered `503`.
+  `manager.cjs` now provisions it only when the broker or password changes, and the
+  receiver waits up to 3 s for a reconnect before refusing (spec 020).
+- **MQTT 5 ends a session at disconnect unless it has an expiry.** With
+  `protocolVersion: 5`, `clean: false` alone keeps nothing; the webhook source sets
+  `sessionExpiryInterval` (7 days) so the tenant broker queues deliveries while the
+  runtime restarts. mqtt.js reports PUBACK reason 16 (no matching subscribers) as a
+  success; the receiver reads it from `packetreceive`.
+- **mqtt.js acknowledges after `handleMessage`.** Overriding
+  `client.handleMessage(packet, callback)` delays the PUBACK and the next packet until
+  the callback, which is how adapter sources apply backpressure instead of dropping.
+  Never call the callback of a client you have ended: a queued PUBACK can acknowledge
+  the wrong message on the next connection.
+- **Activating an adapter device triggers a rebirth from the old flow.** The runtime
+  asks the edge node to rebirth when the device's configuration activates; the flow
+  still running answers with metrics that carry no provenance, because the binding
+  arrives with the next deployment. The runtime now skips adapter readings with no
+  provenance instead of storing them as invalid. Deduplication keys are recorded only
+  for stored (bound) readings, so a cursor reset after activation backfills previews.
+- **Assistant tools get verbose search queries.** Models pass sentences such as "GPS
+  asset tracker location stream profile with fields lat lon" to search actions;
+  `OnboardingTools::find` matches any word and ranks by matches. Give each tool's
+  description the exact argument shapes, and keep results small: the per-reply
+  budget (`IOT_ASSISTANT_RUN_BUDGET_USD`, 0.04 by default) is spent on context.
+
 ## Browser tests and screenshots
 
 - **Playwright browser version.** If the headless shell pinned by

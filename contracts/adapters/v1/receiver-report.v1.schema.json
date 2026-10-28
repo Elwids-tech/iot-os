@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/receiver-report.v1.schema.json",
+  "title": "Webhook receiver report",
+  "description": "A batch of per-adapter delivery reports. Producer: the webhook receiver (services/adapters/receiver.cjs flush), every 10 seconds and on shutdown, to POST /api/internal/adapters/receiver-reports with the receiver's bearer token. Consumer: Laravel (WebhookController::reports, AdapterReports::receiver). Delivery: at least once. A failed report is merged into the next one under a new report_id, bounded to 1,000 queued entries, so an acknowledgement lost after Laravel applied a report can count it twice. Deduplication key: report_id with the entry's position in reports. At most 20 rejections and 20 samples per adapter per report. Outcome counts add to the adapter's hourly counts; secrets_used sets each secret's last_used_at to the later time; samples and rejections become 7-day delivery records. Read tolerantly by Laravel.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "receiver-report.v1"
+    },
+    "report_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "reports": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "adapter_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcomes": {
+            "type": "object",
+            "description": "Deliveries by outcome since the last report.",
+            "properties": {
+              "accepted": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "unauthenticated": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "stale_signature": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "too_large": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "rate_limited": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "paused": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "broker_unavailable": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "bad_request": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "secrets_used": {
+            "type": "object",
+            "description": "When each secret last authenticated a delivery, by secret uuid.",
+            "patternProperties": {
+              "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "additionalProperties": false
+          },
+          "rejections": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "description": "A refused delivery. The body is never kept.",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "reason": {
+                  "enum": [
+                    "unauthenticated",
+                    "stale_signature",
+                    "too_large",
+                    "rate_limited",
+                    "paused",
+                    "broker_unavailable",
+                    "bad_request"
+                  ]
+                },
+                "address": {
+                  "type": "string",
+                  "maxLength": 45,
+                  "description": "The client address as the receiver saw it behind the trusted proxies."
+                },
+                "path": {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1048577
+                },
+                "content_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 255
+                }
+              },
+              "required": [
+                "at",
+                "reason",
+                "address",
+                "path",
+                "size",
+                "content_type"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "samples": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "delivery_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "path": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "The sub path below the ingest URL, empty when none."
+                },
+                "query": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "array"
+                    ],
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "content_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 255
+                },
+                "headers": {
+                  "type": "object",
+                  "maxProperties": 32,
+                  "additionalProperties": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1048576,
+                  "description": "The body's size in bytes after decompression."
+                },
+                "body_base64": {
+                  "type": "string",
+                  "maxLength": 87384,
+                  "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+                  "description": "The first 64 KiB of the body."
+                }
+              },
+              "required": [
+                "at",
+                "delivery_id",
+                "path",
+                "query",
+                "content_type",
+                "headers",
+                "size",
+                "body_base64"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Deliveries kept while the adapter has no deployed revision."
+          }
+        },
+        "required": [
+          "adapter_uuid",
+          "outcomes",
+          "secrets_used",
+          "rejections",
+          "samples"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "report_id",
+    "reports"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,884 @@
+[
+  {
+    "description": "the platform's broker",
+    "valid": true,
+    "data": {
+      "type": "platform",
+      "url": null,
+      "topics": ["vendor/SNS-2001/#"]
+    }
+  },
+  {
+    "description": "a vendor MQTT broker",
+    "valid": true,
+    "data": {
+      "type": "vendor",
+      "url": "mqtts://broker.example.com:8883",
+      "topics": ["vendor/+/telemetry", "vendor/+/status"]
+    }
+  },
+  {
+    "description": "a webhook with HMAC signatures",
+    "valid": true,
+    "data": {
+      "type": "webhook",
+      "auth": {
+        "mode": "hmac",
+        "signature_header": "x-signature",
+        "encoding": "hex",
+        "prefix": "sha256=",
+        "timestamp_header": null
+      }
+    }
+  },
+  {
+    "description": "a webhook with a signed timestamp in base64",
+    "valid": true,
+    "data": {
+      "type": "webhook",
+      "auth": {
+        "mode": "hmac",
+        "signature_header": "x-signature",
+        "encoding": "base64",
+        "prefix": null,
+        "timestamp_header": "x-timestamp"
+      }
+    }
+  },
+  {
+    "description": "a webhook with a token header",
+    "valid": true,
+    "data": {
+      "type": "webhook",
+      "auth": {"mode": "header", "header": "authorization", "scheme": "Bearer"}
+    }
+  },
+  {
+    "description": "a webhook with the raw secret in a header",
+    "valid": true,
+    "data": {
+      "type": "webhook",
+      "auth": {"mode": "header", "header": "x-api-token", "scheme": null}
+    }
+  },
+  {
+    "description": "a webhook with the secret in the URL",
+    "valid": true,
+    "data": {
+      "type": "webhook",
+      "auth": {"mode": "url"}
+    }
+  },
+  {
+    "description": "a polling source",
+    "valid": true,
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a polling source paged by token",
+    "valid": true,
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "bearer", "name": null},
+      "time_format": "epoch_s",
+      "interval_seconds": 300,
+      "page": {"size": 200, "size_param": "page_size", "more": "token", "max_pages": 10},
+      "records": "/data",
+      "cursor": {"kind": "token", "pointer": "/next", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a POST polling source with a time window",
+    "valid": true,
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "POST",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [],
+        "headers": [
+          {"name": "X-Account", "value": "A1"}
+        ],
+        "body": "{\"from\": \"{window_start}\", \"to\": \"{window_end}\"}"
+      },
+      "credentials": {"placement": "none", "name": null},
+      "time_format": "epoch_ms",
+      "interval_seconds": 3600,
+      "page": {"size": null, "size_param": null, "more": "none", "max_pages": 1},
+      "records": "",
+      "cursor": {"kind": "window", "pointer": null, "lag_seconds": 120},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "no cursor",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": ""},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "no auth on a webhook",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": ""},
+    "data": {"type": "webhook"}
+  },
+  {
+    "description": "a vendor broker without a URL",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": ""},
+    "data": {
+      "type": "vendor",
+      "topics": ["vendor/#"]
+    }
+  },
+  {
+    "description": "a polling interval as a string",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/interval_seconds"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": "300",
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a polling interval above a day",
+    "valid": false,
+    "error": {"keyword": "maximum", "instance_location": "/interval_seconds"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 86401,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a polling interval under a minute",
+    "valid": false,
+    "error": {"keyword": "minimum", "instance_location": "/interval_seconds"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 30,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a lookback over 30 days",
+    "valid": false,
+    "error": {"keyword": "maximum", "instance_location": "/initial_lookback_seconds"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 2592001
+    }
+  },
+  {
+    "description": "more than 32 topic filters",
+    "valid": false,
+    "error": {"keyword": "maxItems", "instance_location": "/topics"},
+    "data": {
+      "type": "platform",
+      "url": null,
+      "topics": [
+        "vendor/0/telemetry",
+        "vendor/1/telemetry",
+        "vendor/2/telemetry",
+        "vendor/3/telemetry",
+        "vendor/4/telemetry",
+        "vendor/5/telemetry",
+        "vendor/6/telemetry",
+        "vendor/7/telemetry",
+        "vendor/8/telemetry",
+        "vendor/9/telemetry",
+        "vendor/10/telemetry",
+        "vendor/11/telemetry",
+        "vendor/12/telemetry",
+        "vendor/13/telemetry",
+        "vendor/14/telemetry",
+        "vendor/15/telemetry",
+        "vendor/16/telemetry",
+        "vendor/17/telemetry",
+        "vendor/18/telemetry",
+        "vendor/19/telemetry",
+        "vendor/20/telemetry",
+        "vendor/21/telemetry",
+        "vendor/22/telemetry",
+        "vendor/23/telemetry",
+        "vendor/24/telemetry",
+        "vendor/25/telemetry",
+        "vendor/26/telemetry",
+        "vendor/27/telemetry",
+        "vendor/28/telemetry",
+        "vendor/29/telemetry",
+        "vendor/30/telemetry",
+        "vendor/31/telemetry",
+        "vendor/32/telemetry"
+      ]
+    }
+  },
+  {
+    "description": "no topic filter",
+    "valid": false,
+    "error": {"keyword": "minItems", "instance_location": "/topics"},
+    "data": {
+      "type": "platform",
+      "url": null,
+      "topics": []
+    }
+  },
+  {
+    "description": "a topic under the reserved prefix",
+    "valid": false,
+    "error": {"keyword": "not", "instance_location": "/topics/0"},
+    "data": {
+      "type": "platform",
+      "url": null,
+      "topics": ["iot-os/webhook/x"]
+    }
+  },
+  {
+    "description": "a topic that subscribes to everything",
+    "valid": false,
+    "error": {"keyword": "not", "instance_location": "/topics/0"},
+    "data": {
+      "type": "platform",
+      "url": null,
+      "topics": ["#"]
+    }
+  },
+  {
+    "description": "a wildcard sharing a level",
+    "valid": false,
+    "error": {"keyword": "not", "instance_location": "/topics/0"},
+    "data": {
+      "type": "platform",
+      "url": null,
+      "topics": ["vendor/dev+/data"]
+    }
+  },
+  {
+    "description": "a vendor URL with credentials",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/url"},
+    "data": {
+      "type": "vendor",
+      "url": "mqtts://user:pass@broker.example.com:8883",
+      "topics": ["vendor/+/telemetry", "vendor/+/status"]
+    }
+  },
+  {
+    "description": "an unknown source type",
+    "valid": false,
+    "error": {"keyword": "const", "instance_location": "/type"},
+    "data": {"type": "carrier-pigeon"}
+  },
+  {
+    "description": "an unknown webhook mode",
+    "valid": false,
+    "error": {"keyword": "const", "instance_location": "/auth/mode"},
+    "data": {
+      "type": "webhook",
+      "auth": {"mode": "basic"}
+    }
+  },
+  {
+    "description": "an HMAC webhook without a signature header",
+    "valid": false,
+    "error": {"keyword": "required", "instance_location": "/auth"},
+    "data": {
+      "type": "webhook",
+      "auth": {"mode": "hmac", "encoding": "hex", "prefix": "sha256=", "timestamp_header": null}
+    }
+  },
+  {
+    "description": "a webhook header scheme other than Bearer",
+    "valid": false,
+    "error": {"keyword": "enum", "instance_location": "/auth/scheme"},
+    "data": {
+      "type": "webhook",
+      "auth": {"mode": "header", "header": "authorization", "scheme": "Basic"}
+    }
+  },
+  {
+    "description": "a signature header with a space",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/auth/signature_header"},
+    "data": {
+      "type": "webhook",
+      "auth": {
+        "mode": "hmac",
+        "signature_header": "x signature",
+        "encoding": "hex",
+        "prefix": "sha256=",
+        "timestamp_header": null
+      }
+    }
+  },
+  {
+    "description": "a placeholder in the URL",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/request/url"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/{cursor}",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a URL with credentials",
+    "valid": false,
+    "error": {"keyword": "not", "instance_location": "/request/url"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://user:pass@api.example.com/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a URL that is not HTTP",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/request/url"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "ftp://api.example.com/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a GET request method in lower case",
+    "valid": false,
+    "error": {"keyword": "enum", "instance_location": "/request/method"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "get",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a GET request with a body",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/request/body"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": "{\"a\": 1}"
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a header name with a space",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/request/headers/0/name"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [
+          {"name": "X Account", "value": "A1"}
+        ],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "more than 20 query parameters",
+    "valid": false,
+    "error": {"keyword": "maxItems", "instance_location": "/request/query"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "p0", "value": "1"},
+          {"name": "p1", "value": "1"},
+          {"name": "p2", "value": "1"},
+          {"name": "p3", "value": "1"},
+          {"name": "p4", "value": "1"},
+          {"name": "p5", "value": "1"},
+          {"name": "p6", "value": "1"},
+          {"name": "p7", "value": "1"},
+          {"name": "p8", "value": "1"},
+          {"name": "p9", "value": "1"},
+          {"name": "p10", "value": "1"},
+          {"name": "p11", "value": "1"},
+          {"name": "p12", "value": "1"},
+          {"name": "p13", "value": "1"},
+          {"name": "p14", "value": "1"},
+          {"name": "p15", "value": "1"},
+          {"name": "p16", "value": "1"},
+          {"name": "p17", "value": "1"},
+          {"name": "p18", "value": "1"},
+          {"name": "p19", "value": "1"},
+          {"name": "p20", "value": "1"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a header credential without a name",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/credentials/name"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": null},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "an unknown credential placement",
+    "valid": false,
+    "error": {"keyword": "enum", "instance_location": "/credentials/placement"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "cookie", "name": "sid"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "paging by full page without a page size",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/page/size"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": null, "size_param": null, "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a page size above 5000",
+    "valid": false,
+    "error": {"keyword": "maximum", "instance_location": "/page/size"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 5001, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a time window cursor with full-page paging",
+    "valid": false,
+    "error": {"keyword": "enum", "instance_location": "/cursor/kind"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "window", "pointer": null, "lag_seconds": 0},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "paging by token with a timestamp cursor",
+    "valid": false,
+    "error": {"keyword": "const", "instance_location": "/cursor/kind"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "token", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a timestamp cursor without a pointer",
+    "valid": false,
+    "error": {"keyword": "type", "instance_location": "/cursor/pointer"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": null, "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a records pointer that does not start with /",
+    "valid": false,
+    "error": {"keyword": "pattern", "instance_location": "/records"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a field added by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": ""},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600,
+      "timeout_seconds": 30
+    }
+  },
+  {
+    "description": "a field added to the request by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": "/request"},
+    "data": {
+      "type": "poll",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/accounts/A1/streams/history",
+        "query": [
+          {"name": "start", "value": "{cursor}"},
+          {"name": "end", "value": "{now}"}
+        ],
+        "headers": [],
+        "body": null,
+        "retries": 3
+      },
+      "credentials": {"placement": "header", "name": "x-api-key"},
+      "time_format": "iso",
+      "interval_seconds": 300,
+      "page": {"size": 500, "size_param": "limit", "more": "full_page", "max_pages": 20},
+      "records": "/data",
+      "cursor": {"kind": "timestamp", "pointer": "/maxDate", "lag_seconds": null},
+      "initial_lookback_seconds": 3600
+    }
+  },
+  {
+    "description": "a field added to webhook auth by a newer producer",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {"keyword": "additionalProperties", "instance_location": "/auth"},
+    "data": {
+      "type": "webhook",
+      "auth": {"mode": "url", "allow_get": true}
+    }
+  }
+]

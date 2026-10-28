@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/decoder-input.v1.schema.json",
+  "title": "Decoder input",
+  "description": "One input to an adapter's decoder: the argument of decode(input). Producer: the adapter runtime (inputFromMessage in services/adapters/lib/decoder.cjs) from an MQTT packet, a webhook delivery handed off by the receiver, or one record of a polled page. Consumer: the adapter's JavaScript decoder in its sandbox, and the portal's decoder test, which builds the same input from a fixture. Delivery: at least once. An MQTT or webhook input is acknowledged only after its results are published, deduplicated or recorded as failed, so the source redelivers after a restart; a polled page's cursor moves only after every record is settled. Deduplication key: none on the input; the decoder's messageId per adapter and source device deduplicates the results for 7 days (decoder-output.v1). Field names are camelCase because this is the JavaScript decoder API, not a platform message. The wire has no schema_version: the input is an existing format, and spec 020 added `source`, `http` and `poll` additively (contracts/README.md). Not expressible here: the input is at most 8 MiB as JSON, and the decoder source at most 64,000 characters.",
+  "type": "object",
+  "properties": {
+    "payload": {
+      "description": "The body parsed as JSON: any JSON value, or null when the body is not JSON."
+    },
+    "bytes": {
+      "type": "array",
+      "description": "The raw body, at most 1 MiB.",
+      "maxItems": 1048576,
+      "items": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 255
+      }
+    },
+    "payloadBase64": {
+      "type": "string",
+      "description": "The raw body, base64.",
+      "maxLength": 1398104,
+      "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+    },
+    "topic": {
+      "type": "string",
+      "description": "MQTT: the packet's topic. Webhook: the sub path below the ingest URL, empty when none. Poll: empty.",
+      "maxLength": 65535
+    },
+    "receivedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "MQTT and webhook: when the platform received it. Poll: when the page arrived."
+    },
+    "retained": {
+      "type": "boolean"
+    },
+    "qos": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "Webhook deliveries are handed off at 1."
+    },
+    "source": {
+      "enum": [
+        "mqtt",
+        "webhook",
+        "poll"
+      ]
+    },
+    "http": {
+      "$ref": "#/$defs/http"
+    },
+    "poll": {
+      "$ref": "#/$defs/poll"
+    }
+  },
+  "required": [
+    "payload",
+    "bytes",
+    "payloadBase64",
+    "topic",
+    "receivedAt",
+    "retained",
+    "qos",
+    "source"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "source": {
+            "const": "webhook"
+          }
+        },
+        "required": [
+          "source"
+        ]
+      },
+      "then": {
+        "required": [
+          "http"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "http"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "source": {
+            "const": "poll"
+          }
+        },
+        "required": [
+          "source"
+        ]
+      },
+      "then": {
+        "required": [
+          "poll"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "poll"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "http": {
+      "type": "object",
+      "description": "The webhook delivery: always present for source webhook, absent otherwise.",
+      "properties": {
+        "method": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 16384,
+          "description": "The path below the ingest URL with the URL token removed; empty when there is none."
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters; a repeated name has an array of values.",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "contentType": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 255
+        },
+        "headers": {
+          "type": "object",
+          "description": "Lower-case header names, without the authentication and signature headers, authorization, cookie, forwarded, x-forwarded-* and x-real-ip.",
+          "maxProperties": 32,
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "deliveryId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "method",
+        "path",
+        "query",
+        "contentType",
+        "headers",
+        "deliveryId"
+      ],
+      "additionalProperties": false
+    },
+    "poll": {
+      "type": "object",
+      "description": "The polled record's position: always present for source poll, absent otherwise.",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4999,
+          "description": "Position of the record in its page."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "Records in the page."
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The cursor the page was requested with; null before the first one."
+        }
+      },
+      "required": [
+        "page",
+        "index",
+        "count",
+        "cursor"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

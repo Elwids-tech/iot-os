@@ -53,7 +53,7 @@ values keep the saved ones, as for vendor brokers.
 
 Each fixture: `topic?`, `payload?` or `payload_base64?`, `expect_error?`, `expected?`,
 and new optional `source` (`mqtt`, `webhook`, `poll`), `received_at`, `http`
-`{method, path, query, content_type, headers}` and `poll`
+`{method, path, query, contentType, headers, deliveryId}` (the decoder's own field names) and `poll`
 `{page, index, count, cursor}`. A draft may have no fixtures; testing needs 1–10.
 
 ## New and changed tables

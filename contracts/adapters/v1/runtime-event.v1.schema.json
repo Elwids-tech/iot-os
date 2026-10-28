@@ -1,0 +1,498 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/runtime-event.v1.schema.json",
+  "title": "Tenant runtime event",
+  "description": "A callback from an adapter's tenant runtime. Producer: the Reporter node of the tenant runtime (services/adapters/nodes/adapter.js), to POST /api/internal/adapters/events with the tenant runtime token and an X-Adapter-Tenant header. Consumer: Laravel (AdapterController::event). `kind` selects the event. Delivery: poll_run and outcomes are kept and retried until Laravel accepts them (at most 100 queued); sample, health, diagnostic and failure are best effort, and failure is throttled to one per 2 seconds per adapter. Deduplication keys: poll_run by run_id (an upsert), failure by report_id, outcomes by report_id; sample replaces the candidate of its source_device_id and health keeps the latest values. Fencing: an event whose revision_uuid is neither the applied nor the desired revision is dropped with 204. Read tolerantly by Laravel.",
+  "oneOf": [
+    {
+      "type": "object",
+      "description": "A decoded device seen by the adapter: it becomes or refreshes a discovered device.",
+      "properties": {
+        "kind": {
+          "const": "sample"
+        },
+        "adapter_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "source_device_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sparkplug_device_id": {
+          "type": "string",
+          "pattern": "^src-[0-9a-f]{32}$",
+          "description": "src- and the first 32 hex characters of the SHA-256 of source_device_id; Laravel refuses any other value."
+        },
+        "preview": {
+          "type": "object",
+          "description": "A validated decoder result: decoder-output.v1 plus the profile's datatype, parameter_uuid and unit for each metric.",
+          "properties": {
+            "sourceDeviceId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "metrics": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2000,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "value": {
+                    "type": [
+                      "number",
+                      "integer",
+                      "boolean",
+                      "string"
+                    ],
+                    "maxLength": 16384
+                  },
+                  "datatype": {
+                    "enum": [
+                      "Double",
+                      "Int64",
+                      "Boolean",
+                      "String"
+                    ]
+                  },
+                  "parameter_uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "unit": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "value",
+                  "datatype",
+                  "parameter_uuid",
+                  "unit"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "observedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "messageId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "sourceDeviceId",
+            "metrics"
+          ],
+          "additionalProperties": false
+        },
+        "retained": {
+          "type": "boolean"
+        },
+        "received_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "kind",
+        "adapter_uuid",
+        "source_device_id",
+        "sparkplug_device_id",
+        "preview",
+        "retained",
+        "received_at"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "Connection state. The source sends source_connected (and source_state for polling), the publisher upstream_connected.",
+      "properties": {
+        "kind": {
+          "const": "health"
+        },
+        "adapter_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "source_connected": {
+          "type": "boolean"
+        },
+        "upstream_connected": {
+          "type": "boolean"
+        },
+        "source_state": {
+          "enum": [
+            "polling",
+            "retrying",
+            "stopped"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "adapter_uuid"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "source_connected"
+          ]
+        },
+        {
+          "required": [
+            "upstream_connected"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "diagnostic"
+        },
+        "adapter_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "kind",
+        "adapter_uuid",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "One polling run; it updates the adapter's polling state.",
+      "properties": {
+        "kind": {
+          "const": "poll_run"
+        },
+        "adapter_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "outcome": {
+          "enum": [
+            "ok",
+            "empty",
+            "partial",
+            "retrying",
+            "stopped"
+          ]
+        },
+        "http_status": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 100,
+          "maximum": 599
+        },
+        "pages": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "records": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "published": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duplicates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cursor_before": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "cursor_after": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "committed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        },
+        "state": {
+          "enum": [
+            "polling",
+            "retrying",
+            "stopped"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300,
+          "description": "Why polling stopped, when it did."
+        },
+        "next_attempt_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "kind",
+        "adapter_uuid",
+        "run_id",
+        "started_at",
+        "finished_at",
+        "outcome",
+        "pages",
+        "records",
+        "published",
+        "failed",
+        "duplicates",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "An input that failed decoding or validation, kept 7 days as a failed delivery.",
+      "properties": {
+        "kind": {
+          "const": "failure"
+        },
+        "adapter_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "report_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "source": {
+          "enum": [
+            "mqtt",
+            "webhook",
+            "poll"
+          ]
+        },
+        "received_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reason": {
+          "enum": [
+            "decode_failed",
+            "validation_failed"
+          ]
+        },
+        "error": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "input": {
+          "type": "object",
+          "description": "The failed input in the shape of a test fixture, so a person can turn it into a sample.",
+          "properties": {
+            "topic": {
+              "type": "string",
+              "maxLength": 65535
+            },
+            "payload_base64": {
+              "type": "string",
+              "maxLength": 21848,
+              "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+              "description": "At most the first 16 KiB of the input body."
+            },
+            "truncated": {
+              "const": true
+            },
+            "source": {
+              "enum": [
+                "mqtt",
+                "webhook",
+                "poll"
+              ]
+            },
+            "received_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "http": {
+              "$ref": "https://iot-os.local/contracts/adapters/v1/decoder-input.v1.schema.json#/$defs/http"
+            },
+            "poll": {
+              "$ref": "https://iot-os.local/contracts/adapters/v1/decoder-input.v1.schema.json#/$defs/poll"
+            }
+          },
+          "required": [
+            "topic",
+            "payload_base64",
+            "source",
+            "received_at"
+          ],
+          "additionalProperties": false
+        },
+        "delivery_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "kind",
+        "adapter_uuid",
+        "report_id",
+        "source",
+        "received_at",
+        "reason",
+        "error",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "Decoder and publisher outcome counts since the last report, added to the hour's counts.",
+      "properties": {
+        "kind": {
+          "const": "outcomes"
+        },
+        "adapter_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "report_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "bucket": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:00:00\\.000Z$",
+          "description": "The start of the UTC hour the counts belong to."
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "decoded": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "decode_failed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "validation_failed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "duplicate": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "historical": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "adapter_uuid",
+        "report_id",
+        "bucket",
+        "counts"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}
