@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Http\Controllers;
 
+use App\Domain\DeviceAdapters\Models\AdapterCandidate;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugConnection;
@@ -81,7 +82,11 @@ final class DiscoveryController
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
 
-        return $this->directory($request, DiscoveryCandidate::where('organization_id', $organization->id)->with(['gateway' => fn ($q) => $q->withCount('candidates'), 'gateway.connection', 'assignedDevice'])->orderBy('id'), fn ($c) => DeviceView::candidate($c), ['source_device_id'], true);
+        // An adapter's publisher is not a device itself, so its node-level source is left out.
+        $query = DiscoveryCandidate::where('organization_id', $organization->id)
+            ->where(fn ($q) => $q->where('source_device_id', '!=', '')->orWhereDoesntHave('gateway.connection', fn ($c) => $c->where('group_id', 'like', 'adapters-%')));
+
+        return $this->directory($request, $query->with(['gateway' => fn ($q) => $q->withCount('candidates'), 'gateway.connection', 'assignedDevice'])->orderBy('id'), fn ($c) => DeviceView::candidate($c), ['source_device_id'], true);
     }
 
     public function provisionGateway(Request $request, Organization $organization, SparkplugGateway $gateway): array
@@ -113,6 +118,8 @@ final class DiscoveryController
                 }
                 if ($candidates) {
                     $query->orWhereHas('gateway', fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', [$needle])->orWhereRaw('LOWER(edge_node_id) LIKE ?', [$needle]));
+                    // Adapter sources are found by the manufacturer serial people know.
+                    $query->orWhereIn('source_device_id', AdapterCandidate::whereRaw('LOWER(source_device_id) LIKE ?', [$needle])->select('sparkplug_device_id'));
                 }
             });
         }

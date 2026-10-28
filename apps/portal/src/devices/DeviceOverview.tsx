@@ -503,7 +503,9 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
         <Detail label="Source">
           {device.candidate ? (
             <span className="font-mono">
-              {device.candidate.source_device_id || "Gateway measurements"}
+              {device.candidate.adapter?.serial ||
+                device.candidate.source_device_id ||
+                "Gateway measurements"}
             </span>
           ) : (
             <span className="text-muted-foreground">Not assigned</span>

@@ -201,6 +201,23 @@ final class DeviceAdapterTest extends TestCase
         Queue::assertPushed(DeployAdapter::class);
     }
 
+    public function test_adapter_sources_go_by_serial_and_only_activate_through_the_adapter(): void
+    {
+        [$a, $adapter, $candidate] = $this->liveCandidate();
+        DiscoveryCandidate::create(['organization_id' => $this->organization->id, 'sparkplug_gateway_id' => $adapter->sparkplug_gateway_id, 'source_device_id' => '', 'birth_revision' => 1, 'metrics' => []]);
+        // The adapter's own node is not a device, and its sources are found by serial.
+        $sources = $this->getJson($this->prefix.'/discovery-candidates?search=wm-1042')->assertOk()->json('data');
+        $this->assertCount(1, $sources);
+        $this->assertSame(['uuid' => $a['uuid'], 'name' => 'Manufacturer water meter', 'candidate_uuid' => $candidate->uuid, 'serial' => 'WM-1042'], $sources[0]['adapter']);
+        $this->assertNotContains('', array_column($this->getJson($this->prefix.'/discovery-candidates')->json('data'), 'source_device_id'));
+        // Mapping it by hand would lose the adapter installation, so only activation uses it.
+        $device = $this->postJson($this->prefix.'/devices', ['name' => 'Hand mapped', 'code' => 'hand-mapped'])->assertCreated()->json('data');
+        $this->putJson($this->prefix.'/devices/'.$device['uuid'].'/configuration', ['draft_revision' => $device['draft_revision'], 'artifact_uuid' => $this->artifact, 'candidate_uuid' => $sources[0]['uuid'], 'birth_revision' => 1, 'mappings' => []])
+            ->assertUnprocessable()->assertJsonPath('message', 'This source comes through the adapter "Manufacturer water meter". Activate it from the adapter, which sets the device up in one step.');
+        $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/activate', ['name' => 'WM-1042'])->assertAccepted();
+        $this->getJson($this->prefix.'/discovery-candidates/'.$sources[0]['uuid'])->assertOk()->assertJsonPath('data.adapter.serial', 'WM-1042');
+    }
+
     public function test_an_unused_adapter_is_deleted_with_its_runtime_and_gateway(): void
     {
         [$a, $adapter] = $this->liveCandidate();

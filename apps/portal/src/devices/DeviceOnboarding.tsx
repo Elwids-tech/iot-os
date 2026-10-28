@@ -1118,10 +1118,10 @@ function WaitingSources({
                   <Button
                     size="xs"
                     disabled={!canManage}
-                    aria-label={`Add ${sourceLabel(c)} as a device`}
+                    aria-label={c.adapter ? `Activate ${sourceLabel(c)}` : `Add ${sourceLabel(c)} as a device`}
                     onClick={() => onSelect(c)}
                   >
-                    Add as device
+                    {c.adapter ? "Activate" : "Add as device"}
                   </Button>
                 </TableCell>
               </TableRow>

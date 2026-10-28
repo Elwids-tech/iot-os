@@ -589,11 +589,11 @@ test("hardware kit download and discovered serial activation stay in the tenant 
     page.getByText("test-only-password", { exact: true }),
   ).toHaveCount(0);
   await page.getByRole("tab", { name: "5 · Devices" }).click();
-  await page.getByRole("button", { name: "Review & activate" }).click();
-  await page
-    .getByLabel("Device name", { exact: true })
-    .fill("Workshop water meter");
-  await page.getByRole("button", { name: "Activate & start storing" }).click();
+  await page.getByRole("button", { name: "Activate", exact: true }).click();
+  const activate = page.getByRole("dialog", { name: "Activate WM-1042" });
+  await expect(activate.getByLabel("Device name", { exact: true })).toHaveValue("WM-1042");
+  await activate.getByLabel("Device name", { exact: true }).fill("Workshop water meter");
+  await activate.getByRole("button", { name: "Activate", exact: true }).click();
   await expect(
     page.getByRole("link", { name: "Workshop water meter", exact: true }),
   ).toHaveAttribute("href", `/organizations/${org}/devices/${device}/overview`);
@@ -604,12 +604,46 @@ test("hardware kit download and discovered serial activation stay in the tenant 
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
+test("Discovery shows an adapter's source by serial and activates it in one step", async ({ page }) => {
+  const { errors, requests } = await setup(page);
+  const source = {
+    uuid: "50000000-0000-4000-8000-000000000001",
+    source_device_id: "src-4f2a9c",
+    status: "pending",
+    presence: "online",
+    session_id: "s-1",
+    birth_revision: 1,
+    metrics: [{ name: "flow_rate", datatype: "Double", value: 12 }],
+    last_seen_at: new Date().toISOString(),
+    assigned_device_uuid: null,
+    setup_device_uuid: null,
+    gateway: { uuid: "60000000-0000-4000-8000-000000000001", name: "Manufacturer water meter", edge_node_id: `adapter-${id}`, presence: "online", last_seen_at: null, connection_uuid: "c", group_id: "adapters-acme", sources_count: 1 },
+    adapter: { uuid: id, name: "Manufacturer water meter", candidate_uuid: candidate, serial: "WM-1042" },
+  };
+  await page.route("**/discovery-candidates**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: [source], meta: { current_page: 1, last_page: 1, total: 1 } }),
+    }),
+  );
+  await page.goto(`/organizations/${org}/discovery`);
+  const row = page.getByRole("row", { name: /WM-1042/ });
+  await expect(row).not.toContainText("src-4f2a9c");
+  await row.getByRole("button", { name: "Activate", exact: true }).click();
+  const activate = page.getByRole("dialog", { name: "Activate WM-1042" });
+  await expect(activate).toContainText("Manufacturer water meter decodes this device");
+  await activate.getByRole("button", { name: "Activate", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/organizations/${org}/devices/${device}`));
+  expect(requests.find((r) => r.path.endsWith(`/candidates/${candidate}/activate`))?.body).toEqual({ name: "WM-1042" });
+  expect(errors).toEqual([]);
+});
+
 test("retained samples cannot activate physical devices", async ({ page }) => {
   const { requests } = await setup(page, true);
   await page.goto(base + "/" + id);
   await page.getByRole("tab", { name: "5 · Devices" }).click();
   await expect(
-    page.getByRole("button", { name: "Review & activate" }),
+    page.getByRole("button", { name: "Activate", exact: true }),
   ).toBeDisabled();
   expect(requests.some((r) => r.path.endsWith("/activate"))).toBe(false);
 });

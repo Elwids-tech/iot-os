@@ -15,14 +15,22 @@ import { FieldGroup } from "@iot-os/ui/components/field"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
+import { ActivateAdapterDevice } from "../adapters/ActivateDevice"
 import { RegisterDevice } from "./DeviceDirectory"
 import { devicePath } from "./shared"
 
-/** A source is a Device ID on a gateway; empty means the gateway's own measurements. */
+/**
+ * A source is a Device ID on a gateway; empty means the gateway's own measurements.
+ * A device adapter's source goes by the manufacturer serial it decoded.
+ */
 export const sourceLabel = (c: DiscoveryCandidate) =>
-  c.source_device_id || `Measurements from ${c.gateway.name}`
+  c.adapter?.serial || c.source_device_id || `Measurements from ${c.gateway.name}`
 
-/** Attach a discovered source to a registered device without configuration, or register a new one. */
+/**
+ * Attach a discovered source to a registered device without configuration, or register
+ * a new one. A device adapter's source is activated through the adapter in one step
+ * instead, so its readings stay tied to it and need no manual mapping.
+ */
 export function OnboardSource({
   org,
   source,
@@ -40,7 +48,19 @@ export function OnboardSource({
   const devices = useQuery({
     queryKey: ["devices-attach", org, search, page],
     queryFn: () => api.devices(org, { search, page }),
+    enabled: !source.adapter,
   })
+  if (source.adapter?.candidate_uuid)
+    return (
+      <ActivateAdapterDevice
+        org={org}
+        adapter={source.adapter}
+        candidate={source.adapter.candidate_uuid}
+        serial={sourceLabel(source)}
+        onClose={onClose}
+        onActivated={(device) => navigate(devicePath(org, device.uuid))}
+      />
+    )
   if (create)
     return <RegisterDevice org={org} candidate={source.uuid} onClose={onClose} />
   return (

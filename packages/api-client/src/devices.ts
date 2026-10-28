@@ -52,6 +52,8 @@ export type DiscoveryCandidate = {
   metrics: SparkplugMetric[]
   last_seen_at: string | null
   gateway: Gateway
+  /** Set when a device adapter's gateway reported the source: activate it there by its serial. */
+  adapter?: { uuid: string; name: string; candidate_uuid: string | null; serial: string | null } | null
 }
 export type DeviceMapping = {
   conversion_mode?: "profile" | "custom" | "none"

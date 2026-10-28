@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  AdapterCandidate,
   AssistantAnswer,
   AssistantProposal,
   DeviceAdapter,
@@ -65,6 +66,7 @@ import { Confirm, RequestError } from "../components/forms";
 import { Questions } from "../assistant/AssistantPanel";
 import { ProposalReview } from "../assistant/ProposalReview";
 import { conversationCost, formatCost } from "../assistant/cost";
+import { ActivateAdapterDevice } from "./ActivateDevice";
 
 export type OnboardingStep = NonNullable<OnboardingState["next_step"]>["step"];
 
@@ -193,6 +195,17 @@ export default function OnboardingAssistantBody({
     enabled: !!(boundAdapter ?? adapterUuid),
   });
   const adapter: DeviceAdapter | undefined = adapterQuery.data;
+  // Serials the running adapter decoded that no device owns yet: activated right here,
+  // for the conversation's adapter or, before there is one, the adapter page open.
+  const subject = boundAdapter ?? adapterUuid ?? null;
+  const candidates = useQuery({
+    queryKey: ["adapter-candidates", org, subject],
+    queryFn: () => api.adapterCandidates(org, subject!),
+    enabled: !!subject && adapter?.status === "running",
+    refetchInterval: 5000,
+  });
+  const waiting = (candidates.data ?? []).filter((c) => !c.device && !c.preview.retained);
+  const [activating, setActivating] = useState<AdapterCandidate | null>(null);
 
   // "Onboard a device" starts a new conversation; other hand-offs only open the panel here.
   useEffect(() => {
@@ -529,7 +542,38 @@ export default function OnboardingAssistantBody({
           />
         ),
       });
-  if (nextStep)
+  if (waiting.length && subject)
+    items.push({
+      id: "activate-" + waiting.map((c) => c.uuid).join(","),
+      at: Infinity,
+      content: (
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>
+              {waiting.length === 1 ? "A device is ready to activate" : `${waiting.length} devices are ready to activate`}
+            </CardTitle>
+            <CardDescription>Activating maps every reading from the profile and starts storing them.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {waiting.slice(0, 5).map((c) => (
+              <div key={c.uuid} className="flex items-center justify-between gap-2">
+                <span className="truncate font-mono text-code">{c.source_device_id}</span>
+                <Button size="sm" disabled={!canEdit} onClick={() => setActivating(c)}>
+                  Activate
+                </Button>
+              </div>
+            ))}
+            {waiting.length > 5 && (
+              <Button size="sm" variant="link" className="self-start px-0" onClick={() => openAdapter(subject, "devices")}>
+                See all {waiting.length} in the adapter
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ),
+    });
+  // The card above already covers activation, so the step is not suggested twice.
+  if (nextStep && !(nextStep.step === "activate" && waiting.length))
     items.push({
       id: "next-" + nextStep.at,
       at: Infinity,
@@ -656,7 +700,7 @@ export default function OnboardingAssistantBody({
               <MessageScroller>
                 <MessageScrollerViewport>
                   <MessageScrollerContent className="p-4">
-                    {!items.length && (
+                    {!data?.runs.length && !sending && (
                       <MessageScrollerItem messageId="welcome">
                         <Welcome
                           adapter={adapterUuid ? adapter : undefined}
@@ -782,6 +826,20 @@ export default function OnboardingAssistantBody({
             void refresh();
           }}
           onDecision={decideSection}
+        />
+      )}
+      {activating && subject && (
+        <ActivateAdapterDevice
+          key={activating.uuid}
+          org={org}
+          adapter={{ uuid: subject, name: adapter?.name ?? "The adapter" }}
+          candidate={activating.uuid}
+          serial={activating.source_device_id}
+          onClose={() => setActivating(null)}
+          onActivated={(device) => {
+            navigate(`/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device.uuid)}/overview`);
+            if (sheet) closePanel();
+          }}
         />
       )}
       {adapterReview && (

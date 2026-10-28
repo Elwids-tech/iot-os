@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Devices\Services;
 
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
+use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\DeviceProfiles\Services\IngressConversion;
@@ -46,6 +47,7 @@ final class DeviceConfigurationService
             if ($draft['candidate_uuid'] ?? null) {
                 $candidate = DiscoveryCandidate::query()->where('organization_id', $locked->organization_id)->where('uuid', $draft['candidate_uuid'])->lockForUpdate()->firstOrFail();
                 abort_if($candidate->status === 'rejected', 422, 'Restore this discovery candidate before using it.');
+                $this->ensureNotAdapterSource($locked, $candidate);
                 abort_if(Device::query()->where('reserved_source_uuid', $candidate->uuid)->whereKeyNot($locked->id)->exists(), 409, 'This source is already assigned to another device.');
                 $claimant = $candidate->setupDevice();
                 abort_if($claimant && $claimant->id !== $locked->id, 409, 'This source is being set up as another device.');
@@ -60,6 +62,22 @@ final class DeviceConfigurationService
 
             return $locked->fresh();
         });
+    }
+
+    /**
+     * A source an adapter's gateway reported belongs to the device activated through
+     * that adapter, so its readings keep their installation and revision. Devices that
+     * already hold the source keep working.
+     */
+    private function ensureNotAdapterSource(Device $device, DiscoveryCandidate $candidate): void
+    {
+        $adapter = DeviceAdapter::where('sparkplug_gateway_id', $candidate->sparkplug_gateway_id)->first();
+        if (! $adapter || $device->reserved_source_uuid === $candidate->uuid) {
+            return;
+        }
+        $installed = DeviceInstallation::where('device_id', $device->id)->whereNull('ended_at')
+            ->whereIn('device_adapter_candidate_id', AdapterCandidate::where('device_adapter_id', $adapter->id)->where('sparkplug_device_id', $candidate->source_device_id)->select('id'))->exists();
+        abort_unless($installed, 422, 'This source comes through the adapter "'.$adapter->name.'". Activate it from the adapter, which sets the device up in one step.');
     }
 
     public function compile(Device $device): array

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Services;
 
+use App\Domain\DeviceAdapters\Models\AdapterCandidate;
+use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\Devices\Models\Device;
@@ -84,7 +86,29 @@ final class DeviceView
         return [...$candidate->only(['uuid', 'source_device_id', 'status', 'presence', 'session_id', 'birth_revision', 'metrics', 'last_seen_at']),
             'assigned_device_uuid' => $assigned,
             'setup_device_uuid' => $assigned ? null : $candidate->setupDevice()?->uuid,
-            'gateway' => self::gateway($candidate->gateway)];
+            'gateway' => self::gateway($candidate->gateway), 'adapter' => self::adapterSource($candidate)];
+    }
+
+    /**
+     * The adapter behind a source its managed gateway reported, with the manufacturer
+     * serial the adapter decoded; null for every other gateway. Such sources are
+     * activated through the adapter, never mapped by hand.
+     */
+    public static function adapterSource(DiscoveryCandidate $candidate): ?array
+    {
+        // Adapter gateways share their organization's adapters connection, already loaded with
+        // the gateway, so other sources cost no query.
+        if (! str_starts_with($candidate->gateway->connection->group_id, 'adapters-')) {
+            return null;
+        }
+        $adapter = DeviceAdapter::where('sparkplug_gateway_id', $candidate->sparkplug_gateway_id)->first(['id', 'uuid', 'name']);
+        if (! $adapter) {
+            return null;
+        }
+        $physical = $candidate->source_device_id === '' ? null
+            : AdapterCandidate::where('device_adapter_id', $adapter->id)->where('sparkplug_device_id', $candidate->source_device_id)->first(['uuid', 'source_device_id']);
+
+        return ['uuid' => $adapter->uuid, 'name' => $adapter->name, 'candidate_uuid' => $physical?->uuid, 'serial' => $physical?->source_device_id];
     }
 
     public static function command(DeviceCommand $command): array

@@ -140,9 +140,16 @@ header **Assistant** on any adapter page.
 7. For devices that can be pointed at a broker, create a hardware credential and
    download its kit (`device-config.json`, `ca.crt`, `quickstart.md`). Credentials
    can be rotated and revoked.
-8. Review a discovered serial number, create or link an inactive virtual device,
-   and activate it. Unknown serials and retained messages stay previews; nothing
-   is stored as production telemetry until a device is activated.
+8. Activate a discovered serial number: a new device named after the serial, or an
+   inactive registered one, gets every profile reading mapped and applied in one
+   step. Unknown serials and retained messages stay previews; nothing is stored as
+   production telemetry until a device is activated. The same **Activate** appears
+   wherever the source shows up: the adapter's Devices tab, **Discovery** and
+   **Add device** (which list it by serial, not by its `src-…` Sparkplug ID), and the
+   onboarding assistant once serials are waiting. Adapter sources never go through
+   manual mapping: the device configuration page does not offer them, and the API
+   refuses them for a device not activated through the adapter, so readings always
+   keep their installation and adapter revision.
 
 Stored observations and committed events keep `installation_uuid`,
 `adapter_revision_uuid` and the manufacturer serial next to the stable device
