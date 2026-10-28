@@ -32,6 +32,8 @@ WRITERS = ("api", "default-worker", "alerts-worker", "assistant-worker", "webhoo
 SECRET_KEYS = ("API_DB_PASSWORD", "RUNTIME_DB_PASSWORD", "POSTGRES_PASSWORD", "DEVICE_RUNTIME_TOKEN", "NATS_PASSWORD", "GRAFANA_PASSWORD", "IOT_METRICS_TOKEN")
 # The device broker: Mosquitto with Dynamic Security, changed only through broker-admin (ADR-019).
 BROKER = "mqtt"
+# Services compose.adapters.yml adds; the receiver idles until IOT_WEBHOOK_PUBLIC_URL routes traffic to it.
+ADAPTER_SERVICES = ("adapter-manager", "adapter-worker", "webhook-receiver")
 BROKER_UID = 1883
 BROKER_KEYS = ("DEVICE_BROKER_ADMIN_TOKEN", "MOSQUITTO_ADMIN_PASSWORD")
 
@@ -128,7 +130,7 @@ class Deployment:
         names = [name for name, service in inventory.items() if not service.get("profiles") and (not self.external_database or name != "timescaledb")]
         if self.env.get("IOT_ADAPTERS_ENABLED", "false").lower() == "true":
             overlays += ["-f", RELEASE / "compose.adapters.yml"]
-            names += ["adapter-manager", "adapter-worker"]
+            names += ADAPTER_SERVICES
         env["EXPECTED_SERVICES"] = ",".join(names)
         return run(["docker", "compose", "--project-directory", RELEASE, "--env-file", self.env_path,
                     "-f", RELEASE / "compose.yml", *overlays, *profiles, *args], env=env, **kwargs)
@@ -404,7 +406,7 @@ class Deployment:
         services = yaml.safe_load((RELEASE / "compose.yml").read_text())["services"]
         # The broker and broker-admin are already up; recreating them would drop every device again.
         applications = [name for name, service in services.items() if not service.get("profiles") and name not in ("timescaledb", "nats", BROKER, "broker-admin")]
-        if self.adapters_enabled: applications += ["adapter-manager", "adapter-worker"]
+        if self.adapters_enabled: applications += ADAPTER_SERVICES
         self.compose("up", "-d", "--force-recreate", "--no-deps", *applications, stdout=subprocess.DEVNULL)
         if self.adapters_enabled and tenants: run(["docker", "start", *tenants], stdout=subprocess.DEVNULL)
         self.wait("http://api-web/health/ready")
