@@ -145,22 +145,14 @@ try {
     .getByRole("combobox", { name: "Published revision", exact: true })
     .click()
   await page.getByRole("option", { name: /^Revision 1/ }).click()
-  await page.getByRole("button", { name: "Suggest matching metrics" }).click()
-  await page.getByRole("button", { name: "Save configuration draft" }).click()
+  // Full name matches are selected up front and collapse to a summary; otherwise suggest them.
+  const suggest = page.getByRole("button", { name: "Suggest matching metrics" })
   await expect(
-    page.getByText("No unsaved changes", { exact: true }),
+    page.getByRole("button", { name: "Review", exact: true }).or(suggest),
   ).toBeVisible()
-  await page
-    .getByRole("button", { name: "Validate saved configuration" })
-    .click()
-  await expect(
-    page.getByText("Configuration validation completed"),
-  ).toBeVisible()
-  await page.getByRole("button", { name: "Review and activate" }).click()
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Activate configuration" })
-    .click()
+  if (await suggest.isVisible()) await suggest.click()
+  // Apply saves, checks against the captured birth and applies in one step.
+  await page.getByRole("button", { name: "Apply", exact: true }).click()
   await expect(page.getByText("Applied", { exact: true }).first()).toBeVisible({
     timeout: 20000,
   })

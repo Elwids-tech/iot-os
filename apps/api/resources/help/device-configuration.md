@@ -20,7 +20,7 @@
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 1,
+  "revision": 2,
   "summary": "Configuration maps incoming metrics to profile parameters and prepares a reviewed revision for the runtime.",
   "questions": [
     "How do I map incoming readings?",
@@ -36,11 +36,10 @@ Use a published profile and an appropriate discovered source. Editing requires m
 
 ## Steps
 1. Open the device’s **Configuration** tab.
-2. Select its source and inspect the available metrics.
-3. Map incoming values to profile parameters; check units and conversions.
-4. Save the draft and resolve validation diagnostics.
-5. In **Review and apply**, inspect the revision and differences, then confirm activation.
-6. Wait for the runtime result and check new readings.
+2. Choose the profile revision and the discovered source.
+3. Check the parameter mappings. When every parameter has a source metric with the same name and a compatible type, those matches are selected for you; choose **Review** to see them. **Convert units** appears on a row only when the source may need a conversion.
+4. Choose **Apply**. It saves the draft, checks it against the source’s captured samples and applies it. Problems stop it before anything is applied and show on their rows. Use **Save draft** to keep partial work.
+5. Wait for the runtime result and check new readings.
 
 ## Expected result
 The runtime acknowledges the applied revision. Until acknowledgment, activation remains pending; the prior applied configuration can remain in use.
