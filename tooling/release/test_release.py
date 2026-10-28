@@ -25,7 +25,7 @@ class ReleaseTests(unittest.TestCase):
         overlay = yaml.safe_load((release.RELEASE/'compose.adapters.yml').read_text())['services']
         self.assertNotIn('ports', overlay['adapter-manager'])
         self.assertEqual(['private'], overlay['adapter-manager']['networks'])
-        self.assertNotIn('/var/run/docker.sock:/var/run/docker.sock', overlay['adapter-worker']['volumes'])
+        self.assertNotIn('/var/run/docker.sock:/var/run/docker.sock', overlay['adapter-worker'].get('volumes', []))
         self.assertIn('/var/run/docker.sock:/var/run/docker.sock', overlay['adapter-manager']['volumes'])
         self.assertEqual('database', overlay['api']['environment']['IOT_ADAPTER_QUEUE_CONNECTION'])
         with tempfile.TemporaryDirectory() as temp:
@@ -55,6 +55,13 @@ class ReleaseTests(unittest.TestCase):
                 for key, value in (environment.items() if isinstance(environment, dict) else ()):
                     if isinstance(value, str) and value.startswith('http://api'):
                         self.assertTrue(value.startswith('http://api-web/'), f'{name} {service} {key}: {value}')
+
+    def test_adapter_worker_trusts_the_broker_like_the_api(self):
+        # The deploy job sends the broker CA to tenant runtimes; a missing file sends null.
+        api = yaml.safe_load((release.RELEASE/'compose.yml').read_text())['services']['api']['environment']
+        worker = yaml.safe_load((release.RELEASE/'compose.adapters.yml').read_text())['services']['adapter-worker']
+        self.assertEqual(api['DEVICE_MQTT_CA_FILE'], worker['environment']['DEVICE_MQTT_CA_FILE'])
+        self.assertFalse(any('mqtt-certs' in volume for volume in worker.get('volumes', [])))
 
     def test_mosquitto_is_the_broker_and_admin_has_no_public_port(self):
         services = yaml.safe_load((release.RELEASE/'compose.yml').read_text())['services']

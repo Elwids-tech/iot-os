@@ -30,11 +30,9 @@ services:
       DEVICE_BROKER_ADMIN_URL: http://broker-admin:8082
       DEVICE_BROKER_ADMIN_TOKEN: ${DEVICE_BROKER_ADMIN_TOKEN:?}
       DEVICE_MQTT_URL: ssl://mqtt.${DOMAIN:?}:8883
-      DEVICE_MQTT_CA_FILE: /certs/ca.crt
+      DEVICE_MQTT_CA_FILE: /etc/ssl/certs/ca-certificates.crt
       <<: *adapter-env
     command: [php, artisan, queue:work, --queue=device-adapters, --sleep=1, --tries=1, --timeout=180, --max-time=3600]
-    volumes:
-      - ${STATE_DIR:?}/mqtt-certs/ca.crt:/certs/ca.crt:ro
     networks: [private]
     restart: unless-stopped
   adapter-manager:

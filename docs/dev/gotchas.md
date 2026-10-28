@@ -320,6 +320,13 @@ Things that have cost time before. Add to this list when something surprises you
   acknowledgements were refused, while deliveries still got `202`: no samples, and
   no adapter could finish deploying on the pilot. `test_release.py` now checks every
   release service URL that points at the API.
+- **A null Node-RED credential crashes the tenant runtime.** `setFlows` reads each
+  credential's `.length`, so a `null` throws an uncaught `TypeError` in
+  `credentials.js` and the deployment is never confirmed. The release adapter worker
+  still pointed `DEVICE_MQTT_CA_FILE` at a mounted `/certs/ca.crt` after the broker
+  moved to a public certificate; Docker had created that host path as an empty
+  directory, so the deploy job sent `ca_certificate: null`. The worker now uses the
+  system bundle like the API.
 
 ## Browser tests and screenshots
 
