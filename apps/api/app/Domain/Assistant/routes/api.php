@@ -18,6 +18,7 @@ Route::prefix('v1/organizations/{organization}/assistant')->whereUuid(['organiza
     Route::post('conversations/{conversation}/proposals', [AssistantController::class, 'preview']);
     Route::post('conversations/{conversation}/proposals/{proposal}/decision', [AssistantController::class, 'decide']);
     Route::post('conversations/{conversation}/runs/{run}/cancel', [AssistantController::class, 'cancel']);
+    Route::post('conversations/{conversation}/adapter-proposals/{adapterProposal}/decision', [AssistantController::class, 'decideAdapterProposal'])->whereUuid('adapterProposal')->middleware('throttle:30,1');
 });
 
 Route::prefix('v1/admin/assistant-settings')->name('api.v1.admin.assistant-settings.')->middleware('auth:sanctum')->group(function (): void {

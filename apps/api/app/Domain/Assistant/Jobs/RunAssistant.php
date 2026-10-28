@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Assistant\Jobs;
 
-use App\Domain\Assistant\Agents\AdapterAssistant;
+use App\Domain\Assistant\Agents\OnboardingAssistant;
 use App\Domain\Assistant\Agents\HelpAgent;
 use App\Domain\Assistant\Agents\ProfileAssistant;
 use App\Domain\Assistant\Agents\WorkflowAssistant;
@@ -98,9 +98,9 @@ final class RunAssistant implements ShouldQueue
 
                 return;
             }
-            abort_unless(in_array($conversation->scope, ['profile', 'automation', 'adapter'], true), 422, 'Unknown assistant scope.');
+            abort_unless(in_array($conversation->scope, ['profile', 'automation', 'onboarding'], true), 422, 'Unknown assistant scope.');
             $automation = $conversation->scope === 'automation';
-            $agent = $automation ? new WorkflowAssistant($run) : ($conversation->scope === 'adapter' ? new AdapterAssistant($run) : new ProfileAssistant($run));
+            $agent = $automation ? new WorkflowAssistant($run) : ($conversation->scope === 'onboarding' ? new OnboardingAssistant($run) : new ProfileAssistant($run));
             if (! $automation && $conversation->sdk_conversation_id) {
                 $agent->continue($conversation->sdk_conversation_id, as: $conversation->user);
             } elseif (! $automation) {

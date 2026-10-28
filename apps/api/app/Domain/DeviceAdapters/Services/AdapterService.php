@@ -21,6 +21,7 @@ use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Devices\Services\BrokerProvisioner;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceConfigurationService;
+use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -37,28 +38,15 @@ final class AdapterService
     {
         $v = Validator::make($input, [
             'request_uuid' => 'sometimes|uuid', 'name' => 'required|string|max:255', 'artifact_uuid' => 'required|uuid', 'code' => 'required|string|max:64000',
-            'fixtures' => 'required|array|min:1|max:10', 'fixtures.*.topic' => 'required|string|max:255', 'fixtures.*.payload' => 'nullable',
+            'fixtures' => 'present|array|max:10', 'fixtures.*.topic' => 'nullable|string|max:255', 'fixtures.*.payload' => 'nullable',
             'fixtures.*.payload_base64' => 'nullable|string|max:1398104', 'fixtures.*.expect_error' => 'sometimes|boolean', 'fixtures.*.expected' => 'sometimes|array',
-            'source' => 'required|array:type,url,topics', 'source.type' => 'required|in:platform,vendor', 'source.url' => 'required_if:source.type,vendor|nullable|string|max:500',
-            'source.topics' => 'required|array|min:1|max:32', 'source.topics.*' => 'required|string|max:255',
-            'secrets' => 'sometimes|array:username,password,ca_certificate', 'secrets.username' => 'nullable|string|max:255', 'secrets.password' => 'nullable|string|max:4096', 'secrets.ca_certificate' => 'nullable|string|max:16384',
+            'fixtures.*.source' => 'sometimes|in:mqtt,webhook,poll', 'fixtures.*.received_at' => 'sometimes|nullable|date', 'fixtures.*.http' => 'sometimes|nullable|array', 'fixtures.*.poll' => 'sometimes|nullable|array', 'fixtures.*.truncated' => 'sometimes|boolean',
+            'source' => 'required|array', 'source.type' => 'required|in:platform,vendor,webhook,poll',
+            'secrets' => 'sometimes|array:username,password,ca_certificate,api_key,token', 'secrets.username' => 'nullable|string|max:255', 'secrets.password' => 'nullable|string|max:4096', 'secrets.ca_certificate' => 'nullable|string|max:16384',
+            'secrets.api_key' => 'nullable|string|max:4096', 'secrets.token' => 'nullable|string|max:8192',
         ])->validate();
-        if ($v['source']['type'] === 'vendor') {
-            $url = parse_url($v['source']['url']);
-            abort_unless($url && in_array($url['scheme'] ?? '', ['mqtt', 'mqtts', 'ssl'], true) && filled($url['host'] ?? null)
-                && ! isset($url['user'], $url['pass']) && ! isset($url['user']) && ! isset($url['pass'])
-                && ! isset($url['query']) && ! isset($url['fragment']) && in_array($url['path'] ?? '', ['', '/'], true),
-                422, 'Use an MQTT broker URL without embedded credentials. Enter secrets in the connection fields.');
-        } else {
-            $v['source']['url'] = null;
-        }
-        foreach ($v['source']['topics'] as $topic) {
-            $levels = explode('/', $topic);
-            abort_if(str_starts_with($topic, '$') || str_starts_with($topic, 'spBv1.0/') || in_array($levels[0], ['#', '+']) || str_contains($topic, "\0"), 422, 'Choose a scoped manufacturer topic; reserved and broad subscriptions are unavailable.');
-            foreach ($levels as $index => $level) {
-                abort_unless(! strpbrk($level, '+#') || $level === '+' || ($level === '#' && $index === count($levels) - 1), 422, 'MQTT wildcards must occupy a complete topic level.');
-            }
-        }
+        // Validated data keeps only keys with rules; the source settings validate their own shape.
+        $v['source'] = app(SourceSettings::class)->normalize($input['source']);
         abort_if(strlen(json_encode($v['fixtures'])) > 6 * 1024 * 1024, 422, 'Test fixtures are too large.');
         foreach ($v['fixtures'] as $fixture) {
             abort_unless(array_key_exists('payload', $fixture) || filled($fixture['payload_base64'] ?? null), 422, 'Each fixture requires a payload.');
@@ -71,7 +59,16 @@ final class AdapterService
     {
         $v = $this->fields($values);
         $artifact = $this->artifact($organization->id, $v['artifact_uuid']);
+        $saved = $this->persist($organization, $v, $actor, $adapter, $expected, $artifact);
+        if ($saved->ingest_id) {
+            app(WebhookRoutes::class)->syncLater($saved);
+        }
 
+        return $saved;
+    }
+
+    private function persist(Organization $organization, array $v, int $actor, ?DeviceAdapter $adapter, ?int $expected, DeviceProfileArtifact $artifact): DeviceAdapter
+    {
         return DB::transaction(function () use ($organization, $v, $actor, $adapter, $expected, $artifact) {
             Organization::whereKey($organization->id)->lockForUpdate()->firstOrFail();
             if ($adapter) {
@@ -88,7 +85,9 @@ final class AdapterService
             if ($adapter->exists && $adapter->device_profile_artifact_id !== $artifact->id) {
                 abort_if(DeviceInstallation::whereIn('device_adapter_candidate_id', $adapter->candidates()->select('id'))->whereNull('ended_at')->exists(), 422, 'Create a separate adapter for a different profile while devices are active.');
             }
-            $secrets = $adapter->secrets ?? [];
+            $previousType = $adapter->source['type'] ?? null;
+            // Credentials belong to one kind of source; a broker password never becomes an API key.
+            $secrets = $previousType === $v['source']['type'] ? ($adapter->secrets ?? []) : [];
             if (isset($v['secrets'])) {
                 foreach ($v['secrets'] as $key => $value) {
                     if ($value !== null && $value !== '') {
@@ -96,8 +95,15 @@ final class AdapterService
                     }
                 }
             }
-            if ($v['source']['type'] === 'platform') {
-                $secrets = ['password' => ($adapter->source['type'] ?? null) === 'platform' ? ($secrets['password'] ?? Str::random(48)) : Str::random(48)];
+            if (in_array($v['source']['type'], ['platform', 'webhook'], true)) {
+                $secrets = ['password' => $previousType === $v['source']['type'] ? ($secrets['password'] ?? Str::random(48)) : Str::random(48)];
+            } elseif ($v['source']['type'] === 'poll') {
+                $secrets = array_intersect_key($secrets, array_flip(['api_key', 'token', 'username', 'password', 'ca_certificate']));
+            } else {
+                $secrets = array_intersect_key($secrets, array_flip(['username', 'password', 'ca_certificate']));
+            }
+            if ($v['source']['type'] === 'webhook' && ! $adapter->ingest_id) {
+                $adapter->ingest_id = Str::random(32);
             }
             $adapter->fill(['name' => $v['name'], 'device_profile_artifact_id' => $artifact->id, 'draft_revision' => $revision, 'code' => $v['code'], 'fixtures' => $v['fixtures'], 'source' => $v['source'], 'secrets' => $secrets])->save();
             $definition = ['name' => $v['name'], 'code' => $v['code'], 'fixtures' => $v['fixtures'], 'source' => $v['source'], 'artifact_uuid' => $artifact->uuid, 'profile_hash' => $artifact->definition_hash];
@@ -181,6 +187,10 @@ final class AdapterService
         if ($source['type'] === 'vendor' && $operation->action !== 'pause') {
             app(AdapterManager::class)->request('/connection-test', $source);
         }
+        $extra = ['retention_days' => (int) app(RetentionService::class)->effective($organization)['days']];
+        if ($source['type'] === 'poll') {
+            $extra['cursor'] = ['generation' => $adapter->cursor_generation, 'start_at' => $adapter->cursor_start?->toIso8601String(), 'fallback' => $adapter->poll_state['cursor']['value'] ?? null];
+        }
         $ca = config('devices.ca_file');
         $upstream = ['url' => config('devices.broker_url'), 'username' => $gateway->username, 'password' => $gateway->password, 'ca_certificate' => $ca && is_file($ca) ? file_get_contents($ca) : null, 'group_id' => $gateway->connection->group_id, 'host_id' => $gateway->connection->host_id, 'edge_node_id' => $gateway->edge_node_id];
         $bindings = DeviceInstallation::whereIn('device_adapter_candidate_id', $adapter->candidates()->select('id'))->whereNull('ended_at')->get()->map(function ($binding) {
@@ -189,7 +199,7 @@ final class AdapterService
             return ['installation_uuid' => $binding->uuid, 'source_device_id' => $candidate->source_device_id, 'virtual_device_uuid' => $binding->device->uuid];
         })->all();
         $credentials = AdapterCredential::where('device_adapter_id', $adapter->id)->whereNull('revoked_at')->get()->map(fn ($credential) => ['username' => $credential->username, 'password' => $credential->password])->all();
-        $result = app(AdapterManager::class)->request('/deploy', ['tenant' => $this->tenantPayload($tenant), 'action' => $operation->action, 'adapter_uuid' => $adapter->uuid, 'name' => $adapter->name, 'revision_uuid' => $revision->uuid, 'code' => $revision->definition['code'], 'source' => $source, 'profile' => $artifact->definition, 'upstream' => $upstream, 'bindings' => $bindings, 'hardware_credentials' => $credentials]);
+        $result = app(AdapterManager::class)->request('/deploy', ['tenant' => $this->tenantPayload($tenant), 'action' => $operation->action, 'adapter_uuid' => $adapter->uuid, 'name' => $adapter->name, 'revision_uuid' => $revision->uuid, 'code' => $revision->definition['code'], 'source' => $source, 'profile' => $artifact->definition, 'upstream' => $upstream, 'bindings' => $bindings, 'hardware_credentials' => $source['type'] === 'platform' ? $credentials : [], ...$extra]);
         abort_unless($result['applied'] ?? false, 503, 'The runtime has not acknowledged the revision.');
         DB::transaction(function () use ($adapter, $tenant, $operation, $revision, $result) {
             $locked = DeviceAdapter::whereKey($adapter->id)->lockForUpdate()->firstOrFail();
@@ -198,6 +208,9 @@ final class AdapterService
             $tenant->update(['status' => 'ready', 'ca_certificate' => $result['ca_certificate'], 'broker_url' => $result['broker_url'], 'diagnostic' => null]);
             $operation->update(['status' => 'applied', 'diagnostic' => null]);
         });
+        if ($adapter->fresh()->ingest_id) {
+            app(WebhookRoutes::class)->sync($adapter->fresh());
+        }
     }
 
     public function operation(DeviceAdapter $adapter, string $action, int $actor, ?string $revisionUuid = null, ?string $requestUuid = null): AdapterOperation
@@ -264,7 +277,11 @@ final class AdapterService
         $current = $this->current($adapter);
 
         return [...$adapter->only(['uuid', 'name', 'code', 'fixtures', 'source', 'draft_revision', 'status', 'diagnostic', 'health', 'applied_revision_uuid', 'desired_revision_uuid']),
-            'artifact_uuid' => $adapter->artifact->uuid, 'profile_name' => $adapter->artifact->profile->name, 'profile' => $adapter->artifact->definition, 'credentials_configured' => filled($adapter->secrets['password'] ?? null), 'revision' => $current->only(['uuid', 'revision', 'content_hash', 'tested_at', 'test_result']),
+            'artifact_uuid' => $adapter->artifact->uuid, 'profile_name' => $adapter->artifact->profile->name, 'profile' => $adapter->artifact->definition,
+            'credentials_configured' => collect($adapter->secrets ?? [])->filter(fn ($value, $key) => $key !== 'ca_certificate' && filled($value))->isNotEmpty(),
+            'saved_secrets' => collect(['api_key', 'token', 'username', 'password', 'ca_certificate'])->mapWithKeys(fn ($key) => [$key => filled($adapter->secrets[$key] ?? null)])->all(),
+            ...app(AdapterDiagnostics::class)->summary($adapter),
+            'revision' => $current->only(['uuid', 'revision', 'content_hash', 'tested_at', 'test_result']),
             'revisions' => $adapter->revisions()->latest('revision')->limit(30)->get()->map(fn ($r) => $r->only(['uuid', 'revision', 'content_hash', 'tested_at', 'test_result'])),
             'operations' => AdapterOperation::where('device_adapter_id', $adapter->id)->latest()->limit(10)->get()->map(fn ($o) => $o->only(['uuid', 'action', 'status', 'diagnostic', 'revision_uuid', 'created_at']))];
     }

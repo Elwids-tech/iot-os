@@ -251,7 +251,8 @@ final class DeviceAdapterTest extends TestCase
     {
         $a = $this->create();
         $conversation = $this->postJson($this->prefix.'/assistant/conversations', ['scope' => 'adapter', 'adapter_uuid' => $a['uuid']])->assertCreated()->json('data');
-        $this->assertSame('adapter', $conversation['scope']);
+        // Spec 020: the adapter assistant became the device onboarding assistant.
+        $this->assertSame('onboarding', $conversation['scope']);
         $this->assertSame($a['uuid'], $conversation['adapter_uuid']);
         $this->postJson($this->prefix.'/assistant/conversations', ['scope' => 'adapter', 'adapter_uuid' => (string) Str::uuid()])->assertNotFound();
     }

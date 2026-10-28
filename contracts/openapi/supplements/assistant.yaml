@@ -11,3 +11,34 @@ operations:
         $ref: '#/components/responses/Conflict'
       '503':
         $ref: '#/components/responses/ServiceUnavailable'
+  POST /v1/organizations/{organization}/assistant/conversations/{conversation}/adapter-proposals/{adapterProposal}/decision:
+    responses:
+      '200':
+        description: The decision on an onboarding proposal (spec 020) and the assistant's next run.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [status, adapter, run, notice]
+                  properties:
+                    status:
+                      type: string
+                      enum: [applied, rejected]
+                    adapter:
+                      type: [object, 'null']
+                      description: The adapter view after applying, as GET device-adapters/{adapter} returns it.
+                      additionalProperties: {}
+                    run:
+                      type: [object, 'null']
+                      description: The queued assistant run that continues the conversation, as the messages operation returns it.
+                      additionalProperties: {}
+                    notice:
+                      type: [string, 'null']
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'

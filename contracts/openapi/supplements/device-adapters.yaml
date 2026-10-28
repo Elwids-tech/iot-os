@@ -4,6 +4,134 @@
 # the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
 # Success bodies stay pending until the domain is described.
 # Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    AdapterFetchResult:
+      type: object
+      description: One Fetch now request against a polling source's vendor API (spec 020, FR-039). Credentials are redacted; the stored cursor does not move.
+      required: [status, duration_ms, headers, excerpt, truncated, record_count, records, next_cursor, more, error]
+      properties:
+        status:
+          type: [integer, 'null']
+          description: The vendor API's HTTP status; null when nothing answered.
+        duration_ms:
+          type: [integer, 'null']
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        excerpt:
+          type: string
+          description: Up to 256 KiB of the response body.
+        truncated:
+          type: boolean
+        record_count:
+          type: integer
+        records:
+          type: array
+          maxItems: 20
+          items:
+            description: One record as the vendor returned it, usually an object.
+            type: object
+            additionalProperties: {}
+        next_cursor:
+          type: [string, 'null']
+        more:
+          type: boolean
+        error:
+          type: [string, 'null']
+    AdapterDelivery:
+      type: object
+      description: A captured sample, a rejected webhook delivery or an input that failed decoding, kept 7 days (spec 020, FR-070, FR-071). Rejected deliveries never keep a body.
+      required: [uuid, kind, reason, source, received_at, source_address, path, content_type, size, delivery_id, error, input]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [sample, rejected, failed]
+        reason:
+          type: [string, 'null']
+        source:
+          type: string
+          enum: [mqtt, webhook, poll]
+        received_at:
+          type: [string, 'null']
+        source_address:
+          type: [string, 'null']
+        path:
+          type: [string, 'null']
+        content_type:
+          type: [string, 'null']
+        size:
+          type: integer
+        delivery_id:
+          type: [string, 'null']
+        error:
+          type: [string, 'null']
+        input:
+          type: [object, 'null']
+          description: A fixture with the decoder input fields, ready to add to the draft.
+          additionalProperties: {}
+    PollRun:
+      type: object
+      description: One scheduled run of a polling source, as the tenant runtime reported it.
+      required: [uuid, run_id, outcome, http_status, pages, records, published, failed, duplicates, cursor_before, cursor_after, error, started_at, finished_at, next_attempt_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        run_id:
+          type: string
+        outcome:
+          type: string
+          enum: [ok, empty, partial, retrying, stopped]
+        http_status:
+          type: [integer, 'null']
+        pages:
+          type: integer
+        records:
+          type: integer
+        published:
+          type: integer
+        failed:
+          type: integer
+        duplicates:
+          type: integer
+        cursor_before:
+          type: [string, 'null']
+        cursor_after:
+          type: [string, 'null']
+        error:
+          type: [string, 'null']
+        started_at:
+          type: [string, 'null']
+        finished_at:
+          type: [string, 'null']
+        next_attempt_at:
+          type: [string, 'null']
+    WebhookAuth:
+      type: object
+      description: How a webhook delivery proves it comes from the vendor account (spec 020, FR-012).
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [hmac, header, url]
+        header:
+          type: [string, 'null']
+        scheme:
+          type: [string, 'null']
+        signature_header:
+          type: [string, 'null']
+        encoding:
+          type: [string, 'null']
+          enum: [hex, base64, null]
+        prefix:
+          type: [string, 'null']
+        timestamp_header:
+          type: [string, 'null']
 operations:
   POST /v1/organizations/{organization}/device-adapters:
     responses:
@@ -17,3 +145,135 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/device-adapters/{adapter}/fetch-now:
+    responses:
+      '200':
+        description: The Fetch now result.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/AdapterFetchResult'
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+  GET /v1/organizations/{organization}/device-adapters/{adapter}/webhook:
+    responses:
+      '200':
+        description: The adapter's ingest URL, authentication, secrets and outcome counts.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [ingest_url, auth, state, secrets, counts]
+                  properties:
+                    ingest_url:
+                      type: [string, 'null']
+                    auth:
+                      $ref: '#/components/schemas/WebhookAuth'
+                    state:
+                      type: [string, 'null']
+                      enum: [no_deliveries, receiving, rejecting, idle, null]
+                    secrets:
+                      type: array
+                      items:
+                        type: object
+                        required: [uuid, label, origin, created_at, created_by, last_used_at, expires_at, revoked_at, active]
+                        properties:
+                          uuid:
+                            type: string
+                            format: uuid
+                          label:
+                            type: string
+                          origin:
+                            type: string
+                            enum: [generated, vendor]
+                          created_at:
+                            type: [string, 'null']
+                          created_by:
+                            type: [object, 'null']
+                            properties:
+                              user_id:
+                                type: integer
+                              name:
+                                type: string
+                          last_used_at:
+                            type: [string, 'null']
+                          expires_at:
+                            type: [string, 'null']
+                          revoked_at:
+                            type: [string, 'null']
+                          active:
+                            type: boolean
+                    counts:
+                      type: object
+                      required: [24h, 7d]
+                      properties:
+                        24h:
+                          type: object
+                          additionalProperties:
+                            type: integer
+                        7d:
+                          type: object
+                          additionalProperties:
+                            type: integer
+  POST /v1/organizations/{organization}/device-adapters/{adapter}/webhook/secrets:
+    responses:
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'
+  POST /v1/organizations/{organization}/device-adapters/{adapter}/webhook/secrets/{secret}/revoke:
+    responses:
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'
+  POST /v1/organizations/{organization}/device-adapters/{adapter}/cursor:
+    responses:
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+  POST /v1/organizations/{organization}/device-adapters/{adapter}/resume:
+    responses:
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+  GET /v1/organizations/{organization}/device-adapters/{adapter}/deliveries:
+    responses:
+      '200':
+        description: The last 20 deliveries of each kind, newest first.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AdapterDelivery'
+  GET /v1/organizations/{organization}/device-adapters/{adapter}/poll-runs:
+    responses:
+      '200':
+        description: The last 20 poll runs and the polling state.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data, polling]
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PollRun'
+                polling:
+                  type: [object, 'null']
+                  description: The source state, next run and committed cursor; null unless the source is polling.
+                  additionalProperties: {}

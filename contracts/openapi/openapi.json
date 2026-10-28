@@ -7856,7 +7856,7 @@
     },
     "/v1/organizations/{organization}/applications/{application}/webhook": {
       "get": {
-        "operationId": "webhook.show",
+        "operationId": "domain.integrations.webhook.show",
         "tags": [
           "Webhook"
         ],
@@ -8025,7 +8025,7 @@
     },
     "/v1/organizations/{organization}/applications/{application}/webhook/deliveries": {
       "get": {
-        "operationId": "webhook.deliveries",
+        "operationId": "domain.integrations.webhook.deliveries",
         "tags": [
           "Webhook"
         ],
@@ -8330,7 +8330,8 @@
                 "profile",
                 "automation",
                 "help",
-                "adapter"
+                "adapter",
+                "onboarding"
               ]
             }
           }
@@ -8397,7 +8398,8 @@
                       "profile",
                       "automation",
                       "help",
-                      "adapter"
+                      "adapter",
+                      "onboarding"
                     ]
                   }
                 }
@@ -8584,6 +8586,172 @@
         "x-audience": "organization",
         "x-organization-scoped": true,
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/assistant/conversations/{conversation}/adapter-proposals/{adapterProposal}/decision": {
+      "post": {
+        "operationId": "assistant.decideAdapterProposal",
+        "summary": "Applies or rejects an onboarding proposal, then lets the assistant continue (spec 020, FR-104, FR-106)",
+        "tags": [
+          "Assistant"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "conversation",
+            "in": "path",
+            "required": true,
+            "description": "The conversation ID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapterProposal",
+            "in": "path",
+            "required": true,
+            "description": "The adapter proposal UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "apply",
+                      "reject"
+                    ]
+                  },
+                  "content_hash": {
+                    "type": "string",
+                    "minLength": 64,
+                    "maxLength": 64
+                  },
+                  "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "action",
+                  "content_hash",
+                  "request_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The decision on an onboarding proposal (spec 020) and the assistant's next run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "status",
+                        "adapter",
+                        "run",
+                        "notice"
+                      ],
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "applied",
+                            "rejected"
+                          ]
+                        },
+                        "adapter": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "description": "The adapter view after applying, as GET device-adapters/{adapter} returns it.",
+                          "additionalProperties": {}
+                        },
+                        "run": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "description": "The queued assistant run that continues the conversation, as the messages operation returns it.",
+                          "additionalProperties": {}
+                        },
+                        "notice": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 30,
+            "per": "minute",
+            "key": "user"
+          }
+        ]
       }
     },
     "/v1/organizations/{organization}/assistant/conversations/{conversation}/events": {
@@ -9311,7 +9479,8 @@
                 "profile",
                 "automation",
                 "help",
-                "adapter"
+                "adapter",
+                "onboarding"
               ]
             }
           }
@@ -10778,6 +10947,25 @@
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
           },
+          "422": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "Error overview."
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
@@ -11166,6 +11354,223 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/cursor": {
+      "post": {
+        "operationId": "polling.cursor",
+        "tags": [
+          "Polling"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "request_uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "start_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "request_uuid",
+                  "start_at"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "uuid": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "revision_uuid": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "uuid",
+                        "action",
+                        "status",
+                        "revision_uuid"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 10,
+            "per": "minute",
+            "key": "user"
+          }
+        ]
+      }
+    },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/deliveries": {
+      "get": {
+        "operationId": "domain.deviceAdapters.webhook.deliveries",
+        "tags": [
+          "Webhook"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "sample",
+                "rejected",
+                "failed",
+                null
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The last 20 deliveries of each kind, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AdapterDelivery"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
     "/v1/organizations/{organization}/device-adapters/{adapter}/deploy": {
       "post": {
         "operationId": "adapter.deploy",
@@ -11223,6 +11628,13 @@
                       "null"
                     ],
                     "format": "uuid"
+                  },
+                  "cursor_start_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
                   }
                 },
                 "required": [
@@ -11300,6 +11712,181 @@
           }
         ],
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/fetch-now": {
+      "post": {
+        "operationId": "polling.fetch",
+        "tags": [
+          "Polling"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "draft_revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "draft_revision"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The Fetch now result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AdapterFetchResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/poll-runs": {
+      "get": {
+        "operationId": "polling.runs",
+        "tags": [
+          "Polling"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The last 20 poll runs and the polling state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "polling"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PollRun"
+                      }
+                    },
+                    "polling": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "The source state, next run and committed cursor; null unless the source is polling.",
+                      "additionalProperties": {}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
       }
     },
     "/v1/organizations/{organization}/device-adapters/{adapter}/proposals": {
@@ -11467,6 +12054,130 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/resume": {
+      "post": {
+        "operationId": "polling.resume",
+        "tags": [
+          "Polling"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "request_uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "request_uuid"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "uuid": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "revision_uuid": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "uuid",
+                        "action",
+                        "status",
+                        "revision_uuid"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 10,
+            "per": "minute",
+            "key": "user"
+          }
+        ]
+      }
+    },
     "/v1/organizations/{organization}/device-adapters/{adapter}/test": {
       "post": {
         "operationId": "adapter.test",
@@ -11559,6 +12270,489 @@
           }
         ],
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/webhook": {
+      "get": {
+        "operationId": "domain.deviceAdapters.webhook.show",
+        "tags": [
+          "Webhook"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The adapter's ingest URL, authentication, secrets and outcome counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "ingest_url",
+                        "auth",
+                        "state",
+                        "secrets",
+                        "counts"
+                      ],
+                      "properties": {
+                        "ingest_url": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "auth": {
+                          "$ref": "#/components/schemas/WebhookAuth"
+                        },
+                        "state": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "no_deliveries",
+                            "receiving",
+                            "rejecting",
+                            "idle",
+                            null
+                          ]
+                        },
+                        "secrets": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "uuid",
+                              "label",
+                              "origin",
+                              "created_at",
+                              "created_by",
+                              "last_used_at",
+                              "expires_at",
+                              "revoked_at",
+                              "active"
+                            ],
+                            "properties": {
+                              "uuid": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "origin": {
+                                "type": "string",
+                                "enum": [
+                                  "generated",
+                                  "vendor"
+                                ]
+                              },
+                              "created_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "created_by": {
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "properties": {
+                                  "user_id": {
+                                    "type": "integer"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "last_used_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "expires_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "revoked_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "active": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        },
+                        "counts": {
+                          "type": "object",
+                          "required": [
+                            "24h",
+                            "7d"
+                          ],
+                          "properties": {
+                            "24h": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "integer"
+                              }
+                            },
+                            "7d": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/webhook/secrets": {
+      "post": {
+        "operationId": "webhook.create",
+        "tags": [
+          "Webhook"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "value": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 16,
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "secret": {
+                          "type": "object",
+                          "properties": {
+                            "uuid": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "origin": {
+                              "type": "string"
+                            },
+                            "created_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "created_by": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "properties": {
+                                "user_id": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "user_id",
+                                "name"
+                              ]
+                            },
+                            "last_used_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "expires_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "revoked_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "active": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "uuid",
+                            "label",
+                            "origin",
+                            "created_at",
+                            "created_by",
+                            "last_used_at",
+                            "expires_at",
+                            "revoked_at",
+                            "active"
+                          ]
+                        },
+                        "value": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "ingest_url": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "secret",
+                        "value",
+                        "ingest_url"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 10,
+            "per": "minute",
+            "key": "user"
+          }
+        ]
+      }
+    },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/webhook/secrets/{secret}/revoke": {
+      "post": {
+        "operationId": "webhook.revoke",
+        "tags": [
+          "Webhook"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "secret",
+            "in": "path",
+            "required": true,
+            "description": "The secret UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "revoked": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "revoked"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
       }
     },
     "/v1/organizations/{organization}/device-onboardings": {
@@ -21524,7 +22718,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_161",
+        "operationId": "domain.automation.dag.settings_162",
         "tags": [
           "Dag"
         ],
@@ -21599,7 +22793,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_162",
+        "operationId": "domain.automation.dag.settings_163",
         "tags": [
           "Dag"
         ],
@@ -22831,7 +24025,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_173",
+        "operationId": "domain.automation.scenario.save_174",
         "tags": [
           "Scenario"
         ],
@@ -22947,7 +24141,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_174",
+        "operationId": "domain.automation.scenario.save_175",
         "tags": [
           "Scenario"
         ],
@@ -23492,7 +24686,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_165",
+        "operationId": "domain.automation.dag.timeline_166",
         "tags": [
           "Dag"
         ],
@@ -23563,7 +24757,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_166",
+        "operationId": "domain.automation.dag.timeline_167",
         "tags": [
           "Dag"
         ],
@@ -24059,6 +25253,170 @@
           "draft"
         ],
         "title": "AccessLevel"
+      },
+      "AdapterDelivery": {
+        "type": "object",
+        "description": "A captured sample, a rejected webhook delivery or an input that failed decoding, kept 7 days (spec 020, FR-070, FR-071). Rejected deliveries never keep a body.",
+        "required": [
+          "uuid",
+          "kind",
+          "reason",
+          "source",
+          "received_at",
+          "source_address",
+          "path",
+          "content_type",
+          "size",
+          "delivery_id",
+          "error",
+          "input"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "sample",
+              "rejected",
+              "failed"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "mqtt",
+              "webhook",
+              "poll"
+            ]
+          },
+          "received_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "content_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size": {
+            "type": "integer"
+          },
+          "delivery_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "input": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "A fixture with the decoder input fields, ready to add to the draft.",
+            "additionalProperties": {}
+          }
+        }
+      },
+      "AdapterFetchResult": {
+        "type": "object",
+        "description": "One Fetch now request against a polling source's vendor API (spec 020, FR-039). Credentials are redacted; the stored cursor does not move.",
+        "required": [
+          "status",
+          "duration_ms",
+          "headers",
+          "excerpt",
+          "truncated",
+          "record_count",
+          "records",
+          "next_cursor",
+          "more",
+          "error"
+        ],
+        "properties": {
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The vendor API's HTTP status; null when nothing answered."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "Up to 256 KiB of the response body."
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "record_count": {
+            "type": "integer"
+          },
+          "records": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "description": "One record as the vendor returned it, usually an object.",
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "more": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "AdminTicketResource": {
         "type": "object",
@@ -26190,6 +27548,103 @@
         ],
         "title": "PlatformUserResource"
       },
+      "PollRun": {
+        "type": "object",
+        "description": "One scheduled run of a polling source, as the tenant runtime reported it.",
+        "required": [
+          "uuid",
+          "run_id",
+          "outcome",
+          "http_status",
+          "pages",
+          "records",
+          "published",
+          "failed",
+          "duplicates",
+          "cursor_before",
+          "cursor_after",
+          "error",
+          "started_at",
+          "finished_at",
+          "next_attempt_at"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "empty",
+              "partial",
+              "retrying",
+              "stopped"
+            ]
+          },
+          "http_status": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "pages": {
+            "type": "integer"
+          },
+          "records": {
+            "type": "integer"
+          },
+          "published": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "duplicates": {
+            "type": "integer"
+          },
+          "cursor_before": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cursor_after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next_attempt_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ProfileParameterDataType": {
         "type": "string",
         "enum": [
@@ -28072,6 +29527,64 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "WebhookAuth": {
+        "type": "object",
+        "description": "How a webhook delivery proves it comes from the vendor account (spec 020, FR-012).",
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hmac",
+              "header",
+              "url"
+            ]
+          },
+          "header": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scheme": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "signature_header": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "encoding": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "hex",
+              "base64",
+              null
+            ]
+          },
+          "prefix": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestamp_header": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }

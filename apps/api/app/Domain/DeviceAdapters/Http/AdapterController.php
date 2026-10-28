@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceAdapters\Http;
 
+use App\Domain\Assistant\Services\OnboardingProposals;
 use App\Domain\DeviceAdapters\Jobs\DeployAdapter;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
 use App\Domain\DeviceAdapters\Models\AdapterCredential;
@@ -11,6 +12,10 @@ use App\Domain\DeviceAdapters\Models\AdapterProposal;
 use App\Domain\DeviceAdapters\Models\AdapterTenant;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Services\AdapterConnectionKit;
+use App\Domain\DeviceAdapters\Services\AdapterDiagnostics;
+use App\Domain\DeviceAdapters\Services\AdapterReports;
+use App\Domain\DeviceAdapters\Services\PollingService;
+use App\Domain\DeviceAdapters\Services\WebhookRoutes;
 use App\Domain\DeviceAdapters\Services\AdapterManager;
 use App\Domain\DeviceAdapters\Services\AdapterService;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
@@ -38,7 +43,10 @@ final class AdapterController
     {
         $this->authorize($r, $organization, null, DevicePermission::VIEW);
 
-        return ['data' => DeviceAdapter::where('organization_id', $organization->id)->latest()->limit(100)->get()->map(fn ($a) => [...$a->only(['uuid', 'name', 'status', 'source', 'health', 'diagnostic']), 'profile_name' => $a->artifact->profile->name]), 'tenant' => AdapterTenant::where('organization_id', $organization->id)->first()?->only(['uuid', 'status', 'broker_url', 'diagnostic']), 'capabilities' => $this->authorization->capabilities($r->user(), $organization)];
+        $diagnostics = app(AdapterDiagnostics::class);
+
+        return ['data' => DeviceAdapter::where('organization_id', $organization->id)->latest()->limit(100)->get()->map(fn ($a) => [...$a->only(['uuid', 'name', 'status', 'source', 'health', 'diagnostic']), 'profile_name' => $a->artifact->profile->name, 'source_state' => $diagnostics->sourceState($a)]),
+            'webhooks_available' => app(WebhookRoutes::class)->available(), 'tenant' => AdapterTenant::where('organization_id', $organization->id)->first()?->only(['uuid', 'status', 'broker_url', 'diagnostic']), 'capabilities' => $this->authorization->capabilities($r->user(), $organization)];
     }
 
     public function profiles(Request $r, Organization $organization): array
@@ -98,6 +106,7 @@ final class AdapterController
     public function connectionTest(Request $r, Organization $organization, DeviceAdapter $adapter): array
     {
         $this->authorize($r, $organization, $adapter, DevicePermission::CONNECTIONS);
+        abort_if(in_array($adapter->source['type'], ['webhook', 'poll'], true), 422, $adapter->source['type'] === 'poll' ? 'Use Fetch now to check a polling source.' : 'Webhook sources are checked by their deliveries.');
         if ($adapter->source['type'] === 'platform') {
             $tenant = $this->service->tenant($organization);
             $result = app(AdapterManager::class)->request('/provision', ['tenant' => $this->service->tenantPayload($tenant)]);
@@ -113,11 +122,14 @@ final class AdapterController
     {
         $this->authorize($r, $organization, $adapter, DevicePermission::CONNECTIONS);
         $this->authorization->authorize($r->user(), DevicePermission::MANAGE, $organization);
-        $v = $r->validate(['request_uuid' => 'required|uuid', 'draft_revision' => 'required|integer|min:1', 'action' => 'sometimes|in:deploy,pause,rollback', 'revision_uuid' => 'nullable|uuid']);
+        $v = $r->validate(['request_uuid' => 'required|uuid', 'draft_revision' => 'required|integer|min:1', 'action' => 'sometimes|in:deploy,pause,rollback', 'revision_uuid' => 'nullable|uuid', 'cursor_start_at' => 'nullable|date']);
         abort_unless($adapter->draft_revision === $v['draft_revision'], 409, 'Review the latest draft before deployment.');
         $action = $v['action'] ?? 'deploy';
         $revision = $action === 'pause' ? $adapter->applied_revision_uuid : ($v['revision_uuid'] ?? null);
         abort_if($action === 'rollback' && ! $revision, 422, 'Select a tested revision to roll back.');
+        if ($action !== 'pause') {
+            app(PollingService::class)->firstDeployment($adapter, $v['cursor_start_at'] ?? null);
+        }
         $operation = $this->service->operation($adapter, $action, $r->user()->id, $revision, $v['request_uuid']);
         if ($operation->status === 'queued') {
             DeployAdapter::dispatch($operation->id)->afterCommit();
@@ -209,20 +221,12 @@ final class AdapterController
         $this->authorize($r, $organization, $adapter);
         abort_unless($proposal->device_adapter_id === $adapter->id && $proposal->user_id === $r->user()->id, 404);
         $v = $r->validate(['action' => 'required|in:apply,reject', 'content_hash' => 'required|string|size:64']);
+        if ($proposal->organization_id === null) {
+            $proposal->update(['organization_id' => $adapter->organization_id]);
+        }
+        $result = app(OnboardingProposals::class)->decide($proposal->fresh(), $r->user(), $organization, $v['action'], $v['content_hash']);
 
-        return DB::transaction(function () use ($r, $organization, $adapter, $proposal, $v) {
-            $p = AdapterProposal::whereKey($proposal->id)->lockForUpdate()->firstOrFail();
-            abort_unless($p->status === 'pending' && hash_equals($p->content_hash, $v['content_hash']), 409, 'This proposal changed or was already reviewed.');
-            if ($v['action'] === 'reject') {
-                $p->update(['status' => 'rejected']);
-
-                return ['data' => ['status' => 'rejected']];
-            }
-            $saved = $this->service->save($organization, ['name' => $adapter->name, 'artifact_uuid' => $adapter->artifact->uuid, 'code' => $p->code, 'fixtures' => $adapter->fixtures, 'source' => $adapter->source], $r->user()->id, $adapter, $p->draft_revision);
-            $p->update(['status' => 'applied']);
-
-            return ['data' => $this->service->view($saved)];
-        });
+        return ['data' => $v['action'] === 'reject' ? ['status' => 'rejected'] : $result['adapter']];
     }
 
     public function event(Request $r)
@@ -230,7 +234,9 @@ final class AdapterController
         abort_unless(config('adapters.enabled') && strlen($r->getContent()) <= 1048576, 404);
         $tenant = AdapterTenant::where('uuid', $r->header('X-Adapter-Tenant'))->first();
         abort_unless($tenant && hash_equals($tenant->runtime_token, $r->bearerToken() ?? ''), 401);
-        $v = $r->validate(['adapter_uuid' => 'required|uuid', 'revision_uuid' => 'nullable|uuid', 'kind' => 'required|in:sample,health,diagnostic', 'source_device_id' => 'required_if:kind,sample|string|max:128', 'sparkplug_device_id' => 'required_if:kind,sample|string|max:80', 'preview' => 'required_if:kind,sample|array', 'retained' => 'sometimes|boolean', 'source_connected' => 'sometimes|boolean', 'upstream_connected' => 'sometimes|boolean']);
+        $v = $r->validate(['adapter_uuid' => 'required|uuid', 'revision_uuid' => 'nullable|uuid', 'kind' => 'required|in:sample,health,diagnostic,poll_run,failure,outcomes', 'source_device_id' => 'required_if:kind,sample|string|max:128', 'sparkplug_device_id' => 'required_if:kind,sample|string|max:80', 'preview' => 'required_if:kind,sample|array', 'retained' => 'sometimes|boolean', 'source_connected' => 'sometimes|boolean', 'upstream_connected' => 'sometimes|boolean', 'source_state' => 'sometimes|in:polling,retrying,stopped',
+            'run_id' => 'required_if:kind,poll_run|string|max:64', 'started_at' => 'required_if:kind,poll_run|date', 'outcome' => 'required_if:kind,poll_run|in:ok,empty,partial,retrying,stopped', 'state' => 'required_if:kind,poll_run|in:polling,retrying,stopped',
+            'report_id' => 'required_if:kind,failure,outcomes|string|max:64', 'reason' => 'nullable|string|max:300', 'error' => 'nullable|string|max:300', 'input' => 'nullable|array', 'source' => 'sometimes|in:mqtt,webhook,poll', 'bucket' => 'required_if:kind,outcomes|date', 'counts' => 'required_if:kind,outcomes|array']);
         $adapter = DeviceAdapter::where('organization_id', $tenant->organization_id)->where('uuid', $v['adapter_uuid'])->firstOrFail();
         if (isset($v['revision_uuid']) && ! in_array($v['revision_uuid'], [$adapter->applied_revision_uuid, $adapter->desired_revision_uuid], true)) {
             return response()->noContent();
@@ -247,7 +253,14 @@ final class AdapterController
             $health['last_message_at'] = now()->toIso8601String();
             $adapter->update(['health' => $health]);
         } elseif ($v['kind'] === 'health') {
-            $adapter->update(['health' => [...($adapter->health ?? []), ...array_intersect_key($v, array_flip(['source_connected', 'upstream_connected'])), 'checked_at' => now()->toIso8601String()]]);
+            $adapter->update(['health' => [...($adapter->health ?? []), ...array_intersect_key($v, array_flip(['source_connected', 'upstream_connected', 'source_state'])), 'checked_at' => now()->toIso8601String()]]);
+        } elseif ($v['kind'] === 'poll_run') {
+            app(PollingService::class)->record($adapter, $r->only(['run_id', 'revision_uuid', 'started_at', 'finished_at', 'outcome', 'http_status', 'pages', 'records', 'published', 'failed', 'duplicates', 'cursor_before', 'cursor_after', 'committed_at', 'error', 'state', 'reason', 'next_attempt_at']));
+        } elseif ($v['kind'] === 'failure') {
+            abort_unless(in_array($v['reason'] ?? null, ['decode_failed', 'validation_failed'], true), 422);
+            app(AdapterReports::class)->failure($adapter, $r->only(['report_id', 'reason', 'error', 'source', 'received_at', 'input', 'delivery_id']));
+        } elseif ($v['kind'] === 'outcomes') {
+            app(AdapterDiagnostics::class)->addCounts($adapter, 'runtime:'.$v['report_id'], $v['bucket'], array_map('intval', array_filter($v['counts'], 'is_numeric')));
         } else {
             $adapter->update(['diagnostic' => 'A message failed decoding or profile validation. Test a representative sample to inspect the error.']);
         }

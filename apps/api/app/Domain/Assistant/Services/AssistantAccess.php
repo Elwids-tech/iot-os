@@ -31,9 +31,15 @@ final class AssistantAccess
     public function conversation(User $user, Organization $organization, AssistantConversation $conversation): void
     {
         abort_unless($conversation->user_id === $user->getKey() && $conversation->organization_id === $organization->getKey(), 404);
-        if ($conversation->scope === 'adapter') {
-            abort_unless(config('adapters.enabled') && $conversation->adapter, 404);
+        if ($conversation->scope === 'onboarding') {
+            // Device onboarding (spec 020): the conversation may start unbound and later
+            // bind to the profile it drafts and the adapter it creates or picks.
+            abort_unless(config('adapters.enabled'), 404);
             app(DeviceAuthorization::class)->authorize($user, DevicePermission::MANAGE, $organization, $conversation->adapter);
+            abort_if($conversation->device_adapter_id && ! $conversation->adapter, 410, 'The adapter for this conversation was removed.');
+            if ($conversation->device_profile_id !== null) {
+                abort_unless($conversation->profile?->organization_id === $organization->getKey(), 404);
+            }
 
             return;
         }
@@ -61,7 +67,7 @@ final class AssistantAccess
 
     public function write(AssistantConversation $conversation): void
     {
-        abort_unless($conversation->scope === 'profile', 422, 'This conversation is for automation drafts.');
+        abort_unless(in_array($conversation->scope, ['profile', 'onboarding'], true), 422, 'This conversation is for automation drafts.');
         $this->conversation($conversation->user, $conversation->organization, $conversation);
         $capability = $conversation->device_profile_id === null ? 'create' : 'update';
         abort_unless($this->capabilities($conversation->user, $conversation->organization)[$capability] ?? false, 403);
