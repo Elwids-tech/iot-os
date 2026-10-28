@@ -47,6 +47,15 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue(receiver['read_only'])
         self.assertNotIn('/var/run/docker.sock:/var/run/docker.sock', receiver['volumes'])
 
+    def test_services_reach_the_api_through_its_web_server(self):
+        # In a release `api` is php-fpm with no HTTP listener; `api-web` (nginx) serves it.
+        for name in ('compose.yml', 'compose.adapters.yml'):
+            for service, settings in yaml.safe_load((release.RELEASE/name).read_text())['services'].items():
+                environment = settings.get('environment')
+                for key, value in (environment.items() if isinstance(environment, dict) else ()):
+                    if isinstance(value, str) and value.startswith('http://api'):
+                        self.assertTrue(value.startswith('http://api-web/'), f'{name} {service} {key}: {value}')
+
     def test_mosquitto_is_the_broker_and_admin_has_no_public_port(self):
         services = yaml.safe_load((release.RELEASE/'compose.yml').read_text())['services']
         self.assertNotIn('emqx', services)
