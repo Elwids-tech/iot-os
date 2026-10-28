@@ -15,6 +15,7 @@ use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\DeviceProfiles\Support\CanonicalJson;
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\DeviceOnboarding;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
@@ -272,9 +273,63 @@ final class AdapterService
         });
     }
 
+    /**
+     * Why the adapter cannot be deleted, or null when nothing uses it. A device activated
+     * through it keeps its history tied to the adapter, and devices or onboardings may
+     * use sources its managed gateway reported.
+     */
+    public function inUse(DeviceAdapter $adapter): ?string
+    {
+        $devices = DeviceInstallation::whereIn('device_adapter_candidate_id', $adapter->candidates()->select('id'))->count();
+        if ($devices) {
+            return $devices === 1 ? 'A device was activated through this adapter.' : $devices.' devices were activated through this adapter.';
+        }
+        $gateway = $adapter->sparkplug_gateway_id;
+        if ($gateway && (DeviceOnboarding::where('sparkplug_gateway_id', $gateway)->exists()
+            || Device::whereIn('device_discovery_candidate_id', DiscoveryCandidate::where('sparkplug_gateway_id', $gateway)->select('id'))->exists())) {
+            return 'Devices were added from sources this adapter reported.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Deletes an adapter that nothing uses. The runtime goes first, so nothing keeps
+     * running for a deleted adapter: its flow, broker identities, webhook route and
+     * runtime state, then its gateway's platform broker identity. The records follow
+     * in one transaction; revisions, samples, secrets, deliveries and runs cascade.
+     */
+    public function delete(DeviceAdapter $adapter, int $actor): void
+    {
+        abort_if($adapter->status === 'pending', 409, 'Wait for the current deployment to finish.');
+        if ($reason = $this->inUse($adapter)) {
+            abort(409, $reason.' Adapters in use cannot be deleted.');
+        }
+        $tenant = AdapterTenant::where('organization_id', $adapter->organization_id)->first();
+        $usernames = AdapterCredential::where('device_adapter_id', $adapter->id)->pluck('username')->all();
+        if ($tenant && ($adapter->applied_revision_uuid || $adapter->ingest_id || $usernames)) {
+            app(AdapterManager::class)->request('/remove', ['tenant' => $this->tenantPayload($tenant), 'adapter_uuid' => $adapter->uuid, 'usernames' => $usernames]);
+        }
+        $gateway = $adapter->gateway;
+        if ($gateway) {
+            app(BrokerProvisioner::class)->revoke($gateway);
+        }
+        DB::transaction(function () use ($adapter, $gateway, $actor) {
+            $locked = DeviceAdapter::whereKey($adapter->id)->lockForUpdate()->firstOrFail();
+            abort_if($locked->status === 'pending' || $this->inUse($locked), 409, 'The adapter changed while it was being deleted. Reload and try again.');
+            $locked->delete();
+            if ($gateway) {
+                DiscoveryCandidate::where('sparkplug_gateway_id', $gateway->id)->delete();
+                $gateway->delete();
+            }
+            DeviceAudit::record('device.adapter.deleted', $locked->organization_id, $actor, $locked->uuid, ['name' => $locked->name]);
+        });
+    }
+
     public function view(DeviceAdapter $adapter): array
     {
         $current = $this->current($adapter);
+        $inUse = $this->inUse($adapter);
 
         return [...$adapter->only(['uuid', 'name', 'code', 'fixtures', 'source', 'draft_revision', 'status', 'diagnostic', 'health', 'applied_revision_uuid', 'desired_revision_uuid']),
             'artifact_uuid' => $adapter->artifact->uuid, 'profile_name' => $adapter->artifact->profile->name, 'profile' => $adapter->artifact->definition,
@@ -283,6 +338,7 @@ final class AdapterService
             ...app(AdapterDiagnostics::class)->summary($adapter),
             'revision' => $current->only(['uuid', 'revision', 'content_hash', 'tested_at', 'test_result']),
             'revisions' => $adapter->revisions()->latest('revision')->limit(30)->get()->map(fn ($r) => $r->only(['uuid', 'revision', 'content_hash', 'tested_at', 'test_result'])),
-            'operations' => AdapterOperation::where('device_adapter_id', $adapter->id)->latest()->limit(10)->get()->map(fn ($o) => $o->only(['uuid', 'action', 'status', 'diagnostic', 'revision_uuid', 'created_at']))];
+            'operations' => AdapterOperation::where('device_adapter_id', $adapter->id)->latest()->limit(10)->get()->map(fn ($o) => $o->only(['uuid', 'action', 'status', 'diagnostic', 'revision_uuid', 'created_at'])),
+            'deletion' => ['allowed' => $inUse === null, 'reason' => $inUse]];
     }
 }

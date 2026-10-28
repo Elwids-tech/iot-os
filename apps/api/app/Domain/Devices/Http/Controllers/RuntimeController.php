@@ -181,8 +181,14 @@ final class RuntimeController
                 if (! $connection) {
                     return $this->unknownReference($event);
                 }
-                $gateway = SparkplugGateway::firstOrCreate(['sparkplug_connection_id' => $connection->id, 'edge_node_id' => $p['edge_node_id']],
-                    ['organization_id' => $connection->organization_id, 'name' => $p['edge_node_id']]);
+                // Adapter gateways exist only while their adapter does, so a late death from a deleted adapter is stale.
+                $gateway = str_starts_with($connection->group_id, 'adapters-')
+                    ? SparkplugGateway::where(['sparkplug_connection_id' => $connection->id, 'edge_node_id' => $p['edge_node_id']])->first()
+                    : SparkplugGateway::firstOrCreate(['sparkplug_connection_id' => $connection->id, 'edge_node_id' => $p['edge_node_id']],
+                        ['organization_id' => $connection->organization_id, 'name' => $p['edge_node_id']]);
+                if (! $gateway) {
+                    return ['ok' => true, 'stale' => true];
+                }
                 if ($event['type'] === 'gateway.presence.v1') {
                     if ($gateway->session_id && $gateway->session_id !== ($p['session_id'] ?? null) && ($p['presence'] ?? '') !== 'online') {
                         return ['ok' => true, 'stale' => true];

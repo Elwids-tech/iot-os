@@ -13,6 +13,7 @@ Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'ad
     Route::prefix('device-adapters/{adapter}')->group(function (): void {
         Route::get('', [AdapterController::class, 'show']);
         Route::put('', [AdapterController::class, 'update']);
+        Route::delete('', [AdapterController::class, 'destroy']);
         Route::post('test', [AdapterController::class, 'test'])->middleware('throttle:20,1');
         Route::post('connection-test', [AdapterController::class, 'connectionTest'])->middleware('throttle:6,1');
         Route::post('deploy', [AdapterController::class, 'deploy'])->middleware('throttle:10,1');

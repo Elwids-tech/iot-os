@@ -144,7 +144,9 @@ async function ensureContainer(name, args, env, revision = "") {
     env,
   );
 }
-function control(url, ca, password, commands) {
+// `tolerated` names broker errors that mean the change is already in place, such as
+// deleting a client that is already gone.
+function control(url, ca, password, commands, tolerated = []) {
   return new Promise((resolve, reject) => {
     const client = mqtt.connect(url, {
       username: "adapter-admin",
@@ -190,7 +192,7 @@ function control(url, ca, password, commands) {
         for (const item of response.responses || []) {
           if (
             item.error &&
-            !["Client already exists", "Role already exists"].includes(
+            !["Client already exists", "Role already exists", ...tolerated].includes(
               item.error,
             )
           )
@@ -652,6 +654,44 @@ async function deploy(body) {
   );
   return { applied: true, broker_url: ctx.broker_url, ca_certificate: ctx.ca };
 }
+// Removes a deleted adapter from its tenant: its flow, broker identities, webhook
+// routes, and the runtime's cursor, dedup, observed and birth-sequence files.
+async function remove(body) {
+  const adapter = id(body.adapter_uuid);
+  const usernames = ["adapter-" + adapter, "webhook-" + adapter, ...(body.usernames || [])];
+  for (const username of usernames)
+    ensure(/^(adapter|webhook|device)-[a-f0-9-]{36}$/.test(username), "Invalid ingress identity");
+  const ctx = await provisionTenant(body.tenant);
+  const current = await runtimeReady(ctx);
+  const tab = "adapter-" + adapter;
+  if (current.flows.some((n) => n.id === tab || n.z === tab))
+    await admin(ctx, "POST", "/flows", { rev: current.rev, flows: replaceFlow(current.flows, { adapter_uuid: adapter }, []) });
+  await control(
+    ctx.url,
+    ctx.ca,
+    body.tenant.ingress_admin_password,
+    usernames.flatMap((username) => [
+      { command: "deleteClient", username },
+      { command: "deleteRole", rolename: username },
+    ]),
+    ["Client not found", "Role not found"],
+  );
+  const job = routesLock.then(async () => {
+    const data = await readRoutes();
+    const owned = Object.keys(data.routes).filter((key) => data.routes[key].adapter_uuid === adapter);
+    for (const key of owned) delete data.routes[key];
+    if (owned.length) await writeRoutes(data);
+  });
+  routesLock = job.catch(() => {});
+  await job;
+  const runtime = path.join(stateRoot, id(body.tenant.uuid), "runtime");
+  await Promise.all(
+    ["poll-" + adapter + ".json", "dedup-" + adapter + ".log", "observed-" + adapter + ".json", "bdseq-" + adapter + ".json"].map(
+      (file) => fs.rm(path.join(runtime, file), { force: true }),
+    ),
+  );
+  return { removed: true };
+}
 async function connectionTest(source) {
   const url = brokerUrl(
     source.url,
@@ -788,6 +828,7 @@ async function handle(route, body) {
     return { revoked: true };
   }
   if (route === "/deploy") return deploy(body);
+  if (route === "/remove") return remove(body);
   throw Error("Unknown manager operation");
 }
 const server = http.createServer(async (req, res) => {

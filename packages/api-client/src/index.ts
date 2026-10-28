@@ -1799,6 +1799,8 @@ export class ApiClient {
   deviceAdapter(org: string, id: string) { return this.data<import("./adapters").DeviceAdapter>(this.adapterPath(org,id)) }
   createDeviceAdapter(org: string, input: import("./adapters").AdapterDraft & {request_uuid: string}) { return this.data<import("./adapters").DeviceAdapter>(this.adapterPath(org), "POST", input) }
   saveDeviceAdapter(org: string, id: string, input: import("./adapters").AdapterDraft & {draft_revision: number}) { return this.data<import("./adapters").DeviceAdapter>(this.adapterPath(org,id), "PUT", input) }
+  /** Deletes an adapter nothing uses; 409 names what still uses it. */
+  deleteDeviceAdapter(org: string, id: string) { return this.request<null>(this.adapterPath(org,id), { method: "DELETE" }) }
   testDeviceAdapter(org: string, id: string, draft_revision: number) { return this.data<import("./adapters").AdapterTest>(this.adapterPath(org,id,"/test"), "POST", {draft_revision}) }
   testAdapterConnection(org: string, id: string) { return this.data<{connected: boolean; broker_url?: string}>(this.adapterPath(org,id,"/connection-test"), "POST", {}) }
   deployDeviceAdapter(org: string, id: string, input: {draft_revision: number; action: "deploy" | "pause" | "rollback"; revision_uuid?: string; request_uuid: string; cursor_start_at?: string}) { return this.data<{uuid: string; status: string}>(this.adapterPath(org,id,"/deploy"), "POST", input) }

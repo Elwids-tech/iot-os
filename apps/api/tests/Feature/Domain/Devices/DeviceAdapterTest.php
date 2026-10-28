@@ -201,6 +201,43 @@ final class DeviceAdapterTest extends TestCase
         Queue::assertPushed(DeployAdapter::class);
     }
 
+    public function test_an_unused_adapter_is_deleted_with_its_runtime_and_gateway(): void
+    {
+        [$a, $adapter] = $this->liveCandidate();
+        app(AdapterService::class)->tenant($this->organization);
+        $gateway = $adapter->fresh()->gateway;
+        $this->getJson($this->prefix.'/device-adapters/'.$a['uuid'])->assertOk()->assertJsonPath('data.deletion', ['allowed' => true, 'reason' => null]);
+        $this->getJson($this->prefix.'/device-adapters')->assertOk()->assertJsonPath('data.0.deletable', true);
+        $this->deleteJson($this->prefix.'/device-adapters/'.$a['uuid'])->assertNoContent();
+        $this->assertSame(0, DeviceAdapter::count());
+        $this->assertSame(0, AdapterCandidate::count());
+        $this->assertSame(0, AdapterRevision::count());
+        $this->assertNull($gateway->fresh());
+        $this->assertSame(0, DiscoveryCandidate::where('sparkplug_gateway_id', $gateway->id)->count());
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/remove') && $r['adapter_uuid'] === $a['uuid'] && $r['usernames'] === []);
+        // The gateway's platform identity gets a password nobody keeps.
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/clients') && $r['username'] === $gateway->username && $r['password'] !== $gateway->password);
+        $this->assertTrue(DB::table('device_audit_events')->where('action', 'device.adapter.deleted')->where('resource_uuid', $a['uuid'])->exists());
+        // A death the publisher sent while it stopped does not bring the gateway back.
+        $this->withToken(str_repeat('r', 64))->postJson('/api/internal/devices/events', ['uuid' => (string) Str::uuid(), 'type' => 'gateway.presence.v1',
+            'payload' => ['connection_uuid' => $gateway->connection->uuid, 'edge_node_id' => $gateway->edge_node_id, 'presence' => 'offline', 'session_id' => 's-1', 'last_seen_at' => now()->toIso8601String()]])->assertOk();
+        $this->assertFalse(DB::table('sparkplug_gateways')->where('edge_node_id', $gateway->edge_node_id)->exists());
+    }
+
+    public function test_an_adapter_with_an_activated_device_cannot_be_deleted(): void
+    {
+        [$a, , $candidate] = $this->liveCandidate();
+        $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/activate', ['name' => 'Workshop water meter'])->assertAccepted();
+        DeviceAdapter::first()->update(['status' => 'running']);
+        $this->getJson($this->prefix.'/device-adapters/'.$a['uuid'])->assertOk()
+            ->assertJsonPath('data.deletion', ['allowed' => false, 'reason' => 'A device was activated through this adapter.']);
+        $this->getJson($this->prefix.'/device-adapters')->assertOk()->assertJsonPath('data.0.deletable', false);
+        $this->deleteJson($this->prefix.'/device-adapters/'.$a['uuid'])->assertConflict()
+            ->assertJsonPath('message', 'A device was activated through this adapter. Adapters in use cannot be deleted.');
+        $this->assertSame(1, DeviceAdapter::count());
+        Http::assertNotSent(fn ($r) => str_ends_with($r->url(), '/remove'));
+    }
+
     public function test_binding_failure_rolls_back_native_activation_and_installation(): void
     {
         [$a,$adapter,$candidate] = $this->liveCandidate();

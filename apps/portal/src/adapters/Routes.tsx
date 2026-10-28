@@ -15,7 +15,14 @@ import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-
 import { EmptyState } from "@iot-os/ui/components/empty-state";
 import { Status, StatusMark } from "@iot-os/ui/components/status-mark";
 import { CollectionPage } from "@iot-os/ui/templates/collection-page";
-import { PlugIcon, PlusIcon } from "lucide-react";
+import { MoreHorizontalIcon, PlugIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@iot-os/ui/components/dropdown-menu";
 import { Badge } from "@iot-os/ui/components/badge";
 import {
   Card,
@@ -69,7 +76,7 @@ import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { JsonEditor } from "@iot-os/ui/components/json-editor";
 import { api } from "../lib/api";
 import { useDirtyContext, useUnsaved } from "../lib/unsaved";
-import { RequestError } from "../components/forms";
+import { Confirm, RequestError } from "../components/forms";
 import { useDeviceOrganization } from "../devices/shared";
 import { AdapterDevices, AdapterCredentials } from "./connections";
 import { Activity } from "./Activity";
@@ -125,6 +132,12 @@ const emptyDraft: AdapterDraft = {
   fixtures: sample,
 };
 
+// What deleting removes, said before the person confirms. Only unused adapters get here.
+const deletionDescription = (type: string) =>
+  `The decoder, its revisions and samples, and the deployment are removed${
+    type === "webhook" ? ", and the webhook URL stops accepting deliveries" : type === "poll" ? ", and polling stops" : ""
+  }. No device uses it.`;
+
 export default function AdapterRoutes() {
   return (
     <Routes>
@@ -138,6 +151,8 @@ export default function AdapterRoutes() {
 function Directory() {
   const { org } = useDeviceOrganization();
   const [search, setSearch] = useState("");
+  const [deleting, setDeleting] = useState<AdapterRow | null>(null);
+  const cache = useQueryClient();
   const query = useQuery({
     queryKey: ["adapters", org],
     queryFn: () => api.deviceAdapters(org),
@@ -209,6 +224,7 @@ function Directory() {
         noun={["adapter", "adapters"]}
         rows={query.data?.data}
         rowKey={(a) => a.uuid}
+        rowLabel={(a) => a.name}
         rowHref={(a) => path(org, a.uuid)}
         columns={columns}
         defaultSort={[{ id: "adapter", desc: false }]}
@@ -224,6 +240,21 @@ function Directory() {
           { id: "type", label: "Device type", value: (a) => a.profile_name },
         ]}
         refreshSeconds={5}
+        rowActions={(a) => (
+          <>
+            <DropdownMenuItem asChild>
+              <Link to={path(org, a.uuid)}>Open</Link>
+            </DropdownMenuItem>
+            {manage && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" disabled={!a.deletable} onSelect={() => setDeleting(a)}>
+                  {a.deletable ? "Delete" : "Delete (devices use it)"}
+                </DropdownMenuItem>
+              </>
+            )}
+          </>
+        )}
         empty={
           <EmptyState
             inset
@@ -239,6 +270,20 @@ function Directory() {
             }
           />
         }
+      />
+      <Confirm
+        open={deleting !== null}
+        title={`Delete ${deleting?.name ?? "this adapter"}?`}
+        description={deletionDescription(deleting?.source.type ?? "")}
+        action="Delete adapter"
+        onClose={() => setDeleting(null)}
+        onConfirm={async () => {
+          if (!deleting) return;
+          await api.deleteDeviceAdapter(org, deleting.uuid);
+          toast.success(`Deleted ${deleting.name}`);
+          cache.removeQueries({ queryKey: ["adapter", org, deleting.uuid] });
+          await cache.invalidateQueries({ queryKey: ["adapters", org] });
+        }}
       />
     </CollectionPage>
   );
@@ -301,6 +346,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
     localInput(Date.now() - 3_600_000),
   );
   const [dirty, setDirty] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
@@ -464,6 +510,33 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
     <WorkspacePage
       title={adapter ? adapter.name : "New device adapter"}
       back={{ to: path(org), label: "Device adapters" }}
+      actions={
+        adapter &&
+        canEdit && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="More adapter actions">
+                <MoreHorizontalIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={!adapter.deletion?.allowed}
+                onSelect={() => setDeleteOpen(true)}
+              >
+                <Trash2Icon />
+                Delete adapter
+              </DropdownMenuItem>
+              {adapter.deletion?.reason && (
+                <p className="px-2 pb-1.5 text-meta text-muted-foreground">
+                  {adapter.deletion.reason} Adapters in use cannot be deleted.
+                </p>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
+      }
       tools={
         <p className="text-body text-muted-foreground">
           One tested workflow per device type, from MQTT, webhooks or a vendor API, with a stable platform device for each activated serial.
@@ -1084,6 +1157,26 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
           )}
         </TabsContent>
       </Tabs>
+      {adapter && (
+        <Confirm
+          open={deleteOpen}
+          title={`Delete ${adapter.name}?`}
+          description={deletionDescription(adapter.source.type)}
+          action="Delete adapter"
+          onClose={() => setDeleteOpen(false)}
+          onConfirm={async () => {
+            await api.deleteDeviceAdapter(org, adapter.uuid);
+            toast.success(`Deleted ${adapter.name}`);
+            // Unsaved edits belong to the deleted adapter, so leaving must not ask about them.
+            setDirty(false);
+            clearGlobalDirty(false);
+            navigate(path(org), { replace: true });
+            cache.removeQueries({ queryKey: ["adapter", org, adapter.uuid] });
+            await cache.invalidateQueries({ queryKey: ["adapters", org] });
+            await cache.invalidateQueries({ queryKey: ["onboarding-ai-conversations", org] });
+          }}
+        />
+      )}
     </WorkspacePage>
   );
 }

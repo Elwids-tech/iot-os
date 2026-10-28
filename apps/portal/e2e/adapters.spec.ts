@@ -168,6 +168,7 @@ async function setup(
   page: Page,
   retained = false,
   kind: "platform" | "webhook" | "poll" = "platform",
+  overrides: Record<string, unknown> = {},
 ) {
   const errors: string[] = [],
     requests: { path: string; body: any }[] = [];
@@ -241,8 +242,11 @@ async function setup(
     operations: [],
     health: { source_connected: true, upstream_connected: true },
     diagnostic: null,
+    deletion: { allowed: true, reason: null },
+    ...overrides,
   };
   let linked = false;
+  let deleted = false;
   let secrets: any[] = [];
   let secretCount = 0;
   // Derived fields the API computes from the saved source.
@@ -344,13 +348,17 @@ async function setup(
       return route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          data: [adapter],
+          data: deleted ? [] : [{ ...adapter, deletable: adapter.deletion.allowed }],
           tenant: null,
           capabilities: organization.capabilities.devices,
         }),
       });
     }
     if (path.endsWith(`/device-adapters/${id}`)) {
+      if (method === "DELETE") {
+        deleted = true;
+        return route.fulfill({ status: 204 });
+      }
       if (method === "PUT") {
         const { secrets: saved, ...values } = route.request().postDataJSON();
         adapter = {
@@ -825,6 +833,35 @@ test("the setup checklist shows each step's state and opens its tab", async ({
   await expect(waiting).toContainText(ingestUrl);
   await settled(page);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("an unused adapter is deleted after confirming", async ({ page }) => {
+  const { errors, requests } = await setup(page);
+  await page.goto(base + "/" + id);
+  await page.getByRole("button", { name: "More adapter actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete adapter" }).click();
+  const confirm = page.getByRole("alertdialog", { name: "Delete Manufacturer water meter?" });
+  await expect(confirm).toContainText("No device uses it.");
+  await confirm.getByRole("button", { name: "Delete adapter" }).click();
+  await expect(page).toHaveURL(base);
+  expect(requests.some((r) => r.path.endsWith(`/device-adapters/${id}`) && r.body === null)).toBe(true);
+  await expect(page.getByText("Connect your first manufacturer device")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("an adapter that devices use cannot be deleted and says why", async ({ page }) => {
+  const reason = "A device was activated through this adapter.";
+  const { errors, requests } = await setup(page, false, "platform", { deletion: { allowed: false, reason } });
+  await page.goto(base);
+  await page.getByRole("button", { name: "Actions for Manufacturer water meter" }).click();
+  await expect(page.getByRole("menuitem", { name: "Delete (devices use it)" })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await page.goto(base + "/" + id);
+  await page.getByRole("button", { name: "More adapter actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Delete adapter" })).toBeDisabled();
+  await expect(page.getByRole("menu")).toContainText(`${reason} Adapters in use cannot be deleted.`);
+  expect(requests.some((r) => r.body === null)).toBe(false);
   expect(errors).toEqual([]);
 });
 

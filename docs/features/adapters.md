@@ -148,6 +148,16 @@ Stored observations and committed events keep `installation_uuid`,
 `adapter_revision_uuid` and the manufacturer serial next to the stable device
 UUID, so replacing hardware later can keep the device's history.
 
+**Delete** (the workbench's ⋯ menu, or the list's row menu) removes an adapter
+nothing uses: no device was ever activated through it, and no device or onboarding
+uses a source its gateway reported. Otherwise the menu says why and the API answers
+409. Deleting removes the runtime first (the flow, the tenant broker identities,
+the webhook route and the cursor, dedup and birth files), retires the gateway's
+platform broker identity, then deletes the adapter's records and its gateway in
+one transaction ([`AdapterService::delete`](../../apps/api/app/Domain/DeviceAdapters/Services/AdapterService.php)).
+Presence and birth events never recreate an adapter gateway, so a death the
+publisher sends while stopping cannot bring it back.
+
 ## Decoder contract
 
 ```js
@@ -280,7 +290,7 @@ tenant containers and restart only those that were running
 
 Under `/api/v1/organizations/{organization}/device-adapters`
 ([routes](../../apps/api/app/Domain/DeviceAdapters/routes.php)): list, create,
-read and update adapters; `test`, `connection-test`, `deploy`; `candidates` and
+read, update and delete adapters; `test`, `connection-test`, `deploy`; `candidates` and
 `candidates/{c}/activate`; `credentials` with `kit`, `rotate` and `revoke`;
 `webhook`, `webhook/secrets` and `…/revoke`, `deliveries`; `fetch-now`, `poll-runs`,
 `cursor`, `resume`; assistant `proposals` and `decision`. Reads need `Device.view`,

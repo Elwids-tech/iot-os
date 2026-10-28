@@ -141,6 +141,12 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  DELETE /v1/organizations/{organization}/device-adapters/{adapter}:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'
   POST /v1/organizations/{organization}/device-adapters/{adapter}/proposals/{proposal}/decision:
     responses:
       '409':
