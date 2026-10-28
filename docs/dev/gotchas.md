@@ -199,6 +199,20 @@ Things that have cost time before. Add to this list when something surprises you
   exactly 2 in `increase(...[15m])`; after a reset from a non-zero count,
   Prometheus extrapolates them to 2.03 and the alert fires. So the restarts one
   deploy left behind made the next deploy's two restarts alert.
+- **A release that adds a Caddy import crash-loops the old Caddy once.** `ship.py`
+  installs the new source before the pre-upgrade checkpoint, and the checkpoint
+  restarts the stopped containers it found running. The old Caddy container then
+  reads the new `Caddyfile` through its bind mount but lacks the new file's mount,
+  so `import /etc/caddy/webhooks.Caddyfile` fails ("File to import not found") and
+  Docker restarts it until the deploy recreates it. On 2026-10-28 that was 7
+  restarts in about three minutes, inside the deploy's own Caddy downtime, and
+  `ContainerFailure caddy` fired for 15 minutes after a clean ship. Expect it the
+  first time a release adds a mounted file; later releases already have the mount.
+- **Services in a release overlay must also be started by `manage.py`.** `deploy`
+  recreates an explicit list of services, not everything in the overlays, so
+  `webhook-receiver` shipped in `compose.adapters.yml` but never ran. Adapter
+  services now come from `ADAPTER_SERVICES`, and a test compares it with the
+  overlay's services that have their own image.
 - **Python's `tarfile` data filter leaves directory modes to the umask.**
   `extractall(..., filter="data")` ignores the modes an archive records for
   directories. The release tooling runs under umask 077, so from the 2026-10-10

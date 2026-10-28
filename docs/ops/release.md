@@ -35,7 +35,8 @@ Services ([`deploy/release/compose.yml`](../../deploy/release/compose.yml)): Cad
 TimescaleDB, NATS, the MQTT broker (Mosquitto, `mqtt`) and `broker-admin`, the
 monitoring stack, one-off `migrate` and `runtime-migrate` jobs, and demo simulators
 (`demo` profile). Overlays: `compose.external-db.yml` (database on another host),
-`compose.adapters.yml`.
+`compose.adapters.yml` (`adapter-manager`, `adapter-worker` and `webhook-receiver`,
+all started whenever `IOT_ADAPTERS_ENABLED` is true).
 
 ## Private inputs
 

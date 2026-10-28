@@ -282,7 +282,10 @@ tenant containers and restart only those that were running
 - **Webhooks**: add a DNS record for the receiver's host (for example
   `hooks.<domain>`), set `IOT_WEBHOOK_PUBLIC_URL` and a 64-hex
   `IOT_WEBHOOK_RECEIVER_TOKEN`; the release renders a Caddy site that passes only
-  `/w/*` to `webhook-receiver`. Its routing file,
+  `/w/*` to `webhook-receiver`. The receiver runs whenever adapters are enabled and
+  answers 404 until an adapter has a route. Setting the address on a running host
+  takes a deploy (a tooling ship with `--source-commit` is enough), which renders
+  the site and recreates Caddy. Its routing file,
   `${STATE_DIR}/device-adapters/webhooks/routes.json`, holds tenant broker passwords
   and HMAC secrets and is backed up with the rest of the adapter state.
 - **Polling** needs outbound HTTPS from the tenant runtime containers to the vendor

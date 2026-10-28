@@ -36,6 +36,16 @@ class ReleaseTests(unittest.TestCase):
             with patch.object(release,'run',return_value=SimpleNamespace(stdout=b'')) as run:
                 deployment.compose('config','--quiet')
             self.assertIn(release.RELEASE/'compose.adapters.yml', run.call_args.args[0])
+            self.assertIn('webhook-receiver', run.call_args.kwargs['env']['EXPECTED_SERVICES'].split(','))
+
+    def test_every_adapter_overlay_service_is_started_and_expected(self):
+        overlay = yaml.safe_load((release.RELEASE/'compose.adapters.yml').read_text())['services']
+        # Services with their own image are new containers; the rest only add settings to release services.
+        self.assertEqual(sorted(name for name, service in overlay.items() if 'image' in service), sorted(release.ADAPTER_SERVICES))
+        receiver = overlay['webhook-receiver']
+        self.assertNotIn('ports', receiver)
+        self.assertTrue(receiver['read_only'])
+        self.assertNotIn('/var/run/docker.sock:/var/run/docker.sock', receiver['volumes'])
 
     def test_mosquitto_is_the_broker_and_admin_has_no_public_port(self):
         services = yaml.safe_load((release.RELEASE/'compose.yml').read_text())['services']
