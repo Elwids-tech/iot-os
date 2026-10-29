@@ -2077,6 +2077,17 @@ export class ApiClient {
   notificationRecipients(org: string, workflow: string, search: string, page: number) {
     return this.request<{ data: import("./alerts").NotificationRecipient[]; meta: { current_page: number; last_page: number } }>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(workflow)}/notification-recipients?${new URLSearchParams({ search, page: String(page) })}`)
   }
+  /** Your alert notifications in this organization, newest first, 20 per page (spec 022). */
+  alertNotifications(org: string, page: number, signal?: AbortSignal) {
+    return this.request<import("./alerts").AlertNotificationPage>(`/api/v1/organizations/${encodeURIComponent(org)}/alert-notifications?page=${page}`, { signal })
+  }
+  alertNotificationSummary(org: string, signal?: AbortSignal) {
+    return this.data<import("./alerts").AlertNotificationSummary>(`/api/v1/organizations/${encodeURIComponent(org)}/alert-notifications/summary`, "GET", undefined, signal)
+  }
+  /** Resolves to the summary after marking. */
+  markAlertNotificationsRead(org: string, input: import("./alerts").AlertNotificationReadInput) {
+    return this.data<import("./alerts").AlertNotificationSummary>(`/api/v1/organizations/${encodeURIComponent(org)}/alert-notifications/read`, "POST", input)
+  }
   retryAlertDelivery(org: string, alert: string, delivery: string, generation: number) {
     return this.data<{ status: string }>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(alert)}/deliveries/${encodeURIComponent(delivery)}/retry`, "POST", { retry_generation: generation })
   }

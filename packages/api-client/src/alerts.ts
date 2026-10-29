@@ -61,6 +61,32 @@ export type AlertAcknowledgement =
       assignee?: number;
     };
 
+/** One alert transition a person received as a recipient: their bell (spec 022). Names are as they were when it arrived. */
+export type AlertNotification = {
+  /** UUIDv7: sorts by time, so the newest id is also a cursor. */
+  id: string;
+  transition: "activated" | "cleared";
+  occurred_at: string;
+  created_at: string;
+  read_at: string | null;
+  /** `condition` is the alert's condition now. */
+  alert: { uuid: string; episode: number; condition: "active" | "cleared" };
+  workflow: { uuid: string; name: string };
+  /** Null when the alert has no bound device or it was not found. */
+  device: { uuid: string; name: string } | null;
+};
+export type AlertNotificationPage = {
+  data: AlertNotification[];
+  meta: { current_page: number; last_page: number; total: number; unread: number };
+};
+/** Polled by the bell: a newer `newest_unread_activation_id` than the last one seen is a new alert. */
+export type AlertNotificationSummary = {
+  unread: number;
+  newest_unread_activation_id: string | null;
+};
+/** Exactly one: chosen notifications, every one up to the newest shown, or every one for an alert. */
+export type AlertNotificationReadInput = { ids: string[] } | { up_to: string } | { alert_uuid: string };
+
 export type NotificationRecipient = {
   id: number;
   name: string;

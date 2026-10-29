@@ -8,6 +8,7 @@ use App\Domain\Administration\Models\OrganizationInvitation;
 use App\Domain\Assistant\Models\AssistantConversation;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Automation\Models\Workflow;
+use App\Domain\Automation\Notifications\AlertTransitionNotification;
 use App\Domain\Dashboards\Models\Dashboard;
 use App\Domain\DeviceAdapters\Models\AdapterTenant;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
@@ -77,6 +78,9 @@ final class OrganizationDeletionApiTest extends TestCase
         DB::table('agent_conversations')->insert(['id' => $sdk, 'title' => 'Profile help', 'created_at' => now(), 'updated_at' => now()]);
         $conversation = AssistantConversation::create(['organization_id' => $organization->id, 'user_id' => $member->id, 'sdk_conversation_id' => $sdk]);
         Storage::disk('local')->put("assistant/{$conversation->id}/upload.txt", 'manual');
+        $bell = fn (Organization $o) => new AlertTransitionNotification(['organization_uuid' => $o->uuid, 'alert_uuid' => (string) Str::uuid(), 'episode' => 1, 'transition' => 'activated', 'occurred_at' => now()->toIso8601ZuluString(), 'workflow_uuid' => (string) Str::uuid(), 'workflow_name' => 'Door open', 'device_uuid' => null, 'device_name' => null]);
+        $member->notify($bell($organization));
+        $member->notify($bell($acme));
 
         $this->actingAs($this->administrator, 'sanctum')
             ->getJson("/api/v1/admin/organizations/{$organization->uuid}/deletion")
@@ -102,6 +106,8 @@ final class OrganizationDeletionApiTest extends TestCase
         }
         $this->assertNull(Role::query()->find($customRole));
         $this->assertFalse(DB::table('agent_conversations')->where('id', $sdk)->exists());
+        // Bell notifications (spec 022) link to their organization inside `data`, with no key to cascade.
+        $this->assertSame([$acme->uuid], DB::table('notifications')->pluck('data')->map(fn ($data) => json_decode($data, true)['organization_uuid'])->all());
         Storage::disk('local')->assertMissing("assistant/{$conversation->id}/upload.txt");
 
         // The member keeps their account and their other memberships, roles and agent.

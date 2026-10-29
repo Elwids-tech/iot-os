@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use App\Domain\Automation\Http\Controllers\AlertController;
+use App\Domain\Automation\Http\Controllers\AlertNotificationController;
 use App\Domain\Automation\Http\Controllers\DagController;
 use App\Domain\Automation\Http\Controllers\NotificationSettingsController;
 use App\Domain\Automation\Http\Controllers\ScenarioController;
@@ -55,4 +56,11 @@ Route::prefix('v1/organizations/{organization}/alerts')->whereUuid(['organizatio
     Route::post('{alert}/comments', [AlertController::class, 'comment']);
     Route::post('{alert}/deliveries/{delivery}/retry', [AlertController::class, 'retry']);
     Route::get('{alert}/deliveries', [AlertController::class, 'deliveries']);
+});
+
+// The signed-in person's alert notifications: the bell (spec 022).
+Route::prefix('v1/organizations/{organization}/alert-notifications')->whereUuid('organization')->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
+    Route::get('', [AlertNotificationController::class, 'index']);
+    Route::get('summary', [AlertNotificationController::class, 'summary']);
+    Route::post('read', [AlertNotificationController::class, 'read']);
 });

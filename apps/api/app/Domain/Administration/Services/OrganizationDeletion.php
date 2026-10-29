@@ -133,6 +133,10 @@ final class OrganizationDeletion
                 DB::table($table)->where('organization_id', $id)->delete();
             }
 
+            // Bell notifications (spec 022) name their organization inside `data`, so no
+            // key cascades them. Alerts block deletion; this clears what is left.
+            DB::table('notifications')->where('type', 'alert')->where('data->organization_uuid', $locked->uuid)->delete();
+
             // Support tickets stay with the team (organization_id becomes null); the
             // colleagues tagged on them lose access with the organization (spec 015).
             DB::table('support_ticket_participants')
