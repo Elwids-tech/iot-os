@@ -125,9 +125,21 @@ Under `/api/v1/organizations/{organization}`:
 | `GET alerts/{uuid}/deliveries`, `POST .../deliveries/{d}/retry` | Delivery history, retry with `{retry_generation}` | `Device.manage` |
 | `GET workflows?kind=all` | Geofence workflows and DAG automations, each with `kind` (`geofence` or `automation`); without `kind=all`, geofence workflows only | `Device.view` |
 | `GET/PUT workflows/{uuid}/notifications`, `GET workflows/{uuid}/notification-recipients` | Recipients and options (`{revision, enabled, notify_on_clear, recipient_ids}`; reads also return `workflow_kind`) | `Device.manage` |
+| `GET alert-notifications` | Your own alert notifications here, newest first, 20 per `page`, with `meta.unread` and each alert's condition now | Member with `Device.view` |
+| `GET alert-notifications/summary` | `{unread, newest_unread_activation_id}`, polled by the bell | Member with `Device.view` |
+| `POST alert-notifications/read` | Mark read with exactly one of `{ids}` (1–100), `{up_to}` (every id up to it) or `{alert_uuid}`; answers with the summary | Member with `Device.view` |
 
 `acknowledged_by`, `assigned_to` and `recipient_ids` are integer user ids
 ([ADR-013](../adr/ADR-013-integer-user-ids.md)). Personal preferences and the event
 log are under `/api/v1/notifications/*` (signed-in user, no organization prefix).
+
+Each delivery the platform records for a recipient also writes one alert notification
+for that person (Laravel database notifications, `type` `alert`), in the same
+transaction and whatever their email preferences. The `alert-notifications` operations
+only ever read or change the signed-in person's own; someone who is not a current
+member with `Device.view` (a visiting super administrator, a member without device view)
+gets an empty list, a zero summary and a no-op `read`. Notification ids are UUIDv7, so
+they sort by time. `alerts:prune-notifications` removes them after 90 days, read or not
+(daily at 03:45), and deleting an organization removes its own.
 
 Alert, comment, delivery and attempt retention is not configurable yet.

@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-29
 
-**Status**: Draft; three open questions below, each with a recommended answer
+**Status**: Draft; decisions confirmed by the owner on 2026-10-29
 
 **Input**: "When an alert is received it would be nice to have a sound and also a bell
 icon that actually shows you all the notifications, or alert notifications basically,
@@ -31,19 +31,18 @@ already configure; it adds no new way to subscribe and changes no email behaviou
 person received as a recipient. *Unread* means the person has not opened or dismissed
 it. The *backlog* is what was already there when the page loaded.
 
-## Open questions
+## Decisions
 
-Each has a recommended answer; the plan and tasks follow it until the owner says
-otherwise.
+The draft left three questions open, each with a recommended answer. The owner
+confirmed all three recommendations on 2026-10-29 ("Use the defaults").
 
-- **Q1. How long are notifications kept?** Recommended: **90 days**, read or unread,
-  then removed by a daily job. Alerts themselves stay on the Alerts page.
-- **Q2. Should a cleared alert also chime?** Recommended: **no**. Only a new activation
-  chimes; a cleared notification appears in the bell silently, because recovery needs
-  no action.
+- **Q1. How long are notifications kept?** **90 days**, read or unread, then removed by
+  a daily job. Alerts themselves stay on the Alerts page.
+- **Q2. Should a cleared alert also chime?** **No**. Only a new activation chimes; a
+  cleared notification appears in the bell silently, because recovery needs no action.
 - **Q3. Does opening an alert from anywhere (email link, Alerts page) mark its
-  notifications read?** Recommended: **yes**, so someone who followed the email link
-  does not find the same alert unread in the bell.
+  notifications read?** **Yes**, so someone who followed the email link does not find
+  the same alert unread in the bell.
 
 ## User Scenarios & Testing *(mandatory)*
 

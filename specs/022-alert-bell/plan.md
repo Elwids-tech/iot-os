@@ -21,7 +21,8 @@ alert notifications and sits in every page header beside Assistant and Help. The
 is synthesized with the Web Audio API, unlocked by the first interaction, muted per
 browser, and claimed through `localStorage` so one tab plays it.
 
-The plan follows the spec's recommended answers to Q1 to Q3.
+The plan follows the owner's decisions on Q1 to Q3 (2026-10-29), which kept the
+spec's recommended answers.
 
 ## Technical Context
 
