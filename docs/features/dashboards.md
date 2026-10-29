@@ -89,8 +89,10 @@ applied (or last applied) configurations, not from the latest measurements.
   inactive readings never get healthy threshold colours.
 - **Charts** use the device history API, which the portal always calls in observed
   time with configuration revisions of the same type and unit merged. Values are
-  bucket averages; gaps stay gaps. A time series with no data in range offers
-  **Show last reading**.
+  bucket averages; gaps stay gaps. A line breaks where a series pauses for more
+  than three times its usual spacing (and more than a bucket), so a sensor that
+  reports every few minutes draws one line at any range. A time series with no
+  data in range offers **Show last reading**.
 - **Consumption** uses the counter increase endpoint, so resets and rollovers are
   handled. Period is the dashboard range or a calendar period (Today, Last 7 days,
   This month, Last 12 months); days, weeks (from Monday) and months start in the
@@ -118,7 +120,7 @@ browser time zone and a five-second refresh; absolute ranges are limited to 400
 days. **Kiosk** (`?kiosk=1`) hides the shell and enlarges values; it is client-only.
 The context rail (active alerts, recent commands, device presence) polls every 30
 seconds; acknowledging from it needs `Device.manage`. **Download CSV** exports
-loaded data with formula-like cells neutralized.
+loaded data with formula-like cells neutralized; line breaks are not exported.
 
 ## Access and sharing
 

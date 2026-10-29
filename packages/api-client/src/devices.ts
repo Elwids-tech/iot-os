@@ -210,6 +210,7 @@ export type HistorySeries = {
     value: unknown
     min?: number
     max?: number
+    /** Readings in the bucket. 0 marks where the series stopped reporting, to break the line. */
     count: number
   }>
 }

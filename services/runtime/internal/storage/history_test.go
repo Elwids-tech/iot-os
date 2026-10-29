@@ -85,3 +85,45 @@ func TestSampleStateSegmentsIsBoundedChronologicalAndDeterministic(t *testing.T)
 		t.Fatalf("equal-duration bucket should consistently keep the first state: %#v", tie)
 	}
 }
+
+func TestHistoryGapsFollowTheSeriesOwnSpacing(t *testing.T) {
+	from := time.Date(2026, 10, 28, 19, 38, 54, 0, time.UTC)
+	bucket := 87 * time.Second
+	gaps := func(points []HistoryPoint) []time.Time {
+		at := []time.Time{}
+		for _, point := range points {
+			if point.Value == nil {
+				at = append(at, point.At)
+			}
+		}
+		return at
+	}
+
+	// A sensor reporting every four to six minutes, charted over a day, then
+	// silent for two hours.
+	points := []HistoryPoint{}
+	at := from
+	for i := range 12 {
+		points = append(points, HistoryPoint{At: at, Value: 25.5, Count: 1})
+		at = at.Add(bucket * time.Duration(3+i%2))
+	}
+	last := points[len(points)-1].At
+	points = append(points, HistoryPoint{At: last.Add(2 * time.Hour), Value: 25.75, Count: 1})
+	got := gaps(withGaps(points, bucket))
+	if len(got) != 1 || !got[0].Equal(last.Add(bucket)) {
+		t.Fatalf("want one gap after the last report before the silence, got %v", got)
+	}
+
+	// A sample in every bucket stays joined across one missed bucket and breaks
+	// after four.
+	dense := []HistoryPoint{}
+	for i := range 20 {
+		if i != 5 && (i < 10 || i > 13) {
+			dense = append(dense, HistoryPoint{At: from.Add(time.Duration(i) * bucket), Value: float64(i), Count: 1})
+		}
+	}
+	got = gaps(withGaps(dense, bucket))
+	if len(got) != 1 || !got[0].Equal(from.Add(10*bucket)) {
+		t.Fatalf("want one gap for the four missing buckets, got %v", got)
+	}
+}
