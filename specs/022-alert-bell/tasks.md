@@ -9,7 +9,7 @@ each test with its task and see it fail first.
 **Delivery**: Phases 1 to 3 are the **In-app alert notifications (API)** pull request;
 Phases 4 to 8 are the **Alert bell and chime** pull request. Each is based on `main` and
 opened after the one before it merges, never stacked. The documents pull request (this
-folder) comes first. Tasks follow the recommended answers to Q1 to Q3.
+folder) comes first. Tasks follow the owner's decisions on Q1 to Q3 (2026-10-29).
 
 ## Format: `[ID] [P?] [Story] Description`
 
