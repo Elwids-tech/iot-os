@@ -22,7 +22,7 @@ function Editor() {
         actions={
           <>
             <Button size="sm" variant="outline">Save</Button>
-            <Button size="sm">Review activation</Button>
+            <Button size="sm">Activate</Button>
           </>
         }
         tools={

@@ -40,8 +40,9 @@ The organization must have automation enabled. Viewing requires workflow viewing
 2. In **Editor**, select devices and connect supported source, condition, and action nodes.
 3. Configure each node and save the draft.
 4. Use **Simulation** to check the saved revision.
-5. Review activation and its diagnostics, then activate explicitly.
-6. Wait for acknowledgment and inspect **Execution** for recorded evaluations.
+5. Select **Activate**, review the device commands it may send, then confirm. Command authorization has no expiry unless you turn on **Limit command authorization**.
+6. Later edits: **Save and apply** saves and applies them in one step; **Save draft** keeps them without changing what runs.
+7. Wait for acknowledgment and inspect **Execution** for recorded evaluations.
 
 ## Expected result
 A saved draft is separate from the deployed generation. New evaluations use the acknowledged deployed version.

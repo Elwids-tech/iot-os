@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Binding, Workflow } from "@iot-os/workflow-editor"
-import { centroid, defaultSamples, insideRing, locationInputs, nodeOutcomes, sampleError, simulationSteps, type SimResult } from "./simulation"
+import { centroid, defaultSamples, insideRing, locationInputs, nodeOutcomes, requestedActions, sampleError, simulationSteps, type SimResult } from "./simulation"
 
 const ring = [[-114.01, 51.01], [-114.0, 51.01], [-114.0, 51.02], [-114.01, 51.02], [-114.01, 51.01]]
 const binding = (role: string, data_type: Binding["data_type"] = "number"): Binding => ({
@@ -53,6 +53,24 @@ describe("simulation inputs", () => {
     const event = steps[1].event as { readings: { parameter_uuid: string; value: unknown }[] }
     expect(event.readings.map((r) => r.value)).toEqual([51.015, -114.005, true])
   })
+  it("repeats steady readings before the clock passes a sustained duration longer than their freshness", () => {
+    let n = 0
+    const held: Workflow = { ...gps, nodes: [...gps.nodes, { id: "held", type: "sustained.v1", config: { seconds: 300 } }] }
+    const { steps, labels } = simulationSteps(held, { latitude: "51.015", longitude: "-114.005", armed: "true" }, "org", Date.UTC(2026, 9, 9), () => `id-${++n}`)
+    expect(labels).toEqual(["Start", "Readings · latitude, longitude, armed", "Same readings at +301s · latitude, longitude, armed", "Clock +302s"])
+    const again = steps[2].event as { event_id: string; readings: { observed_at: string; value: unknown }[] }
+    // Fresh for 120 s, so only a repeat keeps the signal live at +302 s.
+    expect(again.readings[0].observed_at).toBe(new Date(Date.UTC(2026, 9, 9) + 301_000).toISOString())
+    expect(again.readings.map((r) => r.value)).toEqual([51.015, -114.005, true])
+    expect(again.event_id).not.toBe((steps[1].event as { event_id: string }).event_id)
+  })
+  it("starts on a shared window boundary and closes only the first window", () => {
+    const windowed: Workflow = { ...gps, nodes: [...gps.nodes, { id: "avg", type: "window.v1", config: { duration_seconds: 600, slide_seconds: 300, lateness_seconds: 5 } }] }
+    // 07:04:10 rounds down to the 5-minute slide, not just the minute.
+    const { steps, labels } = simulationSteps(windowed, { latitude: "1", longitude: "1", armed: "true" }, "org", Date.UTC(2026, 9, 9, 7, 4, 10), () => "id")
+    expect(steps[0].at).toBe(new Date(Date.UTC(2026, 9, 9, 7, 0)).toISOString())
+    expect(labels.at(-1)).toBe("Clock +605s")
+  })
 })
 
 describe("simulation outcomes", () => {
@@ -73,5 +91,17 @@ describe("simulation outcomes", () => {
   it("shows a single step as evaluated", () => {
     expect(nodeOutcomes(result, 2).alarm.label).toBe("Suppressed")
     expect(nodeOutcomes(result, 0).boundary.label).toBe("Waiting")
+  })
+})
+
+describe("requested actions", () => {
+  it("lists a device-state node once with the settings it would send", () => {
+    const graph: Workflow = { ...gps, nodes: [...gps.nodes, { id: "lamp", type: "action.command.v1", config: { settings: { colour: "#FF0000", power_state: true } } }, { id: "notify", type: "action.alert.v1", config: {} }] }
+    const intent = (node_id: string, kind: string, trigger: string) => ({ id: trigger, node_id, kind, trigger })
+    expect(requestedActions(graph, [
+      intent("lamp", "action.command.v1", "episode:1:colour"),
+      intent("lamp", "action.command.v1", "episode:1:power_state"),
+      intent("notify", "action.alert.v1", "episode:1"),
+    ]).map((a) => [a.node_id, a.settings])).toEqual([["lamp", ["colour", "power state"]], ["notify", []]])
   })
 })

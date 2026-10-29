@@ -46,6 +46,12 @@ the measured card sizes and lines each card up with its inputs. Type IDs are und
 **Technical details** in the docked settings panel. If the catalogue is
 unavailable, existing graphs stay viewable but nodes cannot be added.
 
+Clicking a node opens its settings, with the node's name as the panel title; type
+there to rename it. Names are stored with the layout (`layout.labels`, by node ID,
+up to 80 characters), so renaming never changes the definition or needs
+activation. Clicking empty canvas or pressing Escape closes the panel; to edit
+another node, click it.
+
 | Group | Nodes |
 | --- | --- |
 | Sources | `source.parameter.v1` (an applied device parameter), `constant.v1`, `geofence.v1` |
@@ -103,8 +109,17 @@ pending; the runtime acknowledges asynchronously. Retries must reuse the complet
 original request.
 
 Activation needs **one command grant per command setting**: node, binding, exact
-value, cooldown, maximum per minute and expiry. Grants approve exact values, not
-ranges, and need `Device.command`. Deployments and grants are immutable.
+value, cooldown, maximum per minute and an optional expiry (`expires_at`, under one
+year; `null` for none). Grants approve exact values, not ranges, and need
+`Device.command`, which is checked again before every send, so a grant without an
+expiry lasts until the deployment is replaced or disabled or its approver loses that
+permission. Deployments and grants are immutable.
+
+In the editor, **Activate** saves pending edits and opens the review. Once an
+automation runs, **Save and apply** saves and applies in one step; the review opens
+only when the automation sends device commands, and **Save draft** keeps edits
+without applying them. Command authorization has no expiry unless the reviewer turns
+on **Limit command authorization** and sets the days and rate.
 
 ### Execution and actions
 

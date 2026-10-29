@@ -44,6 +44,7 @@ import {
   TextField,
   TextareaField,
 } from "@iot-os/ui/components/form-fields";
+import { InlineName } from "@iot-os/ui/components/inline-name";
 import { Input } from "@iot-os/ui/components/input";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert";
@@ -101,6 +102,8 @@ export type { ResourceNames } from "./presentation";
 
 type NodeData = {
   label: string;
+  /** The author's name for the node, if any; the card falls back to the type label. */
+  name?: string;
   category: string;
   node: WorkflowNode;
   definition: NodeType;
@@ -127,7 +130,7 @@ const GraphNode = memo(function GraphNode({
   const rowInputs = inputs.length > 1 ? inputs : [];
   const rowOutputs = outputs.length > 1 ? outputs : [];
   const { Icon, tone } = nodeAppearance(data.node.type);
-  const name = nodeName(data.node);
+  const name = data.name;
   const issues = data.errors.length;
   return (
     <article
@@ -320,6 +323,7 @@ export function WorkflowEditor({
   const canvasRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const panelHeadingRef = useRef<HTMLHeadingElement>(null);
+  const nodeNameRef = useRef<HTMLInputElement>(null);
   const panelId = useId();
   const [dragging, setDragging] = useState(false);
   const [paletteSearch, setPaletteSearch] = useState("");
@@ -406,6 +410,17 @@ export function WorkflowEditor({
     setSelected(id);
     onSelectionChange?.(id);
   };
+  /** Clicking empty canvas or pressing Escape ends editing, as in Node-RED: one node at a time, chosen on the canvas. */
+  const deselect = () => {
+    select("");
+    if (!panel) setPanelOpen(false);
+  };
+  const rename = (id: string, name: string) => {
+    const labels = { ...layout.labels };
+    if (name.trim()) labels[id] = name;
+    else delete labels[id];
+    onLayoutChange({ ...layout, labels });
+  };
   const lookup = useMemo(
     () => new Map(registry.map((r) => [r.type, r])),
     [registry],
@@ -469,10 +484,11 @@ export function WorkflowEditor({
         position: layout.positions[node.id] ?? defaultPositions[node.id],
         data: {
           label: nodeLabel(node.type, lookup.get(node.type)?.label),
+          name: nodeName(node, layout.labels),
           category: nodeAppearance(node.type).category,
           node,
           definition: lookup.get(node.type) ?? edgeDefinition(node, workflow),
-          summary: nodeSummary(node, workflow, resourceNames),
+          summary: nodeSummary(node, workflow, resourceNames, layout.labels),
           errors: diagnostics
             .filter((d) => d.node_id === node.id)
             .map((d) => d.message),
@@ -485,6 +501,7 @@ export function WorkflowEditor({
       workflow.edges,
       workflow.bindings,
       layout.positions,
+      layout.labels,
       defaultPositions,
       lookup,
       diagnostics,
@@ -538,7 +555,7 @@ export function WorkflowEditor({
   const openPanel = () => {
     if (!panel && !selected && workflow.nodes.length) select(workflow.nodes[0].id);
     setPanelOpen(true);
-    requestAnimationFrame(() => panelHeadingRef.current?.focus());
+    requestAnimationFrame(() => (nodeNameRef.current ?? panelHeadingRef.current)?.focus());
   };
   const closePanel = () => {
     setPanelOpen(false);
@@ -553,6 +570,7 @@ export function WorkflowEditor({
         (e) => e.source !== node.id && e.target !== node.id,
       ),
     });
+    if (layout.labels?.[node.id] !== undefined) rename(node.id, "");
     select("");
     if (!panel) setPanelOpen(false);
     requestAnimationFrame(() => canvasRef.current?.focus());
@@ -576,6 +594,28 @@ export function WorkflowEditor({
     event.preventDefault();
     event.stopPropagation();
     deleteSelectedNode();
+  };
+  // Escape closes the node's settings and returns focus to the node, unless a menu or list inside them is open.
+  const handleEscapeKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (
+      event.key !== "Escape" ||
+      event.defaultPrevented ||
+      panel ||
+      expanded ||
+      !selected ||
+      !(event.target instanceof HTMLElement) ||
+      // Popovers render in portals, outside both regions.
+      !(canvasRef.current?.contains(event.target) || panelRef.current?.contains(event.target)) ||
+      event.target.closest('[aria-expanded="true"]')
+    ) return;
+    event.preventDefault();
+    const id = selected;
+    deselect();
+    requestAnimationFrame(() =>
+      canvasRef.current
+        ?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`)
+        ?.focus(),
+    );
   };
   const update = (next: WorkflowNode) =>
     onChange({
@@ -658,7 +698,7 @@ export function WorkflowEditor({
   );
   const nodeChoices = workflow.nodes.map((n) => ({
     value: n.id,
-    label: nodeName(n) ?? `${labelOf(n)} · ${n.id}`,
+    label: nodeName(n, layout.labels) ?? `${labelOf(n)} · ${n.id}`,
   }));
   const choiceLabel = new Map(nodeChoices.map((c) => [c.value, c.label]));
   const ports = (direction: "inputs" | "outputs") =>
@@ -668,7 +708,7 @@ export function WorkflowEditor({
         label: `${choiceLabel.get(n.id)} · ${port}`,
       })),
     );
-  const nodeTitle = node && (nodeName(node) ?? labelOf(node));
+  const nodeTitle = node && (nodeName(node, layout.labels) ?? labelOf(node));
   // Classify each config field once so diagnostics can attach to the controls
   // that take an `error`; the rest stay in the alert list below the fields.
   const configFields =
@@ -714,13 +754,6 @@ export function WorkflowEditor({
   };
   const inspector = (
     <FieldGroup>
-      <SearchableSelect
-        label="Selected node"
-        value={selected}
-        options={matching("node", nodeChoices)}
-        {...searchProps("node")}
-        onChange={select}
-      />
       {node && !definition && (
         <Alert>
           <AlertDescription>
@@ -836,13 +869,16 @@ export function WorkflowEditor({
   const panelDescription = panel
     ? panel.description
     : node
-      ? `${nodeName(node) ? `${labelOf(node)}. ` : ""}${nodeAppearance(node.type).description} Changes stay in your draft.`
+      ? `${labelOf(node)}. ${nodeAppearance(node.type).description} Changes stay in your draft.`
       : "Select a node on the canvas to configure it. Changes stay in your draft.";
   const editor = (
     <div
       data-expanded={expanded}
       className="workflow-editor flex min-w-0 flex-col gap-4"
-      onKeyDown={handleDeleteKey}
+      onKeyDown={(event) => {
+        handleEscapeKey(event);
+        handleDeleteKey(event);
+      }}
     >
       <div className="workflow-workspace" data-panel={panelOpen} data-palette={palette}>
         <Card size="sm" className="workflow-palette" hidden={!palette}>
@@ -1060,7 +1096,7 @@ export function WorkflowEditor({
                 // Programmatic fits and reveals have no source event.
                 if (event) userViewport.current = true;
               }}
-              onPaneClick={() => select("")}
+              onPaneClick={deselect}
               connectionLineStyle={{
                 stroke: "var(--primary)",
                 strokeWidth: 3,
@@ -1134,15 +1170,37 @@ export function WorkflowEditor({
             aria-labelledby={`${panelId}-title`}
           >
             <div className="workflow-panel-header">
-              <div className="min-w-0">
-                <h2
-                  ref={panelHeadingRef}
-                  id={`${panelId}-title`}
-                  tabIndex={-1}
-                  className="truncate text-sm font-medium outline-none first-letter:uppercase"
-                >
-                  {panelTitle}
-                </h2>
+              <div className="min-w-0 flex-1">
+                {!panel && node ? (
+                  <>
+                    {/* The node's name is its panel title: type to rename it, like a Node-RED node's name. */}
+                    <h2 id={`${panelId}-title`} className="sr-only">
+                      {panelTitle}
+                    </h2>
+                    <InlineName
+                      ref={nodeNameRef}
+                      key={node.id}
+                      label="Node name"
+                      className="h-7 max-w-none min-w-0 text-heading"
+                      value={layout.labels?.[node.id] ?? ""}
+                      placeholder={nodeName(node) ?? labelOf(node)}
+                      maxLength={80}
+                      onChange={(event) => rename(node.id, event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.currentTarget.blur();
+                      }}
+                    />
+                  </>
+                ) : (
+                  <h2
+                    ref={panelHeadingRef}
+                    id={`${panelId}-title`}
+                    tabIndex={-1}
+                    className="truncate text-sm font-medium outline-none first-letter:uppercase"
+                  >
+                    {panelTitle}
+                  </h2>
+                )}
                 {panelDescription && (
                   <p className="text-xs text-muted-foreground">
                     {panelDescription}

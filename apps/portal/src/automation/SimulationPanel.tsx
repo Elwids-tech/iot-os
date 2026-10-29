@@ -9,15 +9,15 @@ import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
 import { evidenceText } from "./timeline"
-import { axisOf, insideRing, locationInputs, nodeOutcomes, sampleError, simulationSources, type SimResult } from "./simulation"
+import { axisOf, insideRing, locationInputs, nodeOutcomes, requestedActions, sampleError, simulationSources, type SimResult } from "./simulation"
 
 const LocationPicker = lazy(() => import("./LocationPicker"))
 const outcomeVariant = (status: string) =>
   ({ matched: "success", triggered: "default", suppressed: "warning", waiting: "warning", evaluated: "info" } as const)[status] ?? "outline"
 
 /** Inputs and results for one saved revision, docked beside the canvas so outcomes stay visible on the graph. */
-export function SimulationPanel({ graph, registry, revision, dirty, busy, values, onValuesChange, result, step, onStepChange, selected, onRun }: {
-  graph: Workflow; registry: NodeType[]; revision?: number; dirty: boolean; busy: boolean
+export function SimulationPanel({ graph, labels, registry, revision, dirty, busy, values, onValuesChange, result, step, onStepChange, selected, onRun }: {
+  graph: Workflow; labels?: Record<string, string>; registry: NodeType[]; revision?: number; dirty: boolean; busy: boolean
   values: Record<string, string>; onValuesChange: (values: Record<string, string>) => void
   result?: SimResult; step: number | "summary"; onStepChange: (step: number | "summary") => void
   selected: string; onRun: () => void
@@ -30,7 +30,7 @@ export function SimulationPanel({ graph, registry, revision, dirty, busy, values
   const set = (role: string, value: string) => onValuesChange({ ...values, [role]: value })
   const label = (id: string) => {
     const node = graph.nodes.find((n) => n.id === id)
-    return node ? nodeName(node) ?? nodeLabel(node.type, registry.find((r) => r.type === node.type)?.label) : id
+    return node ? nodeName(node, labels) ?? nodeLabel(node.type, registry.find((r) => r.type === node.type)?.label) : id
   }
   const sourceLabel = (b: Binding) => {
     const node = graph.nodes.find((n) => n.type === "source.parameter.v1" && n.config.binding === b.role)
@@ -52,7 +52,7 @@ export function SimulationPanel({ graph, registry, revision, dirty, busy, values
   )
   const outcomes = result ? nodeOutcomes(result, step) : {}
   const steps = result ? (step === "summary" ? result.steps : result.steps.slice(step, step + 1)) : []
-  const intents = steps.flatMap((s) => s.intents)
+  const intents = requestedActions(graph, steps.flatMap((s) => s.intents))
   const detail = outcomes[selected]?.trace
   return (
     <div className="flex flex-col gap-5">
@@ -83,7 +83,7 @@ export function SimulationPanel({ graph, registry, revision, dirty, busy, values
           {busy ? "Simulating…" : "Run simulation"}
         </Button>
         <p className="text-xs text-muted-foreground">
-          {revision === undefined ? "Save the workflow to simulate it." : `Uses saved revision ${revision}. Readings arrive together per device, then the clock advances past configured windows. No live actions are sent.`}
+          {revision === undefined ? "Save the workflow to simulate it." : `Uses saved revision ${revision}. Readings arrive together per device and hold steady while the clock advances past configured windows and durations. No live actions are sent.`}
         </p>
       </FieldGroup>
       {result && (
@@ -102,8 +102,11 @@ export function SimulationPanel({ graph, registry, revision, dirty, busy, values
           </Field>
           <div className="flex flex-col gap-1.5">
             <h4 className="text-xs font-medium text-muted-foreground">Actions requested</h4>
-            {intents.length ? intents.map((a, i) => (
-              <p key={i} className="text-sm"><span className="font-medium first-letter:uppercase">{label(a.node_id)}</span> · {nodeLabel(a.kind)}{a.transition ? ` · ${a.transition}` : ""}</p>
+            {intents.length ? intents.map((a) => (
+              <p key={a.key} className="text-sm">
+                <span className="font-medium first-letter:uppercase">{label(a.node_id)}</span> · {nodeLabel(a.kind)}{a.transition ? ` · ${a.transition}` : ""}
+                {a.settings.length > 0 && <span className="text-muted-foreground"> · {a.settings.join(", ")}</span>}
+              </p>
             )) : <p className="text-sm text-muted-foreground">None — no live action would be sent.</p>}
           </div>
           <ul className="flex flex-col gap-2" aria-label="Node results">
