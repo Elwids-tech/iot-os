@@ -176,7 +176,9 @@ Sites are not an access boundary.
 Devices carry up to 20 tags (unique, case-insensitive) and 30 attributes (keys
 start with a lowercase letter; values are text up to 255 characters, numbers or
 booleans). The device list filters by site, tag and profile and sorts on the
-server (`sort=name|code|last_seen|created`, `-` for descending).
+server (`sort=name|code|last_seen|created`, `-` for descending). Clicking a device
+code copies it in full, and the button beside a name copies the name. **Quick edit**
+in a row's ⋯ menu changes the name, description and tags without leaving the list.
 
 ## Commands and controls
 
