@@ -10,6 +10,7 @@ const { inputFromMessage, validateResults } = require("../lib/decoder.cjs");
 const poll = require("../lib/poll.cjs");
 const { authenticate, hashToken } = require("../lib/webhook.cjs");
 const { createReceiver } = require("../receiver.cjs");
+const nodes = require("./fake-red.cjs");
 
 // Contract tests for contracts/adapters/v1 (spec 020). Each test builds the real
 // object with the code that produces it and checks it against the schema as written
@@ -419,29 +420,6 @@ test("a sampling receiver reports samples that match receiver-report.v1", async 
   assert.equal(sample.size, body.length);
   assert.deepEqual(report.reports[0].outcomes, { accepted: 1 });
 });
-
-// A fake Node-RED: it records the node types the adapter module registers.
-function nodes() {
-  const types = {};
-  const RED = {
-    nodes: {
-      createNode(node, config) {
-        node.handlers = {};
-        node.sent = [];
-        node.send = (message) => node.sent.push(message);
-        node.credentials = config.credentials_for_test || {};
-        node.on = (event, handler) => (node.handlers[event] = handler);
-        node.status = () => {};
-        node.warn = () => {};
-      },
-      registerType(name, constructor) {
-        types[name] = constructor;
-      },
-    },
-  };
-  require("../nodes/adapter.js")(RED);
-  return types;
-}
 
 const ADAPTER = "30000000-0000-4000-8000-000000000001";
 const TENANT = "30000000-0000-4000-8000-000000000002";

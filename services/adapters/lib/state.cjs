@@ -84,4 +84,32 @@ class DedupLog {
   }
 }
 
-module.exports = { readJson, writeJson, DedupLog };
+// The last birth certificate of each source an adapter published, so a redeployed
+// publisher announces every known source right after its NBIRTH. Without it a
+// redeploy (each device activation is one) leaves every source offline until it
+// reports again, and activating the next device fails. Written at most every
+// `intervalMs` while running, and on close.
+class BirthStore {
+  constructor(file, { intervalMs = 30000, now = Date.now } = {}) {
+    this.file = file;
+    this.intervalMs = intervalMs;
+    this.now = now;
+    this.sources = new Map();
+    this.dirty = false;
+    this.savedAt = -Infinity;
+    for (const [id, entry] of Object.entries(readJson(file, {}) || {}))
+      if (Array.isArray(entry?.metrics) && typeof entry.names === "string") this.sources.set(id, entry);
+  }
+  set(id, entry) {
+    this.sources.set(id, entry);
+    this.dirty = true;
+  }
+  flush(force = false) {
+    if (!this.dirty || (!force && this.now() - this.savedAt < this.intervalMs)) return;
+    writeJson(this.file, Object.fromEntries(this.sources));
+    this.dirty = false;
+    this.savedAt = this.now();
+  }
+}
+
+module.exports = { readJson, writeJson, DedupLog, BirthStore };

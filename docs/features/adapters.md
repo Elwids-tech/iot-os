@@ -44,7 +44,9 @@ under **Build → Device adapters** for users with `Device.manage`.
 - The generated flow runs the decoder, then a platform-owned **managed Sparkplug
   B publisher** that owns births, deaths, aliases, sequence and `bdSeq`, and
   publishes to the platform broker as group `adapters-<organization uuid>`,
-  edge node `adapter-<adapter uuid>`.
+  edge node `adapter-<adapter uuid>`. It keeps each source's last birth in the
+  runtime's `/data`, so a redeployed publisher announces every known source right
+  after its NBIRTH instead of leaving them offline until they report again.
 - Laravel owns adapters, revisions, fixtures, credentials and discovery. It calls
   the manager's private API from the `device-adapters` queue
   (`adapter-worker`); the runtime reports back to `POST /api/internal/adapters/events`

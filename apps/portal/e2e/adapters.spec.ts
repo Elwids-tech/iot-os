@@ -601,6 +601,8 @@ test("hardware kit download and discovered serial activation stay in the tenant 
     name: "Workshop water meter",
   });
   expect(errors).toEqual([]);
+  // The activation toast fades in; axe reads mid-fade colours as low contrast.
+  await settled(page);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 

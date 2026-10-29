@@ -4,7 +4,7 @@ const mqtt = require("mqtt");
 const { decodeBatch, inputFromMessage } = require("../lib/decoder.cjs");
 const sparkplug = require("../lib/sparkplug.cjs");
 const { brokerUrl, secureLookup } = require("../lib/broker.cjs");
-const { DedupLog, readJson, writeJson } = require("../lib/state.cjs");
+const { BirthStore, DedupLog, readJson, writeJson } = require("../lib/state.cjs");
 const poll = require("../lib/poll.cjs");
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -427,8 +427,9 @@ module.exports = function (RED) {
     let seq = 0;
     let closed = false;
     let chain = Promise.resolve();
-    const sources = new Map();
     const dir = dataDir();
+    const births = new BirthStore(path.join(dir, `births-${adapter}.json`));
+    const sources = births.sources;
     const dedup = new DedupLog(path.join(dir, `dedup-${adapter}.log`));
     const observedFile = path.join(dir, `observed-${adapter}.json`);
     const newest = readJson(observedFile, {});
@@ -573,7 +574,7 @@ module.exports = function (RED) {
           );
       const birthMetrics = [...accumulated.values()];
       const names = JSON.stringify(birthMetrics.map((m) => [m.name, m.datatype]).sort((a, b) => a[0].localeCompare(b[0])));
-      sources.set(id, { metrics: birthMetrics, names });
+      births.set(id, { metrics: birthMetrics, names });
       if (!previous || previous.names !== names) await deliver("DBIRTH", id, birthMetrics);
       if (binding) await deliver("DDATA", id, metrics);
       // Only stored readings count as seen: previews of a source that is not activated
@@ -594,6 +595,7 @@ module.exports = function (RED) {
         try {
           for (const decoded of msg.decoded || []) await publishResult(decoded, inputs[decoded.input ?? 0] || inputs[0], summary);
           writeJson(observedFile, newest);
+          births.flush();
         } catch {
           if (closed) return done();
           report({ kind: "diagnostic", message: "Managed publisher rejected a message" });
@@ -605,6 +607,9 @@ module.exports = function (RED) {
     node.on("close", (_, done) => {
       closed = true;
       setOnline(adapter, false);
+      try {
+        births.flush(true);
+      } catch {}
       if (client.connected) publish("NDEATH", null, [bd]);
       client.end(false, {}, done);
     });
@@ -618,6 +623,12 @@ module.exports = function (RED) {
     const health = { source_connected: false, upstream_connected: false };
     let counts = {};
     let reliable = [];
+    // A source's first preview creates its Discovery entry, and a backfill can preview
+    // many new sources at once, so it is kept and retried until the platform accepts
+    // it. Later previews of the same source may be dropped under load.
+    const announced = new Set();
+    const firstSamples = new Map();
+    let draining = null;
     async function post(payload) {
       const response = await fetch(config.callback_url, {
         method: "POST",
@@ -632,17 +643,27 @@ module.exports = function (RED) {
       if (!response.ok && response.status !== 422) throw Error("Platform callback rejected the event");
     }
     // Run reports and outcome counts carry their own identifiers, so they are kept and
-    // retried until the platform accepts them.
-    async function drain() {
-      while (reliable.length) {
-        try {
+    // retried until the platform accepts them. One drain runs at a time, in order.
+    async function send() {
+      for (;;) {
+        if (reliable.length) {
           await post(reliable[0]);
           reliable.shift();
-        } catch {
-          node.status({ fill: "yellow", shape: "ring", text: "Platform callback unavailable" });
-          return;
+          continue;
         }
+        const [first] = firstSamples;
+        if (!first) return;
+        await post(first[1]);
+        firstSamples.delete(first[0]);
+        announced.add(first[0]);
       }
+    }
+    function drain() {
+      // Cleared in a later tick: an empty drain settles before this assignment.
+      draining ??= send()
+        .catch(() => node.status({ fill: "yellow", shape: "ring", text: "Platform callback unavailable" }))
+        .finally(() => (draining = null));
+      return draining;
     }
     function flushCounts() {
       if (!Object.keys(counts).length) return;
@@ -671,6 +692,11 @@ module.exports = function (RED) {
       if (p.kind === "poll_run") {
         reliable.push(p);
         reliable = reliable.slice(-100);
+        await drain();
+        return done();
+      }
+      if (p.kind === "sample" && !announced.has(p.source_device_id)) {
+        firstSamples.set(p.source_device_id, p);
         await drain();
         return done();
       }
