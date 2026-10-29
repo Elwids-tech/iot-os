@@ -689,6 +689,39 @@ test("paginated selectors, no-reading parameters, per-source copying, and panel 
   expect(errors).toEqual([])
 })
 
+test("a picker opened right after another closes stays open on a busy page", async ({
+  page,
+}) => {
+  const { errors } = await setup(page)
+  // A busy page runs the closed picker's focus return late, after the next
+  // picker has opened. Holding zero-delay timers back makes that certain, and
+  // without animations the closed picker is gone before the next one opens.
+  await page.addInitScript(() => {
+    const later = window.setTimeout
+    window.setTimeout = ((handler: TimerHandler, delay?: number, ...rest: unknown[]) =>
+      later(handler, delay || 500, ...rest)) as typeof window.setTimeout
+  })
+  await page.goto(basePath + "/first")
+  await page.addStyleTag({ content: "* { animation: none !important; }" })
+  await page
+    .getByRole("button", { name: "Edit dashboard", exact: true })
+    .click()
+  await menu(page)
+  await page.getByRole("menuitem", { name: "Edit panel", exact: true }).click()
+  await page.getByRole("combobox", { name: "Device", exact: true }).click()
+  await page
+    .getByRole("button", { name: "Next device options", exact: true })
+    .click()
+  await page.getByRole("option", { name: "Boiler room", exact: true }).click()
+  await page.getByRole("combobox", { name: "Parameter", exact: true }).click()
+  await page.waitForTimeout(1000)
+  await expect(page.getByRole("dialog", { name: "Parameter", exact: true })).toBeVisible()
+  await expect(page.getByRole("combobox", { name: "Search parameter", exact: true })).toBeFocused()
+  await page.getByRole("option", { name: /Return temperature/ }).click()
+  await expect(page.getByRole("combobox", { name: "Parameter", exact: true })).toHaveText(/Return temperature/)
+  expect(errors).toEqual([])
+})
+
 test("state and colour history panels select only compatible parameters", async ({
   page,
 }) => {
