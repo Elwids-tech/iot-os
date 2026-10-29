@@ -257,7 +257,10 @@ export function panelCsvRows(
           "dashboard-history", org, s.device_uuid, s.parameter_uuid, rangeKey, "current",
         ])?.series ?? []
       ).flatMap((series) =>
-        series.points.map((p) => [p.at, s.device_name, s.label, p.value, series.unit, p.min, p.max, p.count]),
+        series.points
+          // Line breaks are not readings.
+          .filter((p) => p.count > 0)
+          .map((p) => [p.at, s.device_name, s.label, p.value, series.unit, p.min, p.max, p.count]),
       ),
     )
     return rows.length

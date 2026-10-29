@@ -371,6 +371,12 @@ Things that have cost time before. Add to this list when something surprises you
   mouseup. Playwright checks only the first event's hit target, so it reports
   the click as done while `click` fires on a parent. Wait for
   `document.getAnimations().length === 0` before clicking.
+- **A picker could close the next picker on a busy page.** Radix returns focus
+  to a closed popover's trigger in a `setTimeout`, and the browser runs input
+  before timers. When the next picker opened first, the late focus closed it
+  (CI: "element was detached" on an option until the test timed out). The kit's
+  `PopoverContent` now leaves focus where it is if it has moved on; the
+  dashboards spec reproduces the race by delaying zero-delay timers.
 - **Phone emulation hides sideways scrolling from `window.innerWidth`.** With
   `isMobile` (Playwright's phone devices), the viewport widens to fit content that
   overflows, so `scrollWidth - innerWidth` stays 0. Compare

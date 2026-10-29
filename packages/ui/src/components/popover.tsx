@@ -18,6 +18,7 @@ function PopoverContent({
   className,
   align = "center",
   sideOffset = 4,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
   return (
@@ -26,6 +27,14 @@ function PopoverContent({
         data-slot="popover-content"
         align={align}
         sideOffset={sideOffset}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          // Radix returns focus to the trigger a task after the content goes. On a
+          // busy page the next picker may have opened by then; moving focus would
+          // close it, so focus that has already moved on stays where it is.
+          if (document.activeElement && document.activeElement !== document.body)
+            event.preventDefault()
+        }}
         className={cn(
           "z-50 flex w-72 origin-(--radix-popover-content-transform-origin) flex-col gap-2.5 rounded-lg bg-popover p-2.5 text-sm text-popover-foreground shadow-raised outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className,

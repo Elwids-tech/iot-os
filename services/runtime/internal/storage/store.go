@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -424,7 +425,6 @@ func (s *Store) History(ctx context.Context, org, device, param string, from, to
 	defer rows.Close()
 	series := []HistorySeries{}
 	indices := map[string]int{}
-	totalPoints := 0
 	for rows.Next() {
 		var config, datatype string
 		var unit *string
@@ -451,22 +451,26 @@ func (s *Store) History(ctx context.Context, org, device, param string, from, to
 			indices[key] = i
 			series = append(series, HistorySeries{ConfigurationUUID: config, DataType: datatype, Unit: unit, Points: []HistoryPoint{}})
 		}
-		points := series[i].Points
-		if (datatype == "number" || datatype == "integer") && len(points) > 0 && point.At.Sub(points[len(points)-1].At) > time.Duration(seconds)*time.Second {
-			series[i].Points = append(series[i].Points, HistoryPoint{At: points[len(points)-1].At.Add(time.Duration(seconds) * time.Second), Value: nil})
-			totalPoints++
-		}
-		totalPoints++
-		if totalPoints > 2000 {
-			return nil, ErrHistoryTooBroad
-		}
 		if config != "" {
 			series[i].ConfigurationUUID = config
 		}
 		series[i].Points = append(series[i].Points, point)
 	}
-	if e = rows.Err(); e != nil || !options.MergeConfigurations || len(series) == 0 {
-		return series, e
+	if e = rows.Err(); e != nil {
+		return nil, e
+	}
+	totalPoints := 0
+	for i := range series {
+		if series[i].DataType == "number" || series[i].DataType == "integer" {
+			series[i].Points = withGaps(series[i].Points, time.Duration(seconds)*time.Second)
+		}
+		totalPoints += len(series[i].Points)
+	}
+	if totalPoints > 2000 {
+		return nil, ErrHistoryTooBroad
+	}
+	if !options.MergeConfigurations || len(series) == 0 {
+		return series, nil
 	}
 	spans, e := configurationSpans(ctx, tx, org, device, param, from, to, at, window)
 	if e != nil {
@@ -479,6 +483,30 @@ func (s *Store) History(ctx context.Context, org, device, param string, from, to
 		}
 	}
 	return series, nil
+}
+
+// withGaps adds a valueless point where a series stops reporting, so charts break
+// the line there. A stop is a pause longer than three times the series' usual
+// spacing and longer than a bucket: a sensor that reports every five minutes
+// draws one line at one-minute buckets, and a missed report or two stays joined.
+func withGaps(points []HistoryPoint, bucket time.Duration) []HistoryPoint {
+	if len(points) < 2 {
+		return points
+	}
+	spacing := make([]time.Duration, len(points)-1)
+	for i := range spacing {
+		spacing[i] = points[i+1].At.Sub(points[i].At)
+	}
+	slices.Sort(spacing)
+	limit := max(bucket, 3*spacing[len(spacing)/2])
+	result := make([]HistoryPoint, 0, len(points))
+	for i, point := range points {
+		if i > 0 && point.At.Sub(points[i-1].At) > limit {
+			result = append(result, HistoryPoint{At: points[i-1].At.Add(bucket)})
+		}
+		result = append(result, point)
+	}
+	return result
 }
 
 func configurationSpans(ctx context.Context, q querier, org, device, param string, from, to time.Time, at, window string) ([]ConfigurationSpan, error) {
