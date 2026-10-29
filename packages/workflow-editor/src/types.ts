@@ -31,6 +31,8 @@ export type Workflow = {
 export type Layout = {
   positions: Record<string, { x: number; y: number }>;
   viewport?: { x: number; y: number; zoom: number };
+  /** Names authors give nodes, by node ID. Presentation only: never part of the deployed definition. */
+  labels?: Record<string, string>;
 };
 export type NodeType = {
   type: string;

@@ -45,7 +45,8 @@ final class DagDeployment
                 }
                 $commands = collect($definition['nodes'])->where('type', 'action.command.v1')->flatMap(fn ($node) => array_map(fn ($config) => [...$node, 'config' => $config], CommandSettings::configurations($node['config'])));
                 abort_unless(count($grants) === $commands->count(), 422, 'Approve exactly one grant per selected setting.');
-                validator(['grants' => $grants], ['grants.*' => 'array:node_id,binding,value,cooldown_seconds,max_per_minute,expires_at', 'grants.*.node_id' => 'required|string', 'grants.*.binding' => 'required|string', 'grants.*.value' => 'present', 'grants.*.cooldown_seconds' => 'required|integer|min:1|max:86400', 'grants.*.max_per_minute' => 'required|integer|min:1|max:60', 'grants.*.expires_at' => 'required|date|after:now|before:'.now()->addYear()->toIso8601String()])->validate();
+                // A grant without expires_at lasts until the deployment is replaced or its approver loses Device.command, which every dispatch re-checks.
+                validator(['grants' => $grants], ['grants.*' => 'array:node_id,binding,value,cooldown_seconds,max_per_minute,expires_at', 'grants.*.node_id' => 'required|string', 'grants.*.binding' => 'required|string', 'grants.*.value' => 'present', 'grants.*.cooldown_seconds' => 'required|integer|min:1|max:86400', 'grants.*.max_per_minute' => 'required|integer|min:1|max:60', 'grants.*.expires_at' => 'nullable|date|after:now|before:'.now()->addYear()->toIso8601String()])->validate();
                 foreach ($commands as $node) {
                     $c = $node['config'];
                     $matches = collect($grants)->where('node_id', $node['id'])->where('binding', $c['binding']);

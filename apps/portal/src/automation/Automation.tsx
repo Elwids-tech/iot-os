@@ -3,9 +3,12 @@ import { Directory } from "./AutomationDirectory";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { ApiError } from "@iot-os/api-client";
 import {
   WorkflowEditor,
+  nodeLabel,
+  nodeName,
   type Workflow,
   type Layout,
   type NodeCatalog,
@@ -24,6 +27,7 @@ import {
 } from "@iot-os/ui/components/card";
 import { Input } from "@iot-os/ui/components/input";
 import { Field, FieldGroup, FieldLabel } from "@iot-os/ui/components/field";
+import { SwitchField } from "@iot-os/ui/components/form-fields";
 import { DraftBar } from "@iot-os/ui/components/draft-bar";
 import { InlineName } from "@iot-os/ui/components/inline-name";
 import { WorkspacePage } from "@iot-os/ui/templates/workspace-page";
@@ -65,7 +69,7 @@ import { GeofenceConfig } from "./GeofenceConfig";
 import { DeviceStateConfig, DeviceStateReview } from "./DeviceStateConfig";
 import { useResourceNames } from "./resource-names";
 import { commandGrants } from "./device-state";
-import { activationUnavailableReason } from "./activation";
+import { activationUnavailableReason, isRunning, unappliedChanges } from "./activation";
 import { WorkflowAssistant } from "./WorkflowAssistant";
 import { newEditorId } from "./assistant-session";
 import { usePanel } from "../panel/context";
@@ -87,8 +91,11 @@ type Saved = {
   deployment_generation: number;
   deployment_status: string;
   deployment_diagnostic?: string;
+  desired_deployment_uuid?: string | null;
   applied_deployment_uuid?: string;
   pending_operation_uuid?: string;
+  /** The draft revision that runs or is being applied; null while inactive. */
+  active_revision?: number | null;
 };
 type Page<T> = {
   data: T[];
@@ -143,7 +150,9 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
   const [selectedNode, setSelectedNode] = useState("");
   const [sampleValues, setSampleValues] = useState<Record<string, string>>({});
   const [review, setReview] = useState(false);
-  const [grantDays, setGrantDays] = useState(7);
+  // Command authorization lasts until the automation changes or stops unless the reviewer limits it.
+  const [limitGrants, setLimitGrants] = useState(false);
+  const [grantDays, setGrantDays] = useState(30);
   const [rateLimit, setRateLimit] = useState(1);
   const [layoutSaved, setLayoutSaved] = useState(
     JSON.stringify({ positions: {} }),
@@ -190,7 +199,11 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
       name !== saved.name;
   const layoutDirty = JSON.stringify(layout) !== layoutSaved;
   const needsSave = !saved || dirty || layoutDirty;
-  const activationReason = activationUnavailableReason({ busy, dirty, saved, live });
+  const activationReason = activationUnavailableReason({ busy, empty: graph.nodes.length === 0, saved, live });
+  // A running automation applies saves straight away; Save draft keeps them for later.
+  const running = isRunning(live);
+  const toApply = unappliedChanges({ dirty, saved, live });
+  const commandNodes = graph.nodes.filter((n) => n.type === "action.command.v1");
   const reactivating = live?.deployment_status === "inactive" && live.deployment_generation > 0;
   useUnsavedContribution(dirty || layoutDirty);
   const samples = useMemo(() => ({ ...defaultSamples(graph), ...sampleValues }), [graph, sampleValues]);
@@ -253,13 +266,14 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
       setBusy(false);
     }
   }
-  async function save() {
+  /** Saves the draft and layout; resolves to the saved workflow, or undefined when validation fails. */
+  async function save(): Promise<Saved | undefined> {
     const validation = await api.automation<{
       valid: boolean;
       diagnostics: Diagnostic[];
     }>(org, "/dag/validate", "POST", { workflow: graph });
     setDiagnostics(validation.diagnostics ?? []);
-    if (!validation.valid) return;
+    if (!validation.valid) return undefined;
     let w = saved;
     if (dirty || !w) {
       const response = await api.automation<{ data: Saved }>(
@@ -286,10 +300,12 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
         "PUT",
         { layout, layout_revision: w.layout_revision },
       );
-      setSaved(response.data);
+      w = response.data;
+      setSaved(w);
       setLayoutSaved(JSON.stringify(layout));
     }
     if (id !== "new") await detail.refetch();
+    return w;
   }
   async function simulate() {
     if (!saved || dirty) return;
@@ -297,7 +313,7 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
       graph,
       samples,
       org,
-      Math.floor(Date.now() / 60000) * 60000,
+      Date.now(),
       () => crypto.randomUUID(),
     );
     const response = await api.automation<Omit<SimResult, "labels">>(
@@ -309,30 +325,32 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
     setSimulation({ ...response, labels });
     setSimulationStep("summary");
   }
-  async function deploy(target: "active" | "inactive") {
-    if (!saved || !live) return;
+  /** `base` is a workflow saved just now; otherwise the saved draft with the latest generation. */
+  async function deploy(target: "active" | "inactive", base?: Saved) {
+    const w = base ?? saved;
+    const generation = base ? base.deployment_generation : live?.deployment_generation;
+    if (!w || generation === undefined) return;
     const command_grants =
       target === "inactive"
         ? []
-        : commandGrants(graph)
-            .map((grant) => ({
-              ...grant,
-              max_per_minute: rateLimit,
-              expires_at: new Date(
-                Date.now() + grantDays * 86400000,
-              ).toISOString(),
-            }));
+        : commandGrants(w.workflow).map((grant) => ({
+            ...grant,
+            max_per_minute: limitGrants ? rateLimit : 1,
+            expires_at: limitGrants
+              ? new Date(Date.now() + grantDays * 86400000).toISOString()
+              : null,
+          }));
     const input = pendingOperation ?? {
       operation_uuid: crypto.randomUUID(),
       target_state: target,
-      draft_revision: saved.draft_revision,
-      expected_generation: live.deployment_generation,
+      draft_revision: w.draft_revision,
+      expected_generation: generation,
       command_grants,
     };
     setPendingOperation(input);
     const response = await api.automation<{ data: Saved }>(
       org,
-      `/${saved.uuid}/deployments`,
+      `/${w.uuid}/deployments`,
       "POST",
       input,
     );
@@ -340,6 +358,17 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
     setPendingOperation(undefined);
     setReview(false);
     await detail.refetch();
+  }
+  /** Saves pending edits, then runs that revision: one step instead of Save followed by a separate activation. */
+  async function apply() {
+    const w = needsSave ? await save() : saved;
+    if (!w) {
+      setReview(false);
+      return;
+    }
+    // Only a fresh save carries a newer generation than the polled one.
+    await deploy("active", w === saved ? undefined : w);
+    toast.success(`Revision ${w.draft_revision} ${running ? "applied" : "activated"}`);
   }
   const undo = () => {
     setFuture((f) => [graph, ...f]);
@@ -360,6 +389,10 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
       </div>
     );
   const status = deploymentState(live?.deployment_status ?? "inactive");
+  const nodeTitle = (id: string) => {
+    const node = graph.nodes.find((n) => n.id === id);
+    return node ? nodeName(node, layout.labels) ?? nodeLabel(node.type, nodeTypes.find((t) => t.type === node.type)?.label) : id;
+  };
   // Email is switched on per automation in Settings → Notifications; link there once a saved draft raises alerts.
   const alertEmail =
     saved && graph.nodes.some((node) => node.type === "action.alert.v1")
@@ -399,18 +432,37 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
                 Disable
               </Button>
             )}
-            <Button size="sm" variant={needsSave ? "default" : "outline"} disabled={busy} onClick={() => void run(save)}>
-              Save
-            </Button>
-            <Button
-              size="sm"
-              variant={needsSave ? "outline" : "default"}
-              disabled={Boolean(activationReason)}
-              title={activationReason}
-              onClick={() => setReview(true)}
-            >
-              {reactivating ? "Reactivate" : "Review activation"}
-            </Button>
+            {running ? (
+              <>
+                <Button size="sm" variant={dirty || !layoutDirty ? "outline" : "default"} disabled={busy || !needsSave} onClick={() => void run(async () => void (await save()))}>
+                  {dirty ? "Save draft" : "Save"}
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!toApply || Boolean(activationReason)}
+                  title={activationReason ?? (toApply ? undefined : "The running revision is up to date.")}
+                  // Commands need the reviewer's approval; other changes apply in one click.
+                  onClick={() => (commandNodes.length ? setReview(true) : void run(apply))}
+                >
+                  Save and apply
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button size="sm" variant={needsSave ? "default" : "outline"} disabled={busy} onClick={() => void run(async () => void (await save()))}>
+                  Save
+                </Button>
+                <Button
+                  size="sm"
+                  variant={needsSave ? "outline" : "default"}
+                  disabled={Boolean(activationReason)}
+                  title={activationReason}
+                  onClick={() => setReview(true)}
+                >
+                  {reactivating ? "Reactivate" : "Activate"}
+                </Button>
+              </>
+            )}
 </>}
         tools={<>          <div role="group" aria-label="Undo and redo" className="flex items-center">
             <Tooltip>
@@ -583,6 +635,7 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
                       content: (
                         <SimulationPanel
                           graph={graph}
+                          labels={layout.labels}
                           registry={nodeTypes}
                           revision={saved?.draft_revision}
                           dirty={dirty}
@@ -657,7 +710,7 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
                   <TableBody>
                     {actions.data?.data.map((a) => (
                       <TableRow key={a.id}>
-                        <TableCell>{a.node_id}</TableCell>
+                        <TableCell>{nodeTitle(a.node_id)}</TableCell>
                         <TableCell>{a.kind}</TableCell>
                         <TableCell>
                           {a.status}
@@ -681,11 +734,13 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
           <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-xl">
             <DialogHeader className="shrink-0">
               <DialogTitle>
-              {reactivating ? "Reactivate" : "Activate"} revision {saved?.draft_revision}
+                {running ? "Apply changes" : reactivating ? "Reactivate" : "Activate"}
+                {!needsSave && saved && ` · revision ${saved.draft_revision}`}
               </DialogTitle>
               <DialogDescription>
+                {needsSave && "Your changes are saved first. "}
                 This replaces the current execution and starts fresh evidence.
-                Review the device commands authorized for automatic execution.
+                {commandNodes.length > 0 && " Review the device commands this automation may send."}
               </DialogDescription>
             </DialogHeader>
             <FieldGroup className="min-h-0 overflow-y-auto">
@@ -694,35 +749,50 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
                   Simulation is optional and has not been run for this revision in this tab.
                 </p>
               )}
-              {graph.nodes
-                .filter((n) => n.type === "action.command.v1")
-                .map((n) => <DeviceStateReview key={n.id} org={org} node={n} graph={graph} />)}
-              <Field>
-                <FieldLabel htmlFor="grant-days">
-                  Command authorization expires after (days)
-                </FieldLabel>
-                <Input
-                  id="grant-days"
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={grantDays}
-                  onChange={(e) => setGrantDays(Number(e.target.value))}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="grant-rate">
-                  Maximum commands per target per minute
-                </FieldLabel>
-                <Input
-                  id="grant-rate"
-                  type="number"
-                  min={1}
-                  max={60}
-                  value={rateLimit}
-                  onChange={(e) => setRateLimit(Number(e.target.value))}
-                />
-              </Field>
+              {commandNodes.map((n) => <DeviceStateReview key={n.id} org={org} node={n} graph={graph} />)}
+              {commandNodes.length > 0 && (
+                <>
+                  <SwitchField
+                    id="grant-limits"
+                    label="Limit command authorization"
+                    description={
+                      limitGrants
+                        ? "Commands stop after the expiry until the automation is activated again."
+                        : "Commands keep running until you change or disable this automation, or the person approving loses permission to control the device. At most 1 command per device setting per minute."
+                    }
+                    checked={limitGrants}
+                    onCheckedChange={setLimitGrants}
+                  />
+                  {limitGrants && (
+                    <>
+                      <Field>
+                        <FieldLabel htmlFor="grant-days">Expires after (days)</FieldLabel>
+                        <Input
+                          id="grant-days"
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={grantDays}
+                          onChange={(e) => setGrantDays(Number(e.target.value))}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="grant-rate">
+                          Maximum commands per device setting per minute
+                        </FieldLabel>
+                        <Input
+                          id="grant-rate"
+                          type="number"
+                          min={1}
+                          max={60}
+                          value={rateLimit}
+                          onChange={(e) => setRateLimit(Number(e.target.value))}
+                        />
+                      </Field>
+                    </>
+                  )}
+                </>
+              )}
               <p className="text-sm text-muted-foreground">
                 Alerts use existing notification preferences. Saving or
                 activating does not enable email.
@@ -743,9 +813,9 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
               </Button>
               <Button
                 disabled={Boolean(activationReason)}
-                onClick={() => void run(() => deploy("active"))}
+                onClick={() => void run(apply)}
               >
-                Approve and activate
+                {confirmLabel({ save: needsSave, approve: commandNodes.length > 0, verb: running ? "apply" : reactivating ? "reactivate" : "activate" })}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -753,6 +823,12 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
       </WorkspacePage>
     </>
   );
+}
+
+/** "Save and apply", "Approve and activate" or "Reactivate": what the confirm button will do. */
+function confirmLabel({ save, approve, verb }: { save: boolean; approve: boolean; verb: string }) {
+  const label = `${save ? "Save and " : approve ? "Approve and " : ""}${verb}`;
+  return label[0].toUpperCase() + label.slice(1);
 }
 
 function BindingPicker({

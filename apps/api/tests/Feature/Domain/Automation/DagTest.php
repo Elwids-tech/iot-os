@@ -70,6 +70,8 @@ final class DagTest extends TestCase
         $base = $this->url.'/'.$w['uuid'];
         $this->putJson($base.'/layout', ['layout_revision' => 0, 'layout' => ['positions' => ['source' => ['x' => 20, 'y' => 30]]]])->assertOk()->assertJsonPath('data.draft_revision', 1)->assertJsonPath('data.definition_hash', $w['definition_hash'])->assertJsonPath('data.layout_revision', 1);
         $this->putJson($base.'/layout', ['layout_revision' => 0, 'layout' => ['positions' => []]])->assertConflict();
+        $this->putJson($base.'/layout', ['layout_revision' => 1, 'layout' => ['positions' => [], 'labels' => ['source' => str_repeat('x', 81)]]])->assertUnprocessable();
+        $this->putJson($base.'/layout', ['layout_revision' => 1, 'layout' => ['positions' => [], 'labels' => ['source' => 'Probe temperature']]])->assertOk()->assertJsonPath('data.layout.labels.source', 'Probe temperature')->assertJsonPath('data.definition_hash', $w['definition_hash']);
         $this->putJson($base, ['name' => 'Edited', 'workflow' => $w['workflow'], 'draft_revision' => 1])->assertOk()->assertJsonPath('data.draft_revision', 2);
         $this->putJson($base, ['name' => 'Stale', 'workflow' => $w['workflow'], 'draft_revision' => 1])->assertConflict();
         $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
@@ -96,6 +98,37 @@ final class DagTest extends TestCase
         $d = Deployment::firstOrFail();
         $this->expectException(\LogicException::class);
         $d->update(['command_grants' => []]);
+    }
+
+    public function test_grants_without_expiry_stay_current_and_expired_grants_stop_commands(): void
+    {
+        $w = $this->draft();
+        $base = $this->url.'/'.$w['uuid'];
+        $grant = ['node_id' => 'command', 'binding' => 'sensor', 'value' => 0, 'cooldown_seconds' => 60, 'max_per_minute' => 1, 'expires_at' => null];
+        $input = ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'active', 'draft_revision' => 1, 'expected_generation' => 0, 'command_grants' => [$grant]];
+        $this->postJson($base.'/deployments', [...$input, 'command_grants' => [[...$grant, 'expires_at' => now()->addYears(2)->toIso8601String()]]])->assertUnprocessable();
+        $this->postJson($base.'/deployments', $input)->assertStatus(202);
+
+        $workflow = Workflow::firstOrFail();
+        $graph = $w['workflow'];
+        $actions = app(DagActions::class);
+        foreach (['open' => null, 'expired' => now()->subMinute()->toIso8601String()] as $key => $expiry) {
+            $operation = (string) Str::uuid();
+            Deployment::create(['uuid' => $operation, 'automation_workflow_id' => $workflow->id, 'generation' => 10 + count(Deployment::all()), 'draft_revision' => 1, 'target' => 'active', 'definition' => [...$graph, 'version_uuid' => $operation], 'definition_hash' => str_repeat('a', 64), 'command_grants' => [[...$grant, 'expires_at' => $expiry]], 'status' => 'succeeded', 'created_by' => $this->actor->id, 'created_at' => now()]);
+            $workflow->update(['applied_deployment_uuid' => $operation, 'desired_deployment_uuid' => $operation, 'pending_operation_uuid' => null]);
+            DB::table('automation_command_targets')->delete();
+            $intent = ['id' => hash('sha256', 'grant-'.$key), 'operation_uuid' => $operation, 'organization_uuid' => $this->org->uuid, 'workflow_uuid' => $workflow->uuid, 'node_id' => 'command', 'kind' => 'action.command.v1', 'config' => $graph['nodes'][2]['config'], 'expires_at' => now()->addSeconds(30)->toIso8601String(), 'occurred_at' => now()->toIso8601String(), 'trigger' => 'episode:1', 'correlation_key' => 'default'];
+            DB::transaction(fn () => $actions->accept($intent));
+            $actions->tick($intent['id']);
+            if ($expiry === null) {
+                $command = DB::table('device_commands')->latest('id')->first();
+                $this->assertDatabaseHas('automation_actions', ['id' => $intent['id'], 'status' => 'accepted']);
+                $this->assertTrue($actions->authorizeDispatch($intent['id'], $command->uuid));
+                DB::table('device_commands')->where('id', $command->id)->update(['status' => 'succeeded', 'outstanding_key' => null]);
+            } else {
+                $this->assertDatabaseHas('automation_actions', ['id' => $intent['id'], 'status' => 'failed', 'diagnostic' => 'Command authorization expired.']);
+            }
+        }
     }
 
     public function test_action_dedupe_stop_expiry_and_uncertain_delivery(): void

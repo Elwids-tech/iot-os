@@ -23587,6 +23587,7 @@
     "/v1/organizations/{organization}/workflows/{workflow}/layout": {
       "put": {
         "operationId": "dag.layout",
+        "summary": "Canvas presentation: node positions, the viewport and node names. None of it reaches the deployed definition",
         "tags": [
           "Dag"
         ],
@@ -23669,11 +23670,20 @@
                           "y",
                           "zoom"
                         ]
+                      },
+                      "labels": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "maxItems": 100
                       }
                     },
                     "required": [
                       "positions",
-                      "viewport"
+                      "viewport",
+                      "labels"
                     ]
                   }
                 },

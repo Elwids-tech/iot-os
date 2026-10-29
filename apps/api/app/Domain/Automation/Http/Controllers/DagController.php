@@ -91,10 +91,11 @@ final class DagController
         return ['data' => $p->getCollection()->map(fn ($w) => [...$w->only(self::VIEW), ...$summaries[$w->id]]), 'meta' => ['current_page' => $p->currentPage(), 'last_page' => $p->lastPage(), 'total' => $p->total()]];
     }
 
+    /** Canvas presentation: node positions, the viewport and node names. None of it reaches the deployed definition. */
     public function layout(Request $r, Organization $organization, Workflow $workflow): array
     {
         $this->auth->authorize($r->user(), $organization, 'manage', $workflow);
-        $v = $r->validate(['layout_revision' => 'required|integer|min:0', 'layout' => 'required|array:positions,viewport', 'layout.positions' => 'present|array|max:100', 'layout.positions.*' => 'array:x,y', 'layout.positions.*.x' => 'required|numeric|between:-100000,100000', 'layout.positions.*.y' => 'required|numeric|between:-100000,100000', 'layout.viewport' => 'sometimes|array:x,y,zoom', 'layout.viewport.x' => 'required_with:layout.viewport|numeric', 'layout.viewport.y' => 'required_with:layout.viewport|numeric', 'layout.viewport.zoom' => 'required_with:layout.viewport|numeric|between:0.1,4']);
+        $v = $r->validate(['layout_revision' => 'required|integer|min:0', 'layout' => 'required|array:positions,viewport,labels', 'layout.positions' => 'present|array|max:100', 'layout.labels' => 'sometimes|array|max:100', 'layout.labels.*' => 'string|max:80', 'layout.positions.*' => 'array:x,y', 'layout.positions.*.x' => 'required|numeric|between:-100000,100000', 'layout.positions.*.y' => 'required|numeric|between:-100000,100000', 'layout.viewport' => 'sometimes|array:x,y,zoom', 'layout.viewport.x' => 'required_with:layout.viewport|numeric', 'layout.viewport.y' => 'required_with:layout.viewport|numeric', 'layout.viewport.zoom' => 'required_with:layout.viewport|numeric|between:0.1,4']);
 
         return DB::transaction(function () use ($workflow, $v) {
             $w = Workflow::whereKey($workflow->id)->lockForUpdate()->firstOrFail();
@@ -246,7 +247,9 @@ final class DagController
     public function view(Workflow $w): array
     {
         $deployment = DB::table('automation_deployments')->where('automation_workflow_id', $w->id)->orderByDesc('generation')->first();
+        // The draft revision that runs (or is being applied), so the editor knows whether saved changes still need applying.
+        $active = $w->desired_deployment_uuid ? DB::table('automation_deployments')->where('uuid', $w->desired_deployment_uuid)->value('draft_revision') : null;
 
-        return [...$w->only(self::VIEW), 'deployment_diagnostic' => $deployment?->diagnostic];
+        return [...$w->only(self::VIEW), 'deployment_diagnostic' => $deployment?->diagnostic, 'active_revision' => $active];
     }
 }

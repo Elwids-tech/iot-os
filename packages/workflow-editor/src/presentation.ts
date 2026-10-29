@@ -118,7 +118,7 @@ export function arrangeNodes(
 
 /** Display names for the devices and parameters that bindings point at, keyed by UUID. */
 export type ResourceNames = Record<string, string>;
-type Context = { workflow?: Workflow; names?: ResourceNames };
+type Context = { workflow?: Workflow; names?: ResourceNames; labels?: Record<string, string> };
 type Reading = { name?: string; unit?: string };
 
 const operators: Record<string, string> = {
@@ -189,7 +189,7 @@ function input(ctx: Context, nodeId: string, port: string, depth = 0): Reading {
   return source && depth < 12 ? reading(ctx, source, edge.source_port, depth + 1) : {};
 }
 function reading(ctx: Context, node: WorkflowNode, port: string, depth: number): Reading {
-  const named = nodeName(node);
+  const named = nodeName(node, ctx.labels);
   const c = node.config;
   switch (node.type) {
     case "source.parameter.v1": {
@@ -228,8 +228,9 @@ export function nodeSummary(
   node: WorkflowNode,
   workflow?: Workflow,
   names?: ResourceNames,
+  labels?: Record<string, string>,
 ): string {
-  return summary({ workflow, names }, node, 0);
+  return summary({ workflow, names, labels }, node, 0);
 }
 function summary(ctx: Context, node: WorkflowNode, depth: number): string {
   const c = node.config;
@@ -243,7 +244,7 @@ function summary(ctx: Context, node: WorkflowNode, depth: number): string {
       const device = ctx.names?.[b.device_uuid];
       const parameter = ctx.names?.[b.parameter_uuid] ?? roleName(b.role);
       // A node named after its parameter already says which one it reads.
-      const title = nodeName(node)?.toLowerCase();
+      const title = nodeName(node, ctx.labels)?.toLowerCase();
       const fresh = duration(b.fresh_seconds);
       return [
         device,
@@ -476,8 +477,10 @@ export const nodeLabel = (type: string, registryLabel?: string): string =>
   registryLabel && registryLabel !== type
     ? registryLabel
     : nodeAppearance(type).label;
-/** Author-chosen node IDs act as names; generated `node_…` IDs do not. */
-export const nodeName = (node: WorkflowNode): string | undefined => {
+/** A name the author typed wins; author-chosen node IDs act as names; generated `node_…` IDs do not. */
+export const nodeName = (node: WorkflowNode, labels?: Record<string, string>): string | undefined => {
+  const label = labels?.[node.id]?.trim();
+  if (label) return label;
   if (node.id.startsWith("node_")) return undefined;
   const name = node.id.replaceAll("_", " ");
   return name.charAt(0).toUpperCase() + name.slice(1);

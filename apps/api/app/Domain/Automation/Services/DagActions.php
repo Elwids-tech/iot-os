@@ -97,7 +97,7 @@ final class DagActions
                     return;
                 }
                 $grant = collect($d->command_grants ?? [])->first(fn ($grant) => $grant['node_id'] === $action->node_id && $grant['binding'] === ($intent['config']['binding'] ?? null) && $grant['value'] === ($intent['config']['value'] ?? null));
-                abort_unless($grant && Carbon::parse($grant['expires_at'])->isFuture(), 403, 'Command authorization expired.');
+                abort_unless($grant && self::grantCurrent($grant), 403, 'Command authorization expired.');
                 $binding = collect($d->definition['bindings'])->firstWhere('role', $grant['binding']);
                 $device = Device::where('organization_id', $org->id)->where('uuid', $binding['device_uuid'])->lockForUpdate()->firstOrFail();
                 app(DeviceAuthorization::class)->authorize($actor, DevicePermission::COMMAND, $org, $device);
@@ -133,6 +133,12 @@ final class DagActions
         }, 3);
     }
 
+    /** Grants without an expiry stay current; the approver's Device.command is checked separately. */
+    private static function grantCurrent(array $grant): bool
+    {
+        return ($grant['expires_at'] ?? null) === null || Carbon::parse($grant['expires_at'])->isFuture();
+    }
+
     /** The runtime calls this immediately before a first physical send. */
     public function authorizeDispatch(string $id, string $commandUuid): bool
     {
@@ -151,7 +157,7 @@ final class DagActions
             }
             $intent = json_decode($action->intent, true, 512, JSON_THROW_ON_ERROR);
             $grant = collect($d->command_grants ?? [])->first(fn ($grant) => $grant['node_id'] === $action->node_id && $grant['binding'] === ($intent['config']['binding'] ?? null) && $grant['value'] === ($intent['config']['value'] ?? null));
-            if (! $grant || Carbon::parse($grant['expires_at'])->isPast()) {
+            if (! $grant || ! self::grantCurrent($grant)) {
                 return false;
             }
             $actor = User::find($d->created_by);

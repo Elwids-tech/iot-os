@@ -40,7 +40,7 @@ Save the intended workflow first. Provide realistic device inputs, timestamps, a
 3. Select **Run simulation**, then inspect the highlighted nodes, per-node results and requested or suppressed actions. Switch between the summary and individual steps.
 4. Use **Saved test scenarios** to retain repeatable test inputs where available.
 5. Test threshold crossings, recovery, missing samples, and timing gaps.
-6. Review activation separately when results match your intent.
+6. Activate, or **Save and apply** a running automation, when results match your intent.
 
 ## Expected result
 You get simulation evidence for the selected saved revision. The workflow is not activated and a simulated command result is not device confirmation.
