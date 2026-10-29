@@ -60,9 +60,9 @@ folder) comes first. Tasks follow the owner's decisions on Q1 to Q3 (2026-10-29)
 
 ## Phase 4: Kit (opens the bell pull request)
 
-- [ ] T016 [P] `packages/ui/src/components/notification-bell.tsx` (`NotificationBell` per the plan: ghost icon button with `text-micro` count and "9+", accessible name with the count, end-aligned `Popover` at most `min(24rem, 100vw - 2rem)` wide, header actions, toolbar, items with `Status` and `RelativeTime`, loading, error, empty, **Show older**, footer)
-- [ ] T017 [P] `alert` domain in `packages/ui/src/lib/status.ts` (`activated` and `active` warning, `cleared` muted)
-- [ ] T018 `apps/storybook/src/components/NotificationBell.stories.tsx`: unread, read, empty, loading, error, long names, phone viewport; the accessibility addon passes (depends on T016, T017)
+- [X] T016 [P] `packages/ui/src/components/notification-bell.tsx` (`NotificationBell` per the plan: ghost icon button with `text-micro` count and "9+", accessible name with the count, end-aligned `Popover` at most `min(24rem, 100vw - 2rem)` wide, header actions, toolbar, items with `Status` and `RelativeTime`, loading, error, empty, **Show older**, footer)
+- [X] T017 [P] `alert` domain in `packages/ui/src/lib/status.ts` (`activated` and `active` warning, `cleared` muted)
+- [X] T018 `apps/storybook/src/components/NotificationBell.stories.tsx`: unread, read, empty, loading, error, long names, phone viewport; the accessibility addon passes (depends on T016, T017)
 
 ---
 
@@ -72,11 +72,11 @@ folder) comes first. Tasks follow the owner's decisions on Q1 to Q3 (2026-10-29)
 
 **Independent Test**: trigger an alert as a recipient; within 20 seconds the bell on any page shows it and opens the alert.
 
-- [ ] T019 [US1] `apps/portal/src/alerts/bell/AlertBellProvider.tsx`: per-organization context; polls `alertNotificationSummary` at 15 s visible and 60 s hidden with `refetchIntervalInBackground: true`; disabled without `Device.view`; errors leave the count empty
-- [ ] T020 [US1] `apps/portal/src/alerts/bell/AlertBell.tsx` composing `NotificationBell`: `useInfiniteQuery` while open (refetch every 15 s while open), items mapped to workflow, device, `alert` status and time, the live condition, select marks read by id and navigates to `/organizations/{org}/alerts/{alert}`, **Mark all read** with `up_to`, footer link to Alerts; optimistic summary update after marking
-- [ ] T021 [US1] `apps/portal/src/App.tsx`: mount `AlertBellProvider` inside `RuntimeStatusProvider`; put `AlertBell` first in `helpIntegration.trigger` when `devicesCan("view")(org)`
-- [ ] T022 [P] [US1] `apps/portal/e2e/alert-bell.spec.ts` with route mocks: badge count, list content and order, selecting an item posts `ids` and lands on the alert, **Mark all read** posts `up_to` with the newest id, **Show older**, the Alerts link, a viewer without device view sees no bell, axe check, and at 375 px the popover fits without sideways scroll (SC-005)
-- [ ] T023 [P] [US1] Mock `alert-notifications/summary` in `apps/portal/e2e/alerts.spec.ts`, and in any other spec whose header now fails because of the new request; all portal specs pass
+- [X] T019 [US1] `apps/portal/src/alerts/bell/AlertBellProvider.tsx`: per-organization context; polls `alertNotificationSummary` at 15 s visible and 60 s hidden with `refetchIntervalInBackground: true`; disabled without `Device.view`; errors leave the count empty
+- [X] T020 [US1] `apps/portal/src/alerts/bell/AlertBell.tsx` composing `NotificationBell`: `useInfiniteQuery` while open (refetch every 15 s while open), items mapped to workflow, device, `alert` status and time, the live condition, select marks read by id and navigates to `/organizations/{org}/alerts/{alert}`, **Mark all read** with `up_to`, footer link to Alerts; optimistic summary update after marking
+- [X] T021 [US1] `apps/portal/src/App.tsx`: mount `AlertBellProvider` inside `RuntimeStatusProvider`; put `AlertBell` first in `helpIntegration.trigger` when `devicesCan("view")(org)`
+- [X] T022 [P] [US1] `apps/portal/e2e/alert-bell.spec.ts` with route mocks: badge count, list content and order, selecting an item posts `ids` and lands on the alert, **Mark all read** posts `up_to` with the newest id, **Show older**, the Alerts link, a viewer without device view sees no bell, axe check, and at 375 px the popover fits without sideways scroll (SC-005)
+- [X] T023 [P] [US1] Mock `alert-notifications/summary` in `apps/portal/e2e/alerts.spec.ts`, and in any other spec whose header now fails because of the new request; all portal specs pass
 
 **Checkpoint**: the bell works without sound.
 
@@ -88,11 +88,11 @@ folder) comes first. Tasks follow the owner's decisions on Q1 to Q3 (2026-10-29)
 
 **Independent Test**: click once in the page, trigger an alert, hear one chime; reload, hear nothing; with three tabs, one chime.
 
-- [ ] T024 [P] [US2] `apps/portal/src/alerts/bell/model.ts` `nextChime(state, summary)` and `apps/portal/src/alerts/bell/model.test.ts`: no chime on the first summary, chime for a greater id, none for an equal or smaller id or `null`, the baseline moves forward
-- [ ] T025 [P] [US2] `apps/portal/src/alerts/bell/chime.ts`: lazy `AudioContext` unlocked on the first `pointerdown` or `keydown`, synthesized two-note chime, `play()` returning false when locked or missing; `soundEnabled`/`setSoundEnabled` and `claim(userId, id)` on `localStorage`, each in try/catch; unit tests in `apps/portal/src/alerts/bell/chime.test.ts` with throwing storage and a missing `AudioContext`
-- [ ] T026 [US2] Wire the chime into `AlertBellProvider.tsx`: on a new activation, play when sound is on and `claim` succeeds; a polite live region names the automation whether or not sound is on; invalidate the list (depends on T019, T024, T025)
-- [ ] T027 [US2] Sound `Switch` in the bell's toolbar in `AlertBell.tsx` (on by default, shared by the browser's tabs)
-- [ ] T028 [P] [US2] Chime cases in `apps/portal/e2e/alert-bell.spec.ts` with `AudioContext` stubbed through `page.addInitScript` to count note starts: none on load with unread backlog; one after the mocked summary returns a newer activation id; none for a newer cleared notification; none when muted; two pages in one context play once (SC-002); a page without interaction plays nothing and shows no error
+- [X] T024 [P] [US2] `apps/portal/src/alerts/bell/model.ts` `nextChime(state, summary)` and `apps/portal/src/alerts/bell/model.test.ts`: no chime on the first summary, chime for a greater id, none for an equal or smaller id or `null`, the baseline moves forward
+- [X] T025 [P] [US2] `apps/portal/src/alerts/bell/chime.ts`: lazy `AudioContext` unlocked on the first `pointerdown` or `keydown`, synthesized two-note chime, `play()` returning false when locked or missing; `soundEnabled`/`setSoundEnabled` and `claim(userId, id)` on `localStorage`, each in try/catch; unit tests in `apps/portal/src/alerts/bell/chime.test.ts` with throwing storage and a missing `AudioContext`
+- [X] T026 [US2] Wire the chime into `AlertBellProvider.tsx`: on a new activation, play when sound is on and `claim` succeeds; a polite live region names the automation whether or not sound is on; invalidate the list (depends on T019, T024, T025)
+- [X] T027 [US2] Sound `Switch` in the bell's toolbar in `AlertBell.tsx` (on by default, shared by the browser's tabs)
+- [X] T028 [P] [US2] Chime cases in `apps/portal/e2e/alert-bell.spec.ts` with `AudioContext` stubbed through `page.addInitScript` to count note starts: none on load with unread backlog; one after the mocked summary returns a newer activation id; none for a newer cleared notification; none when muted; two pages in one context play once (SC-002); a page without interaction plays nothing and shows no error
 
 **Checkpoint**: US1 and US2 together are the request.
 
@@ -100,17 +100,17 @@ folder) comes first. Tasks follow the owner's decisions on Q1 to Q3 (2026-10-29)
 
 ## Phase 7: User Story 3, the empty state (Priority: P2)
 
-- [ ] T029 [US3] Empty state in `AlertBell.tsx`: explains recipients; links to `settings/notifications` with `devicesCan("manage")`, otherwise says to ask someone who manages automations
-- [ ] T030 [P] [US3] Empty-state cases for a manager and a viewer in `apps/portal/e2e/alert-bell.spec.ts`
+- [X] T029 [US3] Empty state in `AlertBell.tsx`: explains recipients; links to `settings/notifications` with `devicesCan("manage")`, otherwise says to ask someone who manages automations
+- [X] T030 [P] [US3] Empty-state cases for a manager and a viewer in `apps/portal/e2e/alert-bell.spec.ts`
 
 ---
 
 ## Phase 8: User Story 4, opening an alert reads it (Priority: P3), docs and verification
 
-- [ ] T031 [US4] The alert detail in `apps/portal/src/alerts/Alerts.tsx` posts `{alert_uuid}` once when shown and invalidates the bell summary; a case in `apps/portal/e2e/alerts.spec.ts`
-- [ ] T032 [P] Docs: "In-app notifications" in `docs/features/alerts.md` (who gets them, the bell, sound and its limits, polling, 90-day retention); the bell and sound in `apps/api/resources/help/alert-notifications.md` (bump `revision`; `php artisan help:validate` passes); two entries in `docs/dev/gotchas.md` (stub `data` is text, preset ids with several notifiables); live delivery with Reverb under Automation and alerts in `docs/roadmap.md`
-- [ ] T033 `pnpm --filter @iot-os/portal lint` and `test`, `pnpm --filter @iot-os/admin lint`, the portal Playwright suites, `./taskw lint`
-- [ ] T034 Rebuild `portal admin` (and the API-image services if this pull request touched `apps/api`) with the stack's env files and overlays; in the running portal, without discarding anyone's unsaved edits: make yourself a recipient, click once, trigger an alert and hear one chime with three tabs open, open the bell, follow the item, mark all read, mute and trigger again, check a phone-width window, and check a background tab within about a minute (SC-001)
+- [X] T031 [US4] The alert detail in `apps/portal/src/alerts/Alerts.tsx` posts `{alert_uuid}` once when shown and invalidates the bell summary; a case in `apps/portal/e2e/alerts.spec.ts`
+- [X] T032 [P] Docs: "In-app notifications" in `docs/features/alerts.md` (who gets them, the bell, sound and its limits, polling, 90-day retention); the bell and sound in `apps/api/resources/help/alert-notifications.md` (bump `revision`; `php artisan help:validate` passes); two entries in `docs/dev/gotchas.md` (stub `data` is text, preset ids with several notifiables); live delivery with Reverb under Automation and alerts in `docs/roadmap.md`
+- [X] T033 `pnpm --filter @iot-os/portal lint` and `test`, `pnpm --filter @iot-os/admin lint`, the portal Playwright suites, `./taskw lint`
+- [X] T034 Rebuild `portal admin` (and the API-image services if this pull request touched `apps/api`) with the stack's env files and overlays; in the running portal, without discarding anyone's unsaved edits: make yourself a recipient, click once, trigger an alert and hear one chime with three tabs open, open the bell, follow the item, mark all read, mute and trigger again, check a phone-width window, and check a background tab within about a minute (SC-001)
 
 **Checkpoint**: the bell pull request is ready to open from `main`.
 

@@ -23,17 +23,22 @@
     "condition",
     "event log",
     "email preferences",
-    "notification"
+    "notification",
+    "bell",
+    "sound",
+    "chime",
+    "unread"
   ],
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 2,
+  "revision": 3,
   "summary": "**Alerts** records live conditions and the team’s response, including acknowledgment, assignment, and comments. Its Event log and Email preferences tabs replace the notification center.",
   "questions": [
     "Does acknowledging an alert clear it?",
     "How do I assign an alert to a colleague?",
-    "How do I acknowledge repeated alerts at once?"
+    "How do I acknowledge repeated alerts at once?",
+    "Why did the alert bell not play a sound?"
   ]
 }
 ---
@@ -50,12 +55,15 @@ Viewing requires device viewing permission. Response actions require their respe
 4. Acknowledge it when you have seen it and assign a responsible member where appropriate. To acknowledge several at once, tick them and choose **Acknowledge selected**, or use **Acknowledge all cleared** in an alert’s occurrences.
 5. Add a comment with your findings.
 6. Continue checking the condition until the source reports it cleared.
+7. The bell beside **Assistant** and **Help** counts the alerts you were notified about as a recipient. Open it to see them, select one to open its alert, or choose **Mark all read**. Opening an alert from anywhere also marks it read.
 
 ## Expected result
 Acknowledgment records that someone saw the alert; assignment records responsibility. Neither automatically clears its underlying condition. Acknowledging in bulk skips alerts that are already acknowledged.
 
 ## Troubleshooting
 If an alert remains active after acknowledgment, inspect the latest condition evidence. Notification delivery is separate from the alert record. Check **Email preferences** and the workflow’s notification settings when recipients do not receive an update.
+
+The bell lists only alerts of automations that name you as a recipient. A new alert plays a short chime while the portal is open, but only after you have clicked or typed in the page once, and only when **Sound for new alerts in this browser** is on in the bell. A tab in the background checks about once a minute, so its chime can be late.
 
 ## Related guides
 [Read the related guide](/help/alert-notifications)

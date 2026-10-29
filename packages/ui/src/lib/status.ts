@@ -137,6 +137,12 @@ const domains = {
     expired: { tone: "muted", label: "Expired" },
     revoked: { tone: "muted", label: "Revoked" },
   },
+  /** Alerts and their notifications (spec 022): an activation needs attention, a clear does not. */
+  alert: {
+    activated: { tone: "warning", label: "Activated" },
+    active: { tone: "warning", label: "Active" },
+    cleared: { tone: "muted", label: "Cleared" },
+  },
   /** Support ticket priority, set by the team. */
   priority: {
     low: { tone: "muted", label: "Low" },

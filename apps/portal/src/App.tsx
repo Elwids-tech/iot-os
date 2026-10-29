@@ -112,6 +112,8 @@ import { PanelProvider, usePanel } from "./panel/context"
 import { TextField, RequestError, Confirm } from "./components/forms"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
 import { RuntimeStatusBanner, RuntimeStatusProvider } from "./components/RuntimeStatus"
+import { AlertBellProvider } from "./alerts/bell/AlertBellProvider"
+import { AlertBell } from "./alerts/bell/AlertBell"
 const HomePage = lazy(() => import("./home/HomePage"))
 const AutomationRoutes = lazy(() => import("./automation/Automation"))
 const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
@@ -889,10 +891,12 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
   const profileContext = page === "device-profiles" || (page === "devices" && resource === "onboard" && !onboardingContext)
   const viewedAdapter = page === "device-adapters" && resource && resource !== "new" ? resource : undefined
   const helpContext = helpOverride ?? helpContextForPath(location.pathname)
-  // Every page header carries the Assistant beside Help; on phones they shrink to their icons.
+  // Every page header carries the alert bell, the Assistant and Help; on phones they shrink to their icons.
+  const bellVisible = Boolean(org && devicesCan("view")(org))
   const helpIntegration = useMemo(() => org ? {
     trigger: (
       <>
+        {bellVisible && <AlertBell />}
         <Button variant="ghost" size="sm" aria-expanded={assistantOpen} onClick={openAssistant}>
           <SparklesIcon data-icon="inline-start" />
           <span className="max-sm:sr-only">Assistant</span>
@@ -904,7 +908,7 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
       </>
     ),
     onContextChange: setHelpOverride,
-  } : null, [org?.uuid, assistantOpen, helpOpen, panel])
+  } : null, [org?.uuid, bellVisible, assistantOpen, helpOpen, panel])
 
   // ⌘K / Ctrl+K opens search from anywhere in the workspace.
   const [searchOpen, setSearchOpen] = useState(false)
@@ -939,6 +943,13 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
       )}
       <PageHelpContext.Provider value={helpIntegration}>
       <RuntimeStatusProvider org={org?.uuid}>
+      <AlertBellProvider
+        key={org?.uuid}
+        org={org?.uuid}
+        userId={user.id}
+        enabled={bellVisible}
+        manage={Boolean(org && devicesCan("manage")(org))}
+      >
       <SidebarProvider>
         <PortalSidebar
           onSearch={() => setSearchOpen(true)}
@@ -1015,6 +1026,7 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
           onConfirm={logout}
         />
       </SidebarProvider>
+      </AlertBellProvider>
       </RuntimeStatusProvider>
       </PageHelpContext.Provider>
     </TooltipProvider>

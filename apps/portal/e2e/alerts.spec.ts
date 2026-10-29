@@ -101,6 +101,7 @@ async function setup(page: Page, manage = true) {
       ),
     } as Record<string, unknown>,
     retried: false,
+    bellReads: [] as Record<string, unknown>[],
     assigned: undefined as number | null | undefined,
     saved: null as Record<string, unknown> | null,
     posts: [] as Record<string, unknown>[],
@@ -169,6 +170,13 @@ async function setup(page: Page, manage = true) {
         },
       });
     if (path === "/context") return reply({ data: context });
+    // The alert bell in the header (spec 022).
+    if (path === "/alert-notifications/summary")
+      return reply({ data: { unread: 0, newest_unread_activation_id: null } });
+    if (path === "/alert-notifications/read") {
+      state.bellReads.push(body);
+      return reply({ data: { unread: 0, newest_unread_activation_id: null } });
+    }
     const matching = (q: URLSearchParams) =>
       state.alerts.filter(
         (a) =>
@@ -645,6 +653,20 @@ test("after our operation settles, polling follows another user's operation", as
   await expect(detail.getByText("Active", { exact: true })).toBeVisible();
   await expect(detail.getByText("Workflow disabled.")).toHaveCount(0);
   expect(state.ops["op-other"].polls).toBeGreaterThan(1);
+});
+
+test("opening an alert reads its notifications in the bell once", async ({ page }) => {
+  const { state, errors } = await setup(page, false);
+  await page.goto(`${base}/${alertIds.a3}`);
+  await expect(page.getByRole("heading", { name: /GPS demo geofence/ }).first()).toBeVisible();
+  await expect.poll(() => state.bellReads).toEqual([{ alert_uuid: alertIds.a3 }]);
+  // Refreshing the detail does not read it again.
+  await refocus(page);
+  await page.waitForTimeout(500);
+  expect(state.bellReads).toEqual([{ alert_uuid: alertIds.a3 }]);
+  await page.goto(`${base}/${alertIds.a2}`);
+  await expect.poll(() => state.bellReads).toEqual([{ alert_uuid: alertIds.a3 }, { alert_uuid: alertIds.a2 }]);
+  expect(errors).toEqual([]);
 });
 
 test("drafts survive crossing the 1280px layout breakpoint", async ({ page }) => {

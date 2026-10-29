@@ -92,6 +92,10 @@ Grouped by area. Links point at the decision or doc that explains the item.
   Settings → Notifications already do) ([ADR-011](adr/ADR-011-dag-automation-in-go.md)).
 - **Notification policies** (requirement-led): reminders, cooldowns, escalation,
   SMS or push.
+- **Live alert delivery.** The bell polls every 15 s (60 s in a background tab)
+  ([spec 022](../specs/022-alert-bell/spec.md)). Broadcasting the same notification
+  over Laravel Reverb would make it instant, at the cost of a websocket service and
+  proxy in every deployment profile.
 - **New automation nodes** ([spec 014](../specs/014-automation-nodes/spec.md)): no data,
   schedule, state match, not, range and rate of change.
 
