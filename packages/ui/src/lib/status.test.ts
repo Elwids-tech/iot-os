@@ -26,6 +26,13 @@ describe("status vocabulary", () => {
     expect(statusOf("pending", "ingest")).toEqual({ tone: "info", label: "Pending" })
   })
 
+  it("reads an alert activation as a warning, unlike a runtime's", () => {
+    expect(statusOf("activated")).toEqual({ tone: "good", label: "Activated" })
+    expect(statusOf("activated", "alert")).toEqual({ tone: "warning", label: "Activated" })
+    expect(statusOf("active", "alert")).toEqual({ tone: "warning", label: "Active" })
+    expect(statusOf("cleared", "alert")).toEqual({ tone: "muted", label: "Cleared" })
+  })
+
   it("humanizes values it does not know", () => {
     expect(statusOf("needs_review")).toEqual({ tone: "muted", label: "Needs review" })
     expect(statusOf(null)).toEqual({ tone: "muted", label: "Unknown" })

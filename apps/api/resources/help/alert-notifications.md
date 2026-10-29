@@ -13,13 +13,15 @@
     "email",
     "delivery",
     "workflow notification",
-    "settings"
+    "settings",
+    "bell",
+    "sound"
   ],
   "required_capabilities": [
     "devices.view",
     "devices.manage"
   ],
-  "revision": 2,
+  "revision": 3,
   "summary": "Notification settings control who receives supported workflow/alert updates in your organization.",
   "questions": [
     "How do I choose notification recipients?",
@@ -41,7 +43,7 @@ Configuration requires device management permission. Recipients must be eligible
 5. Check the alert and delivery evidence when testing an expected notification.
 
 ## Expected result
-The configured recipients are used for subsequent eligible updates. Changing recipients does not resolve the alert itself.
+The configured recipients are used for subsequent eligible updates. Changing recipients does not resolve the alert itself. Each recipient also sees those alerts in the bell in every page header, whatever their email preferences, and hears a short chime for a new one while the portal is open (they can turn the sound off in the bell). Adding someone does not show them earlier alerts.
 
 ## Troubleshooting
 An alert existing does not prove an email was delivered. Check enabled settings, selected recipients, and recorded delivery errors. Ask the administrator when mail delivery configuration needs attention.

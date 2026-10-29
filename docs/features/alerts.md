@@ -85,6 +85,39 @@ alert detail; the retry keeps the delivery UUID and Message-ID, adds a new cycle
 of up to five attempts and is fenced by `retry_generation` (stale requests return
 409). Sent, pending and cancelled deliveries cannot be retried.
 
+## In-app notifications
+
+Every page header of an organization has a **bell** beside **Assistant** and **Help**
+for people who can view devices ([spec 022](../../specs/022-alert-bell/spec.md)). It
+counts the person's unread alert notifications there and opens a list of them, newest
+first, 20 at a time with **Show older**: automation, device, **Activated** or
+**Cleared**, when, and whether the alert is still active.
+
+- **Who gets them**: the same recipients as email. Each activation, and each clear when
+  recovery is on, adds one notification per recipient, written with the delivery and
+  whatever the person's email preferences. Being added later does not show older
+  alerts; leaving the organization or losing device view hides the bell.
+- **Read**: selecting a notification, opening the alert from anywhere (an email link,
+  the Alerts page) or **Mark all read** marks it read. Mark all read stops at the
+  newest one listed, so an alert that arrives meanwhile stays unread. The sidebar's
+  **Alerts** badge is different: it counts the organization's unacknowledged alerts.
+- **Sound**: a short two-note chime, synthesized in the browser, for a new activation
+  (never for a clear, and never for what was already there when the page loaded).
+  Several arrivals between checks chime once, and one tab of the browser plays it.
+  Browsers allow sound only after you click or type in the page once; **Sound for new
+  alerts in this browser** in the bell turns it off for every tab of that browser.
+  Screen readers hear "New alert: …" either way.
+- **Polling**: each tab checks every 15 s while visible and every 60 s in the
+  background, so a background chime can be up to a minute late; a browser that
+  freezes background tabs plays nothing until the tab is shown again.
+- **Retention**: notifications are removed after 90 days, read or not. The alerts
+  themselves stay on the Alerts page.
+
+Code: [`AlertInbox`](../../apps/api/app/Domain/Automation/Services/AlertInbox.php),
+[`AlertTransitionNotification`](../../apps/api/app/Domain/Automation/Notifications/AlertTransitionNotification.php);
+portal [`src/alerts/bell`](../../apps/portal/src/alerts/bell); kit
+[`NotificationBell`](../../packages/ui/src/components/notification-bell.tsx).
+
 ## Event log
 
 **Alerts → Event log** records, per organization, workflow alert transitions,

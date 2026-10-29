@@ -44,6 +44,8 @@ export const Domains: StoryObj = {
       <dd className="flex gap-4"><Status value="applied" /><Status value="applied" domain="automation" /></dd>
       <dt className="text-muted-foreground">sent</dt>
       <dd className="flex gap-4"><Status value="sent" /><Status value="sent" domain="delivery" /></dd>
+      <dt className="text-muted-foreground">activated</dt>
+      <dd className="flex gap-4"><Status value="activated" /><Status value="activated" domain="alert" /></dd>
     </dl>
   ),
 }

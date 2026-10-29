@@ -1,5 +1,5 @@
 import { RelativeTime } from "@iot-os/ui/components/freshness";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   useMutation,
   useQueries,
@@ -50,6 +50,7 @@ import {
 } from "@iot-os/ui/components/alert";
 import { formatAge, formatDateTime } from "@iot-os/ui/lib/format";
 import { api } from "../lib/api";
+import { alertBellKeys } from "./bell/model";
 import { useDashboardCapabilities } from "../dashboards/access";
 import { useUnsavedContribution } from "../lib/unsaved";
 import { Confirm, LoadError, RequestError } from "../components/forms";
@@ -862,6 +863,17 @@ function AlertDetail({
   });
   const alert = query.data;
   const missing = !isAlertId(id) || isNotFound(query.error);
+  // Opening an alert reads its notifications in your bell (spec 022), once per alert shown.
+  const readFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!alert || readFor.current === alert.uuid) return;
+    readFor.current = alert.uuid;
+    void api
+      .markAlertNotificationsRead(org, { alert_uuid: alert.uuid })
+      .then((summary) => cache.setQueryData(alertBellKeys.summary(org), summary))
+      .catch(() => undefined)
+      .finally(() => void cache.invalidateQueries({ queryKey: alertBellKeys.list(org) }));
+  }, [org, alert?.uuid]);
   const comments = useQuery({
     queryKey: ["alert-comments", org, id, page],
     queryFn: () => api.alertComments(org, id, page),
