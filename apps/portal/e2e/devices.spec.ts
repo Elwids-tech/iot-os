@@ -227,6 +227,12 @@ async function setup(page: Page, options: Options = {}) {
       })
     }
     const one = /\/devices\/([^/]+)$/.exec(path)?.[1]
+    if (one && request.method() === "PATCH") {
+      state.saved = request.postDataJSON()
+      const row = (options.devices ?? [meter, idle]).find((d) => d.uuid === one)!
+      Object.assign(row, state.saved, { draft_revision: row.draft_revision + 1 })
+      return json({ data: { ...detail, ...row } })
+    }
     if (one && (options.details?.[one] || one === meterId))
       return json({ data: options.details?.[one] ?? detail })
     if (path.endsWith("/measurements/latest") && options.latest === "unavailable")
@@ -536,14 +542,14 @@ test("device directory shows one health status, short codes, pending sources and
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.goto(`${base}/devices`)
   const table = page.getByRole("table")
-  await expect(table.getByRole("columnheader")).toHaveText(["", "Device", "Status", "Last seen", "Profile", "Gateway", "Actions"])
+  await expect(table.getByRole("columnheader")).toHaveText(["", "Device", "Device code", "Status", "Last seen", "Profile", "Gateway", "Actions"])
   const lastSeen = await table.getByRole("columnheader", { name: "Last seen" }).boundingBox()
   expect(lastSeen!.x + lastSeen!.width).toBeLessThanOrEqual(1280)
   await expect(page.getByRole("link", { name: "Manufacturer MQTT device" })).toHaveCount(0)
   await expect(page.getByRole("link", { name: "Add device" })).toBeVisible()
 
   const row = table.getByRole("row", { name: /Boiler room sensor/ })
-  await expect(row.getByText("device-ef7b…7632")).toHaveAttribute("title", generated.code)
+  await expect(row.getByRole("button", { name: `Copy device code ${generated.code}` })).toHaveText("device-ef7b…7632")
   // Presence and freshness are separate: the status says Online, Last seen says the data is late.
   await expect(row.getByText("Online", { exact: true })).toBeVisible()
   await expect(row.getByText("5 d ago")).toBeVisible()
@@ -586,6 +592,46 @@ test("device directory shows one health status, short codes, pending sources and
   expect(state.errors).toEqual([])
 })
 
+test("device names and codes copy in one click and quick edit renames from the row menu", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"])
+  const devices = [{ ...meter }, { ...idle }, { ...generated }]
+  const state = await setup(page, { devices })
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto(`${base}/devices`)
+  const table = page.getByRole("table")
+  const row = table.getByRole("row", { name: /Boiler room sensor/ })
+
+  // The code copies in full although it shows shortened, and copying does not open the device.
+  await row.getByRole("button", { name: `Copy device code ${generated.code}` }).click()
+  await expect(row.getByRole("button", { name: "Copied device code" })).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(generated.code)
+  await expect(page).toHaveURL(`${base}/devices`)
+  // The name is the row's link, so a button beside it copies it.
+  await row.hover()
+  await row.getByRole("button", { name: "Copy device name" }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("Boiler room sensor")
+  await expect(page).toHaveURL(`${base}/devices`)
+
+  await row.getByRole("button", { name: "Actions for Boiler room sensor" }).click()
+  await page.getByRole("menuitem", { name: "Quick edit" }).click()
+  const dialog = page.getByRole("dialog", { name: "Quick edit" })
+  await expect(dialog.getByLabel("Device name")).toBeFocused()
+  await dialog.getByLabel("Device name").fill("Boiler room east")
+  await dialog.getByLabel("Tags").fill("Energy, Line 2")
+  await dialog.getByRole("button", { name: "Save" }).click()
+  await expect(dialog).toHaveCount(0)
+  // Only the quick fields change; the code and revision come from the row.
+  expect(state.saved).toEqual({
+    name: "Boiler room east",
+    code: generated.code,
+    description: null,
+    tags: ["Energy", "Line 2"],
+    draft_revision: generated.draft_revision,
+  })
+  await expect(table.getByRole("row", { name: /Boiler room east/ })).toBeVisible()
+  expect(state.errors).toEqual([])
+})
+
 test("device table selects and exports rows, hides columns, groups and filters by profile", async ({ page }) => {
   const state = await setup(page, { devices: [meter, idle, generated] })
   await page.setViewportSize({ width: 1280, height: 800 })
@@ -602,9 +648,9 @@ test("device table selects and exports rows, hides columns, groups and filters b
   const file = await download
   expect(file.suggestedFilename()).toMatch(/^devices-\d{4}-\d{2}-\d{2}\.csv$/)
   const csv = (await (await file.createReadStream()).toArray()).join("")
-  expect(csv.split("\n")[0]).toBe("Device,Status,Last seen,Profile,Gateway")
-  expect(csv).toContain("Energy Meter Simulator,Online")
-  expect(csv).toContain("Boiler room sensor,Online")
+  expect(csv.split("\n")[0]).toBe("Device,Device code,Status,Last seen,Profile,Gateway")
+  expect(csv).toContain("Energy Meter Simulator,sim-energy-meter,Online")
+  expect(csv).toContain(`Boiler room sensor,${generated.code},Online`)
   await page.getByRole("button", { name: "Clear" }).click()
   await expect(page.getByText("2 selected")).toHaveCount(0)
 
@@ -684,7 +730,7 @@ test("device headers sort on the server and keep the sort in the address", async
   await page.goto(`${base}/devices`)
   const table = page.getByRole("table")
   const first = table.getByRole("row").nth(1)
-  await expect(table.getByRole("columnheader", { name: "Device" })).toHaveAttribute("aria-sort", "ascending")
+  await expect(table.getByRole("columnheader", { name: "Device", exact: true })).toHaveAttribute("aria-sort", "ascending")
   await expect(first).toContainText("Boiler room sensor")
 
   // Oldest first, then newest first; a device never seen stays at the end.
@@ -700,7 +746,7 @@ test("device headers sort on the server and keep the sort in the address", async
   expect(state.sorts.slice(-2)).toEqual(["last_seen", "-last_seen"])
 
   // Name ascending is the default, so it leaves the address.
-  await table.getByRole("button", { name: "Device" }).click()
+  await table.getByRole("button", { name: "Device", exact: true }).click()
   await expect(page).not.toHaveURL(/sort=/)
   await expect(first).toContainText("Boiler room sensor")
   expect(state.errors).toEqual([])
