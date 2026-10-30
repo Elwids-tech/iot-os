@@ -90,6 +90,10 @@ Grouped by area. Links point at the decision or doc that explains the item.
   exists), move the remaining v1 endpoints from `Device.*` to `Workflow.*`, and let
   the dashboard alert picker list DAG workflows (the Alerts workflow filter and
   Settings → Notifications already do) ([ADR-011](adr/ADR-011-dag-automation-in-go.md)).
+- **Device offline alerts** ([spec 018](../specs/018-device-offline-alerts/spec.md)):
+  built-in offline, gateway and connection alerts for every device, with an automatic
+  or per-profile and per-device offline time that accounts for polled sources, notified
+  (bell, email) only through personal subscriptions and administrator routes.
 - **Notification policies** (requirement-led): reminders, cooldowns, escalation,
   SMS or push.
 - **Live alert delivery.** The bell polls every 15 s (60 s in a background tab)
