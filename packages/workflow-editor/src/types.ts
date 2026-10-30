@@ -75,6 +75,8 @@ export type Resource = {
   name: string;
   configuration_uuid: string;
   generation: number;
+  /** Seconds between polls when a polling adapter feeds the device. */
+  poll_interval_seconds?: number | null;
   parameters: {
     uuid: string;
     key: string;
@@ -83,5 +85,6 @@ export type Resource = {
     unit?: string;
     accepts_command: boolean;
     reports_state: boolean;
+    reporting?: { stale_after_seconds?: number } | null;
   }[];
 };

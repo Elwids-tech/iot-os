@@ -18,4 +18,9 @@ final class DeviceInstallation extends DeviceModel
     {
         return $this->belongsTo(Device::class);
     }
+
+    public function candidate()
+    {
+        return $this->belongsTo(AdapterCandidate::class, 'device_adapter_candidate_id');
+    }
 }

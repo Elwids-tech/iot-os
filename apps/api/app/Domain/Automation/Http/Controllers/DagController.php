@@ -10,6 +10,7 @@ use App\Domain\Automation\Services\DagAuthorization;
 use App\Domain\Automation\Services\DagDeployment;
 use App\Domain\Automation\Services\DagDirectory;
 use App\Domain\Automation\Services\DagTimeline;
+use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceCommand;
 use App\Domain\Devices\Permissions\DevicePermission;
@@ -201,8 +202,12 @@ final class DagController
             });
         }
         $page = $query->orderBy('id')->paginate(25, ['*'], 'page', $r->integer('page', 1));
+        // Polled readings arrive up to one poll interval after they were observed, and a
+        // binding's freshness counts from the observed time; the editor sizes it from this.
+        $polled = DeviceInstallation::whereIn('device_id', $page->getCollection()->modelKeys())->whereNull('ended_at')->with('candidate.adapter')->get()
+            ->mapWithKeys(fn ($installation) => [$installation->device_id => $installation->candidate?->adapter?->pollIntervalSeconds()]);
 
-        return ['data' => $page->getCollection()->map(function ($device) use ($controllable) {
+        return ['data' => $page->getCollection()->map(function ($device) use ($controllable, $polled) {
             $c = $device->configurations()->where('uuid', $device->applied_configuration_uuid)->first();
             $p = $c ? json_decode($c->definition['profile_canonical_json'], true) : [];
             $parameters = collect($p['parameters'] ?? [])->filter(function ($p) use ($c, $controllable) {
@@ -211,7 +216,7 @@ final class DagController
                 return $mapping && (! $controllable || (($p['accepts_command'] ?? false) && ($p['reports_state'] ?? false) && ($mapping['command_metric'] ?? null)));
             })->values();
 
-            return ['device_uuid' => $device->uuid, 'name' => $device->name, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => $device->deployment_generation, 'parameters' => $parameters];
+            return ['device_uuid' => $device->uuid, 'name' => $device->name, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => $device->deployment_generation, 'poll_interval_seconds' => $polled[$device->id] ?? null, 'parameters' => $parameters];
         }), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];
     }
 

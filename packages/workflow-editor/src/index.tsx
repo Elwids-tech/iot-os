@@ -97,7 +97,7 @@ import type {
 import "@xyflow/react/dist/style.css";
 import "./workflow-editor.css";
 export type * from "./types";
-export { nodeLabel, nodeName, nodeSummary } from "./presentation";
+export { duration, nodeLabel, nodeName, nodeSummary } from "./presentation";
 export type { ResourceNames } from "./presentation";
 
 type NodeData = {

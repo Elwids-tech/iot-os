@@ -57,4 +57,13 @@ final class DeviceAdapter extends DeviceModel
     {
         return AdapterSourceType::from($this->source['type'] ?? 'platform');
     }
+
+    /** Seconds between polls of the running revision, or null when the adapter does not poll. */
+    public function pollIntervalSeconds(): ?int
+    {
+        $applied = $this->applied_revision_uuid ? $this->revisions()->where('uuid', $this->applied_revision_uuid)->value('definition') : null;
+        $source = $applied['source'] ?? $this->source;
+
+        return ($source['type'] ?? null) === 'poll' ? (int) ($source['interval_seconds'] ?? 300) : null;
+    }
 }

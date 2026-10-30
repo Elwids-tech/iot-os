@@ -306,6 +306,26 @@ final class DagTest extends TestCase
         $this->getJson($this->url.'/dag/resources')->assertOk()->assertJsonPath('meta.total', 27);
     }
 
+    public function test_resources_give_the_running_poll_interval_of_a_polled_device(): void
+    {
+        $device = Device::firstOrFail();
+        $resource = fn () => collect($this->getJson($this->url.'/dag/resources')->assertOk()->json('data'))->firstWhere('device_uuid', $device->uuid);
+        $this->assertNull($resource()['poll_interval_seconds']);
+        $row = fn (array $values) => [...$values, 'uuid' => (string) Str::uuid(), 'created_at' => now(), 'updated_at' => now()];
+        $poll = ['type' => 'poll', 'interval_seconds' => 600];
+        $adapter = DB::table('device_adapters')->insertGetId($row(['organization_id' => $this->org->id, 'device_profile_artifact_id' => DeviceProfileArtifact::firstOrFail()->id, 'name' => 'Vendor API', 'code' => '', 'fixtures' => '[]', 'source' => json_encode([...$poll, 'interval_seconds' => 120]), 'created_by' => $this->actor->id]));
+        $revision = $row(['device_adapter_id' => $adapter, 'revision' => 1, 'content_hash' => str_repeat('c', 64), 'definition' => json_encode(['source' => $poll]), 'secret_snapshot' => '', 'created_by' => $this->actor->id]);
+        DB::table('device_adapter_revisions')->insert($revision);
+        $candidate = DB::table('device_adapter_candidates')->insertGetId($row(['organization_id' => $this->org->id, 'device_adapter_id' => $adapter, 'source_device_id' => 'unit-1', 'sparkplug_device_id' => 'src-unit-1', 'preview' => '{}', 'last_seen_at' => now()]));
+        DB::table('device_installations')->insert($row(['organization_id' => $this->org->id, 'device_id' => $device->id, 'device_adapter_candidate_id' => $candidate, 'adapter_revision_uuid' => $revision['uuid'], 'manufacturer_serial' => 'unit-1', 'started_at' => now(), 'created_by' => $this->actor->id]));
+        // Until a revision is applied, the saved settings are the only interval there is.
+        $this->assertSame(120, $resource()['poll_interval_seconds']);
+        DB::table('device_adapters')->where('id', $adapter)->update(['applied_revision_uuid' => $revision['uuid']]);
+        $this->assertSame(600, $resource()['poll_interval_seconds']);
+        DB::table('device_adapter_revisions')->where('uuid', $revision['uuid'])->update(['definition' => json_encode(['source' => ['type' => 'webhook']])]);
+        $this->assertNull($resource()['poll_interval_seconds']);
+    }
+
     public function test_authoring_rejects_invalid_setting_values_and_unmapped_controls(): void
     {
         $this->multiSettingGraph();

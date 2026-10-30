@@ -82,6 +82,15 @@ Settings dispatch independently: not atomic, no ordering guarantee.
   minimum sample counts are mandatory. Closed windows never reopen.
 - Freshness is explicit. Invalid, historical, future and pre-activation readings
   never create fresh evidence. Unknown does not clear an active alert.
+- A binding's freshness (`fresh_seconds`, 1–86,400) counts from when the reading was
+  **observed**, not when it arrived. A reading older than its freshness when it arrives
+  is accepted but is already unknown (`stale`), so it can never trigger anything.
+  Devices fed by a polling adapter report the vendor's observed time, up to one poll
+  interval (plus the vendor's delay) before the reading reaches the runtime. When you
+  pick a parameter, the editor sets freshness to the longest of 2 minutes, the
+  parameter's `reporting.stale_after_seconds` and twice the device's poll interval.
+  It warns when a polled device's freshness is shorter than two intervals. The
+  assistant's bindings default to 120 s; check them for polled devices.
 - State, timer deadlines and intent identities commit in the same transaction as
   the consumer checkpoint, before the broker acknowledgement. A restart resumes
   from the database.

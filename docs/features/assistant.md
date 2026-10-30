@@ -124,7 +124,8 @@ Models copy values loosely, so the preview completes bindings the way the editor
 them ([`WorkflowProposalService`](../../apps/api/app/Domain/Assistant/Services/WorkflowProposalService.php)):
 whole numbers sent as `"1"` or `1.0` become integers, UUIDs are lower-cased, a missing
 configuration and generation become the device's applied ones (only when what is present
-matches them), and a missing `fresh_seconds` takes the editor's 120. An outdated binding's
+matches them), and a missing `fresh_seconds` takes 120 s. That is too short for a
+device fed by a polling adapter ([automation](automation.md#semantics)). An outdated binding's
 message shows what the draft had beside the current values, because the model sometimes
 mistypes a character of a UUID. The runtime compiler names the binding field it rejects.
 Refused tool calls are logged as "Automation assistant tool refused" with their messages.
