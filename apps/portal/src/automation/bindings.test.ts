@@ -24,7 +24,7 @@ describe("stale bindings", () => {
     expect(refreshed.nodes).toBe(graph.nodes)
     expect(staleBindings(refreshed, { device: tracker })).toEqual([])
   })
-  it("flags a generation bump alone, as a refused re-activation leaves it", () => {
+  it("flags a generation change alone, with the configuration unchanged", () => {
     expect(staleBindings(graph, { device: { ...tracker, configuration_uuid: "configuration-1" } })).toHaveLength(1)
   })
   it("waits for the device and keeps bindings it cannot refresh", () => {

@@ -234,7 +234,7 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
   // Saving drops bindings no node uses; deploy would still check them.
   const orphaned = unusedBindings(graph).length > 0;
   const needsSave = !saved || dirty || layoutDirty || orphaned;
-  // Each re-activation of a device's configuration, even a refused one, outdates the bindings to it.
+  // Deploy refuses a binding to another device generation or configuration than the current one.
   const boundDevices = [...new Set(pruneBindings(graph).bindings.map((b) => b.device_uuid))].sort();
   const deviceQueries = useQueries({
     queries: boundDevices.map((d) => ({ ...boundResource(org, d), refetchInterval: 30000 })),

@@ -48,7 +48,7 @@ export function currentBinding(binding: Binding, device: Resource): Binding | un
   return { ...binding, configuration_uuid: device.configuration_uuid, generation: device.generation, data_type: bindingDataType(p.data_type), unit: p.unit ?? "" }
 }
 
-/** Each re-activation of a device configuration advances its generation; deploy refuses a binding that names an older one. */
+/** Deploy refuses a binding whose generation, configuration, type or unit is not the device's current one. */
 export const bindingChanged = (binding: Binding, current: Binding) =>
   binding.configuration_uuid !== current.configuration_uuid || binding.generation !== current.generation || binding.data_type !== current.data_type || binding.unit !== current.unit
 

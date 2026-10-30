@@ -368,15 +368,6 @@ Things that have cost time before. Add to this list when something surprises you
   `device_review_required`. The publisher writes `births-<adapter>.json` before it
   announces a changed metric set, because the 30 s write interval let a crash
   restore a smaller set.
-- **Every device activation, even a refused one, outdates automation bindings.**
-  Deploy compares each binding's `generation` and `configuration_uuid` with
-  `device_runtime.devices` and fails with `binding_changed: <role>`, for bindings
-  no node uses too. The editor reads the current values from `/dag/resources`
-  (`devices.deployment_generation`), offers "Use current configuration" and drops
-  unused bindings on save. That works only while the control plane and the runtime
-  advance the generation together: on main both keep a refused activation's bump.
-  Re-picking the same parameter never refreshed a binding, because
-  `SearchableSelect` skips `onChange` for an unchanged value.
 - **A backfill could leave a new source in Discovery as `src-<hash>`.** The Reporter
   drops reports while four are in flight, and the preview report is what tells
   Laravel the vendor's serial for a Sparkplug source. A tracker with one record in a
@@ -502,6 +493,15 @@ Things that have cost time before. Add to this list when something surprises you
   which starts each change from the address bar. In a browser test, wait for a
   search box to show what you typed before clearing it: until that render the
   controlled box still reads "", so filling "" changes nothing.
+- **Re-picking a parameter never refreshed an automation binding.** Deploy
+  fails with `binding_changed: <role>` when any binding in the draft, used or
+  not, names a device generation or configuration other than the current one.
+  `SearchableSelect` skips `onChange` for an unchanged value, so picking the
+  same parameter again did nothing. Picking another one added a binding under
+  the node ID and left the old role behind. The editor now compares bindings with
+  `generation` and `configuration_uuid` from `/dag/resources`, offers "Use
+  current configuration" and drops unused bindings on save, so `/dag/resources`
+  must return the generation that deploy checks.
 
 ## Docs site
 
