@@ -37,14 +37,14 @@ before it merges, never stacked (plan, Delivery):
 
 **Purpose**: every organization belongs to exactly one billing account, whichever path creates it (FR-001, FR-002, FR-003, FR-020).
 
-- [ ] T003 [P] Models in `apps/api/app/Domain/Billing/Models/`: `BillingAccount.php` (`HasFactory`, `SoftDeletes`, uuid set on `creating`, `getRouteKeyName()` `uuid`, fillable `name`, `contact_email`, `notes`, `organization_limit`; `owners()` `belongsToMany(User::class, 'billing_account_owners')->withPivot(['added_by', 'created_at'])` without `withTimestamps()`, because the table has no `updated_at`; `organizations()` `hasMany(Organization::class)`; `assignments()` `hasMany(BillingAccountAssignment::class)`) and `BillingAccountAssignment.php` (`$timestamps = false`, `started_at` and `ended_at` cast to `immutable_datetime`, `billingAccount()` and `organization()` relations)
-- [ ] T004 [P] `apps/api/app/Domain/Billing/Services/BillingAccountBackfill.php` `run()`: query builder only, never models, so hooks cannot fire. For every organization, trashed included, ordered by id, whose `billing_account_id` is null:
+- [X] T003 [P] Models in `apps/api/app/Domain/Billing/Models/`: `BillingAccount.php` (`HasFactory`, `SoftDeletes`, uuid set on `creating`, `getRouteKeyName()` `uuid`, fillable `name`, `contact_email`, `notes`, `organization_limit`; `owners()` `belongsToMany(User::class, 'billing_account_owners')->withPivot(['added_by', 'created_at'])` without `withTimestamps()`, because the table has no `updated_at`; `organizations()` `hasMany(Organization::class)`; `assignments()` `hasMany(BillingAccountAssignment::class)`) and `BillingAccountAssignment.php` (`$timestamps = false`, `started_at` and `ended_at` cast to `immutable_datetime`, `billingAccount()` and `organization()` relations)
+- [X] T004 [P] `apps/api/app/Domain/Billing/Services/BillingAccountBackfill.php` `run()`: query builder only, never models, so hooks cannot fire. For every organization, trashed included, ordered by id, whose `billing_account_id` is null:
   - insert a `billing_accounts` row (new uuid, `name` = organization name, `organization_limit` 1, `created_at`/`updated_at` now);
   - set `organizations.billing_account_id`;
   - insert an open `billing_account_assignments` row (`organization_id`, `organization_uuid`, `organization_name`, `started_at` = the organization's `created_at`, `assigned_by` null).
 
   A second run adds nothing (R10).
-- [ ] T005 Migration `apps/api/database/migrations/2026_10_31_000000_create_billing_accounts.php` with the columns in [data-model.md](data-model.md) (depends on T004):
+- [X] T005 Migration `apps/api/database/migrations/2026_10_31_000000_create_billing_accounts.php` with the columns in [data-model.md](data-model.md) (depends on T004):
   - `billing_accounts`: `uuid` unique; `name` string(255); `contact_email` string(255) nullable; `notes` text nullable; `organization_limit` "unsigned smallint, default 1"; `timestampsTz`; `softDeletesTz`.
   - `billing_account_owners`: `billing_account_id` and `user_id` foreign keys with cascade on delete; `added_by` nullable FK `users`, set null on delete; `created_at` timestampTz; primary key `(billing_account_id, user_id)`; index on `user_id`.
   - `billing_account_assignments`:
@@ -58,19 +58,19 @@ before it merges, never stacked (plan, Delivery):
   - Add the unique index `billing_account_assignments_open` on `(organization_uuid) where ended_at is null` through `DB::statement`, and an index on `device_audit_events (resource_uuid, created_at)`.
   - `down()` drops the indexes, the column and the three tables.
   - The migration must also run on the SQLite database that `contract:export` migrates.
-- [ ] T006 `apps/api/app/Domain/Shared/Models/Organization.php`: `billingAccount()` `belongsTo(BillingAccount::class)`. `billing_account_id` stays out of `$fillable`; callers set it explicitly. In `booted()`:
+- [X] T006 `apps/api/app/Domain/Shared/Models/Organization.php`: `billingAccount()` `belongsTo(BillingAccount::class)`. `billing_account_id` stays out of `$fillable`; callers set it explicitly. In `booted()`:
   - `creating`: when `billing_account_id` is unset, create a `BillingAccount` named after the organization with `organization_limit` 1, and set the key;
   - `created`: insert the open assignment (`started_at` now, `assigned_by` `auth()->id()`, uuid and name snapshots).
 
   In `apps/api/app/Domain/Shared/Models/User.php`, add `ownedBillingAccounts()`, a `belongsToMany(BillingAccount::class, 'billing_account_owners')` (soft-deleted accounts drop out through the related model's scope). Depends on T003.
-- [ ] T007 [P] `apps/api/database/factories/BillingAccountFactory.php` (company name, `organization_limit` 1, a `limit(int)` state, and an `ownedBy(User $user)` state that attaches the owner with `created_at`); `forBillingAccount(BillingAccount $account)` state in `apps/api/database/factories/OrganizationFactory.php` that sets `billing_account_id` (depends on T003)
-- [ ] T008 `apps/api/app/Domain/Billing/Services/BillingAccounts.php` with `create(array $values, ?User $actor): BillingAccount`. It records `DeviceAudit::record('billing_account.created', null, $actor?->id, $account->uuid, ['name' => …, 'organization_limit' => …])`. The other methods come in T018. Depends on T003.
-- [ ] T009 `apps/api/app/Domain/Administration/Services/OrganizationDeletion.php`:
+- [X] T007 [P] `apps/api/database/factories/BillingAccountFactory.php` (company name, `organization_limit` 1, a `limit(int)` state, and an `ownedBy(User $user)` state that attaches the owner with `created_at`); `forBillingAccount(BillingAccount $account)` state in `apps/api/database/factories/OrganizationFactory.php` that sets `billing_account_id` (depends on T003)
+- [X] T008 `apps/api/app/Domain/Billing/Services/BillingAccounts.php` with `create(array $values, ?User $actor): BillingAccount`. It records `DeviceAudit::record('billing_account.created', null, $actor?->id, $account->uuid, ['name' => …, 'organization_limit' => …])`. The other methods come in T018. Depends on T003.
+- [X] T009 `apps/api/app/Domain/Administration/Services/OrganizationDeletion.php`:
   - add `billing_account_assignments` to `KEPT`;
   - in `delete()`, before `forceDelete`, set `ended_at` = now and `ended_by` = the actor on the organization's open assignment.
 
   Depends on T005.
-- [ ] T010 [P] `apps/api/tests/Feature/Domain/Billing/BillingAccountBackfillTest.php`, following `InvitedAccountVerificationBackfillTest`:
+- [X] T010 [P] `apps/api/tests/Feature/Domain/Billing/BillingAccountBackfillTest.php`, following `InvitedAccountVerificationBackfillTest`:
   - inside the test transaction, drop `NOT NULL` on `organizations.billing_account_id` (PostgreSQL DDL is transactional);
   - insert three organizations with the query builder, one of them trashed;
   - run `BillingAccountBackfill::run()` twice.
@@ -80,14 +80,14 @@ before it merges, never stacked (plan, Delivery):
   - the foreign key is set;
   - one open assignment starting at the organization's `created_at` with a null `assigned_by`;
   - the second run added nothing.
-- [ ] T011 [P] `apps/api/tests/Feature/Domain/Billing/AssertsBillingAssignments.php`, a trait with `assertBillingAssignmentInvariants(Organization|string $organization)` for the three invariants in [data-model.md](data-model.md). Use it in `apps/api/tests/Feature/Domain/Billing/BillingAssignmentHistoryTest.php`. The test covers:
+- [X] T011 [P] `apps/api/tests/Feature/Domain/Billing/AssertsBillingAssignments.php`, a trait with `assertBillingAssignmentInvariants(Organization|string $organization)` for the three invariants in [data-model.md](data-model.md). Use it in `apps/api/tests/Feature/Domain/Billing/BillingAssignmentHistoryTest.php`. The test covers:
   - `Organization::factory()->create()` and `Organization::query()->create([...])` without an account each get a new account named after the organization, with one open assignment that matches the foreign key;
   - `forBillingAccount()` shares an account;
   - `assigned_by` is the acting user under `actingAs` and null otherwise;
   - the partial unique index rejects a second open row for one organization;
   - the quickstart's SC-002 query returns no rows.
-- [ ] T012 [P] Add a case to `apps/api/tests/Feature/Domain/Administration/OrganizationDeletionApiTest.php`: after deletion the assignment is kept, with `organization_id` null, `ended_at` set, `ended_by` the actor, and its uuid and name snapshots unchanged. `OrganizationDeletionInventoryTest` passes unchanged. Depends on T009.
-- [ ] T013 `cd apps/api && php artisan test --compact` on PostgreSQL, and fix any test that the new hook or column breaks (for example, tests that count rows or create organizations with raw inserts)
+- [X] T012 [P] Add a case to `apps/api/tests/Feature/Domain/Administration/OrganizationDeletionApiTest.php`: after deletion the assignment is kept, with `organization_id` null, `ended_at` set, `ended_by` the actor, and its uuid and name snapshots unchanged. `OrganizationDeletionInventoryTest` passes unchanged. Depends on T009.
+- [X] T013 `cd apps/api && php artisan test --compact` on PostgreSQL, and fix any test that the new hook or column breaks (for example, tests that count rows or create organizations with raw inserts)
 
 **Checkpoint**: every organization, old and new, has exactly one account and one open assignment.
 
@@ -99,18 +99,18 @@ before it merges, never stacked (plan, Delivery):
 
 **Independent Test**: create one organization with `new_billing_account`, and a second with that account's `billing_account_uuid`. `GET admin/billing-accounts/{account}` (Phase 4) or the database lists both; `GET admin/organizations` shows the account on each row.
 
-- [ ] T014 [US1] `apps/api/app/Domain/Administration/Http/Requests/StoreOrganizationRequest.php` gains:
+- [X] T014 [US1] `apps/api/app/Domain/Administration/Http/Requests/StoreOrganizationRequest.php` gains:
   - `billing_account_uuid`: `['nullable', 'uuid', Rule::exists('billing_accounts', 'uuid')->whereNull('deleted_at'), 'prohibits:new_billing_account']`;
   - `new_billing_account`: `['nullable', 'array:name,contact_email']`;
   - `new_billing_account.name`: `['required_with:new_billing_account', 'string', 'max:255']`, trimmed;
   - `new_billing_account.contact_email`: `['nullable', 'email', 'max:255']`.
 
   Sending both fields is 422 on `billing_account_uuid`.
-- [ ] T015 [US1] `apps/api/app/Domain/Administration/Http/Controllers/PlatformOrganizationController.php`. Depends on T008 and T014.
+- [X] T015 [US1] `apps/api/app/Domain/Administration/Http/Controllers/PlatformOrganizationController.php`. Depends on T008 and T014.
   - `store`: inside the existing `DB::transaction`, resolve the account. That is the named account; or `BillingAccounts::create` with `new_billing_account`; or, with neither, `BillingAccounts::create(['name' => $name], $request->user())`, so every account the API creates starts its history with `created`. Then create the organization from `$request->safe()->only(['name', 'slug'])` with `billing_account_id` set explicitly. The organization limit is not checked (FR-008). Load `billingAccount` before returning.
   - `index`: `->with('billingAccount:id,uuid,name')`.
-- [ ] T016 [P] [US1] `apps/api/app/Domain/Shared/Http/Resources/OrganizationResource.php`: `'billing_account' => $this->whenLoaded('billingAccount', fn () => ['uuid' => …, 'name' => …])`. No other route loads the relation (R9).
-- [ ] T017 [P] [US1] `apps/api/tests/Feature/Domain/Billing/BillingAccountAdministrationTest.php` (organization creation):
+- [X] T016 [P] [US1] `apps/api/app/Domain/Shared/Http/Resources/OrganizationResource.php`: `'billing_account' => $this->whenLoaded('billingAccount', fn () => ['uuid' => …, 'name' => …])`. No other route loads the relation (R9).
+- [X] T017 [P] [US1] `apps/api/tests/Feature/Domain/Billing/BillingAccountAdministrationTest.php` (organization creation):
   - a new account with a contact email;
   - an existing account;
   - neither, which creates an account named after the organization, with a `billing_account.created` event by the admin;
@@ -133,7 +133,7 @@ before it merges, never stacked (plan, Delivery):
 
 **Independent Test**: create an account, add an owner, set the limit to 10, and move an organization into it. `GET admin/billing-accounts/{account}` shows the organization, the owner and history entries naming who did each step. The organization's members, roles and devices are unchanged.
 
-- [ ] T018 [US2] Complete `apps/api/app/Domain/Billing/Services/BillingAccounts.php`. Every event below is written with `DeviceAudit::record` and a null `organization_id`.
+- [X] T018 [US2] Complete `apps/api/app/Domain/Billing/Services/BillingAccounts.php`. Every event below is written with `DeviceAudit::record` and a null `organization_id`.
   - `update(BillingAccount, array, User)`: write only changed fields. Record `billing_account.updated` with `changes: {field: {from, to}}`, and record nothing when nothing changed.
   - `delete(BillingAccount, User)`: lock the row and count its organizations. When there are any, throw a 409 with "Move this billing account's N organizations before deleting it." Otherwise soft delete and record `billing_account.deleted` (`name`).
   - `addOwner` and `removeOwner(BillingAccount, User $owner, User $actor)` are idempotent. They record `billing_account.owner_added` or `owner_removed` (`user_id`, `user_name`) only when something changed. Memberships are never touched.
@@ -142,34 +142,34 @@ before it merges, never stacked (plan, Delivery):
     - open one on the target (`started_at = $at`, `organization_name` = the current name). Two `now()` calls would differ by microseconds and break invariant 1;
     - update `billing_account_id`;
     - record `organization.billing_account_changed` with the organization's uuid and `from` and `to` (`{uuid, name}`).
-- [ ] T019 [P] [US2] `apps/api/app/Domain/Billing/Services/BillingAccountHistory.php` `for(BillingAccount)`:
+- [X] T019 [P] [US2] `apps/api/app/Domain/Billing/Services/BillingAccountHistory.php` `for(BillingAccount)`:
   - the audit rows whose `resource_uuid` is the account's uuid, mapped to `created`, `updated`, `owner_added` and `owner_removed` (a deleted account answers 404, so `billing_account.deleted` is never shown);
-  - the account's assignments, as `organization_joined` at `started_at` by `assigned_by`, and `organization_left` at `ended_at` by `ended_by`, with `details.organization` from the snapshots.
+  - the account's assignments, as `organization_joined` at `started_at` by `assigned_by`, and `organization_left` at `ended_at` by `ended_by`, with `organization` from the snapshots. Each entry carries only its own field: `changes` (a list of `{field, from, to}` as text), `user` or `organization`.
 
   Merge them newest first, keep 100, and load the actors in one query; the actor is null when unknown.
-- [ ] T020 [P] [US2] Requests in `apps/api/app/Domain/Billing/Http/Requests/`:
+- [X] T020 [P] [US2] Requests in `apps/api/app/Domain/Billing/Http/Requests/`:
   - `StoreBillingAccountRequest`: `name` required, string, "at most 255 characters, trimmed"; `contact_email` nullable, email, at most 255 characters; `notes` nullable, string, "at most 2,000 characters"; `organization_limit` "Integer from 0 to 1000", default 1.
   - `UpdateBillingAccountRequest`: the same rules under `sometimes`.
   - `MoveOrganizationRequest`: `billing_account_uuid` required, uuid, an account that has not been deleted.
-- [ ] T021 [P] [US2] Resources in `apps/api/app/Domain/Billing/Http/Resources/`, with the contract's shapes; owners are integer `id`, `name` and `email` (ADR-013):
+- [X] T021 [P] [US2] Resources in `apps/api/app/Domain/Billing/Http/Resources/`, with the contract's shapes; owners are integer `id`, `name` and `email` (ADR-013):
   - `BillingAccountResource`: the list row, with `organizations_count` and `owners`;
   - `BillingAccountDetailResource`: owners with `added_at`; organizations with `users_count`, `devices_count` and `assigned_at`; `history`;
   - `BillingAccountHistoryResource`.
-- [ ] T022 [US2] Controllers in `apps/api/app/Domain/Billing/Http/Controllers/`, each calling `Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)` as `PlatformOrganizationController` does. Depends on T018 to T021.
+- [X] T022 [US2] Controllers in `apps/api/app/Domain/Billing/Http/Controllers/`, each calling `Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)` as `PlatformOrganizationController` does. Depends on T018 to T021.
   - `PlatformBillingAccountController`:
     - `index`: `search` over name and contact email; `per_page` from 1 to 100, default 25; ordered by name; `withCount('organizations')`, `with('owners:id,name,email')`.
     - `store` answers 201; `show`; `update`.
     - `destroy` answers 204, or 409 with the message.
   - `PlatformBillingAccountOwnerController`: `update` (PUT) answers 200 with `{data: [owners]}`; `destroy` answers 204. An unknown user is 404.
-  - `PlatformOrganizationBillingAccountController`: `update` (PUT) answers 200 with the organization (`billingAccount` loaded, admin list shape).
-- [ ] T023 [US2] `apps/api/app/Domain/Billing/routes/api.php`, required from `apps/api/routes/api.php`:
+  - `PlatformOrganizationBillingAccountController`: `update` (PUT) answers 204. New operations need fully described bodies, and `OrganizationResource`'s capabilities are not described yet, so it returns none.
+- [X] T023 [US2] `apps/api/app/Domain/Billing/routes/api.php`, required from `apps/api/routes/api.php`:
   - `v1` and `auth:sanctum`, as `apps/api/app/Domain/Administration/routes/api.php` sets them up;
   - an `admin.` group with `can:` `MANAGE_ORGANIZATIONS` on each route;
   - `whereUuid` on `{account}` and `{organization}`, and `whereNumber` on `{user}`;
   - names `api.v1.admin.billing-accounts.*` and `api.v1.admin.organizations.billing-account.update`.
 
   Depends on T022.
-- [ ] T024 [US2] Extend `apps/api/tests/Feature/Domain/Billing/BillingAccountAdministrationTest.php`. Depends on T023.
+- [X] T024 [US2] Extend `apps/api/tests/Feature/Domain/Billing/BillingAccountAdministrationTest.php`. Depends on T023.
   - **List**: list, search and pagination; counts and owners.
   - **Detail**: the detail shape.
   - **Update**: audits only the changed fields; a no-op writes nothing; a limit below the count is accepted (US2 scenario 6).
@@ -195,7 +195,7 @@ before it merges, never stacked (plan, Delivery):
 
 **Independent Test**: as an owner of an account below its limit, `POST billing-accounts/{account}/organizations` answers 201. The owner is Organization Admin of the new organization. At the limit it answers 422 naming the limit.
 
-- [ ] T025 [US3] `apps/api/app/Domain/Billing/Services/OwnerOrganizations.php` `create(User, BillingAccount, string $name, ?string $slug): Organization`, in one transaction:
+- [X] T025 [US3] `apps/api/app/Domain/Billing/Services/OwnerOrganizations.php` `create(User, BillingAccount, string $name, ?string $slug): Organization`, in one transaction:
   1. `lockForUpdate` the account row;
   2. abort 404 unless the user still owns it and it has not been deleted;
   3. count the account's non-trashed organizations; when the count is at or above `organization_limit`, throw a `ValidationException` on `billing_account` with "This billing account allows N organizations. Ask the platform operator to raise the limit.";
@@ -204,17 +204,17 @@ before it merges, never stacked (plan, Delivery):
   6. `OrganizationDefaultRoles::ensure`, `$user->organizations()->attach`, then `OrganizationRoleManager::syncMemberRoles($organization, $user, [$roles['organization-admin']->id])`.
 
   No welcome email (R13).
-- [ ] T026 [P] [US3] In `apps/api/app/Domain/Billing/Http/`:
+- [X] T026 [P] [US3] In `apps/api/app/Domain/Billing/Http/`:
   - `Requests/StoreOwnedOrganizationRequest.php`: `name` required, string, at most 255 characters; `slug` optional, "`alpha_dash`, at most 255 characters";
   - `Resources/OwnedBillingAccountResource.php`: the contract's shape; each organization's `member` flag comes from one query over the person's memberships.
-- [ ] T027 [US3] `OwnedBillingAccountController@index` and `OwnedBillingAccountOrganizationController@store` in `apps/api/app/Domain/Billing/Http/Controllers/`, plus the owner routes in `apps/api/app/Domain/Billing/routes/api.php`: `billing-accounts` and `billing-accounts/{account}/organizations`, under `auth:sanctum` with no admin permission.
+- [X] T027 [US3] `OwnedBillingAccountController@index` and `OwnedBillingAccountOrganizationController@store` in `apps/api/app/Domain/Billing/Http/Controllers/`, plus the owner routes in `apps/api/app/Domain/Billing/routes/api.php`: `billing-accounts` and `billing-accounts/{account}/organizations`, under `auth:sanctum` with no admin permission.
   - Look the account up through `$request->user()->ownedBillingAccounts()->where('uuid', …)->firstOrFail()`, so any other account is 404.
   - `index` is ordered by name, not paginated, and eager-loads organizations.
-  - `store` answers 201 with `OrganizationResource`, including `capabilities`.
+  - `store` answers 201 with `OwnerOrganizationResource` (`uuid`, `name`, `slug`); the portal reloads the session for the capabilities.
 
   Depends on T025, T026 and T023.
-- [ ] T028 [P] [US3] `apps/api/app/Domain/Authentication/Http/Resources/AuthenticatedUserResource.php`: `capabilities.billing_accounts` is `$this->resource->ownedBillingAccounts()->exists()`
-- [ ] T029 [US3] `apps/api/tests/Feature/Domain/Billing/BillingAccountOwnerTest.php`. Depends on T027 and T028.
+- [X] T028 [P] [US3] `apps/api/app/Domain/Authentication/Http/Resources/AuthenticatedUserResource.php`: `capabilities.billing_accounts` is `$this->resource->ownedBillingAccounts()->exists()`
+- [X] T029 [US3] `apps/api/tests/Feature/Domain/Billing/BillingAccountOwnerTest.php`. Depends on T027 and T028.
   - **Listing**: lists only the person's own accounts, with correct `member` flags.
   - **Creating below the limit**:
     - answers 201;
@@ -239,19 +239,19 @@ before it merges, never stacked (plan, Delivery):
 
 ## Phase 6: Contract, client, API docs and verification (finishes the API pull request)
 
-- [ ] T030 Contract (depends on T029):
+- [X] T030 Contract (depends on T029):
   - `cd apps/api && php artisan contract:export`;
-  - write `contracts/openapi/supplements/billing.yaml` with the tags `Platform billing` and `Billing`, the "one of" `billing_account_uuid`/`new_billing_account` body on `POST admin/organizations`, the 409 on `DELETE admin/billing-accounts/{account}`, and the 422 limit response on `POST billing-accounts/{account}/organizations` (follow `platform-admin.yaml`);
+  - write `contracts/openapi/supplements/billing.yaml` with the 409 on `DELETE admin/billing-accounts/{billingAccount}` (the 422 responses and request bodies are inferred; tags follow the controllers);
   - `contract:export --check` and `contract:check --base=origin/main` pass, and `contracts/openapi/pending-schemas.json` is unchanged.
-- [ ] T031 [P] `packages/api-client/src/billing.ts`, with the types `BillingAccountSummary`, `BillingAccountDetail`, `BillingAccountHistoryEntry`, `OwnedBillingAccount` and `BillingAccountValues`. Changes in `packages/api-client/src/index.ts`:
+- [X] T031 [P] `packages/api-client/src/billing.ts`, with the types `BillingAccountSummary`, `BillingAccountDetail`, `BillingAccountHistoryEntry`, `OwnedBillingAccount` and `BillingAccountValues`. Changes in `packages/api-client/src/index.ts`:
   - methods `adminBillingAccounts({search, page, per_page})`, `createBillingAccount`, `adminBillingAccount`, `updateBillingAccount`, `deleteBillingAccount`, `addBillingAccountOwner`, `removeBillingAccountOwner`, `moveOrganizationBillingAccount`, `ownedBillingAccounts` and `createOwnedOrganization`;
   - `createAdminOrganization` values gain `billing_account_uuid?` and `new_billing_account?`;
   - `Organization` gains `billing_account?: {uuid, name}`;
   - `AuthenticatedUser.capabilities` gains `billing_accounts: boolean`.
-- [ ] T032 [P] Docs:
+- [X] T032 [P] Docs:
   - in `docs/features/access.md`, a **Billing accounts** section: the model, the invariant, that an account grants no access, owners and the limit; plus, in its API table, the ten new operations (eight for platform administrators, two for owners) and the three changed ones (organization creation, the organization list, `/me`);
   - in `docs/dev/gotchas.md`, an entry: creating an `Organization` creates a billing account unless `billing_account_id` is set, so use `forBillingAccount()` in tests that need a shared account.
-- [ ] T033 Verify the API pull request:
+- [X] T033 Verify the API pull request:
   - `./taskw lint`;
   - `cd apps/api && vendor/bin/pint --test && php artisan test --compact` on PostgreSQL;
   - `pnpm --filter @iot-os/admin lint` and `pnpm --filter @iot-os/portal lint`, which type-check against the client;

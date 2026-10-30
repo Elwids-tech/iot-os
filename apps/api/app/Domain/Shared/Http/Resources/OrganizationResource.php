@@ -30,6 +30,11 @@ final class OrganizationResource extends JsonResource
             'slug' => $this->slug,
             'users_count' => $this->whenCounted('users'),
             'devices_count' => $this->whenHas('devices_count', fn (): int => (int) $this->devices_count),
+            // Only the admin list and admin writes load it; members never see their billing account (spec 023).
+            'billing_account' => $this->whenLoaded('billingAccount', fn (): array => [
+                'uuid' => $this->billingAccount->uuid,
+                'name' => $this->billingAccount->name,
+            ]),
             'capabilities' => $this->when($user instanceof User, fn (): array => $this->capabilities($user)),
         ];
     }

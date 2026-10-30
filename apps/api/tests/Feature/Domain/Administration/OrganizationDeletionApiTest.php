@@ -232,6 +232,23 @@ final class OrganizationDeletionApiTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_the_billing_account_keeps_a_deleted_organizations_closed_assignment(): void
+    {
+        $organization = $this->createOrganization('Birch Mills', 'birch-mills');
+        $accountId = $organization->billing_account_id;
+
+        $this->actingAs($this->administrator, 'sanctum')
+            ->deleteJson('/api/v1/admin/organizations/'.$organization->uuid.'?slug=birch-mills')
+            ->assertNoContent();
+
+        $assignment = DB::table('billing_account_assignments')->where('organization_uuid', $organization->uuid)->sole();
+        $this->assertNull($assignment->organization_id);
+        $this->assertSame($accountId, (int) $assignment->billing_account_id);
+        $this->assertSame('Birch Mills', $assignment->organization_name);
+        $this->assertNotNull($assignment->ended_at);
+        $this->assertSame($this->administrator->id, (int) $assignment->ended_by);
+    }
+
     private function createOrganization(string $name, string $slug): Organization
     {
         $uuid = $this->actingAs($this->administrator, 'sanctum')

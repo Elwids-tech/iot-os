@@ -49,9 +49,10 @@ final class OrganizationDeletion
 
     /**
      * Records the platform team keeps after the organization is gone: their key sets
-     * null. Support tickets (spec 015) lose their tagged participants here.
+     * null. Support tickets (spec 015) lose their tagged participants here. Billing
+     * assignments (spec 023) keep which account paid for the organization, and when.
      */
-    public const KEPT = ['support_tickets'];
+    public const KEPT = ['billing_account_assignments', 'support_tickets'];
 
     public function __construct(private readonly AssistantRecovery $assistantRecovery) {}
 
@@ -142,6 +143,12 @@ final class OrganizationDeletion
             DB::table('support_ticket_participants')
                 ->whereIn('ticket_id', DB::table('support_tickets')->where('organization_id', $id)->select('id'))
                 ->delete();
+
+            // The billing account keeps the organization's history, closed as of now.
+            DB::table('billing_account_assignments')
+                ->where('organization_id', $id)
+                ->whereNull('ended_at')
+                ->update(['ended_at' => now(), 'ended_by' => $actor->getKey()]);
 
             // Members, roles, invitations, dashboards, sites, settings and agent connections cascade.
             $locked->forceDelete();
