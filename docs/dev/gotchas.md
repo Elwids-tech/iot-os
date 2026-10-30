@@ -244,6 +244,16 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## Device adapters
 
+- **Polled readings can be stale before the automation sees them.** A DAG binding's
+  `fresh_seconds` counts from the reading's observed time
+  ([`evaluator.go`](../../services/runtime/internal/dag/evaluator.go)), and a polling
+  adapter publishes the vendor's observed time, which is up to one poll interval (plus
+  the vendor's delay) before the reading arrives. With the old fixed 120 s and a
+  five-minute poll, most readings were accepted and immediately `unknown: stale`, so a
+  compare → alert chain never fired and the trace only said the source was stale. The
+  editor now sizes freshness to at least two poll intervals (`poll_interval_seconds` on
+  `GET workflows/dag/resources`) and warns below that; the automation assistant still
+  defaults to 120 s.
 - **Time decoder budgets in CPU time, from the start of the tenant's code.** QuickJS
   calls its interrupt handler about every 10,000 operations, counted across all the
   evals in a runtime. The first eval in a fresh runtime is checked as it starts, but

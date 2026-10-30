@@ -26,7 +26,12 @@ import {
   CardContent,
 } from "@iot-os/ui/components/card";
 import { Input } from "@iot-os/ui/components/input";
-import { Field, FieldGroup, FieldLabel } from "@iot-os/ui/components/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@iot-os/ui/components/field";
 import { SwitchField } from "@iot-os/ui/components/form-fields";
 import { DraftBar } from "@iot-os/ui/components/draft-bar";
 import { InlineName } from "@iot-os/ui/components/inline-name";
@@ -69,6 +74,11 @@ import { GeofenceConfig } from "./GeofenceConfig";
 import { DeviceStateConfig, DeviceStateReview } from "./DeviceStateConfig";
 import { useResourceNames } from "./resource-names";
 import { commandGrants } from "./device-state";
+import {
+  freshnessHint,
+  freshnessWarning,
+  suggestedFreshSeconds,
+} from "./freshness";
 import { activationUnavailableReason, isRunning, unappliedChanges } from "./activation";
 import { WorkflowAssistant } from "./WorkflowAssistant";
 import { newEditorId } from "./assistant-session";
@@ -855,9 +865,27 @@ function BindingPicker({
         `/dag/resources?${new URLSearchParams({ search, page: String(page) })}`,
       ),
   });
-  const selectedDevice =
-    device ??
-    resources.data?.data.find((d) => d.device_uuid === binding?.device_uuid);
+  const listed = resources.data?.data.find(
+    (d) => d.device_uuid === binding?.device_uuid,
+  );
+  // The bound device may be on another page; its poll interval drives the freshness warning.
+  const bound = useQuery({
+    queryKey: ["automation-resource", org, binding?.device_uuid],
+    queryFn: () =>
+      api.automation<Page<Resource>>(
+        org,
+        `/dag/resources?${new URLSearchParams({ device_uuid: binding!.device_uuid })}`,
+      ),
+    enabled: Boolean(binding && !device && resources.isSuccess && !listed),
+  });
+  const selectedDevice = device ?? listed ?? bound.data?.data[0];
+  const boundDevice =
+    selectedDevice?.device_uuid === binding?.device_uuid
+      ? selectedDevice
+      : undefined;
+  const warning =
+    binding && freshnessWarning(binding.fresh_seconds, boundDevice);
+  const hint = warning || freshnessHint(boundDevice);
   const parameters =
     selectedDevice?.parameters.filter((p) =>
       node.type === "action.command.v1"
@@ -928,7 +956,7 @@ function BindingPicker({
                   parameter_uuid: p.uuid,
                   data_type,
                   unit: p.unit ?? "",
-                  fresh_seconds: 120,
+                  fresh_seconds: suggestedFreshSeconds(d, p),
                 },
               ],
             },
@@ -963,6 +991,7 @@ function BindingPicker({
             min={1}
             max={86400}
             value={binding.fresh_seconds}
+            aria-describedby={hint ? `fresh-${node.id}-hint` : undefined}
             onChange={(e) =>
               onChange(
                 {
@@ -977,6 +1006,15 @@ function BindingPicker({
               )
             }
           />
+          {hint && (
+            <FieldDescription
+              id={`fresh-${node.id}-hint`}
+              role={warning ? "status" : undefined}
+              className={warning ? "text-warning" : undefined}
+            >
+              {hint}
+            </FieldDescription>
+          )}
         </Field>
       )}
     </>

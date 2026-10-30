@@ -244,3 +244,35 @@ func TestDelayedBrokerCutoffDoesNotFinalizeNewerWindows(t *testing.T) {
 		t.Fatalf("expected clear from complete second window: %+v", r.Intents)
 	}
 }
+
+// A polling adapter delivers a reading up to one poll interval after the vendor
+// observed it, and freshness counts from the observed time. With freshness shorter
+// than that delay the reading is stale on arrival, so a compare → alert chain
+// never triggers; freshness that covers the delay lets it act.
+func TestPolledReadingOlderThanFreshnessIsStaleOnArrival(t *testing.T) {
+	at := time.Unix(1800000000, 0).UTC()
+	observed := at.Add(10 * time.Second)
+	polled := observed.Add(300 * time.Second)
+	for _, tc := range []struct {
+		fresh   int
+		known   bool
+		intents int
+	}{{120, false, 0}, {600, true, 1}} {
+		w := fixture()
+		w.Bindings[0].FreshSeconds = tc.fresh
+		p := compiled(t, w)
+		event := reading("polled", float64(40), observed)
+		event.Readings[0].ReceivedAt = polled
+		r, err := p.Step(p.Initial(at), event, polled)
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := r.Trace[0].Outputs["out"]
+		if source.Known != tc.known || len(r.Intents) != tc.intents {
+			t.Fatalf("fresh_seconds %d: source %+v, intents %+v", tc.fresh, source, r.Intents)
+		}
+		if !tc.known && (source.Reason != "stale" || r.Trace[0].EventNote != "Incoming reading accepted.") {
+			t.Fatalf("fresh_seconds %d: want an accepted but stale reading, got %+v", tc.fresh, r.Trace[0])
+		}
+	}
+}
