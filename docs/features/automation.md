@@ -121,6 +121,23 @@ only when the automation sends device commands, and **Save draft** keeps edits
 without applying them. Command authorization has no expiry unless the reviewer turns
 on **Limit command authorization** and sets the days and rate.
 
+### When a binding no longer holds
+
+The runtime checks every binding when it activates an automation and again on each
+evaluation. A failed check refuses the activation, or suspends the running execution
+(`workflow.suspended.v1`), with one of these reasons:
+
+| Reason | Meaning | Fix |
+| --- | --- | --- |
+| `binding_changed: <role>` | The bound device was reconfigured or reactivated, so the binding's configuration or generation is no longer the applied one | Pick the device again in the bindings and activate |
+| `device_review_required: <role>` | The binding holds, but the device's source announced a birth that does not match its approved configuration ([devices](devices.md#configuration-and-activation)) | Review clears when the source announces the approved metrics again, or after the device's configuration is reviewed and activated; then activate the automation |
+| `unmapped or incompatible binding: <role>` | The parameter is no longer mapped, or its type or unit changed | Update the binding and activate |
+
+The automation list and editor name the device that needs review. Laravel records a
+suspension's `stopped_reason` as `binding_changed` or `device_review_required`. A
+suspended execution does not resume when its device's review clears; activate it
+again ([ADR-025](../adr/ADR-025-review-follows-current-birth.md)).
+
 ### Execution and actions
 
 The **Execution** tab shows state, the latest node trace, timers, consumer health

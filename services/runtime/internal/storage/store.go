@@ -154,6 +154,13 @@ func (s *Store) RequireReview(ctx context.Context, d devices.Definition) error {
 	_, err := s.Pool.Exec(ctx, `UPDATE device_runtime.devices SET review_required=true WHERE device_uuid=$1 AND definition->>'configuration_uuid'=$2`, d.DeviceUUID, d.ConfigurationUUID)
 	return err
 }
+
+// ClearReview lifts review once the source's current birth matches the applied
+// configuration again (ADR-025).
+func (s *Store) ClearReview(ctx context.Context, d devices.Definition) error {
+	_, err := s.Pool.Exec(ctx, `UPDATE device_runtime.devices SET review_required=false WHERE device_uuid=$1 AND definition->>'configuration_uuid'=$2`, d.DeviceUUID, d.ConfigurationUUID)
+	return err
+}
 func (s *Store) Outbox(ctx context.Context) ([]devices.Event, error) {
 	rows, e := s.Pool.Query(ctx, "SELECT event FROM device_runtime.outbox WHERE published_at IS NULL ORDER BY created_at LIMIT 100")
 	if e != nil {

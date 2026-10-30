@@ -7,6 +7,7 @@ namespace Tests\Feature\Domain\Automation;
 use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Services\DagActions;
+use App\Domain\Automation\Services\WorkflowDeploymentService;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\Devices\Models\Device;
@@ -318,6 +319,38 @@ final class DagTest extends TestCase
         $definition['mappings'][1]['command_metric'] = null;
         DB::table('device_configurations')->where('id', $configuration->id)->update(['definition' => json_encode($definition)]);
         $this->postJson($this->url.'/dag/validate', ['workflow' => $this->graph])->assertUnprocessable();
+    }
+
+    public function test_a_device_in_review_is_named_apart_from_a_changed_binding(): void
+    {
+        $this->freezeTime();
+        $draft = $this->draft();
+        $workflow = Workflow::where('uuid', $draft['uuid'])->firstOrFail();
+        $deployment = fn (int $generation, string $status, ?string $diagnostic = null) => Deployment::create(['uuid' => (string) Str::uuid(), 'automation_workflow_id' => $workflow->id, 'generation' => $generation, 'draft_revision' => 1, 'target' => 'active', 'definition' => $draft['workflow'], 'definition_hash' => str_repeat('a', 64), 'status' => $status, 'diagnostic' => $diagnostic, 'created_by' => $this->actor->id, 'created_at' => now(), 'completed_at' => now()]);
+        $issue = fn () => collect($this->getJson($this->url.'/dag')->assertOk()->json('data'))->firstWhere('uuid', $draft['uuid'])['last_issue']['message'] ?? null;
+
+        // The runtime refused activation because the bound device needs review (ADR-025).
+        $deployment(1, 'failed', 'device_review_required: sensor');
+        $message = 'Device "Simulator" needs review because its source stopped announcing the metrics its configuration was approved for. Review clears when the source announces them again or when you activate the device’s configuration. Then activate this automation again.';
+        $this->assertSame('Device "Simulator" needs review: its source no longer announces its approved metrics. Activate again once it does or the device is reactivated.', $issue());
+        $this->assertSame($message, $this->getJson($this->url.'/'.$draft['uuid'])->assertOk()->json('data.deployment_diagnostic'));
+
+        // A running execution suspended for review records its own reason; a changed binding still records binding_changed.
+        $applied = $deployment(2, 'succeeded');
+        $workflow->update(['applied_deployment_uuid' => $applied->uuid, 'desired_deployment_uuid' => $applied->uuid, 'deployment_generation' => 2, 'deployment_status' => 'applied']);
+        $suspend = fn (string $reason) => app(WorkflowDeploymentService::class)->event('workflow.suspended.v1', ['rule_uuid' => $workflow->uuid, 'organization_uuid' => $this->org->uuid, 'operation_uuid' => $applied->uuid, 'reason' => $reason]);
+        $suspend('device_review_required: sensor');
+        $this->assertSame('device_review_required', $applied->fresh()->stopped_reason);
+        $this->assertSame('suspended', $workflow->fresh()->deployment_status);
+        $this->assertSame('Suspended: a bound device needs review: its source no longer announces its approved metrics. Activate again once it does or the device is reactivated.', $issue());
+        $suspend('binding_changed: sensor');
+        $this->assertSame('binding_changed', $applied->fresh()->stopped_reason);
+        $this->assertSame('Suspended: a bound device configuration changed. Review the bindings and reactivate.', $issue());
+
+        // The editor's live execution says which device needs review.
+        Http::swap(new Factory);
+        Http::fake(['*/internal/dag/execution*' => Http::response(['enabled' => false, 'stopped_reason' => 'device_review_required: sensor', 'consumer_healthy' => true])]);
+        $this->assertSame($message, $this->getJson($this->url.'/'.$draft['uuid'].'/execution')->assertOk()->json('data.stopped_reason'));
     }
 
     public function test_directory_summarises_triggers_activity_and_issues_with_a_fixed_query_count(): void

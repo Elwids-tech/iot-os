@@ -92,9 +92,14 @@ revision, map parameters, validate and activate.
   keeps the previous applied snapshot.
 - Publishing a profile never upgrades devices. Upgrades and rollback are explicit
   configuration operations using revisions of the same profile.
-- An incompatible rebirth latches **review required** and blocks affected
-  controls until a reviewed activation succeeds. Compatible alias changes refresh
-  the session without touching approved mappings.
+- A birth that no longer matches the applied configuration (a mapped metric is
+  missing or its datatype changed) sets **review required**: commands are refused
+  and automations bound to the device stop with `device_review_required`
+  ([automation](automation.md#when-a-binding-no-longer-holds)). Review follows the
+  source's current birth: the next birth that matches the configuration again
+  clears it, as does a new activation
+  ([ADR-025](../adr/ADR-025-review-follows-current-birth.md)). Compatible alias
+  changes refresh the session without touching approved mappings.
 - Each inbound mapping has a `conversion_mode`: `profile` (use the parameter's
   incoming conversion), `custom` (override it) or `none`. Activation stores the
   resolved settings in the snapshot, so rollback reproduces them

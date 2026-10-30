@@ -394,6 +394,20 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 				a.devicePresence(d, "online", "Source changed: "+compatibleError.Error(), p.Received, true)
 				return
 			}
+			// Review follows the current birth: one that matches the applied configuration
+			// again restores controls before its readings reach automations (ADR-025).
+			a.mu.Lock()
+			review := a.reviewRequired[d.DeviceUUID]
+			a.mu.Unlock()
+			if review {
+				if e := a.Store.ClearReview(a.ctx, d); e != nil {
+					a.Logger.Warn("configuration review clearance deferred", "error", e)
+				} else {
+					a.mu.Lock()
+					a.reviewRequired[d.DeviceUUID] = false
+					a.mu.Unlock()
+				}
+			}
 			profile, e := devices.ParseProfile(d)
 			if e != nil {
 				return
@@ -455,7 +469,7 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 				}
 			}
 			a.mu.Lock()
-			review := a.reviewRequired[d.DeviceUUID]
+			review = a.reviewRequired[d.DeviceUUID]
 			a.mu.Unlock()
 			if review {
 				a.devicePresence(d, "unknown", "A source birth changed approved metrics. Review and activate a configuration to restore controls.", p.Received, p.Birth)

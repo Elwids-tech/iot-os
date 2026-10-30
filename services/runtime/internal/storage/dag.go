@@ -53,8 +53,12 @@ func checkDAGBindings(ctx context.Context, tx pgx.Tx, w dag.Workflow) error {
 			return fmt.Errorf("binding unavailable: %s", b.Role)
 		}
 		var d devices.Definition
-		if json.Unmarshal(raw, &d) != nil || generation != b.Generation || review || d.ConfigurationUUID != b.Configuration {
+		if json.Unmarshal(raw, &d) != nil || generation != b.Generation || d.ConfigurationUUID != b.Configuration {
 			return fmt.Errorf("binding_changed: %s", b.Role)
+		}
+		// The binding still holds; the device's source needs review (ADR-025).
+		if review {
+			return fmt.Errorf("device_review_required: %s", b.Role)
 		}
 		var profile devices.Profile
 		if json.Unmarshal([]byte(d.ProfileCanonicalJSON), &profile) != nil {

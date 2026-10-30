@@ -37,7 +37,8 @@ final class DagDirectory
 
         $sources = $workflows->mapWithKeys(fn (Workflow $w) => [$w->id => $this->sources($w->workflow)]);
         $bindings = $sources->flatten(1);
-        $devices = Device::where('organization_id', $organization->id)->whereIn('uuid', $bindings->pluck('device_uuid')->unique()->values())->pluck('name', 'uuid');
+        $bound = $workflows->flatMap(fn (Workflow $w) => collect($w->workflow['bindings'] ?? [])->pluck('device_uuid'));
+        $devices = Device::where('organization_id', $organization->id)->whereIn('uuid', $bound->filter()->unique()->values())->pluck('name', 'uuid');
         $labels = [];
         foreach (DeviceConfiguration::whereIn('uuid', $bindings->pluck('configuration_uuid')->unique()->values())->whereHas('device', fn ($query) => $query->where('organization_id', $organization->id))->get(['uuid', 'definition']) as $configuration) {
             foreach (json_decode($configuration->definition['profile_canonical_json'] ?? '{}', true)['parameters'] ?? [] as $parameter) {
@@ -48,10 +49,13 @@ final class DagDirectory
         return $workflows->mapWithKeys(function (Workflow $w) use ($latest, $lastActions, $problems, $sources, $devices, $labels) {
             $deployment = $latest->get($w->id);
             $issues = [];
+            $diagnostic = DagDiagnostic::describe($deployment?->diagnostic, $w->workflow, $devices->all());
             if ($deployment?->status === 'failed') {
-                $issues[] = ['source' => 'deployment', 'message' => $deployment->diagnostic ?: 'Deployment failed.', 'at' => $this->iso($deployment->completed_at ?? $deployment->created_at)];
+                $issues[] = ['source' => 'deployment', 'message' => DagDiagnostic::describe($deployment->diagnostic, $w->workflow, $devices->all(), brief: true) ?: 'Deployment failed.', 'at' => $this->iso($deployment->completed_at ?? $deployment->created_at)];
             } elseif ($deployment?->stopped_reason === 'binding_changed') {
                 $issues[] = ['source' => 'deployment', 'message' => 'Suspended: a bound device configuration changed. Review the bindings and reactivate.', 'at' => $this->iso($deployment->completed_at ?? $deployment->created_at)];
+            } elseif ($deployment?->stopped_reason === DagDiagnostic::REVIEW) {
+                $issues[] = ['source' => 'deployment', 'message' => 'Suspended: '.lcfirst(DagDiagnostic::describe(DagDiagnostic::REVIEW, $w->workflow, [], brief: true)), 'at' => $this->iso($deployment->completed_at ?? $deployment->created_at)];
             }
             if ($action = $problems->get($w->id)) {
                 $issues[] = ['source' => 'action', 'message' => $action->diagnostic ?: 'Action '.str_replace('_', ' ', $action->status).'.', 'at' => $this->iso($action->updated_at)];
@@ -59,7 +63,7 @@ final class DagDirectory
             usort($issues, fn ($a, $b) => strcmp((string) $b['at'], (string) $a['at']));
 
             return [$w->id => [
-                'deployment_diagnostic' => $deployment?->diagnostic,
+                'deployment_diagnostic' => $diagnostic,
                 'updated_at' => $this->iso($w->updated_at),
                 'triggers' => collect($sources->get($w->id))->map(fn ($b) => [
                     'node_id' => $b['node_id'], 'device_uuid' => $b['device_uuid'], 'device_name' => $devices->get($b['device_uuid']),

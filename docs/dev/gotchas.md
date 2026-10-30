@@ -346,6 +346,18 @@ Things that have cost time before. Add to this list when something surprises you
   now keeps births in `births-<adapter>.json`. The first deploy after the runtime
   image changes can still time out while the old container's webhook source stops;
   deploying again succeeds.
+- **One partial birth used to block a device's automations.** After a redeploy the
+  publisher announced a source from its first record alone, and a polled record
+  without one reading went out as a DBIRTH with 8 of the device's 9 mapped metrics.
+  The full DBIRTH followed 16 ms later. The runtime set `review_required` on the
+  first, and only a new device activation cleared it. Commands were refused, and an
+  automation's activation failed with `binding_changed`, although its binding was
+  exact. Three things changed. The runtime clears review on the next birth that
+  matches the applied configuration
+  ([ADR-025](../adr/ADR-025-review-follows-current-birth.md)). Automations report
+  `device_review_required`. The publisher writes `births-<adapter>.json` before it
+  announces a changed metric set, because the 30 s write interval let a crash
+  restore a smaller set.
 - **A backfill could leave a new source in Discovery as `src-<hash>`.** The Reporter
   drops reports while four are in flight, and the preview report is what tells
   Laravel the vendor's serial for a Sparkplug source. A tracker with one record in a

@@ -89,7 +89,7 @@ final class WorkflowDeploymentService
             return;
         }
         if ($type === 'workflow.suspended.v1') {
-            $deployment->update(['stopped_reason' => 'binding_changed']);
+            $deployment->update(['stopped_reason' => DagDiagnostic::stoppedReason((string) ($payload['reason'] ?? ''))]);
             if ($workflow->applied_deployment_uuid === $deployment->uuid && $workflow->pending_operation_uuid === null) {
                 $workflow->update(['deployment_status' => 'suspended']);
             }

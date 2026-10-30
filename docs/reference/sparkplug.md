@@ -39,7 +39,8 @@ registers, maps and activates them ([devices](../features/devices.md)).
 - **Births.** NBIRTH must have `seq = 0` and a `bdSeq` metric; it starts a session.
   DBIRTH registers a device's metrics, datatypes and aliases. A change in metric
   names or datatypes bumps the candidate's `birth_revision`; if it no longer matches
-  an applied configuration the device is marked review required.
+  an applied configuration the device is marked review required, until a later
+  birth matches it again ([ADR-025](../adr/ADR-025-review-follows-current-birth.md)).
 - **Data.** NDATA/DDATA are accepted only after a birth, with the next sequence
   number (mod 256) and the same datatypes; aliases resolve through the birth.
   Duplicates and wraparound are handled.
