@@ -46,7 +46,11 @@ under **Build → Device adapters** for users with `Device.manage`.
   publishes to the platform broker as group `adapters-<organization uuid>`,
   edge node `adapter-<adapter uuid>`. It keeps each source's last birth in the
   runtime's `/data`, so a redeployed publisher announces every known source right
-  after its NBIRTH instead of leaving them offline until they report again.
+  after its NBIRTH instead of leaving them offline until they report again. It does
+  the same on `Node Control/Rebirth` and when the platform's host comes back online.
+  Because the platform defines these births, a device fed by an adapter activates
+  against its source's last stored birth when the source has not announced itself
+  since a restart ([devices](devices.md#configuration-and-activation)).
 - Laravel owns adapters, revisions, fixtures, credentials and discovery. It calls
   the manager's private API from the `device-adapters` queue
   (`adapter-worker`); the runtime reports back to `POST /api/internal/adapters/events`

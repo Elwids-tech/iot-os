@@ -99,6 +99,7 @@ final class DriftedControlMessageTest extends TestCase
         $this->claimed('device.deactivate.v1', $device);
         $this->runtimeEvent('device.deactivated.v1', ['organization_uuid' => $this->organization->uuid, 'device_uuid' => $device->uuid,
             'generation' => $device->fresh()->deployment_generation, 'operation_uuid' => $operation, 'uncertain_command_uuids' => []])->assertOk();
+        $this->assertNull($device->fresh()->applied_generation);
         $this->postJson($path.'/lifecycle', ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'active', 'expected_generation' => $device->fresh()->deployment_generation])->assertAccepted();
         $this->assertActivationConforms($this->claimed('device.activate.v1', $device), 'resume');
     }
@@ -158,6 +159,32 @@ final class DriftedControlMessageTest extends TestCase
         $this->assertActivationConforms($activation, 'adapter activation');
     }
 
+    /**
+     * The platform's adapter announces an adapter-fed source, so its activation carries
+     * the names and datatypes of the source's stored birth, in the outbox message and in
+     * the state snapshot while it is pending. A native device's does not (ADR-027).
+     */
+    public function test_an_adapter_fed_activation_carries_its_stored_birth(): void
+    {
+        [$adapter, $candidate] = $this->liveAdapterCandidate();
+        $installation = $this->postJson($this->prefix.'/device-adapters/'.$adapter->uuid.'/candidates/'.$candidate->uuid.'/activate', ['name' => 'Workshop water meter'])
+            ->assertAccepted()->json('data.installation_uuid');
+        $device = DeviceInstallation::where('uuid', $installation)->firstOrFail()->device;
+        $birth = [['name' => 'flow_rate', 'datatype' => 'Double'], ['name' => 'total_volume', 'datatype' => 'Double']];
+        $state = fn (): array => collect($this->withToken(self::RUNTIME_TOKEN)->getJson('/api/internal/devices/state')->assertOk()->json('devices'))->firstWhere('uuid', $device->uuid);
+
+        $activation = $this->claimed('device.activate.v1', $device);
+        $this->assertSame($birth, json_decode((string) json_encode($activation->payload->birth_metrics), true));
+        $this->assertActivationConforms($activation, 'adapter activation with a stored birth');
+        $this->assertSame($birth, $state()['birth_metrics']);
+        $this->applied($device);
+        $this->assertArrayNotHasKey('birth_metrics', $state());
+
+        $native = $this->configured('three-phase-energy-meter', 'meter-native');
+        $this->postJson($this->prefix.'/devices/'.$native->uuid.'/activate', ['draft_revision' => $native->draft_revision])->assertAccepted();
+        $this->assertObjectNotHasProperty('birth_metrics', $this->claimed('device.activate.v1', $native)->payload);
+    }
+
     private function assertActivationConforms(object $message, string $producer): void
     {
         $this->assertNotEmpty($message->lease_token, $producer);
@@ -187,6 +214,7 @@ final class DriftedControlMessageTest extends TestCase
         $this->runtimeEvent('device.applied.v1', ['organization_uuid' => $this->organization->uuid, 'device_uuid' => $device->uuid, 'generation' => $device->deployment_generation,
             'configuration_uuid' => $device->desired_configuration_uuid, 'presence' => 'online'])->assertOk();
         $this->assertSame('applied', $device->fresh()->deployment_status);
+        $this->assertSame($device->deployment_generation, $device->fresh()->applied_generation);
 
         return (string) $device->fresh()->applied_configuration_uuid;
     }

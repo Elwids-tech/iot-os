@@ -12,6 +12,7 @@ use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
+use App\Domain\Devices\Services\DeviceLifecycleService;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -46,7 +47,7 @@ final class DagTest extends TestCase
         $parameter = (string) Str::uuid();
         $canonical = json_encode(['parameters' => [['uuid' => $parameter, 'key' => 'temperature', 'data_type' => 'number', 'unit' => 'C', 'reports_state' => true, 'accepts_command' => true]]]);
         $artifact = DeviceProfileArtifact::create(['device_profile_id' => $profile->id, 'revision' => 1, 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'status' => 'active', 'compiled_at' => now(), 'compiled_by' => $this->actor->id]);
-        $device = Device::create(['organization_id' => $this->org->id, 'name' => 'Simulator', 'code' => 'dag-sim', 'lifecycle' => 'active', 'deployment_status' => 'applied', 'deployment_generation' => 1]);
+        $device = Device::create(['organization_id' => $this->org->id, 'name' => 'Simulator', 'code' => 'dag-sim', 'lifecycle' => 'active', 'deployment_status' => 'applied', 'deployment_generation' => 1, 'applied_generation' => 1]);
         $configuration = DeviceConfiguration::create(['device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => 1, 'definition_hash' => str_repeat('b', 64), 'definition' => ['profile_canonical_json' => $canonical, 'mappings' => [['parameter_uuid' => $parameter, 'command_metric' => 'set', 'metric' => 'temperature']]], 'created_at' => now()]);
         $device->update(['applied_configuration_uuid' => $configuration->uuid]);
         $this->graph = ['schema_version' => 'automation-workflow.v2', 'bindings' => [['role' => 'sensor', 'device_uuid' => $device->uuid, 'configuration_uuid' => $configuration->uuid, 'generation' => 1, 'parameter_uuid' => $parameter, 'data_type' => 'number', 'unit' => 'C', 'fresh_seconds' => 120]], 'nodes' => [['id' => 'source', 'type' => 'source.parameter.v1', 'config' => ['binding' => 'sensor']], ['id' => 'compare', 'type' => 'compare.v1', 'config' => ['operator' => 'gt', 'value' => 25]], ['id' => 'command', 'type' => 'action.command.v1', 'config' => ['binding' => 'sensor', 'value' => 0, 'cooldown_seconds' => 60, 'ttl_seconds' => 30]]], 'edges' => [['source' => 'source', 'source_port' => 'out', 'target' => 'compare', 'target_port' => 'in'], ['source' => 'compare', 'source_port' => 'out', 'target' => 'command', 'target_port' => 'in']]];
@@ -371,6 +372,36 @@ final class DagTest extends TestCase
         Http::swap(new Factory);
         Http::fake(['*/internal/dag/execution*' => Http::response(['enabled' => false, 'stopped_reason' => 'device_review_required: sensor', 'consumer_healthy' => true])]);
         $this->assertSame($message, $this->getJson($this->url.'/'.$draft['uuid'].'/execution')->assertOk()->json('data.stopped_reason'));
+    }
+
+    /**
+     * The runtime refused a device configuration (here: the source was offline). The
+     * request advanced the device's deployment generation, but its applied configuration
+     * and the generation that came with it stay, and so do automations bound to them.
+     * They used to fail binding_changed until someone saved them again (ADR-027).
+     */
+    public function test_a_refused_device_activation_keeps_its_automations_bound(): void
+    {
+        $device = Device::firstOrFail();
+        $requested = DeviceConfiguration::firstOrFail()->replicate(['uuid']);
+        $requested->uuid = (string) Str::uuid();
+        $requested->revision = 2;
+        $requested->created_at = now();
+        $requested->save();
+        $device->forceFill(['desired_configuration_uuid' => $requested->uuid, 'deployment_status' => 'pending', 'deployment_generation' => 2])->save();
+        $operation = DeviceLifecycleService::record($device, 'configure', $this->actor->id);
+        $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/events', ['uuid' => (string) Str::uuid(), 'type' => 'device.failed.v1', 'payload' => [
+            'organization_uuid' => $this->org->uuid, 'device_uuid' => $device->uuid, 'generation' => 2, 'operation_uuid' => $operation->uuid,
+            'configuration_uuid' => $requested->uuid, 'diagnostic' => 'Source is offline or needs a fresh birth certificate. Review the source before retrying.',
+        ]])->assertOk();
+        $device->refresh();
+        $this->assertSame(['failed', 2, 1], [$device->deployment_status, $device->deployment_generation, $device->applied_generation]);
+
+        $resource = collect($this->getJson($this->url.'/dag/resources?controllable=1')->assertOk()->json('data'))->firstWhere('device_uuid', $device->uuid);
+        $this->assertSame([$device->applied_configuration_uuid, 1], [$resource['configuration_uuid'], $resource['generation']]);
+        $w = $this->draft();
+        $grant = ['node_id' => 'command', 'binding' => 'sensor', 'value' => 0, 'cooldown_seconds' => 60, 'max_per_minute' => 1, 'expires_at' => null];
+        $this->postJson($this->url.'/'.$w['uuid'].'/deployments', ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'active', 'draft_revision' => 1, 'expected_generation' => 0, 'command_grants' => [$grant]])->assertStatus(202);
     }
 
     public function test_directory_summarises_triggers_activity_and_issues_with_a_fixed_query_count(): void

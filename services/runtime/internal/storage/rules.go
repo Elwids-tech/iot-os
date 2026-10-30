@@ -26,7 +26,7 @@ func (s *Store) DeployRule(ctx context.Context, request rules.Deployment, at tim
 		var raw []byte
 		var generation int
 		var review bool
-		err = tx.QueryRow(ctx, `SELECT definition,generation,review_required FROM device_runtime.devices WHERE device_uuid=$1 AND organization_uuid=$2 FOR SHARE`, request.Definition.Binding.DeviceUUID, request.OrganizationUUID).Scan(&raw, &generation, &review)
+		err = tx.QueryRow(ctx, `SELECT definition,COALESCE(applied_generation,0),review_required FROM device_runtime.devices WHERE device_uuid=$1 AND organization_uuid=$2 FOR SHARE`, request.Definition.Binding.DeviceUUID, request.OrganizationUUID).Scan(&raw, &generation, &review)
 		if err != nil && err != pgx.ErrNoRows {
 			return err
 		}
@@ -233,7 +233,7 @@ func evaluateRules(ctx context.Context, tx pgx.Tx, input *devices.CommittedTelem
 	}
 	// Devices are retained after deactivation, so an inner join also lets us fence
 	// old bindings. The device row lock serializes against configuration changes.
-	rows, err := tx.Query(ctx, `SELECT r.operation_uuid,r.definition,r.state,r.started_at,d.definition,d.generation,d.review_required
+	rows, err := tx.Query(ctx, `SELECT r.operation_uuid,r.definition,r.state,r.started_at,d.definition,COALESCE(d.applied_generation,0),d.review_required
  FROM device_runtime.rule_executions r JOIN device_runtime.devices d ON d.device_uuid=r.device_uuid
  WHERE r.enabled AND ($1='' OR r.device_uuid::text=$1) ORDER BY r.operation_uuid FOR UPDATE OF r FOR SHARE OF d`, device)
 	if err != nil {

@@ -32,7 +32,7 @@ final class WorkflowDeploymentService
             if ($input['target_state'] === 'active') {
                 $binding = $workflow->definition['binding'];
                 $device = Device::where('organization_id', $workflow->organization_id)->where('uuid', $binding['device_uuid'])->lockForUpdate()->firstOrFail();
-                abort_unless($device->lifecycle === 'active' && $device->deployment_status === 'applied' && $device->applied_configuration_uuid === $binding['configuration_uuid'] && $device->deployment_generation === $binding['generation'], 422, 'Activate against the currently applied device configuration and generation.');
+                abort_unless($device->lifecycle === 'active' && in_array($device->deployment_status, ['applied', 'failed'], true) && $device->applied_configuration_uuid === $binding['configuration_uuid'] && $device->applied_generation === $binding['generation'], 422, 'Activate against the currently applied device configuration and generation.');
                 $graph = $workflow->workflow;
                 $graph['version_uuid'] = $input['operation_uuid'];
                 foreach ($graph['nodes'] as &$node) {

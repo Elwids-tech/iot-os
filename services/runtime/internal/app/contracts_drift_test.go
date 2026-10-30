@@ -244,9 +244,9 @@ func driftApplication(t *testing.T) *Application {
 		t.Fatal(err)
 	}
 	t.Cleanup(store.Pool.Close)
-	return &Application{ctx: ctx, Store: store, Engine: sparkplug.NewEngine(), definitions: map[string]devices.Definition{}, generations: map[string]int{},
+	return &Application{ctx: ctx, Store: store, Engine: sparkplug.NewEngine(), definitions: map[string]devices.Definition{}, generations: map[string]int{}, appliedGeneration: map[string]int{},
 		latest: map[string]map[string]devices.Reading{}, sessions: map[string]string{}, compatible: map[string]bool{}, reviewRequired: map[string]bool{},
-		presenceAt: map[string]time.Time{}, pending: map[string]*pendingCommand{}, brokers: map[string]*broker{}}
+		presenceAt: map[string]time.Time{}, pending: map[string]*pendingCommand{}, brokers: map[string]*broker{}, rebirth: map[string]time.Time{}, rebirthPending: map[string]rebirthRequest{}}
 }
 
 func purgeDevice(t *testing.T, store *storage.Store, device string) {
@@ -268,9 +268,10 @@ func purgeDevice(t *testing.T, store *storage.Store, device string) {
 }
 
 // Every accepted activation goes through the devices-control path: the message
-// decodes into devices.Event and handleControl decodes definition, generation and
-// operation_uuid. The source is offline, so the runtime records a failed transition
-// for that generation and operation, as it does today.
+// decodes into devices.Event and handleControl decodes definition, generation,
+// operation_uuid and birth_metrics. The source is offline, so the runtime records a
+// failed transition for that generation and operation, except for an adapter-fed
+// source with a stored birth, which it applies (ADR-027).
 func TestDriftedActivationsAreHandledAsToday(t *testing.T) {
 	a := driftApplication(t)
 	for _, example := range consumable(t, driftActivation) {
@@ -313,7 +314,11 @@ func TestDriftedActivationsAreHandledAsToday(t *testing.T) {
 			if err := json.Unmarshal(outcome, &recorded); err != nil {
 				t.Fatal(err)
 			}
-			if stored != int(generation) || recorded.Type != "device.failed.v1" || recorded.Payload.OperationUUID != payload["operation_uuid"] ||
+			want := "device.failed.v1"
+			if _, adapter := definition["adapter"]; adapter && payload["birth_metrics"] != nil {
+				want = "device.applied.v1"
+			}
+			if stored != int(generation) || recorded.Type != want || recorded.Payload.OperationUUID != payload["operation_uuid"] ||
 				recorded.Payload.OrganizationUUID != definition["organization_uuid"] || recorded.Payload.ConfigurationUUID != definition["configuration_uuid"] {
 				t.Fatalf("recorded generation %d outcome %s", stored, outcome)
 			}

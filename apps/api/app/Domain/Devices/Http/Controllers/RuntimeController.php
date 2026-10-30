@@ -14,6 +14,7 @@ use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Devices\Services\DeviceAudit;
+use App\Domain\Devices\Services\DeviceConfigurationService;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
 use ErrorException;
@@ -44,6 +45,9 @@ final class RuntimeController
             ->get();
         $configurations = DeviceConfiguration::whereIn('uuid', $devices->pluck('desired_configuration_uuid')
             ->merge($devices->pluck('applied_configuration_uuid'))->filter()->unique()->values())->get()->keyBy('uuid');
+        // A pending adapter-fed activation carries its source's stored birth, as the outbox message does.
+        $candidates = DiscoveryCandidate::whereIn('id', $devices->where('deployment_status', 'pending')->pluck('device_discovery_candidate_id')->filter()->unique()->values())
+            ->get()->keyBy('id');
 
         return [
             'connections' => SparkplugConnection::where('status', 'ready')->get()->map(fn ($c) => [
@@ -56,6 +60,9 @@ final class RuntimeController
                 'lifecycle' => $d->lifecycle, 'deployment_status' => $d->deployment_status,
                 'desired' => $configurations->get($d->desired_configuration_uuid)?->definition,
                 'applied' => $configurations->get($d->applied_configuration_uuid)?->definition,
+                ...($d->deployment_status === 'pending' && $d->desired_configuration_uuid
+                    ? DeviceConfigurationService::storedBirth($configurations->get($d->desired_configuration_uuid)?->definition ?? [], $candidates->get($d->device_discovery_candidate_id))
+                    : []),
             ]),
             'retention' => $organizations->map(fn ($o) => ['organization_uuid' => $o->uuid, ...$retention->effective($o)]),
         ];
@@ -265,10 +272,10 @@ final class RuntimeController
                 }
                 if ($event['type'] === 'device.applied.v1') {
                     abort_unless($device->desired_configuration_uuid === ($p['configuration_uuid'] ?? null), 409);
-                    $device->update(['applied_configuration_uuid' => $p['configuration_uuid'], 'last_applied_configuration_uuid' => $p['configuration_uuid'], 'deployment_status' => 'applied', 'lifecycle' => 'active', 'presence' => $p['presence'] ?? 'unknown', 'diagnostic' => null, 'runtime_seen_at' => now()]);
+                    $device->update(['applied_configuration_uuid' => $p['configuration_uuid'], 'last_applied_configuration_uuid' => $p['configuration_uuid'], 'applied_generation' => $device->deployment_generation, 'deployment_status' => 'applied', 'lifecycle' => 'active', 'presence' => $p['presence'] ?? 'unknown', 'diagnostic' => null, 'runtime_seen_at' => now()]);
                 } elseif ($event['type'] === 'device.deactivated.v1') {
                     abort_unless($device->desired_configuration_uuid === null, 409);
-                    $device->update(['applied_configuration_uuid' => null, 'deployment_status' => 'inactive', 'lifecycle' => 'deactivated', 'presence' => 'offline', 'diagnostic' => null]);
+                    $device->update(['applied_configuration_uuid' => null, 'applied_generation' => null, 'deployment_status' => 'inactive', 'lifecycle' => 'deactivated', 'presence' => 'offline', 'diagnostic' => null]);
                     $uncertain = $p['uncertain_command_uuids'] ?? null;
                     $device->commands()->whereNotNull('outstanding_key')->where('status', 'prepared')->update(['status' => 'cancelled', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => 'Unconfirmed command cancelled by deactivation.']);
                     if (is_array($uncertain)) {
@@ -276,6 +283,7 @@ final class RuntimeController
                     }
                     $device->commands()->whereNotNull('outstanding_key')->update(['status' => 'uncertain', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => 'Device deactivated while the command was outstanding.']);
                 } elseif ($event['type'] === 'device.failed.v1') {
+                    // The applied configuration and its generation stay, and so do their bindings (ADR-027).
                     $device->update(['deployment_status' => 'failed', 'diagnostic' => $p['diagnostic'] ?? 'The runtime rejected the configuration.']);
                 }
                 $operation->update(['status' => $event['type'] === 'device.failed.v1' ? 'failed' : 'succeeded', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => $p['diagnostic'] ?? null]);

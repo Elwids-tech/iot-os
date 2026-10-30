@@ -198,7 +198,7 @@ final class DagController
         if ($controllable) {
             app(DeviceAuthorization::class)->authorize($r->user(), DevicePermission::COMMAND, $organization);
             // Filter before pagination, including the applied mapping rather than just profile capability.
-            $query->where('lifecycle', 'active')->where('deployment_status', 'applied')->whereHas('configurations', function ($q) {
+            $query->where('lifecycle', 'active')->whereIn('deployment_status', ['applied', 'failed'])->whereHas('configurations', function ($q) {
                 $q->whereColumn('device_configurations.uuid', 'devices.applied_configuration_uuid');
                 if (DB::connection()->getDriverName() === 'pgsql') {
                     $q->whereRaw("EXISTS (SELECT 1 FROM jsonb_array_elements((definition->>'profile_canonical_json')::jsonb->'parameters') p, jsonb_array_elements(definition->'mappings') m WHERE p->>'uuid' = m->>'parameter_uuid' AND p->>'accepts_command' = 'true' AND p->>'reports_state' = 'true' AND COALESCE(m->>'command_metric', '') <> '')");
@@ -222,7 +222,7 @@ final class DagController
                 return $mapping && (! $controllable || (($p['accepts_command'] ?? false) && ($p['reports_state'] ?? false) && ($mapping['command_metric'] ?? null)));
             })->values();
 
-            return ['device_uuid' => $device->uuid, 'name' => $device->name, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => $device->deployment_generation, 'poll_interval_seconds' => $polled[$device->id] ?? null, 'parameters' => $parameters];
+            return ['device_uuid' => $device->uuid, 'name' => $device->name, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => $device->applied_generation, 'poll_interval_seconds' => $polled[$device->id] ?? null, 'parameters' => $parameters];
         }), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];
     }
 

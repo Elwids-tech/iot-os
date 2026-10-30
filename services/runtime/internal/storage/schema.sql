@@ -34,6 +34,11 @@ CREATE TABLE IF NOT EXISTS device_runtime.devices (
 );
 ALTER TABLE device_runtime.devices ADD COLUMN IF NOT EXISTS review_required boolean NOT NULL DEFAULT false;
 ALTER TABLE device_runtime.devices ADD COLUMN IF NOT EXISTS outcome jsonb;
+-- generation fences requests; applied_generation is the one the applied definition
+-- came with, which telemetry and automation bindings carry (ADR-027). Older rows get
+-- their fence, which every binding that still worked already used.
+ALTER TABLE device_runtime.devices ADD COLUMN IF NOT EXISTS applied_generation bigint;
+UPDATE device_runtime.devices SET applied_generation=generation WHERE applied_generation IS NULL AND definition IS NOT NULL;
 CREATE TABLE IF NOT EXISTS device_runtime.observations (
  event_uuid uuid NOT NULL, organization_uuid uuid NOT NULL, device_uuid uuid NOT NULL,
  configuration_uuid uuid NOT NULL, parameter_uuid uuid NOT NULL,

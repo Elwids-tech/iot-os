@@ -50,7 +50,7 @@ republished to `IOT_DEVICE_CONTROL`, then acknowledged.
 
 | Type | Written by | Runtime action |
 | --- | --- | --- |
-| `device.activate.v1` | Device activation, rollback, resume ([`DeviceConfigurationService`](../../apps/api/app/Domain/Devices/Services/DeviceConfigurationService.php), [`DeviceLifecycleService`](../../apps/api/app/Domain/Devices/Services/DeviceLifecycleService.php)) | Apply the inline configuration for that generation |
+| `device.activate.v1` | Device activation, rollback, resume ([`DeviceConfigurationService`](../../apps/api/app/Domain/Devices/Services/DeviceConfigurationService.php), [`DeviceLifecycleService`](../../apps/api/app/Domain/Devices/Services/DeviceLifecycleService.php)) | Apply the inline configuration for that generation. An adapter-fed configuration also carries `birth_metrics`, its source's stored birth, which the runtime checks when the source has no live birth ([ADR-027](../adr/ADR-027-adapter-fed-activation-and-applied-generation.md)) |
 | `device.deactivate.v1` | Deactivation | Close ingestion and dispatch, cancel unsent commands |
 | `device.command.v1` | Command confirmation ([`DeviceCommandService`](../../apps/api/app/Domain/Devices/Services/DeviceCommandService.php)) | Dispatch over Sparkplug (NCMD/DCMD) |
 | `workflow.deploy.v1` | Geofence rule deployment ([`WorkflowDeploymentService`](../../apps/api/app/Domain/Automation/Services/WorkflowDeploymentService.php)) | Activate or disable a rule execution |
@@ -109,7 +109,8 @@ for trusted services (it mixes organizations), not a tenant API.
 
 - Fields: `schema_version`, `event_id` (equals `telemetry_id`), `sequence`
   (decimal string; gaps allowed; not a global order), `organization_uuid`,
-  `device_uuid`, `configuration_uuid`, `generation`, and 1–2000 `readings`. A
+  `device_uuid`, `configuration_uuid`, `generation` (the device's applied generation,
+  which a refused activation does not change), and 1–2000 `readings`. A
   reading has `parameter_uuid`, `key`, `data_type`, `unit`, `value`, `quality`
   (`good` = observation, otherwise a stored diagnostic), optional `diagnostic`,
   `observed_at`, `received_at`, `historical` and optional `timestamp_source`.

@@ -159,6 +159,12 @@ type DeviceState struct {
 	Desired          *Definition `json:"desired"`
 	Applied          *Definition `json:"applied"`
 	ReviewRequired   bool        `json:"review_required"`
+	// AppliedGeneration is the generation Applied came with. A refused activation
+	// advances Generation and leaves it (ADR-027).
+	AppliedGeneration int `json:"applied_generation"`
+	// BirthMetrics is the source's last stored birth, sent with an adapter-fed
+	// Desired configuration (ADR-027).
+	BirthMetrics []Metric `json:"birth_metrics,omitempty"`
 }
 type Retention struct {
 	OrganizationUUID string `json:"organization_uuid"`

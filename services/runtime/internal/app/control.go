@@ -219,7 +219,7 @@ func (a *Application) subscribe() error {
 			defer unlock()
 			a.mu.Lock()
 			definition, enabled := a.definitions[telemetry.Definition.DeviceUUID]
-			generation := a.generations[telemetry.Definition.DeviceUUID]
+			generation := a.appliedGeneration[telemetry.Definition.DeviceUUID]
 			a.mu.Unlock()
 			if !enabled || telemetry.Generation != generation || definition.ConfigurationUUID != telemetry.Definition.ConfigurationUUID {
 				a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "discarded", "Configuration changed before persistence.")

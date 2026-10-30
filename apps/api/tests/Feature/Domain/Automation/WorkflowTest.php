@@ -139,7 +139,7 @@ final class WorkflowTest extends TestCase
     private function applyDevice(): void
     {
         $binding = $this->graph['nodes'][0]['config']['binding'];
-        Device::where('uuid', $binding['device_uuid'])->update(['lifecycle' => 'active', 'deployment_status' => 'applied', 'deployment_generation' => $binding['generation'], 'applied_configuration_uuid' => $binding['configuration_uuid']]);
+        Device::where('uuid', $binding['device_uuid'])->update(['lifecycle' => 'active', 'deployment_status' => 'applied', 'deployment_generation' => $binding['generation'], 'applied_generation' => $binding['generation'], 'applied_configuration_uuid' => $binding['configuration_uuid']]);
     }
 
     private function runtimeEvent(string $type, array $payload, ?string $id = null)
@@ -178,6 +178,15 @@ final class WorkflowTest extends TestCase
         Deployment::firstOrFail()->update(['definition' => []]);
     }
 
+    /** A refused device activation leaves the applied configuration, and the bindings to it, in place (ADR-027). */
+    public function test_a_refused_device_activation_keeps_the_binding_activatable(): void
+    {
+        $draft = $this->create();
+        $this->applyDevice();
+        Device::query()->update(['deployment_generation' => 2, 'deployment_status' => 'failed']);
+        $this->postJson($this->url.'/'.$draft['uuid'].'/deployments', ['operation_uuid' => (string) Str::uuid(), 'expected_generation' => 0, 'draft_revision' => 1, 'target_state' => 'active'])->assertAccepted();
+    }
+
     public function test_activation_requires_applied_binding_permissions_and_tenant_scope(): void
     {
         $draft = $this->create();
@@ -185,7 +194,7 @@ final class WorkflowTest extends TestCase
         $input = ['operation_uuid' => (string) Str::uuid(), 'expected_generation' => 0, 'draft_revision' => 1, 'target_state' => 'active'];
         $this->postJson($url, $input)->assertUnprocessable();
         $this->applyDevice();
-        Device::query()->update(['deployment_generation' => 2]);
+        Device::query()->update(['deployment_generation' => 2, 'applied_generation' => 2]);
         $this->postJson($url, $input)->assertUnprocessable();
         $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
         $this->postJson('/api/v1/organizations/'.$other->uuid.'/workflows/'.$draft['uuid'].'/deployments', $input)->assertNotFound();

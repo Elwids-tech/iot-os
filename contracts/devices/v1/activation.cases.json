@@ -221,6 +221,112 @@
     }
   },
   {
+    "description": "an adapter-backed device's activation with its source's stored birth, for a source that has not announced itself since the adapter restarted",
+    "valid": true,
+    "data": {
+      "uuid": "90000000-0000-4000-8000-000000000021",
+      "type": "device.activate.v1",
+      "payload": {
+        "organization_uuid": "90000000-0000-4000-8000-000000000003",
+        "device_uuid": "90000000-0000-4000-8000-000000000002",
+        "generation": 4,
+        "operation_uuid": "90000000-0000-4000-8000-000000000022",
+        "definition": {
+          "adapter": {
+            "installation_uuid": "30000000-0000-4000-8000-000000000007",
+            "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+            "manufacturer_serial": "WM-1042"
+          },
+          "schema_version": "device-configuration.v2",
+          "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+          "device_uuid": "90000000-0000-4000-8000-000000000002",
+          "organization_uuid": "90000000-0000-4000-8000-000000000003",
+          "profile_artifact_uuid": "90000000-0000-4000-8000-000000000004",
+          "profile_hash": "98e09f5717bbdfb68a24135d678c979a0621385cef993545e208619b9acefb91",
+          "profile_canonical_json": "{\"alarm_templates\":[{\"code\":\"meter-stale\",\"condition\":{\"max_age_seconds\":300},\"enabled_by_default\":true,\"name\":\"Meter staleness\",\"parameters\":[{\"parameter_uuid\":\"20000000-0000-4000-8000-000000000001\",\"role\":\"subject\"}],\"severity\":\"warning\",\"type\":\"staleness\",\"uuid\":\"20000000-0000-4000-8000-000000000020\"}],\"calculations\":[{\"engine\":\"json_logic\",\"expression\":{\"/\":[{\"+\":[{\"var\":\"l1\"},{\"var\":\"l2\"},{\"var\":\"l3\"}]},3]},\"failure_policy\":\"mark_invalid\",\"inputs\":[{\"alias\":\"l1\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000001\"},{\"alias\":\"l2\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000002\"},{\"alias\":\"l3\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000003\"}],\"target_parameter_uuid\":\"20000000-0000-4000-8000-000000000010\",\"trigger\":\"on_input_change\"}],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l1\",\"kind\":\"measurement\",\"label\":\"Voltage L1\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000001\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l2\",\"kind\":\"measurement\",\"label\":\"Voltage L2\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000002\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l3\",\"kind\":\"measurement\",\"label\":\"Voltage L3\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"energy.imported\",\"kind\":\"counter\",\"label\":\"Imported energy\",\"reporting\":null,\"reports_state\":true,\"unit\":\"kWh\",\"uuid\":\"20000000-0000-4000-8000-000000000004\",\"validation\":{\"diagnostic_code\":\"energy_invalid\",\"engine\":\"json_logic\",\"message\":\"Energy must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"energy.exported\",\"kind\":\"counter\",\"label\":\"Exported energy\",\"reporting\":null,\"reports_state\":true,\"unit\":\"kWh\",\"uuid\":\"20000000-0000-4000-8000-000000000005\",\"validation\":{\"diagnostic_code\":\"energy_invalid\",\"engine\":\"json_logic\",\"message\":\"Energy must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.average\",\"kind\":\"derived\",\"label\":\"Average voltage\",\"reporting\":null,\"reports_state\":false,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000010\",\"validation\":null}],\"profile\":{\"category\":\"energy-metering\",\"code\":\"three-phase-energy-meter\",\"name\":\"Three-phase Energy Meter\",\"revision\":1,\"uuid\":\"20000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+          "source": {
+            "connection_uuid": "90000000-0000-4000-8000-000000000005",
+            "candidate_uuid": "90000000-0000-4000-8000-000000000006",
+            "group_id": "fixtures",
+            "edge_node_id": "meter-gateway",
+            "device_id": "meter"
+          },
+          "birth_revision": 1,
+          "mappings": [
+            {
+              "parameter_uuid": "20000000-0000-4000-8000-000000000001",
+              "metric": "Voltage L1",
+              "datatype": "Double",
+              "command_metric": null,
+              "command_datatype": null,
+              "conversion_mode": "none",
+              "ingress_conversion": null
+            },
+            {
+              "parameter_uuid": "20000000-0000-4000-8000-000000000002",
+              "metric": "Voltage L2",
+              "datatype": "Double",
+              "command_metric": null,
+              "command_datatype": null,
+              "conversion_mode": "none",
+              "ingress_conversion": null
+            },
+            {
+              "parameter_uuid": "20000000-0000-4000-8000-000000000003",
+              "metric": "Voltage L3",
+              "datatype": "Double",
+              "command_metric": null,
+              "command_datatype": null,
+              "conversion_mode": "none",
+              "ingress_conversion": null
+            },
+            {
+              "parameter_uuid": "20000000-0000-4000-8000-000000000004",
+              "metric": "Imported energy",
+              "datatype": "Double",
+              "command_metric": null,
+              "command_datatype": null,
+              "conversion_mode": "none",
+              "ingress_conversion": null
+            },
+            {
+              "parameter_uuid": "20000000-0000-4000-8000-000000000005",
+              "metric": "Exported energy",
+              "datatype": "Double",
+              "command_metric": null,
+              "command_datatype": null,
+              "conversion_mode": "none",
+              "ingress_conversion": null
+            }
+          ]
+        },
+        "birth_metrics": [
+          {
+            "name": "Voltage L1",
+            "datatype": "Double"
+          },
+          {
+            "name": "Voltage L2",
+            "datatype": "Double"
+          },
+          {
+            "name": "Voltage L3",
+            "datatype": "Double"
+          },
+          {
+            "name": "Imported energy",
+            "datatype": "Double"
+          },
+          {
+            "name": "Exported energy",
+            "datatype": "Double"
+          }
+        ]
+      },
+      "lease_token": "90000000-0000-4000-8000-000000000013"
+    }
+  },
+  {
     "description": "missing operation_uuid",
     "valid": false,
     "error": {
@@ -802,6 +908,115 @@
         "configuration_uuid": "90000000-0000-4000-8000-000000000001"
       },
       "lease_token": "90000000-0000-4000-8000-000000000011"
+    }
+  },
+  {
+    "description": "a stored birth metric without a datatype",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": "/payload/birth_metrics/0"
+    },
+    "data": {
+      "uuid": "90000000-0000-4000-8000-000000000023",
+      "type": "device.activate.v1",
+      "payload": {
+        "organization_uuid": "90000000-0000-4000-8000-000000000003",
+        "device_uuid": "90000000-0000-4000-8000-000000000002",
+        "generation": 4,
+        "operation_uuid": "90000000-0000-4000-8000-000000000022",
+        "definition": {
+          "adapter": {
+            "installation_uuid": "30000000-0000-4000-8000-000000000007",
+            "adapter_uuid": "30000000-0000-4000-8000-000000000008",
+            "manufacturer_serial": "WM-1042"
+          },
+          "schema_version": "device-configuration.v2",
+          "configuration_uuid": "90000000-0000-4000-8000-000000000001",
+          "device_uuid": "90000000-0000-4000-8000-000000000002",
+          "organization_uuid": "90000000-0000-4000-8000-000000000003",
+          "profile_artifact_uuid": "90000000-0000-4000-8000-000000000004",
+          "profile_hash": "98e09f5717bbdfb68a24135d678c979a0621385cef993545e208619b9acefb91",
+          "profile_canonical_json": "{\"alarm_templates\":[{\"code\":\"meter-stale\",\"condition\":{\"max_age_seconds\":300},\"enabled_by_default\":true,\"name\":\"Meter staleness\",\"parameters\":[{\"parameter_uuid\":\"20000000-0000-4000-8000-000000000001\",\"role\":\"subject\"}],\"severity\":\"warning\",\"type\":\"staleness\",\"uuid\":\"20000000-0000-4000-8000-000000000020\"}],\"calculations\":[{\"engine\":\"json_logic\",\"expression\":{\"/\":[{\"+\":[{\"var\":\"l1\"},{\"var\":\"l2\"},{\"var\":\"l3\"}]},3]},\"failure_policy\":\"mark_invalid\",\"inputs\":[{\"alias\":\"l1\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000001\"},{\"alias\":\"l2\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000002\"},{\"alias\":\"l3\",\"parameter_uuid\":\"20000000-0000-4000-8000-000000000003\"}],\"target_parameter_uuid\":\"20000000-0000-4000-8000-000000000010\",\"trigger\":\"on_input_change\"}],\"parameters\":[{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l1\",\"kind\":\"measurement\",\"label\":\"Voltage L1\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000001\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l2\",\"kind\":\"measurement\",\"label\":\"Voltage L2\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000002\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.l3\",\"kind\":\"measurement\",\"label\":\"Voltage L3\",\"reporting\":{\"stale_after_seconds\":300},\"reports_state\":true,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000003\",\"validation\":{\"diagnostic_code\":\"voltage_invalid\",\"engine\":\"json_logic\",\"message\":\"Voltage must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"energy.imported\",\"kind\":\"counter\",\"label\":\"Imported energy\",\"reporting\":null,\"reports_state\":true,\"unit\":\"kWh\",\"uuid\":\"20000000-0000-4000-8000-000000000004\",\"validation\":{\"diagnostic_code\":\"energy_invalid\",\"engine\":\"json_logic\",\"message\":\"Energy must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":{\"monotonic\":true,\"reset_behavior\":\"diagnose\"},\"data_type\":\"number\",\"display\":{\"precision\":3},\"format\":null,\"key\":\"energy.exported\",\"kind\":\"counter\",\"label\":\"Exported energy\",\"reporting\":null,\"reports_state\":true,\"unit\":\"kWh\",\"uuid\":\"20000000-0000-4000-8000-000000000005\",\"validation\":{\"diagnostic_code\":\"energy_invalid\",\"engine\":\"json_logic\",\"message\":\"Energy must not be negative.\",\"rule\":{\">=\":[{\"var\":\"value\"},0]}}},{\"accepts_command\":false,\"counter\":null,\"data_type\":\"number\",\"display\":{\"precision\":1},\"format\":null,\"key\":\"voltage.average\",\"kind\":\"derived\",\"label\":\"Average voltage\",\"reporting\":null,\"reports_state\":false,\"unit\":\"V\",\"uuid\":\"20000000-0000-4000-8000-000000000010\",\"validation\":null}],\"profile\":{\"category\":\"energy-metering\",\"code\":\"three-phase-energy-meter\",\"name\":\"Three-phase Energy Meter\",\"revision\":1,\"uuid\":\"20000000-0000-4000-8000-000000000000\"},\"schema_version\":\"device-profile.v1\"}",
+          "source": {
+            "connection_uuid": "90000000-0000-4000-8000-000000000005",
+            "candidate_uuid": "90000000-0000-4000-8000-000000000006",
+            "group_id": "fixtures",
+            "edge_node_id": "meter-gateway",
+            "device_id": "meter"
+          },
+          "birth_revision": 1,
+          "mappings": [
+            {
+              "parameter_uuid": "20000000-0000-4000-8000-000000000001",
+              "metric": "Voltage L1",
+              "datatype": "Double",
+              "command_metric": null,
+              "command_datatype": null,
+              "conversion_mode": "none",
+              "ingress_conversion": null
+            },
+            {
+              "parameter_uuid": "20000000-0000-4000-8000-000000000002",
+              "metric": "Voltage L2",
+              "datatype": "Double",
+              "command_metric": null,
+              "command_datatype": null,
+              "conversion_mode": "none",
+              "ingress_conversion": null
+            },
+            {
+              "parameter_uuid": "20000000-0000-4000-8000-000000000003",
+              "metric": "Voltage L3",
+              "datatype": "Double",
+              "command_metric": null,
+              "command_datatype": null,
+              "conversion_mode": "none",
+              "ingress_conversion": null
+            },
+            {
+              "parameter_uuid": "20000000-0000-4000-8000-000000000004",
+              "metric": "Imported energy",
+              "datatype": "Double",
+              "command_metric": null,
+              "command_datatype": null,
+              "conversion_mode": "none",
+              "ingress_conversion": null
+            },
+            {
+              "parameter_uuid": "20000000-0000-4000-8000-000000000005",
+              "metric": "Exported energy",
+              "datatype": "Double",
+              "command_metric": null,
+              "command_datatype": null,
+              "conversion_mode": "none",
+              "ingress_conversion": null
+            }
+          ]
+        },
+        "birth_metrics": [
+          {
+            "name": "Voltage L1"
+          },
+          {
+            "name": "Voltage L2",
+            "datatype": "Double"
+          },
+          {
+            "name": "Voltage L3",
+            "datatype": "Double"
+          },
+          {
+            "name": "Imported energy",
+            "datatype": "Double"
+          },
+          {
+            "name": "Exported energy",
+            "datatype": "Double"
+          }
+        ]
+      },
+      "lease_token": "90000000-0000-4000-8000-000000000013"
     }
   }
 ]

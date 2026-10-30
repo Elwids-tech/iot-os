@@ -41,7 +41,7 @@ final class DagDeployment
                 $hash = $compiled['definition_hash'];
                 foreach ($definition['bindings'] as $b) {
                     $device = Device::where('organization_id', $org->id)->where('uuid', $b['device_uuid'])->lockForUpdate()->firstOrFail();
-                    abort_unless($device->lifecycle === 'active' && $device->applied_configuration_uuid === $b['configuration_uuid'] && $device->deployment_generation === $b['generation'] && $device->deployment_status === 'applied', 422, 'All bindings must use the currently applied device configuration.');
+                    abort_unless($device->lifecycle === 'active' && $device->applied_configuration_uuid === $b['configuration_uuid'] && $device->applied_generation === $b['generation'] && in_array($device->deployment_status, ['applied', 'failed'], true), 422, 'All bindings must use the currently applied device configuration.');
                 }
                 $commands = collect($definition['nodes'])->where('type', 'action.command.v1')->flatMap(fn ($node) => array_map(fn ($config) => [...$node, 'config' => $config], CommandSettings::configurations($node['config'])));
                 abort_unless(count($grants) === $commands->count(), 422, 'Approve exactly one grant per selected setting.');

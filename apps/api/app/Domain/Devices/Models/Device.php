@@ -15,7 +15,7 @@ final class Device extends DeviceModel
 
     protected function casts(): array
     {
-        return ['state_revision' => 'integer', 'draft' => 'array', 'draft_revision' => 'integer', 'deployment_generation' => 'integer', 'last_seen_at' => 'immutable_datetime', 'runtime_seen_at' => 'immutable_datetime', 'tags' => 'array', 'custom_attributes' => 'array'];
+        return ['state_revision' => 'integer', 'draft' => 'array', 'draft_revision' => 'integer', 'deployment_generation' => 'integer', 'applied_generation' => 'integer', 'last_seen_at' => 'immutable_datetime', 'runtime_seen_at' => 'immutable_datetime', 'tags' => 'array', 'custom_attributes' => 'array'];
     }
 
     public function site(): BelongsTo

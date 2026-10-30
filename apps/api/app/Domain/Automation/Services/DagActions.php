@@ -101,7 +101,7 @@ final class DagActions
                 $binding = collect($d->definition['bindings'])->firstWhere('role', $grant['binding']);
                 $device = Device::where('organization_id', $org->id)->where('uuid', $binding['device_uuid'])->lockForUpdate()->firstOrFail();
                 app(DeviceAuthorization::class)->authorize($actor, DevicePermission::COMMAND, $org, $device);
-                abort_unless($device->applied_configuration_uuid === $binding['configuration_uuid'] && $device->deployment_generation === $binding['generation'], 409, 'Target configuration changed.');
+                abort_unless($device->applied_configuration_uuid === $binding['configuration_uuid'] && $device->applied_generation === $binding['generation'], 409, 'Target configuration changed.');
                 DB::table('automation_command_targets')->insertOrIgnore(['device_id' => $device->id, 'parameter_uuid' => $binding['parameter_uuid']]);
                 $targetQuery = DB::table('automation_command_targets')->where('device_id', $device->id)->where('parameter_uuid', $binding['parameter_uuid']);
                 $target = (clone $targetQuery)->lockForUpdate()->first();
@@ -166,7 +166,7 @@ final class DagActions
             }$org = Organization::findOrFail($w->organization_id);
             $binding = collect($d->definition['bindings'])->firstWhere('role', $grant['binding']);
             $device = Device::where('organization_id', $org->id)->where('uuid', $binding['device_uuid'])->first();
-            if (! $device || $device->lifecycle !== 'active' || $device->applied_configuration_uuid !== $binding['configuration_uuid'] || $device->deployment_generation !== $binding['generation']) {
+            if (! $device || $device->lifecycle !== 'active' || $device->applied_configuration_uuid !== $binding['configuration_uuid'] || $device->applied_generation !== $binding['generation']) {
                 return false;
             }
             try {

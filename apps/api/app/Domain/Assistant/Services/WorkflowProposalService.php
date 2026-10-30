@@ -96,9 +96,9 @@ final class WorkflowProposalService
             $device = $devices->get($binding['device_uuid'] ?? '');
             $configuration = $binding['configuration_uuid'] ?? null;
             $generation = $binding['generation'] ?? null;
-            if ($device?->applied_configuration_uuid && ($configuration === null || $configuration === $device->applied_configuration_uuid) && ($generation === null || $generation === $device->deployment_generation)) {
+            if ($device?->applied_configuration_uuid && ($configuration === null || $configuration === $device->applied_configuration_uuid) && ($generation === null || $generation === $device->applied_generation)) {
                 $binding['configuration_uuid'] = $device->applied_configuration_uuid;
-                $binding['generation'] = $device->deployment_generation;
+                $binding['generation'] = $device->applied_generation;
             }
             $binding['fresh_seconds'] ??= 120;
 
