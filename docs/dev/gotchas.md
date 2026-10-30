@@ -493,6 +493,15 @@ Things that have cost time before. Add to this list when something surprises you
   which starts each change from the address bar. In a browser test, wait for a
   search box to show what you typed before clearing it: until that render the
   controlled box still reads "", so filling "" changes nothing.
+- **Re-picking a parameter never refreshed an automation binding.** Deploy
+  fails with `binding_changed: <role>` when any binding in the draft, used or
+  not, names a device generation or configuration other than the current one.
+  `SearchableSelect` skips `onChange` for an unchanged value, so picking the
+  same parameter again did nothing. Picking another one added a binding under
+  the node ID and left the old role behind. The editor now compares bindings with
+  `generation` and `configuration_uuid` from `/dag/resources`, offers "Use
+  current configuration" and drops unused bindings on save, so `/dag/resources`
+  must return the generation that deploy checks.
 
 ## Docs site
 
