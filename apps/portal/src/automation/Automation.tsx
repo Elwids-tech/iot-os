@@ -2,7 +2,7 @@ import { Scenarios } from "./Scenarios";
 import { Directory } from "./AutomationDirectory";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Route, Routes, useLocation, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@iot-os/api-client";
 import {
@@ -79,6 +79,18 @@ import {
   freshnessWarning,
   suggestedFreshSeconds,
 } from "./freshness";
+import {
+  bindParameter,
+  bindingChanged,
+  bindingDataType,
+  currentBinding,
+  nodesUsing,
+  pruneBindings,
+  refreshBindings,
+  staleBindings,
+  unusedBindings,
+  type StaleBinding,
+} from "./bindings";
 import { activationUnavailableReason, isRunning, unappliedChanges } from "./activation";
 import { WorkflowAssistant } from "./WorkflowAssistant";
 import { newEditorId } from "./assistant-session";
@@ -119,6 +131,16 @@ const empty = (): Workflow => ({
 });
 const url = (org: string, id = "") =>
   `/organizations/${org}/automation${id ? `/${id}` : ""}`;
+/** A device as configured now: deploy refuses a binding to any earlier configuration. */
+const boundResource = (org: string, device: string) =>
+  queryOptions({
+    queryKey: ["automation-resource", org, device],
+    queryFn: () =>
+      api.automation<Page<Resource>>(
+        org,
+        `/dag/resources?${new URLSearchParams({ device_uuid: device })}`,
+      ),
+  });
 
 export default function AutomationRoutes() {
   return (
@@ -142,6 +164,7 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
   // Its own assistant chat: every unsaved automation has the route id "new", and saving does not navigate.
   const [editorId] = useState(() => (id === "new" ? newEditorId() : id));
   const panel = usePanel();
+  const queryClient = useQueryClient();
   function showEvidence(target: EvidenceTarget) {
     setTab("execution");
     setEvidenceTarget(current => ({ ...target, sequence: (current?.sequence ?? 0) + 1 }));
@@ -208,11 +231,22 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
     : JSON.stringify(graph) !== JSON.stringify(saved.workflow) ||
       name !== saved.name;
   const layoutDirty = JSON.stringify(layout) !== layoutSaved;
-  const needsSave = !saved || dirty || layoutDirty;
-  const activationReason = activationUnavailableReason({ busy, empty: graph.nodes.length === 0, saved, live });
+  // Saving drops bindings no node uses; deploy would still check them.
+  const orphaned = unusedBindings(graph).length > 0;
+  const needsSave = !saved || dirty || layoutDirty || orphaned;
+  // Each re-activation of a device's configuration, even a refused one, outdates the bindings to it.
+  const boundDevices = [...new Set(pruneBindings(graph).bindings.map((b) => b.device_uuid))].sort();
+  const deviceQueries = useQueries({
+    queries: boundDevices.map((d) => ({ ...boundResource(org, d), refetchInterval: 30000 })),
+  });
+  const stale = staleBindings(
+    graph,
+    Object.fromEntries(boundDevices.map((d, i) => [d, deviceQueries[i]?.data && (deviceQueries[i].data.data[0] ?? null)])),
+  );
+  const activationReason = activationUnavailableReason({ busy, empty: graph.nodes.length === 0, saved, live, stale: stale.length > 0 });
   // A running automation applies saves straight away; Save draft keeps them for later.
   const running = isRunning(live);
-  const toApply = unappliedChanges({ dirty, saved, live });
+  const toApply = unappliedChanges({ dirty: dirty || orphaned, saved, live });
   const commandNodes = graph.nodes.filter((n) => n.type === "action.command.v1");
   const reactivating = live?.deployment_status === "inactive" && live.deployment_generation > 0;
   useUnsavedContribution(dirty || layoutDirty);
@@ -278,21 +312,22 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
   }
   /** Saves the draft and layout; resolves to the saved workflow, or undefined when validation fails. */
   async function save(): Promise<Saved | undefined> {
+    const workflow = pruneBindings(graph);
     const validation = await api.automation<{
       valid: boolean;
       diagnostics: Diagnostic[];
-    }>(org, "/dag/validate", "POST", { workflow: graph });
+    }>(org, "/dag/validate", "POST", { workflow });
     setDiagnostics(validation.diagnostics ?? []);
     if (!validation.valid) return undefined;
     let w = saved;
-    if (dirty || !w) {
+    if (dirty || orphaned || !w) {
       const response = await api.automation<{ data: Saved }>(
         org,
         w ? `/${w.uuid}` : "",
         w ? "PUT" : "POST",
         {
           name,
-          workflow: graph,
+          workflow,
           ...(w ? { draft_revision: w.draft_revision } : {}),
         },
       );
@@ -371,6 +406,14 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
   }
   /** Saves pending edits, then runs that revision: one step instead of Save followed by a separate activation. */
   async function apply() {
+    // A device may have changed since it was last checked; the alert offers its current configuration.
+    const devices = await Promise.all(
+      boundDevices.map(async (d) => [d, (await queryClient.fetchQuery({ ...boundResource(org, d), staleTime: 0 })).data[0] ?? null] as const),
+    );
+    if (staleBindings(graph, Object.fromEntries(devices)).length) {
+      setReview(false);
+      return;
+    }
     const w = needsSave ? await save() : saved;
     if (!w) {
       setReview(false);
@@ -562,6 +605,14 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
             <AlertDescription>{live.deployment_diagnostic}</AlertDescription>
           </Alert>
         )}
+        {stale.length > 0 && (
+          <StaleBindingsAlert
+            stale={stale}
+            devices={deviceQueries.flatMap((q) => q.data?.data ?? [])}
+            nodes={(role) => nodesUsing(graph, role).map((n) => nodeTitle(n.id))}
+            onRefresh={() => change(refreshBindings(graph, stale))}
+          />
+        )}
         {pendingOperation && (
           <Alert>
             <AlertDescription>
@@ -669,14 +720,7 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
                   org={org}
                   node={node}
                   graph={graph}
-                  onChange={(next, nextNode) => {
-                    change({
-                      ...next,
-                      nodes: next.nodes.map((n) =>
-                        n.id === node.id ? nextNode : n,
-                      ),
-                    });
-                  }}
+                  onChange={change}
                 />
               )}
             />
@@ -845,6 +889,54 @@ function confirmLabel({ save, approve, verb }: { save: boolean; approve: boolean
   return label[0].toUpperCase() + label.slice(1);
 }
 
+/** Deploy refuses bindings to an earlier device configuration; offers each device's current one. */
+function StaleBindingsAlert({
+  stale,
+  devices,
+  nodes,
+  onRefresh,
+}: {
+  stale: StaleBinding[];
+  devices: Resource[];
+  nodes: (role: string) => string[];
+  onRefresh: () => void;
+}) {
+  const changed = [
+    ...new Set(
+      stale
+        .filter((s) => s.current)
+        .map((s) => devices.find((d) => d.device_uuid === s.binding.device_uuid)?.name ?? "A bound device"),
+    ),
+  ];
+  const lost = [...new Set(stale.filter((s) => !s.current).flatMap((s) => nodes(s.binding.role)))];
+  return (
+    <Alert variant="destructive">
+      <AlertTitle>A device changed since this automation was set up</AlertTitle>
+      <AlertDescription>
+        {changed.length > 0 && (
+          <p>
+            {changed.join(", ")} {changed.length > 1 ? "have" : "has"} a newer
+            configuration, so activation fails until the nodes reading{" "}
+            {changed.length > 1 ? "them" : "it"} use it. Their parameters and
+            reading freshness stay the same.
+          </p>
+        )}
+        {lost.length > 0 && (
+          <p>
+            {lost.join(", ")}: the device or parameter is no longer available.
+            Select it again in the node.
+          </p>
+        )}
+        {changed.length > 0 && (
+          <Button variant="outline" size="sm" onClick={onRefresh}>
+            Use current configuration
+          </Button>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 function BindingPicker({
   org,
   node,
@@ -854,7 +946,7 @@ function BindingPicker({
   org: string;
   node: WorkflowNode;
   graph: Workflow;
-  onChange: (graph: Workflow, node: WorkflowNode) => void;
+  onChange: (graph: Workflow) => void;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -869,20 +961,14 @@ function BindingPicker({
         `/dag/resources?${new URLSearchParams({ search, page: String(page) })}`,
       ),
   });
-  const listed = resources.data?.data.find(
-    (d) => d.device_uuid === binding?.device_uuid,
-  );
-  // The bound device may be on another page; its poll interval drives the freshness warning.
+  // The bound device as configured now, which may be on another page. Its poll interval drives the
+  // freshness warning, and the editor's stale check has usually fetched it already.
   const bound = useQuery({
-    queryKey: ["automation-resource", org, binding?.device_uuid],
-    queryFn: () =>
-      api.automation<Page<Resource>>(
-        org,
-        `/dag/resources?${new URLSearchParams({ device_uuid: binding!.device_uuid })}`,
-      ),
-    enabled: Boolean(binding && !device && resources.isSuccess && !listed),
+    ...boundResource(org, binding?.device_uuid ?? ""),
+    enabled: Boolean(binding),
   });
-  const selectedDevice = device ?? listed ?? bound.data?.data[0];
+  const current = bound.data?.data[0];
+  const selectedDevice = device ?? current;
   const boundDevice =
     selectedDevice?.device_uuid === binding?.device_uuid
       ? selectedDevice
@@ -890,14 +976,57 @@ function BindingPicker({
   const warning =
     binding && freshnessWarning(binding.fresh_seconds, boundDevice);
   const hint = warning || freshnessHint(boundDevice);
-  const parameters =
-    selectedDevice?.parameters.filter((p) =>
-      node.type === "action.command.v1"
-        ? p.accepts_command && p.reports_state
-        : p.reports_state,
-    ) ?? [];
+  const refreshed = binding && current && currentBinding(binding, current);
+  // Nothing to say about the bound device while another one is being picked.
+  const drift =
+    !binding || !bound.isSuccess || (device && !boundDevice)
+      ? undefined
+      : !current
+        ? "device"
+        : !refreshed
+          ? "parameter"
+          : bindingChanged(binding, refreshed)
+            ? "configuration"
+            : undefined;
+  const parameters = selectedDevice?.parameters.filter((p) => p.reports_state) ?? [];
   return (
     <>
+      {drift && (
+        <Alert variant="destructive">
+          <AlertTitle>
+            {drift === "configuration"
+              ? "Device configuration changed"
+              : drift === "device"
+                ? "Device unavailable"
+                : "Parameter unavailable"}
+          </AlertTitle>
+          <AlertDescription>
+            <p>
+              {drift === "configuration"
+                ? `This node reads an earlier configuration of ${current!.name}, so activation fails. The parameter and reading freshness stay the same.`
+                : drift === "device"
+                  ? "This device is no longer available to automations. Select another device and parameter."
+                  : `The current configuration of ${current!.name} no longer has this parameter. Select a parameter again.`}
+            </p>
+            {drift === "configuration" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  onChange({
+                    ...graph,
+                    bindings: graph.bindings.map((b) =>
+                      b.role === binding!.role ? refreshed! : b,
+                    ),
+                  })
+                }
+              >
+                Use current configuration
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
       <SearchableSelect
         label="Device"
         value={device?.device_uuid ?? binding?.device_uuid ?? ""}
@@ -940,47 +1069,16 @@ function BindingPicker({
         onChange={(id) => {
           const p = parameters.find((p) => p.uuid === id)!;
           const d = selectedDevice!;
-          const role = node.id;
-          const data_type =
-            p.data_type === "integer" || p.data_type === "number"
-              ? "number"
-              : p.data_type === "boolean"
-                ? "boolean"
-                : "string";
           onChange(
-            {
-              ...graph,
-              bindings: [
-                ...graph.bindings.filter((b) => b.role !== role),
-                {
-                  role,
-                  device_uuid: d.device_uuid,
-                  configuration_uuid: d.configuration_uuid,
-                  generation: d.generation,
-                  parameter_uuid: p.uuid,
-                  data_type,
-                  unit: p.unit ?? "",
-                  fresh_seconds: suggestedFreshSeconds(d, p),
-                },
-              ],
-            },
-            {
-              ...node,
-              config: {
-                ...node.config,
-                binding: role,
-                ...(node.type === "action.command.v1"
-                  ? {
-                      value:
-                        data_type === "boolean"
-                          ? false
-                          : data_type === "number"
-                            ? 0
-                            : "",
-                    }
-                  : {}),
-              },
-            },
+            bindParameter(graph, node, {
+              device_uuid: d.device_uuid,
+              configuration_uuid: d.configuration_uuid,
+              generation: d.generation,
+              parameter_uuid: p.uuid,
+              data_type: bindingDataType(p.data_type),
+              unit: p.unit ?? "",
+              fresh_seconds: suggestedFreshSeconds(d, p),
+            }),
           );
         }}
       />
@@ -997,17 +1095,14 @@ function BindingPicker({
             value={binding.fresh_seconds}
             aria-describedby={hint ? `fresh-${node.id}-hint` : undefined}
             onChange={(e) =>
-              onChange(
-                {
-                  ...graph,
-                  bindings: graph.bindings.map((b) =>
-                    b.role === binding.role
-                      ? { ...b, fresh_seconds: Number(e.target.value) }
-                      : b,
-                  ),
-                },
-                node,
-              )
+              onChange({
+                ...graph,
+                bindings: graph.bindings.map((b) =>
+                  b.role === binding.role
+                    ? { ...b, fresh_seconds: Number(e.target.value) }
+                    : b,
+                ),
+              })
             }
           />
           {hint && (

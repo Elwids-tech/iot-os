@@ -368,6 +368,15 @@ Things that have cost time before. Add to this list when something surprises you
   `device_review_required`. The publisher writes `births-<adapter>.json` before it
   announces a changed metric set, because the 30 s write interval let a crash
   restore a smaller set.
+- **Every device activation, even a refused one, outdates automation bindings.**
+  Deploy compares each binding's `generation` and `configuration_uuid` with
+  `device_runtime.devices` and fails with `binding_changed: <role>`, for bindings
+  no node uses too. The editor reads the current values from `/dag/resources`
+  (`devices.deployment_generation`), offers "Use current configuration" and drops
+  unused bindings on save. That works only while the control plane and the runtime
+  advance the generation together: on main both keep a refused activation's bump.
+  Re-picking the same parameter never refreshed a binding, because
+  `SearchableSelect` skips `onChange` for an unchanged value.
 - **A backfill could leave a new source in Discovery as `src-<hash>`.** The Reporter
   drops reports while four are in flight, and the preview report is what tells
   Laravel the vendor's serial for a Sparkplug source. A tracker with one record in a

@@ -9,8 +9,8 @@ describe("activation availability", () => {
   it("lets unsaved workflows activate, because activation saves them first", () => {
     expect(activationUnavailableReason({ ...state, saved: undefined, live: undefined })).toBeUndefined()
   })
-  it("blocks empty, stale, busy and pending deployment states", () => {
-    for (const override of [{ empty: true }, { live: { draft_revision: 6 } }, { busy: true }, { live: { ...revision, pending_operation_uuid: "pending" } }])
+  it("blocks empty, stale, busy, pending deployment and outdated binding states", () => {
+    for (const override of [{ empty: true }, { live: { draft_revision: 6 } }, { busy: true }, { live: { ...revision, pending_operation_uuid: "pending" } }, { stale: true }])
       expect(activationUnavailableReason({ ...state, ...override })).toBeTruthy()
   })
   it("allows reactivation after the disable acknowledgement clears pending state", () => {
