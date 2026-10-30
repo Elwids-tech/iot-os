@@ -27,7 +27,7 @@ before it merges, never stacked (plan, Delivery):
 ## Phase 1: Documents pull request
 
 - [X] T001 Run `/speckit-analyze` over `specs/023-billing-accounts/spec.md`, `plan.md` and `tasks.md`, and fix what it finds in those files
-- [ ] T002 Open the documents pull request from `main` with `specs/023-billing-accounts/`, `docs/adr/ADR-026-billing-accounts.md` and its row in `docs/adr/README.md`; `./taskw lint` (docs link check) passes; once the owner approves, set ADR-026's status and its index row to Accepted before merging
+- [X] T002 Open the documents pull request from `main` with `specs/023-billing-accounts/`, `docs/adr/ADR-026-billing-accounts.md` and its row in `docs/adr/README.md`; `./taskw lint` (docs link check) passes; once the owner approves, set ADR-026's status and its index row to Accepted before merging
 
 **Checkpoint**: the design is on `main`; implementation pull requests start from it.
 
