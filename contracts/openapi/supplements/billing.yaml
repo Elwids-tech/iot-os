@@ -1,0 +1,14 @@
+# Billing accounts (spec 023, ADR-026).
+#
+# Statuses the code returns that inference misses. Request and response bodies are
+# inferred from the form requests and resources.
+# Format: ../meta/supplement.schema.json.
+operations:
+  DELETE /v1/admin/billing-accounts/{billingAccount}:
+    responses:
+      '409':
+        description: The billing account still has organizations; move them before deleting it. Nothing was deleted.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'

@@ -12,3 +12,4 @@ require app_path('Domain/Overview/routes.php');
 require app_path('Domain/DeviceAdapters/routes.php');
 require app_path('Domain/Agents/routes/api.php');
 require app_path('Domain/Support/routes/api.php');
+require app_path('Domain/Billing/routes/api.php');

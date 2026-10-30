@@ -25,6 +25,19 @@ Things that have cost time before. Add to this list when something surprises you
   invalid-UUID error, so a malformed id that would be a 500 on Postgres passes in
   tests. Assert on the query log, or test against Postgres, when UUID parsing
   matters.
+- **Creating an `Organization` creates a billing account.** Every organization
+  belongs to exactly one billing account (spec 023), so the model's `creating` hook
+  makes one named after it unless `billing_account_id` is set, and `created` opens
+  its assignment. Tests that need organizations on one account use
+  `Organization::factory()->forBillingAccount($account)`. Quiet saves
+  (`saveQuietly`, `WithoutModelEvents` in `DatabaseSeeder`) skip the hook, so
+  `OrganizationSeeder` sets the account and assignment itself.
+- **On SQLite, changing a column rebuilds the table, and the rebuild clears
+  set-null keys that point at it.** Inside a migration's transaction foreign keys stay
+  on, so dropping the old table fires `ON DELETE SET NULL` in every child table.
+  The billing accounts migration makes `organizations.billing_account_id` required
+  before it creates `billing_account_assignments` for that reason. Production runs
+  PostgreSQL, but `contract:export` and the local suite migrate SQLite.
 - **`assertThrows` with a closure needs a `bool` back.** Laravel calls the closure
   with the exception and treats its return value as the verdict, so
   `fn (HttpException $e) => $this->assertSame(409, $e->getStatusCode())` fails with

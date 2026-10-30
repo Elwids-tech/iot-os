@@ -231,3 +231,44 @@ with a count) and `DELETE organizations/{uuid}?slug=<slug>` (204, 409 with
 The first administrator of a new deployment is created with
 `php artisan deployment:administrator EMAIL --output=<new private file>`
 ([release](../ops/release.md)); further super administrators are added from admin.
+
+### Billing accounts
+
+Every organization belongs to exactly one billing account, the payer of record
+([spec 023](../../specs/023-billing-accounts/spec.md),
+[ADR-026](../adr/ADR-026-billing-accounts.md)). An account groups the organizations
+one customer of the platform pays for, such as an integrator's customers, each in an
+organization of its own. **An account grants no access**: owning it changes nothing
+anyone can read or do inside its organizations, and members never see their
+organization's account.
+
+- **Creating an organization** picks a new billing account (named after the
+  organization, with an optional contact email) or an existing one. A request that
+  names neither gets a new account, so older API clients keep working. Platform
+  administrators are not bound by an account's limit.
+- **Billing accounts** in the admin app lists accounts with their organizations,
+  owners and limit. An account's page edits its name, contact email, notes and
+  **organization limit** (0 to 1000, default 1), adds and removes **owners**, moves
+  organizations to another account (nothing inside the organization changes) and
+  shows its history: changes, owner changes, and organizations joining and leaving,
+  with who and when. Only an account with no organizations can be deleted.
+- **Owners** create organizations under their account themselves, while it is below
+  its limit, and become each new organization's Organization Admin as an ordinary
+  member.
+- Each account change is one audit event with no organization
+  (`billing_account.created`, `updated`, `deleted`, `owner_added`, `owner_removed`,
+  and `organization.billing_account_changed` on a move).
+  `billing_account_assignments` records which account each organization belonged to
+  from when to when; deleting an organization closes its period and keeps the row.
+  The rollout gave every existing organization an account of its own, with no owners
+  and a limit of 1, from the organization's creation.
+
+Admin routes need `PlatformAdministration.manage-organizations`:
+`GET/POST admin/billing-accounts`, `GET/PATCH/DELETE admin/billing-accounts/{uuid}`
+(409 while it has organizations), `PUT/DELETE admin/billing-accounts/{uuid}/owners/{user_id}`,
+and `PUT admin/organizations/{uuid}/billing-account` (204). `POST admin/organizations`
+takes `billing_account_uuid` or `new_billing_account: {name, contact_email}`, and the
+admin organization list carries `billing_account`. Owners use
+`GET billing-accounts` and `POST billing-accounts/{uuid}/organizations` (`name`, and
+an optional `slug`; 422 on `billing_account` at the limit). Any account the person
+does not own answers 404. `GET me` reports `capabilities.billing_accounts`.

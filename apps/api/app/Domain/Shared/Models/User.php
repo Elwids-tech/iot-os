@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Shared\Models;
 
 use App\Domain\Authorization\Models\PlatformRole;
+use App\Domain\Billing\Models\BillingAccount;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -45,6 +46,18 @@ class User extends Authenticatable implements OAuthenticatable
     public function organizations(): BelongsToMany
     {
         return $this->belongsToMany(Organization::class);
+    }
+
+    /**
+     * Billing accounts this person owns (spec 023). Soft-deleted accounts drop out
+     * through the account's own scope. Owning an account grants no organization access.
+     *
+     * @return BelongsToMany<BillingAccount, $this>
+     */
+    public function ownedBillingAccounts(): BelongsToMany
+    {
+        return $this->belongsToMany(BillingAccount::class, 'billing_account_owners')
+            ->withPivot(['added_by', 'created_at']);
     }
 
     /**

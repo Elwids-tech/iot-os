@@ -8,6 +8,8 @@ use App\Domain\Administration\Http\Requests\StoreOrganizationRequest;
 use App\Domain\Administration\Http\Requests\UpdateOrganizationRequest;
 use App\Domain\Administration\Services\OrganizationDefaultRoles;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
+use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Billing\Services\BillingAccounts;
 use App\Domain\Shared\Http\Resources\OrganizationResource;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +21,10 @@ use Illuminate\Support\Facades\Gate;
 
 final class PlatformOrganizationController
 {
-    public function __construct(private readonly OrganizationDefaultRoles $defaultRoles) {}
+    public function __construct(
+        private readonly OrganizationDefaultRoles $defaultRoles,
+        private readonly BillingAccounts $billingAccounts,
+    ) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -35,6 +40,7 @@ final class PlatformOrganizationController
                         ->orWhere('slug', 'like', "%{$search}%");
                 });
             })
+            ->with('billingAccount:id,uuid,name')
             ->withCount('users')
             // Devices block deletion (spec 006), so the directory shows how many each has.
             ->addSelect(['devices_count' => DB::table('devices')
@@ -51,11 +57,22 @@ final class PlatformOrganizationController
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
+        // The organization and a new billing account are created together or not at all (spec 023).
         $organization = DB::transaction(function () use ($request): Organization {
-            $organization = Organization::query()->create($request->validated());
+            $values = $request->validated();
+            $account = isset($values['billing_account_uuid'])
+                ? BillingAccount::query()->where('uuid', $values['billing_account_uuid'])->firstOrFail()
+                : $this->billingAccounts->create([
+                    'name' => $values['new_billing_account']['name'] ?? $values['name'],
+                    'contact_email' => $values['new_billing_account']['contact_email'] ?? null,
+                ], $request->user());
+
+            $organization = new Organization($request->safe()->only(['name', 'slug']));
+            $organization->billing_account_id = $account->getKey();
+            $organization->save();
             $this->defaultRoles->ensure($organization);
 
-            return $organization;
+            return $organization->load('billingAccount:id,uuid,name');
         });
 
         return OrganizationResource::make($organization)

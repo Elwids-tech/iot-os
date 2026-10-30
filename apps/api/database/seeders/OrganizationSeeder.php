@@ -6,6 +6,8 @@ namespace Database\Seeders;
 
 use App\Domain\Administration\Services\OrganizationDefaultRoles;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
+use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Billing\Models\BillingAccountAssignment;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Database\Seeder;
@@ -53,8 +55,24 @@ class OrganizationSeeder extends Seeder
                 $organization = Organization::withTrashed()->firstOrNew(['slug' => $slug]);
                 $organization->name = $definition['name'];
                 $organization->uuid ??= (string) Str::uuid();
+                // Quiet saves skip the model hook that gives an organization its billing account (spec 023).
+                $organization->billing_account_id ??= BillingAccount::query()->forceCreate([
+                    'uuid' => (string) Str::uuid(),
+                    'name' => $definition['name'],
+                    'organization_limit' => 1,
+                ])->getKey();
                 $organization->saveQuietly();
                 $organization->restoreQuietly();
+
+                if ($organization->wasRecentlyCreated) {
+                    BillingAccountAssignment::query()->create([
+                        'billing_account_id' => $organization->billing_account_id,
+                        'organization_id' => $organization->id,
+                        'organization_uuid' => $organization->uuid,
+                        'organization_name' => $organization->name,
+                        'started_at' => $organization->created_at,
+                    ]);
+                }
                 $roles = app(OrganizationDefaultRoles::class)->ensure($organization);
 
                 foreach ($definition['users'] as $userDefinition) {

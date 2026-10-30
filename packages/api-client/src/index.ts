@@ -22,6 +22,14 @@ import type {
 } from "./devices"
 
 import type { Dashboard, DashboardInput, DashboardRevision, DashboardRevisionSummary } from "./dashboards"
+import type {
+  BillingAccountDetail,
+  BillingAccountOwner,
+  BillingAccountSummary,
+  BillingAccountValues,
+  OwnedBillingAccount,
+  OwnerOrganization,
+} from "./billing"
 export * from "./dashboards"
 export * from "./devices"
 export * from "./telemetry"
@@ -32,6 +40,7 @@ export * from "./geospatial"
 export * from "./overview"
 export * from "./agents"
 export * from "./support"
+export * from "./billing"
 
 export type Organization = {
   uuid: string
@@ -40,6 +49,8 @@ export type Organization = {
   users_count?: number
   /** Admin directory only; devices block deletion (spec 006). */
   devices_count?: number
+  /** Admin directory and admin writes only; members never see it (spec 023). */
+  billing_account?: { uuid: string; name: string }
   capabilities?: {
     manage_administration: boolean
     /** Member, invitation and role screens. Older payloads omit it. */
@@ -225,6 +236,8 @@ export type AuthenticatedUser = {
     manage_assistant?: boolean
     /** Super administrators work the support ticket queue (spec 015). */
     manage_tickets?: boolean
+    /** Owns at least one billing account (spec 023). Older payloads omit it. */
+    billing_accounts?: boolean
   }
   organizations: Organization[]
 }
@@ -924,9 +937,15 @@ export class ApiClient {
     )
   }
 
+  /**
+   * Creates the organization under `billing_account_uuid`, or with `new_billing_account`;
+   * with neither, a new account named after the organization (spec 023).
+   */
   async createAdminOrganization(values: {
     name: string
     slug: string
+    billing_account_uuid?: string
+    new_billing_account?: { name: string; contact_email?: string | null }
   }): Promise<Organization> {
     return this.request<ApiResponse<Organization>>("/api/v1/admin/organizations", {
       method: "POST",
@@ -941,6 +960,86 @@ export class ApiClient {
     return this.request<ApiResponse<Organization>>(
       `/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}`,
       { method: "PATCH", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  async adminBillingAccounts(
+    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> = {},
+  ): Promise<PaginatedResponse<BillingAccountSummary>> {
+    return this.request<PaginatedResponse<BillingAccountSummary>>(
+      `/api/v1/admin/billing-accounts${directoryQuery(query)}`,
+    )
+  }
+
+  async createBillingAccount(values: BillingAccountValues): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>("/api/v1/admin/billing-accounts", {
+      method: "POST",
+      body: JSON.stringify(values),
+    }).then((response) => response.data)
+  }
+
+  async adminBillingAccount(billingAccountUuid: string): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}`,
+    ).then((response) => response.data)
+  }
+
+  async updateBillingAccount(
+    billingAccountUuid: string,
+    values: Partial<BillingAccountValues>,
+  ): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}`,
+      { method: "PATCH", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  /** Only an account with no organizations can be deleted; otherwise 409. */
+  async deleteBillingAccount(billingAccountUuid: string): Promise<void> {
+    await this.request(`/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}`, {
+      method: "DELETE",
+    })
+  }
+
+  async addBillingAccountOwner(billingAccountUuid: string, userId: number): Promise<BillingAccountOwner[]> {
+    return this.request<ApiResponse<BillingAccountOwner[]>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/owners/${userId}`,
+      { method: "PUT" },
+    ).then((response) => response.data)
+  }
+
+  async removeBillingAccountOwner(billingAccountUuid: string, userId: number): Promise<void> {
+    await this.request(`/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/owners/${userId}`, {
+      method: "DELETE",
+    })
+  }
+
+  /** Moves the organization from now on; nothing inside it changes, and the limit does not apply. */
+  async moveOrganizationBillingAccount(organizationUuid: string, billingAccountUuid: string): Promise<void> {
+    await this.request(`/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}/billing-account`, {
+      method: "PUT",
+      body: JSON.stringify({ billing_account_uuid: billingAccountUuid }),
+    })
+  }
+
+  /** The billing accounts the signed-in person owns (spec 023). */
+  async ownedBillingAccounts(): Promise<OwnedBillingAccount[]> {
+    return this.request<ApiResponse<OwnedBillingAccount[]>>("/api/v1/billing-accounts").then(
+      (response) => response.data,
+    )
+  }
+
+  /**
+   * Creates an organization under an owned account and makes the owner its Organization
+   * Admin. Without `slug`, the server picks a free one. 422 on `billing_account` at the limit.
+   */
+  async createOwnedOrganization(
+    billingAccountUuid: string,
+    values: { name: string; slug?: string },
+  ): Promise<OwnerOrganization> {
+    return this.request<ApiResponse<OwnerOrganization>>(
+      `/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/organizations`,
+      { method: "POST", body: JSON.stringify(values) },
     ).then((response) => response.data)
   }
 

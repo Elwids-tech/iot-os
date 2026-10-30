@@ -2,10 +2,11 @@
 
 These operations, and two new fields on organization creation, all sit under `/api/v1`
 and behind `auth:sanctum`. They join the generated OpenAPI document
-(`contracts/openapi/openapi.json`, ADR-016) under the tags `Platform billing` (admin)
-and `Billing` (owners), with typed bodies; none is added to `pending-schemas.json`.
-`contracts/openapi/supplements/billing.yaml` adds the "one of" request rule and the
-409 and 422 responses that inference misses. `packages/api-client` gains the matching
+(`contracts/openapi/openapi.json`, ADR-016) with typed bodies, tagged by controller
+like the rest of the document; none is added to `pending-schemas.json`.
+`contracts/openapi/supplements/billing.yaml` adds the 409 on deletion, which inference
+misses. The route parameter for an account is `{billingAccount}`; below it is
+shortened to `{account}`. `packages/api-client` gains the matching
 types and methods in the same pull request.
 
 Billing accounts are identified by `uuid`, and users by integer `id` (ADR-013).
@@ -31,7 +32,7 @@ Query: `search` (matches name or contact email), `page`, `per_page` (1–100, de
       "contact_email": "billing@example.com",
       "organization_limit": 10,
       "organizations_count": 3,
-      "owners": [{ "id": 42, "name": "Pat Example", "email": "pat@example.com" }],
+      "owners": [{ "id": 42, "name": "Pat Example", "email": "pat@example.com", "added_at": "2026-10-31T09:05:00Z" }],
       "created_at": "2026-10-31T09:00:00Z"
     }
   ],
@@ -75,18 +76,26 @@ Answers 201 with the detail shape below. It is audited as `billing_account.creat
         "at": "2026-10-31T09:10:00Z",
         "action": "organization_joined",
         "actor": { "id": 1, "name": "Platform Admin" },
-        "details": { "organization": { "uuid": "a0000000-0000-4000-8000-000000000001", "name": "Corner Shop" } }
+        "organization": { "uuid": "a0000000-0000-4000-8000-000000000001", "name": "Corner Shop" }
+      },
+      {
+        "at": "2026-10-31T09:05:00Z",
+        "action": "updated",
+        "actor": { "id": 1, "name": "Platform Admin" },
+        "changes": [{ "field": "organization_limit", "from": "1", "to": "10" }]
       }
     ]
   }
 }
 ```
 
-`history` holds the latest 100 entries, newest first. `action` is one of:
+`history` holds the latest 100 entries, newest first. `action` is one of the
+following, and each entry carries only its own extra field:
 
-- `created`, `updated` (`details.changes`);
-- `owner_added`, `owner_removed` (`details.user`);
-- `organization_joined`, `organization_left` (`details.organization`).
+- `created`;
+- `updated`, with `changes`: each changed field, its old and new value as text;
+- `owner_added`, `owner_removed`, with `user` (`{id, name}`);
+- `organization_joined`, `organization_left`, with `organization` (`{uuid, name}`).
 
 `actor` is null for the rollout and for changes made outside a request. Deletion is
 audited as `billing_account.deleted`, but a deleted account answers 404, so it never
@@ -123,8 +132,8 @@ event. Memberships are never touched.
 
 Body: `{"billing_account_uuid": "d0000000-0000-4000-8000-000000000002"}`. It closes
 the current assignment, opens one on the target account, and records
-`organization.billing_account_changed`. Answers 200 with the organization in the admin
-list shape (below). When the target is the current account it answers 200 and
+`organization.billing_account_changed`. Answers 204; clients reload the organization
+list and the accounts. When the target is the current account it answers 204 and
 changes nothing. The organization limit does not apply.
 
 ### `POST admin/organizations` (changed)
@@ -176,8 +185,9 @@ person owns few accounts.
 
 Body: `name` (required) and `slug` (optional; generated when absent). It creates the
 organization under the account with the built-in roles, and makes the signed-in owner
-its Organization Admin. Answers 201 with the `OrganizationResource` the portal
-already uses, including `capabilities`.
+its Organization Admin. Answers 201 with `{"data": {"uuid", "name", "slug"}}`. The
+portal then reloads the session (`GET me`), which carries the new organization and its
+`capabilities`.
 
 At or above the limit:
 

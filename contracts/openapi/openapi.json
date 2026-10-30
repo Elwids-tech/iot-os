@@ -2882,6 +2882,524 @@
         ]
       }
     },
+    "/v1/admin/billing-accounts": {
+      "get": {
+        "operationId": "v1.admin.billing-accounts.index",
+        "tags": [
+          "PlatformBillingAccount"
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated set of `BillingAccountResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BillingAccountResource"
+                      }
+                    },
+                    "links": {
+                      "type": "object",
+                      "properties": {
+                        "first": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "last": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "prev": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "next": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "first",
+                        "last",
+                        "prev",
+                        "next"
+                      ]
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "current_page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "from": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 1
+                        },
+                        "last_page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "links": {
+                          "type": "array",
+                          "description": "Generated paginator links.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "active": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "url",
+                              "label",
+                              "active"
+                            ]
+                          }
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Base path for paginator generated URLs."
+                        },
+                        "per_page": {
+                          "type": "integer",
+                          "description": "Number of items shown per page.",
+                          "minimum": 0
+                        },
+                        "to": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "description": "Number of the last item in the slice.",
+                          "minimum": 1
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "Total number of items being paginated.",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "current_page",
+                        "from",
+                        "last_page",
+                        "links",
+                        "path",
+                        "per_page",
+                        "to",
+                        "total"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "links",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "post": {
+        "operationId": "v1.admin.billing-accounts.store",
+        "tags": [
+          "PlatformBillingAccount"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreBillingAccountRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}": {
+      "get": {
+        "operationId": "v1.admin.billing-accounts.show",
+        "tags": [
+          "PlatformBillingAccount"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "delete": {
+        "operationId": "v1.admin.billing-accounts.destroy",
+        "tags": [
+          "PlatformBillingAccount"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The billing account still has organizations; move them before deleting it. Nothing was deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "patch": {
+        "operationId": "v1.admin.billing-accounts.update",
+        "tags": [
+          "PlatformBillingAccount"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBillingAccountRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/owners/{user}": {
+      "put": {
+        "operationId": "v1.admin.billing-accounts.owners.update",
+        "tags": [
+          "PlatformBillingAccountOwner"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "description": "The user ID. A value that does not match returns 404.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of `BillingAccountOwnerResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BillingAccountOwnerResource"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "delete": {
+        "operationId": "v1.admin.billing-accounts.owners.destroy",
+        "tags": [
+          "PlatformBillingAccountOwner"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "description": "The user ID. A value that does not match returns 404.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
     "/v1/admin/invitations": {
       "get": {
         "operationId": "v1.admin.invitations.index",
@@ -3167,6 +3685,63 @@
         "x-audience": "platform-admin",
         "x-platform-permission": "PlatformAdministration.manage-organizations",
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/admin/organizations/{organization}/billing-account": {
+      "put": {
+        "operationId": "v1.admin.organizations.billing-account.update",
+        "tags": [
+          "PlatformOrganizationBillingAccount"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveOrganizationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
       }
     },
     "/v1/admin/organizations/{organization}/deletion": {
@@ -5650,6 +6225,114 @@
           }
         ],
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/billing-accounts": {
+      "get": {
+        "operationId": "v1.billing-accounts.index",
+        "tags": [
+          "OwnedBillingAccount"
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of `OwnedBillingAccountResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OwnedBillingAccountResource"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/organizations": {
+      "post": {
+        "operationId": "v1.billing-accounts.organizations.store",
+        "tags": [
+          "OwnedBillingAccountOrganization"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreOwnedOrganizationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "`OwnerOrganizationResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OwnerOrganizationResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
       }
     },
     "/v1/invitations/{token}": {
@@ -26684,6 +27367,276 @@
           }
         }
       },
+      "BillingAccountChangeResource": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "field",
+          "from",
+          "to"
+        ],
+        "title": "BillingAccountChangeResource"
+      },
+      "BillingAccountDetailResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "contact_email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organization_limit": {
+            "type": "integer"
+          },
+          "organizations_count": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingAccountOwnerResource"
+            }
+          },
+          "organizations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingAccountOrganizationResource"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingAccountHistoryResource"
+            }
+          }
+        },
+        "required": [
+          "uuid",
+          "name",
+          "contact_email",
+          "notes",
+          "organization_limit",
+          "organizations_count",
+          "created_at",
+          "owners",
+          "organizations",
+          "history"
+        ],
+        "title": "BillingAccountDetailResource"
+      },
+      "BillingAccountHistoryResource": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "organization": {
+            "type": "object",
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "name"
+            ]
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingAccountChangeResource"
+            }
+          }
+        },
+        "required": [
+          "at",
+          "action",
+          "actor"
+        ],
+        "title": "BillingAccountHistoryResource"
+      },
+      "BillingAccountOrganizationResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "users_count": {
+            "type": "integer"
+          },
+          "devices_count": {
+            "type": "integer"
+          },
+          "assigned_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "uuid",
+          "name",
+          "slug",
+          "users_count",
+          "devices_count",
+          "assigned_at"
+        ],
+        "title": "BillingAccountOrganizationResource"
+      },
+      "BillingAccountOwnerResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "added_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "added_at"
+        ],
+        "title": "BillingAccountOwnerResource"
+      },
+      "BillingAccountResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "contact_email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organization_limit": {
+            "type": "integer"
+          },
+          "organizations_count": {
+            "type": "integer"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingAccountOwnerResource"
+            }
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "uuid",
+          "name",
+          "contact_email",
+          "organization_limit",
+          "organizations_count",
+          "owners",
+          "created_at"
+        ],
+        "title": "BillingAccountResource"
+      },
       "CompactPage": {
         "type": "object",
         "description": "Compact page metadata used by most paginated lists. Combine with `allOf` and an object that describes `data`. Some operations add fields to `meta`.",
@@ -27767,6 +28720,19 @@
         ],
         "title": "LoginRequest"
       },
+      "MoveOrganizationRequest": {
+        "type": "object",
+        "properties": {
+          "billing_account_uuid": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "billing_account_uuid"
+        ],
+        "title": "MoveOrganizationRequest"
+      },
       "OrganizationDeletionEntryResource": {
         "type": "object",
         "properties": {
@@ -27973,6 +28939,80 @@
             }
           }
         }
+      },
+      "OwnedBillingAccountResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "organization_limit": {
+            "type": "integer"
+          },
+          "organizations_count": {
+            "type": "integer"
+          },
+          "organizations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uuid": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "member": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "uuid",
+                "name",
+                "created_at",
+                "member"
+              ]
+            }
+          }
+        },
+        "required": [
+          "uuid",
+          "name",
+          "organization_limit",
+          "organizations_count",
+          "organizations"
+        ],
+        "title": "OwnedBillingAccountResource"
+      },
+      "OwnerOrganizationResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "uuid",
+          "name",
+          "slug"
+        ],
+        "title": "OwnerOrganizationResource"
       },
       "PlatformTeamMemberResource": {
         "type": "object",
@@ -28409,6 +29449,39 @@
           }
         }
       },
+      "StoreBillingAccountRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "contact_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email",
+            "maxLength": 255
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "organization_limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "StoreBillingAccountRequest"
+      },
       "StoreBindingParameterMappingRequest": {
         "type": "object",
         "properties": {
@@ -28542,6 +29615,34 @@
           "slug": {
             "type": "string",
             "maxLength": 255
+          },
+          "billing_account_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "new_billing_account": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "contact_email": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "email",
+                "maxLength": 255
+              }
+            },
+            "required": [
+              "name",
+              "contact_email"
+            ]
           }
         },
         "required": [
@@ -28549,6 +29650,26 @@
           "slug"
         ],
         "title": "StoreOrganizationRequest"
+      },
+      "StoreOwnedOrganizationRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "StoreOwnedOrganizationRequest"
       },
       "StoreProfileParameterGroupRequest": {
         "type": "object",
@@ -29613,6 +30734,36 @@
           "revision"
         ],
         "title": "UpdateAssistantSettingsRequest"
+      },
+      "UpdateBillingAccountRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "contact_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email",
+            "maxLength": 255
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "organization_limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "title": "UpdateBillingAccountRequest"
       },
       "UpdateDeviceProfileRequest": {
         "type": "object",
