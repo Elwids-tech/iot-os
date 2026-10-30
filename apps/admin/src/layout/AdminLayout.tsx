@@ -41,12 +41,14 @@ import {
   ShieldCheckIcon,
   SparklesIcon,
   UsersIcon,
+  WalletIcon,
 } from "lucide-react"
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom"
 
 const navigationGroups = [
   [
     { title: "Organizations", to: "/organizations", icon: Building2Icon },
+    { title: "Billing accounts", to: "/billing-accounts", icon: WalletIcon },
     { title: "Users", to: "/users", icon: UsersIcon },
     { title: "Roles", to: "/roles", icon: ShieldCheckIcon },
     { title: "Tickets", to: "/tickets", icon: InboxIcon },

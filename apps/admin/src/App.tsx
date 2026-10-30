@@ -10,6 +10,8 @@ import { AdminLayout } from "./layout/AdminLayout"
 import { apiClient } from "./lib/api-client"
 import { portalUrl } from "./lib/portal"
 import { NewRolePage } from "./pages/NewRolePage"
+import { BillingAccountPage } from "./pages/BillingAccountPage"
+import { BillingAccountsPage } from "./pages/BillingAccountsPage"
 import { OrganizationPermissionsPage } from "./pages/OrganizationPermissionsPage"
 import { OrganizationsPage } from "./pages/OrganizationsPage"
 import { RolePermissionsPage } from "./pages/RolePermissionsPage"
@@ -113,6 +115,8 @@ function PlatformAdministrationApp() {
         <Route index element={<Navigate to="/organizations" replace />} />
         <Route path="organizations" element={<OrganizationsPage />} />
         <Route path="organizations/:organizationUuid/permissions" element={<OrganizationPermissionsPage />} />
+        <Route path="billing-accounts" element={<BillingAccountsPage />} />
+        <Route path="billing-accounts/:billingAccountUuid" element={<BillingAccountPage />} />
         <Route path="users" element={<UsersPage currentUser={screen.user} />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="roles/new" element={<NewRolePage />} />
