@@ -8,6 +8,7 @@ use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Services\DagAuthoring;
 use App\Domain\Automation\Services\DagAuthorization;
 use App\Domain\Automation\Services\DagDeployment;
+use App\Domain\Automation\Services\DagDiagnostic;
 use App\Domain\Automation\Services\DagDirectory;
 use App\Domain\Automation\Services\DagTimeline;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
@@ -135,7 +136,12 @@ final class DagController
     {
         $this->auth->authorize($r->user(), $organization, 'view', $workflow);
 
-        return ['data' => $workflow->applied_deployment_uuid ? $this->runtime->request('GET', '/internal/dag/execution', ['operation_uuid' => $workflow->applied_deployment_uuid, 'organization_uuid' => $organization->uuid]) : null];
+        $execution = $workflow->applied_deployment_uuid ? $this->runtime->request('GET', '/internal/dag/execution', ['operation_uuid' => $workflow->applied_deployment_uuid, 'organization_uuid' => $organization->uuid]) : null;
+        if (is_string($execution['stopped_reason'] ?? null)) {
+            $execution['stopped_reason'] = DagDiagnostic::forWorkflow($execution['stopped_reason'], $workflow->workflow, $organization->id);
+        }
+
+        return ['data' => $execution];
     }
 
     public function history(Request $r, Organization $organization, Workflow $workflow): array
@@ -255,6 +261,6 @@ final class DagController
         // The draft revision that runs (or is being applied), so the editor knows whether saved changes still need applying.
         $active = $w->desired_deployment_uuid ? DB::table('automation_deployments')->where('uuid', $w->desired_deployment_uuid)->value('draft_revision') : null;
 
-        return [...$w->only(self::VIEW), 'deployment_diagnostic' => $deployment?->diagnostic, 'active_revision' => $active];
+        return [...$w->only(self::VIEW), 'deployment_diagnostic' => DagDiagnostic::forWorkflow($deployment?->diagnostic, $w->workflow, $w->organization_id), 'active_revision' => $active];
     }
 }

@@ -92,7 +92,7 @@ duplicates, then drops events from older generations, operations or sessions.
 | `command.status.v1` | Command sent, observed, failed, timed out or uncertain |
 | `runtime.heartbeat.v1` | Every 10 seconds; presence becomes unknown after 20 seconds without one |
 | `retention.cleanup.v1` | Result of a per-organization cleanup pass |
-| `workflow.deployment.v1`, `workflow.suspended.v1` | A deployment applied or failed; an execution was suspended (`binding_changed`) |
+| `workflow.deployment.v1`, `workflow.suspended.v1` | A deployment applied or failed; an execution was suspended (`reason`, for example `binding_changed: <role>` or `device_review_required: <role>`) |
 | `workflow.transition.v1` | Geofence rule `activated` / `cleared` (becomes an alert episode) |
 | `workflow.membership.v1` | Geofence `entered` / `exited` |
 | `automation.intent.v1` | A DAG action request, re-authorized by `automation-worker` |

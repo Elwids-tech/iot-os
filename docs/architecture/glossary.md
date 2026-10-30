@@ -197,7 +197,7 @@ of two schemas:
 **Deployment.** An immutable activation (or disable) snapshot of a workflow
 revision, with its generation and, for DAGs, exact-value **command grants**
 approved by a user with `Device.command`. `stopped_reason`: `superseded`,
-`disabled`, `binding_changed`. `Automation/Models/Deployment.php`
+`disabled`, `binding_changed`, `device_review_required`. `Automation/Models/Deployment.php`
 
 **Scenario.** A saved, timed test case for a v2 workflow, run in simulation with
 expected outputs and actions. `Automation/Models/Scenario.php`

@@ -575,7 +575,13 @@ module.exports = function (RED) {
       const birthMetrics = [...accumulated.values()];
       const names = JSON.stringify(birthMetrics.map((m) => [m.name, m.datatype]).sort((a, b) => a[0].localeCompare(b[0])));
       births.set(id, { metrics: birthMetrics, names });
-      if (!previous || previous.names !== names) await deliver("DBIRTH", id, birthMetrics);
+      // Store a changed metric set before announcing it. A restarted publisher births
+      // its sources from the file, and a birth missing a metric it already announced
+      // puts an activated device in review.
+      if (!previous || previous.names !== names) {
+        births.flush(true);
+        await deliver("DBIRTH", id, birthMetrics);
+      }
       if (binding) await deliver("DDATA", id, metrics);
       // Only stored readings count as seen: previews of a source that is not activated
       // yet can be fetched again and stored once it is (for example after a cursor reset).

@@ -38,6 +38,7 @@ the code as evidence.
 | [ADR-021](ADR-021-developer-docs-only.md) | The marketing website moves to its own repository; the platform's front door and developer docs stay here, published to GitHub Pages on the platform domain; amends ADR-020 | Accepted |
 | [ADR-022](ADR-022-webhook-receiver.md) | A platform webhook receiver checks secrets and limits, then hands deliveries to each tenant's ingress broker; amends ADR-010 | Accepted |
 | [ADR-023](ADR-023-protocol-connectors.md) | Every protocol is a connector feeding one telemetry envelope; Sparkplug B is the edge-gateway uplink; typed protocols use point maps | Accepted (direction) |
+| [ADR-025](ADR-025-review-follows-current-birth.md) | A device's review follows its source's current birth: a later compatible birth clears it, and automations report `device_review_required` | Proposed |
 
 ## Template
 

@@ -704,7 +704,11 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
                     Consumer{" "}
                     {execution.data.data.consumer_healthy
                       ? "healthy"
-                      : "unhealthy"}{" "}
+                      : "unhealthy"}
+                  </p>
+                )}
+                {execution.data?.data?.stopped_reason && (
+                  <p className="text-sm text-muted-foreground">
                     {execution.data.data.stopped_reason}
                   </p>
                 )}

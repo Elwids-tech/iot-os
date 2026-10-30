@@ -88,7 +88,8 @@ class DedupLog {
 // publisher announces every known source right after its NBIRTH. Without it a
 // redeploy (each device activation is one) leaves every source offline until it
 // reports again, and activating the next device fails. Written at most every
-// `intervalMs` while running, and on close.
+// `intervalMs` while running, on close, and by the publisher before it announces a
+// changed metric set, so a restart never announces fewer metrics than were known.
 class BirthStore {
   constructor(file, { intervalMs = 30000, now = Date.now } = {}) {
     this.file = file;
