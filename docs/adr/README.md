@@ -39,6 +39,7 @@ the code as evidence.
 | [ADR-022](ADR-022-webhook-receiver.md) | A platform webhook receiver checks secrets and limits, then hands deliveries to each tenant's ingress broker; amends ADR-010 | Accepted |
 | [ADR-023](ADR-023-protocol-connectors.md) | Every protocol is a connector feeding one telemetry envelope; Sparkplug B is the edge-gateway uplink; typed protocols use point maps | Accepted (direction) |
 | [ADR-025](ADR-025-review-follows-current-birth.md) | A device's review follows its source's current birth: a later compatible birth clears it, and automations report `device_review_required` | Proposed |
+| [ADR-026](ADR-026-billing-accounts.md) | Every organization belongs to one billing account; organizations stay independent tenants, and billing account owners create organizations under it within a limit | Proposed |
 | [ADR-027](ADR-027-adapter-fed-activation-and-applied-generation.md) | An adapter-fed source activates against its stored birth when it has no live one; bindings use the applied generation, so a refused activation keeps them | Proposed |
 
 ## Template
