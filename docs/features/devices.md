@@ -88,8 +88,19 @@ revision, map parameters, validate and activate.
   type mismatches, constraints, unsupported calculations.
 - **Activate** creates an immutable configuration snapshot (pinned profile
   revision and hash, parameter UUIDs, source, mappings) and asks the runtime to
-  apply it. It becomes **applied** only on runtime acknowledgement; a failure
-  keeps the previous applied snapshot.
+  apply it. It becomes **applied** only on runtime acknowledgement.
+- The runtime checks the configuration against the source's live birth. A device
+  that announces its own births must be online. A source fed by a
+  [device adapter](adapters.md) is announced by the platform's adapter, so when it
+  has not announced itself since the adapter restarted, the runtime checks the
+  source's last stored birth instead. The configuration then applies with presence
+  unknown until the device reports, which can be a day for a polled tracker
+  ([ADR-027](../adr/ADR-027-adapter-fed-activation-and-applied-generation.md)).
+- A refused activation keeps the previous applied snapshot and its **applied
+  generation**. `deployment_generation` counts requests, and `applied_generation`
+  is the request that applied the current snapshot. Automations bind to the applied
+  one, so a refusal leaves them running
+  ([automation](automation.md#when-a-binding-no-longer-holds)).
 - Publishing a profile never upgrades devices. Upgrades and rollback are explicit
   configuration operations using revisions of the same profile.
 - A birth that no longer matches the applied configuration (a mapped metric is

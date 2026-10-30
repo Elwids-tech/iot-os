@@ -368,6 +368,27 @@ Things that have cost time before. Add to this list when something surprises you
   `device_review_required`. The publisher writes `births-<adapter>.json` before it
   announces a changed metric set, because the 30 s write interval let a crash
   restore a smaller set.
+- **A refused device activation broke every automation bound to the device.** A
+  device had one generation. Each activation request advanced it, refused or not, and
+  bindings, telemetry and Laravel's checks all compared against it. On the pilot, a
+  polled tracker's apply was refused as offline. The device moved from generation 1
+  to 2 with the same configuration, and its automation failed `binding_changed` until
+  it was saved again. Bindings now use the applied generation
+  ([ADR-027](../adr/ADR-027-adapter-fed-activation-and-applied-generation.md)), and
+  an adapter-fed source activates against its stored birth when it has no live one.
+- **A release never updates tenant adapter runtimes.** `manage.py deploy` pulls
+  Compose service images only. `ADAPTER_RUNTIME_IMAGE` is the image
+  `adapter-manager` starts tenant runtimes from, so the release neither pulls it nor
+  recreates them: it stops the tenant containers and starts the same ones again. Each
+  tenant keeps its old runtime until its adapter is deployed again, by saving it or
+  activating one of its devices. That deploy fails until the new image is on the
+  host, because the manager compares image IDs with `docker image inspect`. On the
+  pilot, a runtime without `births-<adapter>.json` outlived the release that added
+  the file. After a platform deploy restarted it, it announced only its node, and
+  polled trackers looked offline until their next reading. After a release that
+  changes the runtime image, run `docker pull` with the release's
+  `ADAPTER_RUNTIME_IMAGE` on the host, then redeploy each running adapter. The
+  publisher announces every known source when it reconnects.
 - **A backfill could leave a new source in Discovery as `src-<hash>`.** The Reporter
   drops reports while four are in flight, and the preview report is what tells
   Laravel the vendor's serial for a Sparkplug source. A tracker with one record in a

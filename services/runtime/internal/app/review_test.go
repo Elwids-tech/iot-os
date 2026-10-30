@@ -63,6 +63,7 @@ func TestCompatibleRebirthClearsReviewAndUnblocksAutomations(t *testing.T) {
 	}
 	a.definitions[d.DeviceUUID] = d
 	a.generations[d.DeviceUUID] = 2
+	a.appliedGeneration[d.DeviceUUID] = 2
 
 	stored := func() bool {
 		t.Helper()

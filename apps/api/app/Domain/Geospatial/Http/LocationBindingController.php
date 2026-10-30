@@ -44,7 +44,7 @@ final class LocationBindingController
             $binding = LocationBinding::where('organization_id', $organization->id)->where('device_id', $device->id)->lockForUpdate()->first();
             abort_unless(($binding?->revision ?? 0) === (int) ($input['revision'] ?? 0), 409, 'The location binding changed. Reload before saving.');
             $values = [...$input, 'organization_id' => $organization->id, 'device_id' => $device->id,
-                'generation' => max(1, (int) $device->deployment_generation), 'revision' => ($binding?->revision ?? 0) + 1, 'updated_by' => $request->user()->id];
+                'generation' => max(1, (int) ($device->applied_generation ?? $device->deployment_generation)), 'revision' => ($binding?->revision ?? 0) + 1, 'updated_by' => $request->user()->id];
             unset($values['revision']);
             if ($binding) {
                 $values['revision'] = $binding->revision + 1;

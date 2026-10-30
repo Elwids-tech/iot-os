@@ -138,7 +138,7 @@ evaluation. A failed check refuses the activation, or suspends the running execu
 
 | Reason | Meaning | Fix |
 | --- | --- | --- |
-| `binding_changed: <role>` | The bound device was reconfigured or reactivated, so the binding's configuration or generation is no longer the applied one | Pick the device again in the bindings and activate |
+| `binding_changed: <role>` | The bound device was reconfigured or reactivated, so the binding's configuration or applied generation is no longer the applied one. A refused device activation changes neither | Pick the device again in the bindings and activate |
 | `device_review_required: <role>` | The binding holds, but the device's source announced a birth that does not match its approved configuration ([devices](devices.md#configuration-and-activation)) | Review clears when the source announces the approved metrics again, or after the device's configuration is reviewed and activated; then activate the automation |
 | `unmapped or incompatible binding: <role>` | The parameter is no longer mapped, or its type or unit changed | Update the binding and activate |
 
@@ -146,6 +146,14 @@ The automation list and editor name the device that needs review. Laravel record
 suspension's `stopped_reason` as `binding_changed` or `device_review_required`. A
 suspended execution does not resume when its device's review clears; activate it
 again ([ADR-025](../adr/ADR-025-review-follows-current-birth.md)).
+
+A binding names the device's applied configuration and the `applied_generation` it
+came with, which `GET workflows/dag/resources` returns as `generation`. A device
+configuration that the runtime refuses, for example because its source was offline,
+leaves both unchanged. Automations bound to the device keep running, and they can
+still be activated while the device's last request shows as failed. Only a pending
+device request blocks activation
+([ADR-027](../adr/ADR-027-adapter-fed-activation-and-applied-generation.md)).
 
 ### Execution and actions
 
@@ -264,8 +272,8 @@ geofences through the integration API ([integrations](integrations.md)).
 ### Geofence rule execution
 
 Geofence deployments use the same outbox, generation fencing and acknowledgement
-as DAGs. Changing the device's configuration or generation suspends the rule
-(`binding_changed`) until it is activated against the new binding; replacing or
+as DAGs. Changing the device's applied configuration or applied generation suspends
+the rule (`binding_changed`) until it is activated against the new binding; replacing or
 disabling freezes it (`superseded`, `disabled`) without inventing a clear. A new
 execution starts unknown; episodes are not carried across versions.
 

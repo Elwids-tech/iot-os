@@ -170,6 +170,30 @@ Keep the running application manifest and the tooling commit separate:
 documentation or tooling commits do not change running image digests. Ship one with
 the running `release.json` and `--source-commit <commit>`.
 
+### Tenant adapter runtimes
+
+A release does not update tenant adapter runtimes. `ship.py` and `manage.py` pull
+Compose service images only, and `ADAPTER_RUNTIME_IMAGE` is not one of them. It is the
+image `adapter-manager` starts each tenant's runtime from. The deploy stops the tenant
+containers and starts the same containers again, so each tenant keeps its old runtime
+until its adapter is next deployed. That deploy fails until the new image is on the
+host ([gotchas](../dev/gotchas.md#device-adapters)). When `adapter-runtime` changed in
+a release:
+
+1. On the application host, `docker pull` the `ADAPTER_RUNTIME_IMAGE` from the
+   release's `release.json`.
+2. Redeploy each running adapter: **Review & deploy → Deploy tested revision** on its
+   page in the portal. The first deploy after an image change can time out while the
+   old webhook source stops; deploying again succeeds.
+3. Check that the adapter's activated devices come back online. The publisher
+   announces every source in `births-<adapter>.json` when it reconnects.
+
+Proposed follow-up: `manage.py deploy` pulls `ADAPTER_RUNTIME_IMAGE` with the other
+images, then asks `adapter-manager` to redeploy every running adapter once the API is
+healthy. It would deploy one tenant at a time and retry once, and a tenant that still
+fails would be reported without failing the release. Until then, the steps above are
+manual.
+
 ## Backups and recovery
 
 Checkpoints go to a Hetzner Storage Box over SFTP (port 23, alias `elwids-backup`,

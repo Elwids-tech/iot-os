@@ -44,6 +44,7 @@ final class DeviceLifecycleService
                 'generation' => $locked->deployment_generation, 'operation_uuid' => $operation->uuid];
             if ($configuration) {
                 $payload['definition'] = $configuration->definition;
+                $payload += DeviceConfigurationService::storedBirth($configuration->definition, $locked->candidate);
             }
             DeviceAudit::enqueue($active ? 'device.activate.v1' : 'device.deactivate.v1', $payload);
             DeviceAudit::record('device.'.$operation->kind.'.requested', $locked->organization_id, $actor, $locked->uuid,

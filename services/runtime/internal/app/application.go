@@ -58,6 +58,9 @@ type Application struct {
 	Engine            *sparkplug.Engine
 	definitions       map[string]devices.Definition
 	generations       map[string]int
+	// appliedGeneration is the generation each applied definition came with; a refused
+	// activation advances generations and leaves it (ADR-027).
+	appliedGeneration map[string]int
 	activeSince       map[string]time.Time
 	latest            map[string]map[string]devices.Reading
 	sessions          map[string]string
@@ -101,7 +104,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 			releaseRuntime()
 		}
 	}()
-	a := &Application{releaseRuntime: releaseRuntime, ctx: ctx, Store: store, Logger: logger, Control: &ControlClient{URL: env("DEVICE_CONTROL_URL", "http://api:8000/api/internal/devices"), Token: token, Client: &http.Client{Timeout: 10 * time.Second}}, Engine: sparkplug.NewEngine(), definitions: map[string]devices.Definition{}, generations: map[string]int{}, latest: map[string]map[string]devices.Reading{}, sessions: map[string]string{}, compatible: map[string]bool{}, reviewRequired: map[string]bool{}, brokers: map[string]*broker{}, pending: map[string]*pendingCommand{}, rebirth: map[string]time.Time{}, rebirthPending: map[string]rebirthRequest{}, presenceAt: map[string]time.Time{}, tlsConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}, rulesRetry: make(chan struct{}, 1)}
+	a := &Application{releaseRuntime: releaseRuntime, ctx: ctx, Store: store, Logger: logger, Control: &ControlClient{URL: env("DEVICE_CONTROL_URL", "http://api:8000/api/internal/devices"), Token: token, Client: &http.Client{Timeout: 10 * time.Second}}, Engine: sparkplug.NewEngine(), definitions: map[string]devices.Definition{}, generations: map[string]int{}, appliedGeneration: map[string]int{}, latest: map[string]map[string]devices.Reading{}, sessions: map[string]string{}, compatible: map[string]bool{}, reviewRequired: map[string]bool{}, brokers: map[string]*broker{}, pending: map[string]*pendingCommand{}, rebirth: map[string]time.Time{}, rebirthPending: map[string]rebirthRequest{}, presenceAt: map[string]time.Time{}, tlsConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}, rulesRetry: make(chan struct{}, 1)}
 	nc, e := nats.Connect(env("NATS_URL", "nats://nats:4222"), nats.Name("iot-devices-runtime"), nats.MaxReconnects(-1))
 	if e != nil {
 		return nil, e
@@ -125,6 +128,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 		a.reviewRequired[state.UUID] = state.ReviewRequired
 		if state.Applied != nil {
 			a.definitions[state.UUID] = *state.Applied
+			a.appliedGeneration[state.UUID] = state.AppliedGeneration
 			if a.activeSince == nil {
 				a.activeSince = map[string]time.Time{}
 			}
@@ -186,7 +190,7 @@ func (a *Application) syncState() error {
 
 		if d.DeploymentStatus == "pending" && d.Generation >= generation {
 			if d.Desired != nil {
-				_ = a.activate(*d.Desired, d.Generation, d.OperationUUID)
+				_ = a.activate(*d.Desired, d.Generation, d.BirthMetrics, d.OperationUUID)
 			} else {
 				_ = a.deactivate(d.UUID, d.OrganizationUUID, d.Generation, d.OperationUUID)
 			}
@@ -367,6 +371,7 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 			a.mu.Lock()
 			current, enabled := a.definitions[d.DeviceUUID]
 			generation := a.generations[d.DeviceUUID]
+			applied := a.appliedGeneration[d.DeviceUUID]
 			activeSince := a.activeSince[d.DeviceUUID]
 			a.mu.Unlock()
 			if !enabled || current.ConfigurationUUID != d.ConfigurationUUID || packetGenerations[d.DeviceUUID] != generation || received.Before(activeSince) {
@@ -450,7 +455,7 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 			a.mu.Unlock()
 			if len(readings) > 0 {
 				captures.Outcome(captureID, telemetry.Outcome{Device: d.DeviceUUID, Configuration: d.ConfigurationUUID, Status: "pending", Stages: stages, Readings: readings})
-				telemetry := devices.Telemetry{CaptureID: captureID, UUID: storage.UUID(), Definition: d, Generation: generation, SessionID: session, Readings: readings}
+				telemetry := devices.Telemetry{CaptureID: captureID, UUID: storage.UUID(), Definition: d, Generation: applied, SessionID: session, Readings: readings}
 				data, e := json.Marshal(telemetry)
 				if e == nil {
 					message := nats.NewMsg("iot.telemetry.device")
@@ -554,7 +559,10 @@ func (a *Application) rejectedPresence(c devices.Connection, p sparkplug.Packet,
 		a.devicePresence(d, "unknown", diagnostic, time.Time{}, true)
 	}
 }
-func (a *Application) activate(d devices.Definition, generation int, operation ...string) error {
+
+// activate applies d at generation. birth is the source's last stored birth, which an
+// adapter-fed source is validated against when it has no live one (ADR-027).
+func (a *Application) activate(d devices.Definition, generation int, birth []devices.Metric, operation ...string) error {
 	unlock := a.lockDevice(d.DeviceUUID)
 	defer unlock()
 	a.mu.Lock()
@@ -572,10 +580,15 @@ func (a *Application) activate(d devices.Definition, generation int, operation .
 	}
 	session, metrics, online := a.Engine.Snapshot(d.Source)
 	var e error
-	if !online {
-		e = errors.New("Source is offline or needs a fresh birth certificate. Review the source before retrying.")
-	} else {
+	switch {
+	case online:
 		_, e = devices.Preview(d, metrics)
+	// The platform's own adapter announces an adapter-fed source and defines its
+	// metrics, so the last birth stands in until the vendor device reports again.
+	case d.Adapter != nil && len(birth) > 0:
+		_, e = devices.Preview(d, birth)
+	default:
+		e = errors.New("Source is offline or needs a fresh birth certificate. Review the source before retrying.")
 	}
 	if e != nil {
 		if err := a.Store.FailTransition(a.ctx, d, generation, op, e.Error()); err != nil {
@@ -596,6 +609,10 @@ func (a *Application) activate(d devices.Definition, generation int, operation .
 	}
 	a.activeSince[d.DeviceUUID] = time.Now().UTC()
 	a.generations[d.DeviceUUID] = generation
+	if a.appliedGeneration == nil {
+		a.appliedGeneration = map[string]int{}
+	}
+	a.appliedGeneration[d.DeviceUUID] = generation
 	a.latest[d.DeviceUUID] = map[string]devices.Reading{}
 	a.sessions[d.DeviceUUID] = session
 	a.compatible[d.DeviceUUID] = true
@@ -642,6 +659,7 @@ func (a *Application) deactivate(device, org string, generation int, operation .
 	}
 	a.mu.Lock()
 	delete(a.definitions, device)
+	delete(a.appliedGeneration, device)
 	delete(a.latest, device)
 	delete(a.sessions, device)
 	delete(a.compatible, device)
@@ -686,11 +704,12 @@ func (a *Application) handleControl(ev devices.Event) error {
 			Definition    devices.Definition `json:"definition"`
 			Generation    int                `json:"generation"`
 			OperationUUID string             `json:"operation_uuid"`
+			BirthMetrics  []devices.Metric   `json:"birth_metrics"`
 		}
 		if e := storage.Decode(ev.Payload, &request); e != nil {
 			return permanent(e)
 		}
-		return a.activate(request.Definition, request.Generation, request.OperationUUID)
+		return a.activate(request.Definition, request.Generation, request.BirthMetrics, request.OperationUUID)
 	case "device.deactivate.v1":
 		var request struct {
 			DeviceUUID       string `json:"device_uuid"`

@@ -354,7 +354,7 @@ final class GeofenceTest extends TestCase
     {
         $binding = Workflow::where('uuid', GpsUseCaseSeeder::WORKFLOW_UUID)->firstOrFail()->definition['binding'];
         Device::where('uuid', $binding['device_uuid'])->update(['lifecycle' => 'active', 'deployment_status' => 'applied',
-            'applied_configuration_uuid' => $binding['configuration_uuid'], 'deployment_generation' => $binding['generation']]);
+            'applied_configuration_uuid' => $binding['configuration_uuid'], 'deployment_generation' => $binding['generation'], 'applied_generation' => $binding['generation']]);
     }
 
     /** @return array{string, string} an integration token granted every GPS device, and the geofence collection URL */

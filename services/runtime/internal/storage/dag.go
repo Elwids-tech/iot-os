@@ -49,7 +49,7 @@ func checkDAGBindings(ctx context.Context, tx pgx.Tx, w dag.Workflow) error {
 		var raw []byte
 		var generation int
 		var review bool
-		if err := tx.QueryRow(ctx, `SELECT definition,generation,review_required FROM device_runtime.devices WHERE device_uuid=$1 AND organization_uuid=$2 FOR SHARE`, b.Device, w.Organization).Scan(&raw, &generation, &review); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT definition,COALESCE(applied_generation,0),review_required FROM device_runtime.devices WHERE device_uuid=$1 AND organization_uuid=$2 FOR SHARE`, b.Device, w.Organization).Scan(&raw, &generation, &review); err != nil {
 			return fmt.Errorf("binding unavailable: %s", b.Role)
 		}
 		var d devices.Definition

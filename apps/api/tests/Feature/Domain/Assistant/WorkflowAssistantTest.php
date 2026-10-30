@@ -198,7 +198,7 @@ final class WorkflowAssistantTest extends TestCase
         $parameter = (string) Str::uuid();
         $canonical = json_encode(['parameters' => [['uuid' => $parameter, 'key' => 'temperature', 'data_type' => 'number', 'unit' => 'C', 'reports_state' => true]]]);
         $artifact = DeviceProfileArtifact::create(['device_profile_id' => $profile->id, 'revision' => 1, 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'status' => 'active', 'compiled_at' => now(), 'compiled_by' => $actor->id]);
-        $device = Device::create(['organization_id' => $this->org->id, 'name' => 'Assistant sensor', 'code' => 'assistant-sensor', 'lifecycle' => 'active', 'deployment_status' => 'applied', 'deployment_generation' => 2]);
+        $device = Device::create(['organization_id' => $this->org->id, 'name' => 'Assistant sensor', 'code' => 'assistant-sensor', 'lifecycle' => 'active', 'deployment_status' => 'applied', 'deployment_generation' => 2, 'applied_generation' => 2]);
         [$earlier, $current] = array_map(fn (int $revision) => DeviceConfiguration::create(['device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => $revision, 'definition_hash' => str_repeat((string) $revision, 64), 'definition' => ['profile_canonical_json' => $canonical, 'mappings' => []], 'created_at' => now()]), [1, 2]);
         $device->update(['applied_configuration_uuid' => $current->uuid]);
 

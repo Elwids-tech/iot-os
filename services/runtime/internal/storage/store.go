@@ -196,11 +196,12 @@ func (s *Store) Apply(ctx context.Context, d devices.Definition, generation int,
 		return e
 	}
 	var definition any = raw
+	var applied any = generation
 	if kind == "device.deactivated.v1" {
-		definition = nil
+		definition, applied = nil, nil
 	}
-	tag, e := tx.Exec(ctx, `INSERT INTO device_runtime.devices(device_uuid,organization_uuid,generation,definition) VALUES($1,$2,$3,$4)
- ON CONFLICT(device_uuid) DO UPDATE SET review_required=CASE WHEN device_runtime.devices.generation<excluded.generation THEN false ELSE device_runtime.devices.review_required END,generation=excluded.generation,definition=excluded.definition,updated_at=now() WHERE device_runtime.devices.generation<=excluded.generation`, d.DeviceUUID, d.OrganizationUUID, generation, definition)
+	tag, e := tx.Exec(ctx, `INSERT INTO device_runtime.devices(device_uuid,organization_uuid,generation,definition,applied_generation) VALUES($1,$2,$3,$4,$5)
+ ON CONFLICT(device_uuid) DO UPDATE SET review_required=CASE WHEN device_runtime.devices.generation<excluded.generation THEN false ELSE device_runtime.devices.review_required END,generation=excluded.generation,definition=excluded.definition,applied_generation=excluded.applied_generation,updated_at=now() WHERE device_runtime.devices.generation<=excluded.generation`, d.DeviceUUID, d.OrganizationUUID, generation, definition, applied)
 	if e != nil {
 		return e
 	}
@@ -238,7 +239,7 @@ func (s *Store) PersistResult(ctx context.Context, t devices.Telemetry) (bool, e
 	}
 	defer tx.Rollback(ctx)
 	var allowed bool
-	if e = tx.QueryRow(ctx, "SELECT true FROM device_runtime.devices WHERE device_uuid=$1 AND generation=$2 AND definition->>'configuration_uuid'=$3 AND organization_uuid=$4 FOR SHARE", t.Definition.DeviceUUID, t.Generation, t.Definition.ConfigurationUUID, t.Definition.OrganizationUUID).Scan(&allowed); errors.Is(e, pgx.ErrNoRows) {
+	if e = tx.QueryRow(ctx, "SELECT true FROM device_runtime.devices WHERE device_uuid=$1 AND applied_generation=$2 AND definition->>'configuration_uuid'=$3 AND organization_uuid=$4 FOR SHARE", t.Definition.DeviceUUID, t.Generation, t.Definition.ConfigurationUUID, t.Definition.OrganizationUUID).Scan(&allowed); errors.Is(e, pgx.ErrNoRows) {
 		return false, tx.Commit(ctx)
 	} else if e != nil {
 		return false, e
@@ -1108,7 +1109,7 @@ func (s *Store) RecoverCommands(ctx context.Context) error {
 	return nil
 }
 func (s *Store) SavedDevices(ctx context.Context) (map[string]devices.DeviceState, error) {
-	rows, e := s.Pool.Query(ctx, "SELECT device_uuid::text,organization_uuid::text,generation,definition,review_required FROM device_runtime.devices")
+	rows, e := s.Pool.Query(ctx, "SELECT device_uuid::text,organization_uuid::text,generation,COALESCE(applied_generation,0),definition,review_required FROM device_runtime.devices")
 	if e != nil {
 		return nil, e
 	}
@@ -1117,7 +1118,7 @@ func (s *Store) SavedDevices(ctx context.Context) (map[string]devices.DeviceStat
 	for rows.Next() {
 		var d devices.DeviceState
 		var raw []byte
-		if e = rows.Scan(&d.UUID, &d.OrganizationUUID, &d.Generation, &raw, &d.ReviewRequired); e != nil {
+		if e = rows.Scan(&d.UUID, &d.OrganizationUUID, &d.Generation, &d.AppliedGeneration, &raw, &d.ReviewRequired); e != nil {
 			return nil, e
 		}
 		if len(raw) > 0 {
@@ -1132,7 +1133,8 @@ func (s *Store) SavedDevices(ctx context.Context) (map[string]devices.DeviceStat
 	return result, rows.Err()
 }
 
-// Failed requests advance the fence while preserving the previous working definition.
+// Failed requests advance the fence while preserving the previous working definition
+// and the generation it was applied at, so its bindings stay valid (ADR-027).
 func (s *Store) FailTransition(ctx context.Context, d devices.Definition, generation int, operation, diagnostic string) error {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {

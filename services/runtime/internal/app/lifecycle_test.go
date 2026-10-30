@@ -31,12 +31,12 @@ func lifecycleFixture(t *testing.T) (*Application, devices.Definition) {
 		t.Fatal(err)
 	}
 	d := devices.Definition{DeviceUUID: storage.UUID(), OrganizationUUID: storage.UUID(), ConfigurationUUID: storage.UUID()}
-	a := &Application{ctx: ctx, Store: store, Engine: sparkplug.NewEngine(), definitions: map[string]devices.Definition{d.DeviceUUID: d}, generations: map[string]int{d.DeviceUUID: 1}, latest: map[string]map[string]devices.Reading{}, sessions: map[string]string{d.DeviceUUID: "old"}, compatible: map[string]bool{d.DeviceUUID: true}, reviewRequired: map[string]bool{}, presenceAt: map[string]time.Time{}, pending: map[string]*pendingCommand{}, brokers: map[string]*broker{}}
+	a := &Application{ctx: ctx, Store: store, Engine: sparkplug.NewEngine(), definitions: map[string]devices.Definition{d.DeviceUUID: d}, generations: map[string]int{d.DeviceUUID: 1}, appliedGeneration: map[string]int{d.DeviceUUID: 1}, latest: map[string]map[string]devices.Reading{}, sessions: map[string]string{d.DeviceUUID: "old"}, compatible: map[string]bool{d.DeviceUUID: true}, reviewRequired: map[string]bool{}, presenceAt: map[string]time.Time{}, pending: map[string]*pendingCommand{}, brokers: map[string]*broker{}}
 	if err = store.Apply(ctx, d, 1, "device.applied.v1"); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		for _, table := range []string{"observations", "diagnostics", "latest", "commands", "devices"} {
+		for _, table := range []string{"observations", "diagnostics", "latest", "commands", "telemetry_outbox", "devices"} {
 			_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1", d.OrganizationUUID)
 		}
 		_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime.outbox WHERE event->'payload'->>'organization_uuid'=$1", d.OrganizationUUID)
@@ -88,7 +88,7 @@ func TestDeactivationFencesCachesTelemetryCommandsAndStaleReconciliation(t *test
 	if err := a.Store.Pool.QueryRow(ctx, "SELECT status FROM device_runtime.commands WHERE command_uuid=$1", command.UUID).Scan(&status); err != nil || status != "cancelled" {
 		t.Fatalf("queued command not cancelled: %s %v", status, err)
 	}
-	if err := a.activate(d, 3, "operation-on"); err != nil {
+	if err := a.activate(d, 3, nil, "operation-on"); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := a.definitions[d.DeviceUUID]; ok {
@@ -97,7 +97,7 @@ func TestDeactivationFencesCachesTelemetryCommandsAndStaleReconciliation(t *test
 	if a.generations[d.DeviceUUID] != 3 {
 		t.Fatal("failed activation did not advance fence")
 	}
-	if err := a.activate(d, 3, "operation-on"); err != nil {
+	if err := a.activate(d, 3, nil, "operation-on"); err != nil {
 		t.Fatal(err)
 	}
 	saved, err := a.Store.SavedDevices(ctx)

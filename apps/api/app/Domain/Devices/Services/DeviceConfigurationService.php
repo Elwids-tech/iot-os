@@ -152,6 +152,21 @@ final class DeviceConfigurationService
         ];
     }
 
+    /**
+     * The platform's own adapter announces an adapter-fed source and defines its metrics,
+     * so the runtime checks such a configuration against the source's last stored birth
+     * when the source has not announced itself since the adapter restarted (ADR-027).
+     * Devices that announce their own births still need a live one, so they get nothing.
+     */
+    public static function storedBirth(array $definition, ?DiscoveryCandidate $candidate): array
+    {
+        if (! isset($definition['adapter']) || ! $candidate?->metrics) {
+            return [];
+        }
+
+        return ['birth_metrics' => array_map(fn (array $metric) => ['name' => $metric['name'], 'datatype' => $metric['datatype']], array_values($candidate->metrics))];
+    }
+
     public function validate(Device $device, int $revision): array
     {
         return $this->locked($device, $revision, function (Device $locked) {
@@ -191,7 +206,8 @@ final class DeviceConfigurationService
             $operation = DeviceLifecycleService::record($locked, $rollback ? 'rollback' : 'configure', $actor);
             $locked->candidate->update(['status' => 'approved']);
             DeviceAudit::enqueue('device.activate.v1', ['organization_uuid' => $locked->organization->uuid,
-                'device_uuid' => $locked->uuid, 'generation' => $locked->deployment_generation, 'operation_uuid' => $operation->uuid, 'definition' => $configuration->definition]);
+                'device_uuid' => $locked->uuid, 'generation' => $locked->deployment_generation, 'operation_uuid' => $operation->uuid, 'definition' => $configuration->definition,
+                ...self::storedBirth($configuration->definition, $locked->candidate)]);
             DeviceAudit::record($rollback ? 'device.rollback.requested' : 'device.activation.requested', $locked->organization_id, $actor, $locked->uuid, ['configuration_uuid' => $uuid]);
 
             return $locked->fresh();

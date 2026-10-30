@@ -8,11 +8,13 @@ const sparkplug = require("../lib/sparkplug.cjs");
 
 // The platform broker: every publish is acknowledged and recorded, decoded.
 const published = [];
+const clients = [];
 require.cache[require.resolve("mqtt")] = {
   loaded: true,
   exports: {
     connect(url, options) {
       const client = new EventEmitter();
+      clients.push(client);
       client.connected = false;
       client.options = options;
       client.subscribe = () => {};
@@ -72,5 +74,48 @@ test("a source's birth never loses metrics across a publisher restart", async (t
   await feed(after, record("temperature"));
   assert.deepEqual(births(restarted).map((b) => b.metrics), [["battery", "rssi", "temperature"]]);
   assert.ok(published.slice(restarted).some((p) => p.topic.includes("/DDATA/")), "the record is still published");
+  await new Promise((resolve) => after.handlers.close(false, resolve));
+});
+
+// A polled tracker reports hourly to daily. After an adapter restart or a platform
+// deploy the publisher must announce every source it knows, or the platform treats
+// each one as offline until its next reading (pilot, 2026-10-30, ADR-027). It does
+// so when it connects, when the platform asks for a rebirth, and when the platform's
+// host comes back online.
+test("a restarted publisher announces every known source on connect, rebirth and host online", async (t) => {
+  process.env.IOT_ADAPTER_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "publisher-"));
+  t.after(() => fs.rmSync(process.env.IOT_ADAPTER_DATA_DIR, { recursive: true, force: true }));
+  const settings = { ...config, adapter_uuid: "30000000-0000-4000-8000-000000000011", bindings: [] };
+  const announced = (from) =>
+    published
+      .slice(from)
+      .filter((p) => p.topic.includes("/DBIRTH/"))
+      .map((p) => p.topic)
+      .sort();
+  const types = nodes();
+  const first = published.length;
+  const before = new types["iot-adapter-publisher"](settings);
+  await tick();
+  await feed(before, record("battery"), { ...record("battery", "latitude"), sourceDeviceId: "TRK-2002" });
+  const sources = announced(first);
+  assert.equal(sources.length, 2);
+  await new Promise((resolve) => before.handlers.close(false, resolve));
+  assert.ok(fs.existsSync(path.join(process.env.IOT_ADAPTER_DATA_DIR, `births-${settings.adapter_uuid}.json`)));
+
+  const restarted = published.length;
+  const after = new types["iot-adapter-publisher"](settings);
+  await tick();
+  await tick();
+  assert.deepEqual(announced(restarted), sources, "on connect");
+  const client = clients.at(-1);
+  for (const [trigger, topic, payload] of [
+    ["Node Control/Rebirth", "spBv1.0/tenant/NCMD/adapter", sparkplug.encode(0, [sparkplug.metric("Node Control/Rebirth", "Boolean", true)])],
+    ["host STATE online", "spBv1.0/STATE/iot-os", Buffer.from(JSON.stringify({ online: true, timestamp: Date.now() }))],
+  ]) {
+    const from = published.length;
+    client.emit("message", topic, payload);
+    assert.ok(published.slice(from)[0]?.topic.includes("/NBIRTH/"), `${trigger}: NBIRTH first`);
+    assert.deepEqual(announced(from), sources, trigger);
+  }
   await new Promise((resolve) => after.handlers.close(false, resolve));
 });
