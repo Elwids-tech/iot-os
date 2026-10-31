@@ -58,7 +58,7 @@ Delivered in one pull request against `main`, one commit per phase group.
 - [x] T029 `docs/features/activity-log.md`, `docs/dev/gotchas.md`, docs index links
 - [x] T030 `php artisan test --compact`, `vendor/bin/pint --test`, `pnpm --filter @iot-os/admin lint`, `pnpm --filter @iot-os/ui` checks, admin e2e
 - [x] T031 Rebuild api family and admin; verify the page in the running stack (quickstart)
-- [ ] T032 Open the pull request against `main`
+- [x] T032 Open the pull request against `main` (#134)
 
 ## Dependencies
 
