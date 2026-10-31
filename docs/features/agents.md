@@ -19,8 +19,8 @@ Agent access is off twice by default:
 - **Organization**: every organization, including new ones, starts switched off. An
   organization administrator (`Organization.update`) switches it on under
   **Settings → AI apps**. Switching it off stops every connection to the organization
-  at its next request. Both changes are recorded in `device_audit_events`
-  (`agents.access_enabled`, `agents.access_disabled`).
+  at its next request. Both changes are recorded in the
+  [activity log](activity-log.md) (`agents.access_enabled`, `agents.access_disabled`).
 
 Organization capabilities (`/me`, `/organizations/{organization}/context`) carry
 `features.agent_access` (the deployment switch) and `agents {enabled, manage}`.

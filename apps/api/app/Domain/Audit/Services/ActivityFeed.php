@@ -82,7 +82,7 @@ final class ActivityFeed
                 subjectUuid: $activity->subject_uuid,
                 subjectName: $name,
                 changes: $this->changes($activity, $details),
-                details: $this->details($details),
+                details: $this->details($details, $name),
             );
         });
     }
@@ -149,22 +149,25 @@ final class ActivityFeed
     }
 
     /**
-     * The details as text, without identifiers people cannot read and without the
-     * fields already listed as changed.
+     * The details as text, without identifiers people cannot read, the fields already
+     * listed as changed, or a repeat of the subject's name.
      *
      * @param  array<string, mixed>  $details
      * @return array<string, string>
      */
-    private function details(array $details): array
+    private function details(array $details, ?string $subjectName): array
     {
         $text = [];
         foreach ($details as $key => $value) {
             $key = (string) $key;
-            if ($key === 'changed' || $value === null || preg_match('/(^|_)(uuid|hash)$/', $key) === 1) {
+            if ($key === 'changed' || $value === null || preg_match('/(^|_)(uuid|hash|id)$/', $key) === 1) {
                 continue;
             }
             $value = self::text($value);
-            $text[$key] = is_array($value) ? implode(', ', $value) : (string) $value;
+            $value = is_array($value) ? implode(', ', $value) : (string) $value;
+            if ($value !== $subjectName) {
+                $text[$key] = $value;
+            }
         }
 
         return $text;

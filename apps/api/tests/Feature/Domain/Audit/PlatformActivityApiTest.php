@@ -128,13 +128,15 @@ final class PlatformActivityApiTest extends TestCase
     public function test_a_deleted_subject_keeps_the_name_it_had(): void
     {
         $site = Site::query()->create(['organization_id' => $this->acme->id, 'name' => 'Old shed', 'timezone' => 'UTC']);
-        ActivityLog::record('site.deleted', $this->acme, $this->ana, $site);
+        ActivityLog::record('site.deleted', $this->acme, $this->ana, $site, ['name' => 'Old shed', 'user_id' => 3, 'user_name' => 'Ben', 'site_uuid' => $site->uuid]);
         $site->forceDelete();
 
         $this->actingAs($this->administrator, 'sanctum')->getJson(self::URL)
             ->assertOk()
             ->assertJsonPath('data.0.summary', 'deleted site')
-            ->assertJsonPath('data.0.subject.name', 'Old shed');
+            ->assertJsonPath('data.0.subject.name', 'Old shed')
+            // Ids, UUIDs and a repeat of the subject's name are left out of the details.
+            ->assertJsonPath('data.0.details', [['key' => 'user_name', 'value' => 'Ben']]);
     }
 
     public function test_unknown_filters_are_rejected(): void
