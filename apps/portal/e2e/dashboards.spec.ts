@@ -1563,7 +1563,10 @@ test("library views, filters, stars and row actions", async ({ page }) => {
   await page.getByRole("button", { name: "Filters" }).click()
   await page.getByRole("combobox", { name: "Folder" }).click()
   await page.getByRole("option", { name: "Unfiled" }).click()
+  // The picker closes and hands focus back first; then Escape closes Filters.
+  await expect(page.getByRole("combobox", { name: "Folder", exact: true })).toBeFocused()
   await page.keyboard.press("Escape")
+  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toHaveAttribute("aria-expanded", "false")
   await expect(page).toHaveURL(/folder=__unfiled__/)
   await expect(page.getByRole("group", { name: "Active filters" })).toContainText("Folder: Unfiled")
   await expect(plant).toHaveCount(0)

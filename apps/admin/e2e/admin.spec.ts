@@ -914,7 +914,10 @@ test("keeps user search and organization filters in the URL", async ({ page }) =
   await page.getByRole("button", { name: "Filters" }).click()
   await page.getByRole("combobox", { name: "Organization" }).click()
   await page.getByRole("option", { name: "Northstar Utilities" }).click()
+  // The picker closes and hands focus back first; then Escape closes Filters.
+  await expect(page.getByRole("combobox", { name: "Organization", exact: true })).toBeFocused()
   await page.keyboard.press("Escape")
+  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toHaveAttribute("aria-expanded", "false")
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 })
 
   await expect(page).toHaveURL(new RegExp(`organization=${organizations[1].uuid}`))

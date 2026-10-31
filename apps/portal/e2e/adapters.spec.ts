@@ -691,7 +691,12 @@ test("a webhook source shows its ingest URL and manages secrets shown once", asy
     page.getByRole("group", { name: "Ingest URL", exact: true }),
   ).toContainText(ingestUrl);
 
-  await page.getByRole("button", { name: "Create secret" }).click();
+  // Toolbar buttons show only their icon; the tooltip and accessible name say what they do.
+  const createButton = page.getByRole("button", { name: "Create secret" });
+  await expect(createButton).toHaveText("");
+  await createButton.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Create secret");
+  await createButton.click();
   const create = page.getByRole("dialog", { name: "Create a webhook secret" });
   await create.getByLabel("Label").fill("Vendor cloud");
   await create.getByRole("button", { name: "Create secret" }).click();
@@ -704,7 +709,7 @@ test("a webhook source shows its ingest URL and manages secrets shown once", asy
     page.getByRole("row", { name: /Vendor cloud/ }),
   ).toContainText("Active");
 
-  await page.getByRole("button", { name: "Rotate", exact: true }).click();
+  await page.getByRole("button", { name: "Rotate secret", exact: true }).click();
   const rotate = page.getByRole("dialog", { name: "Rotate the webhook secret" });
   await expect(rotate).toContainText("keeps working for 7 days");
   await rotate.getByRole("button", { name: "Rotate secret" }).click();
@@ -715,10 +720,14 @@ test("a webhook source shows its ingest URL and manages secrets shown once", asy
   await expect(
     page.getByRole("row", { name: /Vendor cloud/ }),
   ).toContainText("Expiring");
-  await expect(
-    page.getByRole("button", { name: "Rotate", exact: true }),
-  ).toBeDisabled();
+  const rotateButton = page.getByRole("button", { name: "Rotate secret", exact: true });
+  await expect(rotateButton).toBeDisabled();
   await expect(page.getByText("Two secrets are active.")).toBeVisible();
+  // A disabled icon button still names itself on hover.
+  await rotateButton.hover({ force: true });
+  await expect(page.getByRole("tooltip")).toHaveText("Rotate secret");
+  await page.mouse.move(0, 0, { steps: 4 });
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Revoke Vendor cloud" }).click();
   const confirm = page.getByRole("alertdialog", { name: /Revoke “Vendor cloud”/ });
@@ -731,7 +740,7 @@ test("a webhook source shows its ingest URL and manages secrets shown once", asy
     requests.some((r) => r.path.endsWith("/webhook/secrets/secret-1/revoke")),
   ).toBe(true);
   await expect(
-    page.getByRole("button", { name: "Rotate", exact: true }),
+    page.getByRole("button", { name: "Rotate secret", exact: true }),
   ).toBeEnabled();
   await settled(page);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);

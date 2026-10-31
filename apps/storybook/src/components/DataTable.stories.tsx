@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react"
 import type { Meta, StoryObj } from "@storybook/react-vite"
 import { Button } from "@iot-os/ui/components/button"
-import { DataTable, RefLink, RowLink, type DataColumn } from "@iot-os/ui/components/data-table"
+import { DataTable, RefLink, RowLink, ToolbarButton, type DataColumn } from "@iot-os/ui/components/data-table"
 import { DropdownMenuItem } from "@iot-os/ui/components/dropdown-menu"
 import { Freshness } from "@iot-os/ui/components/freshness"
 import { Status } from "@iot-os/ui/components/status-mark"
+import { InboxIcon } from "lucide-react"
 import { fleet, now, type FixtureDevice } from "../fixtures"
 
 const meta: Meta = { title: "Components/DataTable" }
@@ -12,9 +13,9 @@ export default meta
 
 const lifecycles = ["registered", "active", "deactivated", "archived"] as const
 
-function Fleet({ rows = fleet, compact = false }: { rows?: FixtureDevice[]; compact?: boolean }) {
-  // The compact fleet leaves archived devices out until Lifecycle says otherwise.
-  const [lifecycle, setLifecycle] = useState(compact ? "" : "all")
+function Fleet({ rows = fleet, hideArchived = false }: { rows?: FixtureDevice[]; hideArchived?: boolean }) {
+  // This fleet leaves archived devices out until Lifecycle says otherwise.
+  const [lifecycle, setLifecycle] = useState(hideArchived ? "" : "all")
   const [search, setSearch] = useState("")
   const [profiles, setProfiles] = useState<string[]>([])
   const [sites, setSites] = useState<string[]>([])
@@ -58,7 +59,7 @@ function Fleet({ rows = fleet, compact = false }: { rows?: FixtureDevice[]; comp
       rowHref={(d) => `/devices/${d.uuid}`}
       columns={columns}
       defaultSort={[{ id: "device", desc: false }]}
-      views={compact ? undefined : {
+      views={hideArchived ? undefined : {
         label: "Lifecycle",
         value: lifecycle,
         onChange: setLifecycle,
@@ -69,7 +70,7 @@ function Fleet({ rows = fleet, compact = false }: { rows?: FixtureDevice[]; comp
       }}
       search={{ label: "Search devices", placeholder: "Search name or code", value: search, onChange: setSearch }}
       filters={[
-        ...(compact
+        ...(hideArchived
           ? [
               {
                 id: "lifecycle",
@@ -89,10 +90,14 @@ function Fleet({ rows = fleet, compact = false }: { rows?: FixtureDevice[]; comp
         { id: "profile", label: "Profile", value: (d) => d.profile },
         { id: "site", label: "Site", value: (d) => d.site },
       ]}
-      onReset={() => setLifecycle(compact ? "" : "all")}
-      compactToolbar={compact}
+      onReset={() => setLifecycle(hideArchived ? "" : "all")}
+      toolbar={
+        <ToolbarButton icon={<InboxIcon />} label="3 sources waiting in Discovery">
+          <span className="tabular-nums">3</span>
+        </ToolbarButton>
+      }
       note={
-        compact && !lifecycle && (
+        hideArchived && !lifecycle && (
           <>
             {archived} archived hidden{" "}
             <Button variant="link" size="sm" className="h-auto p-0 text-meta" onClick={() => setLifecycle("all")}>
@@ -122,17 +127,17 @@ function Fleet({ rows = fleet, compact = false }: { rows?: FixtureDevice[]; comp
 
 /**
  * Every Filament-style feature on loaded rows: saved views with counts, search,
- * filters with chips, Group, Columns, sorting, selection with Select all and
+ * icon toolbar buttons named by tooltips (Filters with chips, Group, Columns, and a
+ * page's own `ToolbarButton` with a count), sorting, selection with Select all and
  * Export CSV, row actions, a summary row and client paging.
  */
 export const AllFeatures: StoryObj = { render: () => <Fleet /> }
 
 /**
- * Icon-only toolbar buttons named by tooltips, lifecycle inside Filters with a
- * default ("Not archived") that is not counted as a filter, and a footer note
- * saying what the default view leaves out.
+ * Lifecycle inside Filters with a default ("Not archived") that is not counted as
+ * a filter, and a footer note saying what the default view leaves out.
  */
-export const CompactToolbar: StoryObj = { render: () => <Fleet compact /> }
+export const ArchivedHidden: StoryObj = { render: () => <Fleet hideArchived /> }
 
 /** No rows and nothing filtered: the page's empty state sits inside the panel. */
 export const Empty: StoryObj = { render: () => <Fleet rows={[]} /> }
