@@ -75,6 +75,7 @@ import {
   TableRow,
 } from "@iot-os/ui/components/table"
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@iot-os/ui/components/tooltip"
 import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
 import { formatNumber } from "@iot-os/ui/lib/format"
 import { cn } from "@iot-os/ui/lib/utils"
@@ -110,6 +111,8 @@ export type DataFilter<T> = {
   value: string[]
   onChange: (value: string[]) => void
   multiple?: boolean
+  /** Names the choice for no value, e.g. "Not archived" when the default leaves rows out; "Any <label>" otherwise. */
+  anyLabel?: string
   /** Client tables keep rows that match; server tables filter in the request instead. */
   match?: (row: T, value: string[]) => boolean
 }
@@ -165,6 +168,8 @@ export type DataTableProps<T> = {
   groups?: DataGroup<T>[]
   /** Extra items at the end of the toolbar. */
   toolbar?: React.ReactNode
+  /** Toolbar buttons show only their icon, named by a tooltip and for screen readers. */
+  compactToolbar?: boolean
   /** Server sorting; leave out to sort loaded rows. */
   sort?: { value: SortingState; onChange: (value: SortingState) => void }
   defaultSort?: SortingState
@@ -205,6 +210,8 @@ export type DataTableProps<T> = {
   rowActions?: (row: T) => React.ReactNode
   /** The query refreshes on this interval; the footer says so. */
   refreshSeconds?: number
+  /** Follows the count in the footer, e.g. rows the default view leaves out and how to show them. */
+  note?: React.ReactNode
 }
 
 const features = tableFeatures({
@@ -640,6 +647,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
             : undefined
         }
         extra={props.toolbar}
+        compact={props.compactToolbar ?? false}
       />
       {activeFilters.length > 0 && (
         <div className="flex flex-wrap items-center gap-2" aria-label="Active filters" role="group">
@@ -934,6 +942,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
               {loading ? "Loading…" : `${plural(total, noun)}${filtered ? " match" : ""}`}
               {!loading && loadMore?.note ? <> · {loadMore.note}</> : null}
             </span>
+            {props.note && !loading && <span>· {props.note}</span>}
             {props.refreshSeconds && !loading && (
               <span>· updates every {props.refreshSeconds} s</span>
             )}
@@ -992,6 +1001,7 @@ function Toolbar<T>({
   columns,
   sorting,
   extra,
+  compact,
 }: {
   label: string
   views: DataTableProps<T>["views"]
@@ -1007,10 +1017,12 @@ function Toolbar<T>({
     onChange: (column: string, desc: boolean) => void
   }
   extra?: React.ReactNode
+  compact: boolean
 }) {
   const active = filters.filter((filter) => filter.value.length > 0).length
   const filterTitleId = React.useId()
   const sortedBy = sorting?.columns.find((column) => column.id === sorting.value?.id)
+  const groupedBy = groups.find((option) => option.id === groupId)
   return (
     <div data-slot="data-table-toolbar" className="flex flex-wrap items-center gap-2">
       {views && (
@@ -1047,6 +1059,8 @@ function Toolbar<T>({
           placeholder={search.placeholder}
           value={search.value}
           onChange={(event) => search.onChange(event.target.value)}
+          // Icon buttons fit beside the search on phones.
+          className={cn(compact && "min-w-32 flex-1 sm:flex-none")}
         />
       )}
       <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -1054,15 +1068,18 @@ function Toolbar<T>({
         {filters.length > 0 && (
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" aria-label={active ? `Filters, ${active} active` : "Filters"}>
-                <ListFilterIcon data-icon="inline-start" />
-                Filters
+              <ToolbarButton
+                compact={compact}
+                icon={<ListFilterIcon />}
+                label="Filters"
+                name={active ? `Filters, ${active} active` : "Filters"}
+              >
                 {active > 0 && (
                   <span className="grid min-w-4.5 place-items-center rounded-full bg-primary px-1 text-micro leading-4.5 font-semibold text-primary-foreground tabular-nums">
                     {active}
                   </span>
                 )}
-              </Button>
+              </ToolbarButton>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-80 gap-3 p-3" aria-labelledby={`${filterTitleId}-title`}>
               <p id={`${filterTitleId}-title`} className="text-heading">Filter {label.toLowerCase()}</p>
@@ -1075,16 +1092,24 @@ function Toolbar<T>({
         {sorting && sorting.columns.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <ArrowUpDownIcon data-icon="inline-start" />
-                {sortedBy ? `Sort: ${sortedBy.header}` : "Sort"}
-                {sortedBy &&
+              <ToolbarButton
+                compact={compact}
+                icon={<ArrowUpDownIcon />}
+                label={sortedBy ? `Sort: ${sortedBy.header}` : "Sort"}
+                name={
+                  compact && sortedBy
+                    ? `Sort: ${sortedBy.header}, ${sorting.value?.desc ? "descending" : "ascending"}`
+                    : undefined
+                }
+              >
+                {!compact &&
+                  sortedBy &&
                   (sorting.value?.desc ? (
                     <ArrowDownIcon data-icon="inline-end" aria-label="descending" />
                   ) : (
                     <ArrowUpIcon data-icon="inline-end" aria-label="ascending" />
                   ))}
-              </Button>
+              </ToolbarButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Sort rows by</DropdownMenuLabel>
@@ -1116,10 +1141,11 @@ function Toolbar<T>({
         {groups.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <RowsIcon data-icon="inline-start" />
-                {groupId ? `Group: ${groups.find((g) => g.id === groupId)?.label ?? ""}` : "Group"}
-              </Button>
+              <ToolbarButton
+                compact={compact}
+                icon={<RowsIcon />}
+                label={groupedBy ? `Group: ${groupedBy.label}` : "Group"}
+              />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Group rows by</DropdownMenuLabel>
@@ -1137,10 +1163,7 @@ function Toolbar<T>({
         {columns.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Columns3Icon data-icon="inline-start" />
-                Columns
-              </Button>
+              <ToolbarButton compact={compact} icon={<Columns3Icon />} label="Columns" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Show columns</DropdownMenuLabel>
@@ -1163,11 +1186,51 @@ function Toolbar<T>({
   )
 }
 
+/**
+ * A toolbar menu button. Compact toolbars show only the icon, with the label in a
+ * tooltip and as the accessible name; `name` overrides that name when it says more.
+ */
+function ToolbarButton({
+  compact,
+  icon,
+  label,
+  name,
+  children,
+  ...props
+}: React.ComponentProps<typeof Button> & {
+  compact: boolean
+  icon: React.ReactElement<{ "data-icon"?: string }>
+  label: string
+  name?: string
+}) {
+  const iconOnly = compact && !children
+  const button = (
+    <Button
+      variant="outline"
+      size={iconOnly ? "icon-sm" : "sm"}
+      aria-label={name ?? (compact ? label : undefined)}
+      {...props}
+    >
+      {iconOnly ? icon : React.cloneElement(icon, { "data-icon": "inline-start" })}
+      {!compact && label}
+      {children}
+    </Button>
+  )
+  if (!compact) return button
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>{name ?? label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function FilterControl<T>({ filter }: { filter: DataFilter<T> }) {
   const [query, setQuery] = React.useState("")
+  const anyLabel = filter.anyLabel ?? `Any ${filter.label.toLowerCase()}`
   const options = React.useMemo(
-    () => [{ value: "", label: `Any ${filter.label.toLowerCase()}` }, ...filter.options],
-    [filter.label, filter.options],
+    () => [{ value: "", label: anyLabel }, ...filter.options],
+    [anyLabel, filter.options],
   )
   if (filter.multiple) {
     return (
@@ -1176,7 +1239,7 @@ function FilterControl<T>({ filter }: { filter: DataFilter<T> }) {
         values={filter.value}
         options={filter.options}
         onChange={filter.onChange}
-        placeholder={`Any ${filter.label.toLowerCase()}`}
+        placeholder={anyLabel}
       />
     )
   }
@@ -1195,7 +1258,7 @@ function FilterControl<T>({ filter }: { filter: DataFilter<T> }) {
           ? filter.options.find((option) => option.value === filter.value[0])?.label
           : undefined
       }
-      placeholder={`Any ${filter.label.toLowerCase()}`}
+      placeholder={anyLabel}
     />
   )
 }

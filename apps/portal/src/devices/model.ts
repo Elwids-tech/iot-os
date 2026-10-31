@@ -89,6 +89,14 @@ export function deviceHealth(device: HealthInput, freshness: Freshness = {}): De
 }
 
 /**
+ * The statuses a device list filters on (DeviceDirectory::STATUSES in the API), in
+ * menu order. Lists leave "quiet" to Last seen, and Lifecycle covers archived.
+ */
+export const listStatuses = (
+  ["online", "offline", "unseen", "unknown", "unconfigured", "updating", "failed", "deactivated"] as const
+).map((key) => ({ value: key, label: health[key][1] }))
+
+/**
  * Freshness window for one device: the slowest parameter's profile
  * `reporting.stale_after_seconds`, never shorter than RECENT_DATA_MS.
  */

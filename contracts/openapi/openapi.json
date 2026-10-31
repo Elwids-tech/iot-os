@@ -16849,8 +16849,41 @@
                 "active",
                 "deactivated",
                 "archived",
+                "current",
                 null
               ]
+            }
+          },
+          {
+            "name": "status[]",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "enum": [
+                "online",
+                "offline",
+                "unseen",
+                "unknown",
+                "unconfigured",
+                "updating",
+                "failed",
+                "deactivated",
+                "archived"
+              ],
+              "items": {
+                "type": "string",
+                "enum": [
+                  "online",
+                  "offline",
+                  "unseen",
+                  "unknown",
+                  "unconfigured",
+                  "updating",
+                  "failed",
+                  "deactivated",
+                  "archived"
+                ]
+              }
             }
           },
           {

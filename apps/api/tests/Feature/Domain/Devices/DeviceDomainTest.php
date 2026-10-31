@@ -411,6 +411,40 @@ final class DeviceDomainTest extends TestCase
         $this->assertNotNull($light);
     }
 
+    public function test_devices_filter_by_the_list_status_and_leave_out_archived_as_current(): void
+    {
+        $states = [
+            'status-online' => ['lifecycle' => 'active', 'presence' => 'online', 'runtime_seen_at' => now()],
+            'status-stale' => ['lifecycle' => 'active', 'presence' => 'online', 'runtime_seen_at' => now()->subMinute()],
+            'status-offline' => ['lifecycle' => 'active', 'presence' => 'offline'],
+            'status-unseen' => ['lifecycle' => 'active', 'presence' => 'unseen'],
+            'status-registered' => ['lifecycle' => 'registered', 'presence' => 'unseen'],
+            'status-pending' => ['lifecycle' => 'active', 'presence' => 'online', 'runtime_seen_at' => now(), 'deployment_status' => 'pending'],
+            'status-failed' => ['lifecycle' => 'registered', 'deployment_status' => 'failed'],
+            'status-deactivated' => ['lifecycle' => 'deactivated', 'presence' => 'offline', 'deployment_status' => 'inactive'],
+            // Archived wins over a failed configuration, as in the portal.
+            'status-archived' => ['lifecycle' => 'archived', 'deployment_status' => 'failed'],
+        ];
+        foreach ($states as $code => $state) {
+            $this->registered($code)->forceFill($state)->save();
+        }
+        $codes = fn (string $query) => collect($this->getJson($this->prefix.'/devices?per_page=100&search=status-&'.$query)->assertOk()->json('data'))->pluck('code')->sort()->values()->all();
+
+        $this->assertSame(['status-online'], $codes('status[]=online'));
+        $this->assertSame(['status-stale'], $codes('status[]=unknown'));
+        $this->assertSame(['status-offline', 'status-unseen'], $codes('status[]=offline&status[]=unseen'));
+        $this->assertSame(['status-registered'], $codes('status[]=unconfigured'));
+        $this->assertSame(['status-pending'], $codes('status[]=updating'));
+        $this->assertSame(['status-failed'], $codes('status[]=failed'));
+        $this->assertSame(['status-deactivated'], $codes('status[]=deactivated'));
+        $this->assertSame(['status-archived'], $codes('status[]=archived'));
+        $this->assertNotContains('status-archived', $codes('lifecycle=current'));
+        $this->assertCount(8, $codes('lifecycle=current'));
+        $this->assertSame([], $codes('lifecycle=current&status[]=archived'));
+        $this->getJson($this->prefix.'/devices?status[]=quiet')->assertUnprocessable()->assertJsonValidationErrors('status.0');
+        $this->getJson($this->prefix.'/devices?status=online')->assertUnprocessable()->assertJsonValidationErrors('status');
+    }
+
     public function test_devices_sort_by_an_allowed_column_with_never_seen_devices_last(): void
     {
         $old = $this->registered('sort-b-old');

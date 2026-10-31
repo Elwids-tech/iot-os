@@ -12,8 +12,9 @@ export default meta
 
 const lifecycles = ["registered", "active", "deactivated", "archived"] as const
 
-function Fleet({ rows = fleet }: { rows?: FixtureDevice[] }) {
-  const [lifecycle, setLifecycle] = useState("all")
+function Fleet({ rows = fleet, compact = false }: { rows?: FixtureDevice[]; compact?: boolean }) {
+  // The compact fleet leaves archived devices out until Lifecycle says otherwise.
+  const [lifecycle, setLifecycle] = useState(compact ? "" : "all")
   const [search, setSearch] = useState("")
   const [profiles, setProfiles] = useState<string[]>([])
   const [sites, setSites] = useState<string[]>([])
@@ -42,7 +43,11 @@ function Fleet({ rows = fleet }: { rows?: FixtureDevice[] }) {
     ],
     [],
   )
-  const inView = lifecycle === "all" ? rows : rows.filter((d) => d.lifecycle === lifecycle)
+  const inView =
+    lifecycle === "all"
+      ? rows
+      : rows.filter((d) => (lifecycle ? d.lifecycle === lifecycle : d.lifecycle !== "archived"))
+  const archived = rows.filter((d) => d.lifecycle === "archived").length
   return (
     <DataTable
       id="story-fleet"
@@ -53,7 +58,7 @@ function Fleet({ rows = fleet }: { rows?: FixtureDevice[] }) {
       rowHref={(d) => `/devices/${d.uuid}`}
       columns={columns}
       defaultSort={[{ id: "device", desc: false }]}
-      views={{
+      views={compact ? undefined : {
         label: "Lifecycle",
         value: lifecycle,
         onChange: setLifecycle,
@@ -64,6 +69,18 @@ function Fleet({ rows = fleet }: { rows?: FixtureDevice[] }) {
       }}
       search={{ label: "Search devices", placeholder: "Search name or code", value: search, onChange: setSearch }}
       filters={[
+        ...(compact
+          ? [
+              {
+                id: "lifecycle",
+                label: "Lifecycle",
+                anyLabel: "Not archived",
+                options: [...lifecycles, "all"].map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) })),
+                value: lifecycle ? [lifecycle] : [],
+                onChange: (value: string[]) => setLifecycle(value[0] ?? ""),
+              },
+            ]
+          : []),
         { id: "profile", label: "Profile", multiple: true, options: [...new Set(rows.map((d) => d.profile).filter(Boolean))].map((p) => ({ value: p!, label: p! })), value: profiles, onChange: setProfiles, match: (d, value) => value.includes(d.profile ?? "") },
         { id: "site", label: "Site", options: [...new Set(rows.map((d) => d.site).filter(Boolean))].map((s) => ({ value: s!, label: s! })), value: sites, onChange: setSites, match: (d, value) => value.includes(d.site ?? "") },
       ]}
@@ -72,7 +89,18 @@ function Fleet({ rows = fleet }: { rows?: FixtureDevice[] }) {
         { id: "profile", label: "Profile", value: (d) => d.profile },
         { id: "site", label: "Site", value: (d) => d.site },
       ]}
-      onReset={() => setLifecycle("all")}
+      onReset={() => setLifecycle(compact ? "" : "all")}
+      compactToolbar={compact}
+      note={
+        compact && !lifecycle && (
+          <>
+            {archived} archived hidden{" "}
+            <Button variant="link" size="sm" className="h-auto p-0 text-meta" onClick={() => setLifecycle("all")}>
+              Show
+            </Button>
+          </>
+        )
+      }
       selectable
       exportName="devices"
       bulkActions={({ ids, clear }) => (
@@ -98,6 +126,13 @@ function Fleet({ rows = fleet }: { rows?: FixtureDevice[] }) {
  * Export CSV, row actions, a summary row and client paging.
  */
 export const AllFeatures: StoryObj = { render: () => <Fleet /> }
+
+/**
+ * Icon-only toolbar buttons named by tooltips, lifecycle inside Filters with a
+ * default ("Not archived") that is not counted as a filter, and a footer note
+ * saying what the default view leaves out.
+ */
+export const CompactToolbar: StoryObj = { render: () => <Fleet compact /> }
 
 /** No rows and nothing filtered: the page's empty state sits inside the panel. */
 export const Empty: StoryObj = { render: () => <Fleet rows={[]} /> }
