@@ -13,6 +13,7 @@ use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\AssistantBudget;
 use App\Domain\Assistant\Services\AssistantEvents;
 use App\Domain\Assistant\Services\AssistantProvider;
+use App\Domain\Assistant\Services\AssistantReply;
 use App\Domain\Help\Services\HelpAnswers;
 use App\Domain\Help\Services\HelpRetrieval;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -58,7 +59,7 @@ final class RunAssistant implements ShouldQueue
         $usage = new TextUsage;
         $buffer = '';
         $answer = '';
-        $newStep = false;
+        $reply = new AssistantReply;
         $lastFlush = microtime(true);
         $helpProviderStarted = false;
         $helpUsageReported = false;
@@ -136,13 +137,11 @@ final class RunAssistant implements ShouldQueue
                 }
                 // Each provider step (text, tool call, more text) starts a new paragraph, as in the final text.
                 if ($event instanceof StreamStart) {
-                    $newStep = trim($answer) !== '';
+                    $reply->step();
                 }
                 if ($event instanceof TextDelta) {
-                    $delta = $newStep && trim($event->delta) !== '' ? "\n\n".ltrim($event->delta) : $event->delta;
-                    $newStep = $newStep && trim($event->delta) === '';
-                    $answer .= $delta;
-                    $buffer .= $delta;
+                    $buffer .= $reply->add($event);
+                    $answer = $reply->text();
                 }
                 if ($event instanceof StreamEnd) {
                     $usage = $usage->add($event->usage);
@@ -164,7 +163,7 @@ final class RunAssistant implements ShouldQueue
                 throw new RuntimeException('assistant.cancelled');
             }
             $status = $response->events->contains(fn ($e) => $e instanceof ToolApprovalRequest) ? 'awaiting_approval' : 'completed';
-            $run->update(['status' => $status, 'answer' => $response->text ?? $answer, 'usage' => $usage->toArray(), 'finished_at' => now()]);
+            $run->update(['status' => $status, 'answer' => $answer, 'usage' => $usage->toArray(), 'finished_at' => now()]);
             $conversation->touch();
             $events->emit($conversation, $run, 'status', ['status' => $status]);
         } catch (Throwable $exception) {

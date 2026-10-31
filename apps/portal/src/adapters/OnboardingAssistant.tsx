@@ -10,6 +10,7 @@ import type {
   OnboardingProposal,
   OnboardingState,
 } from "@iot-os/api-client";
+import { ApiError } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
 import {
   Card,
@@ -64,7 +65,7 @@ import { useDirtyContext } from "../lib/unsaved";
 import { usePanel } from "../panel/context";
 import { Confirm, RequestError } from "../components/forms";
 import { Questions } from "../assistant/AssistantPanel";
-import { ProposalReview } from "../assistant/ProposalReview";
+import { ProposalReview, evidenceLabel } from "../assistant/ProposalReview";
 import { conversationCost, formatCost } from "../assistant/cost";
 import { ActivateAdapterDevice } from "./ActivateDevice";
 
@@ -108,7 +109,10 @@ const STARTERS = [
   "The devices speak Sparkplug B over MQTT.",
 ];
 const time = (value?: string | null) => (value ? Date.parse(value) : Infinity);
+// A reply waiting for a profile section's approval is not active: the person reviews the card or writes.
 const isActive = (detail?: OnboardingDetail) =>
+  detail?.runs.some((run) => ["queued", "running"].includes(run.status)) ?? false;
+const isWaiting = (detail?: OnboardingDetail) =>
   detail?.runs.some((run) => ["queued", "running", "awaiting_approval"].includes(run.status)) ?? false;
 
 /**
@@ -130,7 +134,7 @@ export default function OnboardingAssistantBody({
 }) {
   const cache = useQueryClient();
   const navigate = useNavigate();
-  const { closePanel, handoff, takeHandoff } = usePanel();
+  const { closePanel, handoff, takeHandoff, setAskMode } = usePanel();
   const { dirty } = useDirtyContext();
   // Below xl the workspace panel is a full-height sheet: toasts clear the composer, and
   // opening a workbench step closes the sheet so the step is visible.
@@ -138,7 +142,12 @@ export default function OnboardingAssistantBody({
   const [selected, setSelectedState] = useState<string | null>(
     () => cache.getQueryData<string | null>(["onboarding-selected", org]) ?? null,
   );
-  const setSelected = (id: string | null) => {
+  const setSelected = (id: string | null, park = true) => {
+    // A waiting message belongs to its conversation: switching away puts it back in that composer.
+    if (park && queued && id !== selected) {
+      restore(queued);
+      setQueued(null);
+    }
     cache.setQueryData(["onboarding-selected", org], id);
     setSelectedState(id);
   };
@@ -154,6 +163,8 @@ export default function OnboardingAssistantBody({
       return next;
     });
   const [sources, setSources] = useState<string[]>([]);
+  // A message written while the assistant answers; it is sent when the answer ends.
+  const [queued, setQueued] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   // The message being sent, shown at once until its run appears in the conversation.
@@ -167,6 +178,8 @@ export default function OnboardingAssistantBody({
   const fileInput = useRef<HTMLInputElement>(null);
   // The adapter whose latest conversation was picked; picked once per page, so a choice in the list sticks.
   const followed = useRef<string | null>(null);
+  // Set by "Ask the assistant" on an adapter's page: open that adapter's conversation even mid-setup.
+  const forceFollow = useRef(false);
   useEffect(() => {
     for (const key of ["onboarding-selected", "onboarding-drafts"])
       cache.setQueryDefaults([key], { gcTime: Infinity });
@@ -184,7 +197,7 @@ export default function OnboardingAssistantBody({
     queryKey: ["onboarding-ai", org, selected],
     queryFn: () => api.workflowAssistantDetail<OnboardingDetail>(org, selected!),
     enabled: !!selected,
-    refetchInterval: (query) => (isActive(query.state.data) ? 1500 : 5000),
+    refetchInterval: (query) => (isWaiting(query.state.data) ? 1500 : 5000),
   });
   const data = detail.data;
   const state = data?.onboarding_state ?? null;
@@ -207,7 +220,14 @@ export default function OnboardingAssistantBody({
   const waiting = (candidates.data ?? []).filter((c) => !c.device && !c.preview.retained);
   const [activating, setActivating] = useState<AdapterCandidate | null>(null);
 
-  // "Onboard a device" starts a new conversation; other hand-offs only open the panel here.
+  // The adapter a conversation is bound to, from its loaded detail first: the list can lag
+  // behind a proposal the person just applied.
+  const bindingOf = (id: string) =>
+    cache.getQueryData<OnboardingDetail>(["onboarding-ai", org, id])?.adapter_uuid ??
+    conversations.data?.find((item) => item.id === id)?.adapter_uuid ??
+    null;
+  // "Onboard a device" starts a new conversation; "Ask the assistant" on an adapter's page
+  // opens that adapter's conversation; other hand-offs only open the panel here.
   useEffect(() => {
     if (handoff?.to !== "onboarding") return;
     takeHandoff();
@@ -215,27 +235,48 @@ export default function OnboardingAssistantBody({
       followed.current = adapterUuid ?? null;
       setSelected(null);
       setReview(null);
+    } else if (adapterUuid) {
+      followed.current = null;
+      forceFollow.current = true;
     }
   }, [handoff, takeHandoff]);
-  // On an adapter's page, continue its latest conversation unless one about it is open.
+  // On an adapter's page, continue its latest conversation, unless the open conversation is
+  // this adapter's or a setup in progress that has no adapter yet: one setup keeps one
+  // conversation across pages.
   useEffect(() => {
     if (!adapterUuid || !conversations.data || followed.current === adapterUuid) return;
     followed.current = adapterUuid;
-    const current = conversations.data.find((item) => item.id === selected);
-    if (current?.adapter_uuid === adapterUuid) return;
+    const force = forceFollow.current;
+    forceFollow.current = false;
+    if (selected) {
+      const bound = bindingOf(selected);
+      const inProgress =
+        bound === null && !!cache.getQueryData<OnboardingDetail>(["onboarding-ai", org, selected])?.runs.length;
+      if (bound === adapterUuid || (inProgress && !force)) return;
+    }
     const latest = conversations.data.find((item) => item.adapter_uuid === adapterUuid);
     setSelected(latest?.id ?? null);
-  }, [adapterUuid, conversations.data]);
+  }, [adapterUuid, conversations.data, handoff]);
 
   const active = isActive(data);
   const enabled = settings.data?.enabled ?? false;
   const locked = busy || uploading || active || !canEdit || !enabled;
 
-  function openAdapter(uuid: string, tab?: string) {
+  /**
+   * Opens a page from the conversation. Ask stays on this conversation there, so a step
+   * on another page never starts a new one. On a phone the sheet closes to show the step,
+   * unless the page only follows a decision made in the chat.
+   */
+  function keepConversation(adapter?: string) {
+    if (adapter) followed.current = adapter;
+    setAskMode("onboarding");
+  }
+  function openAdapter(uuid: string, tab?: string, close = true) {
+    keepConversation(uuid);
     navigate(`/organizations/${encodeURIComponent(org)}/device-adapters/${encodeURIComponent(uuid)}`, {
       state: tab ? { tab } : undefined,
     });
-    if (sheet) closePanel();
+    if (sheet && close) closePanel();
   }
   async function refresh(id = selected) {
     await Promise.all([
@@ -246,18 +287,32 @@ export default function OnboardingAssistantBody({
   async function target() {
     if (selected) return selected;
     const result = await api.createOnboardingConversation(org, adapterUuid);
-    setSelected(result.id);
+    // The conversation that was "new" is this one now, so a waiting message stays with it.
+    setSelected(result.id, false);
     followed.current = adapterUuid ?? null;
     await cache.invalidateQueries({ queryKey: ["onboarding-ai-conversations", org] });
     return result.id;
   }
+  // Gives an unsent message back to the composer, ahead of anything written since.
+  const restore = (text: string, key = draftKey) =>
+    setDrafts((current) => {
+      const next = { ...current, [key]: current[key]?.trim() ? `${text}\n\n${current[key]}` : text };
+      cache.setQueryData(["onboarding-drafts", org], next);
+      return next;
+    });
   async function send(text = draft, answers: AssistantAnswer[] = []) {
     const prompt = text.trim();
-    if (!prompt || locked) return;
+    if (!prompt || !canEdit || !enabled) return;
+    const typed = text === draft;
+    if (busy || uploading || active) {
+      // Written while the assistant answers: it waits here and goes out when the answer ends.
+      if (typed) setDraft("");
+      setQueued((current) => (current ? `${current}\n\n${prompt}` : prompt));
+      return;
+    }
     setBusy(true);
     setError(null);
     setSending({ prompt, runs: data?.runs.length ?? 0 });
-    const typed = text === draft;
     const key = draftKey;
     if (typed) setDraft("", key);
     try {
@@ -271,14 +326,25 @@ export default function OnboardingAssistantBody({
       setSources([]);
       await refresh(id);
     } catch (reason) {
-      setError(reason);
-      // Give the unsent message back so it can be retried or edited.
-      if (typed) setDraft(text, key);
+      if (reason instanceof ApiError && reason.status === 409 && !answers.length) {
+        // Another reply started first (a decision starts one): wait for it, then send.
+        setQueued((current) => (current ? `${prompt}\n\n${current}` : prompt));
+        await refresh();
+      } else {
+        setError(reason);
+        // Give the unsent message back so it can be retried or edited.
+        if (!answers.length) restore(prompt, key);
+      }
     } finally {
       setBusy(false);
       setSending(null);
     }
   }
+  useEffect(() => {
+    if (!queued || busy || uploading || active || (selected && (!detail.isSuccess || detail.isFetching))) return;
+    setQueued(null);
+    void send(queued);
+  }, [queued, busy, uploading, active, selected, detail.isSuccess, detail.isFetching]);
   async function upload(files: FileList | null) {
     if (!files?.length) return;
     setUploading(true);
@@ -329,10 +395,16 @@ export default function OnboardingAssistantBody({
       });
       setAdapterReview(null);
       if (result.adapter) {
+        const bound = result.adapter.uuid;
         // The workbench reads this query, so an applied draft shows there at once.
-        cache.setQueryData(["adapter", org, result.adapter.uuid], result.adapter);
-        if (action === "apply" && result.adapter.uuid !== adapterUuid)
-          openAdapter(result.adapter.uuid, proposal.kind === "create" ? "source" : undefined);
+        cache.setQueryData(["adapter", org, bound], result.adapter);
+        // The conversation is now this adapter's; it stays open when the adapter's page opens.
+        if (action === "apply")
+          cache.setQueryData<OnboardingDetail>(["onboarding-ai", org, selected], (current) =>
+            current ? { ...current, adapter_uuid: bound } : current,
+          );
+        if (action === "apply" && bound !== adapterUuid)
+          openAdapter(bound, proposal.kind === "create" ? "source" : undefined, false);
       }
       await refresh();
       await cache.invalidateQueries({ queryKey: ["adapters", org] });
@@ -484,6 +556,36 @@ export default function OnboardingAssistantBody({
             </MessageContent>
           </Message>
         </div>
+      ),
+    });
+  if (queued)
+    items.push({
+      id: "queued",
+      at: Infinity,
+      anchor: true,
+      content: (
+        <Message align="end">
+          <MessageContent>
+            <MessageHeader>You</MessageHeader>
+            <Bubble align="end">
+              <BubbleContent className="whitespace-pre-wrap">{queued}</BubbleContent>
+            </Bubble>
+            <div className="flex items-center justify-end gap-2 text-meta text-muted-foreground">
+              Sends when the assistant finishes.
+              <Button
+                size="sm"
+                variant="link"
+                className="h-auto px-0"
+                onClick={() => {
+                  restore(queued);
+                  setQueued(null);
+                }}
+              >
+                Edit
+              </Button>
+            </div>
+          </MessageContent>
+        </Message>
       ),
     });
   if (!active && state?.questions?.length)
@@ -653,7 +755,10 @@ export default function OnboardingAssistantBody({
                   <Link
                     className="text-primary underline"
                     to={`/organizations/${encodeURIComponent(org)}/device-adapters/${encodeURIComponent(boundAdapter)}`}
-                    onClick={() => sheet && closePanel()}
+                    onClick={() => {
+                      keepConversation(boundAdapter);
+                      if (sheet) closePanel();
+                    }}
                   >
                     Open {adapter?.name ?? "the adapter"}
                   </Link>
@@ -666,7 +771,10 @@ export default function OnboardingAssistantBody({
                 <Link
                   className="text-primary underline"
                   to={`/organizations/${encodeURIComponent(org)}/device-profiles/${data.profile_uuid}/review`}
-                  onClick={() => sheet && closePanel()}
+                  onClick={() => {
+                    keepConversation();
+                    if (sheet) closePanel();
+                  }}
                 >
                   Publish {data.profile_name ?? "the profile draft"}
                 </Link>
@@ -837,6 +945,7 @@ export default function OnboardingAssistantBody({
           serial={activating.source_device_id}
           onClose={() => setActivating(null)}
           onActivated={(device) => {
+            keepConversation();
             navigate(`/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device.uuid)}/overview`);
             if (sheet) closePanel();
           }}
@@ -1082,7 +1191,7 @@ function AdapterProposalReview({
           ) : null}
           {proposal.evidence.map((evidence, index) => (
             <p key={index} className="text-meta text-muted-foreground">
-              {evidence.origin}
+              {evidenceLabel(evidence.origin)}
               {evidence.location ? ` · ${evidence.location}` : ""}
               {evidence.note ? ` · ${evidence.note}` : ""}
             </p>

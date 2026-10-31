@@ -47,7 +47,8 @@ export type AssistantProposal = {
   before: Record<string, AssistantValue>
   evidence: {
     field: string
-    origin: "user_confirmed" | "source" | "suggested" | "unresolved"
+    /** user_stated: said in the conversation; user_confirmed: confirmed in a review. */
+    origin: "user_stated" | "user_confirmed" | "source" | "suggested" | "unresolved"
     source_id?: string
     location?: string
     note?: string

@@ -69,6 +69,16 @@ const enums: Record<string, string[]> = {
 const label = (key: string) =>
   key.replaceAll("_", " ").replace(/^./, (x) => x.toUpperCase())
 
+/** Where a proposed value came from, in the words the review shows. */
+export const evidenceLabel = (origin: string) =>
+  ({
+    user_stated: "From your message",
+    user_confirmed: "Confirmed by you",
+    source: "From an attached file",
+    suggested: "Suggested",
+    unresolved: "Still unknown",
+  })[origin] ?? label(origin)
+
 // Nested values remain typed form controls; JSON is a separate, read-only view.
 function ValueField({
   name,
@@ -569,7 +579,7 @@ export function ProposalReview({
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{item.field}</span>
-                      <Badge variant="outline">{label(item.origin)}</Badge>
+                      <Badge variant="outline">{evidenceLabel(item.origin)}</Badge>
                     </div>
                     {item.note && <p>{item.note}</p>}
                     {pending &&

@@ -478,6 +478,14 @@ Things that have cost time before. Add to this list when something surprises you
   normalizing, and make every refusal say which field is wrong and what it held; a vague
   "invalid binding" makes the model give up. Refused automation tool calls are logged
   as "Automation assistant tool refused".
+- **OpenAI can send one reply twice.** A Responses stream can hold two output messages
+  with the same text in one step, and the SDK's combined `text` joins them with no
+  separator. `RunAssistant` builds the reply with `AssistantReply`, one paragraph per
+  provider message, and leaves out a message that repeats an earlier one.
+- **Show models the shape, not just the field names.** Given only field descriptions,
+  models sent a parameter's `ingress_conversion` as a list three times and gave up.
+  An example object in `ProfileKnowledge` fixed it. Decoders also converted a unit the
+  profile already converts at ingress; tools now list each parameter's `decoder_unit`.
 
 ## UI
 
