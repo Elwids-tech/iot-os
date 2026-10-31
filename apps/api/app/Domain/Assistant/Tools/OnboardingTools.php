@@ -128,7 +128,7 @@ final class OnboardingTools implements Tool
             ->unique(fn ($artifact) => $artifact->device_profile_id)->sortByDesc(fn ($artifact) => $score($artifact->profile->name))->take(20);
 
         return ['profiles' => $profiles->map(fn ($artifact) => ['uuid' => $artifact->profile->uuid, 'artifact_uuid' => $artifact->uuid, 'name' => $artifact->profile->name, 'revision' => $artifact->revision,
-            'parameters' => collect($artifact->definition['parameters'] ?? [])->filter(fn ($p) => ($p['reports_state'] ?? false) && ($p['kind'] ?? null) !== 'derived')->take(60)->map(fn ($p) => ['key' => $p['key'], 'data_type' => $p['data_type'], 'unit' => $p['unit'] ?? null, 'decoder_unit' => $p['ingress_conversion']['source_unit'] ?? $p['unit'] ?? null])->values()->all()])->values()->all(),
+            'parameters' => collect($artifact->definition['parameters'] ?? [])->filter(fn ($p) => ($p['reports_state'] ?? false) && ($p['kind'] ?? null) !== 'derived')->take(60)->map(fn ($p) => ['key' => $p['key'], 'data_type' => $p['data_type'], 'unit' => $p['unit'] ?? null])->values()->all()])->values()->all(),
             'note' => 'Only published profiles are listed. To create an adapter for one, call propose_adapter with mode create and its artifact_uuid. Reuse an adapter only when its profile_uuid is this profile\'s uuid and its source matches the devices\' source.'];
     }
 
