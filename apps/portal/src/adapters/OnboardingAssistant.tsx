@@ -32,6 +32,7 @@ import {
   InputGroupTextarea,
   InputGroupAddon,
 } from "@iot-os/ui/components/input-group";
+import { ActionCard } from "@iot-os/ui/components/action-card";
 import { Badge } from "@iot-os/ui/components/badge";
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert";
 import { JsonEditor } from "@iot-os/ui/components/json-editor";
@@ -75,7 +76,7 @@ import { api } from "../lib/api";
 import { useDirtyContext } from "../lib/unsaved";
 import { usePanel } from "../panel/context";
 import { Confirm, RequestError } from "../components/forms";
-import { Questions } from "../assistant/AssistantPanel";
+import { Questions, sectionLabel } from "../assistant/AssistantPanel";
 import { ProposalReview, evidenceLabel } from "../assistant/ProposalReview";
 import { conversationCost, formatCost } from "../assistant/cost";
 import { ActivateAdapterDevice } from "./ActivateDevice";
@@ -103,12 +104,6 @@ const STEP_ICONS: Record<OnboardingStep, LucideIcon> = {
   deploy: RocketIcon,
   activate: PowerIcon,
   cursor: HistoryIcon,
-};
-const SECTION_LABELS: Record<string, string> = {
-  identity: "Name and code",
-  parameters: "Readings",
-  groups: "Reading groups",
-  calculations: "Calculated readings",
 };
 // The workbench tab where each suggested step happens.
 const STEP_TABS: Record<OnboardingStep, string> = {
@@ -639,7 +634,7 @@ export default function OnboardingAssistantBody({
           <ActionCard
             icon={FilePenLineIcon}
             label="Device type proposal"
-            title={SECTION_LABELS[proposal.section] ?? proposal.section}
+            title={sectionLabel(proposal.section)}
             description={proposal.summary}
           >
             <Button size="sm" disabled={busy || active} onClick={() => setReview(proposal)}>
@@ -1045,40 +1040,6 @@ function Welcome({
           </Button>
         ))}
       </CardContent>
-    </Card>
-  );
-}
-
-/**
- * A step that waits on the person, in the chat: an icon, what it is and its buttons.
- * Proposals, next steps and activation all read the same way.
- */
-function ActionCard({
-  icon: Icon,
-  label,
-  title,
-  description,
-  children,
-}: {
-  icon: LucideIcon;
-  label: string;
-  title: ReactNode;
-  description?: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <Card size="sm">
-      <CardHeader className="flex items-start gap-3">
-        <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="size-4" />
-        </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-meta text-muted-foreground">{label}</span>
-          <CardTitle>{title}</CardTitle>
-          {description && <CardDescription>{description}</CardDescription>}
-        </div>
-      </CardHeader>
-      {children && <CardContent className="flex flex-wrap items-center gap-2 pl-14">{children}</CardContent>}
     </Card>
   );
 }

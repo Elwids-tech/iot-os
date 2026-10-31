@@ -43,12 +43,12 @@ import {
 import {
   Message,
   MessageContent,
-  MessageHeader,
 } from "@iot-os/ui/components/message"
 import { Bubble, BubbleContent } from "@iot-os/ui/components/bubble"
 import { Marker, MarkerContent } from "@iot-os/ui/components/marker"
 import { Markdown } from "@iot-os/ui/components/markdown"
 import { Thinking } from "@iot-os/ui/components/thinking"
+import { ActionCard } from "@iot-os/ui/components/action-card"
 import {
   MessageScrollerProvider,
   MessageScroller,
@@ -60,6 +60,7 @@ import {
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import {
+  FilePenLineIcon,
   FileTextIcon,
   PlusIcon,
   SendIcon,
@@ -78,6 +79,14 @@ import { applyTextEvents } from "./state"
 import { conversationCost, formatCost } from "./cost"
 
 type Draft = { text: string; sources: string[] }
+const SECTION_LABELS: Record<string, string> = {
+  identity: "Name and code",
+  parameters: "Readings",
+  groups: "Reading groups",
+  calculations: "Calculated readings",
+}
+/** A profile section in the words people use. */
+export const sectionLabel = (section: string) => SECTION_LABELS[section] ?? section
 const emptyDraft: Draft = { text: "", sources: [] }
 const isActive = (detail: AssistantDetail | null) =>
   detail?.runs.some(
@@ -516,8 +525,7 @@ export default function ProfileAssistantBody({
       content: (
         <Message align="end">
           <MessageContent>
-            <MessageHeader>You</MessageHeader>
-            <Bubble align="end">
+            <Bubble align="end" variant="tinted">
               <BubbleContent className="whitespace-pre-wrap">
                 {run.prompt}
               </BubbleContent>
@@ -530,7 +538,7 @@ export default function ProfileAssistantBody({
                   href={api.assistantSourceUrl(org, selected!, id)}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs text-primary underline"
+                  className="text-meta text-primary hover:underline"
                 >
                   {source.name}
                 </a>
@@ -546,7 +554,6 @@ export default function ProfileAssistantBody({
       content: (
         <Message>
           <MessageContent>
-            <MessageHeader>Profile assistant</MessageHeader>
             {run.answer && (
               <Bubble variant="ghost">
                 <BubbleContent>
@@ -602,24 +609,20 @@ export default function ProfileAssistantBody({
       id: proposal.id,
       at: proposalTime(proposal),
       content: (
-        <Card>
-          <CardHeader>
-            <CardTitle>Review {proposal.section}</CardTitle>
-            <CardDescription>{proposal.summary}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Badge variant="outline">
-              {proposal.changes.length}{" "}
-              {proposal.changes.length === 1 ? "change" : "changes"} · awaiting
-              your review
-            </Badge>
-          </CardContent>
-          <CardFooter>
-            <Button disabled={locked} onClick={() => setReview(proposal)}>
-              Review section
-            </Button>
-          </CardFooter>
-        </Card>
+        <ActionCard
+          icon={FilePenLineIcon}
+          label="Profile proposal"
+          title={sectionLabel(proposal.section)}
+          description={proposal.summary}
+        >
+          <Badge variant="outline">
+            {proposal.changes.length}{" "}
+            {proposal.changes.length === 1 ? "change" : "changes"}
+          </Badge>
+          <Button size="sm" disabled={locked} onClick={() => setReview(proposal)}>
+            Review section
+          </Button>
+        </ActionCard>
       ),
     })
   messages.sort((a, b) => a.at - b.at)
@@ -631,8 +634,7 @@ export default function ProfileAssistantBody({
         <div className="flex flex-col gap-4">
           <Message align="end">
             <MessageContent>
-              <MessageHeader>You</MessageHeader>
-              <Bubble align="end">
+              <Bubble align="end" variant="tinted">
                 <BubbleContent className="whitespace-pre-wrap">
                   {sending.prompt}
                 </BubbleContent>
@@ -641,7 +643,6 @@ export default function ProfileAssistantBody({
           </Message>
           <Message>
             <MessageContent>
-              <MessageHeader>Profile assistant</MessageHeader>
               <Thinking>Sending…</Thinking>
             </MessageContent>
           </Message>
@@ -678,11 +679,12 @@ export default function ProfileAssistantBody({
       aria-label="Profile assistant"
       title={scope}
     >
-      <div className="flex flex-col gap-3 border-b p-4">
-        <div className="flex items-end gap-2">
+      <div className="flex flex-col gap-2 border-b px-3 py-2">
+        <div className="flex items-center gap-1">
           <div className="min-w-0 flex-1">
             <SearchableSelect
               label="Conversation"
+              labelHidden
               value={selected ?? ""}
               selectedLabel={detail?.title}
               options={(conversations.data ?? [])
@@ -706,9 +708,10 @@ export default function ProfileAssistantBody({
             />
           </div>
           <Button
-            variant="outline"
-            size="icon"
+            variant="ghost"
+            size="icon-sm"
             aria-label="New conversation"
+            title="New conversation"
             disabled={busy || uploading}
             onClick={() => {
               setSelected(null)
@@ -720,8 +723,9 @@ export default function ProfileAssistantBody({
           {selected && (
             <Button
               variant="ghost"
-              size="icon"
+              size="icon-sm"
               aria-label="Delete conversation"
+              title="Delete conversation"
               disabled={locked}
               onClick={() => setDeleteOpen(true)}
             >
@@ -730,13 +734,14 @@ export default function ProfileAssistantBody({
           )}
         </div>
         {detail && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <Badge variant="secondary">
-              {detail.profile_name ?? "New device profile"}
-            </Badge>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-meta text-muted-foreground">
+            <span className="flex min-w-0 items-center gap-1">
+              <FilePenLineIcon className="size-3.5 shrink-0" />
+              <span className="truncate">{detail.profile_name ?? "New device profile"}</span>
+            </span>
             {detail.profile_uuid && (
               <Link
-                className="text-primary underline"
+                className="text-primary hover:underline"
                 to={`/organizations/${org}/device-profiles/${detail.profile_uuid}/review`}
               >
                 Review &amp; publish
@@ -856,7 +861,7 @@ export default function ProfileAssistantBody({
       <div
         // The phone sheet fills the screen, so toasts stack above the composer instead.
         ref={sheet ? keepToastsAbove : undefined}
-        className="flex flex-col gap-3 border-t bg-background p-4"
+        className="flex flex-col gap-2 border-t bg-background px-3 py-3"
       >
         {!!detail?.sources.length && (
           <details>
@@ -919,7 +924,7 @@ export default function ProfileAssistantBody({
               aria-label="Message the profile assistant"
               placeholder="Tell me about your device…"
               value={draft.text}
-              rows={3}
+              rows={2}
               maxLength={8000}
               onChange={(event) => updateDraft({ text: event.target.value })}
               onKeyDown={(event) => {
@@ -985,13 +990,10 @@ export default function ProfileAssistantBody({
             </InputGroupAddon>
           </InputGroup>
         </form>
-        <p className="text-xs text-muted-foreground">
-          Selected files are sent to {settings.data?.provider?.label ?? "the AI provider"}. Chats and files stay private until
-          you delete them. Check suggested values before saving.
+        <p className="text-meta text-muted-foreground">
+          Files go to {settings.data?.provider?.label ?? "the AI provider"} and stay private until you delete them.
           {conversationCost(detail?.runs) > 0 && (
-            <span className="tabular-nums">
-              {" "}· Estimated cost of this conversation {formatCost(conversationCost(detail?.runs))}
-            </span>
+            <span className="tabular-nums"> · About {formatCost(conversationCost(detail?.runs))} so far</span>
           )}
         </p>
       </div>
