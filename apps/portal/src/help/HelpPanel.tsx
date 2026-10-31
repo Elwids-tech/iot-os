@@ -304,18 +304,31 @@ export default function HelpPanel({
         ? document.activeElement
         : null;
     if (!mobile) panel.current?.focus();
+    // An open picker, menu or popover takes Escape; the panel closes only on a later one.
+    // Noted before any handler runs, since the layer may close before this Escape reaches the panel.
+    let layerOpen = false;
+    const before = (event: KeyboardEvent) => {
+      layerOpen =
+        event.key === "Escape" &&
+        !!document.querySelector(
+          '[data-radix-popper-content-wrapper], [data-slot="select-content"], [role="menu"]',
+        );
+    };
     const escape = (event: KeyboardEvent) => {
       if (
         event.key === "Escape" &&
         !event.defaultPrevented &&
+        !layerOpen &&
         !mobile &&
         !(event.target as HTMLElement)?.closest('[role="dialog"]')
       ) {
         onCloseRef.current();
       }
     };
+    window.addEventListener("keydown", before, true);
     document.addEventListener("keydown", escape);
     return () => {
+      window.removeEventListener("keydown", before, true);
       document.removeEventListener("keydown", escape);
       trigger.current?.focus();
     };

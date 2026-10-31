@@ -183,15 +183,19 @@ export function Questions({
         </FieldGroup>
       </CardContent>
       <CardFooter>
+        {/* Only required questions hold the card; an unanswered optional one is sent as skipped. */}
         <Button
           disabled={
-            busy || questions.some((question) => !answers[question.id]?.trim())
+            busy ||
+            questions.some(
+              (question) => question.required && !answers[question.id]?.trim(),
+            )
           }
           onClick={() =>
             void onAnswer(
               questions.map((question) => ({
                 id: question.id,
-                answer: answers[question.id].trim(),
+                answer: answers[question.id]?.trim() || "Skip for now",
               })),
             )
           }

@@ -519,7 +519,7 @@ async function setup(
       return data([]);
     return data([]);
   });
-  return { errors, requests };
+  return { errors, requests, current: () => adapter };
 }
 
 test("first-time onboarding saves, tests, reviews and protects an unsaved decoder", async ({
@@ -1011,6 +1011,215 @@ test("the onboarding assistant works in the workspace panel beside the workbench
   await page.getByRole("tab", { name: "4 · Review & deploy" }).click();
   await chat.getByRole("button", { name: "Create a webhook secret" }).click();
   await expect(page.getByRole("tab", { name: "2 · Connection" })).toHaveAttribute("aria-selected", "true");
+  expect(errors).toEqual([]);
+});
+
+type Conversation = { id: string; title: string; adapter_uuid: string | null; detail: () => Record<string, unknown> };
+const assistantRun = (id: string, prompt: string, answer: string | null, status = "completed", at = minutes(5)) => ({
+  id,
+  request_id: `q-${id}`,
+  status,
+  prompt,
+  answer,
+  source_ids: [],
+  usage: null,
+  cost_usd: 0.01,
+  error_code: null,
+  error_message: null,
+  created_at: at,
+});
+
+/** The onboarding assistant's API: conversations whose details the test changes as it goes. */
+async function onboardingAssistant(
+  page: Page,
+  requests: { path: string; body: any }[],
+  conversations: Conversation[],
+  decide: (path: string, body: any) => unknown = () => ({ status: "applied", adapter: null, run: null, notice: null }),
+) {
+  await page.route("**/help/page**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: { key: "adapters", title: "Device adapters", overview: "adapters", articles: [] } }),
+    }),
+  );
+  await page.route("**/assistant/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const data = (value: unknown, status = 200) =>
+      route.fulfill({ status, contentType: "application/json", body: JSON.stringify({ data: value }) });
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      requests.push({ path, body });
+      if (path.endsWith("/messages")) return data(assistantRun("r-sent", body.text, null, "queued"), 202);
+      return data(decide(path, body));
+    }
+    if (path.endsWith("/settings"))
+      return data({ enabled: true, provider: { label: "OpenAI" }, supported_extensions: [], max_file_bytes: 1 });
+    // The list as it was loaded: bindings made since then show only in each conversation's detail.
+    if (path.endsWith("/conversations"))
+      return data(
+        conversations.map(({ id, title, adapter_uuid }) => ({
+          id, title, scope: "onboarding", adapter_uuid, profile_uuid: null, profile_name: null, updated_at: minutes(5),
+        })),
+      );
+    const conversation = conversations.find((item) => path.endsWith(`/conversations/${item.id}`));
+    if (conversation)
+      return data({
+        id: conversation.id,
+        title: conversation.title,
+        scope: "onboarding",
+        adapter_uuid: conversation.adapter_uuid,
+        profile_uuid: null,
+        profile_name: null,
+        updated_at: minutes(5),
+        sources: [],
+        proposals: [],
+        adapter_proposals: [],
+        onboarding_state: null,
+        cursor: 0,
+        ...conversation.detail(),
+      });
+    return data([]);
+  });
+}
+
+/** Opens Ask from the page header and picks a conversation from the panel's list. */
+async function openConversation(page: Page, title: string) {
+  await page.locator('[data-slot="page-header"]').first().getByRole("button", { name: "Assistant", exact: true }).click();
+  const chat = page
+    .getByRole("complementary", { name: "Assistant", exact: true })
+    .getByRole("region", { name: "Onboarding assistant" });
+  await chat.getByRole("combobox", { name: "Conversation" }).click();
+  await page.getByRole("option", { name: title }).click();
+  return chat;
+}
+
+test("applying a proposal and activating from the chat keep the same conversation across pages", async ({ page }) => {
+  const { errors, requests, current } = await setup(page);
+  let applied = false;
+  const older: Conversation = {
+    id: "c-1",
+    title: "Older meters",
+    adapter_uuid: id,
+    detail: () => ({ runs: [assistantRun("r-old", "An older setup.", "The older conversation.")] }),
+  };
+  const setupConversation: Conversation = {
+    id: "c-2",
+    title: "WM-200 water meters",
+    adapter_uuid: null,
+    detail: () => ({
+      adapter_uuid: applied ? id : null,
+      runs: [
+        assistantRun("r-1", "We bought WM-200 water meters that publish JSON to our broker.", "I proposed a new adapter for them."),
+        ...(applied ? [assistantRun("r-2", "I created this adapter draft. Continue onboarding.", "Next I will test the decoder with your sample.", "completed", minutes(1))] : []),
+      ],
+      adapter_proposals: [
+        {
+          uuid: "p-2", kind: "create", name: "WM-200 water meters", artifact_uuid: artifact, code: null, source: null, fixtures: null,
+          summary: "A new adapter for the WM-200 meters", evidence: [], content_hash: "hash-2", draft_revision: null,
+          status: applied ? "applied" : "pending", adapter_uuid: applied ? id : null, adapter_name: applied ? "Manufacturer water meter" : null, created_at: minutes(4),
+        },
+      ],
+    }),
+  };
+  await onboardingAssistant(page, requests, [setupConversation, older], () => {
+    applied = true;
+    return { status: "applied", adapter: current(), run: null, notice: null };
+  });
+  await page.goto(base);
+  const chat = await openConversation(page, "WM-200 water meters");
+  await expect(chat).toContainText("I proposed a new adapter for them.");
+  await chat.getByRole("button", { name: "Create draft" }).click();
+  // The new adapter's page opens beside the same conversation, not the adapter's older one or a new one.
+  await expect(page).toHaveURL(new RegExp(`${base}/${id}$`));
+  await expect(chat).toContainText("Next I will test the decoder with your sample.");
+  await expect(chat).toContainText("Created the draft adapter");
+  await expect(chat).not.toContainText("The older conversation.");
+  expect(requests.find((r) => r.path.endsWith("/adapter-proposals/p-2/decision"))?.body).toMatchObject({ action: "apply" });
+
+  // Activating opens the device, and the conversation stays open beside it.
+  await chat.getByRole("button", { name: "Activate", exact: true }).click();
+  await page.getByRole("dialog", { name: "Activate WM-1042" }).getByRole("button", { name: "Activate", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/organizations/${org}/devices/${device}`));
+  await expect(chat).toContainText("Next I will test the decoder with your sample.");
+  expect(errors).toEqual([]);
+});
+
+test("optional questions never block, and Escape closes only the answer picker", async ({ page }) => {
+  const { errors, requests } = await setup(page);
+  await onboardingAssistant(page, requests, [
+    {
+      id: "c-3",
+      title: "Meters",
+      adapter_uuid: null,
+      detail: () => ({
+        runs: [assistantRun("r-1", "We have new water meters.", "A few details first.")],
+        onboarding_state: {
+          questions: [
+            { id: "transport", prompt: "How does the meter send data?", required: true, options: ["Its own JSON over MQTT", "Sparkplug B"] },
+            { id: "units", prompt: "Which unit is the flow in?", required: false, options: ["L/min", "m³/h"] },
+          ],
+        },
+      }),
+    },
+  ]);
+  await page.goto(base);
+  const chat = await openConversation(page, "Meters");
+  const panel = page.getByRole("complementary", { name: "Assistant", exact: true });
+  const picker = chat.getByRole("combobox", { name: "Suggested answer" }).first();
+  await picker.click();
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox")).toBeHidden();
+  await expect(panel).toBeVisible();
+  await expect(picker).toBeFocused();
+  await chat.getByRole("combobox", { name: "Conversation" }).click();
+  await expect(page.getByRole("option", { name: "Meters" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("option", { name: "Meters" })).toBeHidden();
+  await expect(panel).toBeVisible();
+
+  const next = chat.getByRole("button", { name: "Continue with these answers" });
+  await expect(next).toBeDisabled();
+  await picker.click();
+  await page.getByRole("option", { name: "Its own JSON over MQTT" }).click();
+  await expect(panel).toBeVisible();
+  // The optional question is unanswered and does not hold the card.
+  await expect(next).toBeEnabled();
+  await next.click();
+  await expect.poll(() => requests.find((r) => r.path.endsWith("/conversations/c-3/messages"))?.body.answers).toEqual([
+    { id: "transport", answer: "Its own JSON over MQTT" },
+    { id: "units", answer: "Skip for now" },
+  ]);
+  expect(errors).toEqual([]);
+});
+
+test("a message written while the assistant answers is sent when the answer ends", async ({ page }) => {
+  const { errors, requests } = await setup(page);
+  let running = true;
+  await onboardingAssistant(page, requests, [
+    {
+      id: "c-4",
+      title: "Meters",
+      adapter_uuid: null,
+      detail: () => ({
+        runs: [assistantRun("r-1", "I dismissed this proposal. Help me adjust it.", running ? null : "What should change?", running ? "running" : "completed")],
+      }),
+    },
+  ]);
+  await page.goto(base);
+  const chat = await openConversation(page, "Meters");
+  await expect(chat.getByRole("button", { name: "Stop" })).toBeVisible();
+  const composer = chat.getByLabel("Message the onboarding assistant");
+  await composer.fill("The topic is meters/WM-2001/telemetry.");
+  await composer.press("Enter");
+  await expect(composer).toHaveValue("");
+  await expect(chat).toContainText("Sends when the assistant finishes.");
+  expect(requests.some((r) => r.path.endsWith("/messages"))).toBe(false);
+  running = false;
+  await expect
+    .poll(() => requests.find((r) => r.path.endsWith("/conversations/c-4/messages"))?.body.text, { timeout: 15000 })
+    .toBe("The topic is meters/WM-2001/telemetry.");
+  await expect(chat).not.toContainText("Sends when the assistant finishes.");
   expect(errors).toEqual([]);
 });
 

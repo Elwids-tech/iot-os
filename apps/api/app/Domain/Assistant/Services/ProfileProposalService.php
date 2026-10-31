@@ -47,7 +47,7 @@ final class ProfileProposalService
             'changes' => ['required', 'array', 'min:1', 'max:100'],
             'evidence' => ['sometimes', 'array', 'max:100'],
             'evidence.*.field' => ['required', 'string', 'max:255'],
-            'evidence.*.origin' => ['required', 'in:user_confirmed,source,suggested,unresolved'],
+            'evidence.*.origin' => ['required', 'in:user_stated,user_confirmed,source,suggested,unresolved'],
             'evidence.*.source_id' => ['nullable', 'uuid'],
             'evidence.*.location' => ['nullable', 'string', 'max:255'],
             'evidence.*.note' => ['nullable', 'string', 'max:1000'],
