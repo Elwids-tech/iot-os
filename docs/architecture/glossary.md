@@ -213,11 +213,12 @@ outside / back inside), or a membership `entered` / `exited` change. IDs are
 deterministic, so replays do not duplicate.
 
 **Alert / episode.** One `automation_alerts` row per deployment episode: active
-from activation until cleared. Acknowledgement and assignment are separate from
+from activation until cleared. Device connectivity alerts (spec 018) share the table
+with `kind` set and no workflow. Acknowledgement and assignment are separate from
 the condition; acknowledging never clears it. `Automation/Models/Alert.php`
 
-**Alert delivery.** One email per alert, recipient and type (activated or
-cleared), with retry history. `Automation/Models/AlertDelivery.php`
+**Alert delivery.** One message per alert, recipient, type (activated or cleared)
+and `channel` (`email`), with retry history. `Automation/Models/AlertDelivery.php`
 
 **Notification event.** An entry in the event log: workflow transitions, service
 monitoring alerts and watchdog failures. `Notifications/Models/NotificationEvent.php`

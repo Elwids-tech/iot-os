@@ -62,13 +62,14 @@ final class ListAlerts extends AgentTool
         $urls = app(PortalUrls::class);
         $rows = collect($alerts->views($context->organization, $result->getCollection()))->map(fn (array $alert): array => [
             'uuid' => $alert['uuid'],
+            'kind' => $alert['kind'],
             'episode' => $alert['episode'],
             'condition' => $alert['condition'],
             'activated_at' => $alert['activated_at'],
             'cleared_at' => $alert['cleared_at'],
             'acknowledged_at' => $alert['acknowledged_at'],
             'device' => ['uuid' => $alert['device_uuid'], 'name' => $alert['device_name']],
-            'workflow' => ['uuid' => $alert['workflow_uuid'], 'name' => $alert['workflow_name']],
+            'workflow' => $alert['workflow_uuid'] === null ? null : ['uuid' => $alert['workflow_uuid'], 'name' => $alert['workflow_name']],
             'portal_url' => $urls->organization($context->organization, 'alerts/'.$alert['uuid']),
         ])->values()->all();
 

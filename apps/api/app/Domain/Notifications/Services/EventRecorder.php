@@ -53,6 +53,9 @@ final class EventRecorder
 
     public function workflow(Alert $alert, string $type, string $occurredAt): void
     {
+        if (! $alert->isWorkflow()) {
+            throw new \LogicException('Only workflow alerts are recorded as workflow events.');
+        }
         $alert->loadMissing('workflow');
         $this->record([
             'source' => 'workflow', 'event_key' => $alert->uuid.':'.$type,

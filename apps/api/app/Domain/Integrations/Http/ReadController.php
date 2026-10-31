@@ -65,7 +65,8 @@ final class ReadController
     {
         $devices = $this->deviceQuery($request, $organization)->pluck('uuid')->all();
 
-        return Alert::where('organization_id', $organization->id)->whereHas('deployment', fn ($query) => $query->whereIn('definition->binding->device_uuid', $devices))->with(['workflow', 'deployment']);
+        // Workflow alerts only: IntegrationAlert requires a workflow (spec 018, FR-029).
+        return Alert::where('organization_id', $organization->id)->where('kind', Alert::WORKFLOW)->whereHas('deployment', fn ($query) => $query->whereIn('definition->binding->device_uuid', $devices))->with(['workflow', 'deployment']);
     }
 
     private function pagination(Request $request): void

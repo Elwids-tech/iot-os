@@ -12,11 +12,14 @@ use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Services\WorkflowDeploymentService;
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\SparkplugConnection;
+use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Notifications\Services\Preferences;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -514,5 +517,131 @@ final class AlertTest extends TestCase
         $this->actingAs($this->recipient, 'sanctum');
         $this->postJson($url, ['alert_uuids' => [$one->uuid]])->assertForbidden();
         $this->postJson($url, ['workflow_uuid' => $this->workflow->uuid, 'device_uuid' => $device])->assertForbidden();
+    }
+
+    /** A device connectivity alert (spec 018) as its projector will store it: no workflow, a subject and the devices it covers. */
+    private function connectivity(Organization $org, string $kind, array $devices, array $values = []): Alert
+    {
+        $alert = Alert::create(['organization_id' => $org->id, 'kind' => $kind, 'severity' => 'critical', 'episode' => 1, 'episode_key' => $kind.':'.Str::uuid().'#1', 'subject_device_id' => $kind === Alert::DEVICE_OFFLINE ? $devices[0]->id : null, 'cause' => 'death_certificate', 'activated_at' => now()->subMinute()->startOfSecond(), ...$values]);
+        $alert->devices()->attach(array_map(fn (Device $device) => $device->id, $devices));
+
+        return $alert;
+    }
+
+    public function test_the_rollout_lists_each_workflow_alerts_bound_device(): void
+    {
+        $migration = require database_path('migrations/2026_10_31_010000_generalise_automation_alerts.php');
+        $migration->down();
+        $tractor = Device::create(['uuid' => $this->deployment->definition['binding']['device_uuid'], 'organization_id' => $this->org->id, 'code' => 'tractor-7', 'name' => 'Tractor 7']);
+        $pump = Device::create(['organization_id' => $this->org->id, 'code' => 'pump-1', 'name' => 'Pump 1']);
+        $dag = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Pump pressure', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('e', 64), 'updated_by' => $this->workflow->updated_by]);
+        $geofence = $this->episode($this->deployment, 1);
+        $dagAlert = $this->episode($this->deployment($dag, ['bindings' => [['role' => 'pump', 'device_uuid' => $pump->uuid]]]), 1);
+        $unknown = $this->episode($this->deployment($this->workflow, ['binding' => ['device_uuid' => (string) Str::uuid()]], 2), 1);
+        // Another organization's execution naming this device's uuid never lists it.
+        $northstar = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $foreignWorkflow = Workflow::create(['organization_id' => $northstar->id, 'name' => 'Foreign', 'workflow' => ['nodes' => []], 'definition' => [], 'definition_hash' => str_repeat('c', 64), 'updated_by' => $this->workflow->updated_by]);
+        $foreign = $this->episode($this->deployment($foreignWorkflow, ['binding' => ['device_uuid' => $tractor->uuid]]), 1);
+
+        $migration->up();
+
+        $listed = DB::table('automation_alert_devices')->get()->map(fn ($row) => [(int) $row->automation_alert_id, (int) $row->device_id])->all();
+        $this->assertEqualsCanonicalizing([[$geofence->id, $tractor->id], [$dagAlert->id, $pump->id]], $listed);
+        $this->assertSame([], DB::table('automation_alert_devices')->whereIn('automation_alert_id', [$unknown->id, $foreign->id])->pluck('device_id')->all());
+        $this->assertSame(['workflow'], DB::table('automation_alerts')->distinct()->pluck('kind')->all());
+        $this->getJson($this->base.'/alerts/'.$geofence->uuid)->assertOk()->assertJsonPath('data.kind', 'workflow')->assertJsonPath('data.severity', 'warning')
+            ->assertJsonPath('data.devices', [['uuid' => $tractor->uuid, 'name' => 'Tractor 7']])->assertJsonPath('data.devices_total', 1)->assertJsonPath('data.device_name', 'Tractor 7');
+        $this->getJson($this->base.'/alerts/'.$unknown->uuid)->assertOk()->assertJsonPath('data.devices', [])->assertJsonPath('data.devices_total', 0);
+    }
+
+    public function test_a_projected_workflow_alert_lists_its_bound_device(): void
+    {
+        $device = Device::create(['uuid' => $this->deployment->definition['binding']['device_uuid'], 'organization_id' => $this->org->id, 'code' => 'tractor-7', 'name' => 'Tractor 7']);
+        $this->transition('activated');
+        $this->transition('cleared');
+        $alert = Alert::sole();
+        $this->assertSame([$device->id], $alert->devices()->pluck('devices.id')->all());
+        $this->assertSame(Alert::WORKFLOW, $alert->kind);
+        $this->getJson($this->base.'/alerts')->assertOk()->assertJsonPath('data.0.kind', 'workflow')->assertJsonPath('data.0.devices.0.uuid', $device->uuid);
+    }
+
+    public function test_the_kind_check_keeps_workflows_on_workflow_alerts_only(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('The check constraint exists on PostgreSQL only.');
+        }
+        $device = Device::create(['organization_id' => $this->org->id, 'code' => 'freezer-2', 'name' => 'Freezer 2']);
+        $rejected = function (array $values): void {
+            try {
+                // A savepoint, so the failed insert leaves the test's transaction usable.
+                DB::transaction(fn () => Alert::create(['organization_id' => $this->org->id, 'episode' => 1, ...$values]));
+                $this->fail('The alert was stored.');
+            } catch (QueryException $exception) {
+                $this->assertSame('23514', $exception->getCode(), $exception->getMessage());
+            }
+        };
+
+        $rejected(['automation_workflow_id' => $this->workflow->id]);
+        $rejected(['automation_deployment_id' => $this->deployment->id]);
+        $rejected(['kind' => Alert::DEVICE_OFFLINE, 'subject_device_id' => $device->id, 'automation_workflow_id' => $this->workflow->id, 'automation_deployment_id' => $this->deployment->id]);
+        $rejected(['kind' => Alert::DEVICE_OFFLINE, 'subject_device_id' => $device->id, 'automation_deployment_id' => $this->deployment->id]);
+        $this->connectivity($this->org, Alert::DEVICE_OFFLINE, [$device]);
+        $this->episode($this->deployment, 1);
+        $this->assertSame(2, Alert::count());
+    }
+
+    public function test_connectivity_alerts_are_listed_without_a_workflow_and_filtered_by_the_devices_they_cover(): void
+    {
+        $freezer = Device::create(['organization_id' => $this->org->id, 'code' => 'freezer-2', 'name' => 'Freezer 2']);
+        $meter = Device::create(['organization_id' => $this->org->id, 'code' => 'meter-1', 'name' => 'Energy meter']);
+        $light = Device::create(['organization_id' => $this->org->id, 'code' => 'light-1', 'name' => 'RGB light']);
+        $connection = SparkplugConnection::create(['organization_id' => $this->org->id, 'name' => 'Connection', 'group_id' => 'plant', 'host_id' => 'plant', 'username' => 'plant-'.$this->org->id, 'password' => 'test-secret', 'status' => 'ready']);
+        $gateway = SparkplugGateway::create(['organization_id' => $this->org->id, 'sparkplug_connection_id' => $connection->id, 'name' => 'Line 2 gateway', 'edge_node_id' => 'edge']);
+        $offline = $this->connectivity($this->org, Alert::DEVICE_OFFLINE, [$freezer]);
+        $gatewayAlert = $this->connectivity($this->org, Alert::GATEWAY_OFFLINE, [$meter, $light], ['subject_gateway_id' => $gateway->id, 'cause' => 'death_certificate', 'cleared_at' => now()]);
+        $workflowAlert = $this->episode($this->deployment, 1);
+        // Another organization's alert covering its own device, and one naming this organization's device by mistake.
+        $northstar = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $foreignDevice = Device::create(['organization_id' => $northstar->id, 'code' => 'foreign', 'name' => 'Foreign meter']);
+        $foreign = $this->connectivity($northstar, Alert::DEVICE_OFFLINE, [$foreignDevice]);
+        $this->connectivity($northstar, Alert::GATEWAY_OFFLINE, [$freezer]);
+
+        $this->getJson($this->base.'/alerts')->assertOk()->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('data.0.uuid', $workflowAlert->uuid)->assertJsonPath('data.0.kind', 'workflow')
+            ->assertJsonPath('data.1.uuid', $gatewayAlert->uuid)->assertJsonPath('data.1.kind', 'gateway_offline')->assertJsonPath('data.1.device_uuid', null)
+            ->assertJsonPath('data.1.devices', [['uuid' => $meter->uuid, 'name' => 'Energy meter'], ['uuid' => $light->uuid, 'name' => 'RGB light']])->assertJsonPath('data.1.devices_total', 2)
+            ->assertJsonPath('data.2.uuid', $offline->uuid)->assertJsonPath('data.2.kind', 'device_offline')->assertJsonPath('data.2.severity', 'critical')
+            ->assertJsonPath('data.2.workflow_uuid', null)->assertJsonPath('data.2.workflow_name', null)->assertJsonPath('data.2.operation_uuid', null)->assertJsonPath('data.2.execution_stopped_reason', null)
+            ->assertJsonPath('data.2.device_uuid', $freezer->uuid)->assertJsonPath('data.2.device_name', 'Freezer 2')->assertJsonPath('data.2.devices', [['uuid' => $freezer->uuid, 'name' => 'Freezer 2']]);
+        $this->getJson($this->base.'/alerts?device='.$light->uuid)->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $gatewayAlert->uuid);
+        $this->getJson($this->base.'/alerts?device='.$freezer->uuid)->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $offline->uuid);
+        $this->getJson($this->base.'/alerts?device='.$foreignDevice->uuid)->assertJsonPath('meta.total', 0);
+        $this->getJson($this->base.'/alerts?condition=active&device='.$meter->uuid)->assertJsonPath('meta.total', 0);
+        $this->getJson($this->base.'/alerts?workflow='.$this->workflow->uuid)->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $workflowAlert->uuid);
+        $this->getJson($this->base.'/alerts/'.$foreign->uuid)->assertNotFound();
+        $this->getJson($this->base.'/alerts?group=source')->assertOk()->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('data.1.kind', 'gateway_offline')->assertJsonPath('data.1.workflow_uuid', null)->assertJsonPath('data.1.occurrences', 1)
+            ->assertJsonPath('data.2.kind', 'device_offline')->assertJsonPath('data.2.device_uuid', $freezer->uuid)->assertJsonPath('data.2.latest.uuid', $offline->uuid);
+        $this->getJson('/api/v1/organizations/'.$northstar->uuid.'/alerts?device='.$freezer->uuid)->assertOk()->assertJsonPath('meta.total', 0);
+
+        // Acknowledging, assigning and commenting work as for any alert; no integration event is written for them yet.
+        $url = $this->base.'/alerts/'.$offline->uuid;
+        $this->postJson($url.'/acknowledge')->assertOk()->assertJsonPath('data.kind', 'device_offline')->assertJsonPath('data.acknowledged_by_name', 'Platform Super Admin');
+        $this->putJson($url.'/assignee', ['user_id' => $this->recipient->id])->assertOk()->assertJsonPath('data.assignee.id', $this->recipient->id);
+        $this->postJson($url.'/comments', ['uuid' => (string) Str::uuid(), 'body' => 'Power cut on line 2.'])->assertCreated();
+        $this->postJson($this->base.'/alerts/acknowledge', ['alert_uuids' => [$gatewayAlert->uuid]])->assertOk()->assertJsonPath('data.acknowledged', 1);
+        $this->assertDatabaseMissing('integration_events', ['resource_uuid' => $offline->uuid]);
+        $this->assertDatabaseMissing('integration_events', ['resource_uuid' => $gatewayAlert->uuid]);
+        $this->getJson('/api/v1/organizations/'.$this->org->uuid.'/overview')->assertOk()->assertJsonPath('data.alerts.active', 2);
+    }
+
+    public function test_deliveries_are_unique_per_channel(): void
+    {
+        $alert = $this->episode($this->deployment, 1);
+        $email = AlertDelivery::create(['automation_alert_id' => $alert->id, 'recipient_id' => $this->recipient->id, 'type' => 'activated']);
+        AlertDelivery::create(['automation_alert_id' => $alert->id, 'recipient_id' => $this->recipient->id, 'type' => 'activated', 'channel' => 'bell']);
+        $this->assertSame('email', $email->fresh()->channel);
+        $this->expectException(QueryException::class);
+        AlertDelivery::create(['automation_alert_id' => $alert->id, 'recipient_id' => $this->recipient->id, 'type' => 'activated', 'channel' => 'email']);
     }
 }

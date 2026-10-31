@@ -27410,8 +27410,48 @@
               "condition"
             ]
           },
+          "kind": {
+            "type": "string",
+            "description": "What kind of alert: an automation's, or a device connectivity alert (spec 018).",
+            "enum": [
+              "workflow",
+              "device_offline",
+              "gateway_offline",
+              "connection_lost"
+            ]
+          },
+          "subject": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "device",
+                  "gateway",
+                  "adapter"
+                ]
+              },
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "uuid",
+              "name"
+            ]
+          },
           "workflow": {
-            "type": "object",
+            "type": [
+              "object",
+              "null"
+            ],
             "properties": {
               "uuid": {
                 "type": "string"
@@ -27451,6 +27491,8 @@
           "created_at",
           "read_at",
           "alert",
+          "kind",
+          "subject",
           "workflow",
           "device"
         ],

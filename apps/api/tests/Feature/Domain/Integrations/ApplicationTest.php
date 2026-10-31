@@ -122,6 +122,16 @@ final class ApplicationTest extends TestCase
         $this->api($issued['token'], 'GET', $this->read.'/alerts?condition=cleared')->assertJsonPath('meta.total', 0);
     }
 
+    public function test_connectivity_alerts_stay_out_of_integration_reads(): void
+    {
+        $issued = $this->token($this->create());
+        // A device connectivity alert (spec 018) on the granted device: IntegrationAlert needs a workflow, so applications do not see it.
+        $alert = Alert::create(['organization_id' => $this->org->id, 'kind' => Alert::DEVICE_OFFLINE, 'episode' => 1, 'episode_key' => 'device:'.$this->device->uuid.'#1', 'subject_device_id' => $this->device->id, 'activated_at' => now()]);
+        $alert->devices()->attach($this->device->id);
+        $this->api($issued['token'], 'GET', $this->read.'/alerts')->assertOk()->assertJsonPath('meta.total', 0);
+        $this->api($issued['token'], 'GET', $this->read.'/alerts/'.$alert->uuid)->assertNotFound();
+    }
+
     public function test_management_permissions_and_grant_validation(): void
     {
         $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();

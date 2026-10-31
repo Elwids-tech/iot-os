@@ -50,6 +50,11 @@ final class DeliverAlertEmail implements ShouldQueue
                 return false;
             }
             $alert = Alert::with(['workflow', 'deployment'])->findOrFail($delivery->automation_alert_id);
+            if (! $alert->isWorkflow()) {
+                $delivery->update(['status' => 'cancelled', 'diagnostic' => 'Automation alert emails are sent for automation alerts only.']);
+
+                return false;
+            }
             $workflow = $alert->workflow;
             $settings = $workflow->notification_settings ?? [];
             $user = User::find($delivery->recipient_id);

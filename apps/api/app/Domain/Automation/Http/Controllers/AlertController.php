@@ -177,17 +177,21 @@ final class AlertController
         return AlertQuery::device();
     }
 
-    /** One row per workflow and device: the latest matching alert with counts over the matching alerts. */
+    /**
+     * One row per source: a workflow and its bound device, or the subject of a device
+     * connectivity alert. Each row is the latest matching alert with counts over the
+     * matching alerts.
+     */
     private function sources(Organization $organization, Builder $query, int $perPage): array
     {
         $device = self::device();
         $page = $query->toBase()
-            ->join('automation_deployments', 'automation_deployments.id', '=', 'automation_alerts.automation_deployment_id')
-            ->selectRaw('automation_alerts.automation_workflow_id, max(automation_alerts.id) as latest_id, count(*) as occurrences, '
+            ->leftJoin('automation_deployments', 'automation_deployments.id', '=', 'automation_alerts.automation_deployment_id')
+            ->selectRaw('max(automation_alerts.id) as latest_id, count(*) as occurrences, '
                 .'sum(case when automation_alerts.acknowledged_at is null then 1 else 0 end) as unacknowledged, '
                 .'sum(case when automation_alerts.cleared_at is null then 1 else 0 end) as active, '
                 .'min(automation_alerts.activated_at) as first_activated_at, max(automation_alerts.activated_at) as last_activated_at')
-            ->groupBy('automation_alerts.automation_workflow_id')->groupByRaw($device)
+            ->groupBy('automation_alerts.kind', 'automation_alerts.automation_workflow_id', 'automation_alerts.subject_device_id', 'automation_alerts.subject_gateway_id', 'automation_alerts.subject_adapter_id')->groupByRaw($device)
             ->orderByDesc('latest_id')
             ->paginate($perPage);
         $latest = Alert::whereIn('id', array_column($page->items(), 'latest_id'))->get();
@@ -195,7 +199,7 @@ final class AlertController
         $time = fn (?string $value) => $value === null ? null : CarbonImmutable::parse($value)->toJSON();
 
         return ['data' => array_map(fn ($row) => [
-            'workflow_uuid' => $views[$row->latest_id]['workflow_uuid'], 'device_uuid' => $views[$row->latest_id]['device_uuid'],
+            'kind' => $views[$row->latest_id]['kind'], 'workflow_uuid' => $views[$row->latest_id]['workflow_uuid'], 'device_uuid' => $views[$row->latest_id]['device_uuid'],
             'occurrences' => (int) $row->occurrences, 'unacknowledged' => (int) $row->unacknowledged, 'active' => (int) $row->active,
             'first_activated_at' => $time($row->first_activated_at), 'last_activated_at' => $time($row->last_activated_at),
             'latest' => $views[$row->latest_id],

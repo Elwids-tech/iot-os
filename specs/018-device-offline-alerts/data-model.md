@@ -74,7 +74,7 @@ waiting ──first packet──▶ learning ──third reading──▶ monito
 | --- | --- |
 | `kind` string(32), default `workflow` | `workflow`, `device_offline`, `gateway_offline`, `connection_lost` |
 | `severity` string(16), default `warning` | workflow alerts keep `warning` (today's behaviour) |
-| `automation_workflow_id`, `automation_deployment_id` nullable | check: `kind = 'workflow'` ⇔ both present |
+| `automation_workflow_id`, `automation_deployment_id` nullable | check (PostgreSQL): workflow alerts have both, other kinds have neither |
 | `episode_key` string(160) null, unique | `<subject_key>#<episode>` for connectivity alerts |
 | `subject_device_id` FK devices null | device alerts |
 | `subject_gateway_id` FK sparkplug_gateways null | gateway alerts |

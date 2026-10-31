@@ -10,7 +10,7 @@ import { NotificationBell, type NotificationBellItem } from "@iot-os/ui/componen
 import { Switch } from "@iot-os/ui/components/switch";
 import { api } from "../../lib/api";
 import { useAlertBell } from "./AlertBellProvider";
-import { alertBellKeys } from "./model";
+import { alertBellKeys, notificationNames } from "./model";
 
 /**
  * The alert bell in every page header (spec 022): the alerts this person received as
@@ -52,8 +52,8 @@ export function AlertBell() {
   };
   const items: NotificationBellItem[] = notifications.map((item) => ({
     id: item.id,
-    title: item.workflow.name,
-    description: item.device?.name,
+    title: notificationNames(item).title,
+    description: notificationNames(item).device,
     status: item.transition,
     domain: "alert",
     detail: item.transition === "activated" ? (item.alert.condition === "active" ? "Still active" : "Cleared since") : undefined,

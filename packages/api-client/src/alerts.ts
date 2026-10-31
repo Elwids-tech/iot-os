@@ -1,5 +1,16 @@
+/** What raised an alert: an automation, or device connectivity monitoring (spec 018). */
+export type AlertKind = "workflow" | "device_offline" | "gateway_offline" | "connection_lost";
+export type AlertSeverity = "critical" | "warning" | "info";
+export type AlertDevice = { uuid: string; name: string };
+/** What a device connectivity alert is about. */
+export type AlertSubject = { type: "device" | "gateway" | "adapter"; uuid: string; name: string };
+
 export type WorkflowAlert = {
   uuid: string;
+  /** Automation alerts; device connectivity alerts are the other `AlertKind`s. */
+  kind: "workflow";
+  /** Automation alerts are always `warning`. */
+  severity: AlertSeverity;
   workflow_uuid: string;
   workflow_name: string;
   operation_uuid: string;
@@ -16,6 +27,9 @@ export type WorkflowAlert = {
   assignee: { id: number; name: string } | null;
   assigned_at: string | null;
   execution_stopped_reason: string | null;
+  /** The devices the alert concerns, at most 100 by name; `devices_total` counts them all. */
+  devices: AlertDevice[];
+  devices_total: number;
 };
 export type AlertComment = {
   uuid: string;
@@ -42,6 +56,7 @@ export type AlertPage<T> = {
 };
 /** GET alerts?group=source: one row per workflow and device, counted over the filtered alerts. */
 export type WorkflowAlertSource = {
+  kind: "workflow";
   workflow_uuid: string;
   device_uuid: string;
   occurrences: number;
@@ -71,7 +86,11 @@ export type AlertNotification = {
   read_at: string | null;
   /** `condition` is the alert's condition now. */
   alert: { uuid: string; episode: number; condition: "active" | "cleared" };
-  workflow: { uuid: string; name: string };
+  kind: AlertKind;
+  /** Null for automation alerts. */
+  subject: AlertSubject | null;
+  /** Null for device connectivity alerts. */
+  workflow: { uuid: string; name: string } | null;
   /** Null when the alert has no bound device or it was not found. */
   device: { uuid: string; name: string } | null;
 };

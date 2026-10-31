@@ -16,6 +16,10 @@ final class EventJournal
         if (DB::transactionLevel() === 0) {
             throw new \LogicException('Integration events require the source transaction.');
         }
+        // `alert.*.v1` carries workflow alerts; device connectivity alerts have their own events (spec 018).
+        if (! $alert->isWorkflow()) {
+            return;
+        }
         $timestamp = match ($change) {
             'activated' => $alert->activated_at,
             'cleared' => $alert->cleared_at,

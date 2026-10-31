@@ -38,6 +38,19 @@ The inbox groups repeats of one workflow on one device, shows active alerts firs
 and filters by condition, acknowledgement, device and workflow. The workflow filter
 lists geofence workflows and DAG automations.
 
+### Kinds
+
+Every alert has a `kind` and a `severity`. Automation alerts are `workflow`, always
+`warning`. The same table holds device connectivity alerts
+([spec 018](../../specs/018-device-offline-alerts/spec.md)): `device_offline`,
+`gateway_offline` and `connection_lost`, which have no workflow and name a device,
+gateway or adapter instead. `automation_alert_devices` lists the devices each alert
+concerns: a workflow alert's bound device (when it names a device of the
+organization), or every device a connectivity alert covers. The `device` filter
+matches a workflow alert's bound device or any device an alert lists. Integration
+reads, the `alert.*.v1` events and the per-workflow emails cover workflow alerts
+only.
+
 ## Email
 
 ### Per-workflow recipients
@@ -152,13 +165,13 @@ Under `/api/v1/organizations/{organization}`:
 | Method and path | Purpose | Permission |
 | --- | --- | --- |
 | `GET alerts` | List; `condition=active\|cleared`, `acknowledged=0\|1`, `device`, `workflow`, `assignee`, `per_page` 1–100 | `Device.view` |
-| `GET alerts/{uuid}`, `GET alerts/{uuid}/comments` | Detail (device, acknowledgement, assignee, stop reason), comments | `Device.view` |
+| `GET alerts/{uuid}`, `GET alerts/{uuid}/comments` | Detail (`kind`, `severity`, device, the devices it concerns as `devices` (at most 100, by name) with `devices_total`, acknowledgement, assignee, stop reason), comments; the workflow fields are null for other kinds | `Device.view` |
 | `POST alerts/{uuid}/acknowledge`, `POST alerts/acknowledge` | Acknowledge one, or several | `Device.manage` |
 | `PUT alerts/{uuid}/assignee`, `POST alerts/{uuid}/comments` | Assign, comment (max 5000 characters) | `Device.manage` |
 | `GET alerts/{uuid}/deliveries`, `POST .../deliveries/{d}/retry` | Delivery history, retry with `{retry_generation}` | `Device.manage` |
 | `GET workflows?kind=all` | Geofence workflows and DAG automations, each with `kind` (`geofence` or `automation`); without `kind=all`, geofence workflows only | `Device.view` |
 | `GET/PUT workflows/{uuid}/notifications`, `GET workflows/{uuid}/notification-recipients` | Recipients and options (`{revision, enabled, notify_on_clear, recipient_ids}`; reads also return `workflow_kind`) | `Device.manage` |
-| `GET alert-notifications` | Your own alert notifications here, newest first, 20 per `page`, with `meta.unread` and each alert's condition now | Member with `Device.view` |
+| `GET alert-notifications` | Your own alert notifications here, newest first, 20 per `page`, with `meta.unread` and each alert's condition now; each has the alert's `kind`, a `subject` (`{type, uuid, name}`, null for workflow alerts) and a `workflow` (null for other kinds) | Member with `Device.view` |
 | `GET alert-notifications/summary` | `{unread, newest_unread_activation_id}`, polled by the bell | Member with `Device.view` |
 | `POST alert-notifications/read` | Mark read with exactly one of `{ids}` (1–100), `{up_to}` (every id up to it) or `{alert_uuid}`; answers with the summary | Member with `Device.view` |
 

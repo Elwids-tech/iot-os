@@ -1,4 +1,4 @@
-import type { AlertNotificationSummary } from "@iot-os/api-client";
+import type { AlertKind, AlertNotification, AlertNotificationSummary } from "@iot-os/api-client";
 
 export const alertBellKeys = {
   summary: (org: string) => ["alert-notification-summary", org] as const,
@@ -28,4 +28,24 @@ export function nextChime(
   if (!state.started) return { state: { started: true, baseline: newest }, chime: null };
   if (newest && (!state.baseline || newest > state.baseline)) return { state: { started: true, baseline: newest }, chime: newest };
   return { state, chime: null };
+}
+
+const connectivityLabels: Record<Exclude<AlertKind, "workflow">, string> = {
+  device_offline: "Device offline",
+  gateway_offline: "Gateway offline",
+  connection_lost: "Connection lost",
+};
+
+/**
+ * How the bell names a notification: by its automation, or for a device connectivity
+ * alert by its kind and what it is about ("Device offline · Freezer 2"). The device is
+ * named separately only for automation alerts.
+ */
+export function notificationNames(item: Pick<AlertNotification, "kind" | "subject" | "workflow" | "device">): {
+  title: string;
+  device?: string;
+} {
+  if (item.workflow) return { title: item.workflow.name, device: item.device?.name };
+  const label = item.kind === "workflow" ? "Alert" : connectivityLabels[item.kind];
+  return { title: item.subject ? `${label} · ${item.subject.name}` : label };
 }

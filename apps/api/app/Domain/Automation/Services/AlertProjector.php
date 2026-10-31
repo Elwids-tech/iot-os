@@ -24,6 +24,10 @@ final class AlertProjector
     public function project(Workflow $workflow, Deployment $deployment, array $transition): void
     {
         $alert = Alert::firstOrCreate(['automation_deployment_id' => $deployment->id, 'episode' => $transition['episode']], ['organization_id' => $workflow->organization_id, 'automation_workflow_id' => $workflow->id]);
+        $device = $this->boundDevice($workflow, $deployment);
+        if ($alert->wasRecentlyCreated && $device) {
+            $alert->devices()->attach($device->id);
+        }
         $alert = Alert::whereKey($alert->id)->lockForUpdate()->firstOrFail();
         $active = $transition['type'] === 'activated';
         $column = $active ? 'activation_transition_id' : 'clear_transition_id';
@@ -44,9 +48,9 @@ final class AlertProjector
             return;
         }
         $recipients = User::whereIn('id', $settings['recipient_ids'] ?? [])->get()->keyBy('id');
-        $bell = $this->bell($workflow, $deployment, $alert, $transition);
+        $bell = $this->bell($workflow, $device, $alert, $transition);
         foreach ($settings['recipient_ids'] ?? [] as $recipient) {
-            $delivery = AlertDelivery::firstOrCreate(['automation_alert_id' => $alert->id, 'recipient_id' => $recipient, 'type' => $transition['type']]);
+            $delivery = AlertDelivery::firstOrCreate(['automation_alert_id' => $alert->id, 'recipient_id' => $recipient, 'type' => $transition['type'], 'channel' => AlertDelivery::EMAIL]);
             if ($delivery->wasRecentlyCreated) {
                 // Explicit database connection uses the SAME database transaction.
                 // No after-commit dispatch gap and never the global sync queue.
@@ -59,16 +63,23 @@ final class AlertProjector
     }
 
     /**
-     * What the bell shows, with names as they are now. DAG transitions carry no device,
-     * so the device comes from the execution's binding, as on the Alerts page.
+     * DAG transitions carry no device, so the device comes from the execution's binding,
+     * as on the Alerts page. Null when it names no device of the organization.
+     */
+    private function boundDevice(Workflow $workflow, Deployment $deployment): ?Device
+    {
+        $bound = $deployment->definition['binding']['device_uuid'] ?? $deployment->definition['bindings'][0]['device_uuid'] ?? null;
+
+        return $bound ? Device::where('organization_id', $workflow->organization_id)->where('uuid', $bound)->first(['id', 'uuid', 'name']) : null;
+    }
+
+    /**
+     * What the bell shows, with names as they are now.
      *
      * @return array{organization_uuid: string, alert_uuid: string, episode: int, transition: 'activated'|'cleared', occurred_at: string, workflow_uuid: string, workflow_name: string, device_uuid: ?string, device_name: ?string}
      */
-    private function bell(Workflow $workflow, Deployment $deployment, Alert $alert, array $transition): array
+    private function bell(Workflow $workflow, ?Device $device, Alert $alert, array $transition): array
     {
-        $bound = $deployment->definition['binding']['device_uuid'] ?? $deployment->definition['bindings'][0]['device_uuid'] ?? null;
-        $device = $bound ? Device::where('organization_id', $workflow->organization_id)->where('uuid', $bound)->first(['uuid', 'name']) : null;
-
         return [
             'organization_uuid' => (string) Organization::whereKey($workflow->organization_id)->value('uuid'),
             'alert_uuid' => (string) $alert->uuid,

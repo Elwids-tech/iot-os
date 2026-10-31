@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialChime, nextChime, pollInterval } from "./model";
+import { initialChime, nextChime, notificationNames, pollInterval } from "./model";
 
 // UUIDv7 ids in time order.
 const [first, second, third] = [
@@ -39,5 +39,24 @@ describe("the alert chime", () => {
   it("polls every 15 s while visible and every 60 s while hidden", () => {
     expect(pollInterval("visible")).toBe(15_000);
     expect(pollInterval("hidden")).toBe(60_000);
+  });
+});
+
+describe("notification names", () => {
+  const device = { uuid: "c0000000-0000-4000-8000-000000000001", name: "Freezer 2" };
+
+  it("names an automation alert by its automation and device", () => {
+    expect(
+      notificationNames({ kind: "workflow", subject: null, workflow: { uuid: "b0000000-0000-4000-8000-000000000001", name: "Cold room door open" }, device }),
+    ).toEqual({ title: "Cold room door open", device: "Freezer 2" });
+  });
+
+  it("names a connectivity alert by its kind and subject, without repeating the device", () => {
+    expect(notificationNames({ kind: "device_offline", subject: { type: "device", ...device }, workflow: null, device })).toEqual({
+      title: "Device offline · Freezer 2",
+    });
+    expect(
+      notificationNames({ kind: "gateway_offline", subject: { type: "gateway", uuid: device.uuid, name: "Line 2 gateway" }, workflow: null, device: null }),
+    ).toEqual({ title: "Gateway offline · Line 2 gateway" });
   });
 });
