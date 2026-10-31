@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react"
-import type { AuthenticatedUser, DirectoryQuery, PaginatedResponse, PlatformUser } from "@iot-os/api-client"
+import type { AuthenticatedUser, DirectoryQuery, Organization, PaginatedResponse, PlatformUser } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
 import { DropdownMenuItem, DropdownMenuSeparator } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@iot-os/ui/components/tabs"
+import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { UserPlusIcon, UsersIcon } from "lucide-react"
 import { InviteUserDialog } from "../components/InviteUserDialog"
@@ -12,8 +14,10 @@ import { PendingInvitations } from "../components/PendingInvitations"
 import { PlatformAdministratorDialog, type PlatformAdministratorAction } from "../components/PlatformAdministratorDialog"
 import { SuperAdministratorDialog, type SuperAdministratorAction } from "../components/SuperAdministratorDialog"
 import { useDirectoryTable } from "../components/ResourceDirectory"
-import { useOrganizationOptions } from "../hooks/use-directory"
+import { useDirectoryParameters, useOrganizationOptions } from "../hooks/use-directory"
 import { apiClient } from "../lib/api-client"
+
+type Tab = "users" | "invitations"
 
 function loadUsers(query: DirectoryQuery): Promise<PaginatedResponse<PlatformUser>> {
   return apiClient.adminUsers(query)
@@ -33,12 +37,79 @@ export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
   // Only super administrators manage super administrators (spec 007) and platform administrators (spec 008); the API re-checks.
   const managesPlatformAccess = currentUser.is_super_admin
   const organizations = useOrganizationOptions()
+  const url = useUrlState()
+  const query = useDirectoryParameters()
+  const tab: Tab = url.get("tab") === "invitations" ? "invitations" : "users"
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [invitationRefreshKey, setInvitationRefreshKey] = useState(0)
+
+  // Each tab searches and pages its own list, so switching starts the other one afresh.
+  function show(next: Tab) {
+    url.set({ tab: next === "users" ? null : next, search: null, organization: null })
+  }
+
+  return (
+    <Tabs value={tab} onValueChange={(value) => show(value as Tab)} className="gap-0">
+      <CollectionPage
+        title="Users"
+        actions={
+          <Button size="sm" onClick={() => setInviteOpen(true)}>
+            <UserPlusIcon data-icon="inline-start" />
+            Invite user
+          </Button>
+        }
+        tabs={
+          <div className="-mx-1 w-full overflow-x-auto scrollbar-none">
+            <TabsList variant="line" className="justify-start px-1" aria-label="User views">
+              <TabsTrigger value="users" className="flex-none">
+                People
+              </TabsTrigger>
+              <TabsTrigger value="invitations" className="flex-none">
+                Invitations
+              </TabsTrigger>
+            </TabsList>
+          </div>
+        }
+      >
+        <TabsContent value="users" className="min-w-0">
+          <UserDirectory
+            currentUser={currentUser}
+            organizations={organizations}
+            managesPlatformAccess={managesPlatformAccess}
+          />
+        </TabsContent>
+        <TabsContent value="invitations" className="min-w-0">
+          <PendingInvitations key={invitationRefreshKey} managesSuperAdministrators={managesPlatformAccess} />
+        </TabsContent>
+      </CollectionPage>
+      <InviteUserDialog
+        canInviteSuperAdministrators={managesPlatformAccess}
+        organizations={organizations}
+        initialOrganization={organizations.find((organization) => organization.uuid === query.organization)}
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        onInvited={() => {
+          setInvitationRefreshKey((current) => current + 1)
+          show("invitations")
+        }}
+      />
+    </Tabs>
+  )
+}
+
+function UserDirectory({
+  currentUser,
+  organizations,
+  managesPlatformAccess,
+}: {
+  currentUser: AuthenticatedUser
+  organizations: Organization[]
+  managesPlatformAccess: boolean
+}) {
   const { reload, query, table } = useDirectoryTable(loadUsers, {
     searchPlaceholder: "Name or email",
     organizations,
   })
-  const [inviteOpen, setInviteOpen] = useState(false)
-  const [invitationRefreshKey, setInvitationRefreshKey] = useState(0)
   const [memberAction, setMemberAction] = useState<MemberAction | null>(null)
   const [superAdministratorAction, setSuperAdministratorAction] = useState<SuperAdministratorAction | null>(null)
   const [platformAdministratorAction, setPlatformAdministratorAction] = useState<PlatformAdministratorAction | null>(null)
@@ -69,15 +140,7 @@ export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
   )
 
   return (
-    <CollectionPage
-      title="Users"
-      actions={
-        <Button size="sm" onClick={() => setInviteOpen(true)}>
-          <UserPlusIcon data-icon="inline-start" />
-          Invite user
-        </Button>
-      }
-    >
+    <>
       <DataTable
         id="admin-users"
         label="Users"
@@ -138,15 +201,6 @@ export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
           />
         }
       />
-      <PendingInvitations refreshKey={invitationRefreshKey} managesSuperAdministrators={managesPlatformAccess} />
-      <InviteUserDialog
-        canInviteSuperAdministrators={managesPlatformAccess}
-        organizations={organizations}
-        initialOrganization={organizations.find((organization) => organization.uuid === query.organization)}
-        open={inviteOpen}
-        onOpenChange={setInviteOpen}
-        onInvited={() => setInvitationRefreshKey((current) => current + 1)}
-      />
       <MemberDialogs
         action={memberAction}
         preferredOrganization={query.organization}
@@ -163,6 +217,6 @@ export function UsersPage({ currentUser }: { currentUser: AuthenticatedUser }) {
         onClose={() => setPlatformAdministratorAction(null)}
         onChanged={reload}
       />
-    </CollectionPage>
+    </>
   )
 }

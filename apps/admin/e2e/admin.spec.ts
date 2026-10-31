@@ -477,7 +477,8 @@ async function mockApi(
     }
 
     if (request.method() === "GET" && url.pathname === "/api/v1/admin/invitations") {
-      await fulfillJson(route, paginated(invitations, url))
+      const search = (url.searchParams.get("search") ?? "").toLowerCase()
+      await fulfillJson(route, paginated(invitations.filter((item) => item.email.includes(search)), url))
       return
     }
 
@@ -1082,6 +1083,8 @@ test("invites a user and revokes the pending invitation", async ({ page, console
   await page.getByRole("button", { name: "Send invitation" }).click()
 
   await expect(page.getByText("Invitation sent to invitee@example.test")).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Invitations" })).toHaveAttribute("aria-selected", "true")
+  await expect(page).toHaveURL(/\/users\?tab=invitations$/)
   await expect(page.getByRole("cell", { name: "invitee@example.test", exact: true })).toBeVisible()
 
   await page.getByRole("button", { name: "Actions for invitee@example.test" }).click()
@@ -1098,6 +1101,63 @@ test("invites a user and revokes the pending invitation", async ({ page, console
   expect(consoleMessages).toHaveLength(1)
   expect(consoleMessages[0]).toContain("status of 422")
   consoleMessages.length = 0
+})
+
+test("keeps users and invitations in separate tabs", async ({ page, consoleMessages }) => {
+  await mockApi(page)
+  // Enough invitations for a second page; registered after mockApi, so this route wins.
+  const invitations = Array.from({ length: 30 }, (_, index) => ({
+    uuid: `invite-${index + 1}`,
+    email: `invitee.${index + 1}@example.test`,
+    role_ids: [3],
+    roles: [invitationRoles[2]],
+    grants_super_admin: false,
+    organization: organizations[1],
+    expires_at: "2026-09-01T12:00:00.000000Z",
+    accepted_at: null,
+    revoked_at: null,
+    status: "pending",
+  }))
+  await page.route((url) => url.pathname === "/api/v1/admin/invitations", async (route) => {
+    const url = new URL(route.request().url())
+    const search = url.searchParams.get("search") ?? ""
+    await fulfillJson(route, paginated(invitations.filter((item) => item.email.includes(search)), url))
+  })
+  await page.goto("/users")
+
+  await expect(page.getByRole("tab", { name: "People" })).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByRole("button", { name: "Actions for Acme Member" })).toBeVisible()
+  await expect(page.getByRole("cell", { name: "invitee.1@example.test", exact: true })).toHaveCount(0)
+
+  await page.getByRole("searchbox", { name: "Search" }).fill("acme")
+  await expect(page).toHaveURL(/search=acme/)
+
+  // Each tab has its own search and pages, so the users' search does not follow.
+  await page.getByRole("tab", { name: "Invitations" }).click()
+  await expect(page).toHaveURL(/\/users\?tab=invitations$/)
+  await expect(page.getByRole("searchbox", { name: "Search" })).toHaveValue("")
+  await expect(page.getByRole("cell", { name: "invitee.1@example.test", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Actions for Acme Member" })).toHaveCount(0)
+
+  await expect(page.getByText("Page 1 of 2")).toBeVisible()
+  await page.getByRole("button", { name: "Next" }).click()
+  await expect(page).toHaveURL(/\/users\?tab=invitations&page=2$/)
+  await expect(page.getByRole("cell", { name: "invitee.26@example.test", exact: true })).toBeVisible()
+  await expect(page.getByRole("cell", { name: "invitee.1@example.test", exact: true })).toHaveCount(0)
+
+  await page.getByRole("searchbox", { name: "Search" }).fill("nobody")
+  await expect(page).toHaveURL(/\/users\?tab=invitations&search=nobody$/)
+  await expect(page.getByRole("cell", { name: "invitee.26@example.test", exact: true })).toHaveCount(0)
+
+  await page.reload()
+  await expect(page.getByRole("tab", { name: "Invitations" })).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByRole("searchbox", { name: "Search" })).toHaveValue("nobody")
+
+  await page.getByRole("tab", { name: "People" }).click()
+  await expect(page).toHaveURL(/\/users$/)
+  await expect(page.getByRole("button", { name: "Actions for Acme Member" })).toBeVisible()
+
+  expect(consoleMessages).toEqual([])
 })
 
 test("creates and edits an organization", async ({ page, consoleMessages }) => {

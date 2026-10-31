@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import type { OrganizationInvitation, PaginatedResponse } from "@iot-os/api-client"
+import { useState } from "react"
+import type { DirectoryQuery, OrganizationInvitation, PaginatedResponse } from "@iot-os/api-client"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -9,27 +9,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@iot-os/ui/components/alert-dialog"
-import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
+import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
 import { DropdownMenuItem } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { Status } from "@iot-os/ui/components/status-mark"
+import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { formatDateTime } from "@iot-os/ui/lib/format"
 import { AlertCircleIcon, MailIcon } from "lucide-react"
 import { toast } from "sonner"
+import { useDirectoryTable } from "./ResourceDirectory"
 import { apiClient } from "../lib/api-client"
 import { errorMessage, fieldMessages, validationErrors } from "../lib/errors"
-
-type InvitationState = {
-  data?: PaginatedResponse<OrganizationInvitation>
-  error: boolean
-}
 
 type Confirming = { action: "resend" | "revoke"; invitation: OrganizationInvitation }
 
 const allOrganizations = "All organizations"
 const superAdministrator = "Super administrator"
+
+function loadInvitations(query: DirectoryQuery): Promise<PaginatedResponse<OrganizationInvitation>> {
+  return apiClient.adminInvitations(query)
+}
 
 function organizationName(invitation: OrganizationInvitation): string {
   return invitation.organization?.name ?? allOrganizations
@@ -39,40 +40,18 @@ function roleNames(invitation: OrganizationInvitation): string {
   return invitation.grants_super_admin ? superAdministrator : invitation.roles.map((role) => role.display_name).join(", ")
 }
 
+/** Every invitation, newest first; search and page live in the URL like the other directories. */
 export function PendingInvitations({
-  refreshKey,
   managesSuperAdministrators = false,
 }: {
-  refreshKey: number
   /** Only super administrators resend or revoke super-administrator invitations (spec 007). */
   managesSuperAdministrators?: boolean
 }) {
-  const [state, setState] = useState<InvitationState>({ error: false })
-  const [page, setPage] = useState(1)
-  const [version, setVersion] = useState(0)
+  const url = useUrlState()
+  const { reload, table } = useDirectoryTable(loadInvitations, { searchPlaceholder: "Email" })
   const [confirming, setConfirming] = useState<Confirming | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-
-  useEffect(() => setPage(1), [refreshKey])
-
-  useEffect(() => {
-    let active = true
-    setState((current) => ({ data: current.data, error: false }))
-
-    apiClient
-      .adminInvitations({ page, perPage: 25 })
-      .then((data) => {
-        if (active) setState({ data, error: false })
-      })
-      .catch(() => {
-        if (active) setState({ error: true })
-      })
-
-    return () => {
-      active = false
-    }
-  }, [page, refreshKey, version])
 
   // Resend re-invites with the same roles; the API revokes the earlier pending link and emails a new one.
   async function confirm() {
@@ -92,10 +71,11 @@ export function PendingInvitations({
           await apiClient.inviteSuperAdministrator(invitation.email)
         }
         toast.success(`Invitation sent to ${invitation.email}`)
-        setPage(1)
+        // The new invitation is the newest, so it heads the first page.
+        url.set({ page: null })
       }
       setConfirming(null)
-      setVersion((current) => current + 1)
+      reload()
     } catch (error) {
       const fields = validationErrors(error)
       setActionError(
@@ -132,34 +112,15 @@ export function PendingInvitations({
   ]
 
   return (
-    <section aria-labelledby="invitations-heading" className="flex min-w-0 flex-col gap-3">
-      <h2 id="invitations-heading" className="skin-label text-heading">
-        Invitations
-      </h2>
+    <>
       <DataTable
         id="admin-invitations"
         label="Invitations"
         noun={["invitation", "invitations"]}
-        rows={state.error ? [] : state.data?.data}
         rowKey={(i) => i.uuid}
         rowLabel={(i) => i.email}
         columns={columns}
-        error={
-          state.error ? (
-            <Alert variant="destructive">
-              <AlertCircleIcon />
-              <AlertTitle>Could not load invitations</AlertTitle>
-              <AlertDescription>Refresh the page and try again.</AlertDescription>
-            </Alert>
-          ) : undefined
-        }
-        pagination={{
-          page,
-          pageSize: 25,
-          total: state.data?.meta.total ?? 0,
-          pageCount: state.data?.meta.last_page,
-          onPageChange: setPage,
-        }}
+        {...table}
         rowActions={(invitation) => {
           if (invitation.grants_super_admin && !managesSuperAdministrators) return null
           const canResend = invitation.status === "pending" || invitation.status === "expired"
@@ -233,6 +194,6 @@ export function PendingInvitations({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </section>
+    </>
   )
 }
