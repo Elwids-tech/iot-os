@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AlertNotificationSummary } from "@iot-os/api-client";
 import { api } from "../../lib/api";
 import { audioReady, claim, listenForUnlock, onSoundChange, play, setSoundEnabled, soundEnabled } from "./chime";
-import { alertBellKeys, initialChime, nextChime, pollInterval } from "./model";
+import { alertBellKeys, initialChime, nextChime, notificationNames, pollInterval } from "./model";
 
 type AlertBellContext = {
   org: string;
@@ -69,12 +69,13 @@ export function AlertBellProvider({
       .alertNotifications(org, 1)
       .then((page) => page.data.find((item) => item.id === id))
       .catch(() => undefined)
-      .then((item) =>
+      .then((item) => {
+        const names = item && notificationNames(item);
         setAnnouncement((current) => ({
-          text: item ? `New alert: ${item.workflow.name}${item.device ? `, ${item.device.name}` : ""}` : "New alert",
+          text: names ? `New alert: ${names.title}${names.device ? `, ${names.device}` : ""}` : "New alert",
           key: current.key + 1,
-        })),
-      );
+        }));
+      });
   }, [summary.dataUpdatedAt]);
 
   const value: AlertBellContext | null = active

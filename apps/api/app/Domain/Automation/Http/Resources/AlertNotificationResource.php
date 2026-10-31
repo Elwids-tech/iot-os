@@ -33,9 +33,44 @@ final class AlertNotificationResource extends JsonResource
             /** @format date-time */
             'read_at' => $this->read_at?->toIso8601ZuluString(),
             'alert' => $this->alert(),
+            /** What kind of alert: an automation's, or a device connectivity alert (spec 018). */
+            'kind' => $this->kind(),
+            'subject' => $this->subject(),
             'workflow' => $this->workflow(),
             'device' => $this->device(),
         ];
+    }
+
+    /**
+     * Notifications written before spec 018 carry no kind; they are all workflow alerts.
+     *
+     * @return 'workflow'|'device_offline'|'gateway_offline'|'connection_lost'
+     */
+    private function kind(): string
+    {
+        $kind = $this->data['kind'] ?? 'workflow';
+
+        return in_array($kind, ['device_offline', 'gateway_offline', 'connection_lost'], true) ? $kind : 'workflow';
+    }
+
+    /**
+     * The device, gateway or adapter a connectivity alert is about; null for workflow alerts.
+     *
+     * @return array{type: 'device'|'gateway'|'adapter', uuid: string, name: string}|null
+     */
+    private function subject(): ?array
+    {
+        $subject = $this->data['subject'] ?? null;
+        if (! is_array($subject) || ! in_array($subject['type'] ?? null, ['device', 'gateway', 'adapter'], true)) {
+            return null;
+        }
+        $type = match ($subject['type']) {
+            'device' => 'device',
+            'gateway' => 'gateway',
+            default => 'adapter',
+        };
+
+        return ['type' => $type, 'uuid' => (string) $subject['uuid'], 'name' => (string) $subject['name']];
     }
 
     /**
@@ -47,10 +82,16 @@ final class AlertNotificationResource extends JsonResource
     }
 
     /**
-     * @return array{uuid: string, name: string}
+     * Null for device connectivity alerts.
+     *
+     * @return array{uuid: string, name: string}|null
      */
-    private function workflow(): array
+    private function workflow(): ?array
     {
+        if (($this->data['workflow_uuid'] ?? null) === null) {
+            return null;
+        }
+
         return ['uuid' => (string) $this->data['workflow_uuid'], 'name' => (string) $this->data['workflow_name']];
     }
 

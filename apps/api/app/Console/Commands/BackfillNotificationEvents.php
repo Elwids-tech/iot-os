@@ -17,7 +17,7 @@ final class BackfillNotificationEvents extends Command
 
     public function handle(EventRecorder $recorder): int
     {
-        Alert::with('workflow')->chunkById(100, function ($alerts) use ($recorder): void {
+        Alert::where('kind', Alert::WORKFLOW)->with('workflow')->chunkById(100, function ($alerts) use ($recorder): void {
             foreach ($alerts as $alert) {
                 foreach (['activated' => $alert->activated_at, 'cleared' => $alert->cleared_at] as $type => $at) {
                     if ($at && ! NotificationEvent::where('event_key', hash('sha256', 'workflow:'.$alert->uuid.':'.$type))->exists()) {

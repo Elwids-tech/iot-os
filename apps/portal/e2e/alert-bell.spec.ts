@@ -17,7 +17,9 @@ type Notification = {
   created_at: string;
   read_at: string | null;
   alert: { uuid: string; episode: number; condition: "active" | "cleared" };
-  workflow: { uuid: string; name: string };
+  kind: "workflow" | "device_offline" | "gateway_offline" | "connection_lost";
+  subject: { type: "device" | "gateway" | "adapter"; uuid: string; name: string } | null;
+  workflow: { uuid: string; name: string } | null;
   device: { uuid: string; name: string } | null;
 };
 
@@ -28,6 +30,8 @@ const notification = (n: number, extra: Partial<Notification> = {}): Notificatio
   created_at: ago(60 - n),
   read_at: null,
   alert: { uuid: alertId(n), episode: n, condition: "active" },
+  kind: "workflow",
+  subject: null,
   workflow: { uuid: "b0000000-0000-4000-8000-000000000001", name: `Cold room door open ${n}` },
   device: { uuid: "c0000000-0000-4000-8000-000000000001", name: "Freezer 2" },
   ...extra,
@@ -133,6 +137,8 @@ async function setup(page: Page, { view = true, manage = true, notifications = [
       return reply({
         data: {
           uuid: detail[1],
+          kind: "workflow",
+          severity: "warning",
           workflow_uuid: "b0000000-0000-4000-8000-000000000001",
           workflow_name: "Cold room door open",
           operation_uuid: detail[1],
@@ -148,6 +154,8 @@ async function setup(page: Page, { view = true, manage = true, notifications = [
           assignee: null,
           assigned_at: null,
           execution_stopped_reason: null,
+          devices: [{ uuid: "c0000000-0000-4000-8000-000000000001", name: "Freezer 2" }],
+          devices_total: 1,
         },
       });
     }
@@ -201,6 +209,20 @@ test("the bell counts unread alerts, lists them newest first and opens one", asy
   await expect(list(page)).toBeHidden();
   await expect.poll(() => state.reads).toEqual([{ ids: [nid(2)] }, { alert_uuid: alertId(2) }]);
   await expect(bell(page)).toHaveAccessibleName("Notifications, 1 unread");
+  expect(errors).toEqual([]);
+});
+
+test("a device connectivity alert is named by its kind and subject (spec 018)", async ({ page }) => {
+  const freezer = { uuid: "c0000000-0000-4000-8000-000000000001", name: "Freezer 2" };
+  const { errors } = await setup(page, {
+    notifications: [notification(1), notification(2, { kind: "device_offline", subject: { type: "device", ...freezer }, workflow: null, device: freezer })],
+  });
+  await page.goto(`${base}/alerts`);
+  await bell(page).click();
+  const offline = list(page).getByRole("link", { name: /Device offline · Freezer 2/ });
+  await expect(offline).toBeVisible();
+  await expect(offline).not.toContainText("Cold room door open");
+  await expect(list(page).getByRole("link", { name: /Cold room door open 1/ })).toContainText("Freezer 2");
   expect(errors).toEqual([]);
 });
 

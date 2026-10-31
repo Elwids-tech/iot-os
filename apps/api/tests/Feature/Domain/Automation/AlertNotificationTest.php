@@ -271,6 +271,31 @@ final class AlertNotificationTest extends TestCase
         $this->getJson($this->url().'?page=0')->assertUnprocessable();
     }
 
+    public function test_a_connectivity_notification_names_its_kind_and_subject_and_no_workflow(): void
+    {
+        $this->recipients([$this->recipient]);
+        $this->transition('activated');
+        $alert = Alert::create(['organization_id' => $this->org->id, 'kind' => Alert::DEVICE_OFFLINE, 'severity' => 'critical', 'episode' => 1, 'episode_key' => 'device:'.$this->device->uuid.'#1', 'subject_device_id' => $this->device->id, 'activated_at' => now()]);
+        // As spec 018 writes it (data-model "notifications"), for a person it notifies.
+        $id = (string) Str::uuid7();
+        DB::table('notifications')->insert(['id' => $id, 'type' => 'alert', 'notifiable_type' => $this->recipient->getMorphClass(), 'notifiable_id' => $this->recipient->id, 'read_at' => null, 'created_at' => now(), 'updated_at' => now(), 'data' => json_encode([
+            'v' => 1, 'source' => 'connectivity', 'organization_uuid' => $this->org->uuid, 'alert_uuid' => $alert->uuid, 'episode' => 1, 'transition' => 'activated',
+            'occurred_at' => now()->utc()->toIso8601ZuluString(), 'kind' => 'device_offline', 'subject' => ['type' => 'device', 'uuid' => $this->device->uuid, 'name' => 'Freezer 2'],
+            'device_uuid' => $this->device->uuid, 'device_name' => 'Freezer 2', 'workflow_uuid' => null, 'workflow_name' => null,
+        ])]);
+        $this->actingAs($this->recipient, 'sanctum');
+
+        $this->getJson($this->url())->assertOk()->assertJsonPath('meta.unread', 2)
+            ->assertJsonPath('data.0.id', $id)->assertJsonPath('data.0.kind', 'device_offline')
+            ->assertJsonPath('data.0.subject', ['type' => 'device', 'uuid' => $this->device->uuid, 'name' => 'Freezer 2'])
+            ->assertJsonPath('data.0.workflow', null)->assertJsonPath('data.0.device', ['uuid' => $this->device->uuid, 'name' => 'Freezer 2'])
+            ->assertJsonPath('data.0.alert', ['uuid' => $alert->uuid, 'episode' => 1, 'condition' => 'active'])
+            ->assertJsonPath('data.1.kind', 'workflow')->assertJsonPath('data.1.subject', null)
+            ->assertJsonPath('data.1.workflow', ['uuid' => $this->workflow->uuid, 'name' => 'Cold room door open']);
+        $this->getJson($this->url(path: '/summary'))->assertOk()->assertJsonPath('data.newest_unread_activation_id', $id);
+        $this->postJson($this->url(path: '/read'), ['alert_uuid' => $alert->uuid])->assertOk()->assertJsonPath('data.unread', 1);
+    }
+
     public function test_the_summary_counts_unread_and_names_the_newest_unread_activation(): void
     {
         $this->recipients([$this->recipient]);

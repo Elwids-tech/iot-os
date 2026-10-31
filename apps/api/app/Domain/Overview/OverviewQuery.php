@@ -6,6 +6,7 @@ namespace App\Domain\Overview;
 
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Automation\Models\Workflow;
+use App\Domain\Automation\Services\AlertQuery;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceCommand;
 use App\Domain\Devices\Models\DiscoveryCandidate;
@@ -34,9 +35,8 @@ final class OverviewQuery
             ->first();
         $alerts = Alert::where('organization_id', $organization->id);
         $workflows = Workflow::where('organization_id', $organization->id)->where('workflow->schema_version', 'automation-workflow.v2');
-        $activeAlerts = (clone $alerts)->whereNull('cleared_at')->with(['workflow:id,name', 'deployment'])->latest('activated_at')->limit(5)->get();
-        $alertDevice = fn (Alert $alert) => $alert->deployment->definition['binding']['device_uuid'] ?? $alert->deployment->definition['bindings'][0]['device_uuid'] ?? null;
-        $alertDevices = Device::where('organization_id', $organization->id)->whereIn('uuid', $activeAlerts->map($alertDevice)->filter())->pluck('name', 'uuid');
+        $activeAlerts = (clone $alerts)->whereNull('cleared_at')->with(['workflow:id,name', 'deployment', 'subjectDevice:id,name'])->latest('activated_at')->limit(5)->get();
+        $alertDevices = Device::where('organization_id', $organization->id)->whereIn('uuid', $activeAlerts->map(fn (Alert $alert) => AlertQuery::boundDevice($alert))->filter())->pluck('name', 'uuid');
         $commands = DeviceCommand::whereIn('device_id', Device::where('organization_id', $organization->id)->select('id'))->latest('id')->limit(5)->get();
         $commandDevices = Device::whereIn('id', $commands->pluck('device_id'))->pluck('name', 'id');
 
@@ -50,7 +50,7 @@ final class OverviewQuery
                 'latest_active' => $activeAlerts->map(fn (Alert $alert) => [
                     'uuid' => $alert->uuid,
                     'workflow_name' => $alert->workflow?->name,
-                    'device_name' => $alertDevices[$alertDevice($alert)] ?? null,
+                    'device_name' => $alert->isWorkflow() ? ($alertDevices[AlertQuery::boundDevice($alert)] ?? null) : $alert->subjectDevice?->name,
                     'activated_at' => $alert->activated_at?->toIso8601String(),
                     'acknowledged' => $alert->acknowledged_at !== null,
                 ])->values(),

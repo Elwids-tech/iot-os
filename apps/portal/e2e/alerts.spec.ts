@@ -49,6 +49,8 @@ async function setup(page: Page, manage = true) {
     extra: Record<string, unknown>,
   ): Alert => ({
     uuid,
+    kind: "workflow",
+    severity: "warning",
     workflow_uuid: workflow,
     workflow_name: workflow === geofence ? "GPS demo geofence" : "Phase voltage band",
     operation_uuid: uuid,
@@ -64,6 +66,8 @@ async function setup(page: Page, manage = true) {
     assignee: null,
     assigned_at: null,
     execution_stopped_reason: null,
+    devices: [{ uuid: device, name: device === gps ? "GPS tracker" : "Energy meter" }],
+    devices_total: 1,
     ...extra,
   });
   const state = {
@@ -198,6 +202,7 @@ async function setup(page: Page, manage = true) {
           groups.set(key, [...(groups.get(key) ?? []), a]);
         }
         const data = [...groups.values()].map((items) => ({
+          kind: "workflow",
           workflow_uuid: items[0].workflow_uuid,
           device_uuid: items[0].device_uuid,
           occurrences: items.length,
