@@ -102,6 +102,7 @@ import {
   ScanSearchIcon,
   ShieldIcon,
   SparklesIcon,
+  WalletIcon,
   WorkflowIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -126,6 +127,7 @@ const AlertRoutes = lazy(() => import("./alerts/Alerts"))
 const SettingsRoutes = lazy(() => import("./settings/Settings"))
 const ConnectPage = lazy(() => import("./agents/ConnectPage"))
 const NotificationCenter = lazy(() => import("./notifications/NotificationCenter"))
+const BillingAccountsPage = lazy(() => import("./billing/BillingAccountsPage"))
 const SupportRoutes = lazy(() => import("./support/Support"))
 const HelpPanel = lazy(() => import("./help/HelpPanel"))
 const ProfileAssistantBody = lazy(() => import("./assistant/AssistantPanel"))
@@ -260,6 +262,7 @@ function Session() {
         <Route path="connect" element={<Suspense fallback={<PageFallback />}><ConnectPage /></Suspense>} />
         <Route element={<PortalShell user={user} />}>
           <Route path="notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
+          <Route path="billing" element={<Suspense fallback={<PageFallback />}><BillingAccountsPage /></Suspense>} />
           <Route path="organizations/:organizationUuid/notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
           <Route path="organizations/:organizationUuid/home" element={<HomeRoute organizations={user.organizations} />} />
           <Route path="organizations/:organizationUuid/device-adapters/*" element={<Suspense fallback={<PageFallback />}><AdapterRoutes /></Suspense>} />
@@ -293,7 +296,7 @@ function Session() {
           />
           <Route
             path="*"
-            element={<OrganizationLanding userId={user.id} organizations={user.organizations} />}
+            element={<OrganizationLanding userId={user.id} organizations={user.organizations} ownsBillingAccount={user.capabilities.billing_accounts === true} />}
           />
         </Route>
       </Routes>
@@ -384,9 +387,11 @@ function rememberOrganization(userId: number, uuid: string) {
 function OrganizationLanding({
   userId,
   organizations,
+  ownsBillingAccount,
 }: {
   userId: number
   organizations: Organization[]
+  ownsBillingAccount: boolean
 }) {
   const preferred = api.getSelectedOrganizationUuid() ?? rememberedOrganization(userId)
   const selected =
@@ -397,7 +402,7 @@ function OrganizationLanding({
     <>
       <PageHeader title="Choose an organization" />
       <div className="p-4 md:p-6">
-        <OrganizationLinks organizations={organizations} />
+        <OrganizationLinks organizations={organizations} ownsBillingAccount={ownsBillingAccount} />
       </div>
     </>
   )
@@ -405,8 +410,10 @@ function OrganizationLanding({
 
 function WorkspaceUnavailable({
   organizations,
+  ownsBillingAccount,
 }: {
   organizations: Organization[]
+  ownsBillingAccount: boolean
 }) {
   return (
     <>
@@ -415,7 +422,7 @@ function WorkspaceUnavailable({
         <p className="text-muted-foreground">
           You don't have access to this organization.
         </p>
-        <OrganizationLinks organizations={organizations} />
+        <OrganizationLinks organizations={organizations} ownsBillingAccount={ownsBillingAccount} />
       </div>
     </>
   )
@@ -423,11 +430,23 @@ function WorkspaceUnavailable({
 
 function OrganizationLinks({
   organizations,
+  ownsBillingAccount,
 }: {
   organizations: Organization[]
+  /** A billing account owner can create their first organization instead of waiting for an invitation (spec 023). */
+  ownsBillingAccount: boolean
 }) {
   if (!organizations.length)
-    return (
+    return ownsBillingAccount ? (
+      <p className="text-muted-foreground">
+        You don't belong to an organization yet. Create one under your billing
+        account in{" "}
+        <Link to="/billing" className="font-medium text-foreground underline underline-offset-4">
+          Billing accounts
+        </Link>
+        .
+      </p>
+    ) : (
       <p className="text-muted-foreground">
         You don't belong to an organization yet. Ask your organization
         administrator for an invitation.
@@ -812,6 +831,14 @@ function PortalSidebar({
                 <DropdownMenuItem asChild>
                   <Link to={organization ? sectionPath(organization.uuid, "settings/email") : "/notifications"}><MailIcon />Email preferences</Link>
                 </DropdownMenuItem>
+                {user.capabilities.billing_accounts && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/billing">
+                      <WalletIcon />
+                      Billing accounts
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 {user.capabilities.platform_administration && (
                   <DropdownMenuItem asChild>
                     <a href={adminUrl}>
@@ -977,7 +1004,7 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
             </div>
           ) : null}
           {params.organizationUuid && !org ? (
-            <WorkspaceUnavailable organizations={user.organizations} />
+            <WorkspaceUnavailable organizations={user.organizations} ownsBillingAccount={user.capabilities.billing_accounts === true} />
           ) : (
             <>
               {org && <RuntimeStatusBanner />}
