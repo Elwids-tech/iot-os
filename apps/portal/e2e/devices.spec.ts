@@ -452,13 +452,15 @@ test("device directory links profiles and gateways, hides archived devices and f
 
   // Lifecycle sits in Filters: the default first, then each lifecycle, then All.
   await page.getByRole("button", { name: "Filters" }).click()
-  const lifecycle = page.getByRole("combobox", { name: "Lifecycle" })
+  const lifecycle = page.getByRole("combobox", { name: "Lifecycle", exact: true })
   await expect(lifecycle).toHaveText("Not archived")
   await lifecycle.click()
   await expect(page.getByRole("option")).toHaveText(["Not archived", "Registered", "Active", "Deactivated", "Archived", "All"])
   await page.getByRole("option", { name: "Registered" }).click()
   await expect(page).toHaveURL(/lifecycle=registered/)
+  await expect(lifecycle).toBeFocused()
   await page.keyboard.press("Escape")
+  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toHaveAttribute("aria-expanded", "false")
   await expect(page.getByRole("status").filter({ hasText: "1 device match" })).toBeVisible()
   await expect(page.getByRole("link", { name: "Energy Meter Simulator" })).toHaveCount(0)
   await expect(page.getByRole("group", { name: "Active filters" })).toContainText("Lifecycle: Registered")
@@ -790,10 +792,15 @@ test("device table selects and exports rows, hides columns, groups and filters b
   await page.getByRole("combobox", { name: "Profile" }).click()
   await page.getByRole("option", { name: "Three-phase Energy Meter" }).click()
   await expect(page).toHaveURL(new RegExp(`profile=${profileId}`))
+  // The picker closes and hands focus back first; then Escape closes Filters.
+  await expect(page.getByRole("combobox", { name: "Profile", exact: true })).toBeFocused()
   await page.keyboard.press("Escape")
   const chips = page.getByRole("group", { name: "Active filters" })
   await expect(chips).toContainText("Profile: Three-phase Energy Meter")
-  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeVisible()
+  // Closing Filters returns focus to its icon button, which names itself in a tooltip until Escape.
+  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("tooltip")).toHaveCount(0)
   await expect(page.getByRole("status").filter({ hasText: "2 devices match" })).toBeVisible()
   await expect(table.getByRole("row", { name: /D1/ })).toHaveCount(0)
   await axe(page)
