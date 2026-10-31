@@ -278,6 +278,11 @@ test("history summarizes states, loads older records and exports the newest ones
   await expect(
     page.getByText(/Older records in this range were left out/),
   ).toBeVisible()
+  // Scan the toast once it has slid in, well before it dismisses itself.
+  await page.waitForFunction(() => document.getAnimations().length === 0)
+  expect(
+    (await new AxeBuilder({ page }).include("[data-sonner-toaster]").analyze()).violations,
+  ).toEqual([])
 
   // Another parameter keeps the records on screen and starts from the newest again.
   await choose(page, "Parameter", /^Mode$/)
@@ -304,9 +309,9 @@ test("history summarizes states, loads older records and exports the newest ones
   await expect(segments.nth(1)).toContainText(/^Invalid colour: not-a-colour, /)
   await expect(page.getByText(/visual timeline is sampled/)).toBeVisible()
 
-  // The download toast slides in; scan once no animation is running.
+  // The toast was scanned above; by now its fade-out can start mid-scan.
   await page.waitForFunction(() => document.getAnimations().length === 0)
-  const accessibility = await new AxeBuilder({ page }).analyze()
+  const accessibility = await new AxeBuilder({ page }).exclude("[data-sonner-toaster]").analyze()
   expect(accessibility.violations).toEqual([])
   expect(errors).toEqual([])
 })
