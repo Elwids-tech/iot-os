@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { AssistantRun } from "@iot-os/api-client"
 import type { NodeType, Workflow } from "@iot-os/workflow-editor"
-import { ArrowLeftIcon, SendIcon, SquareIcon } from "lucide-react"
+import { ArrowLeftIcon, PlusIcon, SendIcon, SquareIcon, WorkflowIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@iot-os/ui/components/button"
 import { Badge } from "@iot-os/ui/components/badge"
@@ -11,7 +11,8 @@ import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@iot-os/ui/components/card"
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { InputGroup, InputGroupTextarea, InputGroupAddon } from "@iot-os/ui/components/input-group"
-import { Message, MessageContent, MessageHeader } from "@iot-os/ui/components/message"
+import { Message, MessageContent } from "@iot-os/ui/components/message"
+import { ActionCard } from "@iot-os/ui/components/action-card"
 import { Bubble, BubbleContent } from "@iot-os/ui/components/bubble"
 import { Marker, MarkerContent } from "@iot-os/ui/components/marker"
 import { Markdown, MarkdownLink } from "@iot-os/ui/components/markdown"
@@ -158,9 +159,9 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
     {selectedExecution && onClearExecution && <div className="flex shrink-0 items-center gap-2 border-b px-4 py-2">
       <Button variant="ghost" size="sm" onClick={onClearExecution}><ArrowLeftIcon data-icon="inline-start" />Back to the draft conversation</Button>
     </div>}
-    <div className="flex shrink-0 items-end gap-2 border-b p-4">
-      <div className="min-w-0 flex-1"><SearchableSelect label="Automation conversation" value={session.id ?? ""} placeholder="New conversation" search={search} onSearchChange={setSearch} disabled={locked} options={(conversations.data ?? []).filter(item => (item.id === session.id || item.workflow_uuid === (workflowId ?? null)) && item.title.toLowerCase().includes(search.toLowerCase())).map(item => ({ value: item.id, label: `${item.title} · ${item.id.slice(-6)}` }))} onChange={id => { setSession({ id, text: "", used: [] }); setError(undefined) }} /></div>
-      <Button variant="outline" disabled={locked || !session.id} onClick={() => { setSession({ text: "", used: [] }); setError(undefined) }}>New chat</Button>
+    <div className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
+      <div className="min-w-0 flex-1"><SearchableSelect label="Automation conversation" labelHidden value={session.id ?? ""} placeholder="New conversation" search={search} onSearchChange={setSearch} disabled={locked} options={(conversations.data ?? []).filter(item => (item.id === session.id || item.workflow_uuid === (workflowId ?? null)) && item.title.toLowerCase().includes(search.toLowerCase())).map(item => ({ value: item.id, label: `${item.title} · ${item.id.slice(-6)}` }))} onChange={id => { setSession({ id, text: "", used: [] }); setError(undefined) }} /></div>
+      <Button variant="ghost" size="icon-sm" aria-label="New chat" title="New chat" disabled={locked || !session.id} onClick={() => { setSession({ text: "", used: [] }); setError(undefined) }}><PlusIcon /></Button>
     </div>
     <div className="min-h-0 flex-1">
       <MessageScrollerProvider autoScroll><MessageScroller><MessageScrollerViewport><MessageScrollerContent className="p-4">
@@ -172,15 +173,15 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
         </MessageScrollerItem>}
         {detail.data?.runs.map(run => <MessageScrollerItem key={run.id} messageId={run.id} scrollAnchor>
           <div className="flex flex-col gap-4">
-            <Message align="end"><MessageContent><MessageHeader>You</MessageHeader><Bubble align="end"><BubbleContent className="whitespace-pre-wrap">{run.prompt}</BubbleContent></Bubble></MessageContent></Message>
-            <Message><MessageContent><MessageHeader>Automation assistant</MessageHeader>
+            <Message align="end"><MessageContent><Bubble align="end" variant="tinted"><BubbleContent className="whitespace-pre-wrap">{run.prompt}</BubbleContent></Bubble></MessageContent></Message>
+            <Message><MessageContent>
               {run.answer && <Bubble variant="ghost"><BubbleContent><AnswerMarkdown answer={run.answer} evidence={run.execution} onEvidence={target => { onEvidence(target); onClose() }} /></BubbleContent></Bubble>}
               {run.status === "queued" ? <Thinking>Waiting for the assistant…</Thinking> : run.status === "running" && <Thinking>{run.execution ? "Reading the recorded evidence…" : "Thinking…"}</Thinking>}
               {run.status === "completed" && !run.answer && <Marker><MarkerContent>No response text.</MarkerContent></Marker>}
               {run.status === "cancelled" && <Marker><MarkerContent>Response stopped.</MarkerContent></Marker>}
               {run.execution && <div className="flex flex-col gap-1">
                 <Button variant="outline" size="sm" onClick={() => { onEvidence({ evaluationId: run.execution!.evaluation_id }); onClose() }}>View evaluation {run.execution.evaluation_id} · deployment {run.execution.generation} · draft {run.execution.draft_revision}</Button>
-                <p className="text-xs text-muted-foreground">Evidence captured {new Date(run.execution.captured_at).toLocaleString()}. Delivery may have progressed since this response.</p>
+                <p className="text-meta text-muted-foreground">Evidence captured {new Date(run.execution.captured_at).toLocaleString()}. Delivery may have progressed since this response.</p>
                 {run.execution.trace_truncated && <Alert><AlertDescription>This execution has a partial trace. The explanation can only cover retained evidence.</AlertDescription></Alert>}
               </div>}
               {run.error_message && <Alert><AlertDescription>{run.error_message}</AlertDescription></Alert>}
@@ -189,41 +190,41 @@ function WorkflowAssistantBody({ org, editorId, workflowId, name, graph, revisio
         </MessageScrollerItem>)}
         {pending && (detail.data?.runs.length ?? 0) === pending.runs && <MessageScrollerItem messageId="pending" scrollAnchor>
           <div className="flex flex-col gap-4">
-            <Message align="end"><MessageContent><MessageHeader>You</MessageHeader><Bubble align="end"><BubbleContent className="whitespace-pre-wrap">{pending.prompt}</BubbleContent></Bubble></MessageContent></Message>
-            <Message><MessageContent><MessageHeader>Automation assistant</MessageHeader><Thinking>Sending…</Thinking></MessageContent></Message>
+            <Message align="end"><MessageContent><Bubble align="end" variant="tinted"><BubbleContent className="whitespace-pre-wrap">{pending.prompt}</BubbleContent></Bubble></MessageContent></Message>
+            <Message><MessageContent><Thinking>Sending…</Thinking></MessageContent></Message>
           </div>
         </MessageScrollerItem>}
         {latest && proposed && before && <MessageScrollerItem messageId={latest.id}>
-          <Card><CardHeader><CardTitle>Review proposed workflow</CardTitle><CardDescription>{latest.summary}</CardDescription></CardHeader>
-            <CardContent className="flex flex-col gap-3">
+          <ActionCard icon={WorkflowIcon} label="Workflow proposal" title="Review the proposed workflow" description={latest.summary}>
+            <div className="flex w-full flex-col gap-3">
               <Badge variant="outline">Validated draft · {proposed.nodes.length} nodes · {proposed.edges.length} connections</Badge>
               <ul className="flex flex-col gap-2 text-sm">{changedNodes(before.workflow, proposed).map(({ node, change }) => <li key={node.id}>{change} {registry.find(type => type.type === node.type)?.label ?? node.type} · {node.id}</li>)}</ul>
               {proposed.nodes.filter(node => node.type === "action.command.v1").map(node => <DeviceStateReview key={node.id} org={org} node={node} graph={proposed} />)}
               <details><summary className="cursor-pointer text-sm">Full proposed configuration</summary><pre className="max-h-64 overflow-auto text-xs">{JSON.stringify(proposed, null, 2)}</pre></details>
               <p className="text-sm text-muted-foreground">Using this proposal updates your editable draft. Save and review activation when ready. Undo restores the previous graph.</p>
               {stale && !used && <Alert><AlertDescription>Your draft changed after this request. Ask for an updated proposal to preserve your edits.</AlertDescription></Alert>}
-            </CardContent>
-            <CardFooter><Button disabled={locked || stale || Boolean(used)} onClick={() => {
+            </div>
+            <Button size="sm" disabled={locked || stale || Boolean(used)} onClick={() => {
               if (draftSignature(before.name, before.workflow) !== draftSignature(name, graph)) return
               onApply(proposed)
               setSession(current => ({ ...current, used: [...current.used, latest.id] }))
               onClose()
               toast.success("Proposal added to the draft. Review the canvas, then save when ready")
-            }}>{used ? "Added to draft" : "Use this draft"}</Button></CardFooter>
-          </Card>
+            }}>{used ? "Added to draft" : "Use this draft"}</Button>
+          </ActionCard>
         </MessageScrollerItem>}
       </MessageScrollerContent></MessageScrollerViewport><MessageScrollerButton /></MessageScroller></MessageScrollerProvider>
     </div>
-    <div className="flex shrink-0 flex-col gap-3 border-t p-4">
+    <div className="flex shrink-0 flex-col gap-2 border-t px-3 py-3">
       <RequestError error={error ?? settings.error ?? detail.error ?? conversations.error} />
       {settings.data && !settings.data.enabled && <Alert><AlertDescription>The assistant is unavailable. You can continue editing manually.</AlertDescription></Alert>}
       <form onSubmit={event => { event.preventDefault(); void send() }}>
-        <InputGroup><InputGroupTextarea aria-label="Message the automation assistant" placeholder={execution ? "Ask why a step or action behaved this way…" : "Describe a workflow or ask for a change…"} rows={3} maxLength={8000} value={session.text} onChange={event => setSession(current => ({ ...current, text: event.target.value }))} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send() } }} />
-          <InputGroupAddon align="block-end"><span className="mr-auto text-xs text-muted-foreground">{execution ? `Using evaluation ${execution.id}` : "Suggestions for this draft"}</span>
+        <InputGroup><InputGroupTextarea aria-label="Message the automation assistant" placeholder={execution ? "Ask why a step or action behaved this way…" : "Describe a workflow or ask for a change…"} rows={2} maxLength={8000} value={session.text} onChange={event => setSession(current => ({ ...current, text: event.target.value }))} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send() } }} />
+          <InputGroupAddon align="block-end"><span className="mr-auto text-meta text-muted-foreground">{execution ? `Using evaluation ${execution.id}` : "Suggestions for this draft"}</span>
             {active ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={async () => { setBusy(true); try { await api.assistantCancel(org, session.id!, active.id); await detail.refetch() } catch (e) { setError(e) } finally { setBusy(false) } }}><SquareIcon data-icon="inline-start" />Stop</Button> : <Button size="icon-sm" aria-label="Send automation message" disabled={locked || !settings.data?.enabled || !session.text.trim()}><SendIcon /></Button>}
           </InputGroupAddon></InputGroup>
       </form>
-      <p className="text-xs text-muted-foreground">Your request, draft, {execution ? "selected execution evidence, " : ""}and relevant device and geofence configuration are sent to {settings.data?.provider?.label ?? "the AI provider"}. Nothing is saved or activated automatically.{conversationCost(detail.data?.runs) > 0 && <span className="tabular-nums"> · Estimated cost of this conversation {formatCost(conversationCost(detail.data?.runs))}</span>}</p>
+      <p className="text-meta text-muted-foreground">Your request, draft{execution ? ", the execution evidence" : ""} and the devices and geofences it uses go to {settings.data?.provider?.label ?? "the AI provider"}. Nothing is saved or activated for you.{conversationCost(detail.data?.runs) > 0 && <span className="tabular-nums"> · About {formatCost(conversationCost(detail.data?.runs))} so far</span>}</p>
     </div>
   </div>
 }

@@ -56,7 +56,7 @@ import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import {
   Message,
   MessageContent,
-  MessageHeader,
+  MessageFooter,
 } from "@iot-os/ui/components/message";
 import { Bubble, BubbleContent } from "@iot-os/ui/components/bubble";
 import { Marker, MarkerContent } from "@iot-os/ui/components/marker";
@@ -686,10 +686,11 @@ export default function HelpPanel({
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex items-end gap-2 border-b p-3">
+              <div className="flex items-center gap-1 border-b px-3 py-2">
                 <div className="min-w-0 flex-1">
                   <SearchableSelect
                     label="Help conversation"
+                    labelHidden
                     value={selected ?? ""}
                     selectedLabel={detail.data?.title}
                     search={conversationSearch}
@@ -711,9 +712,10 @@ export default function HelpPanel({
                   />
                 </div>
                 <Button
-                  size="icon"
-                  variant="outline"
+                  size="icon-sm"
+                  variant="ghost"
                   aria-label="New Help conversation"
+                  title="New conversation"
                   disabled={busy}
                   onClick={() => {
                     setSelected(null);
@@ -725,9 +727,10 @@ export default function HelpPanel({
                 </Button>
                 {selected && (
                   <Button
-                    size="icon"
+                    size="icon-sm"
                     variant="ghost"
                     aria-label="Delete Help conversation"
+                    title="Delete conversation"
                     disabled={busy || Boolean(active)}
                     onClick={() => setDeleteOpen(true)}
                   >
@@ -802,14 +805,14 @@ export default function HelpPanel({
                           >
                             <Message align="end">
                               <MessageContent>
-                                <MessageHeader>
-                                  You · {run.help_context?.title ?? "Help"}
-                                </MessageHeader>
-                                <Bubble align="end">
+                                <Bubble align="end" variant="tinted">
                                   <BubbleContent className="whitespace-pre-wrap">
                                     {run.prompt}
                                   </BubbleContent>
                                 </Bubble>
+                                {run.help_context?.title && (
+                                  <MessageFooter>{run.help_context.title}</MessageFooter>
+                                )}
                               </MessageContent>
                             </Message>
                           </MessageScrollerItem>,
@@ -819,7 +822,6 @@ export default function HelpPanel({
                           >
                             <Message>
                               <MessageContent>
-                                <MessageHeader>Help</MessageHeader>
                                 {run.status === "completed" && run.answer && (
                                   <Bubble variant="ghost">
                                     <BubbleContent>
@@ -882,10 +884,7 @@ export default function HelpPanel({
                               <div className="flex flex-col gap-4">
                                 <Message align="end">
                                   <MessageContent>
-                                    <MessageHeader>
-                                      You · {page.data?.title ?? "Help"}
-                                    </MessageHeader>
-                                    <Bubble align="end">
+                                    <Bubble align="end" variant="tinted">
                                       <BubbleContent className="whitespace-pre-wrap">
                                         {sending.prompt}
                                       </BubbleContent>
@@ -894,7 +893,6 @@ export default function HelpPanel({
                                 </Message>
                                 <Message>
                                   <MessageContent>
-                                    <MessageHeader>Help</MessageHeader>
                                     <Thinking>Sending…</Thinking>
                                   </MessageContent>
                                 </Message>
@@ -908,14 +906,14 @@ export default function HelpPanel({
                 </MessageScrollerProvider>
               </div>
               <form
-                className="border-t p-3"
+                className="flex flex-col gap-2 border-t px-3 py-3"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void send();
                 }}
               >
-                <p className="mb-2 text-xs text-muted-foreground">
-                  Question about: {page.data?.title ?? "this page"}
+                <p className="text-meta text-muted-foreground">
+                  About {page.data?.title ?? "this page"}
                 </p>
                 <Field>
                   <FieldLabel className="sr-only" htmlFor="help-question">
@@ -962,9 +960,8 @@ export default function HelpPanel({
                     </InputGroupAddon>
                   </InputGroup>
                 </Field>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Uses approved guides. Your device data and unsaved edits are
-                  not included.
+                <p className="text-meta text-muted-foreground">
+                  Answers come from the guides; your data and unsaved edits stay out.
                 </p>
               </form>
             </div>
