@@ -275,7 +275,7 @@ final class BillingAccountAdministrationTest extends TestCase
             ->assertJsonPath('data.organizations_count', 2);
         $this->patchJson('/api/v1/admin/billing-accounts/'.$account->uuid, ['organization_limit' => 1])->assertOk();
 
-        $details = json_decode((string) DB::table('device_audit_events')->where('resource_uuid', $account->uuid)->where('action', 'billing_account.updated')->sole()->details, true);
+        $details = json_decode((string) DB::table('activity_log')->where('subject_uuid', $account->uuid)->where('event', 'billing_account.updated')->sole()->properties, true);
         $this->assertSameJsonDocument(['organization_limit' => ['from' => 3, 'to' => 1]], $details['changes']);
     }
 
@@ -340,7 +340,10 @@ final class BillingAccountAdministrationTest extends TestCase
         $this->assertBillingAssignmentInvariants($organization);
         $closed = DB::table('billing_account_assignments')->where('billing_account_id', $from->id)->sole();
         $this->assertSame($this->administrator->id, (int) $closed->ended_by);
-        $audit = json_decode((string) DB::table('device_audit_events')->where('resource_uuid', $organization->uuid)->where('action', 'organization.billing_account_changed')->sole()->details, true);
+        $event = DB::table('activity_log')->where('subject_uuid', $organization->uuid)->where('event', 'organization.billing_account_changed')->sole();
+        // The move is recorded under the organization, so it shows in its activity (spec 024).
+        $this->assertSame($organization->id, (int) $event->organization_id);
+        $audit = json_decode((string) $event->properties, true);
         $this->assertSameJsonDocument(['from' => ['uuid' => $from->uuid, 'name' => 'Corner Shop'], 'to' => ['uuid' => $to->uuid, 'name' => 'Example Integrations']], $audit);
 
         $this->getJson('/api/v1/admin/billing-accounts/'.$from->uuid)
@@ -353,12 +356,12 @@ final class BillingAccountAdministrationTest extends TestCase
 
     private function auditCount(string $action, string $resource): int
     {
-        return DB::table('device_audit_events')->where('action', $action)->where('resource_uuid', $resource)->count();
+        return DB::table('activity_log')->where('event', $action)->where('subject_uuid', $resource)->count();
     }
 
     /**
      * Rows that belong to the organization in every table keyed by it, apart from the
-     * billing assignments a move writes on purpose.
+     * billing assignments and the activity log event a move writes on purpose.
      *
      * @return array<string, int>
      */
@@ -367,7 +370,7 @@ final class BillingAccountAdministrationTest extends TestCase
         $counts = [];
 
         foreach (Schema::getTableListing(schemaQualified: false) as $table) {
-            if ($table !== 'billing_account_assignments' && Schema::hasColumn($table, 'organization_id')) {
+            if (! in_array($table, ['billing_account_assignments', 'activity_log'], true) && Schema::hasColumn($table, 'organization_id')) {
                 $counts[$table] = DB::table($table)->where('organization_id', $organization->id)->count();
             }
         }

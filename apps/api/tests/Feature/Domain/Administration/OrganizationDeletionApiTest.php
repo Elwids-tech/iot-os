@@ -101,7 +101,7 @@ final class OrganizationDeletionApiTest extends TestCase
             ->assertNoContent();
 
         $this->assertNull(Organization::withTrashed()->find($organization->id));
-        foreach (['organization_user', 'roles', 'organization_invitations', 'dashboards', 'sites', 'telemetry_retention_settings', 'device_audit_events', 'agent_connections', 'assistant_conversations'] as $table) {
+        foreach (['organization_user', 'roles', 'organization_invitations', 'dashboards', 'sites', 'telemetry_retention_settings', 'activity_log', 'agent_connections', 'assistant_conversations'] as $table) {
             $this->assertSame(0, DB::table($table)->where('organization_id', $organization->id)->count(), $table);
         }
         $this->assertNull(Role::query()->find($customRole));
@@ -116,16 +116,16 @@ final class OrganizationDeletionApiTest extends TestCase
         $this->assertTrue((bool) Passport::refreshToken()->newQuery()->findOrFail($tokens['refresh'])->revoked);
         $this->assertFalse((bool) Passport::token()->newQuery()->findOrFail($acmeTokens['access'])->revoked);
         $this->assertNull($acmeConnection->fresh()->revoked_at);
-        $this->assertSame(1, DB::table('device_audit_events')->where('organization_id', $acme->id)->where('action', 'retention.cleanup')->count());
+        $this->assertSame(1, DB::table('activity_log')->where('organization_id', $acme->id)->where('event', 'retention.cleanup')->count());
 
         $this->getJson("/api/v1/invitations/{$token}")->assertNotFound();
         $this->assertFalse(OrganizationInvitation::query()->whereKey($invitation->id)->exists());
 
-        $event = DB::table('device_audit_events')->where('action', 'organization.deleted')->sole();
+        $event = DB::table('activity_log')->where('event', 'organization.deleted')->sole();
         $this->assertNull($event->organization_id);
-        $this->assertSame($this->administrator->id, (int) $event->actor_id);
-        $this->assertSame($organization->uuid, $event->resource_uuid);
-        $this->assertSame(['name' => 'Cedar Processing', 'slug' => 'cedar-processing'], json_decode($event->details, true));
+        $this->assertSame($this->administrator->id, (int) $event->causer_id);
+        $this->assertSame($organization->uuid, $event->subject_uuid);
+        $this->assertSame(['name' => 'Cedar Processing', 'slug' => 'cedar-processing'], json_decode($event->properties, true));
 
         // The slug is free again.
         $this->createOrganization('Cedar Processing', 'cedar-processing');

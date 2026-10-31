@@ -7,6 +7,8 @@ namespace App\Domain\Administration\Http\Controllers;
 use App\Domain\Administration\Http\Requests\StoreOrganizationRequest;
 use App\Domain\Administration\Http\Requests\UpdateOrganizationRequest;
 use App\Domain\Administration\Services\OrganizationDefaultRoles;
+use App\Domain\Audit\Services\ActivityChanges;
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Services\BillingAccounts;
@@ -71,6 +73,10 @@ final class PlatformOrganizationController
             $organization->billing_account_id = $account->getKey();
             $organization->save();
             $this->defaultRoles->ensure($organization);
+            ActivityLog::record('organization.created', $organization, $request->user(), $organization, [
+                'slug' => $organization->slug,
+                'billing_account' => ['uuid' => $account->uuid, 'name' => $account->name],
+            ]);
 
             return $organization->load('billingAccount:id,uuid,name');
         });
@@ -84,7 +90,13 @@ final class PlatformOrganizationController
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
-        $organization->update($request->validated());
+        DB::transaction(function () use ($request, $organization): void {
+            $organization->update($request->validated());
+            $changes = ActivityChanges::saved($organization, array_keys($request->validated()));
+            if ($changes !== []) {
+                ActivityLog::record('organization.updated', $organization, $request->user(), $organization, [], $changes);
+            }
+        });
 
         return OrganizationResource::make($organization->fresh());
     }

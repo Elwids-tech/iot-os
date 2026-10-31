@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Dashboards\Http\Controllers;
 
+use App\Domain\Audit\Services\ActivityChanges;
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Dashboards\Actions\SaveDashboard;
 use App\Domain\Dashboards\Models\Dashboard;
@@ -87,6 +89,7 @@ final class DashboardController
                 $copy->shares()->create($share->only(['role_id', 'user_id', 'level']));
             }
             $this->save->snapshot($copy);
+            ActivityLog::record('dashboard.duplicated', $organization, $request->user(), $copy, ['source' => ['uuid' => $dashboard->uuid, 'name' => $dashboard->name]]);
 
             return ['data' => $this->view($copy, null, $this->access->abilities($request->user(), $organization, $copy))];
         });
@@ -138,14 +141,17 @@ final class DashboardController
                 'revision' => $expected,
             ], $organization, true);
 
-            return $this->saved($request, $this->save->update($locked, $request->user(), $values, $expected), $abilities);
+            return $this->saved($request, $this->save->update($locked, $request->user(), $values, $expected, null, 'dashboard.restored', ['restored_revision' => $number]), $abilities);
         });
     }
 
     public function destroy(Request $request, Organization $organization, Dashboard $dashboard): Response
     {
         $this->authorizeDashboard($request, $organization, $dashboard, 'delete');
-        $dashboard->delete();
+        DB::transaction(function () use ($dashboard, $organization, $request): void {
+            $dashboard->delete();
+            ActivityLog::record('dashboard.deleted', $organization, $request->user(), $dashboard);
+        });
 
         return response()->noContent();
     }
@@ -216,7 +222,8 @@ final class DashboardController
             throw ValidationException::withMessages(['shares' => 'Share only with roles and members of this organization.']);
         }
 
-        DB::transaction(function () use ($dashboard, $values, $users): void {
+        DB::transaction(function () use ($dashboard, $values, $users, $organization, $request): void {
+            $before = $this->accessSummary($dashboard);
             $dashboard->update(['access' => $values['access']]);
             $dashboard->shares()->delete();
             foreach (collect($values['shares'])->unique(fn (array $share) => $share['type'].':'.$share['id']) as $share) {
@@ -225,9 +232,29 @@ final class DashboardController
                 }
                 $dashboard->shares()->create([$share['type'].'_id' => $share['id'], 'level' => $share['level']]);
             }
+
+            $changes = ActivityChanges::between($before, $this->accessSummary($dashboard));
+            if ($changes !== []) {
+                ActivityLog::record('dashboard.access_changed', $organization, $request->user(), $dashboard, [], $changes);
+            }
         });
 
         return ['data' => $this->accessView($dashboard->refresh())];
+    }
+
+    /**
+     * Who can open the dashboard, in words, for the activity log.
+     *
+     * @return array{access: string, shares: list<string>}
+     */
+    private function accessSummary(Dashboard $dashboard): array
+    {
+        return [
+            'access' => (string) $dashboard->access,
+            'shares' => collect($this->accessView($dashboard)['shares'])
+                ->map(fn (array $share): string => sprintf('%s %s (%s)', $share['type'] === 'role' ? 'Role' : 'Member', $share['name'] ?? '#'.$share['id'], $share['level']))
+                ->all(),
+        ];
     }
 
     /** Roles and members matching a search, for the Share dialog. */

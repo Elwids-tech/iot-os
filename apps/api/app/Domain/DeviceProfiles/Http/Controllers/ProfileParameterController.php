@@ -38,7 +38,7 @@ final class ProfileParameterController
             $attributes = $this->published->guard($locked, null, $attributes);
 
             return $locked->parameters()->create($attributes);
-        });
+        }, change: 'parameter.created');
 
         return ProfileParameterResource::make($result['result']->load('group'))->response()->setStatusCode(201);
     }
@@ -60,7 +60,7 @@ final class ProfileParameterController
             $editable->fill($attributes)->save();
 
             return $editable;
-        });
+        }, change: 'parameter.updated', item: $parameter);
 
         return ProfileParameterResource::make($result['result']->fresh()->load('group'));
     }
@@ -84,7 +84,7 @@ final class ProfileParameterController
                 ], 422));
             }
             $editable->delete();
-        });
+        }, change: 'parameter.deleted', item: $parameter);
 
         return response()->noContent();
     }
@@ -107,7 +107,7 @@ final class ProfileParameterController
             }
 
             return null;
-        });
+        }, change: 'parameters.reordered');
 
         return response()->noContent();
     }

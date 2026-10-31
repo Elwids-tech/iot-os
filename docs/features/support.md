@@ -116,5 +116,5 @@ Team, under `/api/v1/admin/tickets`: list (`state`, `status[]`, `type`, `priorit
 ## Not included
 
 Reply by email, SLA timers, canned replies, voting, a public roadmap, editing or
-deleting single messages, and a platform-wide history of changes for every entity
-(that needs its own ADR; the audit store today is `device_audit_events`).
+deleting single messages. Ticket deletion is in the [activity log](activity-log.md);
+other ticket changes stay in the ticket's own history.

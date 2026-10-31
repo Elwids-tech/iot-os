@@ -345,7 +345,7 @@ final class AlertTest extends TestCase
         $this->putJson($url, ['user_id' => $this->recipient->id])->assertOk()
             ->assertJsonPath('data.assignee', ['id' => $this->recipient->id, 'name' => $this->recipient->name]);
         $this->assertNotNull($alert->fresh()->assigned_at);
-        $this->assertDatabaseHas('device_audit_events', ['action' => 'alert.assigned', 'resource_uuid' => $alert->uuid]);
+        $this->assertDatabaseHas('activity_log', ['event' => 'alert.assigned', 'subject_uuid' => $alert->uuid]);
         $this->getJson($this->base.'/alerts')->assertJsonPath('data.0.assignee.name', $this->recipient->name);
         $this->getJson($this->base.'/alerts?assignee='.$this->recipient->id)->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $alert->uuid);
         $this->getJson($this->base.'/alerts?assignee='.($this->recipient->id + 1000))->assertJsonPath('meta.total', 0);
@@ -488,13 +488,13 @@ final class AlertTest extends TestCase
         $this->postJson($url, ['alert_uuids' => [$one->uuid, $two->uuid]])->assertOk()->assertJsonPath('data.acknowledged', 2);
         $acknowledgedAt = $one->fresh()->acknowledged_at;
         $this->assertSame($actor->id, (int) $one->fresh()->acknowledged_by);
-        $this->assertDatabaseHas('device_audit_events', ['action' => 'alert.acknowledged', 'resource_uuid' => $two->uuid, 'actor_id' => $actor->id]);
+        $this->assertDatabaseHas('activity_log', ['event' => 'alert.acknowledged', 'subject_uuid' => $two->uuid, 'causer_id' => $actor->id]);
         $this->assertDatabaseHas('integration_events', ['type' => 'alert.acknowledged.v1', 'resource_uuid' => $one->uuid]);
         $this->getJson($this->base.'/alerts/'.$one->uuid)->assertJsonPath('data.acknowledged_by_name', $actor->name);
         // Idempotent: repeating the request changes nothing and records nothing.
         $this->postJson($url, ['alert_uuids' => [$one->uuid, $two->uuid]])->assertOk()->assertJsonPath('data.acknowledged', 0);
         $this->assertTrue($acknowledgedAt->equalTo($one->fresh()->acknowledged_at));
-        $this->assertSame(2, DB::table('device_audit_events')->where('action', 'alert.acknowledged')->count());
+        $this->assertSame(2, DB::table('activity_log')->where('event', 'alert.acknowledged')->count());
 
         $this->postJson($url, ['workflow_uuid' => $this->workflow->uuid, 'device_uuid' => $device, 'condition' => 'cleared'])->assertOk()->assertJsonPath('data.acknowledged', 1);
         $this->assertNotNull($three->fresh()->acknowledged_at);

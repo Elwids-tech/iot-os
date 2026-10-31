@@ -108,7 +108,7 @@ final class DeviceOnboardingTest extends TestCase
         } finally {
             unlink($path);
         }
-        $audit = DB::table('device_audit_events')->where('action', 'device.connection-kit.downloaded')->first();
+        $audit = DB::table('activity_log')->where('event', 'device.connection-kit.downloaded')->first();
         $this->assertNotNull($audit);
         $this->assertStringNotContainsString($config['password'], json_encode($audit));
     }

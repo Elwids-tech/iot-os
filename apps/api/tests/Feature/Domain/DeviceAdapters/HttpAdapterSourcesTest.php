@@ -133,7 +133,7 @@ final class HttpAdapterSourcesTest extends TestCase
         $this->assertSame($first['value'], end($this->manager)['body']['secrets'][0]['value']);
         $show = $this->getJson($this->prefix.'/device-adapters/'.$a['uuid'].'/webhook')->assertOk();
         $this->assertStringNotContainsString($first['value'], $show->getContent());
-        $this->assertStringNotContainsString($first['value'], json_encode(DB::table('device_audit_events')->get()));
+        $this->assertStringNotContainsString($first['value'], json_encode(DB::table('activity_log')->get()));
         $second = $this->postJson($url, ['label' => 'Rotation', 'value' => 'vendor-issued-signing-secret'])->assertCreated()->json('data');
         $this->assertNull($second['value']);
         $this->assertTrue(WebhookSecret::where('uuid', $first['secret']['uuid'])->first()->expires_at->between(now()->addDays(7)->subMinute(), now()->addDays(7)->addMinute()));
@@ -141,7 +141,7 @@ final class HttpAdapterSourcesTest extends TestCase
         $this->postJson($url, ['label' => 'Third'])->assertUnprocessable();
         $this->postJson($url.'/'.$first['secret']['uuid'].'/revoke')->assertOk();
         $this->assertSame(['vendor-issued-signing-secret'], array_column(end($this->manager)['body']['secrets'], 'value'));
-        $this->assertSame(['device.adapter.webhook_secret.created', 'device.adapter.webhook_secret.rotated', 'device.adapter.webhook_secret.revoked'], DB::table('device_audit_events')->where('action', 'like', 'device.adapter.webhook_secret.%')->orderBy('id')->pluck('action')->all());
+        $this->assertSame(['device.adapter.webhook_secret.created', 'device.adapter.webhook_secret.rotated', 'device.adapter.webhook_secret.revoked'], DB::table('activity_log')->where('event', 'like', 'device.adapter.webhook_secret.%')->orderBy('id')->pluck('event')->all());
         $other = $this->webhook();
         $this->postJson($this->prefix.'/device-adapters/'.$other['uuid'].'/webhook/secrets/'.$second['secret']['uuid'].'/revoke')->assertNotFound();
         $this->postJson($url, ['label' => 'Short', 'value' => 'too-short'])->assertUnprocessable();
@@ -257,7 +257,7 @@ final class HttpAdapterSourcesTest extends TestCase
         $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/cursor', ['request_uuid' => (string) Str::uuid(), 'start_at' => now()->subDays(31)->toIso8601String()])->assertUnprocessable();
         $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/cursor', ['request_uuid' => (string) Str::uuid(), 'start_at' => now()->subMinutes(30)->toIso8601String()])->assertAccepted();
         $this->assertSame(2, $adapter->fresh()->cursor_generation);
-        $this->assertTrue(DB::table('device_audit_events')->where('action', 'device.adapter.cursor.reset')->exists());
+        $this->assertTrue(DB::table('activity_log')->where('event', 'device.adapter.cursor.reset')->exists());
     }
 
     public function test_failures_and_outcome_counts_from_the_runtime_are_recorded_once(): void

@@ -15,6 +15,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "opis/json-schema": "2.6.0",
+        "spatie/laravel-activitylog": "^5.1",
         "spatie/laravel-permission": "^7.0"
     },
     "require-dev": {

@@ -47,7 +47,7 @@ final class OrganizationDeletion
     ];
 
     /** Data that goes with the organization behind restrictive keys, deleted before it. */
-    public const REMOVED_FIRST = ['device_audit_events', 'telemetry_retention_settings'];
+    public const REMOVED_FIRST = ['activity_log', 'telemetry_retention_settings'];
 
     /**
      * Records the platform team keeps after the organization is gone: their key sets
@@ -101,7 +101,7 @@ final class OrganizationDeletion
             ['key' => 'sites', 'label' => 'Sites', 'count' => DB::table('sites')->where('organization_id', $id)->count()],
             ['key' => 'agent_connections', 'label' => 'AI agent connections', 'count' => DB::table('agent_connections')->where('organization_id', $id)->whereNull('revoked_at')->count()],
             ['key' => 'assistant_conversations', 'label' => 'Assistant conversations', 'count' => DB::table('assistant_conversations')->where('organization_id', $id)->count()],
-            ['key' => 'audit_events', 'label' => 'Audit events', 'count' => DB::table('device_audit_events')->where('organization_id', $id)->count()],
+            ['key' => 'audit_events', 'label' => 'Audit events', 'count' => DB::table('activity_log')->where('organization_id', $id)->count()],
         ]);
     }
 

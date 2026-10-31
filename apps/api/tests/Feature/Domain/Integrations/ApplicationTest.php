@@ -105,7 +105,7 @@ final class ApplicationTest extends TestCase
         $next = $this->token($next['application'], ['alerts:read']);
         $this->api($this->admin, 'POST', $this->manage.'/'.$updated['uuid'].'/revoke', ['revision' => $next['application']['revision']])->assertOk();
         $this->api($next['token'], 'GET', $this->read.'/alerts')->assertUnauthorized();
-        $this->assertDatabaseHas('device_audit_events', ['action' => 'application.revoked', 'resource_uuid' => $updated['uuid']]);
+        $this->assertDatabaseHas('activity_log', ['event' => 'application.revoked', 'subject_uuid' => $updated['uuid']]);
     }
 
     public function test_alert_device_scope_and_minimal_contract(): void

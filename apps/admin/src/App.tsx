@@ -9,6 +9,7 @@ import { LoginPage } from "./auth/LoginPage"
 import { AdminLayout } from "./layout/AdminLayout"
 import { apiClient } from "./lib/api-client"
 import { portalUrl } from "./lib/portal"
+import { ActivityPage } from "./pages/ActivityPage"
 import { NewRolePage } from "./pages/NewRolePage"
 import { BillingAccountPage } from "./pages/BillingAccountPage"
 import { BillingAccountsPage } from "./pages/BillingAccountsPage"
@@ -121,6 +122,7 @@ function PlatformAdministrationApp() {
         <Route path="roles" element={<RolesPage />} />
         <Route path="roles/new" element={<NewRolePage />} />
         <Route path="roles/:roleId" element={<RolePermissionsPage />} />
+        <Route path="activity" element={<ActivityPage />} />
         <Route path="device-profiles" element={<TenantPortalRedirect />} />
         {screen.user.capabilities.manage_retention ? (
           <Route path="settings/retention" element={<RetentionPage />} />

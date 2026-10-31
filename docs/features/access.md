@@ -254,7 +254,20 @@ organization's account.
   with who and when. Only an account with no organizations can be deleted.
 - **Owners** create organizations under their account themselves, while it is below
   its limit, and become each new organization's Organization Admin as an ordinary
-  member.
+  member. In the portal, the user menu shows **Billing accounts** to anyone who owns
+  one; an owner who belongs to no organization yet is pointed there from the
+  landing page. The page lists the account's organizations with "N of M
+  organizations", and a selector picks the account when the person owns several.
+  - **New organization** asks for a name and an address. The address follows the
+    name until edited; left alone, the server picks a free one, adding a number when
+    it is taken. The owner then lands in the new organization.
+  - At the limit, **New organization** is disabled and says to ask the platform
+    operator to raise it. A request that races past it is refused with the same
+    message.
+  - An organization the owner is not a member of shows **Not a member** and cannot
+    be opened from here: owning the account still grants no access. To get in, the
+    owner asks that organization's administrator for an invitation, as anyone
+    would.
 - Each account change is one audit event with no organization
   (`billing_account.created`, `updated`, `deleted`, `owner_added`, `owner_removed`,
   and `organization.billing_account_changed` on a move).

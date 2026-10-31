@@ -32,7 +32,7 @@ final class PlatformOrganizationPermissionController
 
         /** @var array{restricted: bool, permission_names?: list<string>} $validated */
         $validated = $request->validated();
-        $this->ceiling->update($organization, $validated['restricted'], $validated['permission_names'] ?? []);
+        $this->ceiling->update($organization, $validated['restricted'], $validated['permission_names'] ?? [], $request->user());
 
         return $this->resource($organization->fresh());
     }

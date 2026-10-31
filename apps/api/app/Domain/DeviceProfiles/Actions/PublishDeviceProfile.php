@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceProfiles\Actions;
 
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\DeviceProfiles\Enums\DeviceProfileArtifactStatus;
 use App\Domain\DeviceProfiles\Enums\DeviceProfileStatus;
 use App\Domain\DeviceProfiles\Exceptions\ProfileDraftConflictException;
@@ -60,6 +61,8 @@ final class PublishDeviceProfile
                 'published_at' => now(),
                 'updated_by' => $actor->getKey(),
             ])->save();
+
+            ActivityLog::record('device_profile.published', $locked->organization_id, $actor, $locked, ['revision' => $nextRevision]);
 
             DeviceProfileActivationOutbox::query()->create([
                 'device_profile_artifact_id' => $artifact->getKey(),
