@@ -39,7 +39,10 @@ portal or admin images.
 - **Assistant chats** compose `MessageScroller`, `Message` and `Bubble`. Replies
   render through `Markdown` (never raw text with `whitespace-pre-wrap`), and a run
   that is sending, queued or working shows `Thinking` with a label that says which.
-  Show the user's message as soon as they send it.
+  Show the user's message as soon as they send it. The person's messages use the
+  `tinted` bubble and replies the `ghost` one, with no speaker label on each message.
+  A step that waits on the person (a proposal, the next step, devices to activate) is
+  an `ActionCard` with its buttons inside the card.
 - **Longer messages** (ticket replies, notes, descriptions) use `Composer`: it formats as
   you write (Tiptap), stores and sends GitHub-flavoured Markdown that `Markdown` renders,
   takes attachments, and can switch to editing the Markdown itself. In the text, ⌘K adds a

@@ -56,7 +56,7 @@ import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import {
   Message,
   MessageContent,
-  MessageHeader,
+  MessageFooter,
 } from "@iot-os/ui/components/message";
 import { Bubble, BubbleContent } from "@iot-os/ui/components/bubble";
 import { Marker, MarkerContent } from "@iot-os/ui/components/marker";
@@ -496,21 +496,26 @@ export default function HelpPanel({
       }
     }
   }
-  const taskLabel =
-    ask === "context"
-      ? slot?.title
-      : ask === "profile"
-        ? "Device profiles"
-        : ask === "onboarding"
-          ? "Device onboarding"
-          : ask === "opening"
-          ? "New automation"
-          : "Usage help";
-
   const content = (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-start justify-between gap-2 border-b p-4">
-        <div className="min-w-0">
+      <div className="flex items-start gap-2 border-b px-4 py-3">
+        {/* Inside a task, the way back to the suggestions sits beside the title instead of a row of its own. */}
+        {tab === "ask" && ask !== "home" && !article && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Suggestions"
+            title="Back to suggestions"
+            className="-ml-1.5"
+            onClick={() => {
+              takeHandoff();
+              setAskMode("home");
+            }}
+          >
+            <ArrowLeftIcon />
+          </Button>
+        )}
+        <div className="min-w-0 flex-1">
           <h2 id="help-title" className="flex items-center gap-2 font-semibold">
             <SparklesIcon className="size-4" />
             Assistant
@@ -545,29 +550,13 @@ export default function HelpPanel({
         }}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <div className="border-b p-3">
+        <div className="border-b px-3 py-2">
           <TabsList className="w-full" aria-label="Assistant views">
             <TabsTrigger value="ask">Ask</TabsTrigger>
             <TabsTrigger value="page">This page</TabsTrigger>
             <TabsTrigger value="guides">All guides</TabsTrigger>
           </TabsList>
         </div>
-        {tab === "ask" && ask !== "home" && !article && (
-          <div className="flex items-center gap-2 border-b px-3 py-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                takeHandoff();
-                setAskMode("home");
-              }}
-            >
-              <ArrowLeftIcon data-icon="inline-start" />
-              Suggestions
-            </Button>
-            <span className="min-w-0 truncate text-meta text-muted-foreground">{taskLabel}</span>
-          </div>
-        )}
         {/* Always mounted: the page that owns the context assistant portals its body here. */}
         <div
           ref={setSlotTarget}
@@ -697,10 +686,11 @@ export default function HelpPanel({
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex items-end gap-2 border-b p-3">
+              <div className="flex items-center gap-1 border-b px-3 py-2">
                 <div className="min-w-0 flex-1">
                   <SearchableSelect
                     label="Help conversation"
+                    labelHidden
                     value={selected ?? ""}
                     selectedLabel={detail.data?.title}
                     search={conversationSearch}
@@ -722,9 +712,10 @@ export default function HelpPanel({
                   />
                 </div>
                 <Button
-                  size="icon"
-                  variant="outline"
+                  size="icon-sm"
+                  variant="ghost"
                   aria-label="New Help conversation"
+                  title="New conversation"
                   disabled={busy}
                   onClick={() => {
                     setSelected(null);
@@ -736,9 +727,10 @@ export default function HelpPanel({
                 </Button>
                 {selected && (
                   <Button
-                    size="icon"
+                    size="icon-sm"
                     variant="ghost"
                     aria-label="Delete Help conversation"
+                    title="Delete conversation"
                     disabled={busy || Boolean(active)}
                     onClick={() => setDeleteOpen(true)}
                   >
@@ -813,14 +805,14 @@ export default function HelpPanel({
                           >
                             <Message align="end">
                               <MessageContent>
-                                <MessageHeader>
-                                  You · {run.help_context?.title ?? "Help"}
-                                </MessageHeader>
-                                <Bubble align="end">
+                                <Bubble align="end" variant="tinted">
                                   <BubbleContent className="whitespace-pre-wrap">
                                     {run.prompt}
                                   </BubbleContent>
                                 </Bubble>
+                                {run.help_context?.title && (
+                                  <MessageFooter>{run.help_context.title}</MessageFooter>
+                                )}
                               </MessageContent>
                             </Message>
                           </MessageScrollerItem>,
@@ -830,7 +822,6 @@ export default function HelpPanel({
                           >
                             <Message>
                               <MessageContent>
-                                <MessageHeader>Help</MessageHeader>
                                 {run.status === "completed" && run.answer && (
                                   <Bubble variant="ghost">
                                     <BubbleContent>
@@ -893,10 +884,7 @@ export default function HelpPanel({
                               <div className="flex flex-col gap-4">
                                 <Message align="end">
                                   <MessageContent>
-                                    <MessageHeader>
-                                      You · {page.data?.title ?? "Help"}
-                                    </MessageHeader>
-                                    <Bubble align="end">
+                                    <Bubble align="end" variant="tinted">
                                       <BubbleContent className="whitespace-pre-wrap">
                                         {sending.prompt}
                                       </BubbleContent>
@@ -905,7 +893,6 @@ export default function HelpPanel({
                                 </Message>
                                 <Message>
                                   <MessageContent>
-                                    <MessageHeader>Help</MessageHeader>
                                     <Thinking>Sending…</Thinking>
                                   </MessageContent>
                                 </Message>
@@ -919,14 +906,14 @@ export default function HelpPanel({
                 </MessageScrollerProvider>
               </div>
               <form
-                className="border-t p-3"
+                className="flex flex-col gap-2 border-t px-3 py-3"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void send();
                 }}
               >
-                <p className="mb-2 text-xs text-muted-foreground">
-                  Question about: {page.data?.title ?? "this page"}
+                <p className="text-meta text-muted-foreground">
+                  About {page.data?.title ?? "this page"}
                 </p>
                 <Field>
                   <FieldLabel className="sr-only" htmlFor="help-question">
@@ -973,9 +960,8 @@ export default function HelpPanel({
                     </InputGroupAddon>
                   </InputGroup>
                 </Field>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Uses approved guides. Your device data and unsaved edits are
-                  not included.
+                <p className="text-meta text-muted-foreground">
+                  Answers come from the guides; your data and unsaved edits stay out.
                 </p>
               </form>
             </div>
@@ -984,9 +970,8 @@ export default function HelpPanel({
       </Tabs>
       <nav
         aria-label="Support"
-        className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-3 text-meta"
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2 text-meta"
       >
-        <span className="text-muted-foreground">Something wrong or missing?</span>
         <Link className="text-primary hover:underline" to={newTicketPath(org, "bug", location.pathname)} onClick={onClose}>
           Report a problem
         </Link>
