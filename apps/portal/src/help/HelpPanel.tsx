@@ -496,21 +496,26 @@ export default function HelpPanel({
       }
     }
   }
-  const taskLabel =
-    ask === "context"
-      ? slot?.title
-      : ask === "profile"
-        ? "Device profiles"
-        : ask === "onboarding"
-          ? "Device onboarding"
-          : ask === "opening"
-          ? "New automation"
-          : "Usage help";
-
   const content = (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-start justify-between gap-2 border-b p-4">
-        <div className="min-w-0">
+      <div className="flex items-start gap-2 border-b px-4 py-3">
+        {/* Inside a task, the way back to the suggestions sits beside the title instead of a row of its own. */}
+        {tab === "ask" && ask !== "home" && !article && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Suggestions"
+            title="Back to suggestions"
+            className="-ml-1.5"
+            onClick={() => {
+              takeHandoff();
+              setAskMode("home");
+            }}
+          >
+            <ArrowLeftIcon />
+          </Button>
+        )}
+        <div className="min-w-0 flex-1">
           <h2 id="help-title" className="flex items-center gap-2 font-semibold">
             <SparklesIcon className="size-4" />
             Assistant
@@ -545,29 +550,13 @@ export default function HelpPanel({
         }}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <div className="border-b p-3">
+        <div className="border-b px-3 py-2">
           <TabsList className="w-full" aria-label="Assistant views">
             <TabsTrigger value="ask">Ask</TabsTrigger>
             <TabsTrigger value="page">This page</TabsTrigger>
             <TabsTrigger value="guides">All guides</TabsTrigger>
           </TabsList>
         </div>
-        {tab === "ask" && ask !== "home" && !article && (
-          <div className="flex items-center gap-2 border-b px-3 py-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                takeHandoff();
-                setAskMode("home");
-              }}
-            >
-              <ArrowLeftIcon data-icon="inline-start" />
-              Suggestions
-            </Button>
-            <span className="min-w-0 truncate text-meta text-muted-foreground">{taskLabel}</span>
-          </div>
-        )}
         {/* Always mounted: the page that owns the context assistant portals its body here. */}
         <div
           ref={setSlotTarget}
@@ -984,9 +973,8 @@ export default function HelpPanel({
       </Tabs>
       <nav
         aria-label="Support"
-        className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-3 text-meta"
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2 text-meta"
       >
-        <span className="text-muted-foreground">Something wrong or missing?</span>
         <Link className="text-primary hover:underline" to={newTicketPath(org, "bug", location.pathname)} onClick={onClose}>
           Report a problem
         </Link>

@@ -18,7 +18,6 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
 } from "@iot-os/ui/components/card";
 import {
   Dialog,
@@ -37,7 +36,7 @@ import { Badge } from "@iot-os/ui/components/badge";
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert";
 import { JsonEditor } from "@iot-os/ui/components/json-editor";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
-import { Message, MessageContent, MessageHeader } from "@iot-os/ui/components/message";
+import { Message, MessageContent } from "@iot-os/ui/components/message";
 import { Bubble, BubbleContent } from "@iot-os/ui/components/bubble";
 import { Marker, MarkerContent } from "@iot-os/ui/components/marker";
 import { Markdown } from "@iot-os/ui/components/markdown";
@@ -53,12 +52,24 @@ import {
   MessageScrollerButton,
 } from "@iot-os/ui/components/message-scroller";
 import {
+  ArrowRightIcon,
+  CableIcon,
   CheckIcon,
+  FileCodeIcon,
+  FilePenLineIcon,
+  FlaskConicalIcon,
+  HistoryIcon,
+  KeyRoundIcon,
   PaperclipIcon,
+  PlugIcon,
   PlusIcon,
+  PowerIcon,
+  RadioTowerIcon,
+  RocketIcon,
   SendIcon,
   SquareIcon,
   Trash2Icon,
+  type LucideIcon,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { useDirtyContext } from "../lib/unsaved";
@@ -84,6 +95,20 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
   deploy: "Deploy",
   activate: "Activate devices",
   cursor: "Choose where polling starts",
+};
+const STEP_ICONS: Record<OnboardingStep, LucideIcon> = {
+  credentials: KeyRoundIcon,
+  secret: KeyRoundIcon,
+  test: FlaskConicalIcon,
+  deploy: RocketIcon,
+  activate: PowerIcon,
+  cursor: HistoryIcon,
+};
+const SECTION_LABELS: Record<string, string> = {
+  identity: "Name and code",
+  parameters: "Readings",
+  groups: "Reading groups",
+  calculations: "Calculated readings",
 };
 // The workbench tab where each suggested step happens.
 const STEP_TABS: Record<OnboardingStep, string> = {
@@ -448,8 +473,7 @@ export default function OnboardingAssistantBody({
       content: (
         <Message align="end">
           <MessageContent>
-            <MessageHeader>You</MessageHeader>
-            <Bubble align="end">
+            <Bubble align="end" variant="tinted">
               <BubbleContent className="whitespace-pre-wrap">{run.prompt}</BubbleContent>
             </Bubble>
             {run.source_ids?.map((id) => {
@@ -476,7 +500,6 @@ export default function OnboardingAssistantBody({
       content: (
         <Message>
           <MessageContent>
-            <MessageHeader>Onboarding assistant</MessageHeader>
             {run.answer && (
               <Bubble variant="ghost">
                 <BubbleContent>
@@ -543,15 +566,13 @@ export default function OnboardingAssistantBody({
         <div className="flex flex-col gap-4">
           <Message align="end">
             <MessageContent>
-              <MessageHeader>You</MessageHeader>
-              <Bubble align="end">
+              <Bubble align="end" variant="tinted">
                 <BubbleContent className="whitespace-pre-wrap">{sending.prompt}</BubbleContent>
               </Bubble>
             </MessageContent>
           </Message>
           <Message>
             <MessageContent>
-              <MessageHeader>Onboarding assistant</MessageHeader>
               <Thinking>Sending…</Thinking>
             </MessageContent>
           </Message>
@@ -566,8 +587,7 @@ export default function OnboardingAssistantBody({
       content: (
         <Message align="end">
           <MessageContent>
-            <MessageHeader>You</MessageHeader>
-            <Bubble align="end">
+            <Bubble align="end" variant="tinted">
               <BubbleContent className="whitespace-pre-wrap">{queued}</BubbleContent>
             </Bubble>
             <div className="flex items-center justify-end gap-2 text-meta text-muted-foreground">
@@ -616,17 +636,16 @@ export default function OnboardingAssistantBody({
         id: proposal.id,
         at: Infinity,
         content: (
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Device profile: {proposal.section}</CardTitle>
-              <CardDescription>{proposal.summary}</CardDescription>
-            </CardHeader>
-            <CardFooter>
-              <Button size="sm" disabled={busy || active} onClick={() => setReview(proposal)}>
-                Review section
-              </Button>
-            </CardFooter>
-          </Card>
+          <ActionCard
+            icon={FilePenLineIcon}
+            label="Device type proposal"
+            title={SECTION_LABELS[proposal.section] ?? proposal.section}
+            description={proposal.summary}
+          >
+            <Button size="sm" disabled={busy || active} onClick={() => setReview(proposal)}>
+              Review section
+            </Button>
+          </ActionCard>
         ),
       });
   for (const proposal of data?.adapter_proposals ?? [])
@@ -649,29 +668,28 @@ export default function OnboardingAssistantBody({
       id: "activate-" + waiting.map((c) => c.uuid).join(","),
       at: Infinity,
       content: (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>
-              {waiting.length === 1 ? "A device is ready to activate" : `${waiting.length} devices are ready to activate`}
-            </CardTitle>
-            <CardDescription>Activating maps every reading from the profile and starts storing them.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
+        <ActionCard
+          icon={PowerIcon}
+          label="Ready"
+          title={waiting.length === 1 ? "A device is ready to activate" : `${waiting.length} devices are ready to activate`}
+          description="Activating maps every reading from the profile and starts storing them."
+        >
+          <div className="flex w-full flex-col divide-y">
             {waiting.slice(0, 5).map((c) => (
-              <div key={c.uuid} className="flex items-center justify-between gap-2">
+              <div key={c.uuid} className="flex items-center justify-between gap-2 py-1.5 first:pt-0 last:pb-0">
                 <span className="truncate font-mono text-code">{c.source_device_id}</span>
                 <Button size="sm" disabled={!canEdit} onClick={() => setActivating(c)}>
                   Activate
                 </Button>
               </div>
             ))}
-            {waiting.length > 5 && (
-              <Button size="sm" variant="link" className="self-start px-0" onClick={() => openAdapter(subject, "devices")}>
-                See all {waiting.length} in the adapter
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+          </div>
+          {waiting.length > 5 && (
+            <Button size="sm" variant="link" className="px-0" onClick={() => openAdapter(subject, "devices")}>
+              See all {waiting.length} in the adapter
+            </Button>
+          )}
+        </ActionCard>
       ),
     });
   // The card above already covers activation, so the step is not suggested twice.
@@ -680,17 +698,17 @@ export default function OnboardingAssistantBody({
       id: "next-" + nextStep.at,
       at: Infinity,
       content: (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Next: {STEP_LABELS[nextStep.step]}</CardTitle>
-            <CardDescription>{nextStep.message}</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button size="sm" onClick={() => openAdapter(nextStep.adapter_uuid, STEP_TABS[nextStep.step])}>
-              {STEP_LABELS[nextStep.step]}
-            </Button>
-          </CardFooter>
-        </Card>
+        <ActionCard
+          icon={STEP_ICONS[nextStep.step]}
+          label="Next step"
+          title={STEP_LABELS[nextStep.step]}
+          description={nextStep.message}
+        >
+          <Button size="sm" onClick={() => openAdapter(nextStep.adapter_uuid, STEP_TABS[nextStep.step])}>
+            {STEP_LABELS[nextStep.step]}
+            <ArrowRightIcon data-icon="inline-end" />
+          </Button>
+        </ActionCard>
       ),
     });
 
@@ -699,11 +717,12 @@ export default function OnboardingAssistantBody({
   return (
     <>
       <div className="flex h-full min-h-0 flex-col" role="region" aria-label="Onboarding assistant">
-        <div className="flex flex-col gap-3 border-b p-4">
-          <div className="flex items-end gap-2">
+        <div className="flex flex-col gap-2 border-b px-3 py-2">
+          <div className="flex items-center gap-1">
             <div className="min-w-0 flex-1">
               <SearchableSelect
                 label="Conversation"
+                labelHidden
                 value={selected ?? ""}
                 selectedLabel={data?.title ?? conversation?.title}
                 options={(conversations.data ?? [])
@@ -721,9 +740,10 @@ export default function OnboardingAssistantBody({
               />
             </div>
             <Button
-              variant="outline"
-              size="icon"
+              variant="ghost"
+              size="icon-sm"
               aria-label="New conversation"
+              title="New conversation"
               disabled={busy || uploading}
               onClick={() => {
                 followed.current = adapterUuid ?? null;
@@ -737,8 +757,9 @@ export default function OnboardingAssistantBody({
             {selected && (
               <Button
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 aria-label="Delete conversation"
+                title="Delete conversation"
                 disabled={locked}
                 onClick={() => setDeleteOpen(true)}
               >
@@ -747,36 +768,44 @@ export default function OnboardingAssistantBody({
             )}
           </div>
           {(boundAdapter || state?.source_type || data?.profile_uuid) && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-meta text-muted-foreground">
               {boundAdapter && (
                 boundAdapter === adapterUuid ? (
-                  <Badge variant="secondary">{adapter?.name ?? "This adapter"}</Badge>
+                  <span className="flex min-w-0 items-center gap-1">
+                    <PlugIcon className="size-3.5 shrink-0" />
+                    <span className="truncate">{adapter?.name ?? "This adapter"}</span>
+                  </span>
                 ) : (
                   <Link
-                    className="text-primary underline"
+                    className="flex min-w-0 items-center gap-1 text-primary hover:underline"
                     to={`/organizations/${encodeURIComponent(org)}/device-adapters/${encodeURIComponent(boundAdapter)}`}
                     onClick={() => {
                       keepConversation(boundAdapter);
                       if (sheet) closePanel();
                     }}
                   >
-                    Open {adapter?.name ?? "the adapter"}
+                    <PlugIcon className="size-3.5 shrink-0" />
+                    <span className="truncate">Open {adapter?.name ?? "the adapter"}</span>
                   </Link>
                 )
               )}
               {state?.path === "adapter" && state.source_type && (
-                <Badge variant="outline">{SOURCE_LABELS[state.source_type]}</Badge>
+                <span className="flex items-center gap-1">
+                  <RadioTowerIcon className="size-3.5 shrink-0" />
+                  {SOURCE_LABELS[state.source_type]}
+                </span>
               )}
               {data?.profile_uuid && (
                 <Link
-                  className="text-primary underline"
+                  className="flex min-w-0 items-center gap-1 text-primary hover:underline"
                   to={`/organizations/${encodeURIComponent(org)}/device-profiles/${data.profile_uuid}/review`}
                   onClick={() => {
                     keepConversation();
                     if (sheet) closePanel();
                   }}
                 >
-                  Publish {data.profile_name ?? "the profile draft"}
+                  <FilePenLineIcon className="size-3.5 shrink-0" />
+                  <span className="truncate">Publish {data.profile_name ?? "the profile draft"}</span>
                 </Link>
               )}
             </div>
@@ -832,7 +861,7 @@ export default function OnboardingAssistantBody({
         <div
           // The phone sheet fills the screen, so toasts stack above the composer instead.
           ref={sheet ? keepToastsAbove : undefined}
-          className="flex flex-col gap-3 border-t bg-background p-4"
+          className="flex flex-col gap-2 border-t bg-background px-3 py-3"
         >
           {dirty && (data?.adapter_proposals.some((item) => item.status === "pending") || data?.proposals.some((item) => item.status === "pending")) && (
             <p className="text-meta text-muted-foreground">
@@ -871,7 +900,7 @@ export default function OnboardingAssistantBody({
                 aria-label="Message the onboarding assistant"
                 placeholder="What are you connecting?"
                 value={draft}
-                rows={3}
+                rows={2}
                 maxLength={8000}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
@@ -913,9 +942,8 @@ export default function OnboardingAssistantBody({
             </InputGroup>
           </form>
           <p className="text-meta text-muted-foreground">
-            Credentials go in the adapter’s form, never in the chat. Files are sent to{" "}
-            {settings.data?.provider?.label ?? "the AI provider"}.
-            {cost > 0 && <span className="tabular-nums"> · Estimated cost {formatCost(cost)}</span>}
+            Never paste credentials here. Files go to {settings.data?.provider?.label ?? "the AI provider"}.
+            {cost > 0 && <span className="tabular-nums"> · About {formatCost(cost)} so far</span>}
           </p>
         </div>
       </div>
@@ -1021,6 +1049,40 @@ function Welcome({
   );
 }
 
+/**
+ * A step that waits on the person, in the chat: an icon, what it is and its buttons.
+ * Proposals, next steps and activation all read the same way.
+ */
+function ActionCard({
+  icon: Icon,
+  label,
+  title,
+  description,
+  children,
+}: {
+  icon: LucideIcon;
+  label: string;
+  title: ReactNode;
+  description?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <Card size="sm">
+      <CardHeader className="flex items-start gap-3">
+        <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="size-4" />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-meta text-muted-foreground">{label}</span>
+          <CardTitle>{title}</CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </div>
+      </CardHeader>
+      {children && <CardContent className="flex flex-wrap items-center gap-2 pl-14">{children}</CardContent>}
+    </Card>
+  );
+}
+
 function Decided({ text, applied }: { text: string; applied: boolean }) {
   return (
     <Marker>
@@ -1047,23 +1109,23 @@ function decidedText(proposal: OnboardingProposal) {
 
 function PathCard({ org, direct }: { org: string; direct: boolean }) {
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>{direct ? "Connect the device directly" : "Connect through a gateway"}</CardTitle>
-        <CardDescription>
-          {direct
-            ? "The device speaks Sparkplug B, so it needs no adapter. Add it and download its connection kit."
-            : "The gateway speaks Sparkplug B for the devices behind it. Add the gateway and download its connection kit."}
-        </CardDescription>
-      </CardHeader>
-      <CardFooter>
-        <Button size="sm" asChild>
-          <Link to={`/organizations/${encodeURIComponent(org)}/devices/onboard?mode=${direct ? "direct" : "gateway"}`}>
-            Open Add device
-          </Link>
-        </Button>
-      </CardFooter>
-    </Card>
+    <ActionCard
+      icon={CableIcon}
+      label="Next step"
+      title={direct ? "Connect the device directly" : "Connect through a gateway"}
+      description={
+        direct
+          ? "The device speaks Sparkplug B, so it needs no adapter. Add it and download its connection kit."
+          : "The gateway speaks Sparkplug B for the devices behind it. Add the gateway and download its connection kit."
+      }
+    >
+      <Button size="sm" asChild>
+        <Link to={`/organizations/${encodeURIComponent(org)}/devices/onboard?mode=${direct ? "direct" : "gateway"}`}>
+          Open Add device
+          <ArrowRightIcon data-icon="inline-end" />
+        </Link>
+      </Button>
+    </ActionCard>
   );
 }
 
@@ -1098,13 +1160,14 @@ function AdapterProposalCard({
       `${proposal.fixtures.length} test ${proposal.fixtures.length === 1 ? "sample" : "samples"}`,
   ].filter(Boolean) as string[];
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>{proposalTitle(proposal)}</CardTitle>
-        <CardDescription>{proposal.summary}</CardDescription>
-      </CardHeader>
+    <ActionCard
+      icon={proposal.kind === "change" ? FileCodeIcon : PlugIcon}
+      label="Adapter proposal"
+      title={proposalTitle(proposal)}
+      description={proposal.summary}
+    >
       {(sourceType || parts.length > 0 || proposal.kind === "reuse") && (
-        <CardContent className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-1.5">
           {sourceType && <Badge variant="outline">{SOURCE_LABELS[sourceType] ?? sourceType}</Badge>}
           {parts.map((part) => (
             <Badge key={part} variant="secondary">
@@ -1113,29 +1176,27 @@ function AdapterProposalCard({
           ))}
           {proposal.kind === "reuse" && proposal.adapter_uuid && (
             <Link
-              className="text-meta text-primary underline"
+              className="text-meta text-primary hover:underline"
               to={`/organizations/${encodeURIComponent(org)}/device-adapters/${encodeURIComponent(proposal.adapter_uuid)}`}
             >
               See the adapter
             </Link>
           )}
-        </CardContent>
+        </div>
       )}
-      <CardFooter className="gap-2">
-        {parts.length > 0 ? (
-          <Button size="sm" onClick={onReview}>
-            Review
-          </Button>
-        ) : (
-          <Button size="sm" disabled={disabled} onClick={() => onDecide("apply")}>
-            {applyLabel(proposal)}
-          </Button>
-        )}
-        <Button size="sm" variant="outline" disabled={disabled} onClick={() => onDecide("reject")}>
-          Dismiss
+      {parts.length > 0 ? (
+        <Button size="sm" onClick={onReview}>
+          Review
         </Button>
-      </CardFooter>
-    </Card>
+      ) : (
+        <Button size="sm" disabled={disabled} onClick={() => onDecide("apply")}>
+          {applyLabel(proposal)}
+        </Button>
+      )}
+      <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onDecide("reject")}>
+        Dismiss
+      </Button>
+    </ActionCard>
   );
 }
 

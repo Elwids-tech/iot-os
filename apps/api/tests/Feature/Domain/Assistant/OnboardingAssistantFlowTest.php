@@ -105,15 +105,6 @@ final class OnboardingAssistantFlowTest extends TestCase
         $run = $this->startRun($conversation);
         $code = 'function decode(input){const p=input.payload;return {sourceDeviceId:p.device_id,metrics:[{name:"flow_rate",value:p.flow_l_min}]}}';
 
-        // A parameter converted at ingress tells the model which unit the decoder returns.
-        $artifact = DeviceProfile::where('code', 'water-meter-onboarding-example')->firstOrFail()->artifacts()->firstOrFail();
-        $definition = $artifact->definition;
-        $definition['parameters'][0]['ingress_conversion'] = ['source_unit' => 'mL/min', 'multiplier' => 0.001, 'offset' => 0];
-        $artifact->forceFill(['definition' => $definition])->saveQuietly();
-        $listed = collect($this->act($run, 'find', ['kind' => 'profiles', 'query' => 'water'])['profiles'])->firstWhere('artifact_uuid', $this->waterMeter);
-        $this->assertSame('mL/min', $listed['parameters'][0]['decoder_unit']);
-        $this->assertSame($listed['parameters'][1]['unit'], $listed['parameters'][1]['decoder_unit']);
-
         $this->assertStringContainsString('artifact_uuid', $this->act($run, 'test_decoder', ['code' => $code, 'fixtures' => [$this->sample]])['reason']);
         // Before an adapter exists, the pasted sample is tested against the chosen profile.
         $tested = $this->act($run, 'test_decoder', ['code' => $code, 'fixtures' => [$this->sample], 'artifact_uuid' => $this->waterMeter]);

@@ -484,8 +484,11 @@ Things that have cost time before. Add to this list when something surprises you
   provider message, and leaves out a message that repeats an earlier one.
 - **Show models the shape, not just the field names.** Given only field descriptions,
   models sent a parameter's `ingress_conversion` as a list three times and gave up.
-  An example object in `ProfileKnowledge` fixed it. Decoders also converted a unit the
-  profile already converts at ingress; tools now list each parameter's `decoder_unit`.
+  An example object in `ProfileKnowledge` fixed it.
+- **Adapter readings skip a profile's ingress conversion.** Activation maps adapter
+  devices with `conversion_mode: none`, so a profile's `ingress_conversion` does nothing
+  for them and the decoder must return the profile's units. A WM-300 profile drafted with
+  an mL→L conversion stored 12,000 L/min from a decoder that passed mL through.
 
 ## UI
 
