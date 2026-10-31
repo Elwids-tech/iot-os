@@ -7,6 +7,7 @@ import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { Building2Icon, PlusIcon } from "lucide-react"
 import { Link } from "react-router-dom"
+import { ChangeBillingAccountDialog } from "../components/ChangeBillingAccountDialog"
 import { DeleteOrganizationDialog } from "../components/DeleteOrganizationDialog"
 import { countLabel } from "../components/DirectoryStates"
 import { InviteUserDialog } from "../components/InviteUserDialog"
@@ -14,6 +15,7 @@ import { OrganizationDialog } from "../components/OrganizationDialog"
 import { useDirectoryTable } from "../components/ResourceDirectory"
 import { useOrganizationOptions } from "../hooks/use-directory"
 import { apiClient } from "../lib/api-client"
+import { billingAccountPath } from "./BillingAccountsPage"
 
 function loadOrganizations(query: DirectoryQuery): Promise<PaginatedResponse<Organization>> {
   return apiClient.adminOrganizations(query)
@@ -24,6 +26,7 @@ export function OrganizationsPage() {
   const [editing, setEditing] = useState<Organization | "new" | null>(null)
   const [inviting, setInviting] = useState<Organization | null>(null)
   const [deleting, setDeleting] = useState<Organization | null>(null)
+  const [moving, setMoving] = useState<Organization | null>(null)
   const organizations = useOrganizationOptions()
   const columns = useMemo<DataColumn<Organization>[]>(
     () => [
@@ -57,6 +60,15 @@ export function OrganizationsPage() {
             {(organization.users_count ?? 0).toLocaleString()}
           </RefLink>
         ),
+      },
+      {
+        id: "billing",
+        header: "Billing account",
+        value: (organization) => organization.billing_account?.name ?? "",
+        cell: (organization) =>
+          organization.billing_account ? (
+            <RefLink to={billingAccountPath(organization.billing_account.uuid)}>{organization.billing_account.name}</RefLink>
+          ) : null,
       },
       {
         id: "devices",
@@ -107,6 +119,8 @@ export function OrganizationsPage() {
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setInviting(organization)}>Invite user</DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setMoving(organization)}>Change billing account</DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => setDeleting(organization)}>
               Delete organization
             </DropdownMenuItem>
@@ -132,6 +146,7 @@ export function OrganizationsPage() {
         onInvited={() => undefined}
       />
       <DeleteOrganizationDialog organization={deleting} onClose={() => setDeleting(null)} onDeleted={reload} />
+      <ChangeBillingAccountDialog organization={moving} onClose={() => setMoving(null)} onMoved={reload} />
     </CollectionPage>
   )
 }

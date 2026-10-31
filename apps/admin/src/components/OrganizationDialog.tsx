@@ -11,20 +11,23 @@ import {
 } from "@iot-os/ui/components/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
+import { slugify } from "@iot-os/ui/lib/slug"
 import { AlertCircleIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useDiscardGuard } from "../hooks/use-discard-guard"
 import { apiClient } from "../lib/api-client"
 import { fieldMessages, validationErrors } from "../lib/errors"
+import {
+  BillingAccountChoice,
+  billingAccountValues,
+  newBillingAccountChoice,
+  type BillingAccountChoiceValue,
+} from "./BillingAccountChoice"
 
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-
-/** Create (organization "new") or edit an organization's name and slug. */
+/**
+ * Create (organization "new") or edit an organization's name and slug. A new
+ * organization also gets its billing account (spec 023).
+ */
 export function OrganizationDialog({
   organization,
   onClose,
@@ -38,11 +41,14 @@ export function OrganizationDialog({
   const [name, setName] = useState("")
   const [slug, setSlug] = useState("")
   const [slugTouched, setSlugTouched] = useState(false)
+  const [billing, setBilling] = useState<BillingAccountChoiceValue>(newBillingAccountChoice)
   const [errors, setErrors] = useState<Record<string, string[]> | null>(null)
   const [formError, setFormError] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const baseline = organization && organization !== "new" ? organization : { name: "", slug: "" }
-  const dirty = organization !== null && (name !== baseline.name || slug !== baseline.slug)
+  const billingTouched =
+    isNew && (billing.mode !== "new" || billing.nameTouched || billing.contactEmail !== "" || billing.account !== null)
+  const dirty = organization !== null && (name !== baseline.name || slug !== baseline.slug || billingTouched)
   const { guard, dialog: discardDialog } = useDiscardGuard(dirty, {
     title: "Discard organization changes?",
     description: "Your edits to this organization are not saved.",
@@ -56,6 +62,7 @@ export function OrganizationDialog({
     setName(baseline.name)
     setSlug(baseline.slug)
     setSlugTouched(!isNew)
+    setBilling(newBillingAccountChoice())
     setErrors(null)
     setFormError(false)
   }, [organization, isNew])
@@ -65,13 +72,19 @@ export function OrganizationDialog({
     if (!organization) return
     setErrors(null)
     setFormError(false)
+
+    if (isNew && billing.mode === "existing" && !billing.account) {
+      setErrors({ billing_account_uuid: ["Choose a billing account."] })
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
       const values = { name: name.trim(), slug: slug.trim() }
       const saved =
         organization === "new"
-          ? await apiClient.createAdminOrganization(values)
+          ? await apiClient.createAdminOrganization({ ...values, ...billingAccountValues(billing, values.name) })
           : await apiClient.updateAdminOrganization(organization.uuid, values)
       toast.success(isNew ? `${saved.name} created` : `${saved.name} saved`)
       onSaved()
@@ -113,6 +126,7 @@ export function OrganizationDialog({
                 onChange={(event) => {
                   setName(event.target.value)
                   if (!slugTouched) setSlug(slugify(event.target.value))
+                  if (!billing.nameTouched) setBilling({ ...billing, name: event.target.value })
                 }}
                 required
               />
@@ -140,6 +154,9 @@ export function OrganizationDialog({
               </FieldDescription>
               <FieldError errors={slugErrors?.map((message) => ({ message }))} />
             </Field>
+            {isNew ? (
+              <BillingAccountChoice value={billing} onChange={setBilling} errors={errors} disabled={isSubmitting} />
+            ) : null}
             {formError ? (
               <Alert variant="destructive">
                 <AlertCircleIcon />

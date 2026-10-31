@@ -1105,7 +1105,7 @@ test("creates and edits an organization", async ({ page, consoleMessages }) => {
   await page.goto("/organizations")
 
   await page.getByRole("button", { name: "New organization" }).click()
-  await page.getByRole("textbox", { name: "Name" }).fill("Harbor Logistics")
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Harbor Logistics")
   await expect(page.getByRole("textbox", { name: "Slug" })).toHaveValue("harbor-logistics")
   await page.getByRole("button", { name: "Create organization" }).click()
 
@@ -1118,7 +1118,7 @@ test("creates and edits an organization", async ({ page, consoleMessages }) => {
   await page.getByRole("button", { name: "Save organization" }).click()
   await expect(page.getByText("The slug has already been taken.")).toBeVisible()
 
-  await page.getByRole("textbox", { name: "Name" }).fill("Harbor Freight")
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Harbor Freight")
   await page.getByRole("textbox", { name: "Slug" }).fill("harbor-freight")
   await page.getByRole("button", { name: "Save organization" }).click()
   await expect(page.getByText("Harbor Freight saved")).toBeVisible()
@@ -1194,12 +1194,12 @@ test("asks before discarding organization and member role edits", async ({ page 
   await page.getByRole("button", { name: "New organization" }).click()
   const dialog = page.getByRole("dialog", { name: "New organization" })
   const guard = page.getByRole("alertdialog", { name: "Discard organization changes?" })
-  await dialog.getByRole("textbox", { name: "Name" }).fill("Harbor Logistics")
+  await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Harbor Logistics")
 
   await page.keyboard.press("Escape")
   await guard.getByRole("button", { name: "Keep editing" }).click()
   await expect(guard).toBeHidden()
-  await expect(dialog.getByRole("textbox", { name: "Name" })).toHaveValue("Harbor Logistics")
+  await expect(dialog.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Harbor Logistics")
 
   await page.goBack()
   await guard.getByRole("button", { name: "Keep editing" }).click()
@@ -1252,7 +1252,7 @@ test("creates a new account from an invitation", async ({ page }) => {
   await mockApi(page, { initiallyAuthenticated: false })
   await page.goto("/accept-invitation?token=new-invite-token")
 
-  await page.getByRole("textbox", { name: "Name" }).fill("New User")
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("New User")
   await page.getByLabel("Password", { exact: true }).fill("safe-password")
   await page.getByLabel("Confirm password", { exact: true }).fill("safe-password")
   await page.getByRole("button", { name: "Create account and accept" }).click()
@@ -1365,7 +1365,7 @@ test("creates a super administrator account from an invitation", async ({ page }
   await page.goto("/accept-invitation?token=super-admin-invite-token")
 
   await expect(page.getByText("You have been invited to administer IoT OS as new.user@example.test.")).toBeVisible()
-  await page.getByRole("textbox", { name: "Name" }).fill("New Admin")
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("New Admin")
   await page.getByLabel("Password", { exact: true }).fill("safe-password")
   await page.getByLabel("Confirm password", { exact: true }).fill("safe-password")
   await page.getByRole("button", { name: "Create account and accept" }).click()
@@ -1481,7 +1481,7 @@ test("creates an organization, adds a role and invites someone with it", async (
   await page.goto("/organizations")
 
   await page.getByRole("button", { name: "New organization" }).click()
-  await page.getByRole("textbox", { name: "Name" }).fill("Cedar Processing")
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Cedar Processing")
   await page.getByRole("button", { name: "Create organization" }).click()
   await expect(page.getByText("Cedar Processing created")).toBeVisible()
 
@@ -1573,7 +1573,7 @@ test("deletes an empty organization after its slug is typed", async ({ page }) =
   await page.goto("/organizations")
 
   await page.getByRole("button", { name: "New organization" }).click()
-  await page.getByRole("textbox", { name: "Name" }).fill("Cedar Processing")
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Cedar Processing")
   await page.getByRole("button", { name: "Create organization" }).click()
   await expect(page.getByRole("row", { name: /Cedar Processing/ })).toContainText("0")
 

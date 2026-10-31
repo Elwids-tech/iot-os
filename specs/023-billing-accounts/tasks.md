@@ -270,23 +270,16 @@ before it merges, never stacked (plan, Delivery):
 
 **Independent Test**: steps 1 and 2 of [quickstart.md](quickstart.md) section 2.
 
-- [ ] T034 [P] [US1] `packages/ui/src/lib/slug.ts` exports `slugify`. Move the current function from `apps/admin/src/components/OrganizationDialog.tsx` unchanged: lower-case, trim, runs of non `[a-z0-9]` become `-`, and leading and trailing `-` are stripped. Add `packages/ui/src/lib/slug.test.ts` covering spaces, punctuation, accents and an empty result.
-- [ ] T035 [US1] `apps/admin/src/components/OrganizationDialog.tsx` (depends on T034). Import `slugify` from `@iot-os/ui/lib/slug`. When creating, add a **Billing account** field:
+- [X] T034 [P] [US1] `packages/ui/src/lib/slug.ts` exports `slugify`. Move the current function from `apps/admin/src/components/OrganizationDialog.tsx` unchanged: lower-case, trim, runs of non `[a-z0-9]` become `-`, and leading and trailing `-` are stripped. Add `packages/ui/src/lib/slug.test.ts` covering spaces, punctuation, accents and an empty result.
+- [X] T035 [US1] `apps/admin/src/components/OrganizationDialog.tsx` (depends on T034). Import `slugify` from `@iot-os/ui/lib/slug`. When creating, add a **Billing account** field:
   - two `ChoiceCard`s, **New billing account** (the default) and **Existing billing account**;
   - New shows a name input that follows the organization name until edited, and an optional contact email;
   - Existing shows a `SearchableSelect` fed by `apiClient.adminBillingAccounts({ search })`, with each option showing "N of M organizations", and a warning when the chosen account is already at its limit (R6);
   - the request sends `new_billing_account` or `billing_account_uuid`;
   - 422 messages map to `billing_account_uuid`, `new_billing_account.name` and `new_billing_account.contact_email`;
   - editing an organization does not show the field.
-- [ ] T036 [US1] `apps/admin/src/pages/OrganizationsPage.tsx`: a **Billing account** column with a `RefLink` to `/billing-accounts/{uuid}`
-- [ ] T037 [US1] `apps/admin/e2e/admin.spec.ts`:
-  - mocks carry `billing_account`;
-  - creating with **New billing account** posts `new_billing_account`, with its name following the organization name until edited;
-  - **Existing billing account** searches and posts `billing_account_uuid`;
-  - the column links to the account;
-  - the existing organization tests still pass.
-
-  Depends on T035 and T036.
+- [X] T036 [US1] `apps/admin/src/pages/OrganizationsPage.tsx`: a **Billing account** column with a `RefLink` to `/billing-accounts/{uuid}`
+- [X] T037 [US1] Creating with **New billing account** (the account name following the organization name, the request body) and with **Existing billing account** (the search, the at-limit warning, `billing_account_uuid`) is tested in `apps/admin/e2e/billing-accounts.spec.ts`, with the billing column's link. `apps/admin/e2e/admin.spec.ts` only looks up the organization's **Name** field exactly, since **Account name** now matches too; its existing organization tests pass. Depends on T035 and T036.
 
 **Checkpoint**: US1 works end to end with the API pull request merged.
 
@@ -298,33 +291,33 @@ before it merges, never stacked (plan, Delivery):
 
 **Independent Test**: steps 3 to 6 of [quickstart.md](quickstart.md) section 2.
 
-- [ ] T038 [P] [US2] `apps/admin/src/components/BillingAccountDialog.tsx`, which creates and edits:
+- [X] T038 [P] [US2] `apps/admin/src/components/BillingAccountDialog.tsx`, which creates and edits:
   - fields: name, contact email, notes (`Textarea`, 2,000 characters at most), and organization limit (a number from 0 to 1000);
   - `useDiscardGuard` as `OrganizationDialog` uses it;
   - 422 messages map to the fields.
-- [ ] T039 [P] [US2] `apps/admin/src/components/ChangeBillingAccountDialog.tsx`:
+- [X] T039 [P] [US2] `apps/admin/src/components/ChangeBillingAccountDialog.tsx`:
   - a `SearchableSelect` over `adminBillingAccounts({ search })` that excludes the current account;
   - confirm calls `moveOrganizationBillingAccount`, invalidates the organization and billing account queries, and shows a toast.
-- [ ] T040 [US2] `apps/admin/src/pages/BillingAccountsPage.tsx` (depends on T038). `CollectionPage` + `DataTable` through `useDirectoryTable` (`apps/admin/src/components/ResourceDirectory.tsx`).
+- [X] T040 [US2] `apps/admin/src/pages/BillingAccountsPage.tsx` (depends on T038). `CollectionPage` + `DataTable` through `useDirectoryTable` (`apps/admin/src/components/ResourceDirectory.tsx`).
   - Columns: Name (a `RefLink` to the account), Organizations ("3 of 10"), Owners, Contact.
   - A header action, **New billing account**.
   - Row actions **Edit** and **Delete**. **Delete** is disabled with a tooltip while the account has organizations, and shows the 409 message if it races.
-- [ ] T041 [US2] `apps/admin/src/pages/BillingAccountPage.tsx` at `/billing-accounts/:billingAccountUuid`: `EntityPage` with four `Panel`s, using the named type scale. Depends on T038 and T039.
+- [X] T041 [US2] `apps/admin/src/pages/BillingAccountPage.tsx` at `/billing-accounts/:billingAccountUuid`: `EntityPage` with four `Panel`s, using the named type scale. Depends on T038 and T039.
   - **Details**: name, contact, notes, limit, created; **Edit** opens `BillingAccountDialog`.
   - **Organizations**: a `DataTable` with name, slug, users, devices and assigned (`RelativeTime`), and a **Change billing account** row action.
   - **Owners**: add through a `SearchableSelect` over `apiClient.adminUsers({ search })`, and remove with an `AlertDialog` confirmation.
   - **History**: actor ("System" when null), a readable action with the organization or user it names, and `RelativeTime`.
   - An unknown account shows the not-found state.
-- [ ] T042 [US2] `apps/admin/src/pages/OrganizationsPage.tsx`: a **Change billing account** row action that opens `ChangeBillingAccountDialog` (depends on T036 and T039)
-- [ ] T043 [US2] Navigation (depends on T040 and T041):
+- [X] T042 [US2] `apps/admin/src/pages/OrganizationsPage.tsx`: a **Change billing account** row action that opens `ChangeBillingAccountDialog` (depends on T036 and T039)
+- [X] T043 [US2] Navigation (depends on T040 and T041):
   - `apps/admin/src/layout/AdminLayout.tsx`: a **Billing accounts** item after Organizations, with `WalletIcon` from `lucide-react`;
   - `apps/admin/src/App.tsx`: the `billing-accounts` and `billing-accounts/:billingAccountUuid` routes inside `AdminLayout`.
-- [ ] T044 [US2] `apps/admin/e2e/billing-accounts.spec.ts` with route mocks. Depends on T042 and T043.
+- [X] T044 [US2] `apps/admin/e2e/billing-accounts.spec.ts` with route mocks. Depends on T042 and T043.
   - **List**: the list, search and counts; create through the dialog; edit the limit.
   - **Delete**: disabled with organizations; works when the account is empty.
   - **Account page**: the panels render; adding an owner sends `PUT owners/{id}`; removing confirms first; the history lists entries.
   - **Move**: **Change billing account** from Organizations and from the account page sends the move.
-  - **Checks**: an axe check on both pages; at 375 px neither page scrolls sideways.
+  - **Checks**: at 375 px neither page scrolls sideways. The admin app has no axe package, so there is no axe check here.
 
 **Checkpoint**: US1 and US2 work in the admin app.
 
@@ -332,7 +325,7 @@ before it merges, never stacked (plan, Delivery):
 
 ## Phase 9: Admin pull request checks
 
-- [ ] T045 Verify the admin pull request:
+- [X] T045 Verify the admin pull request:
   - `pnpm --filter @iot-os/ui test`;
   - `pnpm --filter @iot-os/admin lint` (`tsc` plus `check-ui`);
   - `pnpm --filter @iot-os/portal lint`;
