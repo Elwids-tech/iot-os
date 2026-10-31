@@ -483,6 +483,11 @@ Things that have cost time before. Add to this list when something surprises you
   action bar needs `ref={keepToastsAbove}`, and a panel docked to the right edge
   needs `keepToastsLeftOf`, both from `@iot-os/ui/components/sonner`, or toasts
   will cover their buttons.
+- **A `CollectionPage` description shares the title's row.** `PageHeader` shows it
+  inline and truncates it, and the title truncates with it, so a sentence beside
+  header actions cut the portal's title to "Billing acc…". Keep the description to
+  a few words, such as a count ("4 of 4 organizations"), and put an explanation in
+  a line above the table, as `billing/BillingAccountsPage.tsx` does.
 - **A `DataTable` phone card is one big link.** The title's `RowLink` stretches
   over the whole card, so a button or switch rendered in a card's cell gets the
   link's tap instead. Give it `relative z-10`, as `RefLink`, the card's checkbox
