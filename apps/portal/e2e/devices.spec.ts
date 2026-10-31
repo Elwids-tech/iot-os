@@ -79,6 +79,29 @@ const idle = {
   candidate: null,
   profile: null,
 }
+const retired = {
+  ...meter,
+  uuid: "33333333-3333-4333-8333-333333333333",
+  code: "old-meter",
+  name: "Retired meter",
+  lifecycle: "archived",
+  presence: "offline",
+  deployment_status: "inactive",
+  candidate: null,
+}
+/** The list status the API filters on, with the portal's precedence. */
+const listStatus = (d: Record<string, any>) =>
+  d.lifecycle === "archived"
+    ? "archived"
+    : d.deployment_status === "failed"
+      ? "failed"
+      : d.deployment_status === "pending"
+        ? "updating"
+        : d.lifecycle === "deactivated"
+          ? "deactivated"
+          : d.lifecycle === "registered"
+            ? "unconfigured"
+            : d.presence
 const detail = {
   ...meter,
   retention: { days: 90, source: "platform" },
@@ -201,10 +224,12 @@ async function setup(page: Page, options: Options = {}) {
       })
     if (path.endsWith("/devices")) {
       const lifecycle = url.searchParams.get("lifecycle")
+      const statuses = url.searchParams.getAll("status[]")
       const profileUuid = url.searchParams.get("profile_uuid")
       const rows = (options.devices ?? [meter, idle]).filter(
         (d) =>
-          (!lifecycle || d.lifecycle === lifecycle) &&
+          (!lifecycle || (lifecycle === "current" ? d.lifecycle !== "archived" : d.lifecycle === lifecycle)) &&
+          (!statuses.length || statuses.includes(listStatus(d))) &&
           (!profileUuid || d.profile?.uuid === profileUuid),
       )
       const perPage = Number(url.searchParams.get("per_page") ?? 25)
@@ -404,15 +429,16 @@ async function fitsPhone(page: Page) {
     .toBe(true)
 }
 
-test("device directory links profiles and gateways and counts by lifecycle", async ({ page }) => {
-  const state = await setup(page)
+test("device directory links profiles and gateways, hides archived devices and filters by lifecycle", async ({ page }) => {
+  const state = await setup(page, { devices: [meter, idle, retired] })
   await page.goto(`${base}/devices`)
   await expect(page).toHaveTitle("Devices · IoT OS")
   await expect(page.getByRole("heading", { name: "Devices", level: 1 })).toBeVisible()
+  // Archived devices stay out of the default list, and the footer says so.
   await expect(page.getByRole("status").filter({ hasText: "2 devices" })).toBeVisible()
-  const lifecycle = page.getByRole("radiogroup", { name: "Lifecycle" })
-  await expect(lifecycle.getByRole("radio", { name: "All 2" })).toBeChecked()
-  await expect(lifecycle.getByRole("radio", { name: "Active 1" })).toBeVisible()
+  await expect(page.getByText("1 archived device hidden")).toBeVisible()
+  await expect(page.getByRole("link", { name: "Retired meter" })).toHaveCount(0)
+  await expect(page.getByRole("radiogroup", { name: "Lifecycle" })).toHaveCount(0)
   const row = page.getByRole("row", { name: /Energy Meter Simulator/ })
   await expect(row.getByRole("link", { name: "Three-phase Energy Meter" })).toHaveAttribute(
     "href",
@@ -423,12 +449,100 @@ test("device directory links profiles and gateways and counts by lifecycle", asy
     `${base}/gateways/${gatewayId}`,
   )
   await expect(row.getByText("Online", { exact: true })).toBeVisible()
-  await lifecycle.getByRole("radio", { name: "Registered 1" }).click()
+
+  // Lifecycle sits in Filters: the default first, then each lifecycle, then All.
+  await page.getByRole("button", { name: "Filters" }).click()
+  const lifecycle = page.getByRole("combobox", { name: "Lifecycle", exact: true })
+  await expect(lifecycle).toHaveText("Not archived")
+  await lifecycle.click()
+  await expect(page.getByRole("option")).toHaveText(["Not archived", "Registered", "Active", "Deactivated", "Archived", "All"])
+  await page.getByRole("option", { name: "Registered" }).click()
   await expect(page).toHaveURL(/lifecycle=registered/)
+  await expect(lifecycle).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toHaveAttribute("aria-expanded", "false")
   await expect(page.getByRole("status").filter({ hasText: "1 device match" })).toBeVisible()
   await expect(page.getByRole("link", { name: "Energy Meter Simulator" })).toHaveCount(0)
+  await expect(page.getByRole("group", { name: "Active filters" })).toContainText("Lifecycle: Registered")
+  await expect(page.getByText("archived device hidden")).toHaveCount(0)
+
+  // Removing the chip returns to the default; the footer's Show includes archived devices.
+  await page.getByRole("button", { name: "Remove Lifecycle filter" }).click()
+  await expect(page).not.toHaveURL(/lifecycle=/)
+  await page.getByRole("button", { name: "Show archived devices" }).click()
+  await expect(page).toHaveURL(/lifecycle=all/)
+  await expect(page.getByRole("status").filter({ hasText: "3 devices" })).toBeVisible()
+  await expect(page.getByRole("row", { name: /Retired meter/ }).getByText("Archived")).toBeVisible()
+  await expect(page.getByRole("group", { name: "Active filters" })).toContainText("Lifecycle: All")
   await axe(page)
   await fitsPhone(page)
+  expect(state.errors).toEqual([])
+})
+
+test("device toolbar keeps search beside icon buttons and filters by status on the server", async ({ page }) => {
+  const state = await setup(page, { devices: [meter, idle, generated], pending: 2 })
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto(`${base}/devices`)
+  const toolbar = page.locator('[data-slot="data-table-toolbar"]')
+  await expect(toolbar.getByRole("searchbox", { name: "Search devices" })).toBeVisible()
+  // Each button shows only its icon; a tooltip and the accessible name say what it does.
+  for (const name of ["Filters", "Group", "Columns"]) {
+    const button = toolbar.getByRole("button", { name })
+    await expect(button).toHaveText("")
+    await button.hover()
+    await expect(page.getByRole("tooltip")).toHaveText(name)
+    // Leave first: a pointer that jumps between buttons reads as heading for the open tooltip.
+    await page.mouse.move(0, 0, { steps: 4 })
+    await expect(page.getByRole("tooltip")).toHaveCount(0)
+  }
+  const discovery = toolbar.getByRole("link", { name: "2 sources waiting in Discovery" })
+  await expect(discovery).toHaveText("2")
+  await discovery.hover()
+  await expect(page.getByRole("tooltip")).toHaveText("2 sources waiting in Discovery")
+  await page.mouse.move(0, 0, { steps: 4 })
+  await expect(page.getByRole("tooltip")).toHaveCount(0)
+
+  // Status is the column the table groups by; picking two asks the server for both.
+  await toolbar.getByRole("button", { name: "Filters" }).click()
+  await page.getByRole("combobox", { name: "Status", exact: true }).click()
+  await expect(page.getByRole("option")).toHaveText([
+    "Online",
+    "Offline",
+    "Not seen yet",
+    "Connection unknown",
+    "Needs configuration",
+    "Updating",
+    "Configuration failed",
+    "Deactivated",
+  ])
+  await page.getByRole("option", { name: "Needs configuration" }).click()
+  await page.getByRole("option", { name: "Offline" }).click()
+  await expect(page).toHaveURL(/status=unconfigured&status=offline/)
+  // The list closes first and hands focus back; the next Escape closes Filters.
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("combobox", { name: "Status", exact: true })).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(toolbar.getByRole("button", { name: "Filters, 1 active" })).toHaveAttribute("aria-expanded", "false")
+  const table = page.getByRole("table")
+  await expect(table.getByRole("row", { name: /D1/ })).toBeVisible()
+  await expect(table.getByRole("row", { name: /Energy Meter Simulator/ })).toHaveCount(0)
+  await expect(page.getByRole("group", { name: "Active filters" })).toContainText("Status: Needs configuration, Offline")
+  await expect(toolbar.getByRole("button", { name: "Filters, 1 active" })).toHaveText("1")
+  await expect(page.getByRole("status").filter({ hasText: "1 device match" })).toBeVisible()
+  // Focus is back on Filters, which names itself in a tooltip until Escape.
+  await expect(page.getByRole("tooltip")).toHaveText("Filters, 1 active")
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("tooltip")).toHaveCount(0)
+  await axe(page)
+
+  // Phones keep the search and the icon buttons on one row.
+  await page.setViewportSize({ width: 375, height: 812 })
+  const search = await toolbar.getByRole("searchbox", { name: "Search devices" }).boundingBox()
+  const columns = await toolbar.getByRole("button", { name: "Columns" }).boundingBox()
+  expect(Math.abs(search!.y + search!.height / 2 - (columns!.y + columns!.height / 2))).toBeLessThan(4)
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    .toBe(true)
   expect(state.errors).toEqual([])
 })
 
@@ -678,10 +792,15 @@ test("device table selects and exports rows, hides columns, groups and filters b
   await page.getByRole("combobox", { name: "Profile" }).click()
   await page.getByRole("option", { name: "Three-phase Energy Meter" }).click()
   await expect(page).toHaveURL(new RegExp(`profile=${profileId}`))
+  // The picker closes and hands focus back first; then Escape closes Filters.
+  await expect(page.getByRole("combobox", { name: "Profile", exact: true })).toBeFocused()
   await page.keyboard.press("Escape")
   const chips = page.getByRole("group", { name: "Active filters" })
   await expect(chips).toContainText("Profile: Three-phase Energy Meter")
-  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeVisible()
+  // Closing Filters returns focus to its icon button, which names itself in a tooltip until Escape.
+  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("tooltip")).toHaveCount(0)
   await expect(page.getByRole("status").filter({ hasText: "2 devices match" })).toBeVisible()
   await expect(table.getByRole("row", { name: /D1/ })).toHaveCount(0)
   await axe(page)

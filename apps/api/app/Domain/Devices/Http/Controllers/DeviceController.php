@@ -35,7 +35,7 @@ final class DeviceController
     public function index(Request $request, Organization $organization)
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'lifecycle' => ['nullable', Rule::in(['registered', 'active', 'deactivated', 'archived'])], 'profile_uuid' => ['nullable', 'uuid'], 'site_uuid' => ['nullable', 'uuid'], 'tag' => ['nullable', 'string', 'max:32'], 'sort' => ['nullable', Rule::in(array_merge(array_keys(self::SORTS), array_map(fn ($key) => '-'.$key, array_keys(self::SORTS))))], 'page' => ['integer', 'min:1'], 'per_page' => ['integer', 'min:1', 'max:100']]);
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'lifecycle' => ['nullable', Rule::in(DeviceDirectory::LIFECYCLES)], 'status' => ['nullable', 'array'], 'status.*' => [Rule::in(DeviceDirectory::STATUSES)], 'profile_uuid' => ['nullable', 'uuid'], 'site_uuid' => ['nullable', 'uuid'], 'tag' => ['nullable', 'string', 'max:32'], 'sort' => ['nullable', Rule::in(array_merge(array_keys(self::SORTS), array_map(fn ($key) => '-'.$key, array_keys(self::SORTS))))], 'page' => ['integer', 'min:1'], 'per_page' => ['integer', 'min:1', 'max:100']]);
         $sort = $filters['sort'] ?? 'name';
         $column = self::SORTS[ltrim($sort, '-')];
         $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';

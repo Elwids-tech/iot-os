@@ -26,9 +26,10 @@ import { DropdownMenuItem } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { FieldGroup } from "@iot-os/ui/components/field"
 import { Freshness } from "@iot-os/ui/components/freshness"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@iot-os/ui/components/tooltip"
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
-import { CpuIcon, InboxIcon, PlusIcon } from "lucide-react"
+import { ArchiveIcon, CpuIcon, InboxIcon, PlusIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { onboardingPath } from "./DeviceOnboarding"
 import { useDirtyContext, useUnsaved } from "../lib/unsaved"
@@ -47,15 +48,16 @@ import {
   profilePath,
   useDeviceOrganization,
 } from "./shared"
-import { deviceHealth, RECENT_DATA_MS, shortDeviceCode } from "./model"
+import { deviceHealth, listStatuses, RECENT_DATA_MS, shortDeviceCode } from "./model"
 
-const lifecycles = ["registered", "active", "deactivated", "archived"] as const
-const lifecycleLabels = {
-  registered: "Registered",
-  active: "Active",
-  deactivated: "Deactivated",
-  archived: "Archived",
-}
+/** Lifecycle choices after the default, "Not archived"; "All" includes archived devices. */
+const lifecycleOptions = [
+  { value: "registered", label: "Registered" },
+  { value: "active", label: "Active" },
+  { value: "deactivated", label: "Deactivated" },
+  { value: "archived", label: "Archived" },
+  { value: "all", label: "All" },
+]
 /** Lists show presence in Status and how recent the data is in Last seen, so "no recent data" never merges into one mark. */
 const listFreshness = { recentMs: Number.POSITIVE_INFINITY }
 /** An active, online device that has been quiet for longer than RECENT_DATA_MS reads late. */
@@ -70,6 +72,7 @@ export function DeviceDirectory() {
   const url = useUrlState()
   const search = url.get("search"),
     lifecycle = url.get("lifecycle"),
+    statuses = url.getAll("status"),
     site = url.get("site"),
     profile = url.get("profile")
   const page = Number(url.get("page") || 1),
@@ -84,14 +87,19 @@ export function DeviceDirectory() {
     retry: false,
   })
   const [quickEdit, setQuickEdit] = useState<Device>()
+  const listFilters = {
+    search,
+    status: statuses,
+    site_uuid: site || undefined,
+    profile_uuid: profile || undefined,
+  }
   const query = useQuery({
-    queryKey: ["devices", org, { search, lifecycle, site, profile, sort, page, pageSize }],
+    queryKey: ["devices", org, { search, lifecycle, statuses, site, profile, sort, page, pageSize }],
     queryFn: () =>
       api.devices(org, {
-        search,
-        lifecycle,
-        site_uuid: site || undefined,
-        profile_uuid: profile || undefined,
+        ...listFilters,
+        // No lifecycle leaves archived devices out; "all" includes them.
+        lifecycle: lifecycle === "all" ? undefined : lifecycle || "current",
         sort: sort === "name" ? undefined : sort,
         page,
         per_page: pageSize,
@@ -100,25 +108,17 @@ export function DeviceDirectory() {
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
   })
-  // One light request per lifecycle for the view counts; "All" is their sum.
-  const counts = useQuery({
-    queryKey: ["devices", org, "counts", search],
+  // The default view says how many archived devices it leaves out.
+  const archived = useQuery({
+    queryKey: ["devices", org, "archived-count", { search, statuses, site, profile }],
     queryFn: async () =>
-      Object.fromEntries(
-        await Promise.all(
-          lifecycles.map(async (value) => [
-            value,
-            (await api.devices(org, { search, lifecycle: value, per_page: 1 }))
-              .meta.total,
-          ]),
-        ),
-      ) as Record<(typeof lifecycles)[number], number>,
+      (await api.devices(org, { ...listFilters, lifecycle: "archived", per_page: 1 })).meta.total,
+    enabled: !lifecycle,
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
   })
-  const all = counts.data
-    ? lifecycles.reduce((sum, value) => sum + counts.data[value], 0)
-    : undefined
+  const hiddenArchived = lifecycle ? 0 : (archived.data ?? 0)
+  const showArchived = () => url.set({ lifecycle: "all" })
   // Headers sort on the server once it echoes the applied sort; sorting one page locally would mislead.
   const serverSorts = Boolean(query.data?.meta.sort)
   const sortKey = sort.replace(/^-/, "")
@@ -283,19 +283,6 @@ export function DeviceDirectory() {
         }
         groups={groups}
         error={query.error ? <RequestError error={query.error} /> : undefined}
-        views={{
-          label: "Lifecycle",
-          value: lifecycle || "all",
-          onChange: (value) => url.set({ lifecycle: value === "all" ? null : value }),
-          options: [
-            { value: "all", label: "All", count: all },
-            ...lifecycles.map((value) => ({
-              value,
-              label: lifecycleLabels[value],
-              count: counts.data?.[value],
-            })),
-          ],
-        }}
         search={{
           label: "Search devices",
           placeholder: "Search name or code",
@@ -303,6 +290,22 @@ export function DeviceDirectory() {
           onChange: (value) => url.set({ search: value }),
         }}
         filters={[
+          {
+            id: "status",
+            label: "Status",
+            multiple: true,
+            options: listStatuses,
+            value: statuses,
+            onChange: (value: string[]) => url.set({ status: value }),
+          },
+          {
+            id: "lifecycle",
+            label: "Lifecycle",
+            anyLabel: "Not archived",
+            options: lifecycleOptions,
+            value: lifecycle ? [lifecycle] : [],
+            onChange: (value: string[]) => url.set({ lifecycle: value[0] ?? null }),
+          },
           ...(profiles.data?.data.length
             ? [
                 {
@@ -326,9 +329,29 @@ export function DeviceDirectory() {
               ]
             : []),
         ]}
-        filtered={Boolean(search || lifecycle || site || profile)}
-        onReset={() => url.clear(["search", "lifecycle", "site", "profile"])}
+        // "All" widens the default view, so its count reads as a total, not a match.
+        filtered={Boolean(search || statuses.length || (lifecycle && lifecycle !== "all") || site || profile)}
+        onReset={() => url.clear(["search", "status", "lifecycle", "site", "profile"])}
         toolbar={capabilities.manage && <DiscoveryWaiting org={org} />}
+        compactToolbar
+        note={
+          !lifecycle && (
+            <>
+              {hiddenArchived
+                ? `${hiddenArchived.toLocaleString()} archived ${hiddenArchived === 1 ? "device" : "devices"} hidden`
+                : "Archived devices hidden"}{" "}
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-meta"
+                aria-label="Show archived devices"
+                onClick={showArchived}
+              >
+                Show
+              </Button>
+            </>
+          )
+        }
         pagination={{
           page,
           pageSize,
@@ -347,28 +370,42 @@ export function DeviceDirectory() {
         )}
         refreshSeconds={5}
         empty={
-          <EmptyState
-            inset
-            icon={<CpuIcon />}
-            title="No devices yet"
-            description={
-              capabilities.manage
-                ? "Connect your first device with a profile and a guided setup."
-                : undefined
-            }
-            action={
-              capabilities.manage && (
-                <>
-                  <Button size="sm" asChild>
-                    <Link to={onboardingPath(org)}>Add device</Link>
-                  </Button>
-                  <Button asChild variant="outline" size="sm">
-                    <Link to={discoveryPath(org)}>Open discovery</Link>
-                  </Button>
-                </>
-              )
-            }
-          />
+          hiddenArchived ? (
+            <EmptyState
+              inset
+              icon={<ArchiveIcon />}
+              title="No current devices"
+              description={`${hiddenArchived.toLocaleString()} archived ${hiddenArchived === 1 ? "device is" : "devices are"} hidden from this list.`}
+              action={
+                <Button variant="outline" size="sm" onClick={showArchived}>
+                  Show archived devices
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              inset
+              icon={<CpuIcon />}
+              title="No devices yet"
+              description={
+                capabilities.manage
+                  ? "Connect your first device with a profile and a guided setup."
+                  : undefined
+              }
+              action={
+                capabilities.manage && (
+                  <>
+                    <Button size="sm" asChild>
+                      <Link to={onboardingPath(org)}>Add device</Link>
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to={discoveryPath(org)}>Open discovery</Link>
+                    </Button>
+                  </>
+                )
+              }
+            />
+          )
         }
       />
       {quickEdit && (
@@ -526,13 +563,25 @@ function DiscoveryWaiting({ org }: { org: string }) {
   })
   const count = pending.data?.meta?.total ?? 0
   if (!count) return null
+  const label = count === 1 ? "1 source waiting in Discovery" : `${count} sources waiting in Discovery`
+  // Icon and count, like the table's own toolbar buttons; the tooltip says what waits.
   return (
-    <Button variant="outline" size="sm" asChild className="border-primary/40 bg-accent text-accent-foreground hover:bg-accent/80">
-      <Link to={discoveryPath(org)}>
-        <InboxIcon data-icon="inline-start" />
-        {count === 1 ? "1 source waiting in Discovery" : `${count} sources waiting in Discovery`}
-      </Link>
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          asChild
+          className="border-primary/40 bg-accent text-accent-foreground hover:bg-accent/80"
+        >
+          <Link to={discoveryPath(org)} aria-label={label}>
+            <InboxIcon data-icon="inline-start" />
+            <span className="tabular-nums">{count.toLocaleString()}</span>
+          </Link>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 

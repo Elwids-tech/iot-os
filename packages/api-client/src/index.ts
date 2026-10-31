@@ -1366,7 +1366,10 @@ export class ApiClient {
     org: string,
     query: {
       search?: string
+      /** One lifecycle, or "current" for every lifecycle but archived. */
       lifecycle?: string
+      /** The list's status: online, offline, unseen, unknown, unconfigured, updating, failed, deactivated or archived. */
+      status?: string[]
       /** Devices whose applied (or last applied) configuration uses this profile. */
       profile_uuid?: string
       site_uuid?: string
@@ -1377,11 +1380,11 @@ export class ApiClient {
       per_page?: number
     } = {},
   ) {
-    const search = new URLSearchParams(
-      Object.entries(query)
-        .filter(([, value]) => value !== undefined && value !== "")
-        .map(([key, value]) => [key, String(value)]),
-    )
+    const search = new URLSearchParams()
+    for (const [key, value] of Object.entries(query)) {
+      if (Array.isArray(value)) value.forEach((item) => search.append(`${key}[]`, item))
+      else if (value !== undefined && value !== "") search.append(key, String(value))
+    }
     return this.request<{
       data: Device[]
       /** `sort` echoes the applied sort; APIs without server sorting leave it out. */

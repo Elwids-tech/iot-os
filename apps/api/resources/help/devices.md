@@ -15,16 +15,19 @@
     "online",
     "offline",
     "last seen",
-    "lifecycle"
+    "lifecycle",
+    "archived",
+    "filter"
   ],
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 1,
+  "revision": 2,
   "summary": "A registered device connects a discovered source to a published profile and an organization-owned configuration.",
   "questions": [
     "How do I register a device?",
-    "What does offline mean?"
+    "What does offline mean?",
+    "Where are my archived devices?"
   ]
 }
 ---
@@ -42,7 +45,9 @@ Viewing requires device viewing permission. Registration and editing require dev
 5. Review and activate, then inspect **Overview**, **Measurements**, and **History**.
 
 ## Expected result
-The directory shows the device lifecycle and presence. The device workspace provides applied configuration and latest data.
+The directory shows one status per device, from its lifecycle, configuration and presence. The device workspace provides applied configuration and latest data.
+
+**Filters** narrows the list by status (such as Online or Offline), lifecycle, profile and site. Archived devices are hidden by default; the list footer says how many, and **Show** (or Lifecycle **All**) includes them.
 
 ## Troubleshooting
 Presence and lifecycle answer different questions: a registered or active device may currently be offline. Check **Last seen**, its gateway connection, and the applied configuration. Registration does not automatically activate every draft.
