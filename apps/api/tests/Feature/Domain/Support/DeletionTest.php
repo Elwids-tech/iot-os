@@ -25,10 +25,10 @@ final class DeletionTest extends SupportTestCase
         $this->assertSame(0, Ticket::count());
         $this->assertSame(0, DB::table('support_ticket_messages')->count() + DB::table('support_ticket_events')->count() + DB::table('support_ticket_attachments')->count());
         $this->assertSame([], Storage::disk('local')->allFiles());
-        $audit = DB::table('device_audit_events')->where('action', 'support.ticket_deleted')->sole();
-        $this->assertSame($ticket['uuid'], $audit->resource_uuid);
-        $this->assertSame(['number' => $ticket['number'], 'reporter_id' => $this->user('acme.member@example.test')->id], json_decode($audit->details, true));
-        $this->assertStringNotContainsString('Devices page', $audit->details);
+        $audit = DB::table('activity_log')->where('event', 'support.ticket_deleted')->sole();
+        $this->assertSame($ticket['uuid'], $audit->subject_uuid);
+        $this->assertSame(['number' => $ticket['number'], 'reporter_id' => $this->user('acme.member@example.test')->id], json_decode($audit->properties, true));
+        $this->assertStringNotContainsString('Devices page', $audit->properties);
 
         // Numbers are never reused.
         $this->assertSame($ticket['number'] + 1, $this->file()['number']);

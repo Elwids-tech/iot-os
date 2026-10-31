@@ -12,13 +12,13 @@ final class RetentionService
 {
     public function inspection(?Organization $organization = null): array
     {
-        $last = DB::table('device_audit_events')->where('action', 'retention.cleanup')
+        $last = DB::table('activity_log')->where('event', 'retention.cleanup')
             ->when($organization, fn ($query) => $query->where('organization_id', $organization->id))->latest('id')->first();
-        $failures = DB::table('device_audit_events')->whereIn('id', function ($query): void {
-            $query->selectRaw('MAX(id)')->from('device_audit_events')->where('action', 'retention.cleanup')->groupBy('organization_id');
-        })->where('details->status', 'failed')->when($organization, fn ($query) => $query->where('organization_id', $organization->id))->count();
+        $failures = DB::table('activity_log')->whereIn('id', function ($query): void {
+            $query->selectRaw('MAX(id)')->from('activity_log')->where('event', 'retention.cleanup')->groupBy('organization_id');
+        })->where('properties->status', 'failed')->when($organization, fn ($query) => $query->where('organization_id', $organization->id))->count();
 
-        return [...$this->effective($organization), 'cleanup' => $last ? ['at' => $last->created_at, ...json_decode($last->details, true)] : null, 'cleanup_failures' => $failures];
+        return [...$this->effective($organization), 'cleanup' => $last ? ['at' => $last->created_at, ...json_decode($last->properties, true)] : null, 'cleanup_failures' => $failures];
     }
 
     public function effective(?Organization $organization = null): array

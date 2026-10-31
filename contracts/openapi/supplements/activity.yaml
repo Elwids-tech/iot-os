@@ -1,0 +1,138 @@
+# The activity log (spec 024, ADR-028).
+#
+# The 200 body is described by hand: inference reads the resource's nested values as
+# strings. Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    ActivityEvent:
+      type: object
+      description: One thing a person did. `summary` reads between the actor's name and the subject's name.
+      required: [id, action, summary, at, actor, organization, subject, changes, details]
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+          description: The action code, for example `device.updated`.
+        summary:
+          type: string
+          description: The action in words, for example "updated device".
+        at:
+          type: string
+          format: date-time
+        actor:
+          type: object
+          description: The person, by integer user id (ADR-013). Name and email are null when the user was deleted.
+          required: [id, name, email]
+          properties:
+            id:
+              type: integer
+            name:
+              type: [string, 'null']
+            email:
+              type: [string, 'null']
+        organization:
+          description: The organization whose data changed; null at platform level.
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [uuid, name]
+              properties:
+                uuid:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+        subject:
+          description: What was acted on, by kind (such as `device` or `role`), UUID and current or recorded name; each may be null.
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [type, uuid, name]
+              properties:
+                type:
+                  type: [string, 'null']
+                uuid:
+                  type: [string, 'null']
+                name:
+                  type: [string, 'null']
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityFieldChange'
+        details:
+          type: array
+          description: What the action recorded besides its changes, as text; keys vary by action.
+          items:
+            type: object
+            required: [key, value]
+            properties:
+              key:
+                type: string
+              value:
+                type: string
+    ActivityFieldChange:
+      type: object
+      description: One changed field. Lists (roles, permissions, tags) keep their items; `opaque` means only that the field changed is recorded.
+      required: [field, from, to, opaque]
+      properties:
+        field:
+          type: string
+        from:
+          oneOf:
+            - type: 'null'
+            - type: string
+            - type: array
+              items:
+                type: string
+        to:
+          oneOf:
+            - type: 'null'
+            - type: string
+            - type: array
+              items:
+                type: string
+        opaque:
+          type: boolean
+operations:
+  GET /v1/admin/activity:
+    description: What people did across the platform, newest first, 50 per page. System events are left out. Filter by `user_id`, `organization` or both; pass `meta.next_cursor` as `cursor` for older events.
+    responses:
+      '200':
+        description: A page of events.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data, links, meta]
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ActivityEvent'
+                links:
+                  type: object
+                  required: [first, last, prev, next]
+                  properties:
+                    first:
+                      type: [string, 'null']
+                    last:
+                      type: [string, 'null']
+                    prev:
+                      type: [string, 'null']
+                    next:
+                      type: [string, 'null']
+                meta:
+                  type: object
+                  required: [path, per_page, next_cursor, prev_cursor]
+                  properties:
+                    path:
+                      type: [string, 'null']
+                    per_page:
+                      type: integer
+                    next_cursor:
+                      type: [string, 'null']
+                    prev_cursor:
+                      type: [string, 'null']
+      '422':
+        $ref: '#/components/responses/ValidationFailed'

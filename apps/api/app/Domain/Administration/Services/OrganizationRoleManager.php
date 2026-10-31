@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Administration\Services;
 
+use App\Domain\Audit\Services\ActivityChanges;
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Shared\Models\Organization;
@@ -69,17 +71,20 @@ final class OrganizationRoleManager
         $permissions = $this->tenantPermissions($organization, $permissionNames);
         $this->grants->ensurePermissions($actor, $organization, $permissions->pluck('name')->all());
 
-        $role = Role::query()->create([
-            'organization_id' => $organization->getKey(),
-            'name' => sprintf('custom-%s', Str::lower((string) Str::ulid())),
-            'display_name' => $this->displayName($organization, $displayName),
-            'is_default' => false,
-            'guard_name' => 'web',
-        ]);
+        return DB::transaction(function () use ($organization, $actor, $displayName, $permissions): Role {
+            $role = Role::query()->create([
+                'organization_id' => $organization->getKey(),
+                'name' => sprintf('custom-%s', Str::lower((string) Str::ulid())),
+                'display_name' => $this->displayName($organization, $displayName),
+                'is_default' => false,
+                'guard_name' => 'web',
+            ]);
 
-        $role->syncPermissions($permissions);
+            $role->syncPermissions($permissions);
+            ActivityLog::record('organization.role.created', $organization, $actor, $role, ['permissions' => $this->permissionNames($role)]);
 
-        return $role->load('permissions');
+            return $role->load('permissions');
+        });
     }
 
     /**
@@ -94,13 +99,18 @@ final class OrganizationRoleManager
         $permissions = $this->tenantPermissions($organization, $permissionNames);
         $this->grants->ensurePermissions($actor, $organization, $permissions->pluck('name')->all());
 
-        $role->forceFill([
-            'display_name' => $this->displayName($organization, $displayName, $role->getKey()),
-        ])->save();
+        return DB::transaction(function () use ($role, $actor, $organization, $displayName, $permissions): Role {
+            $before = ['display_name' => $role->display_name, 'permissions' => $this->permissionNames($role)];
 
-        $role->syncPermissions($permissions);
+            $role->forceFill([
+                'display_name' => $this->displayName($organization, $displayName, $role->getKey()),
+            ])->save();
 
-        return $role->fresh(['permissions']);
+            $role->syncPermissions($permissions);
+            $this->recordChanges('organization.role.updated', $role, $actor, $before);
+
+            return $role->fresh(['permissions']);
+        });
     }
 
     /**
@@ -108,14 +118,18 @@ final class OrganizationRoleManager
      *
      * @param  list<string>  $permissionNames
      */
-    public function syncPermissions(Role $role, array $permissionNames): Role
+    public function syncPermissions(Role $role, array $permissionNames, ?User $actor = null): Role
     {
         $organization = $this->organizationOf($role);
         $this->ensureAdministratorBaseline($role, $permissionNames);
 
-        $role->syncPermissions($this->tenantPermissions($organization, $permissionNames));
+        return DB::transaction(function () use ($role, $organization, $permissionNames, $actor): Role {
+            $before = ['display_name' => $role->display_name, 'permissions' => $this->permissionNames($role)];
+            $role->syncPermissions($this->tenantPermissions($organization, $permissionNames));
+            $this->recordChanges('organization.role.updated', $role, $actor, $before);
 
-        return $role->fresh(['permissions']);
+            return $role->fresh(['permissions']);
+        });
     }
 
     public function delete(Role $role, User $actor): void
@@ -138,7 +152,10 @@ final class OrganizationRoleManager
             throw ValidationException::withMessages(['role' => 'Revoke pending invitations that use this role before deleting it.']);
         }
 
-        $role->delete();
+        DB::transaction(function () use ($role, $actor): void {
+            $role->delete();
+            ActivityLog::record('organization.role.deleted', $role->organization_id, $actor, $role, ['name' => $role->display_name]);
+        });
     }
 
     /**
@@ -172,6 +189,27 @@ final class OrganizationRoleManager
         }
 
         return $permissions;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function permissionNames(Role $role): array
+    {
+        return $role->permissions()->orderBy('name')->pluck('name')->map(fn (mixed $name): string => (string) $name)->all();
+    }
+
+    /**
+     * Records the role's name and permission changes since `$before`, if any.
+     *
+     * @param  array{display_name: string, permissions: list<string>}  $before
+     */
+    private function recordChanges(string $action, Role $role, ?User $actor, array $before): void
+    {
+        $changes = ActivityChanges::between($before, ['display_name' => $role->display_name, 'permissions' => $this->permissionNames($role)]);
+        if ($changes !== []) {
+            ActivityLog::record($action, $role->organization_id, $actor, $role, [], $changes);
+        }
     }
 
     private function organizationOf(Role $role): Organization

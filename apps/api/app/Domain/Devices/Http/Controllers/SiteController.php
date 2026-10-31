@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Http\Controllers;
 
+use App\Domain\Audit\Services\ActivityChanges;
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Permissions\DevicePermission;
-use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
@@ -31,7 +32,7 @@ final class SiteController
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization);
         $site = Site::create([...$this->values($request, $organization), 'organization_id' => $organization->id, 'created_by' => $request->user()->id, 'updated_by' => $request->user()->id]);
-        DeviceAudit::record('site.created', $organization->id, $request->user()->id, $site->uuid);
+        ActivityLog::record('site.created', $organization, $request->user(), $site);
 
         return response()->json(['data' => $site->loadCount('devices')->toView()], 201);
     }
@@ -39,8 +40,10 @@ final class SiteController
     public function update(Request $request, Organization $organization, Site $site): array
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $site);
+        $fields = ['name', 'timezone', 'address', 'latitude', 'longitude'];
+        $before = $site->only($fields);
         $site->update([...$this->values($request, $organization, $site), 'updated_by' => $request->user()->id]);
-        DeviceAudit::record('site.updated', $organization->id, $request->user()->id, $site->uuid);
+        ActivityLog::record('site.updated', $organization, $request->user(), $site, [], ActivityChanges::between($before, $site->only($fields)));
 
         return ['data' => $site->loadCount('devices')->toView()];
     }
@@ -50,7 +53,7 @@ final class SiteController
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $site);
         $site->delete();
-        DeviceAudit::record('site.deleted', $organization->id, $request->user()->id, $site->uuid);
+        ActivityLog::record('site.deleted', $organization, $request->user(), $site);
 
         return response()->noContent();
     }
@@ -60,8 +63,9 @@ final class SiteController
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization);
         $values = $request->validate(['timezone' => ['present', 'nullable', 'timezone:all']]);
+        $before = $organization->timezone;
         $organization->forceFill(['timezone' => $values['timezone']])->save();
-        DeviceAudit::record('organization.timezone.updated', $organization->id, $request->user()->id, $organization->uuid, ['timezone' => $values['timezone']]);
+        ActivityLog::record('organization.timezone.updated', $organization, $request->user(), $organization, ['timezone' => $values['timezone']], ActivityChanges::between(['timezone' => $before], ['timezone' => $organization->timezone]));
 
         return ['data' => ['timezone' => $organization->timezone]];
     }

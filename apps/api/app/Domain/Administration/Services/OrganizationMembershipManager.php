@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Administration\Services;
 
 use App\Domain\Agents\Services\ConnectionRevoker;
+use App\Domain\Audit\Services\ActivityChanges;
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Shared\Models\Organization;
@@ -31,9 +33,10 @@ final class OrganizationMembershipManager
         $this->grants->ensureRoles($actor, $organization, $roles);
 
         // The organization row lock serializes concurrent demotions of the final administrator.
-        DB::transaction(function () use ($organization, $user, $roles): void {
+        DB::transaction(function () use ($organization, $actor, $user, $roles): void {
             $this->lock($organization);
             $administratorRole = $this->administratorRole($organization);
+            $before = $this->roleNames($organization, $user);
 
             if ($administratorRole !== null
                 && $this->hasRole($organization, $user, $administratorRole)
@@ -47,6 +50,11 @@ final class OrganizationMembershipManager
             $this->authorization->withinOrganization($organization, function () use ($user, $roles): void {
                 $user->syncRoles($roles);
             });
+
+            $changes = ActivityChanges::between(['roles' => $before], ['roles' => $this->roleNames($organization, $user)]);
+            if ($changes !== []) {
+                ActivityLog::record('organization.member.roles_changed', $organization, $actor, $user, ['user_id' => $user->getKey()], $changes);
+            }
         });
     }
 
@@ -72,6 +80,7 @@ final class OrganizationMembershipManager
                 $organization->users()->detach($user->getKey());
             });
             app(ConnectionRevoker::class)->member($user, $organization, $actor);
+            ActivityLog::record('organization.member.removed', $organization, $actor, $user, ['user_id' => $user->getKey(), 'email' => $user->email]);
         });
     }
 
@@ -103,6 +112,24 @@ final class OrganizationMembershipManager
             ->where('model_type', $user::class)
             ->where('role_id', $role->getKey())
             ->exists();
+    }
+
+    /**
+     * The member's role names in this organization, sorted, for the activity log.
+     *
+     * @return list<string>
+     */
+    private function roleNames(Organization $organization, User $user): array
+    {
+        return DB::table(config('permission.table_names.model_has_roles').' as assigned')
+            ->join('roles', 'roles.id', '=', 'assigned.role_id')
+            ->where('assigned.organization_id', $organization->getKey())
+            ->where('assigned.model_id', $user->getKey())
+            ->where('assigned.model_type', $user::class)
+            ->orderBy('roles.display_name')
+            ->pluck('roles.display_name')
+            ->map(fn (mixed $name): string => (string) $name)
+            ->all();
     }
 
     private function hasAnotherAdministrator(Organization $organization, User $user, Role $role): bool

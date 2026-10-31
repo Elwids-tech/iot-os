@@ -94,7 +94,7 @@ try {
         DB::table('device_runtime.observations')->where('organization_uuid', $org->uuid)->delete();
     }
     Device::where('organization_id', $org->id)->delete();
-    DB::table('device_audit_events')->where('organization_id', $org->id)->delete();
+    DB::table('activity_log')->where('organization_id', $org->id)->delete();
     $token->accessToken->delete();
     DB::table('integration_events')->where('organization_id', $org->id)->delete();
     DB::table('integration_streams')->where('organization_id', $org->id)->delete();

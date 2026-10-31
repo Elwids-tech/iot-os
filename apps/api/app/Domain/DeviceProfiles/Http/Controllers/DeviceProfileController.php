@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceProfiles\Http\Controllers;
 
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\DeviceProfiles\Actions\CreateDeviceProfile;
 use App\Domain\DeviceProfiles\Actions\UpdateDeviceProfile;
 use App\Domain\DeviceProfiles\Enums\DeviceProfileStatus;
@@ -111,13 +112,14 @@ final class DeviceProfileController
         $this->authorization->authorize($request->user(), DeviceProfilePermission::DELETE_DRAFT);
         $this->authorization->ensureOrganizationProfile($profile, $organization);
         $revision = $request->validate(['draft_revision' => ['required', 'integer', 'min:1']])['draft_revision'];
-        app(DeviceProfileAuthoring::class)->snapshot($profile, $revision, function (DeviceProfile $locked): void {
+        app(DeviceProfileAuthoring::class)->snapshot($profile, $revision, function (DeviceProfile $locked) use ($request): void {
             abort_unless($locked->status === DeviceProfileStatus::DRAFT, 422, 'Only an unused draft may be deleted.');
             try {
                 $locked->delete();
             } catch (LogicException $exception) {
                 abort(422, $exception->getMessage());
             }
+            ActivityLog::record('device_profile.deleted', $locked->organization_id, $request->user(), $locked, ['code' => $locked->code]);
         });
 
         return response()->noContent();

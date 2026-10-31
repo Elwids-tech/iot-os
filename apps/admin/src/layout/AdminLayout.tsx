@@ -38,6 +38,7 @@ import {
   HistoryIcon,
   InboxIcon,
   LogOutIcon,
+  ScrollTextIcon,
   ShieldCheckIcon,
   SparklesIcon,
   UsersIcon,
@@ -51,6 +52,7 @@ const navigationGroups = [
     { title: "Billing accounts", to: "/billing-accounts", icon: WalletIcon },
     { title: "Users", to: "/users", icon: UsersIcon },
     { title: "Roles", to: "/roles", icon: ShieldCheckIcon },
+    { title: "Activity", to: "/activity", icon: ScrollTextIcon },
     { title: "Tickets", to: "/tickets", icon: InboxIcon },
   ],
   [

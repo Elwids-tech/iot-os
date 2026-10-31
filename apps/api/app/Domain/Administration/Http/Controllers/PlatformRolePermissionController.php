@@ -35,6 +35,7 @@ final class PlatformRolePermissionController
         $role = $this->roleManager->syncPermissions(
             $this->organizationRole($role),
             $request->validated('permission_names'),
+            $request->user(),
         );
 
         return $this->resourceFor($this->organizationRole($role));

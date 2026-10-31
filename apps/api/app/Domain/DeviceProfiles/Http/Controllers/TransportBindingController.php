@@ -42,7 +42,7 @@ final class TransportBindingController
         $draftRevision = $validated['draft_revision'];
         unset($validated['draft_revision']);
 
-        $result = $this->authoring->mutate($profile, $request->user(), $draftRevision, static fn (DeviceProfile $locked): TransportBinding => $locked->transportBindings()->create($validated));
+        $result = $this->authoring->mutate($profile, $request->user(), $draftRevision, static fn (DeviceProfile $locked): TransportBinding => $locked->transportBindings()->create($validated), change: 'transport_binding.created');
 
         return TransportBindingResource::make($result['result'])->response()->setStatusCode(201);
     }
@@ -68,7 +68,7 @@ final class TransportBindingController
                 'codec_config' => $validated['codec_config'] ?? null,
                 'transform_config' => $validated['transform_config'] ?? null,
             ]);
-        });
+        }, change: 'transport_binding.mapping_saved', item: $binding);
 
         return TransportBindingResource::make($binding->fresh()->load('parameterMappings.parameter'))->response()->setStatusCode(201);
     }
@@ -83,7 +83,7 @@ final class TransportBindingController
             $locked->transportBindings()->whereKey($binding->getKey())->delete();
 
             return null;
-        });
+        }, change: 'transport_binding.deleted', item: $binding);
 
         return response()->noContent();
     }

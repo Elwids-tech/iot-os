@@ -234,7 +234,7 @@ final class DeviceAdapterTest extends TestCase
         Http::assertSent(fn ($r) => str_ends_with($r->url(), '/remove') && $r['adapter_uuid'] === $a['uuid'] && $r['usernames'] === []);
         // The gateway's platform identity gets a password nobody keeps.
         Http::assertSent(fn ($r) => str_ends_with($r->url(), '/clients') && $r['username'] === $gateway->username && $r['password'] !== $gateway->password);
-        $this->assertTrue(DB::table('device_audit_events')->where('action', 'device.adapter.deleted')->where('resource_uuid', $a['uuid'])->exists());
+        $this->assertTrue(DB::table('activity_log')->where('event', 'device.adapter.deleted')->where('subject_uuid', $a['uuid'])->exists());
         // A death the publisher sent while it stopped does not bring the gateway back.
         $this->withToken(str_repeat('r', 64))->postJson('/api/internal/devices/events', ['uuid' => (string) Str::uuid(), 'type' => 'gateway.presence.v1',
             'payload' => ['connection_uuid' => $gateway->connection->uuid, 'edge_node_id' => $gateway->edge_node_id, 'presence' => 'offline', 'session_id' => 's-1', 'last_seen_at' => now()->toIso8601String()]])->assertOk();

@@ -28,6 +28,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 - [AI agents](features/agents.md): connect Claude and other MCP clients, switches, connections
 - [Access](features/access.md): sign-in, organizations, roles, permission ceilings, platform administration
 - [Support tickets](features/support.md): bug reports, feature requests and improvements, the team's queue
+- [Activity log](features/activity-log.md): the audit trail of who changed what, and the admin timeline
 
 ## Reference
 

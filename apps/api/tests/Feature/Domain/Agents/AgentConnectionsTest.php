@@ -85,7 +85,7 @@ final class AgentConnectionsTest extends TestCase
 
         $this->portal($this->admin)->deleteJson('/api/v1/organizations/'.$this->acme->uuid.'/agent-connections/'.$uuid)->assertNoContent();
         $this->assertSame(RevocationReason::ADMINISTRATOR, AgentConnection::firstOrFail()->revoked_reason);
-        $this->assertTrue(DB::table('device_audit_events')->where('action', 'agents.connection_revoked')->where('resource_uuid', $uuid)->where('actor_id', $this->admin->id)->exists());
+        $this->assertTrue(DB::table('activity_log')->where('event', 'agents.connection_revoked')->where('subject_uuid', $uuid)->where('causer_id', $this->admin->id)->exists());
         $this->mcp($agent['access_token'], 'tools/list')->assertUnauthorized();
         $this->portal($this->member)->getJson('/api/v1/me/agent-connections')->assertJsonPath('data.0.revoked_reason', 'administrator');
     }

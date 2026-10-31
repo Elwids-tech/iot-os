@@ -45,7 +45,7 @@ final class TelemetryCaptureTest extends TestCase
         Http::fake(['http://runtime:8081/*' => Http::response(['data' => ['id' => $this->capture]])]);
         $this->postJson($this->prefix, ['gateway_uuid' => $this->gateway->uuid, 'duration_seconds' => 60, 'organization_uuid' => 'attacker', 'connection_uuid' => 'attacker'])->assertCreated();
         Http::assertSent(fn ($request) => $request['organization_uuid'] === $this->org->uuid && $request['connection_uuid'] === $this->gateway->connection->uuid && $request['source_device_id'] === null && is_int($request['user_id']));
-        $this->assertDatabaseHas('device_audit_events', ['action' => 'telemetry.capture.started', 'resource_uuid' => $this->capture]);
+        $this->assertDatabaseHas('activity_log', ['event' => 'telemetry.capture.started', 'subject_uuid' => $this->capture]);
     }
 
     public function test_cross_tenant_gateway_and_invalid_duration_never_reach_runtime(): void
@@ -71,7 +71,7 @@ final class TelemetryCaptureTest extends TestCase
         $this->postJson($this->prefix.'/'.$this->capture, ['action' => 'suspend'])->assertUnprocessable();
         Http::assertNothingSent();
         $this->postJson($this->prefix.'/'.$this->capture, ['action' => 'suspend', 'confirm' => true])->assertOk();
-        $this->assertDatabaseHas('device_audit_events', ['action' => 'telemetry.capture.suspend']);
+        $this->assertDatabaseHas('activity_log', ['event' => 'telemetry.capture.suspend']);
         $this->postJson($this->prefix.'/'.$this->capture, ['action' => 'stop'])->assertOk();
         $this->postJson($this->prefix.'/'.$this->capture, ['action' => 'resume'])->assertOk();
     }
@@ -94,7 +94,7 @@ final class TelemetryCaptureTest extends TestCase
         TelemetryDiagnosticAgent::fake([['explanation' => 'A received zero is a valid value.', 'evidence_ids' => [$sample, 'fabricated'], 'suggested_review' => '', 'next_check' => 'Inspect storage.']]);
         $this->postJson($this->prefix.'/'.$this->capture.'/diagnose', ['question' => 'Explain this sample', 'sample_ids' => [$sample]])->assertOk()->assertJsonPath('data.evidence_ids', [$sample])->assertJsonPath('data.changes_applied', false);
         TelemetryDiagnosticAgent::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, $sample) && ! str_contains($prompt->prompt, 'private-wire-value'));
-        $this->assertDatabaseHas('device_audit_events', ['action' => 'telemetry.capture.diagnosed']);
+        $this->assertDatabaseHas('activity_log', ['event' => 'telemetry.capture.diagnosed']);
         $this->assertDatabaseHas('assistant_budgets', ['reserved_usd' => 0]);
     }
 

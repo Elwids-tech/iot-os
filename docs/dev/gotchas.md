@@ -79,7 +79,11 @@ Things that have cost time before. Add to this list when something surprises you
 - **PostgreSQL and SQLite serialise some values differently** (decimals, JSON key
   order, booleans read back from raw queries). CI runs the suite on PostgreSQL and is
   authoritative; describe what PostgreSQL returns in the contract, and check a
-  surprising local result against PostgreSQL before changing a schema.
+  surprising local result against PostgreSQL before changing a schema. `jsonb` stores
+  object keys shortest first, so compare a decoded object with `assertEquals`, not
+  `assertSame`, which also compares key order (spec 024's tests failed only in CI).
+  To run tests on PostgreSQL locally, start a throwaway `timescale/timescaledb` container
+  and pass `DB_CONNECTION=pgsql` with a database whose name ends in `_test`.
 - **Extended Python validators stop at a `$ref` into another file.** jsonschema
   picks the validator class from a referenced document's `$schema`, so a
   `validators.extend` subclass (the contract checker's tolerant and secret modes)
@@ -130,6 +134,16 @@ Things that have cost time before. Add to this list when something surprises you
   merged into the request body of whichever provider runs it, so OpenAI's `store`,
   `reasoning` or `parallel_tool_calls` make an Anthropic request fail. Return each
   provider's own options through `AssistantProvider::options()` (spec 010).
+- **Audit events go through `ActivityLog::record()`** (spec 024, ADR-028), into
+  `activity_log`; `device_audit_events` is gone. Query `event`, `subject_uuid`,
+  `causer_id` and `properties` (not `action`, `resource_uuid`, `actor_id`, `details`).
+  Pass the actor explicitly: the package would otherwise attribute a runtime callback
+  or job to whoever is signed in, so the recorder never lets it guess. `causer_id` has
+  no foreign key, so deleting a user keeps their events.
+- **A free-form object in a response fails `contract:check` (G3)** as an open schema.
+  The activity feed returns details as a list of `{key, value}` text pairs instead, and
+  its 200 body is described by hand in `contracts/openapi/supplements/activity.yaml`
+  because Scramble reads values taken from a DTO's array properties as strings.
 
 ## Local stack
 

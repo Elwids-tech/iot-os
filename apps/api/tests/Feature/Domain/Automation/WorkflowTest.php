@@ -79,7 +79,7 @@ final class WorkflowTest extends TestCase
         $this->assertDatabaseCount('automation_workflow_revisions', 2);
         $this->assertSame('Paddock boundary', json_decode(DB::table('automation_workflow_revisions')->orderBy('id')->first()->snapshot, true)['name']);
         $this->assertDatabaseCount('device_outbox', 0);
-        $this->assertSame(2, DB::table('device_audit_events')->where('action', 'workflow.draft_saved')->count());
+        $this->assertSame(2, DB::table('activity_log')->where('event', 'workflow.draft_saved')->count());
         $this->getJson($this->url.'?per_page=1')->assertOk()->assertJsonPath('meta.total', 1);
     }
 

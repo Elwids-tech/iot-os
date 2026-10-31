@@ -30,7 +30,7 @@ final class ProfileCalculationController
         abort_unless($profile->organization_id === $organization->id, 404);
         $values = $request->validated();
         $result = $this->authoring->mutate($profile, $request->user(), $values['draft_revision'],
-            fn (DeviceProfile $locked) => app(CalculationAuthoring::class)->save($locked, $values));
+            fn (DeviceProfile $locked) => app(CalculationAuthoring::class)->save($locked, $values), change: 'calculation.created');
 
         return ProfileParameterResource::make($result['result']);
     }
@@ -46,7 +46,7 @@ final class ProfileCalculationController
             $target = $locked->parameters()->whereKey($parameter->getKey())->firstOrFail();
 
             return app(CalculationAuthoring::class)->save($locked, $validated, $target);
-        });
+        }, change: 'calculation.saved', item: $parameter);
 
         return ProfileParameterResource::make($result['result']->fresh()->load('calculation.inputs.parameter'));
     }
@@ -60,7 +60,7 @@ final class ProfileCalculationController
             $locked->calculations()->where('target_profile_parameter_id', $parameter->getKey())->delete();
 
             return null;
-        });
+        }, change: 'calculation.deleted', item: $parameter);
 
         return response()->noContent();
     }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Http\Controllers;
 
+use App\Domain\Audit\Services\ActivityChanges;
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Models\Site;
@@ -56,6 +58,19 @@ final class DeviceController
                     $fail('Attribute values are text up to 255 characters, numbers or true/false.');
                 }
             }]];
+    }
+
+    /**
+     * The fields people edit, with the site by name, for the activity log (spec 024).
+     *
+     * @return array<string, mixed>
+     */
+    private function described(Device $device): array
+    {
+        return [
+            ...$device->only(['name', 'code', 'serial_number', 'description', 'tags', 'attributes']),
+            'site' => $device->site_id === null ? null : Site::query()->whereKey($device->site_id)->value('name'),
+        ];
     }
 
     /** Attribute keys are free-form identifiers; the array rule needs them listed, so accept whatever was sent when every key is valid. */
@@ -123,8 +138,9 @@ final class DeviceController
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $device);
         $values = $this->context($organization, $request->validate([...$this->fields($organization, $device), 'draft_revision' => ['required', 'integer', 'min:1']]));
         $updated = $this->configuration->locked($device, $values['draft_revision'], function ($locked) use ($values, $request) {
+            $before = $this->described($locked);
             $locked->fill([...$values, 'draft_revision' => $locked->draft_revision + 1, 'updated_by' => $request->user()->id])->save();
-            DeviceAudit::record('device.updated', $locked->organization_id, $request->user()->id, $locked->uuid);
+            ActivityLog::record('device.updated', $locked->organization_id, $request->user(), $locked, [], ActivityChanges::between($before, $this->described($locked)));
 
             return $locked;
         });
