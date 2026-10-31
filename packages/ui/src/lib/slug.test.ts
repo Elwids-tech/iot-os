@@ -12,8 +12,9 @@ describe("slugify", () => {
     expect(slugify("--North/South--")).toBe("north-south")
   })
 
-  it("drops accented letters instead of folding them", () => {
-    expect(slugify("Lakeside Café")).toBe("lakeside-caf")
+  it("folds accents like the server's slug", () => {
+    expect(slugify("Lakeside Café")).toBe("lakeside-cafe")
+    expect(slugify("Señor Núñez")).toBe("senor-nunez")
   })
 
   it("returns an empty string when nothing is left", () => {

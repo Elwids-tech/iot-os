@@ -343,23 +343,23 @@ before it merges, never stacked (plan, Delivery):
 
 **Independent Test**: [quickstart.md](quickstart.md) section 3.
 
-- [ ] T046 [US3] `apps/portal/src/billing/NewOrganizationDialog.tsx`:
+- [x] T046 [US3] `apps/portal/src/billing/NewOrganizationDialog.tsx`:
   - fields: Name, and Address (the slug; it follows `slugify(name)` from `@iot-os/ui/lib/slug` until edited), with the hint "A number is added if this address is taken.";
   - the request sends `slug` only when the owner edited it, so the server picks a free address otherwise (spec edge case "Slug already taken");
   - errors map to `name` and `slug`, and the `billing_account` limit message shows on the form;
   - a 404 (the person no longer owns the account) shows "You no longer own this billing account." and invalidates the billing query;
   - on success: invalidate the `["session"]` query and the billing query, show a toast, and navigate to `/organizations/{uuid}/home`.
-- [ ] T047 [US3] `apps/portal/src/billing/BillingAccountsPage.tsx`, a `CollectionPage` titled "Billing accounts" (depends on T046):
+- [x] T047 [US3] `apps/portal/src/billing/BillingAccountsPage.tsx`, a `CollectionPage` titled "Billing accounts" (depends on T046):
   - one line saying the account groups organizations for billing and gives no access to them;
   - with several accounts, a `SearchableSelect` above the table picks one, kept in `?account=`;
   - the header shows "N of M organizations" and **New organization**, which is disabled at the limit with a tooltip naming it and telling the owner to contact the platform operator;
   - a `DataTable` with Name, Created (`RelativeTime`), and an Open link to `/organizations/{uuid}/home` for organizations the person belongs to, or "Not a member" in `text-meta` for the others;
   - loading, error and empty states from the kit.
-- [ ] T048 [US3] `apps/portal/src/App.tsx` (depends on T047):
+- [x] T048 [US3] `apps/portal/src/App.tsx` (depends on T047):
   - the `billing` route inside `PortalShell`, lazy-loaded like `NotificationCenter`;
   - a **Billing accounts** `DropdownMenuItem` with `WalletIcon` in the user menu, above Administration, shown only when `user.capabilities.billing_accounts`;
   - the empty state of `OrganizationLinks` ("You don't belong to an organization yet. Ask your organization administrator for an invitation.") takes the capability. When it is set, the text says to create an organization under the billing account, with a link to `/billing` (US3 scenario 7).
-- [ ] T049 [P] [US3] `apps/portal/e2e/billing-accounts.spec.ts` with route mocks. Depends on T048.
+- [x] T049 [P] [US3] `apps/portal/e2e/billing-accounts.spec.ts` with route mocks. Depends on T048.
   - **Menu**: the item is hidden without the capability and shown with it.
   - **Landing**: an owner with no organizations sees the link to **Billing accounts**; a non-owner with none still sees the invitation text.
   - **Page**: shows "2 of 10 organizations"; a non-member organization shows "Not a member" with no link.
@@ -369,7 +369,7 @@ before it merges, never stacked (plan, Delivery):
   - **Checks**: an axe check; at 375 px nothing scrolls sideways.
 
   Existing portal specs still pass.
-- [ ] T050 [P] [US3] `docs/features/access.md`: the owner's portal page (where to find it, the limit, "Not a member", how to get access to an organization on the account)
+- [x] T050 [P] [US3] `docs/features/access.md`: the owner's portal page (where to find it, the limit, "Not a member", how to get access to an organization on the account)
 
 **Checkpoint**: US3 works in the portal.
 
@@ -377,7 +377,7 @@ before it merges, never stacked (plan, Delivery):
 
 ## Phase 11: Portal pull request checks
 
-- [ ] T051 Verify the portal pull request:
+- [x] T051 Verify the portal pull request:
   - `pnpm --filter @iot-os/portal lint` and `test`;
   - `pnpm --filter @iot-os/portal test:e2e`;
   - `./taskw lint`;
