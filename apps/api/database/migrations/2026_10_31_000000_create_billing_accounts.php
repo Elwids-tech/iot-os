@@ -61,18 +61,23 @@ return new class extends Migration
         // One open assignment per organization.
         DB::statement('CREATE UNIQUE INDEX billing_account_assignments_open ON billing_account_assignments (organization_uuid) WHERE ended_at IS NULL');
 
-        // An account's history reads its audit events by resource (research R11).
-        Schema::table('device_audit_events', function (Blueprint $table): void {
-            $table->index(['resource_uuid', 'created_at']);
-        });
+        // An account's history reads its audit events by resource (research R11). The
+        // activity log replaced this table later (spec 024) and has its own index.
+        if (Schema::hasTable('device_audit_events')) {
+            Schema::table('device_audit_events', function (Blueprint $table): void {
+                $table->index(['resource_uuid', 'created_at']);
+            });
+        }
     }
 
     // Rolling back drops every billing account, owner and assignment; prefer a forward fix in production.
     public function down(): void
     {
-        Schema::table('device_audit_events', function (Blueprint $table): void {
-            $table->dropIndex(['resource_uuid', 'created_at']);
-        });
+        if (Schema::hasTable('device_audit_events')) {
+            Schema::table('device_audit_events', function (Blueprint $table): void {
+                $table->dropIndex(['resource_uuid', 'created_at']);
+            });
+        }
 
         Schema::table('organizations', function (Blueprint $table): void {
             $table->dropForeign(['billing_account_id']);

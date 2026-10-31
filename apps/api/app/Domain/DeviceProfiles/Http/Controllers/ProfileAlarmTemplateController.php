@@ -33,7 +33,7 @@ final class ProfileAlarmTemplateController
             $this->replaceReferences($locked, $template, $references);
 
             return $template;
-        });
+        }, change: 'alarm_template.created');
 
         return ProfileAlarmTemplateResource::make($result['result']->load('parameterReferences.parameter'))->response()->setStatusCode(201);
     }
@@ -54,7 +54,7 @@ final class ProfileAlarmTemplateController
             }
 
             return $editable;
-        });
+        }, change: 'alarm_template.updated', item: $alarm);
 
         return ProfileAlarmTemplateResource::make($result['result']->fresh()->load('parameterReferences.parameter'));
     }
@@ -69,7 +69,7 @@ final class ProfileAlarmTemplateController
             $locked->alarmTemplates()->whereKey($alarm->getKey())->delete();
 
             return null;
-        });
+        }, change: 'alarm_template.deleted', item: $alarm);
 
         return response()->noContent();
     }

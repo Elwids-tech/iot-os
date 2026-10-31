@@ -91,11 +91,11 @@ final class AssistantSettingsApiTest extends TestCase
         $assistant = app(AssistantProvider::class);
         $this->assertSame(['anthropic', 'claude-sonnet-5-5', self::ANTHROPIC_KEY, 5.0, 0.2], [$assistant->provider(), $assistant->model(), $assistant->key(), $assistant->dailyBudget(), $assistant->runBudget()]);
 
-        $audit = DB::table('device_audit_events')->where('action', 'assistant.settings.updated')->sole();
+        $audit = DB::table('activity_log')->where('event', 'assistant.settings.updated')->sole();
         $this->assertNull($audit->organization_id);
-        $this->assertSame($this->superAdmin->id, $audit->actor_id);
-        $this->assertStringNotContainsString(self::ANTHROPIC_KEY, $audit->details);
-        $details = json_decode($audit->details, true);
+        $this->assertSame($this->superAdmin->id, $audit->causer_id);
+        $this->assertStringNotContainsString(self::ANTHROPIC_KEY, $audit->properties);
+        $details = json_decode($audit->properties, true);
         $this->assertSame(['openai', 'anthropic', 'anthropic'], [$details['before']['provider'], $details['after']['provider'], $details['key_replaced']]);
     }
 
@@ -109,7 +109,7 @@ final class AssistantSettingsApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.revision', 1);
 
-        $this->assertSame(1, DB::table('device_audit_events')->where('action', 'assistant.settings.updated')->count());
+        $this->assertSame(1, DB::table('activity_log')->where('event', 'assistant.settings.updated')->count());
     }
 
     public function test_a_stale_revision_is_refused(): void
@@ -150,7 +150,7 @@ final class AssistantSettingsApiTest extends TestCase
             ->assertJsonPath('data.providers.1.key.last_four', '3333');
         $this->actingAs($this->superAdmin, 'sanctum')->deleteJson(self::PATH.'/keys/anthropic')->assertOk();
 
-        $this->assertSame(1, DB::table('device_audit_events')->where('action', 'assistant.provider_key.removed')->where('details->provider', 'anthropic')->count());
+        $this->assertSame(1, DB::table('activity_log')->where('event', 'assistant.provider_key.removed')->where('properties->provider', 'anthropic')->count());
         $this->actingAs($this->superAdmin, 'sanctum')->deleteJson(self::PATH.'/keys/gemini')->assertNotFound();
     }
 

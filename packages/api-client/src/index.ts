@@ -22,6 +22,7 @@ import type {
 } from "./devices"
 
 import type { Dashboard, DashboardInput, DashboardRevision, DashboardRevisionSummary } from "./dashboards"
+import type { ActivityPage, ActivityQuery } from "./activity"
 import type {
   BillingAccountDetail,
   BillingAccountOwner,
@@ -41,6 +42,7 @@ export * from "./overview"
 export * from "./agents"
 export * from "./support"
 export * from "./billing"
+export * from "./activity"
 
 export type Organization = {
   uuid: string
@@ -1173,6 +1175,17 @@ export class ApiClient {
       `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/members/${userId}`,
       { method: "DELETE" },
     )
+  }
+
+  /** What people did across the platform, newest first (spec 024); platform administrators who manage organizations. */
+  async adminActivity(query: ActivityQuery = {}): Promise<ActivityPage> {
+    const parameters = new URLSearchParams()
+    if (query.userId) parameters.set("user_id", query.userId.toString())
+    if (query.organization) parameters.set("organization", query.organization)
+    if (query.cursor) parameters.set("cursor", query.cursor)
+    const search = parameters.toString()
+
+    return this.request<ActivityPage>(`/api/v1/admin/activity${search ? `?${search}` : ""}`)
   }
 
   async adminUsers(

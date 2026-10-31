@@ -4,18 +4,15 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Services;
 
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Devices\Models\DeviceOutbox;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 final class DeviceAudit
 {
+    /** Records an audit event by the subject's UUID; new code calls {@see ActivityLog::record()} directly. */
     public static function record(string $action, ?int $organization, ?int $actor, ?string $resource, array $details = []): void
     {
-        DB::table('device_audit_events')->insert([
-            'uuid' => (string) Str::uuid(), 'organization_id' => $organization, 'actor_id' => $actor,
-            'resource_uuid' => $resource, 'action' => $action, 'details' => json_encode($details, JSON_THROW_ON_ERROR), 'created_at' => now(),
-        ]);
+        ActivityLog::record($action, $organization, $actor, $resource, $details);
     }
 
     public static function enqueue(string $type, array $payload): DeviceOutbox

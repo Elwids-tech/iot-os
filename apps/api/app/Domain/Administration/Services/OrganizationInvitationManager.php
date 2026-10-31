@@ -7,6 +7,7 @@ namespace App\Domain\Administration\Services;
 use App\Domain\Administration\Models\OrganizationInvitation;
 use App\Domain\Administration\Notifications\OrganizationInvitationNotification;
 use App\Domain\Administration\Notifications\OrganizationWelcomeNotification;
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -47,7 +48,7 @@ final class OrganizationInvitationManager
                 ->whereNull('revoked_at')
                 ->update(['revoked_at' => now()]);
 
-            return OrganizationInvitation::query()->create([
+            $invitation = OrganizationInvitation::query()->create([
                 'uuid' => (string) Str::uuid(),
                 'organization_id' => $organization->getKey(),
                 'email' => $email,
@@ -56,6 +57,12 @@ final class OrganizationInvitationManager
                 'invited_by_user_id' => $invitedBy->getKey(),
                 'expires_at' => now()->addDays(self::LIFETIME_DAYS),
             ]);
+            ActivityLog::record('organization.invitation.sent', $organization, $invitedBy, $invitation, [
+                'email' => $email,
+                'roles' => $roles->pluck('display_name')->sort()->values()->all(),
+            ]);
+
+            return $invitation;
         });
 
         $this->send($invitation, $token);
@@ -85,7 +92,7 @@ final class OrganizationInvitationManager
                 ->whereNull('revoked_at')
                 ->update(['revoked_at' => now()]);
 
-            return OrganizationInvitation::query()->create([
+            $invitation = OrganizationInvitation::query()->create([
                 'uuid' => (string) Str::uuid(),
                 'organization_id' => null,
                 'grants_super_admin' => true,
@@ -95,6 +102,9 @@ final class OrganizationInvitationManager
                 'invited_by_user_id' => $invitedBy->getKey(),
                 'expires_at' => now()->addDays(self::LIFETIME_DAYS),
             ]);
+            ActivityLog::record('super_administrator.invited', null, $invitedBy, $invitation, ['email' => $email]);
+
+            return $invitation;
         });
 
         $this->send($invitation, $token);
@@ -116,10 +126,13 @@ final class OrganizationInvitationManager
         $this->grants->ensureRoles($actor, $organization, $this->roleManager->rolesFor($organization, $invitation->role_ids), 'invitation');
 
         $token = Str::random(64);
-        $invitation->forceFill([
-            'token_hash' => hash('sha256', $token),
-            'expires_at' => now()->addDays(self::LIFETIME_DAYS),
-        ])->save();
+        DB::transaction(function () use ($invitation, $actor, $token): void {
+            $invitation->forceFill([
+                'token_hash' => hash('sha256', $token),
+                'expires_at' => now()->addDays(self::LIFETIME_DAYS),
+            ])->save();
+            ActivityLog::record('organization.invitation.resent', $invitation->organization_id, $actor, $invitation, ['email' => $invitation->email]);
+        });
 
         $this->send($invitation, $token);
 
@@ -134,7 +147,7 @@ final class OrganizationInvitationManager
 
         // The controller has required a super administrator; there is no organization to check grants in.
         if ($invitation->grants_super_admin) {
-            $invitation->forceFill(['revoked_at' => now()])->save();
+            $this->markRevoked($invitation, $actor);
 
             return;
         }
@@ -145,7 +158,15 @@ final class OrganizationInvitationManager
             ->get();
         $this->grants->ensureRoles($actor, $invitation->organization, $roles, 'invitation');
 
-        $invitation->forceFill(['revoked_at' => now()])->save();
+        $this->markRevoked($invitation, $actor);
+    }
+
+    private function markRevoked(OrganizationInvitation $invitation, User $actor): void
+    {
+        DB::transaction(function () use ($invitation, $actor): void {
+            $invitation->forceFill(['revoked_at' => now()])->save();
+            ActivityLog::record('organization.invitation.revoked', $invitation->organization_id, $actor, $invitation, ['email' => $invitation->email]);
+        });
     }
 
     /**
@@ -241,6 +262,7 @@ final class OrganizationInvitationManager
             }
 
             $invitation->forceFill(['accepted_at' => now()])->save();
+            ActivityLog::record('organization.invitation.accepted', $invitation->organization_id, $user, $invitation, ['email' => $invitation->email]);
 
             return $user;
         });

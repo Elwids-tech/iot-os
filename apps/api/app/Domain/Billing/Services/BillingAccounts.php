@@ -137,7 +137,8 @@ final class BillingAccounts
 
             $locked->forceFill(['billing_account_id' => $target->getKey()])->save();
 
-            DeviceAudit::record('organization.billing_account_changed', null, $actor->getKey(), $locked->uuid, [
+            // The event belongs to the organization, so it shows under its activity (spec 024).
+            DeviceAudit::record('organization.billing_account_changed', $locked->getKey(), $actor->getKey(), $locked->uuid, [
                 'from' => ['uuid' => $from->uuid, 'name' => $from->name],
                 'to' => ['uuid' => $target->uuid, 'name' => $target->name],
             ]);

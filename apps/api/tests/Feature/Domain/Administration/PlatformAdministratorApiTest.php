@@ -97,7 +97,7 @@ final class PlatformAdministratorApiTest extends TestCase
             ->assertForbidden();
 
         $this->assertFalse($member->platformRoles()->exists());
-        $this->assertSame(0, DB::table('device_audit_events')->where('action', 'like', 'user.platform_administrator_%')->count());
+        $this->assertSame(0, DB::table('activity_log')->where('event', 'like', 'user.platform_administrator_%')->count());
     }
 
     public function test_only_super_administrators_manage_platform_administrators(): void
@@ -118,7 +118,7 @@ final class PlatformAdministratorApiTest extends TestCase
 
         $this->assertFalse($member->platformRoles()->exists());
         $this->assertTrue($administrator->platformRoles()->exists());
-        $this->assertSame(0, DB::table('device_audit_events')->where('action', 'like', 'user.platform_administrator_%')->count());
+        $this->assertSame(0, DB::table('activity_log')->where('event', 'like', 'user.platform_administrator_%')->count());
     }
 
     public function test_unknown_and_non_numeric_users_are_not_found(): void
@@ -147,12 +147,12 @@ final class PlatformAdministratorApiTest extends TestCase
 
     private function auditEvents(string $action, User $user): int
     {
-        return DB::table('device_audit_events')
-            ->where('action', $action)
+        return DB::table('activity_log')
+            ->where('event', $action)
             ->whereNull('organization_id')
-            ->where('actor_id', $this->superAdmin->id)
-            ->where('details->user_id', $user->id)
-            ->where('details->email', $user->email)
+            ->where('causer_id', $this->superAdmin->id)
+            ->where('properties->user_id', $user->id)
+            ->where('properties->email', $user->email)
             ->count();
     }
 }

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Administration\Services;
 
+use App\Domain\Audit\Services\ActivityChanges;
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Shared\Models\Organization;
+use App\Domain\Shared\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -68,7 +71,7 @@ final class OrganizationPermissionCeiling
      *
      * @param  list<string>  $permissionNames
      */
-    public function update(Organization $organization, bool $restricted, array $permissionNames): void
+    public function update(Organization $organization, bool $restricted, array $permissionNames, ?User $actor = null): void
     {
         $permissions = collect();
 
@@ -83,14 +86,31 @@ final class OrganizationPermissionCeiling
             }
         }
 
-        DB::transaction(function () use ($organization, $restricted, $permissions): void {
+        DB::transaction(function () use ($organization, $restricted, $permissions, $actor): void {
             Organization::query()->whereKey($organization->getKey())->lockForUpdate()->first();
+            $before = $this->ceilingOf($organization);
 
             $organization->forceFill(['permissions_restricted' => $restricted])->save();
             $organization->permissions()->sync($restricted ? $permissions->modelKeys() : []);
 
             $this->reconcile($organization);
+
+            $changes = ActivityChanges::between($before, $this->ceilingOf($organization));
+            if ($changes !== []) {
+                ActivityLog::record('organization.permissions_updated', $organization, $actor, $organization, [], $changes);
+            }
         });
+    }
+
+    /**
+     * @return array{restricted: bool, permissions: list<string>}
+     */
+    private function ceilingOf(Organization $organization): array
+    {
+        return [
+            'restricted' => (bool) $organization->permissions_restricted,
+            'permissions' => $organization->permissions()->orderBy('name')->pluck('name')->map(fn (mixed $name): string => (string) $name)->all(),
+        ];
     }
 
     /**

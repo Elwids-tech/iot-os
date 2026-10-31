@@ -68,8 +68,8 @@ final class AgentAccessSettingsTest extends TestCase
         $this->actingAs($member)->getJson($this->url)->assertOk()->assertJsonPath('data.enabled', true);
 
         $this->actingAs($admin)->putJson($this->url, ['enabled' => false])->assertOk()->assertJsonPath('data.enabled', false);
-        $actions = DB::table('device_audit_events')->where('organization_id', $this->acme->id)->where('actor_id', $admin->id)
-            ->where('action', 'like', 'agents.%')->orderBy('id')->pluck('action')->all();
+        $actions = DB::table('activity_log')->where('organization_id', $this->acme->id)->where('causer_id', $admin->id)
+            ->where('event', 'like', 'agents.%')->orderBy('id')->pluck('event')->all();
         $this->assertSame(['agents.access_enabled', 'agents.access_disabled'], $actions);
         $this->actingAs($admin)->putJson($this->url, ['enabled' => 'sometimes'])->assertUnprocessable();
     }

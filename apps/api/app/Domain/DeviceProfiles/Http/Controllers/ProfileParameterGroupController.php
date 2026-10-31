@@ -36,7 +36,7 @@ final class ProfileParameterGroupController
             $profile,
             $request->user(),
             $draftRevision,
-            static fn (DeviceProfile $locked): ProfileParameterGroup => $locked->parameterGroups()->create($validated),
+            static fn (DeviceProfile $locked): ProfileParameterGroup => $locked->parameterGroups()->create($validated), change: 'parameter_group.created',
         );
 
         return ProfileParameterGroupResource::make($result['result'])->response()->setStatusCode(201);
@@ -57,7 +57,7 @@ final class ProfileParameterGroupController
             $editable->update($values);
 
             return $editable;
-        });
+        }, change: 'parameter_group.updated', item: $group);
 
         return ProfileParameterGroupResource::make($result['result']);
     }
@@ -70,7 +70,7 @@ final class ProfileParameterGroupController
             $editable = $locked->parameterGroups()->whereKey($group->getKey())->firstOrFail();
             $editable->parameters()->update(['parameter_group_id' => null]);
             $editable->delete();
-        });
+        }, change: 'parameter_group.deleted', item: $group);
 
         return response()->noContent();
     }
@@ -87,7 +87,7 @@ final class ProfileParameterGroupController
             foreach ($values['group_uuids'] as $index => $uuid) {
                 $groups[$uuid]->update(['sort_order' => $index]);
             }
-        });
+        }, change: 'parameter_groups.reordered');
 
         return response()->noContent();
     }

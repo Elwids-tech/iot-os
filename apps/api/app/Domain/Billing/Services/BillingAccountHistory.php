@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * A billing account's latest history (spec 023 FR-020, FR-021, research R11): its
- * audit events plus organizations joining and leaving it, newest first. Deletion is
+ * activity log events plus organizations joining and leaving it, newest first. Deletion is
  * audited too, but a deleted account is never shown, so it is not listed here.
  */
 final class BillingAccountHistory
@@ -77,21 +77,21 @@ final class BillingAccountHistory
      */
     private function auditEvents(BillingAccount $account): Collection
     {
-        return DB::table('device_audit_events')
-            ->where('resource_uuid', $account->uuid)
-            ->whereIn('action', array_keys(self::ACTIONS))
+        return DB::table('activity_log')
+            ->where('subject_uuid', $account->uuid)
+            ->whereIn('event', array_keys(self::ACTIONS))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->limit(self::LIMIT)
-            ->get(['action', 'actor_id', 'details', 'created_at'])
+            ->get(['event', 'causer_id', 'properties', 'created_at'])
             ->map(function (object $event): array {
-                $details = json_decode((string) $event->details, true) ?: [];
+                $details = json_decode((string) $event->properties, true) ?: [];
 
                 return [
                     'at' => CarbonImmutable::parse($event->created_at),
-                    'action' => self::ACTIONS[$event->action],
-                    'actor_id' => $event->actor_id === null ? null : (int) $event->actor_id,
-                    'details' => match ($event->action) {
+                    'action' => self::ACTIONS[$event->event],
+                    'actor_id' => $event->causer_id === null ? null : (int) $event->causer_id,
+                    'details' => match ($event->event) {
                         'billing_account.owner_added', 'billing_account.owner_removed' => [
                             'user' => ['id' => (int) ($details['user_id'] ?? 0), 'name' => (string) ($details['user_name'] ?? '')],
                         ],

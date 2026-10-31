@@ -169,7 +169,7 @@ try {
         DB::table('device_outbox')->whereRaw("payload->>'organization_uuid' = ?", [$org->uuid])->delete();
         DB::table('integration_events')->where('organization_id', $org->id)->delete();
         DB::table('integration_streams')->where('organization_id', $org->id)->delete();
-        DB::table('device_audit_events')->where('organization_id', $org->id)->delete();
+        DB::table('activity_log')->where('organization_id', $org->id)->delete();
         $devices = DB::table('devices')->where('organization_id', $org->id)->pluck('id');
         DB::table('device_configurations')->whereIn('device_id', $devices)->delete();
         DB::table('devices')->whereIn('id', $devices)->delete();

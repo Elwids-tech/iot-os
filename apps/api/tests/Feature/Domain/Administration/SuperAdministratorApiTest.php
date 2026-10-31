@@ -210,12 +210,12 @@ final class SuperAdministratorApiTest extends TestCase
         $this->assertTrue($user->is_super_admin);
         $this->assertSame(0, $user->organizations()->count());
         $this->assertNotNull($invitation->fresh()->accepted_at);
-        $this->assertTrue(DB::table('device_audit_events')
-            ->where('action', 'user.super_admin_granted')
+        $this->assertTrue(DB::table('activity_log')
+            ->where('event', 'user.super_admin_granted')
             ->whereNull('organization_id')
-            ->where('actor_id', $this->superAdmin->id)
-            ->where('details->user_id', $user->id)
-            ->where('details->invitation_uuid', $invitation->uuid)
+            ->where('causer_id', $this->superAdmin->id)
+            ->where('properties->user_id', $user->id)
+            ->where('properties->invitation_uuid', $invitation->uuid)
             ->exists());
     }
 
@@ -320,11 +320,11 @@ final class SuperAdministratorApiTest extends TestCase
 
     private function auditEvents(string $action, User $user): int
     {
-        return DB::table('device_audit_events')
-            ->where('action', $action)
+        return DB::table('activity_log')
+            ->where('event', $action)
             ->whereNull('organization_id')
-            ->where('actor_id', $this->superAdmin->id)
-            ->where('details->user_id', $user->id)
+            ->where('causer_id', $this->superAdmin->id)
+            ->where('properties->user_id', $user->id)
             ->count();
     }
 }
