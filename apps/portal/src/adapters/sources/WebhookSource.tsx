@@ -20,7 +20,7 @@ import {
 import { Badge } from "@iot-os/ui/components/badge";
 import { Button } from "@iot-os/ui/components/button";
 import { ChoiceCard } from "@iot-os/ui/components/choice-card";
-import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table";
+import { DataTable, ToolbarButton, type DataColumn } from "@iot-os/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
@@ -429,35 +429,28 @@ export function WebhookSecrets({
           toolbar={
             <>
               {active === 0 ? (
-                <Button
-                  size="sm"
+                <ToolbarButton
+                  variant="default"
+                  icon={<PlusIcon />}
+                  label="Create secret"
                   disabled={!canManage || busy}
                   onClick={() => open("create")}
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  Create secret
-                </Button>
+                />
               ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
+                <ToolbarButton
+                  icon={<RotateCwIcon />}
+                  label="Rotate secret"
                   disabled={!canManage || busy || full}
                   onClick={() => open("rotate")}
-                >
-                  <RotateCwIcon data-icon="inline-start" />
-                  Rotate
-                </Button>
+                />
               )}
               {mode === "hmac" && (
-                <Button
-                  size="sm"
-                  variant="outline"
+                <ToolbarButton
+                  icon={<KeyRoundIcon />}
+                  label="Paste vendor secret"
                   disabled={!canManage || busy || full}
                   onClick={() => open("paste")}
-                >
-                  <KeyRoundIcon data-icon="inline-start" />
-                  Paste vendor secret
-                </Button>
+                />
               )}
             </>
           }

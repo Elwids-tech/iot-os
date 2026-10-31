@@ -455,6 +455,17 @@ Things that have cost time before. Add to this list when something surprises you
   (CI: "element was detached" on an option until the test timed out). The kit's
   `PopoverContent` now leaves focus where it is if it has moved on; the
   dashboards spec reproduces the race by delaying zero-delay timers.
+- **An icon toolbar button opens its tooltip when focus comes back.** Closing a
+  table's Filters, Group, Columns or Sort menu returns focus to its icon button,
+  whose tooltip then opens, and axe's `region` rule flags the tooltip because it
+  renders outside any landmark. CI hit this on the Devices list while local runs
+  passed. After picking from a picker inside Filters, wait for its combobox (with
+  `exact: true`) to regain focus before pressing Escape; an Escape sent while it
+  is still closing lands on the closing layer and leaves Filters open. Then expect
+  the icon button focused, press Escape once more and expect no tooltip before
+  running axe. When hovering several icon buttons in turn, move the pointer away
+  in steps (`page.mouse.move(0, 0, { steps: 4 })`), or Radix keeps the first
+  tooltip open. `devices.spec.ts` does all three.
 - **Phone emulation hides sideways scrolling from `window.innerWidth`.** With
   `isMobile` (Playwright's phone devices), the viewport widens to fit content that
   overflows, so `scrollWidth - innerWidth` stays 0. Compare
@@ -557,6 +568,11 @@ Things that have cost time before. Add to this list when something surprises you
   which starts each change from the address bar. In a browser test, wait for a
   search box to show what you typed before clearing it: until that render the
   controlled box still reads "", so filling "" changes nothing.
+- **A tooltip on a disabled button never opens.** The kit's `Button` has
+  `disabled:pointer-events-none`, so hovering it reaches no trigger. An icon-only
+  button needs its name on hover, so `ToolbarButton` (from `data-table`) wraps a
+  disabled button in a span that opens the tooltip; do the same for any other
+  icon button that can be disabled.
 - **Re-picking a parameter never refreshed an automation binding.** Deploy
   fails with `binding_changed: <role>` when any binding in the draft, used or
   not, names a device generation or configuration other than the current one.

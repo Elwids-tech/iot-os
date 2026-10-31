@@ -166,10 +166,8 @@ export type DataTableProps<T> = {
   }
   filters?: DataFilter<T>[]
   groups?: DataGroup<T>[]
-  /** Extra items at the end of the toolbar. */
+  /** Extra items before the toolbar's own buttons; buttons use `ToolbarButton`. */
   toolbar?: React.ReactNode
-  /** Toolbar buttons show only their icon, named by a tooltip and for screen readers. */
-  compactToolbar?: boolean
   /** Server sorting; leave out to sort loaded rows. */
   sort?: { value: SortingState; onChange: (value: SortingState) => void }
   defaultSort?: SortingState
@@ -647,7 +645,6 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
             : undefined
         }
         extra={props.toolbar}
-        compact={props.compactToolbar ?? false}
       />
       {activeFilters.length > 0 && (
         <div className="flex flex-wrap items-center gap-2" aria-label="Active filters" role="group">
@@ -1001,7 +998,6 @@ function Toolbar<T>({
   columns,
   sorting,
   extra,
-  compact,
 }: {
   label: string
   views: DataTableProps<T>["views"]
@@ -1017,7 +1013,6 @@ function Toolbar<T>({
     onChange: (column: string, desc: boolean) => void
   }
   extra?: React.ReactNode
-  compact: boolean
 }) {
   const active = filters.filter((filter) => filter.value.length > 0).length
   const filterTitleId = React.useId()
@@ -1060,7 +1055,7 @@ function Toolbar<T>({
           value={search.value}
           onChange={(event) => search.onChange(event.target.value)}
           // Icon buttons fit beside the search on phones.
-          className={cn(compact && "min-w-32 flex-1 sm:flex-none")}
+          className="min-w-32 flex-1 sm:flex-none"
         />
       )}
       <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -1069,7 +1064,6 @@ function Toolbar<T>({
           <Popover>
             <PopoverTrigger asChild>
               <ToolbarButton
-                compact={compact}
                 icon={<ListFilterIcon />}
                 label="Filters"
                 name={active ? `Filters, ${active} active` : "Filters"}
@@ -1093,23 +1087,14 @@ function Toolbar<T>({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <ToolbarButton
-                compact={compact}
                 icon={<ArrowUpDownIcon />}
                 label={sortedBy ? `Sort: ${sortedBy.header}` : "Sort"}
                 name={
-                  compact && sortedBy
+                  sortedBy
                     ? `Sort: ${sortedBy.header}, ${sorting.value?.desc ? "descending" : "ascending"}`
                     : undefined
                 }
-              >
-                {!compact &&
-                  sortedBy &&
-                  (sorting.value?.desc ? (
-                    <ArrowDownIcon data-icon="inline-end" aria-label="descending" />
-                  ) : (
-                    <ArrowUpIcon data-icon="inline-end" aria-label="ascending" />
-                  ))}
-              </ToolbarButton>
+              />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Sort rows by</DropdownMenuLabel>
@@ -1142,7 +1127,6 @@ function Toolbar<T>({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <ToolbarButton
-                compact={compact}
                 icon={<RowsIcon />}
                 label={groupedBy ? `Group: ${groupedBy.label}` : "Group"}
               />
@@ -1163,7 +1147,7 @@ function Toolbar<T>({
         {columns.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <ToolbarButton compact={compact} icon={<Columns3Icon />} label="Columns" />
+              <ToolbarButton icon={<Columns3Icon />} label="Columns" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Show columns</DropdownMenuLabel>
@@ -1187,39 +1171,33 @@ function Toolbar<T>({
 }
 
 /**
- * A toolbar menu button. Compact toolbars show only the icon, with the label in a
- * tooltip and as the accessible name; `name` overrides that name when it says more.
+ * A DataTable toolbar button: only the icon shows, with the label in a tooltip and
+ * as the accessible name; `name` overrides both when it says more. Children, such
+ * as a count, follow the icon. Pages use it for their own `toolbar` buttons too.
  */
-function ToolbarButton({
-  compact,
+export function ToolbarButton({
   icon,
   label,
   name,
   children,
   ...props
 }: React.ComponentProps<typeof Button> & {
-  compact: boolean
   icon: React.ReactElement<{ "data-icon"?: string }>
   label: string
   name?: string
 }) {
-  const iconOnly = compact && !children
   const button = (
-    <Button
-      variant="outline"
-      size={iconOnly ? "icon-sm" : "sm"}
-      aria-label={name ?? (compact ? label : undefined)}
-      {...props}
-    >
-      {iconOnly ? icon : React.cloneElement(icon, { "data-icon": "inline-start" })}
-      {!compact && label}
+    <Button variant="outline" size={children ? "sm" : "icon-sm"} aria-label={name ?? label} {...props}>
+      {children ? React.cloneElement(icon, { "data-icon": "inline-start" }) : icon}
       {children}
     </Button>
   )
-  if (!compact) return button
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipTrigger asChild>
+        {/* A disabled button takes no pointer events, so a wrapper still names it on hover. */}
+        {props.disabled ? <span className="inline-flex">{button}</span> : button}
+      </TooltipTrigger>
       <TooltipContent>{name ?? label}</TooltipContent>
     </Tooltip>
   )

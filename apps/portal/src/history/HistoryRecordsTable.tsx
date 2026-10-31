@@ -5,8 +5,7 @@ import type {
   DeviceProfileParameter,
   HistoryRecord,
 } from "@iot-os/api-client"
-import { Button } from "@iot-os/ui/components/button"
-import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
+import { DataTable, ToolbarButton, type DataColumn } from "@iot-os/ui/components/data-table"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
-import { ChevronDownIcon, DownloadIcon } from "lucide-react"
+import { DownloadIcon } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "../lib/api"
 import { RequestError, errorMessage } from "../components/forms"
@@ -230,11 +229,11 @@ export function HistoryRecordsTable({
       toolbar={
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" disabled={exporting}>
-              <DownloadIcon data-icon="inline-start" />
-              {exporting ? "Preparing CSV…" : "Download CSV"}
-              <ChevronDownIcon data-icon="inline-end" />
-            </Button>
+            <ToolbarButton
+              icon={<DownloadIcon />}
+              label={exporting ? "Preparing CSV…" : "Download CSV"}
+              disabled={exporting}
+            />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {EXPORT_LIMITS.map((limit) => (

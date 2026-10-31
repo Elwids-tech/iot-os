@@ -93,11 +93,14 @@ phone card layout and a polling note. Phone cards keep the row's selection box a
 ⋯ menu, with "Select all" above them, and the toolbar adds a Sort menu in place of
 the sortable headers.
 
-`compactToolbar` shows the toolbar buttons as icons at every width, each named by a
-tooltip and its accessible name, with the active filter count beside the Filters
-icon; Devices uses it. A filter whose default leaves rows out names that default with
-`anyLabel` (Devices: Lifecycle "Not archived", with "All" last), and `note` says in
-the footer what the default view hides and how to show it.
+Toolbar buttons show only their icon at every width, each named by a tooltip and
+its accessible name ("Filters, 2 active", "Group: Site", "Sort: Device, ascending"),
+with the active filter count beside the Filters icon. A page's own `toolbar` buttons
+use `ToolbarButton` from the same module, so the row reads as one set of icons; a
+count follows the icon as its child (Devices: sources waiting in Discovery). A filter
+whose default leaves rows out names that default with `anyLabel` (Devices: Lifecycle
+"Not archived", with "All" last), and `note` says in the footer what the default view
+hides and how to show it.
 
 **Errors.** Each app's root route has `RouteError` as its `errorElement`, and each
 layout wraps its `<Outlet />` in `ErrorBoundary` keyed on the pathname, so a page

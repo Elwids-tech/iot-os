@@ -23,6 +23,7 @@ import {
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
 import { Checkbox } from "@iot-os/ui/components/checkbox";
+import { ToolbarButton } from "@iot-os/ui/components/data-table";
 import { Field, FieldLabel } from "@iot-os/ui/components/field";
 import { PageHeader } from "@iot-os/ui/components/page-header";
 import { InboxItem, InboxList, InboxPage } from "@iot-os/ui/templates/inbox-page";
@@ -397,15 +398,17 @@ function AlertsPage() {
                 )}
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" aria-label={activeFilters ? `Filters, ${activeFilters} active` : "Filters"}>
-                      <ListFilterIcon data-icon="inline-start" />
-                      Filters
+                    <ToolbarButton
+                      icon={<ListFilterIcon />}
+                      label="Filters"
+                      name={activeFilters ? `Filters, ${activeFilters} active` : "Filters"}
+                    >
                       {activeFilters > 0 && (
                         <span className="grid min-w-4.5 place-items-center rounded-full bg-primary px-1 text-micro leading-4.5 font-semibold text-primary-foreground tabular-nums">
                           {activeFilters}
                         </span>
                       )}
-                    </Button>
+                    </ToolbarButton>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-80 gap-3 p-3" aria-label="Filter alerts">
             <SearchableSelect

@@ -207,7 +207,8 @@ export function ProfileDirectory() {
             }}
             toolbar={
               // A text filter, not a picker: it matches any part of the category.
-              <FilterField label="Category" id="profile-category" className="w-full sm:w-44">
+              // On phones it shares a row with the icon buttons.
+              <FilterField label="Category" id="profile-category" className="min-w-32 flex-1 sm:w-44 sm:flex-none">
                 {(id) => (
                   <Input
                     id={id}

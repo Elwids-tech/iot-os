@@ -487,8 +487,16 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
   await expect(page).toHaveURL(new RegExp(`device=${gps}`));
   await pick(page, "Workflow", "GPS demo geofence");
   await expect(page).toHaveURL(new RegExp(`workflow=${geofence}`));
+  // The picker closes and hands focus back first; then Escape closes Filters.
+  await expect(page.getByRole("combobox", { name: "Workflow", exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "Filters, 2 active" })).toBeVisible();
+  const filters = page.getByRole("button", { name: "Filters, 2 active" });
+  await expect(filters).toHaveAttribute("aria-expanded", "false");
+  // Filters shows only its icon and count; focus is back on it, so its tooltip names it until Escape.
+  await expect(filters).toHaveText("2");
+  await expect(page.getByRole("tooltip")).toHaveText("Filters, 2 active");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   await expect
     .poll(() =>
       state.queries.some(

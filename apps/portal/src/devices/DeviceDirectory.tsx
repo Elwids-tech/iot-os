@@ -333,7 +333,6 @@ export function DeviceDirectory() {
         filtered={Boolean(search || statuses.length || (lifecycle && lifecycle !== "all") || site || profile)}
         onReset={() => url.clear(["search", "status", "lifecycle", "site", "profile"])}
         toolbar={capabilities.manage && <DiscoveryWaiting org={org} />}
-        compactToolbar
         note={
           !lifecycle && (
             <>
