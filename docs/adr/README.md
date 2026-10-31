@@ -25,7 +25,7 @@ the code as evidence.
 | [ADR-007](ADR-007-monorepo-and-shadcn-ui.md) | Cross-language monorepo with a shared shadcn UI foundation | Accepted |
 | [ADR-008](ADR-008-laravel-sanctum-authentication.md) | Sanctum session cookies for the React apps, tokens for machine clients | Accepted; amended by ADR-018 |
 | [ADR-009](ADR-009-mosquitto-default-broker.md) | Mosquitto is the default MQTT broker | Superseded by ADR-019 |
-| [ADR-010](ADR-010-per-tenant-adapter-runtimes.md) | One Mosquitto ingress and Node-RED runtime per tenant, decoders in QuickJS | Accepted; amended by ADR-022 |
+| [ADR-010](ADR-010-per-tenant-adapter-runtimes.md) | One Mosquitto ingress and Node-RED runtime per tenant, decoders in QuickJS | Accepted; amended by ADR-022 (ADR-024 proposed) |
 | [ADR-011](ADR-011-dag-automation-in-go.md) | Automation runs as a typed DAG (v2) in the Go runtime; workflow v1 is legacy | Accepted |
 | [ADR-012](ADR-012-design-system-and-charts.md) | One design-system kit on shadcn/Radix with templates and guardrails; ECharts for charts | Accepted |
 | [ADR-013](ADR-013-integer-user-ids.md) | Users are identified by integer id in API contracts | Accepted |
@@ -38,6 +38,7 @@ the code as evidence.
 | [ADR-021](ADR-021-developer-docs-only.md) | The marketing website moves to its own repository; the platform's front door and developer docs stay here, published to GitHub Pages on the platform domain; amends ADR-020 | Accepted |
 | [ADR-022](ADR-022-webhook-receiver.md) | A platform webhook receiver checks secrets and limits, then hands deliveries to each tenant's ingress broker; amends ADR-010 | Accepted |
 | [ADR-023](ADR-023-protocol-connectors.md) | Every protocol is a connector feeding one telemetry envelope; Sparkplug B is the edge-gateway uplink; typed protocols use point maps | Accepted (direction) |
+| [ADR-024](ADR-024-capture-before-deploy.md) | Adapter sources capture raw input under a lease before any revision is deployed; setup credentials publish to any topic but other sources' filters until the first deploy; amends ADR-010 | Proposed |
 | [ADR-025](ADR-025-review-follows-current-birth.md) | A device's review follows its source's current birth: a later compatible birth clears it, and automations report `device_review_required` | Proposed |
 | [ADR-026](ADR-026-billing-accounts.md) | Every organization belongs to one billing account; organizations stay independent tenants, and billing account owners create organizations under it within a limit | Accepted |
 | [ADR-027](ADR-027-adapter-fed-activation-and-applied-generation.md) | An adapter-fed source activates against its stored birth when it has no live one; bindings use the applied generation, so a refused activation keeps them | Proposed |
