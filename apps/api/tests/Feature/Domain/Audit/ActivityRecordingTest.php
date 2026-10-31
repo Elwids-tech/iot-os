@@ -56,7 +56,7 @@ final class ActivityRecordingTest extends TestCase
         $this->assertSame($this->administrator->id, (int) $changed->causer_id);
         $this->assertTrue($changed->subject->is($this->member));
         $this->assertSame($this->member->name, $changed->subject_name);
-        $this->assertSame(['attributes' => ['roles' => [$moderator->display_name]], 'old' => ['roles' => $before]], $changed->attribute_changes->toArray());
+        $this->assertEquals(['attributes' => ['roles' => [$moderator->display_name]], 'old' => ['roles' => $before]], $changed->attribute_changes->toArray());
 
         $this->actingAs($this->administrator, 'sanctum')
             ->deleteJson($this->url("members/{$this->member->id}"))
@@ -82,7 +82,7 @@ final class ActivityRecordingTest extends TestCase
 
         $updated = $this->sole('organization.role.updated');
         $this->assertSame($this->acme->id, $updated->organization_id);
-        $this->assertSame([
+        $this->assertEquals([
             'attributes' => ['display_name' => 'Readers', 'permissions' => ['Device.view', 'Organization.view']],
             'old' => ['display_name' => 'Viewers', 'permissions' => ['Device.view']],
         ], $updated->attribute_changes->toArray());
@@ -142,7 +142,7 @@ final class ActivityRecordingTest extends TestCase
 
         $updated = $this->sole('organization.updated');
         $this->assertSame($cedar->id, $updated->organization_id);
-        $this->assertSame(['attributes' => ['name' => 'Cedar Foods'], 'old' => ['name' => 'Cedar Processing']], $updated->attribute_changes->toArray());
+        $this->assertEquals(['attributes' => ['name' => 'Cedar Foods'], 'old' => ['name' => 'Cedar Processing']], $updated->attribute_changes->toArray());
     }
 
     public function test_dashboard_changes_are_recorded_with_what_changed(): void
@@ -157,12 +157,12 @@ final class ActivityRecordingTest extends TestCase
         $this->putJson("{$url}/{$uuid}", [...$document, 'name' => 'Plant floor', 'tags' => ['plant'], 'revision' => 1])->assertOk();
         $updated = $this->sole('dashboard.updated');
         $this->assertSame($this->acme->id, $updated->organization_id);
-        $this->assertSame(['attributes' => ['name' => 'Plant floor', 'tags' => ['plant']], 'old' => ['name' => 'Operations', 'tags' => []]], $updated->attribute_changes->toArray());
+        $this->assertEquals(['attributes' => ['name' => 'Plant floor', 'tags' => ['plant']], 'old' => ['name' => 'Operations', 'tags' => []]], $updated->attribute_changes->toArray());
 
         $this->putJson("{$url}/{$uuid}/access", ['access' => 'restricted', 'shares' => [['type' => 'user', 'id' => $this->member->id, 'level' => 'view']]])->assertOk();
         $access = $this->sole('dashboard.access_changed')->attribute_changes->toArray();
-        $this->assertSame(['access' => 'organization', 'shares' => []], $access['old']);
-        $this->assertSame(['access' => 'restricted', 'shares' => ["Member {$this->member->name} (view)"]], $access['attributes']);
+        $this->assertEquals(['access' => 'organization', 'shares' => []], $access['old']);
+        $this->assertEquals(['access' => 'restricted', 'shares' => ["Member {$this->member->name} (view)"]], $access['attributes']);
 
         $this->deleteJson("{$url}/{$uuid}")->assertNoContent();
         $this->assertSame('Plant floor', $this->sole('dashboard.deleted')->subject_name);
@@ -179,11 +179,11 @@ final class ActivityRecordingTest extends TestCase
         $this->postJson("{$root}/{$uuid}/parameters", ['key' => 'voltage', 'label' => 'Voltage', 'kind' => 'measurement', 'data_type' => 'number', 'draft_revision' => $revision()])->assertCreated();
 
         $draft = $this->sole('device_profile.draft_changed');
-        $this->assertSame(['change' => 'parameter.created', 'item' => 'voltage'], array_intersect_key($draft->properties->toArray(), ['change' => 0, 'item' => 0]));
+        $this->assertEquals(['change' => 'parameter.created', 'item' => 'voltage'], array_intersect_key($draft->properties->toArray(), ['change' => 0, 'item' => 0]));
         $this->assertSame($this->acme->id, $draft->organization_id);
 
         $this->patchJson("{$root}/{$uuid}", ['name' => 'Power meter', 'draft_revision' => $revision()])->assertOk();
-        $this->assertSame(['attributes' => ['name' => 'Power meter'], 'old' => ['name' => 'Meter']], $this->sole('device_profile.updated')->attribute_changes->toArray());
+        $this->assertEquals(['attributes' => ['name' => 'Power meter'], 'old' => ['name' => 'Meter']], $this->sole('device_profile.updated')->attribute_changes->toArray());
     }
 
     public function test_site_edits_record_what_changed(): void
@@ -195,7 +195,7 @@ final class ActivityRecordingTest extends TestCase
 
         $updated = $this->sole('site.updated');
         $this->assertSame($uuid, $updated->subject_uuid);
-        $this->assertSame(['attributes' => ['name' => 'North yard'], 'old' => ['name' => 'Yard']], $updated->attribute_changes->toArray());
+        $this->assertEquals(['attributes' => ['name' => 'North yard'], 'old' => ['name' => 'Yard']], $updated->attribute_changes->toArray());
     }
 
     private function sole(string $action): Activity

@@ -37,8 +37,8 @@ final class ActivityLogTest extends TestCase
         $this->assertTrue($activity->subject->is($site));
         $this->assertSame($site->uuid, $activity->subject_uuid);
         $this->assertSame('North yard', $activity->subject_name);
-        $this->assertSame(['note' => 'moved'], $activity->properties->toArray());
-        $this->assertSame(['attributes' => ['name' => 'North yard'], 'old' => ['name' => 'Yard']], $activity->attribute_changes->toArray());
+        $this->assertEquals(['note' => 'moved'], $activity->properties->toArray());
+        $this->assertEquals(['attributes' => ['name' => 'North yard'], 'old' => ['name' => 'Yard']], $activity->attribute_changes->toArray());
     }
 
     public function test_a_system_event_never_takes_the_signed_in_user(): void
@@ -74,8 +74,8 @@ final class ActivityLogTest extends TestCase
         ], ActivityChanges::between(['api_key' => 'a', 'name' => 'Old'], ['api_key' => 'b', 'name' => 'New']));
 
         $activity = Activity::query()->sole();
-        $this->assertSame(['secret_uuid' => 'kept', 'nested' => ['label' => 'kept']], $activity->properties->toArray());
-        $this->assertSame(['attributes' => ['name' => 'New'], 'old' => ['name' => 'Old']], $activity->attribute_changes->toArray());
+        $this->assertEquals(['secret_uuid' => 'kept', 'nested' => ['label' => 'kept']], $activity->properties->toArray());
+        $this->assertEquals(['attributes' => ['name' => 'New'], 'old' => ['name' => 'Old']], $activity->attribute_changes->toArray());
         $this->assertStringNotContainsString('plain-token', json_encode(DB::table('activity_log')->get()));
     }
 

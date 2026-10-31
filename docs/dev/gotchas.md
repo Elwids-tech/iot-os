@@ -79,7 +79,11 @@ Things that have cost time before. Add to this list when something surprises you
 - **PostgreSQL and SQLite serialise some values differently** (decimals, JSON key
   order, booleans read back from raw queries). CI runs the suite on PostgreSQL and is
   authoritative; describe what PostgreSQL returns in the contract, and check a
-  surprising local result against PostgreSQL before changing a schema.
+  surprising local result against PostgreSQL before changing a schema. `jsonb` stores
+  object keys shortest first, so compare a decoded object with `assertEquals`, not
+  `assertSame`, which also compares key order (spec 024's tests failed only in CI).
+  To run tests on PostgreSQL locally, start a throwaway `timescale/timescaledb` container
+  and pass `DB_CONNECTION=pgsql` with a database whose name ends in `_test`.
 - **Extended Python validators stop at a `$ref` into another file.** jsonschema
   picks the validator class from a referenced document's `$schema`, so a
   `validators.extend` subclass (the contract checker's tolerant and secret modes)

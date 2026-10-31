@@ -180,7 +180,8 @@ test("filters by person and organization stay in the address", async ({ page }) 
   await page.getByRole("combobox", { name: "Search person" }).fill("ana")
   await page.getByRole("option", { name: /Ana Silva/ }).click()
   await expect(page).toHaveURL(/user=7/)
-  expect(requests.at(-1)).toContain("user_id=7")
+  // The address changes first; the request follows once the page reacts to it.
+  await expect.poll(() => requests.at(-1)).toContain("user_id=7")
   expect(requests.at(-1)).toContain(`organization=${acme.uuid}`)
 
   await page.reload()
