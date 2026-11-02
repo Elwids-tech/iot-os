@@ -658,7 +658,7 @@
           }
         ],
         "summary": "List a device's location bindings",
-        "description": "The approved, immutable `location-binding.v1` bindings active for a granted device, ordered by creation."
+        "description": "Every immutable `location-binding.v1` version the runtime applied successfully for a granted device, ordered by creation. Superseded and stopped versions stay listed so older events can still be read; a listed version's workflow may no longer be running. Pending and failed deployments are not listed."
       }
     },
     "/integration/v1/organizations/{organization}/devices/{uuid}/locations/{event}": {

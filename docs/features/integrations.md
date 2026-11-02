@@ -92,7 +92,7 @@ in time. Responses to authenticated requests carry `Cache-Control: no-store`.
 | `GET devices/{uuid}/telemetry/latest` | `telemetry:read` | `telemetry-latest.v1` |
 | `GET devices/{uuid}/telemetry/history` | `telemetry:read` | `telemetry-history.v1` |
 | `GET devices/{uuid}/telemetry/records` | `telemetry:read` | `telemetry-records.v1` |
-| `GET devices/{uuid}/location-bindings` | `telemetry:read` | Approved immutable bindings `{version_uuid, binding}` |
+| `GET devices/{uuid}/location-bindings` | `telemetry:read` | Successfully applied immutable bindings `{version_uuid, binding}` |
 | `GET devices/{uuid}/locations/{event}?version_uuid=` | `telemetry:read` | `location-fix.v1` |
 | `POST location-map/query` | `locations:read` | Positions and trails (1h, 6h, 24h, 7d) for granted devices |
 | `GET geofences`, `GET geofences/{uuid}`, `GET geofences/{uuid}/activations/{batch}` | `geofences:read` | Geofences filtered to granted devices; activation status |
@@ -116,6 +116,11 @@ are current state, not snapshots.
   newest first by `(received_at, event_uuid)`, `page_size` 1–100, a total `limit`
   of 1–5000 with `limit_reached`, and a signed cursor bound to the query. Not a
   complete export.
+- **Location bindings** lists every binding version the runtime applied
+  successfully, superseded and stopped versions included, so an older event can be
+  read through the binding it was recorded under. A listed version's workflow may no
+  longer be running. Pending and failed deployments are not listed, and there is no
+  implicit newest version: choose the one that matches the event.
 - **Location fixes** resolve one stored event through the selected immutable
   binding with the same resolver as geofencing ([automation](automation.md#location-bindings)).
   Consumers cannot submit coordinates or evaluation time; independent latest

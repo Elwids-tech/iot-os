@@ -221,10 +221,19 @@ final class ApplicationTest extends TestCase
             $this->api($issued['token'], 'GET', $base.'/telemetry/records?'.http_build_query([...$query, ...$invalid]))->assertUnprocessable();
         }
         $workflow = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Location', 'workflow' => [], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => User::where('is_super_admin', true)->firstOrFail()->id]);
-        $version = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $workflow->updated_by, 'created_at' => now(), 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('a', 64), 'definition' => ['binding' => ['organization_uuid' => $this->org->uuid, 'device_uuid' => $this->device->uuid] + $this->contractFixture('location/v1/binding.fixture.json'), 'private' => 'hidden']]);
-        $this->api($issued['token'], 'GET', $base.'/location-bindings')->assertOk()->assertJsonPath('data.0.version_uuid', $version->uuid)->assertJsonMissing(['private' => 'hidden']);
-        $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.$version->uuid)->assertOk();
-        $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.Str::uuid())->assertNotFound();
+        $deploy = fn (int $generation, string $status, ?string $stopped = null) => Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $workflow->updated_by, 'created_at' => now(), 'generation' => $generation, 'draft_revision' => 1, 'target' => 'active', 'status' => $status, 'stopped_reason' => $stopped, 'definition_hash' => str_repeat('a', 64), 'definition' => ['binding' => ['organization_uuid' => $this->org->uuid, 'device_uuid' => $this->device->uuid] + $this->contractFixture('location/v1/binding.fixture.json'), 'private' => 'hidden']]);
+        // A superseded version stays listed so events from before the newer revision can still be read.
+        $superseded = $deploy(1, 'succeeded', 'superseded');
+        $version = $deploy(2, 'succeeded');
+        $failed = $deploy(3, 'failed');
+        $pending = $deploy(4, 'pending');
+        $this->api($issued['token'], 'GET', $base.'/location-bindings')->assertOk()->assertJsonPath('data.*.version_uuid', [$superseded->uuid, $version->uuid])->assertJsonPath('meta.total', 2)->assertJsonMissing(['private' => 'hidden']);
+        foreach ([$superseded, $version] as $listed) {
+            $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.$listed->uuid)->assertOk()->assertJsonPath('version_uuid', $listed->uuid);
+        }
+        foreach ([$failed->uuid, $pending->uuid, Str::uuid()] as $unlisted) {
+            $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.$unlisted)->assertNotFound();
+        }
         $workflow->update(['organization_id' => Organization::where('slug', 'northstar-utilities')->firstOrFail()->id]);
         $this->api($issued['token'], 'GET', $base.'/location-bindings')->assertOk()->assertJsonPath('data', []);
         $this->api($issued['token'], 'GET', $base.'/locations/'.$this->device->uuid.'?version_uuid='.$version->uuid)->assertNotFound();
