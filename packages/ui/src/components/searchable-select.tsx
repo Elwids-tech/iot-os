@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useId, useState } from "react"
-import { CheckIcon } from "lucide-react"
+import { CheckIcon, PlusIcon } from "lucide-react"
 import { Button } from "@iot-os/ui/components/button"
 import { cn } from "@iot-os/ui/lib/utils"
 import {
@@ -14,6 +14,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@iot-os/ui/components/command"
 import {
   Field,
@@ -50,6 +51,8 @@ export function SearchableSelect({
   optional = false,
   className,
   error,
+  onCreate,
+  createLabel = (text) => `Create “${text}”`,
 }: {
   label: string
   value: string
@@ -72,6 +75,9 @@ export function SearchableSelect({
   className?: string
   /** A validation message shown under the help text; also marks the trigger invalid. */
   error?: React.ReactNode
+  /** Offers to create the typed text when no option has that label. */
+  onCreate?: (text: string) => void
+  createLabel?: (text: string) => string
 }) {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -89,6 +95,11 @@ export function SearchableSelect({
   const visibleOptions = options.filter(
     (option) => option.value !== "" || !search,
   )
+  const typed = search.trim()
+  const creatable =
+    onCreate &&
+    typed &&
+    !options.some((option) => option.label.trim().toLowerCase() === typed.toLowerCase())
   const describedBy =
     [help && id + "-help", error && id + "-error"].filter(Boolean).join(" ") ||
     undefined
@@ -148,11 +159,13 @@ export function SearchableSelect({
               ) : (
                 <>
                   {visibleOptions.length === 0 ? (
-                    <CommandGroup>
-                      <CommandItem disabled value="__no-results">
-                        {emptyText}
-                      </CommandItem>
-                    </CommandGroup>
+                    creatable ? null : (
+                      <CommandGroup>
+                        <CommandItem disabled value="__no-results">
+                          {emptyText}
+                        </CommandItem>
+                      </CommandGroup>
+                    )
                   ) : (
                     <CommandGroup>
                       {visibleOptions.map((option) => (
@@ -176,6 +189,24 @@ export function SearchableSelect({
                         </CommandItem>
                       ))}
                     </CommandGroup>
+                  )}
+                  {creatable && (
+                    <>
+                      {visibleOptions.length > 0 && <CommandSeparator />}
+                      <CommandGroup>
+                        <CommandItem
+                          value="__create"
+                          onSelect={() => {
+                            onCreate(typed)
+                            setOpen(false)
+                            onSearchChange("")
+                          }}
+                        >
+                          <PlusIcon />
+                          <span className="min-w-0 break-words">{createLabel(typed)}</span>
+                        </CommandItem>
+                      </CommandGroup>
+                    </>
                   )}
                 </>
               )}

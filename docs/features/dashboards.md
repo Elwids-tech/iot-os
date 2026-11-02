@@ -38,6 +38,10 @@ beside a live preview. The **Visualization** picker lists every other type and
 disables those that cannot show the selected data, with the reason. Panels that
 need no parameters (device health, GPS map, alerts, text) open the editor directly.
 From a device page, **Add to dashboard** opens the same suggestions for that device.
+Typing a new name in its Dashboard selector offers **New dashboard “name”** to people
+who may create dashboards; the dashboard is created together with its first panel, so
+cancelling creates nothing. The dialog stays open after each panel, marks parameters
+the chosen dashboard already shows, and closes with **Done**.
 
 Suggestions are deterministic and follow the profile: a parameter's
 `display.visualization` hint wins; writable parameters lead with Controls; boolean
