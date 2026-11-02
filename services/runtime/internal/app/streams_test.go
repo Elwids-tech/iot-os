@@ -71,7 +71,7 @@ func TestStreamCapacityExpansionPreservesMessages(t *testing.T) {
 	}
 }
 
-func TestEnsureStreamCompressesExistingStream(t *testing.T) {
+func TestEnsureStreamLeavesAnExistingStreamsEncoding(t *testing.T) {
 	url := os.Getenv("DEVICE_TEST_NATS_URL")
 	if url == "" {
 		t.Skip("Requires isolated test broker")
@@ -85,7 +85,7 @@ func TestEnsureStreamCompressesExistingStream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	name := "COMPRESSION_TEST_" + nats.NewInbox()[7:]
+	name := "ENCODING_TEST_" + nats.NewInbox()[7:]
 	cfg := &nats.StreamConfig{Name: name, Subjects: []string{name}, Storage: nats.FileStorage, Retention: nats.LimitsPolicy, MaxAge: 7 * 24 * time.Hour, MaxBytes: 1 << 20, Discard: nats.DiscardNew}
 	// A stream created before compression, holding a message.
 	if _, err = js.AddStream(cfg); err != nil {
@@ -100,16 +100,7 @@ func TestEnsureStreamCompressesExistingStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	info, err := js.StreamInfo(name)
-	if err != nil || info.Config.Compression != nats.S2Compression || info.State.Msgs != 1 || info.Config.MaxBytes != 1<<20 {
-		t.Fatal("stream was not compressed in place", info, err)
-	}
-	if _, err = js.Publish(name, []byte("written compressed")); err != nil {
-		t.Fatal(err)
-	}
-	for seq, want := range []string{"retain this message", "written compressed"} {
-		msg, err := js.GetMsg(name, uint64(seq+1))
-		if err != nil || string(msg.Data) != want {
-			t.Fatal(seq+1, msg, err)
-		}
+	if err != nil || info.Config.Compression != nats.NoCompression || info.State.Msgs != 1 {
+		t.Fatal("existing stream was changed", info, err)
 	}
 }

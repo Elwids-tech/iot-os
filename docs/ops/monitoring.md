@@ -119,7 +119,7 @@ Streams keep seven days with discard-new. Defaults reserve 12 GiB for telemetry 
 4 GiB each for runtime events and committed telemetry, plus 64 MiB for control,
 inside a 24 GiB store budget (`IOT_NATS_*_MAX_BYTES`, `IOT_NATS_STORE_MAX_BYTES`).
 These are upper bounds, not preallocated disk, and they count uncompressed bytes:
-streams are S2-compressed, so telemetry takes an eighth or less of its limit on disk.
+streams created with S2 compression hold telemetry in an eighth or less of that.
 Rendering rejects budgets without 10% headroom, and startup can grow but never shrink
 a stream. Metrics report the actual limits. Retired test consumers show as unmanaged backlog; do not delete them to hide
 a capacity incident. A full stream leaves new work in the database outboxes, and an

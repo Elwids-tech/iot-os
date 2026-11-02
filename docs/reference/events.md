@@ -14,8 +14,9 @@ Only the Go runtime connects to NATS; Laravel has no NATS client. Streams are
 created at runtime startup ([`internal/app/control.go`](../../services/runtime/internal/app/control.go),
 [`internal/app/committed.go`](../../services/runtime/internal/app/committed.go),
 [`internal/app/streams.go`](../../services/runtime/internal/app/streams.go)). All use
-file storage, limits retention, S2 compression, a **seven-day maximum age** and
-**discard-new**.
+file storage, limits retention, a **seven-day maximum age** and **discard-new**.
+Streams are created with S2 compression; streams created before it keep their
+encoding ([why](../dev/gotchas.md#nats-jetstream)).
 
 | Stream | Subjects | Carries | Byte limit (code default → Compose/release default) | Env var |
 | --- | --- | --- | --- | --- |
@@ -25,12 +26,12 @@ file storage, limits retention, S2 compression, a **seven-day maximum age** and
 | `IOT_COMMITTED_TELEMETRY` | `iot.committed.telemetry.v1` | Readings after they are stored | 768 MiB → 4 GiB | `IOT_NATS_COMMITTED_MAX_BYTES` |
 | `IOT_DEAD_LETTERS` | `iot.deadletter.<consumer>` | Messages a consumer could not process | | |
 
-Limits accept 1 MiB to 1 TiB and count uncompressed bytes; telemetry takes an eighth
-or less of its limit on disk. Startup may grow an existing stream's limit and turns on
-compression, but never shrinks it, changes retention or purges messages. The NATS
-server store budget is `IOT_NATS_STORE_MAX_BYTES` (24 GiB in the Devices overlay and
-release). When a stream is full, new work stays in the database outboxes; expired
-history needs reconciliation ([incident runbook](../ops/incident-runbook.md)).
+Limits accept 1 MiB to 1 TiB and count uncompressed bytes; compressed telemetry takes
+an eighth or less of its limit on disk. Startup may grow an existing stream's limit
+but never shrinks it, changes retention or purges messages. The NATS server store
+budget is `IOT_NATS_STORE_MAX_BYTES` (24 GiB in the Devices overlay and release).
+When a stream is full, new work stays in the database outboxes; expired history
+needs reconciliation ([incident runbook](../ops/incident-runbook.md)).
 
 | Consumer | Stream | Does |
 | --- | --- | --- |
