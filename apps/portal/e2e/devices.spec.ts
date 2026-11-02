@@ -185,6 +185,8 @@ async function setup(page: Page, options: Options = {}) {
     sorts: [] as string[],
     bindings: [...(options.bindings ?? [])],
     savedBindings: [] as Record<string, any>[],
+    dashboards: [structuredClone(dashboard), { ...structuredClone(dashboard), uuid: "other", name: "Other", widgets: [] }] as Record<string, any>[],
+    created: null as null | Record<string, any>,
   }
   page.on("pageerror", (error) => state.errors.push(error.message))
   page.on("console", (message) => {
@@ -387,12 +389,19 @@ async function setup(page: Page, options: Options = {}) {
             : [],
         meta: { current_page: 1, last_page: 1, total: 1 },
       })
-    if (path.endsWith(`/dashboards/${dashboardId}`) && request.method() === "PUT") {
+    const saving = state.dashboards.find((d) => path.endsWith(`/dashboards/${d.uuid}`))
+    if (saving && request.method() === "PUT") {
       state.saved = request.postDataJSON()
-      return json({ data: { ...dashboard, ...state.saved, revision: dashboard.revision + 1 } })
+      Object.assign(saving, state.saved, { revision: saving.revision + 1 })
+      return json({ data: saving })
     }
-    if (path.endsWith("/dashboards"))
-      return json({ data: [dashboard, { ...dashboard, uuid: "other", name: "Other", widgets: [] }] })
+    if (path.endsWith("/dashboards") && request.method() === "POST") {
+      state.created = request.postDataJSON()
+      const created = { ...dashboard, ...state.created, uuid: "new-dashboard", revision: 1 }
+      state.dashboards.push(created)
+      return json({ data: created }, 201)
+    }
+    if (path.endsWith("/dashboards")) return json({ data: state.dashboards })
     if (path.endsWith("/gateways"))
       return json({ data: [gateway], meta: { current_page: 1, last_page: 1, total: 1 } })
     if (path.endsWith("/sparkplug-connections"))
@@ -601,9 +610,50 @@ test("device overview leads with readings and links profile, gateway, dashboards
   expect(widget.config.sources.map((s: { label: string }) => s.label)).toEqual(["Voltage L1", "Voltage L2"])
   expect(widget.config.sources[0].device_uuid).toBe(meterId)
   expect(state.saved!.layouts.lg.map((item: { i: string }) => item.i)).toContain(widget.id)
-  await expect(page.getByRole("dialog", { name: "Add to dashboard" })).toHaveCount(0)
   await expect(page.getByText("Added to Energy overview")).toBeVisible()
+  // The dialog stays open to add more panels to the same dashboard.
+  await expect(add.getByRole("status")).toHaveText(
+    "Added Energy Meter Simulator · Time series to Energy overview. Choose more parameters to add another panel.",
+  )
+  await expect(add.getByRole("checkbox", { name: /^Voltage L2/ })).not.toBeChecked()
+  await expect(add.getByText("Voltage L2").locator("..")).toContainText("On dashboard")
+  await add.getByRole("button", { name: "Done" }).click()
+  await expect(page.getByRole("dialog", { name: "Add to dashboard" })).toHaveCount(0)
   await fitsPhone(page)
+  expect(state.errors).toEqual([])
+})
+
+test("add to dashboard creates a dashboard with the first panel and keeps adding to it", async ({ page }) => {
+  const state = await setup(page)
+  await page.goto(`${base}/devices/${meterId}`)
+  await page.getByRole("button", { name: "Add to dashboard", exact: true }).click()
+  const add = page.getByRole("dialog", { name: "Add to dashboard" })
+  await add.getByRole("combobox", { name: "Dashboard" }).click()
+  await page.getByRole("combobox", { name: "Search dashboard" }).fill("energy overview")
+  // An existing name, in any case, offers no create item.
+  await expect(page.getByRole("option", { name: "Energy overview" })).toBeVisible()
+  await expect(page.getByRole("option", { name: /New dashboard/ })).toHaveCount(0)
+  await page.getByRole("combobox", { name: "Search dashboard" }).fill("Meter A")
+  await page.getByRole("option", { name: "New dashboard “Meter A”" }).click()
+  await expect(add.getByRole("combobox", { name: "Dashboard" })).toHaveText("Meter A (new)")
+  await add.getByRole("checkbox", { name: /^Voltage L1/ }).click()
+  await add.getByRole("button", { name: "Create and add panel" }).click()
+  await expect.poll(() => state.created?.name).toBe("Meter A")
+  expect(state.created!.widgets).toHaveLength(1)
+  expect(state.created!.widgets[0].config.sources[0].device_uuid).toBe(meterId)
+  expect(state.created!.layouts.lg.map((item: { i: string }) => item.i)).toEqual([state.created!.widgets[0].id])
+  await expect(page.getByText("Created Meter A")).toBeVisible()
+  await expect(add.getByRole("combobox", { name: "Dashboard" })).toHaveText("Meter A")
+  await expect(add.getByRole("status")).toContainText("to Meter A")
+
+  await add.getByRole("checkbox", { name: /^Imported energy/ }).click()
+  await add.getByRole("button", { name: "Add panel" }).click()
+  await expect.poll(() => state.saved?.widgets.length).toBe(2)
+  expect(state.saved!.revision).toBe(1)
+  expect(state.saved!.name).toBe("Meter A")
+  await expect(add.getByRole("status")).toContainText("Added 2 panels to Meter A")
+  await add.getByRole("button", { name: "Done" }).click()
+  await expect(add).toHaveCount(0)
   expect(state.errors).toEqual([])
 })
 

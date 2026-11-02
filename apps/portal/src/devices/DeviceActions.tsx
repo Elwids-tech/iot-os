@@ -29,6 +29,7 @@ import { Input } from "@iot-os/ui/components/input"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
 import { RadioGroup, RadioGroupItem } from "@iot-os/ui/components/radio-group"
+import { CircleCheckIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { useUnsaved } from "../lib/unsaved"
 import {
@@ -42,7 +43,9 @@ import {
   appendLayout,
   appliedParameters,
   dashboardPath,
+  DEFAULT_VIEW,
 } from "../dashboards/model"
+import { useDashboardCapabilities } from "../dashboards/access"
 import type { DeviceOperation } from "./DeviceWorkspace"
 import { writableParameters } from "../controls/model"
 import { PANEL_LABELS } from "../dashboards/model"
@@ -219,6 +222,9 @@ export function EditDetails({
 }
 
 /** Adds a status panel with this device's parameters to a dashboard through the normal revisioned update. */
+// The selector value for a dashboard that is created with its first panel.
+const NEW_DASHBOARD = "__new"
+
 export function AddToDashboard({
   org,
   device,
@@ -233,16 +239,19 @@ export function AddToDashboard({
 }) {
   const cache = useQueryClient(),
     navigate = useNavigate()
+  const canCreate = useDashboardCapabilities(org).create
   const dashboards = useQuery({
     queryKey: ["dashboards", org],
     queryFn: () => api.dashboards(org),
   })
   const [search, setSearch] = useState(""),
     [selected, setSelected] = useState(""),
+    [newName, setNewName] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<unknown>(null),
     [chosen, setChosen] = useState<string[]>(initialParameters),
-    [type, setType] = useState<PanelType | "">("")
+    [type, setType] = useState<PanelType | "">(""),
+    [added, setAdded] = useState<{ dashboard: string; title: string }[]>([])
   const parameters = appliedParameters(device).slice(0, 100)
   const writable = new Set(writableParameters(device).map((p) => p.uuid))
   const candidates: Candidate[] = parameters
@@ -251,38 +260,65 @@ export function AddToDashboard({
   const suggestions = suggestPanels(candidates).slice(0, 3)
   const panelType = type && suggestions.some((s) => s.type === type) ? type : suggestions[0]?.type
   // Only dashboards this person may edit can take a new panel.
-  const options = (dashboards.data ?? [])
-    .filter((d) => d.abilities?.edit !== false && d.name.toLowerCase().includes(search.toLowerCase()))
+  const editable = (dashboards.data ?? []).filter((d) => d.abilities?.edit !== false)
+  const options = editable
+    .filter((d) => d.name.toLowerCase().includes(search.toLowerCase()))
     .map((d) => ({ value: d.uuid, label: d.name }))
+  const target = editable.find((d) => d.uuid === selected)
+  // This device's parameters the chosen dashboard already shows.
+  const shown = new Set(
+    target?.widgets.flatMap((w) =>
+      w.config.sources.filter((s) => s.device_uuid === device.uuid).map((s) => s.parameter_uuid),
+    ),
+  )
+  const addedHere = added.filter((a) => a.dashboard === selected)
   async function add() {
     if (!panelType) return
     setBusy(true)
     setError(null)
     try {
-      const fresh = await cache.fetchQuery({
-        queryKey: ["dashboards", org],
-        queryFn: () => api.dashboards(org),
-        staleTime: 0,
-      })
-      const dashboard = fresh.find((d: Dashboard) => d.uuid === selected)
-      if (!dashboard) throw new Error("This dashboard no longer exists.")
       const widget: DashboardWidget = panelFor(panelType, candidates)
-      await api.updateDashboard(org, dashboard.uuid, {
-        name: dashboard.name,
-        widgets: [...dashboard.widgets, widget],
-        layouts: appendLayout(dashboard.layouts, widget.id),
-        defaults: dashboard.defaults,
-        revision: dashboard.revision,
-      })
+      let dashboard: Dashboard
+      if (selected === NEW_DASHBOARD) {
+        dashboard = await api.createDashboard(org, {
+          name: newName,
+          widgets: [widget],
+          layouts: appendLayout({}, widget.id),
+          defaults: DEFAULT_VIEW,
+        })
+        // Further panels go to the dashboard just created.
+        setSelected(dashboard.uuid)
+        setNewName("")
+      } else {
+        const fresh = await cache.fetchQuery({
+          queryKey: ["dashboards", org],
+          queryFn: () => api.dashboards(org),
+          staleTime: 0,
+        })
+        const current = fresh.find((d: Dashboard) => d.uuid === selected)
+        if (!current) throw new Error("This dashboard no longer exists.")
+        dashboard = await api.updateDashboard(org, current.uuid, {
+          name: current.name,
+          widgets: [...current.widgets, widget],
+          layouts: appendLayout(current.layouts, widget.id),
+          defaults: current.defaults,
+          revision: current.revision,
+        })
+      }
+      cache.setQueryData<Dashboard[]>(["dashboards", org], (all) =>
+        all && [...all.filter((d) => d.uuid !== dashboard.uuid), dashboard],
+      )
       void cache.invalidateQueries({ queryKey: ["dashboards", org] })
       void cache.invalidateQueries({ queryKey: ["dashboard", org, dashboard.uuid] })
-      toast.success(`Added to ${dashboard.name}`, {
+      toast.success(`${selected === NEW_DASHBOARD ? "Created" : "Added to"} ${dashboard.name}`, {
         action: {
           label: "Open",
           onClick: () => navigate(dashboardPath(org, dashboard.uuid)),
         },
       })
-      onClose()
+      setAdded((list) => [...list, { dashboard: dashboard.uuid, title: widget.title }])
+      setChosen([])
+      setType("")
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 409) {
         void cache.invalidateQueries({ queryKey: ["dashboards", org] })
@@ -298,7 +334,7 @@ export function AddToDashboard({
   }
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add to dashboard</DialogTitle>
           <DialogDescription>
@@ -308,6 +344,28 @@ export function AddToDashboard({
         </DialogHeader>
         {parameters.length ? (
           <FieldGroup>
+            <SearchableSelect
+              label="Dashboard"
+              value={selected}
+              onChange={setSelected}
+              search={search}
+              onSearchChange={setSearch}
+              loading={dashboards.isLoading}
+              selectedLabel={selected === NEW_DASHBOARD ? `${newName} (new)` : undefined}
+              placeholder={canCreate && !editable.length ? "Name a new dashboard" : "Choose a dashboard"}
+              emptyText="No dashboards match."
+              help={canCreate ? "Type a new name to create a dashboard." : undefined}
+              options={options}
+              onCreate={
+                canCreate
+                  ? (name) => {
+                      setNewName(name.slice(0, 120))
+                      setSelected(NEW_DASHBOARD)
+                    }
+                  : undefined
+              }
+              createLabel={(name) => `New dashboard “${name}”`}
+            />
             <FieldSet>
               <FieldLegend variant="label">Parameters</FieldLegend>
               <ul className="flex max-h-48 flex-col overflow-auto rounded-md border p-1">
@@ -327,6 +385,9 @@ export function AddToDashboard({
                       <label htmlFor={id} className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-2">
                         <span className="truncate text-sm">{parameter.label}</span>
                         <span className="truncate font-mono text-xs text-muted-foreground">{parameter.unit ?? parameter.data_type}</span>
+                        {shown.has(parameter.uuid) && (
+                          <span className="ml-auto shrink-0 text-meta text-muted-foreground">On dashboard</span>
+                        )}
                       </label>
                     </li>
                   )
@@ -354,17 +415,18 @@ export function AddToDashboard({
                 </RadioGroup>
               </FieldSet>
             )}
-            <SearchableSelect
-              label="Dashboard"
-              value={selected}
-              onChange={setSelected}
-              search={search}
-              onSearchChange={setSearch}
-              loading={dashboards.isLoading}
-              placeholder="Choose a dashboard"
-              emptyText="No dashboards match."
-              options={options}
-            />
+            {addedHere.length > 0 && target && (
+              <p role="status" className="flex items-start gap-2 text-sm text-muted-foreground">
+                <CircleCheckIcon className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  {addedHere.length === 1 ? `Added ${addedHere[0].title}` : `Added ${addedHere.length} panels`} to{" "}
+                  <Link className="text-primary underline" to={dashboardPath(org, target.uuid)}>
+                    {target.name}
+                  </Link>
+                  . Choose more parameters to add another panel.
+                </span>
+              </p>
+            )}
           </FieldGroup>
         ) : (
           <p className="text-sm text-muted-foreground">
@@ -372,24 +434,16 @@ export function AddToDashboard({
             parameters to show yet.
           </p>
         )}
-        {dashboards.data?.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            No dashboards yet.{" "}
-            <Link className="text-primary underline" to={dashboardPath(org)}>
-              Create one
-            </Link>
-          </p>
-        )}
         <RequestError error={error ?? dashboards.error} />
         <DialogFooter>
           <Button variant="outline" disabled={busy} onClick={onClose}>
-            Cancel
+            {added.length ? "Done" : "Cancel"}
           </Button>
           <Button
             disabled={busy || !selected || !candidates.length || !panelType}
             onClick={add}
           >
-            {busy ? "Adding…" : "Add panel"}
+            {busy ? "Adding…" : selected === NEW_DASHBOARD ? "Create and add panel" : "Add panel"}
           </Button>
         </DialogFooter>
       </DialogContent>
