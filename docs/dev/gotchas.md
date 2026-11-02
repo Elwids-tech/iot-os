@@ -144,6 +144,12 @@ Things that have cost time before. Add to this list when something surprises you
   The activity feed returns details as a list of `{key, value}` text pairs instead, and
   its 200 body is described by hand in `contracts/openapi/supplements/activity.yaml`
   because Scramble reads values taken from a DTO's array properties as strings.
+- **A deployment's `status` is never `applied`.** `automation_deployments.status` is
+  `pending`, `succeeded` or `failed`; `applied` belongs to the workflow's and the
+  device's `deployment_status`. Many test fixtures still seed deployments with
+  `'status' => 'applied'`, which a real one never has, so a query that filters on it
+  passes its tests and finds nothing on a real database (the integration location
+  bindings did until this was fixed). Seed `succeeded` in new tests.
 
 ## Local stack
 

@@ -37,7 +37,7 @@ try {
         $latitude = (string) Str::uuid(); $longitude = (string) Str::uuid();
         $binding = ['schema_version' => 'location-binding.v1', 'uuid' => (string) Str::uuid(), 'revision' => 1, 'organization_uuid' => $org->uuid, 'device_uuid' => $devices[0]->uuid, 'configuration_uuid' => $configuration, 'generation' => 1, 'latitude_parameter_uuid' => $latitude, 'longitude_parameter_uuid' => $longitude, 'accuracy_parameter_uuid' => null, 'pairing' => 'same_event', 'max_age_seconds' => 3600, 'max_future_skew_seconds' => 30, 'allow_unknown_accuracy' => true];
         $definition = ['binding' => $binding, 'geometry' => ['type' => 'Polygon', 'coordinates' => [[[-115, 51], [-113, 51], [-113, 52], [-115, 52], [-115, 51]]]]];
-        $locationVersion = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $actor->id, 'created_at' => now(), 'generation' => 2, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('b', 64), 'definition' => $definition]);
+        $locationVersion = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $actor->id, 'created_at' => now(), 'generation' => 2, 'draft_revision' => 1, 'target' => 'active', 'status' => 'succeeded', 'definition_hash' => str_repeat('b', 64), 'definition' => $definition]);
         $gpsEvents = [];
         for ($index = 0; $index < 3; $index++) {
             $eventID = (string) Str::uuid(); $gpsEvents[] = $eventID;

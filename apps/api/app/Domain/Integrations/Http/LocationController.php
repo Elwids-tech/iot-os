@@ -21,9 +21,11 @@ final class LocationController
             ->whereIn('uuid', $request->attributes->get('integration_application')->device_uuids)
             ->where('uuid', $uuid)->firstOrFail();
 
+        // Every version the runtime applied, superseded and stopped ones included, so events
+        // from before a newer revision can still be read. Pending and failed versions are not listed.
         return Deployment::whereIn('automation_workflow_id', function ($query) use ($organization) {
             $query->select('id')->from('automation_workflows')->where('organization_id', $organization->id);
-        })->where('target', 'active')->where('status', 'applied')
+        })->where('target', 'active')->where('status', 'succeeded')
             ->where('definition->binding->device_uuid', $uuid)
             ->where('definition->binding->organization_uuid', $organization->uuid)
             ->where('definition->binding->schema_version', 'location-binding.v1');
