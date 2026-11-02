@@ -23,6 +23,10 @@ func streamCapacity(key string, fallback int64) (int64, error) {
 }
 
 func (a *Application) ensureStream(cfg *nats.StreamConfig) error {
+	// Runtime streams carry JSON that repeats its identifiers, so S2 shrinks each
+	// sealed block several-fold. Existing streams switch on startup; blocks
+	// written before keep their old encoding until they expire.
+	cfg.Compression = nats.S2Compression
 	existing, err := a.JS.StreamInfo(cfg.Name)
 	if err == nats.ErrStreamNotFound {
 		_, err = a.JS.AddStream(cfg)
@@ -40,8 +44,9 @@ func (a *Application) ensureStream(cfg *nats.StreamConfig) error {
 	if c.MaxBytes <= 0 {
 		return fmt.Errorf("%s requires an explicit migration to bounded capacity", cfg.Name)
 	}
-	if c.MaxBytes < cfg.MaxBytes {
-		c.MaxBytes = cfg.MaxBytes
+	if c.MaxBytes < cfg.MaxBytes || c.Compression != cfg.Compression {
+		c.MaxBytes = max(c.MaxBytes, cfg.MaxBytes)
+		c.Compression = cfg.Compression
 		_, err = a.JS.UpdateStream(&c)
 	}
 	return err

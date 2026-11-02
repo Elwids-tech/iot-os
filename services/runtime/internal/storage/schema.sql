@@ -50,15 +50,22 @@ CREATE INDEX IF NOT EXISTS observations_lookup ON device_runtime.observations (o
 CREATE INDEX IF NOT EXISTS observations_history_cursor ON device_runtime.observations (organization_uuid,device_uuid,parameter_uuid,received_at DESC,event_uuid DESC);
 -- Reporting (charts, state timelines, counter increase) uses observed time; raw records keep receipt order.
 CREATE INDEX IF NOT EXISTS observations_observed ON device_runtime.observations (organization_uuid,device_uuid,parameter_uuid,observed_at DESC);
--- Compress chunks after a week so long retention fits small disks. Segments
--- follow the reporting access path; ordering by observed time lets reports skip
--- compressed batches. Retention cleanup deletes compressed data by predicate.
+-- Compress chunks after two days so long retention fits small disks: a reading
+-- takes about 1 KB until then and about 55 bytes after. Chunks follow receipt
+-- time, so only a storage backlog older than two days inserts into compressed
+-- chunks, which TimescaleDB accepts more slowly. Segments follow the reporting
+-- access path; ordering by observed time lets reports skip compressed batches.
+-- Retention cleanup deletes compressed data by predicate.
 DO $$ BEGIN
  IF NOT (SELECT compression_enabled FROM timescaledb_information.hypertables WHERE hypertable_schema='device_runtime' AND hypertable_name='observations') THEN
   ALTER TABLE device_runtime.observations SET (timescaledb.compress, timescaledb.compress_segmentby = 'organization_uuid,device_uuid,parameter_uuid', timescaledb.compress_orderby = 'observed_at DESC, received_at DESC, event_uuid');
  END IF;
+ -- Older installs have a seven-day policy; replace it once.
+ IF NOT EXISTS (SELECT 1 FROM timescaledb_information.jobs WHERE proc_name='policy_compression' AND hypertable_schema='device_runtime' AND hypertable_name='observations' AND (config->>'compress_after')::interval = INTERVAL '2 days') THEN
+  PERFORM remove_compression_policy('device_runtime.observations', if_exists => true);
+  PERFORM add_compression_policy('device_runtime.observations', compress_after => INTERVAL '2 days');
+ END IF;
 END $$;
-SELECT add_compression_policy('device_runtime.observations', compress_after => INTERVAL '7 days', if_not_exists => true);
 CREATE TABLE IF NOT EXISTS device_runtime.latest (
  organization_uuid uuid NOT NULL, device_uuid uuid NOT NULL, configuration_uuid uuid NOT NULL, parameter_uuid uuid NOT NULL,
  received_at timestamptz NOT NULL, reading jsonb NOT NULL,

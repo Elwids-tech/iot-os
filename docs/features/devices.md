@@ -153,7 +153,7 @@ requests ([Sparkplug reference](../reference/sparkplug.md)).
   JavaScript's safe range produce diagnostics.
 - **Storage.** TimescaleDB keeps deduplicated history and durable latest state. A
   re-sent sample with the same source timestamp and value is stored once.
-  Observation chunks are compressed after seven days.
+  Observation chunks are compressed after two days.
 - **Time basis.** The portal's history endpoint always asks the runtime for
   observed time with configuration revisions of the same type and unit merged, so
   a backlog uploaded after an outage appears when it was measured. The runtime's

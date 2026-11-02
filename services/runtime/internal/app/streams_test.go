@@ -54,7 +54,7 @@ func TestStreamCapacityExpansionPreservesMessages(t *testing.T) {
 		t.Fatal(err)
 	}
 	info, err := js.StreamInfo(name)
-	if err != nil || info.State.Msgs != 1 || info.Config.MaxBytes != 2<<20 {
+	if err != nil || info.State.Msgs != 1 || info.Config.MaxBytes != 2<<20 || info.Config.Compression != nats.S2Compression {
 		t.Fatal(info, err)
 	}
 	cfg.MaxBytes = 1 << 20
@@ -68,5 +68,48 @@ func TestStreamCapacityExpansionPreservesMessages(t *testing.T) {
 	cfg.Discard = nats.DiscardOld
 	if err = a.ensureStream(cfg); err == nil {
 		t.Fatal("accepted incompatible discard policy")
+	}
+}
+
+func TestEnsureStreamCompressesExistingStream(t *testing.T) {
+	url := os.Getenv("DEVICE_TEST_NATS_URL")
+	if url == "" {
+		t.Skip("Requires isolated test broker")
+	}
+	nc, err := nats.Connect(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nc.Close()
+	js, err := nc.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "COMPRESSION_TEST_" + nats.NewInbox()[7:]
+	cfg := &nats.StreamConfig{Name: name, Subjects: []string{name}, Storage: nats.FileStorage, Retention: nats.LimitsPolicy, MaxAge: 7 * 24 * time.Hour, MaxBytes: 1 << 20, Discard: nats.DiscardNew}
+	// A stream created before compression, holding a message.
+	if _, err = js.AddStream(cfg); err != nil {
+		t.Fatal(err)
+	}
+	defer js.DeleteStream(name)
+	if _, err = js.Publish(name, []byte("retain this message")); err != nil {
+		t.Fatal(err)
+	}
+	a := &Application{JS: js}
+	if err = a.ensureStream(cfg); err != nil {
+		t.Fatal(err)
+	}
+	info, err := js.StreamInfo(name)
+	if err != nil || info.Config.Compression != nats.S2Compression || info.State.Msgs != 1 || info.Config.MaxBytes != 1<<20 {
+		t.Fatal("stream was not compressed in place", info, err)
+	}
+	if _, err = js.Publish(name, []byte("written compressed")); err != nil {
+		t.Fatal(err)
+	}
+	for seq, want := range []string{"retain this message", "written compressed"} {
+		msg, err := js.GetMsg(name, uint64(seq+1))
+		if err != nil || string(msg.Data) != want {
+			t.Fatal(seq+1, msg, err)
+		}
 	}
 }
