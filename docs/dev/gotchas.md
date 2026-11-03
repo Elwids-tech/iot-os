@@ -116,6 +116,21 @@ Things that have cost time before. Add to this list when something surprises you
   gateway and candidate on the connection unknown in Laravel; send it only when the
   broker connection is lost. Until 2026-10 every rejected packet sent it, so one edge
   needing a rebirth (after a runtime restart, say) blanked every device beside it.
+- **Any NBIRTH wipes the edge node's device registries.** `sparkplug.Engine.Accept`
+  starts a new session for every NBIRTH that is not an exact duplicate, so every DBIRTH
+  must follow it again. The embedded SDK re-queues every device on each NBIRTH.
+- **One `seq` counter per edge node.** NDATA, DBIRTH, DDATA and DDEATH share it, and a
+  gap takes the node offline until it rebirths. Send everything for one node through a
+  single serialised path (the SDK's lock).
+- **DDATA before its DBIRTH makes the runtime ask the whole node to rebirth.** That is
+  why the SDK's `iotos_commit` returns `IOTOS_PENDING_BIRTH` instead of sending.
+- **The broker grants only literal filters.** A gateway may subscribe to
+  `spBv1.0/<group>/NCMD/<edge>`, `…/DCMD/<edge>/+` and `spBv1.0/STATE/<host>`; a
+  per-device DCMD subscription is refused (`BrokerProvisioner`).
+- **Commands arrive by name and are confirmed by a later reading.** The runtime sends
+  NCMD/DCMD with the metric name, no alias, and counts a command done only when a live
+  reading of the mapped state shows the new value within 30 s. Firmware must publish
+  the new state after applying a command.
 
 - **`User` holds Passport tokens, not Sanctum's.** Passport and Sanctum both define a
   `HasApiTokens` trait with incompatible signatures, so a model can use only one,
@@ -634,3 +649,18 @@ Things that have cost time before. Add to this list when something surprises you
   (as `apps/docs` does with `astro`) instead of adding `minimumReleaseAgeExclude`.
 - **An empty Actions secret reads as an empty string, not unset.** Scripts that
   read optional secrets (`DOCS_DENYLIST`) treat `""` as unset.
+
+## Embedded SDK
+
+- **coreMQTT 2.3.1 reports an idle socket as success.** `MQTT_ProcessLoop` turns
+  `MQTTNoDataAvailable` into `MQTTSuccess`, so looping until it stops succeeding spins
+  until the deadline (forever on a frozen test clock). `mqtt_stream.c` stops once a pass
+  received no bytes and nothing is buffered.
+- **coreMQTT's time function takes no context.** `MQTTGetCurrentTimeFunc_t` is
+  `uint32_t (*)(void)`, so the SDK cannot reach its gateway from it without static
+  data. The clock port carries a context-free `monotonic_ms` for this, and the SDK uses
+  it for every interval.
+- **Bare-metal ARM enums are short.** `arm-none-eabi-gcc` defaults to `-fshort-enums`,
+  so an enum value can be one unsigned byte: `(int)type < 0` is always false and fails
+  `-Werror=type-limits`. Range-check enums as unsigned. The arm `iotos_size` build in CI
+  catches this; the desktop compilers do not.

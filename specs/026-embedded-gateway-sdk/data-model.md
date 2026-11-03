@@ -107,9 +107,11 @@ download is recorded in the activity log.
 | node | Health metric values, integrator node metrics, birth state |
 | types | Up to `IOTOS_MAX_DEVICE_TYPES` pointers to `const iotos_device_type` |
 | devices | Array of `IOTOS_MAX_DEVICES` device slots |
-| birth queue | Ring of slot indexes waiting for DBIRTH, plus the NBIRTH flag |
+| birth queue | The NBIRTH flag, and a cursor: births go to slots in the `birth_pending` state, found by scanning from it |
 | buffers | `IOTOS_TX_BUFFER` and `IOTOS_RX_BUFFER` bytes; the RX buffer is also coreMQTT's fixed buffer |
 | mqtt | coreMQTT's context, used at the stream level |
+| scratch | The topic being published, and the device ID and String value of the command being handled |
+| events | Up to 8 events waiting until the lock is released |
 
 The library has no other writable static data and never uses the heap.
 
@@ -117,12 +119,12 @@ The library has no other writable static data and never uses the heap.
 
 | Field | Size at defaults | Notes |
 | --- | --- | --- |
-| `id` | 24 bytes | Validated against `[A-Za-z0-9_.:-]`, unique per gateway |
+| `id` | 25 bytes | Up to 24 characters from `[A-Za-z0-9_.:-]` and a terminator, unique per gateway |
 | `type` | 1 byte | Index into `types` |
 | `state` | 1 byte | `free`, `offline`, `birth_pending`, `born` |
-| padding | 2 bytes | |
 
-About 28 bytes per device: 512 slots take about 14 KB.
+27 bytes per device: 512 slots take about 13.8 KB, and the whole `iotos_gateway` is
+19,760 bytes on a Cortex-M7.
 
 ### `iotos_device_type` (generated, `const`, in flash)
 

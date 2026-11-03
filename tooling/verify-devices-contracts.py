@@ -17,7 +17,8 @@ skipped: the HTTP API description and its tooling schemas have their own gate,
   cases and test files that mention its id.
 
 The repository-specific checks follow: the committed-telemetry negative cases, the
-configuration profile hash, the command expiry and the pinned Sparkplug proto hash.
+configuration profile hash, the command expiry, the pinned Sparkplug proto hash, and the
+embedded SDK's payload fixtures (every file present and listed in expected.json).
 """
 import argparse
 import hashlib
@@ -544,6 +545,37 @@ class Checker:
             "the SHA-256 of contracts/sparkplug/sparkplug_b.proto differs from this pin",
             lambda upstream: proto.is_file() and hashlib.sha256(proto.read_bytes()).hexdigest() == upstream["sha256"],
         )
+        self.check_sdk_fixtures()
+
+    # The embedded SDK's payloads, replayed by the runtime (TestSDKFixtures). Written by
+    # firmware/sdk/tools/fixtures.c; commands/ by the runtime's TestSDKCommandFixtures.
+    SDK_COMMAND_FIXTURES = ("ncmd-rebirth.bin", "dcmd-bool.bin", "dcmd-double.bin", "dcmd-string.bin")
+
+    def check_sdk_fixtures(self):
+        directory = self.contracts_root / "sparkplug/fixtures/sdk"
+        expected = self.report.read_json(directory / "expected.json")
+        if expected is None:
+            return
+        try:
+            listed = [message["file"] for message in expected["messages"]]
+        except (KeyError, TypeError) as error:
+            self.report.fail(directory / "expected.json", f"needs messages with a file each ({error!r})")
+            return
+        if len(set(listed)) != len(listed):
+            self.report.fail(directory / "expected.json", "lists a file twice")
+        for name in listed:
+            if not (directory / name).is_file():
+                self.report.fail(directory / "expected.json", f"lists {name}, which is missing")
+        present = {
+            path.relative_to(directory).as_posix()
+            for path in directory.rglob("*.bin")
+            if path.relative_to(directory).parts[0] != "commands"
+        }
+        for name in sorted(present - set(listed)):
+            self.report.fail(directory / name, "is not listed in expected.json")
+        for name in self.SDK_COMMAND_FIXTURES:
+            if not (directory / "commands" / name).is_file():
+                self.report.fail(directory / "commands" / name, "is missing; the runtime's TestSDKCommandFixtures -update writes it")
 
     def fact(self, relative, message, holds):
         path = self.contracts_root / relative

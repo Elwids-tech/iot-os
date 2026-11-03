@@ -25,7 +25,7 @@ diagnostics.
 ## 2. Portability and size
 
 ```bash
-cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE=firmware/sdk/cmake/arm-none-eabi.cmake && cmake --build .local/sdk-arm --target iotos_size
+cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE="$PWD/firmware/sdk/cmake/arm-none-eabi.cmake" && cmake --build .local/sdk-arm --target iotos_size
 ```
 
 Expected:

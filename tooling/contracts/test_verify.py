@@ -620,6 +620,23 @@ class Repository(unittest.TestCase):
         for directory in ("devices/v1", "events/v1", "location/v1", "rules/v1", "ingestion/v1", "internal"):
             self.assertIn(directory, output)
 
+    def test_an_unlisted_sdk_fixture_is_refused(self):
+        root = self.copy()
+        (root / "contracts/sparkplug/fixtures/sdk/stray.bin").write_bytes(b"\x08\x01")
+        status, output = self.run_main(root)
+        self.assertEqual(1, status)
+        self.assertIn("stray.bin", output)
+        self.assertIn("is not listed in expected.json", output)
+
+    def test_a_missing_sdk_fixture_is_named(self):
+        root = self.copy()
+        (root / "contracts/sparkplug/fixtures/sdk/ddeath.bin").unlink()
+        (root / "contracts/sparkplug/fixtures/sdk/commands/dcmd-bool.bin").unlink()
+        status, output = self.run_main(root)
+        self.assertEqual(1, status)
+        self.assertIn("lists ddeath.bin, which is missing", output)
+        self.assertIn("dcmd-bool.bin", output)
+
     def test_the_command_expiry_check_still_runs(self):
         root = self.copy()
         path = root / "contracts/devices/v1/command.fixture.json"

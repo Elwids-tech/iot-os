@@ -20,6 +20,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 - [Devices](features/devices.md): sources, onboarding, configuration, measurements, commands, telemetry viewer, retention
 - [Device profiles](features/device-profiles.md): parameters, revisions, units, conversions, calculations
 - [Device adapters](features/adapters.md): vendor MQTT devices through per-tenant runtimes
+- [Embedded SDK](features/embedded-sdk.md): the C library gateway and device firmware use to speak Sparkplug B
 - [Dashboards](features/dashboards.md): panels, charts, access and sharing
 - [Automation](features/automation.md): DAG automations, geofences, location
 - [Alerts and notifications](features/alerts.md): episodes, email, event log
@@ -90,5 +91,6 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 | [`deploy/monitoring`](../deploy/monitoring) | Local monitoring configuration |
 | [`deploy/ansible`](../deploy/ansible) | Release host provisioning |
 | [`tooling`](../tooling/README.md) | Bootstrap, doctor, test harnesses, verification scripts, simulators, release and monitoring tools |
-| [`firmware`](../firmware/waveshare-audio) | ESP-IDF firmware for the Waveshare board |
+| [`firmware/sdk`](../firmware/sdk/README.md) | The embedded SDK: portable C Sparkplug B library, ports, desktop simulator (MIT) |
+| [`firmware/waveshare-audio`](../firmware/waveshare-audio) | ESP-IDF firmware for the Waveshare board |
 | `docs` | This documentation. In-product help lives in [`apps/api/resources/help`](../apps/api/resources/help) |
