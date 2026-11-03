@@ -300,7 +300,8 @@ final class BulkOnboardingTest extends TestCase
     {
         $run = $this->start($this->input($this->sources(2)));
         $started = DB::table('activity_log')->where('event', 'device.bulk_onboarding.started')->firstOrFail();
-        $this->assertSame(['run_uuid' => $run['uuid'], 'profile_revision' => 1, 'count' => 2], json_decode($started->properties, true));
+        // PostgreSQL's jsonb does not keep key order, so compare without it.
+        $this->assertEquals(['run_uuid' => $run['uuid'], 'profile_revision' => 1, 'count' => 2], json_decode($started->properties, true));
         $this->assertSame($this->gateway->uuid, $started->subject_uuid);
         $finished = DB::table('activity_log')->where('event', 'device.bulk_onboarding.finished')->firstOrFail();
         $this->assertSame('succeeded', json_decode($finished->properties, true)['status']);
