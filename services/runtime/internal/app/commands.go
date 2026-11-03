@@ -111,7 +111,7 @@ func (a *Application) dispatch(c devices.Command) error {
 	if e != nil {
 		return fail("failed", e.Error())
 	}
-	raw, e := proto.Marshal(&pb.Payload{Timestamp: proto.Uint64(uint64(time.Now().UnixMilli())), Metrics: []*pb.Payload_Metric{metric}})
+	raw, e := commandPayload(metric, time.Now())
 	if e != nil {
 		return fail("failed", e.Error())
 	}
@@ -180,6 +180,12 @@ func (a *Application) observe(telemetry devices.Telemetry) {
 }
 
 // Persist decisions before removing them from memory. Failed writes are retried, never sends.
+// commandPayload is the NCMD/DCMD payload for one metric, stamped at. Commands carry the
+// metric's name, never an alias, so devices match them by name.
+func commandPayload(metric *pb.Payload_Metric, at time.Time) ([]byte, error) {
+	return proto.Marshal(&pb.Payload{Timestamp: proto.Uint64(uint64(at.UnixMilli())), Metrics: []*pb.Payload_Metric{metric}})
+}
+
 func (a *Application) expireCommands() {
 	type outcome struct {
 		command            *pendingCommand

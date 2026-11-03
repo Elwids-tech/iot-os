@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MIT
+# Regenerates the SDK fixtures into SCRATCH and compares them with the committed files.
+# The runtime's command fixtures (commands/) come from the Go side and are skipped.
+file(REMOVE_RECURSE "${SCRATCH}")
+execute_process(COMMAND "${GENERATOR}" "${SCRATCH}" RESULT_VARIABLE result OUTPUT_QUIET)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "iotos_fixtures failed")
+endif()
+file(GLOB_RECURSE generated RELATIVE "${SCRATCH}" "${SCRATCH}/*")
+file(GLOB_RECURSE committed RELATIVE "${COMMITTED}" "${COMMITTED}/*")
+list(FILTER committed EXCLUDE REGEX "^commands/")
+list(SORT generated)
+list(SORT committed)
+if(NOT generated STREQUAL committed)
+  message(FATAL_ERROR "The committed SDK fixtures differ from the generated set. Regenerate them with iotos_fixtures.")
+endif()
+foreach(name IN LISTS generated)
+  execute_process(COMMAND ${CMAKE_COMMAND} -E compare_files "${SCRATCH}/${name}" "${COMMITTED}/${name}" RESULT_VARIABLE differs)
+  if(differs)
+    message(FATAL_ERROR "${name} differs from the committed fixture. Regenerate them with iotos_fixtures.")
+  endif()
+endforeach()

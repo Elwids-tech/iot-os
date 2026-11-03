@@ -270,9 +270,14 @@ func (a *Application) requestRebirth(connection, group, edge string) {
 	delete(a.rebirthPending, key)
 	a.rebirth[key] = time.Now()
 	a.mu.Unlock()
+	b.Client.Publish("spBv1.0/"+group+"/NCMD/"+edge, 0, false, rebirthPayload(time.Now()))
+}
+
+// rebirthPayload is the NCMD that asks an edge node for every birth again, stamped at.
+func rebirthPayload(at time.Time) []byte {
 	metric := &pb.Payload_Metric{Name: proto.String("Node Control/Rebirth"), Datatype: proto.Uint32(uint32(pb.DataType_Boolean)), Value: &pb.Payload_Metric_BooleanValue{BooleanValue: true}}
-	raw, _ := proto.Marshal(&pb.Payload{Timestamp: proto.Uint64(uint64(time.Now().UnixMilli())), Metrics: []*pb.Payload_Metric{metric}})
-	b.Client.Publish("spBv1.0/"+group+"/NCMD/"+edge, 0, false, raw)
+	raw, _ := proto.Marshal(&pb.Payload{Timestamp: proto.Uint64(uint64(at.UnixMilli())), Metrics: []*pb.Payload_Metric{metric}})
+	return raw
 }
 func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 	received := time.Now().UTC()

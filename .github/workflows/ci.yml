@@ -291,6 +291,37 @@ jobs:
       # The live Mosquitto and Node-RED protocol test stays in the release workflow.
       - run: npm test --prefix services/adapters
 
+  sdk:
+    name: Embedded SDK (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # mbedTLS and Unity, pinned by hash in firmware/sdk/CMakeLists.txt.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/fetchcontent
+          key: sdk-fetchcontent-${{ matrix.compiler }}-${{ hashFiles('firmware/sdk/CMakeLists.txt') }}
+      - name: Build and test with AddressSanitizer and UBSan
+        env:
+          CC: ${{ matrix.compiler }}
+        run: |
+          cmake -S firmware/sdk -B .local/sdk-build -DIOTOS_SANITIZE=ON -DFETCHCONTENT_BASE_DIR="$PWD/.local/fetchcontent"
+          cmake --build .local/sdk-build -j"$(nproc)"
+          ctest --test-dir .local/sdk-build --output-on-failure
+      # The board's compiler: fails on -Werror, a gateway over 32 KiB, static data or heap use.
+      - name: Cross-compile for the Cortex-M7 and check its size
+        if: matrix.compiler == 'gcc'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-arm-none-eabi libnewlib-arm-none-eabi
+          cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE=firmware/sdk/cmake/arm-none-eabi.cmake
+          cmake --build .local/sdk-arm --target iotos_size
+
   tooling:
     name: Tooling (Python)
     runs-on: ubuntu-latest

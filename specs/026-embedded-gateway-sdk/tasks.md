@@ -50,21 +50,21 @@ home paths.
   - `README.md`: what the SDK is, the ports, and how to build.
   - `THIRD_PARTY.md`: coreMQTT (MIT, vendored, with its tag), mbedTLS 3.x (Apache-2.0, desktop and board ports) and Unity (MIT, tests only).
   - Every `.c` and `.h` file starts with `SPDX-License-Identifier: MIT`.
-- [ ] T006 [P] Vendor coreMQTT's pinned release (its `source/` folder and `LICENSE`, no tests or docs) into `firmware/sdk/third_party/coreMQTT/` (R3).
-- [ ] T007 `firmware/sdk/CMakeLists.txt`:
+- [x] T006 [P] Vendor coreMQTT's pinned release (its `source/` folder and `LICENSE`, no tests or docs) into `firmware/sdk/third_party/coreMQTT/` (R3).
+- [x] T007 `firmware/sdk/CMakeLists.txt`:
   - A C99 `iotos` library holding the core `src/*.c` and the vendored coreMQTT, built with `-Wall -Wextra -Werror` on gcc and clang.
   - An `IOTOS_SANITIZE` option that adds ASan and UBSan.
   - An `iotos_posix` library.
   - mbedTLS 3.x and Unity through `FetchContent`, pinned by tag and `URL_HASH`.
   - Tests registered with CTest. Builds go under `.local/`.
-- [ ] T008 [P] `firmware/sdk/cmake/arm-none-eabi.cmake`:
+- [x] T008 [P] `firmware/sdk/cmake/arm-none-eabi.cmake`:
   - The toolchain uses `-mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -std=c99 -Wall -Wextra -Werror`.
   - An `iotos_size` target prints `sizeof(iotos_gateway)` and the `.text`/`.data`/`.bss` sizes.
   - `iotos_size` fails in any of these cases, using `arm-none-eabi-size` and `arm-none-eabi-nm` on `libiotos.a` (the core and coreMQTT):
     - `sizeof(iotos_gateway)` exceeds 32768 bytes with `IOTOS_MAX_DEVICES=512` (SC-003);
     - the library has any `.data` or `.bss`, so all state is inside `iotos_gateway`;
     - it references `malloc`, `calloc`, `realloc` or `free` (FR-005).
-- [ ] T009 Public headers in `firmware/sdk/include/iotos/`, exactly as in [sdk-c-api](contracts/sdk-c-api.md):
+- [x] T009 Public headers in `firmware/sdk/include/iotos/`, exactly as in [sdk-c-api](contracts/sdk-c-api.md):
   - `iotos_config_defaults.h`: each limit guarded by `#ifndef`:
     - `IOTOS_MAX_DEVICES 512`, `IOTOS_MAX_DEVICE_TYPES 8`, `IOTOS_MAX_METRICS_PER_TYPE 64`
     - `IOTOS_DEVICE_ID_MAX 24`, `IOTOS_TX_BUFFER 4096`, `IOTOS_RX_BUFFER 1024`
@@ -76,16 +76,16 @@ home paths.
   - `iotos_ports.h`: the stream, mqtt, clock, storage, log and lock ports, and `iotos_ports`. A comment says port structures only gain members at the end and `NULL` means unsupported, so ports should use designated initialisers (FR-030).
   - `iotos_health.h`: the eight health metric names as `IOTOS_HEALTH_*` string constants (data model § Gateway health profile).
   - `iotos.h`: lifecycle, devices, writer, health setters, callbacks, `iotos_status_text` and `iotos_mqtt_inbound`. The callback comments state the threading rules from [sdk-c-api](contracts/sdk-c-api.md#callbacks): what each callback may call, and which hold the lock.
-- [ ] T010 Streaming writer in `src/codec.c` and `src/codec.h` (internal) (R2):
+- [x] T010 Streaming writer in `src/codec.c` and `src/codec.h` (internal) (R2):
   - **Layout:** fields go in field-number order (payload `timestamp`, `metrics`, then `seq`), as Python protobuf serialises them. Length prefixes are reserved and patched.
   - **Metrics:** name, alias, timestamp, datatype, `is_null`, and a value for Boolean, Int8–64, UInt8–64, Float, Double, String, DateTime and Bytes.
   - **Value checks:** finite numbers, 64-bit integers within ±2^53, UInt8/16 in range, strings at most 64 KiB. A failure returns `IOTOS_E_INVALID`.
   - **Buffer:** overflowing the buffer returns `IOTOS_E_TOO_LARGE` and never truncates.
-- [ ] T011 Streaming reader in `src/codec.c`:
+- [x] T011 Streaming reader in `src/codec.c`:
   - Decodes an NCMD/DCMD payload one metric at a time into a callback: name, alias, datatype, `is_null`, value.
   - Bounded by `IOTOS_RX_BUFFER`.
   - Rejects bad varints, lengths past the end, and unknown wire types without reading out of bounds.
-- [ ] T012 `tests/test_codec.c`:
+- [x] T012 `tests/test_codec.c`:
   - Reproduces `contracts/sparkplug/fixtures/{nbirth,dbirth-meter,ddata-alias,ndeath}.bin` byte for byte, with `TIME=1712345000000` from `tooling/simulators/write_fixtures.py`.
   - Decodes `dcmd-light.bin`.
   - Round-trips every datatype and covers each value-check failure.
@@ -100,7 +100,7 @@ home paths.
 
 **Independent test**: `ctest` session tests pass under the sanitizers; in PR 2, the desktop port connects to the local stack (quickstart 3).
 
-- [ ] T013 [US1] `src/mqtt_stream.c`: coreMQTT over `iotos_stream_port` (R3):
+- [x] T013 [US1] `src/mqtt_stream.c`: coreMQTT over `iotos_stream_port` (R3):
   - **Transport:** `send`/`recv` mapped to coreMQTT's transport interface, with partial reads and writes handled.
   - **Connect:**
     - MQTT 3.1.1, clean session.
@@ -111,7 +111,7 @@ home paths.
   - **Refusals:** CONNACK codes 4 and 5 map to `IOTOS_E_AUTH`.
   - **Inbound:** messages go through the same path as `iotos_mqtt_inbound`.
   - **Memory:** coreMQTT's context and fixed buffer (the RX buffer) live in `iotos_gateway`; nothing is static.
-- [ ] T014 [US1] `src/session.c` (R8, data model § Session states):
+- [x] T014 [US1] `src/session.c` (R8, data model § Session states):
   - **States:** `disconnected → waiting_for_host → birthing → online`.
   - **bdSeq:**
     - Kept modulo 256 and incremented before each connect.
@@ -123,25 +123,25 @@ home paths.
   - **Back-off:** starts at 1 s and doubles to a 300 s cap, with ±20% jitter. `on_event` reports authentication failures separately from transport failures.
   - **Takeover:** a session takeover is reported when the broker closes the connection within 10 s of connecting three times in five minutes.
   - **Clock:** births are held while the clock is invalid. `IOTOS_E_CLOCK` is reported after `IOTOS_CLOCK_WAIT_S`, then every minute.
-  - **Calls:** `iotos_poll` returns within `budget_ms`. `iotos_stop` publishes NDEATH, then disconnects.
+  - **Calls:** `iotos_poll` returns within `budget_ms`, except that a connection attempt may block for up to `IOTOS_CONNECT_TIMEOUT_MS`. `iotos_stop` publishes NDEATH, then disconnects.
   - **Lock:** `iotos_poll` takes the lock only around its own state changes and sends, and releases it before calling `on_command` or `on_event`. `on_birth` runs with the lock held. The lock is never taken twice by one task, so a non-recursive mutex works.
-- [ ] T015 [US1] `src/health.c`: fills the default health metrics by their `iotos_health.h` names when the node type contains them:
+- [x] T015 [US1] `src/health.c`: fills the default health metrics by their `iotos_health.h` names when the node type contains them:
   - **From the SDK:** `uptime` (integer, seconds since `iotos_start`), `sdk_version` (from `VERSION`), `devices_configured`, `devices_online` and `reconnects`.
   - **From the setters:** `iotos_set_firmware_version` gives `firmware_version`. `iotos_set_connection` gives `connection_type` (`ethernet`, `wifi`, `cellular` or `other`) and `signal_strength` (null when `has_signal` is false).
   - **When:** in every NBIRTH, and as NDATA every `IOTOS_HEALTH_INTERVAL_S`.
   - **Names only:** `bdSeq` and `Node Control/Rebirth` are added to the NBIRTH by name, without aliases.
-- [ ] T016 [P] [US1] Desktop ports in `ports/posix/`, with `iotos_posix.h` declaring `iotos_posix_ports_init()`:
+- [x] T016 [P] [US1] Desktop ports in `ports/posix/`, with `iotos_posix.h` declaring `iotos_posix_ports_init()`:
   - `stream_mbedtls.c`: mbedTLS over BSD sockets, with SNI, hostname verification, the settings CA, and recv timeouts.
   - `clock.c`: `clock_gettime(CLOCK_REALTIME)`, valid once it is after 2024-01-01 (`1704067200000`).
   - `storage_file.c`: one file per key in a directory, written to a temporary file and renamed.
   - `log.c` (stderr) and `lock.c` (pthread mutex).
-- [ ] T017 [P] [US1] Test doubles in `tests/support/`:
+- [x] T017 [P] [US1] Test doubles in `tests/support/`:
   - `fake_mqtt_port.c`: records topics, payloads, QoS and retain, and accepts injected inbound messages.
   - `fake_stream.c`: a scripted MQTT broker at the byte level.
-  - `fake_clock.c` and `fake_storage.c`.
-  - `fake_lock.c`: a non-recursive lock that fails the test when one task takes it twice.
+  - `fakes.c`: the clock, storage and log doubles, and a non-recursive lock that fails the test when one task takes it twice.
+  - `harness.c`: a gateway on either port level with sample types and recorded callbacks.
   - `decode.c`: decodes recorded payloads for assertions.
-- [ ] T018 [US1] `tests/test_session.c` (fake MQTT port):
+- [x] T018 [US1] `tests/test_session.c` (fake MQTT port):
   - The will carries the current `bdSeq`; `bdSeq` increments and persists across `iotos_init` through the fake storage.
   - Nothing is published before STATE online.
   - The NBIRTH has seq 0, followed by the queued DBIRTHs.
@@ -153,7 +153,7 @@ home paths.
   - An invalid clock holds births and reports `IOTOS_E_CLOCK` after the wait.
   - An `on_event` handler that publishes NDATA succeeds with `fake_lock`.
   - `iotos_stop` publishes NDEATH.
-- [ ] T019 [P] [US1] `tests/test_mqtt_stream.c` (fake stream):
+- [x] T019 [P] [US1] `tests/test_mqtt_stream.c` (fake stream):
   - The CONNECT packet has the client ID, clean session, keepalive, and the will's topic, payload, QoS 1 and retain off.
   - SUBSCRIBE carries exactly the three filters.
   - CONNACK 5 returns `IOTOS_E_AUTH`.
@@ -167,7 +167,7 @@ home paths.
 
 **Independent test**: `ctest -R 'devices|writer|commands|size'`, covering 500 devices of two types, limits, offline devices and commands.
 
-- [ ] T020 [US2] `src/devices.c` (data model § Device slot):
+- [x] T020 [US2] `src/devices.c` (data model § Device slot):
   - **Slots:**
     - `id`: up to `IOTOS_DEVICE_ID_MAX` characters from `[A-Za-z0-9_.:-]`, unique per gateway.
     - `type`: an index into the registered types.
@@ -176,8 +176,8 @@ home paths.
   - **`iotos_device_add`:** returns `IOTOS_E_DUPLICATE`, `IOTOS_E_INVALID` (bad ID or unregistered type) or `IOTOS_E_FULL`, and leaves other devices untouched.
   - **Offline and remove:** `iotos_device_offline` sends a DDEATH and moves the device to `offline`. `iotos_device_remove` sends a DDEATH and frees the slot.
   - **Aliases:** `((slot + 1) << 16) | metric_index`. Node metrics use `index + 1` (R9).
-  - **Birth queue:** a ring of slot indexes.
-- [ ] T021 [US2] `src/writer.c`:
+  - **Birth queue:** births go to `birth_pending` slots, found by scanning from a cursor (no ring to keep consistent with removals).
+- [x] T021 [US2] `src/writer.c`:
   - **API:** `iotos_begin`, `iotos_put_*`, `iotos_put_at`, `iotos_commit` and `iotos_abort`.
   - **Lock:** held from begin until commit or abort, and only one writer is open at a time.
   - **Values:** metrics are found by name in the device's type. Each put checks the datatype and narrows integers with a range check.
@@ -187,11 +187,11 @@ home paths.
     - A `birth_pending` device returns `IOTOS_PENDING_BIRTH` and sends nothing.
     - An `offline` device moves to `birth_pending` and is queued.
   - **Births:** a birth writer gives every type metric its name and alias. Metrics `on_birth` did not fill go as nulls with their datatype.
-- [ ] T022 [US2] Paced births in `src/session.c`:
+- [x] T022 [US2] Paced births in `src/session.c`:
   - `iotos_poll` drains the birth queue at `IOTOS_BIRTHS_PER_SECOND`, NBIRTH first.
   - A birth that exceeds `IOTOS_TX_BUFFER`, or the MQTT port's `max_payload`, is reported through `on_event` with `IOTOS_E_TOO_LARGE`, naming the device type. The SDK moves on to the next birth.
   - Every NBIRTH moves each `born` or `birth_pending` slot back to `birth_pending`.
-- [ ] T023 [US2] `src/commands.c` (R9):
+- [x] T023 [US2] `src/commands.c` (R9):
   - **Decoding:** NCMD and DCMD are decoded with the reader. The device comes from the topic, and metrics are matched by name, never by alias.
   - **Rejections:** each is reported through `on_event` and the log port, and never applied:
     - an unknown device, or one that is `offline` or not yet born;
@@ -199,7 +199,7 @@ home paths.
     - a wrong datatype, or a value failing the range checks.
   - **Valid commands:** `on_command` is called on the poll task with the lock released, so it can publish the new state straight away.
   - **Rebirth:** `Node Control/Rebirth` is handled inside the SDK.
-- [ ] T024 [P] [US2] `tests/test_devices.c` and `tests/test_writer.c`:
+- [x] T024 [P] [US2] `tests/test_devices.c` and `tests/test_writer.c`:
   - 500 devices of two types are born in order at the configured rate.
   - Aliases are unique across the node.
   - Limit, duplicate and invalid-ID errors leave other devices untouched.
@@ -208,14 +208,14 @@ home paths.
   - Unfilled metrics are nulls.
   - Writer datatype and range errors are returned.
   - `iotos_put_at` timestamps are used.
-- [ ] T025 [P] [US2] `tests/test_commands.c`:
+- [x] T025 [P] [US2] `tests/test_commands.c`:
   - A valid DCMD reaches `on_command`.
   - An `on_command` that publishes the new state inside the callback succeeds with `fake_lock`, and the DDATA follows.
   - Each rejection case in T023 is reported and never applied.
   - A retained DCMD is ignored.
   - A command for an offline device is rejected.
   - `dcmd-light.bin` decodes into the callback.
-- [ ] T026 [P] [US2] `tests/test_size.c`: a quick desktop check that `sizeof(iotos_gateway)` is 32768 bytes or less with `IOTOS_MAX_DEVICES=512` and the other defaults. Pointer sizes differ on the desktop, so SC-003 and FR-005 are judged by the arm `iotos_size` target (T008).
+- [x] T026 [P] [US2] `tests/test_size.c`: a quick desktop check that `sizeof(iotos_gateway)` is 32768 bytes or less with `IOTOS_MAX_DEVICES=512` and the other defaults. Pointer sizes differ on the desktop, so SC-003 and FR-005 are judged by the arm `iotos_size` target (T008).
 
 ### Phase 5: User Story 3, pluggable network (P1)
 
@@ -223,11 +223,11 @@ home paths.
 
 **Independent test**: `ctest -R ports` gives identical message sequences at both levels.
 
-- [ ] T027 [US3] MQTT-port level in `src/session.c`:
+- [x] T027 [US3] MQTT-port level in `src/session.c`:
   - With `ports.mqtt` set, the session uses it: connect with the will, publish, subscribe, and `poll` delivering through `iotos_mqtt_inbound`. Nothing above the transport changes.
   - `iotos_init` returns `IOTOS_E_INVALID` unless exactly one of `stream` and `mqtt` is set.
   - `max_payload` is enforced as in T022.
-- [ ] T028 [P] [US3] Port templates in `ports/templates/` (FR-014):
+- [x] T028 [P] [US3] Port templates in `ports/templates/` (FR-014):
   - **Templates:** `stream-template.c`, `clock-template.c`, `storage-template.c`, `log-template.c` and `lock-template.c`.
   - **Annotations:** each spells out its port's contract for every function: return values, timeouts and error handling, plus:
     - partial I/O, and where the CA and hostname check belong (stream);
@@ -235,7 +235,7 @@ home paths.
     - atomic writes and missing keys (storage);
     - why the lock must not be recursive (lock).
   - **Check:** a CTest compiles each template with `-fsyntax-only` against `iotos_ports.h`, so they stay in step with the headers.
-- [ ] T029 [US3] `tests/test_ports.c`: one scripted session runs once over `fake_stream` with coreMQTT and once over `fake_mqtt_port`.
+- [x] T029 [US3] `tests/test_ports.c`: one scripted session runs once over `fake_stream` with coreMQTT and once over `fake_mqtt_port`.
   - The topics, payloads, QoS and retain flags are identical at both levels.
   - A `max_payload` smaller than a birth is reported with the type named.
 
@@ -245,13 +245,13 @@ home paths.
 
 **Independent test**: `ctest -R simulator` passes the 500-device self-test.
 
-- [ ] T030 [US7] `examples/desktop-simulator/` (`CMakeLists.txt`, `main.c`):
+- [x] T030 [US7] `examples/desktop-simulator/` (`CMakeLists.txt`, `main.c`):
   - **Paths:** `IOTOS_SDK_DIR` defaults to `../../sdk` when it exists (a kit), otherwise the repository's `firmware/sdk`. The config directory defaults to `../../config` when it exists, otherwise `sample-config/`.
   - **Options:**
     - `--devices <type>=<count>` (repeatable)
     - `--interval <s>` (default 10)
-    - `--state-file <path>` (`bdSeq` storage)
-    - `--rate <births/s>`
+    - `--state-file <path>` (`bdSeq` storage, a directory)
+    - The birth rate is the compile-time `IOTOS_BIRTHS_PER_SECOND`, so there is no `--rate`.
   - **Devices:** IDs are `sim-<type>-<nnn>`.
   - **Values:**
     - booleans toggle and strings read `sim-<n>`;
@@ -260,16 +260,16 @@ home paths.
   - **Commands:** applied, then the new state is published from inside `on_command`.
   - **Direct kits:** with `IOTOS_KIT_GATEWAY 0`, it generates values for the node type's own metrics and refuses `--devices`.
   - **Stop:** SIGINT calls `iotos_stop`.
-- [ ] T031 [P] [US7] `examples/desktop-simulator/sample-config/`: hand-written `iotos_settings.{h,c}`, `iotos_types.h`, `iotos_type_gateway_health.h` and `iotos_type_water_meter.h`.
+- [x] T031 [P] [US7] `examples/desktop-simulator/sample-config/`: hand-written `iotos_settings.{h,c}`, `iotos_types.h`, `iotos_type_gateway_health.h` and `iotos_type_water_meter.h`.
   - Placeholder values: `mqtt.example.test`, port 8883, dummy credentials and `IOTOS_KIT_GATEWAY 1`.
   - The same shapes a kit generates ([kit-layout](contracts/kit-layout.md)).
-- [ ] T032 [US7] `--selftest` mode in `examples/desktop-simulator/main.c`, registered with CTest:
+- [x] T032 [US7] `--selftest` mode in `examples/desktop-simulator/main.c`, registered with CTest:
   - Runs the simulator in-process against `tests/support/fake_mqtt_port.c` with 500 devices of two types.
   - Asserts an NBIRTH followed by 500 DBIRTHs in seq order, then data.
 
 ### Phase 7: Contract fixtures, CI and docs (PR 1)
 
-- [ ] T033 `tools/fixtures.c` and an `iotos_fixtures` CMake target:
+- [x] T033 `tools/fixtures.c` and an `iotos_fixtures` CMake target:
   - Drives the real session against the fake port with a fixed clock (`TIME=1712345000000`).
   - Writes `contracts/sparkplug/fixtures/sdk/`:
     - `nbirth-gateway.bin`, `ndata-health.bin`, `dbirth-water-meter.bin`
@@ -277,22 +277,22 @@ home paths.
     - `all-datatypes.bin`, and a `seq-wrap/` series of 260 messages
   - Writes `expected.json`: per file, the topic, decoded values, aliases and seq.
   - A CTest regenerates the fixtures into a temporary directory and compares them with the committed files.
-- [ ] T034 Commit the generated `contracts/sparkplug/fixtures/sdk/` files. Extend `tooling/verify-devices-contracts.py` to check that every file is present and listed in `expected.json`.
-- [ ] T035 [P] Runtime command fixtures (R11):
+- [x] T034 Commit the generated `contracts/sparkplug/fixtures/sdk/` files. Extend `tooling/verify-devices-contracts.py` to check that every file is present and listed in `expected.json`.
+- [x] T035 [P] Runtime command fixtures (R11):
   - **Helpers:** extract `commandPayload(metric, ts)` from the inline `proto.Marshal` in `services/runtime/internal/app/commands.go:114`, and `rebirthPayload(ts)` from `services/runtime/internal/app/application.go:273`. The runtime calls them with the current time; there is no behaviour change, and the existing runtime tests pass unchanged.
   - **Test:** `services/runtime/internal/app/sdk_command_fixtures_test.go`:
     - With `-update`, it writes `contracts/sparkplug/fixtures/sdk/commands/{ncmd-rebirth,dcmd-bool,dcmd-double,dcmd-string}.bin` through the helpers, using `sparkplug.EncodeMetric` and `TIME=1712345000000`.
     - Without `-update`, it asserts the committed files match.
   - **C side:** extend `tests/test_commands.c` to decode them.
-- [ ] T036 [P] `services/runtime/internal/sparkplug/sdk_fixtures_test.go` `TestSDKFixtures`:
+- [x] T036 [P] `services/runtime/internal/sparkplug/sdk_fixtures_test.go` `TestSDKFixtures`:
   - Replays the fixtures in order through the session with the pinned Tahu protobuf.
   - Asserts the values and aliases in `expected.json`, zero diagnostics, the seq wrap accepted, and the NDEATH `bdSeq` matching the NBIRTH.
-- [ ] T037 `.github/workflows/ci.yml` `sdk` job, with actions pinned by SHA like the other jobs:
+- [x] T037 `.github/workflows/ci.yml` `sdk` job, with actions pinned by SHA like the other jobs:
   - A `{gcc, clang}` matrix on `ubuntu-latest`: CMake with `-DIOTOS_SANITIZE=ON`, build, `ctest --output-on-failure`.
   - A cross-compile step: install `gcc-arm-none-eabi` from apt, configure with the toolchain file, build `iotos_size`.
   - Cache the `FetchContent` downloads.
   - The existing `runtime` job already runs the new Go tests.
-- [ ] T038 [P] Documentation:
+- [x] T038 [P] Documentation:
   - `docs/features/embedded-sdk.md`, SDK part:
     - architecture, ports and templates, limits, wire rules, building and testing;
     - threading: which callbacks hold the lock, and publishing from `on_command`;
@@ -306,7 +306,7 @@ home paths.
     - DDATA before its DBIRTH triggers a rebirth;
     - the broker grants only literal filters;
     - commands arrive by name and are confirmed by a later state reading.
-- [ ] T039 Check PR 1 and open it:
+- [x] T039 Check PR 1 and open it:
   - Run quickstart 1 and 2 locally (sanitizers with clang on macOS, then the arm size target), `cd services/runtime && go test ./internal/sparkplug/ ./internal/app/` (whole packages, because T035 moves code) and `./taskw lint`.
   - **Rebuild:** T035 changes runtime code without changing behaviour, so rebuild `runtime` with the stack's env files and overlays (AGENTS.md command).
   - **Verify:** with the Python simulator, check that a command still completes and an activation still triggers one rebirth.

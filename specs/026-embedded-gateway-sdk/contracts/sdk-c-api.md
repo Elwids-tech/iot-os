@@ -36,7 +36,8 @@ iotos_status iotos_stop(iotos_gateway *gw);           /* publishes NDEATH, disco
 
 `iotos_settings` and every `iotos_device_type` come from the kit's generated headers.
 `iotos_poll` does network I/O, keepalive, inbound messages, paced births and reconnect
-back-off, and returns within `budget_ms`.
+back-off, and returns within `budget_ms`, except that a connection attempt (TCP, TLS and
+CONNACK) may block for up to `IOTOS_CONNECT_TIMEOUT_MS`.
 
 All SDK state lives in the caller's `iotos_gateway`, including the MQTT client's context
 and buffer at the stream level. The library has no other writable static data and never
@@ -111,7 +112,8 @@ typedef struct {
     /* A validated command: the metric accepts commands and the value has its datatype. */
     void (*on_command)(void *ctx, const char *device_id /* NULL = node */,
                        const char *metric, const iotos_value *value);
-    /* Connection, authentication, session takeover, clock, rejected commands. */
+    /* Connection, authentication, session takeover, host state, clock, failed
+     * births, rejected commands (iotos_event in iotos_types.h). */
     void (*on_event)(void *ctx, iotos_event event, iotos_status detail);
     void *ctx;
 } iotos_callbacks;
@@ -156,9 +158,13 @@ typedef struct {                /* Level 2: the modem runs MQTT */
 } iotos_mqtt_port;
 
 void iotos_mqtt_inbound(iotos_gateway *gw, const char *topic,
-                        const uint8_t *data, size_t len, bool retained);
+                        const uint8_t *data, size_t len, bool retained); /* from inside poll */
 
-typedef struct { uint64_t (*now_ms)(void *ctx, bool *valid); void *ctx; } iotos_clock_port;
+typedef struct {
+    uint64_t (*now_ms)(void *ctx, bool *valid);  /* UTC; valid once synchronised */
+    uint32_t (*monotonic_ms)(void);              /* intervals; never backwards, wraps at 2^32 */
+    void *ctx;
+} iotos_clock_port;
 typedef struct {                /* optional; NULL keeps bdSeq in RAM only */
     bool (*load)(void *ctx, const char *key, void *out, size_t len);
     bool (*save)(void *ctx, const char *key, const void *data, size_t len);
@@ -176,6 +182,13 @@ typedef struct {
     const iotos_lock_port    *lock;     /* optional for single-task builds */
 } iotos_ports;
 ```
+
+`monotonic_ms` takes no context because coreMQTT calls it directly
+(`MQTTGetCurrentTimeFunc_t`); the SDK uses it for every interval (keepalive, back-off,
+birth pacing, health), so a clock that jumps at SNTP sync never disturbs them.
+`iotos_mqtt_connect` carries the host, port, CA, client ID, username, password,
+keepalive, clean-session flag, the will (topic, payload, QoS 1, not retained) and the
+timeout.
 
 Port structures only ever gain members at the end, and a `NULL` function means the
 port does not offer it. Ports written with designated initialisers therefore keep
@@ -197,9 +210,12 @@ Shipped ports:
 All are overridable before including `iotos.h`, with the defaults from research R7:
 `IOTOS_MAX_DEVICES`, `IOTOS_MAX_DEVICE_TYPES`, `IOTOS_MAX_METRICS_PER_TYPE`,
 `IOTOS_DEVICE_ID_MAX`, `IOTOS_TX_BUFFER`, `IOTOS_RX_BUFFER` (also coreMQTT's fixed buffer),
+`IOTOS_TOPIC_MAX` (default 192, which bounds the group, edge node and host IDs),
+`IOTOS_COMMAND_STRING_MAX` (default 128, the longest String command),
 `IOTOS_BIRTHS_PER_SECOND` (default 20), `IOTOS_KEEPALIVE_S` (default 20),
 `IOTOS_HEALTH_INTERVAL_S` (default 60), `IOTOS_CLOCK_WAIT_S` (default 300, after which
-`on_event` reports `IOTOS_E_CLOCK` every minute).
+`on_event` reports `IOTOS_E_CLOCK` every minute) and `IOTOS_CONNECT_TIMEOUT_MS` (default
+10000). The library and the application must be built with the same values.
 
 ## Wire behaviour (normative)
 
@@ -211,4 +227,5 @@ All are overridable before including `iotos.h`, with the defaults from research 
 - Births carry name and alias for every metric; data carries aliases only (R9). The
   NBIRTH's `bdSeq` and `Node Control/Rebirth` go by name without an alias, because they
   never appear in data.
+- Subscriptions are at QoS 0; the runtime publishes commands at QoS 0.
 - Retained NCMD/DCMD are ignored. Commands are matched by metric name.

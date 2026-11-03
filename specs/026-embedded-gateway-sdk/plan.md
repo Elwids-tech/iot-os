@@ -107,9 +107,9 @@ firmware/sdk/
 
 Public API and ports: [contracts/sdk-c-api.md](contracts/sdk-c-api.md). The session
 follows the runtime's rules listed in research R8 and R9. The desktop simulator takes
-`--devices type=count`, `--interval`, `--state-file` and `--rate`. It generates values
-per datatype (random walk, monotonic counters, toggles) and answers commands by
-publishing the new state.
+`--devices type=count`, `--interval` and `--state-file`; the birth rate is the
+compile-time `IOTOS_BIRTHS_PER_SECOND`. It generates values per datatype (random walk,
+monotonic counters, toggles) and answers commands by publishing the new state.
 
 ### Contracts and runtime
 
