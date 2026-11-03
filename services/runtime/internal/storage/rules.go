@@ -100,32 +100,55 @@ func (s *Store) DeployRule(ctx context.Context, request rules.Deployment, at tim
 // stream. Only an operator may accept the gap (RebaselineRuleCheckpoint).
 var ErrRuleCheckpointContinuity = errors.New("workflow telemetry checkpoint lost continuity; recovery required")
 
+// StreamIdentity names one incarnation of the committed stream. ID is the runtime's
+// metadata tag (devices.StreamIDMetadata), which survives NATS restarts and updates.
+// Created is the broker's creation time, which NATS can rewrite, so it only proves
+// the stream for a checkpoint bound before streams carried an ID.
+type StreamIdentity struct {
+	ID      string
+	Created time.Time
+}
+
+func (stored StreamIdentity) matches(stream StreamIdentity) bool {
+	if stored.ID != "" {
+		return stored.ID == stream.ID
+	}
+	return stored.Created.Equal(stream.Created.Truncate(time.Microsecond))
+}
+
 // PrepareRuleConsumer binds the durable SQL checkpoint to a particular stream
 // incarnation. Retention loss or replacement is an explicit recovery failure.
-func (s *Store) PrepareRuleConsumer(ctx context.Context, created time.Time, first, last uint64) (uint64, error) {
+func (s *Store) PrepareRuleConsumer(ctx context.Context, stream StreamIdentity, first, last uint64) (uint64, error) {
 	baseline := uint64(0)
 	if first > 0 {
 		baseline = first - 1
 	}
-	_, err := s.Pool.Exec(ctx, `INSERT INTO device_runtime.rule_checkpoint(singleton,stream_created,sequence) VALUES(true,$1,$2) ON CONFLICT DO NOTHING`, created, baseline)
+	_, err := s.Pool.Exec(ctx, `INSERT INTO device_runtime.rule_checkpoint(singleton,stream_created,stream_id,sequence) VALUES(true,$1,NULLIF($2,''),$3) ON CONFLICT DO NOTHING`, stream.Created, stream.ID, baseline)
 	if err != nil {
 		return 0, err
+	}
+	// A checkpoint bound before streams carried an ID adopts it while the creation
+	// time still proves the stream is the same one.
+	if stream.ID != "" {
+		if _, err = s.Pool.Exec(ctx, `UPDATE device_runtime.rule_checkpoint SET stream_id=$1 WHERE singleton AND stream_id IS NULL AND stream_created=$2`, stream.ID, stream.Created); err != nil {
+			return 0, err
+		}
 	}
 	stored, sequence, err := s.RuleCheckpoint(ctx)
 	if err != nil {
 		return 0, err
 	}
-	if !stored.Equal(created.Truncate(time.Microsecond)) || sequence < baseline || sequence > last {
+	if !stored.matches(stream) || sequence < baseline || sequence > last {
 		return 0, ErrRuleCheckpointContinuity
 	}
 	return sequence, nil
 }
 
 // RuleCheckpoint returns the stream incarnation and sequence evaluated so far.
-func (s *Store) RuleCheckpoint(ctx context.Context) (time.Time, uint64, error) {
-	var stored time.Time
+func (s *Store) RuleCheckpoint(ctx context.Context) (StreamIdentity, uint64, error) {
+	var stored StreamIdentity
 	var sequence uint64
-	err := s.Pool.QueryRow(ctx, `SELECT stream_created,sequence FROM device_runtime.rule_checkpoint WHERE singleton`).Scan(&stored, &sequence)
+	err := s.Pool.QueryRow(ctx, `SELECT stream_created,coalesce(stream_id,''),sequence FROM device_runtime.rule_checkpoint WHERE singleton`).Scan(&stored.Created, &stored.ID, &sequence)
 	return stored, sequence, err
 }
 
@@ -133,26 +156,26 @@ func (s *Store) RuleCheckpoint(ctx context.Context) (time.Time, uint64, error) {
 // the current stream incarnation at its last sequence. Telemetry before that point
 // is never evaluated, so stale readings cannot trigger actions after recovery.
 // It refuses to move a checkpoint that is still continuous.
-func (s *Store) RebaselineRuleCheckpoint(ctx context.Context, created time.Time, first, last uint64) (previousCreated time.Time, previousSequence uint64, err error) {
+func (s *Store) RebaselineRuleCheckpoint(ctx context.Context, stream StreamIdentity, first, last uint64) (previous StreamIdentity, previousSequence uint64, err error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
-		return previousCreated, 0, err
+		return previous, 0, err
 	}
 	defer tx.Rollback(ctx)
-	if err = tx.QueryRow(ctx, `SELECT stream_created,sequence FROM device_runtime.rule_checkpoint WHERE singleton FOR UPDATE`).Scan(&previousCreated, &previousSequence); err != nil {
-		return previousCreated, 0, err
+	if err = tx.QueryRow(ctx, `SELECT stream_created,coalesce(stream_id,''),sequence FROM device_runtime.rule_checkpoint WHERE singleton FOR UPDATE`).Scan(&previous.Created, &previous.ID, &previousSequence); err != nil {
+		return previous, 0, err
 	}
 	baseline := uint64(0)
 	if first > 0 {
 		baseline = first - 1
 	}
-	if previousCreated.Equal(created.Truncate(time.Microsecond)) && previousSequence >= baseline && previousSequence <= last {
-		return previousCreated, previousSequence, ErrRuleCheckpointContinuous
+	if previous.matches(stream) && previousSequence >= baseline && previousSequence <= last {
+		return previous, previousSequence, ErrRuleCheckpointContinuous
 	}
-	if _, err = tx.Exec(ctx, `UPDATE device_runtime.rule_checkpoint SET stream_created=$1,sequence=$2 WHERE singleton`, created, last); err != nil {
-		return previousCreated, previousSequence, err
+	if _, err = tx.Exec(ctx, `UPDATE device_runtime.rule_checkpoint SET stream_created=$1,stream_id=NULLIF($2,''),sequence=$3 WHERE singleton`, stream.Created, stream.ID, last); err != nil {
+		return previous, previousSequence, err
 	}
-	return previousCreated, previousSequence, tx.Commit(ctx)
+	return previous, previousSequence, tx.Commit(ctx)
 }
 
 // ErrRuleCheckpointContinuous rejects a rebaseline that would skip evaluable telemetry.

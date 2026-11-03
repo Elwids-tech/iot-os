@@ -14,8 +14,18 @@ import (
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
 )
 
+// Stream identifies the committed stream a checkpoint belongs to. ID is the
+// runtime's stream ID metadata (devices.StreamIDMetadata). Created is the broker's
+// creation time, which NATS can rewrite, so it only proves the stream for state
+// saved before streams carried an ID.
+type Stream struct {
+	ID      string
+	Created string
+}
+
 type State struct {
 	Consumer           string                                `json:"consumer"`
+	StreamID           string                                `json:"stream_id,omitempty"`
 	StreamCreated      string                                `json:"stream_created"`
 	LastStreamSequence uint64                                `json:"last_stream_sequence"`
 	Events             map[string]devices.CommittedTelemetry `json:"events"`
@@ -27,7 +37,7 @@ type Checkpoint struct {
 	lock  *os.File
 }
 
-func Open(path, consumer, streamCreated string) (*Checkpoint, error) {
+func Open(path, consumer string, stream Stream) (*Checkpoint, error) {
 	lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
@@ -36,14 +46,24 @@ func Open(path, consumer, streamCreated string) (*Checkpoint, error) {
 		lock.Close()
 		return nil, fmt.Errorf("checkpoint is already in use: %w", err)
 	}
-	c := &Checkpoint{Path: path, lock: lock, State: State{Consumer: consumer, StreamCreated: streamCreated, Events: map[string]devices.CommittedTelemetry{}}}
+	c := &Checkpoint{Path: path, lock: lock, State: State{Consumer: consumer, StreamID: stream.ID, StreamCreated: stream.Created, Events: map[string]devices.CommittedTelemetry{}}}
 	raw, err := os.ReadFile(path)
 	if err == nil {
+		var saved State
 		decoder := json.NewDecoder(bytes.NewReader(raw))
 		decoder.UseNumber()
-		err = decoder.Decode(&c.State)
-		if err == nil && (c.State.Consumer != consumer || c.State.StreamCreated != streamCreated || c.State.Events == nil) {
+		err = decoder.Decode(&saved)
+		if err == nil && (saved.Consumer != consumer || !saved.belongsTo(stream) || saved.Events == nil) {
 			err = fmt.Errorf("checkpoint belongs to a different consumer/stream or is invalid")
+		}
+		if err == nil {
+			c.State = saved
+			// State saved before streams carried an ID adopts it while the creation
+			// time still proves the stream is the same one.
+			if saved.StreamID == "" && stream.ID != "" {
+				c.State.StreamID = stream.ID
+				err = c.save()
+			}
 		}
 	}
 	if err != nil && !os.IsNotExist(err) {
@@ -51,6 +71,13 @@ func Open(path, consumer, streamCreated string) (*Checkpoint, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+func (s State) belongsTo(stream Stream) bool {
+	if s.StreamID != "" {
+		return s.StreamID == stream.ID
+	}
+	return s.StreamCreated == stream.Created
 }
 
 func (c *Checkpoint) Close() error { return c.lock.Close() }

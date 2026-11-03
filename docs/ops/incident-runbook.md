@@ -65,7 +65,8 @@ detection and receipt times in drills.
 The runtime evaluates automations from the durable `IOT_COMMITTED_TELEMETRY` stream
 and stores how far it got. If that stream is replaced (for example a lost or
 recreated NATS volume) or retention removed readings that were never evaluated, the
-stored position no longer matches. The runtime then pauses **only** workflow
+stored position no longer matches. Restarting NATS or raising a stream's byte limit
+does not cause this. The runtime then pauses **only** workflow
 evaluation and logs `workflow telemetry checkpoint lost continuity; recovery
 required`. Live values, history, commands and the portal keep working, and the
 portal shows "Automations are paused".

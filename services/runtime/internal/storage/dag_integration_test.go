@@ -52,7 +52,7 @@ func TestDAGDurableRecoveryAtomicityAndFencing(t *testing.T) {
 	w := dag.Workflow{Schema: dag.Schema, UUID: workflow, Version: operation, Organization: org, Bindings: []dag.Binding{{Role: "sensor", Device: device, Configuration: config, Generation: 1, Parameter: param, DataType: "number", FreshSeconds: 60}}, Nodes: []dag.Node{{ID: "source", Type: "source.parameter.v1", Config: map[string]any{"binding": "sensor"}}, {ID: "condition", Type: "compare.v1", Config: map[string]any{"operator": "gt", "value": float64(25)}}, {ID: "sustained", Type: "sustained.v1", Config: map[string]any{"seconds": float64(5)}}, {ID: "alert", Type: "action.alert.v1", Config: map[string]any{"title": "Hot"}}}, Edges: []dag.Edge{{Source: "source", SourcePort: "out", Target: "condition", TargetPort: "in"}, {Source: "condition", SourcePort: "out", Target: "sustained", TargetPort: "in"}, {Source: "sustained", SourcePort: "out", Target: "alert", TargetPort: "in"}}}
 	request := DAGDeployment{operation, workflow, org, 1, "active", &w}
 	must(s.DeployDAG(ctx, request, at))
-	_, err = s.PrepareRuleConsumer(ctx, at, 1, 0)
+	_, err = s.PrepareRuleConsumer(ctx, StreamIdentity{ID: UUID(), Created: at}, 1, 0)
 	must(err)
 	input := devices.CommittedTelemetry{EventID: UUID(), OrganizationUUID: org, DeviceUUID: device, ConfigurationUUID: config, Generation: 1, Readings: []devices.CommittedReading{{ParameterUUID: param, Value: float64(40), Quality: "good", ObservedAt: at.Add(time.Second), ReceivedAt: at.Add(time.Second)}}}
 	must(s.ConsumeRuleTelemetry(ctx, 1, input, at.Add(time.Second)))

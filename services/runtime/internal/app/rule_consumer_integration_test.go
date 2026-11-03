@@ -93,6 +93,11 @@ func TestRuleConsumerPersistsBeforeAckAndResumes(t *testing.T) {
 	must(store.Apply(ctx, device, 1, "device.applied.v1"))
 	must(store.DeployRule(ctx, rules.Deployment{OperationUUID: d.VersionUUID, RuleUUID: d.UUID, OrganizationUUID: d.Binding.OrganizationUUID, Generation: 1, Target: "active", Definition: &d}, time.Now().UTC().Add(-time.Second)))
 	must(a.startRuleConsumer(ctx))
+	stream, err := js.StreamInfo(devices.CommittedTelemetryStream)
+	must(err)
+	if bound, _, err := store.RuleCheckpoint(ctx); err != nil || bound.ID == "" || bound.ID != stream.Config.Metadata[devices.StreamIDMetadata] {
+		t.Fatal("checkpoint not bound to the stream ID", bound, err)
+	}
 	publish := func(lon float64) {
 		at := time.Now().UTC()
 		telemetry := devices.Telemetry{UUID: storage.UUID(), Definition: device, Generation: 1}

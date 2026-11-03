@@ -293,9 +293,10 @@ intents and the stream checkpoint commit together, then the message is
 acknowledged; redelivery after commit is a no-op. Timers are rebuilt from stored
 state after a restart; there is no in-memory-only timer.
 
-The checkpoint records the stream's identity. If the stream is replaced or
-retention drops unevaluated readings, the runtime **pauses automation only**
-(devices, history and commands keep working), the portal shows "Automations are
-paused", and an operator must accept the gap with
+The checkpoint records the stream's identity, a random ID the runtime keeps in the
+stream's metadata, so NATS restarts and limit changes leave it continuous. If the
+stream is replaced or retention drops unevaluated readings, the runtime **pauses
+automation only** (devices, history and commands keep working), the portal shows
+"Automations are paused", and an operator must accept the gap with
 `php artisan devices:recover-workflow-checkpoint --reason="..."`
 ([incident runbook](../ops/incident-runbook.md#workflow-checkpoint-recovery)).

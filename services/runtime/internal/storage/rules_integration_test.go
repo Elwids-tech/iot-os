@@ -78,7 +78,8 @@ func TestDurableRulesRecoveryFencesAndAtomicity(t *testing.T) {
 	request := rules.Deployment{OperationUUID: d.VersionUUID, RuleUUID: d.UUID, OrganizationUUID: d.Binding.OrganizationUUID, Generation: 1, Target: "active", Definition: &d}
 	must(s.DeployRule(ctx, request, at))
 	must(s.DeployRule(ctx, request, at))
-	_, err = s.PrepareRuleConsumer(ctx, at, 1, 0)
+	stream := StreamIdentity{ID: UUID(), Created: at}
+	_, err = s.PrepareRuleConsumer(ctx, stream, 1, 0)
 	must(err)
 	packet := func(when time.Time, lon float64) devices.CommittedTelemetry {
 		id := UUID()
@@ -111,7 +112,7 @@ func TestDurableRulesRecoveryFencesAndAtomicity(t *testing.T) {
 	restarted, err := Open(ctx, url)
 	must(err)
 	defer restarted.Pool.Close()
-	_, err = restarted.PrepareRuleConsumer(ctx, at, 1, 3)
+	_, err = restarted.PrepareRuleConsumer(ctx, stream, 1, 3)
 	must(err)
 	must(restarted.TickRules(ctx, at.Add(61*time.Second)))
 	if !state().Active || state().Episode != 1 {
@@ -151,10 +152,10 @@ func TestDurableRulesRecoveryFencesAndAtomicity(t *testing.T) {
 	if err = s.ConsumeRuleTelemetry(ctx, 6, packet(at.Add(152*time.Second), -114), at.Add(152*time.Second)); err == nil {
 		t.Fatal("accepted checkpoint gap")
 	}
-	if _, err = s.PrepareRuleConsumer(ctx, at.Add(time.Second), 1, 4); err == nil {
+	if _, err = s.PrepareRuleConsumer(ctx, StreamIdentity{ID: UUID(), Created: at}, 1, 4); err == nil {
 		t.Fatal("accepted replaced stream")
 	}
-	if _, err = s.PrepareRuleConsumer(ctx, at, 6, 8); err == nil {
+	if _, err = s.PrepareRuleConsumer(ctx, stream, 6, 8); err == nil {
 		t.Fatal("accepted retention gap")
 	}
 	// A newer device generation fences the old binding even for timer evaluation.
@@ -209,20 +210,20 @@ func TestRuleCheckpointRebaselineIsExplicitAndRefusesContinuousCheckpoints(t *te
 		t.Fatal("requires unused workflow checkpoint", err)
 	}
 	defer s.Pool.Exec(ctx, `DELETE FROM device_runtime.rule_checkpoint`)
-	original := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	original := StreamIdentity{ID: "original", Created: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)}
 	if sequence, err := s.PrepareRuleConsumer(ctx, original, 1, 10); err != nil || sequence != 0 {
 		t.Fatal("checkpoint not bound to the stream", sequence, err)
 	}
 	if _, _, err = s.RebaselineRuleCheckpoint(ctx, original, 1, 10); !errors.Is(err, ErrRuleCheckpointContinuous) {
 		t.Fatal("rebaselined a continuous checkpoint", err)
 	}
-	replaced := original.Add(time.Hour)
+	replaced := StreamIdentity{ID: "replaced", Created: original.Created.Add(time.Hour)}
 	if _, err = s.PrepareRuleConsumer(ctx, replaced, 1, 3); !errors.Is(err, ErrRuleCheckpointContinuity) {
 		t.Fatal("accepted a replaced stream", err)
 	}
-	created, previous, err := s.RebaselineRuleCheckpoint(ctx, replaced, 1, 3)
-	if err != nil || !created.Equal(original) || previous != 0 {
-		t.Fatal("rebaseline did not report the abandoned checkpoint", created, previous, err)
+	abandoned, previous, err := s.RebaselineRuleCheckpoint(ctx, replaced, 1, 3)
+	if err != nil || abandoned.ID != original.ID || !abandoned.Created.Equal(original.Created) || previous != 0 {
+		t.Fatal("rebaseline did not report the abandoned checkpoint", abandoned, previous, err)
 	}
 	if sequence, err := s.PrepareRuleConsumer(ctx, replaced, 1, 3); err != nil || sequence != 3 {
 		t.Fatal("rebaseline must skip retained backlog", sequence, err)
@@ -236,6 +237,56 @@ func TestRuleCheckpointRebaselineIsExplicitAndRefusesContinuousCheckpoints(t *te
 	}
 	if sequence, err := s.PrepareRuleConsumer(ctx, replaced, 9, 12); err != nil || sequence != 12 {
 		t.Fatal("rebaseline after retention gap", sequence, err)
+	}
+}
+
+func TestRuleCheckpointFollowsTheStreamIDAcrossCreationTimeRewrites(t *testing.T) {
+	url := os.Getenv("DEVICE_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("Requires isolated Devices database")
+	}
+	if !strings.Contains(url, "/iot_devices_test?") {
+		t.Fatal("Refusing non-test database")
+	}
+	ctx := context.Background()
+	s, err := Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Pool.Close()
+	var count int
+	if err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM device_runtime.rule_checkpoint`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("requires unused workflow checkpoint", err)
+	}
+	defer s.Pool.Exec(ctx, `DELETE FROM device_runtime.rule_checkpoint`)
+	// A checkpoint bound before streams carried an ID. NATS reports nanoseconds;
+	// PostgreSQL keeps microseconds.
+	created := time.Date(2026, 10, 3, 5, 6, 46, 455985123, time.UTC)
+	if _, err = s.Pool.Exec(ctx, `INSERT INTO device_runtime.rule_checkpoint(singleton,stream_created,sequence) VALUES(true,$1,41)`, created); err != nil {
+		t.Fatal(err)
+	}
+	rewritten := StreamIdentity{ID: "stream-1", Created: time.Date(2026, 10, 29, 18, 40, 41, 699232000, time.UTC)}
+	if _, err = s.PrepareRuleConsumer(ctx, rewritten, 1, 50); !errors.Is(err, ErrRuleCheckpointContinuity) {
+		t.Fatal("adopted an ID without proof of the same stream", err)
+	}
+	if sequence, err := s.PrepareRuleConsumer(ctx, StreamIdentity{ID: "stream-1", Created: created}, 1, 50); err != nil || sequence != 41 {
+		t.Fatal("did not adopt the stream ID", sequence, err)
+	}
+	// NATS rewrote the creation time after a restart; the ID still identifies the stream.
+	if sequence, err := s.PrepareRuleConsumer(ctx, rewritten, 1, 50); err != nil || sequence != 41 {
+		t.Fatal("rejected a rewritten creation time", sequence, err)
+	}
+	if _, _, err = s.RebaselineRuleCheckpoint(ctx, rewritten, 1, 50); !errors.Is(err, ErrRuleCheckpointContinuous) {
+		t.Fatal("rebaselined a continuous checkpoint", err)
+	}
+	// A replaced stream has another ID, or none if it was recreated by hand.
+	for _, replaced := range []StreamIdentity{{ID: "stream-2", Created: created}, {Created: created}} {
+		if _, err = s.PrepareRuleConsumer(ctx, replaced, 1, 50); !errors.Is(err, ErrRuleCheckpointContinuity) {
+			t.Fatal("accepted a replaced stream", replaced, err)
+		}
+	}
+	if stored, sequence, err := s.RuleCheckpoint(ctx); err != nil || stored.ID != "stream-1" || sequence != 41 {
+		t.Fatal("checkpoint moved", stored, sequence, err)
 	}
 }
 
@@ -258,8 +309,8 @@ func TestSkipRuleTelemetryAdvancesExactlyOneSequence(t *testing.T) {
 		t.Fatal("requires unused workflow checkpoint", err)
 	}
 	defer s.Pool.Exec(ctx, `DELETE FROM device_runtime.rule_checkpoint`)
-	created := time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC)
-	if _, err = s.PrepareRuleConsumer(ctx, created, 1, 5); err != nil {
+	stream := StreamIdentity{ID: "skip-test", Created: time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC)}
+	if _, err = s.PrepareRuleConsumer(ctx, stream, 1, 5); err != nil {
 		t.Fatal(err)
 	}
 	checkpoint := func(want uint64) {

@@ -47,7 +47,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	checkpoint, err := committedconsumer.Open(*path, *durable, info.Created.Format(time.RFC3339Nano))
+	checkpoint, err := committedconsumer.Open(*path, *durable, committedconsumer.Stream{ID: info.Config.Metadata[devices.StreamIDMetadata], Created: info.Created.Format(time.RFC3339Nano)})
 	if err != nil {
 		return err
 	}
