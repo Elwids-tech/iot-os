@@ -2,7 +2,7 @@
 x-ops: &ops
   IOT_OPS_ENABLED: "true"
   IOT_METRICS_TOKEN: ${IOT_METRICS_TOKEN:?Run tooling/monitoring/local.py init}
-  IOT_OPS_WORKERS: alerts,assistant,webhooks,automation
+  IOT_OPS_WORKERS: default,alerts,assistant,webhooks,automation
   IOT_OPS_EXPECTED_SIMULATORS: ${IOT_OPS_EXPECTED_SIMULATORS:-0}
   LOG_STDERR_FORMATTER: Monolog\Formatter\JsonFormatter
 
@@ -18,6 +18,8 @@ services:
     networks: [internal]
   api:
     environment: *ops
+  default-worker:
+    environment: {<<: *ops, IOT_WORKER_NAME: default}
   alerts-worker:
     environment: {<<: *ops, IOT_WORKER_NAME: alerts}
   assistant-worker:

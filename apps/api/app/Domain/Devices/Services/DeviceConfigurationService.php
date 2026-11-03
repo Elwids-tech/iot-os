@@ -106,14 +106,7 @@ final class DeviceConfigurationService
             }
             $used[$parameter['uuid']] = true;
             $conversion = app(IngressConversion::class)->resolve($parameter, $mapping, "mappings.$i");
-            $allowed = match ($parameter['data_type']) {
-                'boolean' => ['Boolean'], 'integer' => ['Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64'],
-                'number' => ['Float', 'Double', 'Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64'],
-                'enum', 'string' => ['String', 'Text', 'UUID'], 'timestamp' => ['DateTime'], 'bytes' => ['Bytes'], default => [],
-            };
-            if ($conversion['ingress_conversion'] !== null && $parameter['data_type'] === 'integer') {
-                $allowed = [...$allowed, 'Float', 'Double'];
-            }
+            $allowed = self::acceptedDatatypes($parameter['data_type'], $conversion['ingress_conversion'] !== null);
             if (! in_array($metric['datatype'], $allowed, true)) {
                 $errors["mappings.$i"] = 'The source datatype is incompatible with this profile parameter.';
             }
@@ -150,6 +143,23 @@ final class DeviceConfigurationService
                 'group_id' => $gateway->connection->group_id, 'edge_node_id' => $gateway->edge_node_id, 'device_id' => $candidate->source_device_id],
             'birth_revision' => $candidate->birth_revision, 'mappings' => $mappings,
         ];
+    }
+
+    /**
+     * Sparkplug datatypes that can feed a profile parameter type. A conversion lets
+     * floats feed integers.
+     *
+     * @return list<string>
+     */
+    public static function acceptedDatatypes(string $dataType, bool $converted = false): array
+    {
+        $allowed = match ($dataType) {
+            'boolean' => ['Boolean'], 'integer' => ['Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64'],
+            'number' => ['Float', 'Double', 'Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64'],
+            'enum', 'string' => ['String', 'Text', 'UUID'], 'timestamp' => ['DateTime'], 'bytes' => ['Bytes'], default => [],
+        };
+
+        return $converted && $dataType === 'integer' ? [...$allowed, 'Float', 'Double'] : $allowed;
     }
 
     /**

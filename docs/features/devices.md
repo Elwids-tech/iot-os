@@ -80,6 +80,50 @@ Without the wizard: register a device (name and organization-unique code), then
 on its **Configuration** tab pick the source, profile and exact published
 revision, map parameters, validate and activate.
 
+### Bulk onboarding
+
+Many sources of one type behind one gateway are onboarded in one action
+([spec 026](../../specs/026-embedded-gateway-sdk/spec.md), User Story 5). People
+choose the sources; nothing is onboarded automatically.
+
+1. In **Connect → Discovery**, filter by the gateway. With `Device.manage` and
+   `Device.activate`, rows can be selected. **Select all N matching** loads every
+   source matching the filter and search, so the selection spans pages. Sources
+   that already have a device, are being set up, are ignored, come through an
+   adapter, or are the gateway's own source cannot be selected.
+2. **Onboard selected** opens a dialog: a published profile, a name pattern
+   (`{device_id}` is required; `{gateway}` and `{n}`, the source's place in the
+   sorted selection, are optional) with a preview, and a match summary that flags
+   sources whose birth lacks a metric the profile needs. A run takes at most 500
+   sources; split larger selections.
+3. The run panel on the Discovery page polls the run. Each source becomes a device
+   with a generated name, the code `<edge node id>-<device id>` (lowercased, with a
+   numeric suffix on a clash), the profile's suggested mappings and an activation
+   request. Items read **active** only once the runtime acknowledges their device.
+   **Retry failed** re-queues the failed items; skipped sources do not match the
+   profile and need their own setup.
+
+Mappings come from the profile's direct Sparkplug bindings when the birth has
+their metric, else from the birth metric named like the parameter's key or label
+([`MappingSuggestions`](../../apps/api/app/Domain/Devices/Services/MappingSuggestions.php)).
+A source missing a metric, or announcing a type the parameter cannot take, is
+skipped with the reason (`missing metric flow_rate`, `datatype String for number
+parameter level`) and the rest continue. An item whose source already has a device
+is skipped as `already onboarded`, so repeating a run never creates a second device.
+
+The run (`device_bulk_onboardings`, one `device_bulk_onboarding_items` row per
+source) is keyed by the client's `operation_uuid` and a hash of the request: the
+same request returns the same run, a different one is 409. The
+[`OnboardDiscoveredSources`](../../apps/api/app/Domain/Devices/Jobs/OnboardDiscoveredSources.php)
+job works through it on the `default` database queue, 50 items per job, claiming
+each item under a row lock. Each item does what a single setup does, in one
+transaction: a gateway-mode setup (`device.onboarding.started` with
+`bulk_run_uuid`), a draft, the compile checks and the activation request. The run
+then rolls up to `succeeded`, `partial_failure` or `failed`, and the activity log
+records `device.bulk_onboarding.started`, `.retried` and `.finished`. Activations
+queued together share the runtime's per-gateway rebirth throttle (one request per
+30 s), so a run causes a few rebirths, not one per device.
+
 ### Configuration and activation
 
 - The **draft** holds source, profile revision and mappings. It is versioned
@@ -273,6 +317,7 @@ Organization routes are under `/api/v1/organizations/{organization}`
 | `devices/{d}/measurements/latest`, `history`, `records`, `state-history`, `increase` | Latest values, aggregated and raw history, state timelines, counter consumption |
 | `devices/{d}/commands`, `commands/send`, `commands/{c}/confirm`, `cancel` | Command log and sending |
 | `sparkplug-connections`, `gateways`, `discovery-candidates` | Sources and discovery review |
+| `gateways/{g}/bulk-onboardings`, `bulk-onboardings/{run}`, `.../retry` | Bulk onboarding runs |
 | `sites`, `settings/timezone` | Sites and organization time zone |
 | `telemetry-captures` | Telemetry viewer |
 | `runtime-status` | Runtime and automation readiness for the portal |
@@ -287,7 +332,7 @@ Admin: `GET/PUT /api/v1/admin/settings/telemetry-retention` and
 | `Device.view` | Read devices, measurements, sources | Admin, Moderator, Member |
 | `Device.manage` | Register, edit, map, validate | Admin |
 | `Device.manage-connections` | Broker connections, gateways, connection kits | Admin |
-| `Device.activate` | Activate, deactivate, roll back, suspend during capture | Admin |
+| `Device.activate` | Activate, deactivate, roll back, suspend during capture; bulk onboarding also needs `Device.manage` | Admin |
 | `Device.command` | Send commands | Admin |
 
 Knowing another organization's UUID never bypasses these checks.

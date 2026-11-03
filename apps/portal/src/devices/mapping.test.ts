@@ -7,6 +7,7 @@ import {
   isAutoMatch,
   metricFits,
   sameConfiguration,
+  sourceProblems,
 } from "./mapping"
 
 const parameter = (
@@ -144,5 +145,26 @@ describe("sameConfiguration", () => {
       sameConfiguration({ ...draft, mappings: [draft.mappings[0], { ...draft.mappings[1], metric: "C" }] }, definition),
     ).toBe(false)
     expect(sameConfiguration(draft, undefined)).toBe(false)
+  })
+})
+
+describe("sourceProblems", () => {
+  const reported = (key: string, label: string, data_type: DeviceProfileParameter["data_type"] = "number") => ({
+    ...parameter(key, label, data_type),
+    reports_state: true,
+    kind: "measurement" as const,
+  })
+  it("names the missing and mistyped metrics as the server does", () => {
+    const parameters = [reported("flow_rate", "Flow rate"), reported("total_volume", "Total volume"), reported("level", "Level")]
+    expect(sourceProblems(parameters, [metric("Flow Rate", "Double"), metric("level", "String")])).toEqual([
+      "missing metric total_volume",
+      "datatype String for number parameter level",
+    ])
+    expect(sourceProblems(parameters, [metric("flow_rate", "Double"), metric("totalVolume", "Int32"), metric("Level", "Float")])).toEqual([])
+  })
+  it("ignores parameters that are not reported or are derived", () => {
+    const derived = { ...reported("energy", "Energy"), kind: "derived" as const }
+    const silent = { ...reported("setpoint", "Setpoint"), reports_state: false }
+    expect(sourceProblems([derived, silent], [])).toEqual([])
   })
 })

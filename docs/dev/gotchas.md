@@ -175,7 +175,7 @@ Things that have cost time before. Add to this list when something surprises you
   ([local setup](local-setup.md#rebuild-one-service)).
 - **A git worktree can be served the same way.** Run compose from the worktree
   with the main checkout's env files:
-  `docker compose --env-file <main>/.env --env-file <main>/.local/devices/devices.env -f deploy/compose/compose.dev.yml -f deploy/compose/compose.app.yml -f deploy/compose/compose.devices.yml up -d --build --no-deps api alerts-worker webhooks-worker assistant-worker automation-worker portal admin`.
+  `docker compose --env-file <main>/.env --env-file <main>/.local/devices/devices.env -f deploy/compose/compose.dev.yml -f deploy/compose/compose.app.yml -f deploy/compose/compose.devices.yml up -d --build --no-deps api default-worker alerts-worker webhooks-worker assistant-worker automation-worker portal admin`.
 - **A shell-exported key beats the env file.** Compose interpolation prefers the
   shell's variables over `--env-file`, so an `OPENAI_API_KEY` exported in your
   profile silently replaces the one in `.env` on rebuild. Compare env hashes first and
@@ -195,6 +195,12 @@ Things that have cost time before. Add to this list when something surprises you
   hash in `docker compose ... config --format json` with the running container's
   env first, and run compose under `env -u OPENAI_API_KEY` (or whichever variable
   differs).
+- **A new API-image worker needs each overlay's settings too.** `compose.app.yml`
+  gives every worker the shared API environment, but `DEVICE_RUNTIME_URL` and
+  `DEVICE_RUNTIME_TOKEN` come from `compose.devices.yml`, which lists the services
+  that get them. The `default-worker` (bulk onboarding, spec 026) failed every item
+  with "The device runtime is not configured." until it was added there. The
+  release compose gives all workers the same environment, so only dev needs this.
 - **Infrastructure config is bind-mounted from where compose ran.** NATS and Mosquitto
   mount `deploy/compose/*.conf` from that checkout. If it was a worktree that is
   later removed, Docker mounts an empty directory instead, and the service fails on

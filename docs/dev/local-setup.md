@@ -102,7 +102,7 @@ rtk proxy docker compose --env-file .env --env-file .local/devices/devices.env \
 | `apps/portal` | `portal` |
 | `apps/admin` | `admin` |
 | `packages/ui`, `packages/charts`, `packages/api-client`, `packages/auth`, `packages/workflow-editor` | `portal admin` |
-| `apps/api` | `api` and every service built from the API image in `compose.app.yml` (`automation-worker`, `alerts-worker`, `webhooks-worker`, `assistant-worker`, `scheduler`), plus `adapter-worker` with the adapter overlay |
+| `apps/api` | `api` and every service built from the API image in `compose.app.yml` (`automation-worker`, `default-worker`, `alerts-worker`, `webhooks-worker`, `assistant-worker`, `scheduler`), plus `adapter-worker` with the adapter overlay |
 | `services/runtime` | `runtime` (it also builds `broker-admin` in release) |
 | `services/adapters` | `adapter-manager` and `adapter-runtime-image` (adapter overlay) |
 

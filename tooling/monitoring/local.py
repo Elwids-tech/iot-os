@@ -9,7 +9,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 PRIVATE = ROOT / '.local/monitoring'
 MONITORS = ['prometheus', 'alertmanager', 'grafana', 'loki', 'alloy', 'node-exporter', 'blackbox', 'container-metrics']
-APPS = ['api', 'portal', 'alerts-worker', 'assistant-worker', 'webhooks-worker', 'automation-worker']
+APPS = ['api', 'portal', 'default-worker', 'alerts-worker', 'assistant-worker', 'webhooks-worker', 'automation-worker']
 
 
 def initialize():

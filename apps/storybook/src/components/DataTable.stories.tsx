@@ -208,3 +208,57 @@ function ReadingLog() {
  * Load older appends the next batch, and a heading marks each configuration run.
  */
 export const LoadMoreLog: StoryObj = { render: () => <ReadingLog /> }
+
+type Source = { id: string; claimed: boolean }
+const sources: Source[] = Array.from({ length: 247 }, (_, index) => ({
+  id: `meter-${String(index + 1).padStart(3, "0")}`,
+  claimed: index % 40 === 7,
+}))
+
+function ServerSources() {
+  const [page, setPage] = useState(1)
+  const [selection, setSelection] = useState<string[]>([])
+  const [loading, setLoading] = useState(false)
+  const rows = sources.slice((page - 1) * 25, page * 25)
+  return (
+    <DataTable
+      id="story-server-selection"
+      label="Discovered sources"
+      noun={["source", "sources"]}
+      rows={rows}
+      rowKey={(s) => s.id}
+      rowLabel={(s) => s.id}
+      columns={[
+        { id: "source", header: "Source", mobile: "title", cell: (s) => <span className="font-mono text-code">{s.id}</span> },
+        { id: "device", header: "Device", cell: (s) => (s.claimed ? "Onboarded" : <span className="text-muted-foreground">Not onboarded</span>) },
+      ]}
+      pagination={{ page, pageSize: 25, total: sources.length, onPageChange: setPage }}
+      selectable
+      canSelect={(s) => !s.claimed}
+      selection={{ value: selection, onChange: setSelection }}
+      selectAll={{
+        count: sources.length,
+        loading,
+        onSelect: () => {
+          setLoading(true)
+          setTimeout(() => {
+            setSelection(sources.filter((s) => !s.claimed).map((s) => s.id))
+            setLoading(false)
+          }, 400)
+        },
+      }}
+      bulkActions={({ ids }) => (
+        <Button size="sm" onClick={() => setSelection([])}>
+          Onboard {ids.length}
+        </Button>
+      )}
+    />
+  )
+}
+
+/**
+ * A server table whose page keeps the selection, so it spans pages: Select all N
+ * matching asks the page to load every matching key, and `canSelect` disables the
+ * boxes of rows that cannot be chosen (here, sources already onboarded).
+ */
+export const ServerSelection: StoryObj = { render: () => <ServerSources /> }

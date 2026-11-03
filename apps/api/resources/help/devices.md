@@ -17,17 +17,20 @@
     "last seen",
     "lifecycle",
     "archived",
-    "filter"
+    "filter",
+    "bulk",
+    "many devices"
   ],
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 2,
+  "revision": 3,
   "summary": "A registered device connects a discovered source to a published profile and an organization-owned configuration.",
   "questions": [
     "How do I register a device?",
     "What does offline mean?",
-    "Where are my archived devices?"
+    "Where are my archived devices?",
+    "How do I onboard many devices from one gateway at once?"
   ]
 }
 ---
@@ -43,6 +46,16 @@ Viewing requires device viewing permission. Registration and editing require dev
 3. Choose the appropriate source when available.
 4. Open **Configuration** to map the source values to profile parameters.
 5. Review and activate, then inspect **Overview**, **Measurements**, and **History**.
+
+To onboard many sources of one type behind one gateway at once (this needs both device management and activation permission):
+
+1. Open **Connect → Discovery** and filter by the gateway. Search to narrow the sources if needed.
+2. Select sources, or choose **Select all N matching** to select every matching source across pages. Sources that already have a device cannot be selected.
+3. Choose **Onboard selected**, pick a published profile, and set the device names, for example `Meter {device_id}`. Check the preview and the match summary: sources missing a metric the profile needs are skipped.
+4. Choose **Onboard**. The run panel shows each source's progress. Devices become active once the runtime confirms them.
+5. If some sources failed, choose **Retry failed**. Skipped sources need their own setup or a different profile.
+
+A run takes at most 500 sources. Running the same selection again creates no second device for any source.
 
 ## Expected result
 The directory shows one status per device, from its lifecycle, configuration and presence. The device workspace provides applied configuration and latest data.

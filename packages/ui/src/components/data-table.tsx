@@ -201,6 +201,15 @@ export type DataTableProps<T> = {
   filtered?: boolean
   onReset?: () => void
   selectable?: boolean
+  /** Rows this returns false for show a disabled box and are left out of Select all. */
+  canSelect?: (row: T) => boolean
+  /** The selected row keys, kept by the page so a server table's selection can span pages. */
+  selection?: { value: string[]; onChange: (ids: string[]) => void }
+  /**
+   * Server tables: offers Select all N matching in the selection bar. The page loads every
+   * matching row key into `selection`; `note` replaces the link, e.g. when too many match.
+   */
+  selectAll?: { count: number; onSelect: () => void; loading?: boolean; note?: React.ReactNode }
   bulkActions?: (context: BulkContext<T>) => React.ReactNode
   /** Adds Export CSV for the selected rows, saved as `<exportName>-<date>.csv`. */
   exportName?: string
@@ -416,7 +425,18 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
     if (!pagination) setClientPage((page) => ({ ...page, pageIndex: 0 }))
   }, [pagination, processed?.length])
 
-  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+  const [ownSelection, setOwnSelection] = React.useState<RowSelectionState>({})
+  const controlled = props.selection
+  const rowSelection = React.useMemo<RowSelectionState>(
+    () => (controlled ? Object.fromEntries(controlled.value.map((key) => [key, true])) : ownSelection),
+    [controlled, ownSelection],
+  )
+  const setRowSelection = (updater: Updater<RowSelectionState>) => {
+    if (!controlled) return setOwnSelection(updater)
+    const next = functionalUpdate(updater, rowSelection)
+    const ids = Object.keys(next).filter((key) => next[key])
+    if (ids.length !== controlled.value.length || ids.some((key) => !rowSelection[key])) controlled.onChange(ids)
+  }
   // Client tables drop selected rows that no longer exist, such as after a bulk delete.
   React.useEffect(() => {
     if (pagination || !processed) return
@@ -480,7 +500,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
     manualPagination: Boolean(pagination),
     rowCount: pagination?.pageCount ? undefined : pagination?.total,
     pageCount: pagination?.pageCount,
-    enableRowSelection: selectable,
+    enableRowSelection: selectable && props.canSelect ? (row) => props.canSelect!(row.original) : selectable,
     enableSortingRemoval: false,
   })
 
@@ -517,6 +537,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
       className={className}
       aria-label={props.rowLabel ? `Select ${props.rowLabel(row.original)}` : "Select row"}
       checked={row.getIsSelected()}
+      disabled={!row.getCanSelect()}
       onClick={(event) => row.getToggleSelectedHandler()(event)}
     />
   )
@@ -685,6 +706,19 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
               <Button variant="link" size="sm" className="h-auto p-0" onClick={() => table.toggleAllRowsSelected(true)}>
                 Select all {total.toLocaleString()}
               </Button>
+            )}
+            {pagination && props.selectAll && selectedIds.length < props.selectAll.count && (
+              props.selectAll.note ?? (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  disabled={props.selectAll.loading}
+                  onClick={props.selectAll.onSelect}
+                >
+                  {props.selectAll.loading ? "Selecting…" : `Select all ${props.selectAll.count.toLocaleString()} matching`}
+                </Button>
+              )
             )}
             <Button variant="link" size="sm" className="h-auto p-0 text-muted-foreground" onClick={clearSelection}>
               Clear
