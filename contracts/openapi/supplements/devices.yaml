@@ -5,6 +5,13 @@
 # Success bodies stay pending until the domain is described.
 # Format: ../meta/supplement.schema.json.
 operations:
+  GET /v1/organizations/{organization}/bulk-onboardings/{run}:
+    description: A bulk onboarding run (spec 026) with its counts and 100 items per page; pass `data.next_cursor` as `cursor` for the next page. An item reads `active` only once the runtime has acknowledged its device.
+  POST /v1/organizations/{organization}/bulk-onboardings/{run}/retry:
+    description: Re-queues the run's failed items. Skipped sources do not match the profile and need a new run.
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
   POST /v1/organizations/{organization}/device-onboardings:
     responses:
       '409':
@@ -68,6 +75,11 @@ operations:
     responses:
       '422':
         $ref: '#/components/responses/ValidationFailed'
+  POST /v1/organizations/{organization}/gateways/{gateway}/bulk-onboardings:
+    description: Queues a bulk onboarding run over selected discovered sources of the gateway with one published profile revision (spec 026). Each source becomes a device with a generated name and code, the profile's suggested mappings and an activation request. Repeating the request with the same `operation_uuid` returns the same run.
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
   POST /v1/organizations/{organization}/gateways/{gateway}/provision:
     responses:
       '503':

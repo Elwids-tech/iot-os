@@ -14,12 +14,13 @@
     "metric",
     "unassigned",
     "mapping",
-    "register"
+    "register",
+    "bulk"
   ],
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 1,
+  "revision": 2,
   "summary": "**Discovery** shows sources and metrics found through connected gateways so you can review them before registration or mapping.",
   "questions": [
     "How do I turn a discovered source into a device?",
@@ -40,8 +41,10 @@ A gateway must be connected and reporting its source information. Registration r
 4. Register it as a device or associate it with the intended device through its configuration.
 5. Review mappings before activation.
 
+To onboard many sources of one gateway with the same profile, filter by that gateway, select the sources (or **Select all N matching**), and choose **Onboard selected**. The [devices guide](/help/devices) has the steps.
+
 ## Expected result
-The source is associated with the intended device and profile after registration and configuration. Discovery itself does not activate devices.
+The source is associated with the intended device and profile after registration and configuration. Discovery itself does not activate devices; bulk onboarding requests activation for each device it creates, and a device is active once the runtime confirms it.
 
 ## Troubleshooting
 If a source is absent, check its gateway and whether it has reported a birth/session update. Protocol identifiers describe transport sources, not your business organization structure.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
+use App\Domain\Devices\Http\Controllers\BulkOnboardingController;
 use App\Domain\Devices\Http\Controllers\CommandController;
 use App\Domain\Devices\Http\Controllers\DeviceController;
 use App\Domain\Devices\Http\Controllers\DiscoveryController;
@@ -16,7 +17,7 @@ use App\Domain\Devices\Http\Controllers\TelemetryCaptureController;
 use App\Domain\Devices\Http\Middleware\AuthenticateDeviceRuntime;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'capture', 'device', 'operation', 'site', 'command', 'connection', 'gateway', 'candidate'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
+Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'capture', 'device', 'operation', 'site', 'command', 'connection', 'gateway', 'candidate', 'run'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
     Route::get('telemetry-captures', [TelemetryCaptureController::class, 'index']);
     Route::post('telemetry-captures', [TelemetryCaptureController::class, 'store'])->middleware('throttle:20,1');
     Route::get('telemetry-captures/{capture}', [TelemetryCaptureController::class, 'show']);
@@ -61,6 +62,9 @@ Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'ca
     Route::get('gateways', [DiscoveryController::class, 'gateways']);
     Route::post('gateways', [DiscoveryController::class, 'storeGateway']);
     Route::post('gateways/{gateway}/provision', [DiscoveryController::class, 'provisionGateway']);
+    Route::post('gateways/{gateway}/bulk-onboardings', [BulkOnboardingController::class, 'store'])->middleware('throttle:5,1');
+    Route::get('bulk-onboardings/{run}', [BulkOnboardingController::class, 'show']);
+    Route::post('bulk-onboardings/{run}/retry', [BulkOnboardingController::class, 'retry'])->middleware('throttle:5,1');
     Route::get('discovery-candidates', [DiscoveryController::class, 'candidates']);
     Route::get('discovery-candidates/{candidate}', [DiscoveryController::class, 'candidate']);
     Route::patch('discovery-candidates/{candidate}', [DiscoveryController::class, 'review']);

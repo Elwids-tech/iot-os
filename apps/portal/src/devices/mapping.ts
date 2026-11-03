@@ -62,6 +62,27 @@ export function autoMatches(
   })
 }
 
+/**
+ * What keeps a source from being onboarded with a profile as it is: every reported parameter
+ * needs a birth metric named like its key or label, with a type that fits. Bulk onboarding
+ * checks the same on the server (MappingSuggestions::forSource), which also reads the
+ * profile's bindings and so may match a metric this cannot.
+ */
+export function sourceProblems(
+  parameters: (Parameter & Pick<DeviceProfileParameter, "reports_state" | "kind">)[],
+  metrics: SparkplugMetric[],
+): string[] {
+  return parameters
+    .filter((p) => p.reports_state && p.kind !== "derived")
+    .flatMap((p) => {
+      const metric =
+        metrics.find((m) => normalize(m.name) === normalize(p.key)) ??
+        metrics.find((m) => normalize(m.name) === normalize(p.label))
+      if (!metric) return [`missing metric ${p.key}`]
+      return metricFits(p, metric.datatype) ? [] : [`datatype ${metric.datatype} for ${p.data_type} parameter ${p.key}`]
+    })
+}
+
 /** True when the mapping is exactly the automatic match, with no command or conversion added. */
 export function isAutoMatch(mapping: DeviceMapping | undefined, match: DeviceMapping | undefined) {
   return Boolean(

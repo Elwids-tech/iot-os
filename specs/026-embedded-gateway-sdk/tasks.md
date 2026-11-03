@@ -514,7 +514,7 @@ home paths.
 
 **Independent test**: `php artisan test --compact --filter BulkOnboarding`, then quickstart 5 with the Python simulator.
 
-- [ ] T064 [US5] Migration `apps/api/database/migrations/2026_11_XX_000000_create_device_bulk_onboardings.php`:
+- [x] T064 [US5] Migration `apps/api/database/migrations/2026_11_02_000000_create_device_bulk_onboardings.php`:
   - **`device_bulk_onboardings`:**
     - `id`; `uuid` (unique); `organization_id` FK; `sparkplug_gateway_id` FK; `device_profile_artifact_id` FK
     - `name_pattern`: string(120)
@@ -532,12 +532,12 @@ home paths.
     - `attempts`: smallint, default 0; timestamps
     - Unique `(device_bulk_onboarding_id, source_device_id)`.
   - `down()` drops both tables.
-- [ ] T065 [P] [US5] Models in `apps/api/app/Domain/Devices/Models/` and enums in `apps/api/app/Domain/Devices/Enums/`:
+- [x] T065 [P] [US5] Models in `apps/api/app/Domain/Devices/Models/` and enums in `apps/api/app/Domain/Devices/Enums/`:
   - `DeviceBulkOnboarding` and `DeviceBulkOnboardingItem`, with relations and casts.
   - `BulkOnboardingStatus`: `queued`, `running`, `succeeded`, `partial_failure`, `failed`.
   - `BulkOnboardingItemStatus`: `pending`, `activation_requested`, `skipped`, `failed`. `active` is derived, never stored.
-- [ ] T066 [P] [US5] Move `DeviceController::mappingSuggestions` into `apps/api/app/Domain/Devices/Services/MappingSuggestions.php`. The endpoint calls the service and its existing tests pass unchanged.
-- [ ] T067 [US5] `apps/api/app/Domain/Devices/Services/BulkOnboarding.php`, following `GeofenceService`:
+- [x] T066 [P] [US5] Move `DeviceController::mappingSuggestions` into `apps/api/app/Domain/Devices/Services/MappingSuggestions.php`. The endpoint calls the service and its existing tests pass unchanged.
+- [x] T067 [US5] `apps/api/app/Domain/Devices/Services/BulkOnboarding.php`, following `GeofenceService`:
   - **Validation:**
     - `source_device_ids`: 1–500 distinct, non-empty IDs, each a discovered source of the gateway (`''` is not allowed).
     - The artifact must be a published revision in the organization.
@@ -551,7 +551,7 @@ home paths.
     - `partial_failure` when at least one item is `skipped` or `failed` and at least one succeeded;
     - `failed` when none succeeded.
   - **Retry:** re-queues `failed` items only, incrementing `attempts`.
-- [ ] T068 [US5] `apps/api/app/Domain/Devices/Jobs/OnboardDiscoveredSources.php`, following `DeployAdapter` (R18):
+- [x] T068 [US5] `apps/api/app/Domain/Devices/Jobs/OnboardDiscoveredSources.php`, following `DeployAdapter` (R18):
   - **Queue:** `ShouldQueue`, `tries = 1`, the `default` queue on the database connection.
   - **Guard:** `queued → running`.
   - **Chunks:** at most 50 items per job, then it dispatches the next job (the release worker has `--timeout=60`).
@@ -563,13 +563,13 @@ home paths.
     5. Activate it through `DeviceConfigurationService`. The item becomes `activation_requested`.
   - **Failures:** an exception marks the item `failed` with a reason of at most 500 characters. Items are never retried automatically.
   - **Activity:** `device.onboarding.started` gains `bulk_run_uuid`. `failed()` marks the remaining items and the run failed. The last chunk rolls the run up and records `device.bulk_onboarding.finished` with counts per status.
-- [ ] T069 [US5] `apps/api/app/Domain/Devices/Http/Controllers/BulkOnboardingController.php` `@store`, `@show` and `@retry`, with a request and resource, and routes in `apps/api/app/Domain/Devices/routes/api.php`:
+- [x] T069 [US5] `apps/api/app/Domain/Devices/Http/Controllers/BulkOnboardingController.php` `@store`, `@show` and `@retry`, with a request and resource, and routes in `apps/api/app/Domain/Devices/routes/api.php`:
   - `POST gateways/{gateway}/bulk-onboardings`: `Device.manage` and `Device.activate`, `throttle:5,1`. Returns 202 with the run, 409 or 422. Records `device.bulk_onboarding.started`.
   - `GET bulk-onboardings/{run}`: `Device.view`. Returns counts (including `active`, derived from each device's applied configuration) and items paged by `?cursor=`, 100 per page.
   - `POST bulk-onboardings/{run}/retry`: the same permissions as create.
   - Another organization's run or gateway gets 404.
   - `ActivityCatalogue` entries for the new codes.
-- [ ] T070 [US5] `apps/api/tests/Feature/Domain/Devices/BulkOnboardingTest.php`:
+- [x] T070 [US5] `apps/api/tests/Feature/Domain/Devices/BulkOnboardingTest.php`:
   - **Run:** 247 sources run through every chunk, with codes and names generated.
   - **Items:**
     - A source missing a profile metric is skipped with its reason while the others continue.
@@ -584,35 +584,37 @@ home paths.
     - Missing permissions get 403, and another organization gets 404.
     - More than 500 IDs, and node sources, get 422.
   - **Activity:** entries are recorded with no secrets.
-- [ ] T071 [US5] Add a `default` queue worker to `deploy/compose/compose.app.yml`, mirroring the release (`queue:work database --queue=default --sleep=2 --timeout=60 --max-time=3600`). Add it to the service list in `docs/dev/local-setup.md#rebuild-one-service`.
-- [ ] T072 [P] [US5] API contract and client: run `php artisan contract:export` (the check passes); add `createBulkOnboarding`, `bulkOnboarding` and `retryBulkOnboarding` to `packages/api-client/src/devices.ts`.
-- [ ] T073 [US5] `apps/portal/src/devices/DiscoveryPage.tsx`:
+- [x] T071 [US5] Add a `default` queue worker to `deploy/compose/compose.app.yml`, mirroring the release (`queue:work database --queue=default --sleep=2 --timeout=60 --max-time=3600`). Add it to the service list in `docs/dev/local-setup.md#rebuild-one-service`.
+- [x] T072 [P] [US5] API contract and client: run `php artisan contract:export` (the check passes); add `createBulkOnboarding`, `bulkOnboarding` and `retryBulkOnboarding` (types in `packages/api-client/src/devices.ts`, methods on `ApiClient` in `src/index.ts`, like the other device calls).
+- [x] T073 [US5] `apps/portal/src/devices/DiscoveryPage.tsx`:
   - With a gateway filter set, `DataTable` row selection inside `CollectionPage`, offered only with `Device.manage` and `Device.activate`.
   - **Select all N matching:** the page shows 25 rows at a time, so this action loads every source matching the gateway filter and search, in pages of 100 (the endpoint's maximum). The selection then spans pages and keeps each source's metrics for the dialog's match summary.
   - An **Onboard selected** action, through the table's `bulkActions` with the selected IDs.
   - Selecting more than 500 asks the operator to split the selection.
-- [ ] T074 [US5] `apps/portal/src/devices/BulkOnboardingDialog.tsx`:
+- [x] T074 [US5] `apps/portal/src/devices/BulkOnboardingDialog.tsx`:
   - A profile `SearchableSelect` of published profiles.
   - The name pattern (default `{device_id}`), with a preview of three names.
   - A match summary, computed from every selected source's metrics (T073), that flags sources whose birth lacks a profile metric before starting.
   - A client-generated `operation_uuid`, kept across retries of the same submit.
-- [ ] T075 [US5] Run panel in `apps/portal/src/devices/BulkOnboardingRun.tsx`, shown on the Discovery page:
+- [x] T075 [US5] Run panel in `apps/portal/src/devices/BulkOnboardingRun.tsx`, shown on the Discovery page:
   - A `Panel` that polls `GET bulk-onboardings/{run}` until it finishes.
   - Counts shown with `Status`/`statusOf` and a per-item `DataTable` with reasons.
   - **Retry failed**, and `RelativeTime` for the start and finish times.
-- [ ] T076 [US5] `apps/portal/e2e/bulk-onboarding.spec.ts` (mocked API):
+- [x] T076 [US5] `apps/portal/e2e/bulk-onboarding.spec.ts` (mocked API):
   - Selection, including **Select all N matching** across pages, the dialog preview, the mismatch flag for a source on another page, progress polling, and retry.
   - The action is hidden without permission.
-- [ ] T077 [P] [US5] `--meters <count>` option in `tooling/simulators/sparkplug_simulator.py`, announcing `meter-001`… under the gateway. Unit test in `tooling/simulators/test_sparkplug_simulator.py`. It lets quickstart 5 run before PR 2.
-- [ ] T078 [P] [US5] Documentation: bulk onboarding in `docs/features/devices.md`, and the steps in `apps/api/resources/help/devices.md`.
-- [ ] T079 [US5] Check, rebuild and verify PR 3:
+- [x] T077 [P] [US5] `--meters <count>` option in `tooling/simulators/sparkplug_simulator.py`, announcing `meter-001`… under the gateway. Unit test in `tooling/simulators/test_sparkplug_simulator.py`. It lets quickstart 5 run before PR 2.
+- [x] T078 [P] [US5] Documentation: bulk onboarding in `docs/features/devices.md`, and the steps in `apps/api/resources/help/devices.md`.
+- [x] T079 [US5] Check, rebuild and verify PR 3:
   - Run the T061 checks.
   - Rebuild `api`, its workers (including the new `default` worker) and `portal`.
   - Run quickstart 5 with the Python simulator (`--meters 247`).
   - If PR 2 has merged, also run `verify-embedded-sdk.mjs` and record its rebirth count in the PR.
   - If PR 4 has already merged, remove spec 026 from `docs/roadmap.md` here.
   - Leak scan, then open the PR against `main`.
-- [ ] T080 [US5] Only if T079 counts more than three rebirths per run (R19): the runtime skips the activation rebirth when the source's current birth is already cached, in `services/runtime/internal/app/application.go`, with a test in `services/runtime/internal/app/`. Re-measure, then record the result in research R19.
+  - Done 2026-11-03: PR 2 and PR 4 had not merged, so `verify-embedded-sdk.mjs` was not run and the roadmap entry stays. The dev compose's Devices overlay also needed the runtime settings for `default-worker` ([gotchas](../../docs/dev/gotchas.md#local-stack)).
+- [x] T080 [US5] Only if T079 counts more than three rebirths per run (R19): the runtime skips the activation rebirth when the source's current birth is already cached, in `services/runtime/internal/app/application.go`, with a test in `services/runtime/internal/app/`. Re-measure, then record the result in research R19.
+  - Not needed: T079 measured 2 rebirths for a 248-source run (research R19).
 
 **Checkpoint**: PR 3 merged. 247 devices onboard in one action.
 

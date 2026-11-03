@@ -56,7 +56,8 @@ not acknowledged.
 | --- | --- | --- |
 | `gateway.kit.downloaded` | gateway | `sdk_version`, `health_profile_revision`, `device_types` (profile code + revision) |
 | `device.bulk_onboarding.started` | gateway | `run_uuid`, `profile_revision`, `count` |
-| `device.bulk_onboarding.finished` | gateway | `run_uuid`, `status`, counts per item status |
+| `device.bulk_onboarding.retried` | gateway | `run_uuid`, `count` (items re-queued) |
+| `device.bulk_onboarding.finished` | gateway | `run_uuid`, `status`, `counts` per item status (a system event) |
 | `device.onboarding.started` | device | existing; gains `bulk_run_uuid` when created by a run |
 | `device_profile.gateway_health.created` | device profile | `revision` |
 

@@ -35,6 +35,10 @@ const vocabulary: Record<string, Status> = {
   queued: { tone: "info", label: "Queued" },
   running: { tone: "good", label: "Running" },
   activated: { tone: "good", label: "Activated" },
+  // Bulk onboarding runs and their sources
+  activation_requested: { tone: "info", label: "Activation requested" },
+  skipped: { tone: "warning", label: "Skipped" },
+  partial_failure: { tone: "warning", label: "Partly failed" },
   // Reading quality
   good: { tone: "good", label: "Good" },
   stale: { tone: "warning", label: "Stale" },

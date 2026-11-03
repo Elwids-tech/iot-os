@@ -91,6 +91,12 @@ services:
       DEVICE_RUNTIME_URL: http://runtime:8081
       DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN}
 
+  # Bulk onboarding activates devices, which the runtime validates.
+  default-worker:
+    environment:
+      DEVICE_RUNTIME_URL: http://runtime:8081
+      DEVICE_RUNTIME_TOKEN: ${DEVICE_RUNTIME_TOKEN}
+
   runtime:
     build:
       context: ../..

@@ -365,3 +365,44 @@ export type DeviceDirectoryQuery = {
   /** Discovery candidates only: sources no device has reserved yet. */
   unassigned?: boolean
 }
+
+/** Bulk onboarding of a gateway's discovered sources with one published profile (spec 026). */
+export type BulkOnboardingInput = {
+  /** Client-generated; keep it across retries of the same submit. */
+  operation_uuid: string
+  artifact_uuid: string
+  /** Must contain {device_id}; may also use {gateway} and {n}. */
+  name_pattern: string
+  source_device_ids: string[]
+}
+export type BulkOnboardingItemStatus =
+  | "pending"
+  | "activation_requested"
+  | "active"
+  | "skipped"
+  | "failed"
+export type BulkOnboardingItem = {
+  source_device_id: string
+  /** `active` once the runtime has acknowledged the device; never stored. */
+  status: BulkOnboardingItemStatus
+  reason: string | null
+  device_uuid: string | null
+  attempts: number
+}
+export type BulkOnboardingRun = {
+  uuid: string
+  status: "queued" | "running" | "succeeded" | "partial_failure" | "failed"
+  gateway_uuid: string
+  artifact_uuid: string
+  profile: { uuid: string | null; name: string | null; revision: number }
+  name_pattern: string
+  created_by: number
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+  /** `active` is the part of `activation_requested` the runtime has acknowledged. */
+  counts: Record<BulkOnboardingItemStatus, number>
+  /** 100 per page; pass `next_cursor` for the next page. */
+  items: BulkOnboardingItem[]
+  next_cursor: string | null
+}

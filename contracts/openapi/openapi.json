@@ -4169,7 +4169,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_121",
+        "operationId": "domain.devices.retention.show_124",
         "tags": [
           "Retention"
         ],
@@ -4218,7 +4218,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_122",
+        "operationId": "domain.devices.retention.update_125",
         "tags": [
           "Retention"
         ],
@@ -4556,7 +4556,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_119",
+        "operationId": "domain.devices.retention.show_122",
         "tags": [
           "Retention"
         ],
@@ -4588,7 +4588,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_120",
+        "operationId": "domain.devices.retention.update_123",
         "tags": [
           "Retention"
         ],
@@ -10688,6 +10688,167 @@
         "x-audience": "organization",
         "x-organization-scoped": true,
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/bulk-onboardings/{run}": {
+      "get": {
+        "operationId": "bulkOnboarding.show",
+        "tags": [
+          "BulkOnboarding"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "description": "The run UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`BulkOnboardingResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BulkOnboardingResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "A bulk onboarding run (spec 026) with its counts and 100 items per page; pass `data.next_cursor` as `cursor` for the next page. An item reads `active` only once the runtime has acknowledged its device."
+      }
+    },
+    "/v1/organizations/{organization}/bulk-onboardings/{run}/retry": {
+      "post": {
+        "operationId": "bulkOnboarding.retry",
+        "tags": [
+          "BulkOnboarding"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "description": "The run UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "`BulkOnboardingResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BulkOnboardingResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 5,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Re-queues the run's failed items. Skipped sources do not match the profile and need a new run."
       }
     },
     "/v1/organizations/{organization}/context": {
@@ -19603,6 +19764,102 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/gateways/{gateway}/bulk-onboardings": {
+      "post": {
+        "operationId": "bulkOnboarding.store",
+        "tags": [
+          "BulkOnboarding"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "gateway",
+            "in": "path",
+            "required": true,
+            "description": "The gateway UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreBulkOnboardingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "`BulkOnboardingResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BulkOnboardingResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 5,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Queues a bulk onboarding run over selected discovered sources of the gateway with one published profile revision (spec 026). Each source becomes a device with a generated name and code, the profile's suggested mappings and an activation request. Repeating the request with the same `operation_uuid` returns the same run."
+      }
+    },
     "/v1/organizations/{organization}/gateways/{gateway}/provision": {
       "post": {
         "operationId": "discovery.provisionGateway",
@@ -23983,7 +24240,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_162",
+        "operationId": "domain.automation.dag.settings_165",
         "tags": [
           "Dag"
         ],
@@ -24058,7 +24315,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_163",
+        "operationId": "domain.automation.dag.settings_166",
         "tags": [
           "Dag"
         ],
@@ -25300,7 +25557,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_174",
+        "operationId": "domain.automation.scenario.save_177",
         "tags": [
           "Scenario"
         ],
@@ -25416,7 +25673,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_175",
+        "operationId": "domain.automation.scenario.save_178",
         "tags": [
           "Scenario"
         ],
@@ -25961,7 +26218,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_166",
+        "operationId": "domain.automation.dag.timeline_169",
         "tags": [
           "Dag"
         ],
@@ -26032,7 +26289,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_167",
+        "operationId": "domain.automation.dag.timeline_170",
         "tags": [
           "Dag"
         ],
@@ -28050,6 +28307,171 @@
         ],
         "title": "BillingAccountResource"
       },
+      "BulkOnboardingResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "description": "Equals the request's operation_uuid."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "partial_failure",
+              "failed"
+            ]
+          },
+          "gateway_uuid": {
+            "type": "string"
+          },
+          "artifact_uuid": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "object",
+            "properties": {
+              "uuid": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "uuid",
+              "name",
+              "revision"
+            ]
+          },
+          "name_pattern": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "integer",
+            "description": "The person who started the run (integer user id, ADR-013)."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "pending": {
+                "type": "integer"
+              },
+              "activation_requested": {
+                "type": "integer"
+              },
+              "active": {
+                "type": "integer"
+              },
+              "skipped": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "pending",
+              "activation_requested",
+              "active",
+              "skipped",
+              "failed"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source_device_id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "activation_requested",
+                    "active",
+                    "skipped",
+                    "failed"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "device_uuid": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "attempts": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "source_device_id",
+                "status",
+                "reason",
+                "device_uuid",
+                "attempts"
+              ]
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `cursor` for the next 100 items; null on the last page."
+          }
+        },
+        "required": [
+          "uuid",
+          "status",
+          "gateway_uuid",
+          "artifact_uuid",
+          "profile",
+          "name_pattern",
+          "created_by",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "counts",
+          "items",
+          "next_cursor"
+        ],
+        "title": "BulkOnboardingResource"
+      },
       "CompactPage": {
         "type": "object",
         "description": "Compact page metadata used by most paginated lists. Combine with `allOf` and an object that describes `data`. Some operations add fields to `meta`.",
@@ -29947,6 +30369,45 @@
           "draft_revision"
         ],
         "title": "StoreBindingParameterMappingRequest"
+      },
+      "StoreBulkOnboardingRequest": {
+        "type": "object",
+        "properties": {
+          "operation_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Client-generated; repeating the same request returns the same run."
+          },
+          "artifact_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A published revision of one of the organization's profiles."
+          },
+          "name_pattern": {
+            "type": "string",
+            "description": "Must contain {device_id}; may also use {gateway} and {n}.",
+            "maxLength": 120
+          },
+          "source_device_ids": {
+            "type": "array",
+            "description": "Device IDs of discovered sources of this gateway; the gateway's own source is onboarded on its own.",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]+$",
+              "maxLength": 128
+            },
+            "minItems": 1,
+            "maxItems": 500,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_uuid",
+          "artifact_uuid",
+          "name_pattern",
+          "source_device_ids"
+        ],
+        "title": "StoreBulkOnboardingRequest"
       },
       "StoreDeviceProfileRequest": {
         "type": "object",

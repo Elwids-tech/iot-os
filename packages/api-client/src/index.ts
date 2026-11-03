@@ -1808,6 +1808,26 @@ export class ApiClient {
         encodeURIComponent(artifact),
     )
   }
+  createBulkOnboarding(org: string, gateway: string, values: import("./devices").BulkOnboardingInput) {
+    return this.data<import("./devices").BulkOnboardingRun>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/gateways/${encodeURIComponent(gateway)}/bulk-onboardings`,
+      "POST",
+      values,
+    )
+  }
+  bulkOnboarding(org: string, run: string, cursor?: string | null) {
+    return this.data<import("./devices").BulkOnboardingRun>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/bulk-onboardings/${encodeURIComponent(run)}` +
+        (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+    )
+  }
+  retryBulkOnboarding(org: string, run: string) {
+    return this.data<import("./devices").BulkOnboardingRun>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/bulk-onboardings/${encodeURIComponent(run)}/retry`,
+      "POST",
+      {},
+    )
+  }
   async connections(
     org: string,
     query: import("./devices").DeviceDirectoryQuery = {},

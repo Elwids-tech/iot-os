@@ -17,6 +17,7 @@ use App\Domain\Devices\Services\DeviceDirectory;
 use App\Domain\Devices\Services\DeviceLifecycleService;
 use App\Domain\Devices\Services\DeviceReadings;
 use App\Domain\Devices\Services\DeviceView;
+use App\Domain\Devices\Services\MappingSuggestions;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Shared\Models\Organization;
@@ -184,33 +185,8 @@ final class DeviceController
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $device);
         $values = $request->validate(['artifact_uuid' => ['required', 'uuid']]);
-        $artifact = $this->configuration->artifact($device, $values['artifact_uuid']);
-        $parameters = collect($artifact->definition['parameters'])->keyBy('uuid');
-        $suggestions = [];
-        foreach ($artifact->profile->transportBindings()->with('parameterMappings.parameter')->orderBy('id')->limit(100)->get() as $binding) {
-            $mappings = [];
-            foreach ($binding->parameterMappings as $mapping) {
-                $uuid = $mapping->parameter->uuid;
-                $parameter = $parameters->get($uuid);
-                $metric = $mapping->transport_locator['metric_name'] ?? $mapping->transport_locator['metric'] ?? null;
-                if (! $parameter || ! $parameter['reports_state'] || $parameter['kind'] === 'derived' || ! is_string($metric) || $metric === '' || $mapping->transform_config || $mapping->codec_config) {
-                    continue;
-                }
-                $mappings[$uuid] ??= ['parameter_uuid' => $uuid, 'metric' => '', 'command_metric' => null];
-                if (in_array($mapping->direction, ['ingress', 'bidirectional'], true)) {
-                    $mappings[$uuid]['metric'] = $metric;
-                }
-                if ($parameter['accepts_command'] && in_array($mapping->direction, ['egress', 'bidirectional'], true)) {
-                    $mappings[$uuid]['command_metric'] = $metric;
-                }
-            }
-            $mappings = array_values(array_filter($mappings, fn ($mapping) => $mapping['metric'] !== ''));
-            if ($mappings) {
-                $suggestions[] = ['binding_uuid' => $binding->uuid, 'name' => $binding->name, 'mappings' => $mappings];
-            }
-        }
 
-        return ['data' => $suggestions];
+        return ['data' => app(MappingSuggestions::class)->bindings($this->configuration->artifact($device, $values['artifact_uuid']))];
     }
 
     public function lifecycle(Request $request, Organization $organization, Device $device)

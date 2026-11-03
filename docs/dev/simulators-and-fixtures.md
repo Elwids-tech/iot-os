@@ -48,6 +48,26 @@ RGB light (reports periodically and after commands). Registered devices still
 need to be mapped and activated in the portal
 ([devices](../features/devices.md#onboarding-a-sparkplug-device)).
 
+### Many water meters
+
+`--meters <count>` also announces `count` water meters, `meter-001` onwards, as
+downstream devices of the same gateway, each with `flow_rate` (L/min) and
+`total_volume` (L) as Doubles, matching the profile that
+`php artisan devices:prepare-water-meter-profile` publishes. Each meter reports
+once every 10 seconds, a tenth of them each second. The simulator prints
+`Rebirth requested (N since start)` for every rebirth the platform asks for, which
+is how a bulk onboarding run's rebirths are counted
+([devices](../features/devices.md#bulk-onboarding), spec 026 quickstart 5):
+
+```sh
+.local/devices/python/bin/python tooling/simulators/sparkplug_simulator.py \
+  --config .local/devices/simulator.json --state-file .local/devices/simulator-state \
+  --meters 247
+```
+
+The energy meter and RGB light are still announced, so they serve as sources of
+another type. `--meters` cannot be combined with `--gps`.
+
 ### RGB light v2
 
 `--rgb-controls` on the prepare command creates a separate

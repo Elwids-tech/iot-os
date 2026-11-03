@@ -367,6 +367,13 @@ three, the plan's fallback is to have the runtime skip the activation rebirth wh
 source's current birth is already cached. That is a runtime change, made in this
 feature only if the measurement requires it.
 
+**Measured (PR 3, 2026-11-03, local stack, Python simulator with `--meters 247`)**: a run
+of 248 selected sources (247 water meters and one energy meter) reached 247
+*activation requested* and one skipped in 10 s, and all 247 devices were active with
+stored readings 40 s after submitting. The simulator logged **2 rebirths** for the run;
+a retry of 247 failed items on another gateway logged 1. Both are within three, so the
+runtime fallback (T080) is not needed.
+
 ### R20. Profile types to Sparkplug types in the kit
 
 **Decision**: the kit writes each device-type metric with the Sparkplug type below,

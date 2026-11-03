@@ -100,9 +100,9 @@ Permissions `Device.manage` and `Device.activate`. Throttle 5/min.
 
 | Response | When |
 | --- | --- |
-| **202** | The run was queued (the run body below) |
+| **202** | The run was queued (the run body below); a repeated request returns the same run |
 | **409** | `operation_uuid` was already used with a different request |
-| **422** | Unknown IDs or an unpublished revision, listed per field |
+| **422** | Unknown IDs (per index, `source_device_ids.3`), an unknown revision, a pattern without `{device_id}` or with another placeholder, or a gateway whose connection is not provisioned or that belongs to a device adapter |
 
 Records `device.bulk_onboarding.started`.
 
@@ -112,16 +112,27 @@ Permission `Device.view`.
 
 ```json
 {
-  "uuid": "…", "status": "running", "gateway_uuid": "…", "artifact_uuid": "…",
-  "counts": { "pending": 10, "activation_requested": 230, "active": 200, "skipped": 7, "failed": 0 },
-  "items": [ { "source_device_id": "p1-017", "status": "skipped", "reason": "missing metric flow_rate", "device_uuid": null } ]
+  "data": {
+    "uuid": "…", "status": "running", "gateway_uuid": "…", "artifact_uuid": "…",
+    "profile": { "uuid": "…", "name": "Water meter", "revision": 3 },
+    "name_pattern": "Meter {device_id}", "created_by": 12,
+    "created_at": "…", "started_at": "…", "finished_at": null,
+    "counts": { "pending": 10, "activation_requested": 230, "active": 200, "skipped": 7, "failed": 0 },
+    "items": [ { "source_device_id": "p1-017", "status": "skipped", "reason": "missing metric flow_rate", "device_uuid": null, "attempts": 0 } ],
+    "next_cursor": "…"
+  }
 }
 ```
 
-Items are paged with `?cursor=` (100 per page). `active` is derived from the device's
-applied configuration, not stored.
+Items are paged with `?cursor=` (100 per page; pass `next_cursor`). `active` is derived
+from the device's applied configuration, not stored, and is the part of
+`activation_requested` the runtime has acknowledged. An item whose activation the
+runtime refused keeps `activation_requested` and shows the runtime's reason. The store
+and retry responses carry the same body.
 
 ### `POST bulk-onboardings/{run}/retry`
 
-Same permissions as create. Re-queues the `failed` items only. `skipped` items need a
-new run, because their sources do not match the profile.
+Same permissions as create, throttle 5/min. Re-queues the `failed` items only,
+incrementing their `attempts`; 409 while the run is still working or when it has no
+failed items. `skipped` items need a new run, because their sources do not match the
+profile. Records `device.bulk_onboarding.retried`.

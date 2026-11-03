@@ -2,6 +2,7 @@
 """Independent Sparkplug meter, light, or GPS simulator; credentials stay private."""
 import argparse
 import json
+import math
 import pathlib
 import ssl
 import threading
@@ -35,8 +36,18 @@ def metric(name, datatype, value, alias=None):
     return result
 
 
+# Water meters spread their readings over this many seconds, so hundreds stay light on a local stack.
+METER_INTERVAL = 10
+
+
+def meter_ids(count):
+    """`meter-001`, `meter-002`, ... for the downstream water meters of `--meters`."""
+    width = max(3, len(str(count)))
+    return [f"meter-{index:0{width}d}" for index in range(1, count + 1)]
+
+
 class Simulator:
-    def __init__(self, config, state_file, ignore_commands=False, rgb_v2=False, gps=False):
+    def __init__(self, config, state_file, ignore_commands=False, rgb_v2=False, gps=False, meters=0):
         self.config = config
         self.state_file = pathlib.Path(state_file)
         self.ignore_commands = ignore_commands
@@ -49,6 +60,8 @@ class Simulator:
         self.values = {"power": False, "color": "#ff0000", "mode": "blink", "brightness": 5}
         self.rgb_v2 = rgb_v2
         self.gps = gps
+        self.meters = meter_ids(meters)
+        self.rebirths = 0
         self.rgb_state_file = pathlib.Path(str(state_file) + ".rgb.json")
         if rgb_v2:
             self.values = load_state(self.rgb_state_file)
@@ -101,6 +114,19 @@ class Simulator:
             result.append(m)
         return result
 
+    def water_meter(self, index, aliases_only=False):
+        """Flow rate in L/min and total volume in L, matching the water meter example profile."""
+        elapsed = time.monotonic() - self.started
+        values = [("flow_rate", round(12 + 4 * math.sin(elapsed / 60 + index), 3)), ("total_volume", round(1000.0 * (index + 1) + elapsed * 0.2, 3))]
+        result = []
+        for alias, (name, value) in enumerate(values, 1):
+            item = metric(name, sp.Double, value, alias)
+            if aliases_only:
+                item.ClearField("name")
+                item.ClearField("datatype")
+            result.append(item)
+        return result
+
     def light(self):
         return [metric("Power", sp.Boolean, self.values["power"], 1), metric("Color", sp.String, self.values["color"], 2),
                 metric("Mode", sp.String, self.values["mode"], 3), metric("Brightness", sp.Int32, self.values["brightness"], 4)]
@@ -127,6 +153,8 @@ class Simulator:
             else:
                 self.send("DBIRTH", self.meter(), "meter")
                 self.send("DBIRTH", self.light(), "rgb-light")
+                for index, source in enumerate(self.meters):
+                    self.send("DBIRTH", self.water_meter(index), source)
             self.online = True
 
     def on_message(self, client, userdata, message):
@@ -145,6 +173,8 @@ class Simulator:
             payload.ParseFromString(message.payload)
             if "/NCMD/" in message.topic:
                 if any(m.name == "Node Control/Rebirth" and m.boolean_value for m in payload.metrics):
+                    self.rebirths += 1
+                    print(f"Rebirth requested ({self.rebirths} since start)", flush=True)
                     self.birth()
                 return
             if not message.topic.endswith("/rgb-light"):
@@ -179,6 +209,12 @@ class Simulator:
                     self.values["brightness"] = m.int_value
             self.send("DDATA", self.light(), "rgb-light")
 
+    def send_meters(self, second):
+        """Each water meter reports once every METER_INTERVAL seconds, a tenth of them each second."""
+        for index, source in enumerate(self.meters):
+            if (index + second) % METER_INTERVAL == 0:
+                self.send("DDATA", self.water_meter(index, aliases_only=True), source)
+
     def apply_rgb_changes(self, changes):
         with self.lock:
             next_values = {**self.values, **validate_changes(changes)}
@@ -206,6 +242,7 @@ class Simulator:
                             self.send("DDATA", self.meter(aliases_only=True), "meter")
                             if int(time.monotonic() - self.started) % 5 == 0:
                                 self.send("DDATA", self.light(), "rgb-light")
+                            self.send_meters(int(time.monotonic() - self.started))
         except KeyboardInterrupt:
             with self.lock:
                 self.online = False
@@ -224,12 +261,17 @@ if __name__ == "__main__":
     parser.add_argument("--rgb-v2", action="store_true", help="Use Solid/Blink/Strobe and 0–100%% brightness; persist RGB state.")
     parser.add_argument("--gps", action="store_true", help="Publish a GPS route that crosses the demo geofence.")
     parser.add_argument("--control-port", type=int, help="Serve optional local RGB controls on this loopback port (requires --rgb-v2).")
+    parser.add_argument("--meters", type=int, default=0, metavar="COUNT", help="Also announce COUNT water meters, meter-001 onwards, for bulk onboarding.")
     args = parser.parse_args()
+    if args.meters < 0:
+        parser.error("--meters must be zero or more")
+    if args.gps and args.meters:
+        parser.error("--gps cannot be combined with --meters")
     if args.control_port is not None and not args.rgb_v2:
         parser.error("--control-port requires --rgb-v2")
     if args.gps and (args.rgb_v2 or args.control_port is not None):
         parser.error("--gps cannot be combined with RGB controls")
-    simulator = Simulator(json.loads(pathlib.Path(args.config).read_text()), args.state_file, args.ignore_commands, args.rgb_v2, args.gps)
+    simulator = Simulator(json.loads(pathlib.Path(args.config).read_text()), args.state_file, args.ignore_commands, args.rgb_v2, args.gps, args.meters)
     server = serve_controls(simulator, args.control_port) if args.control_port is not None else None
     try:
         simulator.run()
