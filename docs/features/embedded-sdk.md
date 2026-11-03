@@ -119,7 +119,7 @@ reports none.
 ```bash
 cmake -S firmware/sdk -B .local/sdk-build -DIOTOS_SANITIZE=ON && cmake --build .local/sdk-build
 ctest --test-dir .local/sdk-build --output-on-failure
-cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE=firmware/sdk/cmake/arm-none-eabi.cmake
+cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE="$PWD/firmware/sdk/cmake/arm-none-eabi.cmake"
 cmake --build .local/sdk-arm --target iotos_size
 ```
 

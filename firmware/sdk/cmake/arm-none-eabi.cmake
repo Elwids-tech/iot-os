@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Cross-compiles the SDK core for the i.MX RT1050's Cortex-M7, as CI and the board do:
-#   cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE=firmware/sdk/cmake/arm-none-eabi.cmake
+#   cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE="$PWD/firmware/sdk/cmake/arm-none-eabi.cmake"
 #   cmake --build .local/sdk-arm --target iotos_size
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_PROCESSOR arm)

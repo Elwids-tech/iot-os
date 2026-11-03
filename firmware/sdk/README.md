@@ -107,7 +107,7 @@ ctest --test-dir .local/sdk-build --output-on-failure
 Cross-compile the core for a Cortex-M7 and check its size, static data and heap use:
 
 ```bash
-cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE=firmware/sdk/cmake/arm-none-eabi.cmake
+cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE="$PWD/firmware/sdk/cmake/arm-none-eabi.cmake"
 cmake --build .local/sdk-arm --target iotos_size
 ```
 
