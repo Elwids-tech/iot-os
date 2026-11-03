@@ -43,6 +43,7 @@ the code as evidence.
 | [ADR-026](ADR-026-billing-accounts.md) | Every organization belongs to one billing account; organizations stay independent tenants, and billing account owners create organizations under it within a limit | Accepted |
 | [ADR-027](ADR-027-adapter-fed-activation-and-applied-generation.md) | An adapter-fed source activates against its stored birth when it has no live one; bindings use the applied generation, so a refused activation keeps them | Proposed |
 | [ADR-028](ADR-028-activity-log.md) | The activity log on `spatie/laravel-activitylog` is the one audit trail; explicit actions by people and the system, read by platform administrators as a timeline | Proposed |
+| [ADR-029](ADR-029-embedded-sdk-and-gateway-kits.md) | The platform ships an MIT-licensed C SDK for Sparkplug gateways and devices, and gateway kits with credentials can be downloaded from the portal | Proposed |
 
 ## Template
 
