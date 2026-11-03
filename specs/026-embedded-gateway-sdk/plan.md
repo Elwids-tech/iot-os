@@ -238,6 +238,11 @@ docs/features/embedded-sdk.md, docs/hardware/rt1050-evkb.md, apps/docs/.../devel
 
 ## Delivery
 
+> **Amended by [spec 027](../027-firmware-starter-kits/plan.md#delivery) (2026-11-03).** Kit
+> generation, the gateway kit dialog and the SDK image copy move to spec 027's PR 027-1
+> and PR 027-2. PR 2 below keeps the gateway itself, the health profile and the end-to-end
+> check, and PR 4 depends on 027-1 instead of PR 2.
+
 There are no stacked PRs: each PR targets `main` and is opened once the PRs it depends
 on have merged.
 

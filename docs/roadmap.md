@@ -110,6 +110,12 @@ Grouped by area. Links point at the decision or doc that explains the item.
   that connects gateway and device firmware over Sparkplug B, with the hardware ports
   left to the integrator; a per-gateway kit downloaded from the portal; and onboarding
   of hundreds of discovered devices in one action.
+- **Firmware starter kits** ([spec 027](../specs/027-firmware-starter-kits/spec.md),
+  [ADR-030](adr/ADR-030-firmware-starters.md)): a credential-free SDK project per profile
+  and microcontroller (ESP32, NXP i.MX RT, Linux, and other families with AI-assisted
+  ports), downloaded from the profile, device, gateway, onboarding or assistant, with
+  instructions that have an AI coding agent interview the firmware developer before
+  writing code.
 - **Hardware replacement.** A guided "Replace physical device" flow that keeps the
   device UUID, records an audited counter baseline and preserves consumption
   continuity ([design](features/diagrams/device-integration-04-replacement.png),
