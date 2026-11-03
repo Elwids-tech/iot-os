@@ -1,5 +1,11 @@
 # Contract: Kit Layout
 
+> **Amended by [spec 027](../../027-firmware-starter-kits/contracts/starter-layout.md)
+> (2026-11-03).** Kits are a credential-free starter plus separate connection settings. The
+> archive layouts below are replaced by spec 027's starter layout. The type headers,
+> identifier rules and size warnings in this file still apply, except that the node's
+> device type moves from `config/iotos_settings.c` to `generated/iotos_types.c`.
+
 Both kits are ZIP archives built with `PharData` in a private temporary directory that
 is always removed, as today.
 

@@ -318,6 +318,12 @@ home paths.
 
 ## PR 2: Kits, the gateway itself, gateway health profile
 
+> **Amended by [spec 027](../027-firmware-starter-kits/plan.md#delivery) (2026-11-03).** Kits are
+> built once, as spec 027's firmware generator (its PR 027-1): T040 and Phase 10
+> (T049–T057) move there and are not built here. PR 2 keeps Phase 9 (the gateway itself,
+> the health profile), Phase 11 (T058 downloads the gateway full kit from spec 027's
+> endpoint) and Phase 12, and opens after 027-1 merges.
+
 ### Phase 8: Kit foundation
 
 - [ ] T040 Put the SDK in the API image (R14):
@@ -384,6 +390,11 @@ home paths.
 - [ ] T048 [US6] Extend `apps/portal/e2e/onboarding.spec.ts` (mocked API): node onboarding, profile creation, and the request body carrying `source: "node"`.
 
 ### Phase 10: User Story 4, gateway kit (P2)
+
+> **Moved to spec 027.** The gateway kit becomes a starter plus connection settings
+> ([starter layout](../027-firmware-starter-kits/contracts/starter-layout.md)), built in
+> 027-1 (endpoints) and 027-2 (the gateway Firmware dialog). These tasks stay unticked
+> here as history.
 
 **Goal**: an operator downloads a ready-to-build kit for a gateway, generated from published profiles.
 
@@ -622,6 +633,11 @@ home paths.
 
 ## PR 4: Board port, modem template, bench
 
+> **Amended by spec 027.** PR 4 depends on spec 027's PR 027-1 instead of PR 2. The board
+> example becomes spec 027's NXP target: T084 follows the starter layout, T085 adds the
+> registry entry and its tests, T082 adds the CI `nxp` leg, and T089 and T091 use the NXP
+> full kit (spec 027 research R11).
+
 ### Phase 14: User Story 1 on hardware and User Story 3 modem template
 
 **Goal**: the kit's board example builds unchanged for the MIMXRT1050-EVKB and connects over Ethernet; integrators have a modem template.
@@ -629,7 +645,9 @@ home paths.
 **Independent test**: quickstart 8 on the bench.
 
 - [ ] T081 [P] [US1] `ports/freertos/lock.c` (a non-recursive mutex from `xSemaphoreCreateMutexStatic`, which the SDK never takes twice on one task) and `ports/freertos/log.c` (through a `IOTOS_FREERTOS_PRINTF` macro, defaulting to `PRINTF`), with `iotos_freertos.h`.
-- [ ] T082 [US1] `.github/workflows/ci.yml` `sdk` cross-compile also builds `ports/freertos` against FreeRTOS-Kernel headers pinned with `FetchContent`, using a minimal `FreeRTOSConfig.h` in `firmware/sdk/tests/freertos-config/`.
+- [ ] T082 [US1] `.github/workflows/ci.yml`:
+  - the `sdk` cross-compile also builds `ports/freertos` against FreeRTOS-Kernel headers pinned with `FetchContent`, using a minimal `FreeRTOSConfig.h` in `firmware/sdk/tests/freertos-config/`;
+  - the `firmware-starters` job (spec 027) gains an `nxp` leg: the MCUXpresso SDK through `west` at a pinned manifest revision, limited to the RT1050 device, FreeRTOS, lwIP and mbedTLS, and cached by revision; then the armgcc build of every `.local/starters/nxp-imxrt1050-mcuxpresso/*` starter. It runs on pull requests touching `firmware/**`, `contracts/firmware/**` or `apps/api/app/Domain/Firmware/**`, and nightly (`schedule`). It also asserts the example compiles the same `firmware/sdk/src/*.c` and coreMQTT sources as the desktop library (spec 027 FR-013).
 - [ ] T083 [US1] `ports/mcuxpresso-lwip/`, with `iotos_mcux.h`:
   - `stream_mbedtls_lwip.c`: mbedTLS over lwIP sockets, with hostname verification, the settings CA, and entropy from the board's TRNG.
   - `clock_sntp.c`: lwIP SNTP, valid after the first sync.
@@ -641,8 +659,8 @@ home paths.
     - one for the network and SNTP, and one for the SDK poll;
     - an RS-485 polling stub: an LPUART Modbus RTU read loop over addresses 1–247, with the integrator's hooks marked `TODO(integrator)`. It is built only when `IOTOS_KIT_GATEWAY` is 1, so a direct kit's example has no polling task.
   - **Console:** logs the clock sync, TLS and births.
-  - **Config:** read from `../../config`.
-- [ ] T085 [US1] Extend `apps/api/tests/Feature/Domain/Devices/GatewayKitTest.php` to assert that `examples/rt1050-evkb-ethernet/` is in the kit.
+  - **Config and layout:** follows spec 027's [starter layout](../027-firmware-starter-kits/contracts/starter-layout.md). The project files sit at the starter root (`armgcc/`), the developer path is `app/` (`main.c` and the generated `field.c`/`field.h`), and the build locates the SDK only through `sdk/` (or `../..` in the repository), the tables through `generated/`, and `config/iotos_settings.c` or `sdk/starter/settings_missing.c`. It copies the `const` settings and sets `node_type`, and has the `IOTOS_KIT_SETTINGS_FORMAT` `#error` check.
+- [ ] T085 [US1] Add the `nxp-imxrt1050-mcuxpresso` entry to `firmware/starters/targets.json` (`kind: built`, `example: "rt1050-evkb-ethernet"`, `developer_paths: ["app/"]`, `toolchain` naming the exact MCUXpresso SDK 25.x and armgcc versions, both roles). Extend spec 027's `StarterTest`, `SecretScanTest` and `AgentsBriefDriftTest` (`apps/api/tests/Feature/Domain/Firmware/`) with the NXP layout. The README says the vendor SDK is not included and to set `MCUXSDK_ROOT`.
 - [ ] T086 [P] [US3] `ports/templates/modem-at-mqtt-template.c`, an MQTT port annotated for the BG95 command family (R5):
   - `AT+QMTCFG` for the will, `AT+QMTOPEN`, `AT+QMTCONN`, `AT+QMTPUBEX` with an explicit length, `AT+QMTSUB`, and the `+QMTRECV` URC.
   - Which receive mode keeps binary payloads intact, and the `AT+QLTS`/`AT+CCLK` clock.
@@ -660,23 +678,24 @@ home paths.
     - add the FreeRTOS and MCUXpresso/lwIP ports, the board example and the modem template's status to the ports section of `docs/features/embedded-sdk.md`;
     - add "Unreleased" entries for them in `firmware/sdk/CHANGELOG.md`.
 - [ ] T089 [US1] Bench run, quickstart 8:
-  - Rebuild `api` with the stack's env files and overlays (AGENTS.md command), because the image bundles `firmware/sdk` into kits and this PR adds the board example. Download a fresh kit from the local stack and check that it contains `examples/rt1050-evkb-ethernet/`.
+  - Rebuild `api` with the stack's env files and overlays (AGENTS.md command), because the image bundles `firmware/` and this PR adds the board example and its target. Download an NXP full kit for a gateway from the local stack (spec 027's gateway Firmware endpoint) and check its layout.
   - Build from that kit, flash, and watch the console.
   - Unplug the Ethernet cable, then plug it back in: everything is re-announced within five minutes (SC-004).
   - Record RAM and flash use, and the time from kit download to first readings (SC-001), in the PR.
 
 ### Phase 15: Polish (PR 4)
 
-- [ ] T090 [P] Public developer page `apps/docs/src/content/docs/docs/developers/embedded-sdk.mdx`, in the Developers sidebar group. It has no repository paths and names no licence (`docs/dev/docs-site.md` writing rules).
+- [ ] T090 [P] Public developer page `apps/docs/src/content/docs/docs/developers/embedded-sdk.mdx`, in the Developers sidebar group: add the NXP board to the page spec 027 PR 027-1 creates (create it if that PR has not). It has no repository paths and names no licence (`docs/dev/docs-site.md` writing rules).
 - [ ] T091 Check, release and open PR 4:
   - **Checks:**
     - quickstart 1 and 2, with the cross-compile now including `ports/freertos`;
-    - `cd apps/api && php artisan test --compact --filter 'GatewayKit|EmbeddedKit'`;
+    - `cd apps/api && php artisan test --compact --filter 'Starter|SecretScan|AgentsBriefDrift'`;
+    - the `firmware-starters` job's `nxp` leg;
     - `python -m unittest discover -s tooling/hardware -p 'test_*.py'`;
     - `./taskw lint`.
   - Move the `firmware/sdk/CHANGELOG.md` entries under `0.1.0`.
   - If PR 3 has already merged, remove spec 026 from `docs/roadmap.md` here (T079 does it if PR 3 merges last).
-  - Leak scan, then open PR 4 against `main` once PR 2 has merged (T085 needs the kit endpoint).
+  - Leak scan, then open PR 4 against `main` once spec 027's PR 027-1 has merged (T085 and T089 need its generator and endpoints).
 
 **Checkpoint**: the feature is complete. Run `/speckit-converge` before closing it.
 
@@ -690,9 +709,9 @@ home paths.
 | --- | --- | --- |
 | 0 | 1 | — |
 | 1 | 2–7 | PR 0 merged |
-| 2 | 8–12 | PR 1 merged (the kit bundles the SDK; T043 reads `iotos_health.h`) |
+| 2 | 9, 11, 12 (8 and 10 moved to spec 027) | PR 1 and spec 027's PR 027-1 merged |
 | 3 | 13 | PR 0 merged; it is built and checked with the Python simulator (T077) |
-| 4 | 14–15 | PR 1 and PR 2 merged (T085 asserts the board example in the gateway kit) |
+| 4 | 14–15 | PR 1 and spec 027's PR 027-1 merged (T085 asserts the board example in an NXP full kit) |
 
 ### Within PR 1
 
