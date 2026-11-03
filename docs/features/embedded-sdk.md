@@ -7,8 +7,8 @@ ports. The decision is [ADR-029](../adr/ADR-029-embedded-sdk-and-gateway-kits.md
 spec [026](../../specs/026-embedded-gateway-sdk/spec.md), and the API contract
 [sdk-c-api](../../specs/026-embedded-gateway-sdk/contracts/sdk-c-api.md).
 
-Code: [`firmware/sdk`](../../firmware/sdk/README.md), MIT-licensed for that folder
-only. Gateway kits that bundle it with generated settings, and the board port, follow
+Code: [`firmware/sdk`](../../firmware/sdk/README.md), under the MIT
+[licence](../../firmware/sdk/LICENSE) for that folder only. Gateway kits that bundle it with generated settings, and the board port, follow
 in later pull requests of spec 026.
 
 ## Architecture

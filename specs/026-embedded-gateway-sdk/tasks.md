@@ -43,8 +43,8 @@ home paths.
 
 ### Phase 2: SDK foundation (blocks US1, US2, US3, US7)
 
-- [ ] T005 Scaffold `firmware/sdk/`:
-  - `LICENSE`: MIT. Ask the owner for the copyright holder line.
+- [x] T005 Scaffold `firmware/sdk/`:
+  - `LICENSE`: MIT, copyright Elwids.
   - `VERSION`: `0.1.0`.
   - `CHANGELOG.md`, with an "Unreleased" section.
   - `README.md`: what the SDK is, the ports, and how to build.
