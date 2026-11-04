@@ -651,6 +651,12 @@ Things that have cost time before. Add to this list when something surprises you
   (as `apps/docs` does with `astro`) instead of adding `minimumReleaseAgeExclude`.
 - **An empty Actions secret reads as an empty string, not unset.** Scripts that
   read optional secrets (`DOCS_DENYLIST`) treat `""` as unset.
+- **Help guides never name the product.** The release checks that a build with
+  another product name no longer shows the configured one, reading the guides in
+  `apps/api/resources/help` from the checkout. Main's CI reads them at
+  `DOCS_HOSTED_REF`, so a literal product name in a changed guide passes CI and
+  fails the release. Run `DOCS_HOSTED_REF= DOCS_SOURCES=worktree node
+  scripts/check-docs.mjs rename` in `apps/docs` after changing a guide.
 
 ## Embedded SDK
 
