@@ -114,16 +114,23 @@ final class TargetRegistry
         if (! is_int($target['order'] ?? null)) {
             return 'order must be an integer';
         }
+        $ignored = $target['gitignore_extra'] ?? [];
+        if (! is_array($ignored) || ! array_is_list($ignored) || array_filter($ignored, fn ($line) => ! is_string($line) || $line === '' || str_contains($line, "\n")) !== []) {
+            return 'gitignore_extra must list .gitignore lines';
+        }
         if ($target['kind'] === 'built') {
             if (! is_string($target['example'] ?? null) || preg_match('/^[a-z0-9-]+$/', $target['example']) !== 1 || ! is_string($target['toolchain'] ?? null) || ! is_string($target['build'] ?? null) || ! is_string($target['run'] ?? null)) {
                 return 'a built target needs an example, a toolchain, a build command and a run command';
+            }
+            if (array_key_exists('build_notes', $target) && (! is_string($target['build_notes']) || trim($target['build_notes']) === '')) {
+                return 'build_notes must be text';
             }
             if (array_key_exists('family_notes', $target)) {
                 return 'family_notes is only for AI-assisted targets';
             }
         } else {
-            if (array_intersect(['example', 'toolchain', 'build', 'run'], array_keys($target)) !== []) {
-                return 'example, toolchain, build and run are only for built targets';
+            if (array_intersect(['example', 'toolchain', 'build', 'run', 'build_notes'], array_keys($target)) !== []) {
+                return 'example, toolchain, build, run and build_notes are only for built targets';
             }
             $notes = array_key_exists('family_notes', $target) ? $target['family_notes'] : false;
             if ($notes !== null && (! is_string($notes) || preg_match('#^families/[a-z0-9-]+\.md$#', $notes) !== 1)) {

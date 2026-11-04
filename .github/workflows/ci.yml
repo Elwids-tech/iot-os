@@ -325,13 +325,13 @@ jobs:
   firmware-starters:
     name: Firmware starters (${{ matrix.leg }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        # Spec 027: 027-3 adds esp32 (idf.py build in espressif/idf:v5.4.1), and spec 026 PR 4
-        # adds nxp (the MCUXpresso SDK through west, on firmware changes and nightly).
-        leg: [linux, ai-assisted]
+        # Spec 027: spec 026 PR 4 adds nxp (the MCUXpresso SDK through west, on firmware
+        # changes and nightly).
+        leg: [linux, esp32, ai-assisted]
     env:
       # The fixtures command needs no database.
       DB_CONNECTION: sqlite
@@ -396,6 +396,28 @@ jobs:
           grep -q '"trip_count"' "$project/generated/iotos_type_relay.h"
           cmake -S "$project" -B "$project/build" -DAPP_WERROR=ON -DFETCHCONTENT_BASE_DIR="$PWD/.local/fetchcontent"
           cmake --build "$project/build" -j"$(nproc)"
+      # FR-013: what the desktop library compiles, which every ESP32 build must match.
+      - name: The desktop library's core sources
+        if: matrix.leg == 'esp32'
+        run: |
+          cmake -S firmware/sdk -B .local/sdk-sources -DIOTOS_BUILD_POSIX=OFF -DIOTOS_BUILD_TESTS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          python3 tooling/firmware/core_sources.py .local/sdk-sources/compile_commands.json firmware/sdk | tee .local/desktop-sources.txt
+          grep -q '^src/session.c$' .local/desktop-sources.txt
+      # The image carries ESP-IDF and its tools; what is worth keeping between runs is ccache.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.leg == 'esp32'
+        with:
+          path: .local/ccache
+          key: starters-esp32-ccache-${{ github.sha }}
+          restore-keys: starters-esp32-ccache-
+      - name: Every ESP32 starter builds, with a full kit and the example for the ESP32-C3
+        if: matrix.leg == 'esp32'
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work \
+            -e IDF_CCACHE_ENABLE=1 -e CCACHE_DIR=/work/.local/ccache -e CCACHE_BASEDIR=/work \
+            -e CCACHE_NOHASHDIR=1 -e CCACHE_MAXSIZE=1G \
+            espressif/idf:v5.4.1 bash -c 'git config --global --add safe.directory "*" &&
+              tooling/firmware/build-esp32-starters.sh .local/starters/esp32-esp-idf .local/desktop-sources.txt .local/esp32-builds'
       - name: AI-assisted starters have their files, and their C compiles
         if: matrix.leg == 'ai-assisted'
         run: |
@@ -432,6 +454,7 @@ jobs:
       - run: python -m unittest discover -s tooling/contracts -p 'test_*.py'
       - run: python tooling/verify-devices-contracts.py
       - run: python -m unittest discover -s tooling/docs -p 'test_*.py'
+      - run: python -m unittest discover -s tooling/firmware -p 'test_*.py'
       - name: Documentation links resolve
         run: python tooling/docs/check_links.py
       # The release renders its rules from these (tooling/release/monitoring.py).

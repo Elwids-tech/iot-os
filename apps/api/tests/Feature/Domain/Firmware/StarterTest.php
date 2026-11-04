@@ -8,6 +8,7 @@ use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -29,6 +30,7 @@ final class StarterTest extends TestCase
 
     public function test_every_target_builds_the_starter_layout_for_both_roles(): void
     {
+        $this->withoutMiddleware(ThrottleRequests::class);
         $relay = $this->publish('relay')[1];
         $water = $this->publish('water-meter')[0];
         $energy = $this->publish('energy-meter')[0];
@@ -36,22 +38,45 @@ final class StarterTest extends TestCase
             $direct = $this->starter(['target' => $target['id'], 'role' => 'direct', 'node_artifact_uuid' => $relay]);
             $root = 'relay-'.$target['id'].'-starter/';
             $files = $this->unzip($direct['archive_base64']);
+            $developer = $direct['manifest']['developer_paths'][0];
             $this->assertSame('relay-'.$target['id'].'-starter.zip', $direct['filename']);
             foreach (['README.md', 'AGENTS.md', 'CLAUDE.md', 'iotos-starter.json', '.gitignore', 'config/README.md', 'sdk/VERSION', 'sdk/include/iotos/iotos.h',
                 'sdk/starter/settings_missing.c', 'sdk/examples/desktop-simulator/main.c', 'generated/iotos_types.c', 'generated/iotos_types.h',
                 'generated/iotos_type_relay.h', 'generated/profiles/relay.json', '.iotos/device-brief.schema.json', '.iotos/porting.md',
-                'app/field.c', 'app/field.h', 'app/device-brief.example.yaml'] as $path) {
+                $developer.'field.c', $developer.'field.h', $developer.'device-brief.example.yaml'] as $path) {
                 $this->assertArrayHasKey($root.$path, $files, $target['id'].': '.$path);
             }
             $this->assertSame([], array_values(array_filter(array_keys($files), fn ($path) => str_contains($path, 'sample-config/') || str_contains($path, '/tests/'))));
-            $this->assertSame($target['kind'] === 'built', isset($files[$root.'CMakeLists.txt']) && isset($files[$root.'app/main.c']), $target['id']);
-            $this->assertSame($target['kind'] === 'ai_assisted', isset($files[$root.'app/ports/stream-template.c']) && isset($files[$root.'.iotos/reference/main.c']), $target['id']);
+            $this->assertSame($target['kind'] === 'built', isset($files[$root.'CMakeLists.txt']) && isset($files[$root.$developer.'main.c']), $target['id']);
+            $this->assertSame($target['kind'] === 'ai_assisted', isset($files[$root.$developer.'ports/stream-template.c']) && isset($files[$root.'.iotos/reference/main.c']), $target['id']);
+            $this->assertSame($target['id'] === 'esp32-esp-idf', str_contains($files[$root.'.gitignore'], 'sdkconfig'), $target['id'].' .gitignore');
             $this->assertSame($direct['manifest'], json_decode($files[$root.'iotos-starter.json'], true));
 
             $gateway = $this->starter(['target' => $target['id'], 'role' => 'gateway', 'node_artifact_uuid' => null, 'device_type_artifact_uuids' => [$water, $energy]]);
             $this->assertSame('water-meter-'.$target['id'].'-starter.zip', $gateway['filename']);
             $this->assertStringContainsString('#define IOTOS_KIT_ROLE_GATEWAY 1', $this->unzip($gateway['archive_base64'])['water-meter-'.$target['id'].'-starter/generated/iotos_types.h']);
         }
+    }
+
+    public function test_an_esp32_starter_is_an_esp_idf_project_whose_developer_path_is_main(): void
+    {
+        $starter = $this->starter(['target' => 'esp32-esp-idf', 'role' => 'direct', 'node_artifact_uuid' => $this->publish('relay')[1]]);
+        $root = 'relay-esp32-esp-idf-starter/';
+        $files = $this->unzip($starter['archive_base64']);
+
+        $this->assertSame(['main/'], $starter['manifest']['developer_paths']);
+        foreach (['CMakeLists.txt', 'sdkconfig.defaults', 'components/iotos/CMakeLists.txt', 'main/CMakeLists.txt', 'main/Kconfig.projbuild', 'main/main.c',
+            'sdk/cmake/iotos_sources.cmake', 'sdk/ports/esp-idf/component.cmake', 'sdk/ports/esp-idf/stream.c', 'sdk/ports/freertos/lock.c'] as $path) {
+            $this->assertArrayHasKey($root.$path, $files, $path);
+        }
+        // The field side is generated for this profile, not copied from the example's sample tables.
+        $this->assertStringContainsString('field_read_relay_relay_state', $files[$root.'main/field.c']);
+        $this->assertStringNotContainsString('water_meter', $files[$root.'main/field.h']);
+        $this->assertSame([], array_values(array_filter(array_keys($files), fn (string $path): bool => preg_match('#/(sdkconfig|sdkconfig\.old|build/.*|managed_components/.*|app/.*)$#', $path) === 1)));
+        // sdkconfig holds the Wi-Fi password.
+        $this->assertStringContainsString("sdkconfig\nsdkconfig.old\nmanaged_components/\n", $files[$root.'.gitignore']);
+        $this->assertStringContainsString('`idf.py menuconfig`', $files[$root.'README.md']);
+        $this->assertStringContainsString('| `README.md`, `.gitignore`, `CMakeLists.txt`, `components/`, `sdkconfig.defaults` |', $files[$root.'README.md']);
     }
 
     public function test_a_gateway_without_a_health_profile_uses_the_sdk_default_table(): void

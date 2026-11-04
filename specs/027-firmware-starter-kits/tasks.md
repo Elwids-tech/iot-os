@@ -367,8 +367,8 @@ appear in each story.
 
 **Independent test**: the `esp32` CI leg, then quickstart 7.
 
-- [ ] T066 [US1] `firmware/sdk/ports/freertos/lock.c` and its header (a FreeRTOS mutex `iotos_lock_port`). Skip it if 026-4 has already landed it, then reuse it.
-- [ ] T067 [US1] `firmware/sdk/ports/esp-idf/`:
+- [X] T066 [US1] `firmware/sdk/ports/freertos/lock.c` and its header (a FreeRTOS mutex `iotos_lock_port`). Skip it if 026-4 has already landed it, then reuse it.
+- [X] T067 [US1] `firmware/sdk/ports/esp-idf/`:
   - `stream.c`: `esp_tls` with `cacert_buf` from the settings' CA, `common_name` as the broker host, and timeouts from `IOTOS_CONNECT_TIMEOUT_MS`;
   - `clock.c`: SNTP UTC with a valid flag, and `esp_timer_get_time()/1000` as `monotonic_ms`;
   - `storage.c`: NVS namespace `iotos` for `bdSeq`;
@@ -376,20 +376,20 @@ appear in each story.
   - `iotos_esp_idf.h` with `iotos_esp_idf_ports_init()`.
 
   Ports only; the public SDK API is unchanged (FR-012).
-- [ ] T068 [US1] `firmware/sdk/examples/esp32-wifi/`, an ESP-IDF v5.4.1 project:
+- [X] T068 [US1] `firmware/sdk/examples/esp32-wifi/`, an ESP-IDF v5.4.1 project:
   - `components/iotos/CMakeLists.txt` builds the SDK core and vendored coreMQTT from `sdk/` (starter) or `../..` (repository), and adds `config/iotos_settings.c` or `sdk/starter/settings_missing.c`;
   - `main/main.c` (Wi-Fi from `CONFIG_IOTOS_WIFI_SSID` and `CONFIG_IOTOS_WIFI_PASSWORD`, then the same settings copy, `IOTOS_KIT_SETTINGS_FORMAT` check and loop as the Linux example);
   - `main/Kconfig.projbuild` and `sdkconfig.defaults` (TLS and SNTP);
   - the README says not to add `espressif/coremqtt` or use ESP-IDF's MQTT client.
-- [ ] T069 [US1] Add the `esp32-esp-idf` entry to `firmware/starters/targets.json` (`example: "esp32-wifi"`, `developer_paths: ["main/"]`, `toolchain: "ESP-IDF v5.4.1"`, both roles). `StarterBuilder` adds `sdkconfig`, `sdkconfig.old` and `managed_components/` to `.gitignore` for this target. Extend `StarterTest` and `AgentsBriefDriftTest` with the ESP32 layout.
-- [ ] T070 [US1] CI: an `esp32` leg in `firmware-starters` that runs `idf.py build` for every `.local/starters/esp32-esp-idf/*` inside `espressif/idf:v5.4.1`, and also builds the in-repo example. Assert that `components/iotos/CMakeLists.txt` compiles the same `firmware/sdk/src/*.c` and coreMQTT sources as the desktop `iotos` library, so message parity holds by construction (FR-013). Cache the ESP-IDF tools between runs where the image allows.
-- [ ] T071 [P] [US2] `docs/hardware/esp32-starter-bench.md` (research R17): parts, wiring of the RS-485 transceiver and Modbus sensor, the timed protocol, and the run checklist (questions that asked for known facts, code before the brief, access to `config/`, time). Transcripts stay in `.local/`. List it under hardware in `docs/README.md`.
+- [X] T069 [US1] Add the `esp32-esp-idf` entry to `firmware/starters/targets.json` (`example: "esp32-wifi"`, `developer_paths: ["main/"]`, `toolchain: "ESP-IDF v5.4.1"`, both roles). `StarterBuilder` adds `sdkconfig`, `sdkconfig.old` and `managed_components/` to `.gitignore` for this target. Extend `StarterTest` and `AgentsBriefDriftTest` with the ESP32 layout.
+- [X] T070 [US1] CI: an `esp32` leg in `firmware-starters` that runs `idf.py build` for every `.local/starters/esp32-esp-idf/*` inside `espressif/idf:v5.4.1`, and also builds the in-repo example. Assert that `components/iotos/CMakeLists.txt` compiles the same `firmware/sdk/src/*.c` and coreMQTT sources as the desktop `iotos` library, so message parity holds by construction (FR-013). Cache the ESP-IDF tools between runs where the image allows.
+- [X] T071 [P] [US2] `docs/hardware/esp32-starter-bench.md` (research R17): parts, wiring of the RS-485 transceiver and Modbus sensor, the timed protocol, and the run checklist (questions that asked for known facts, code before the brief, access to `config/`, time). Transcripts stay in `.local/`. List it under hardware in `docs/README.md`.
 - [ ] T072 [US2] Bench runs (quickstart 7), once with Claude Code and once with Codex, recording outcomes only in `esp32-starter-bench.md`. The person running it uses only the Firmware section, the starter's documents and the agent, with no other help. Each run must store readings matching the sensor within 60 minutes, with no question about known facts, the brief before code, and `config/` untouched (SC-001, SC-007). Then reboot the board and check the next `bdSeq` is one higher, and compare the ESP32's births with the desktop simulator's for the same profile and values (FR-013). Fix the templates and rerun for any failure.
 
 ### Phase 12: PR 027-3 documentation and verification
 
-- [ ] T073 [P] `docs/features/embedded-sdk.md`: the ESP32 target and its port. Add a `firmware/sdk/CHANGELOG.md` "Unreleased" entry.
-- [ ] T074 Checks as in T050, including the `esp32` leg of `.github/workflows/ci.yml`.
+- [X] T073 [P] `docs/features/embedded-sdk.md`: the ESP32 target and its port. Add a `firmware/sdk/CHANGELOG.md` "Unreleased" entry.
+- [X] T074 Checks as in T050, including the `esp32` leg of `.github/workflows/ci.yml`.
 - [ ] T075 Rebuild `api` (it bundles `firmware/`) and confirm the ESP32 target appears in `GET firmware/targets` on the stack. Leak scan, then open PR 027-3 against `main`.
 
 ---

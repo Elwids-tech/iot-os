@@ -2,6 +2,20 @@
   "format": 1,
   "targets": [
     {
+      "id": "esp32-esp-idf",
+      "name": "ESP32 (ESP-IDF)",
+      "kind": "built",
+      "roles": ["direct", "gateway"],
+      "example": "esp32-wifi",
+      "developer_paths": ["main/"],
+      "toolchain": "ESP-IDF v5.4.1",
+      "build": "idf.py build",
+      "run": "idf.py flash monitor",
+      "build_notes": "Before the first build, set the Wi-Fi network with `idf.py menuconfig`, under **IoT OS\napplication**. `sdkconfig` keeps the password, and `.gitignore` keeps it out of version\ncontrol. The project builds for the ESP32; for another chip, such as the ESP32-S3 or\nESP32-C3, first run `idf.py set-target esp32s3` with that chip's name. The SDK brings its\nown MQTT client, so do not add the coreMQTT component from the ESP Component Registry,\nwhose symbols clash with it, and do not connect to the platform with ESP-IDF's MQTT\nclient.",
+      "gitignore_extra": ["# sdkconfig holds the Wi-Fi password.", "sdkconfig", "sdkconfig.old", "managed_components/"],
+      "order": 10
+    },
+    {
       "id": "linux",
       "name": "Linux or macOS",
       "kind": "built",

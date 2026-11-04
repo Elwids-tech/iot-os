@@ -681,6 +681,24 @@ Things that have cost time before. Add to this list when something surprises you
   for `config/iotos_settings.c` when CMake configures. It adds `config/` to
   `CMAKE_CONFIGURE_DEPENDS`, so unpacking the settings re-runs the configuration on the
   next build; a folder created later than the first configure does not.
+- **esp-tls leaves its connect timeout on the socket.** `esp_tls_conn_new_sync` sets
+  `SO_RCVTIMEO` to the config's `timeout_ms`, so every later read blocks that long
+  (10 s) and `iotos_poll` stalls. The ESP-IDF stream port sets 20 ms after the
+  handshake. ESP-IDF's mbedTLS socket layer counts `EAGAIN` as "want read" even on a
+  blocking socket, so the expiry reaches the SDK as "nothing yet".
+- **`iotos_poll` returns at once while it waits to reconnect.** A FreeRTOS loop that
+  only calls it then never blocks, and the idle task starves (the task watchdog
+  complains). The ESP32 example waits one tick per pass; the Linux one spins during
+  back-off.
+- **ESP-IDF reads every component's CMakeLists.txt twice.** The first pass runs it in
+  script mode to collect requirements, where `idf_component_register` is a macro that
+  ends with `return()`. Code after it runs only in the real pass, and commands before it
+  must work in script mode (`set`, `include`, `get_filename_component`, `if(EXISTS)`).
+  `ports/esp-idf/component.cmake` keeps `target_*` calls after the registration.
+- **A starter's ESP-IDF component file is kept on update.** `components/iotos/CMakeLists.txt`
+  is a project file, not a replaceable one, so it only locates the folders and includes
+  `sdk/ports/esp-idf/component.cmake`. A source list written there would miss files a
+  later SDK adds.
 - **Download endpoints share one throttle per person.** `throttle:10,1` keys on the user,
   not the route, so onboarding provisioning, connection kits, firmware starters,
   settings and kits all count against the same ten a minute. Feature tests that download

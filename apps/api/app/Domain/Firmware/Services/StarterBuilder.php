@@ -225,7 +225,7 @@ final class StarterBuilder
             'profiles_list' => "The profiles in this starter:\n\n".implode("\n", $profiles),
             'developer_path' => $developer,
             'build_section' => $built
-                ? "```sh\n".$target['build']."\n".$target['run']."\n```\n\nTested with ".$target['toolchain'].'.'
+                ? "```sh\n".$target['build']."\n".$target['run']."\n```\n\n".(isset($target['build_notes']) ? $target['build_notes']."\n\n" : '').'Tested with '.$target['toolchain'].'.'
                 : $target['name'].' has no tested project yet. The coding agent sets one up for your toolchain and fills the ports in `'.$developer.'ports/`, following `.iotos/porting.md`'.$family.'.',
             'build_command' => $built ? '`'.$target['build'].'`' : 'the build set up in step 6',
             'settings_section' => $gateway
@@ -236,7 +236,7 @@ final class StarterBuilder
             'project_files' => $built ? $this->projectFileList($target) : '',
             'project_files_text' => $built ? ', build files' : '',
             'replaceable' => implode(' ', self::REPLACEABLE),
-            'gitignore_extra' => $target['gitignore_extra'] ?? '',
+            'gitignore_extra' => implode("\n", $target['gitignore_extra'] ?? []),
             'hardware_note' => $built ? ' This starter is already set up for '.$target['name'].': confirm the board and its peripherals, and skip the questions about porting.' : '',
             'gateway_note' => $gateway ? ', and how each device\'s ID is formed (unique on this gateway, at most 24 characters)' : '',
             'devices_note' => $gateway
@@ -255,11 +255,18 @@ final class StarterBuilder
         ];
     }
 
+    /** The example's files and folders at the root, outside the developer paths. */
     private function projectFileList(array $target): string
     {
-        $paths = array_keys(array_filter($this->exampleFiles($target), fn (string $contents, string $path): bool => ! str_contains($path, '/'), ARRAY_FILTER_USE_BOTH));
+        $paths = [];
+        foreach (array_keys($this->exampleFiles($target)) as $path) {
+            $top = str_contains($path, '/') ? strstr($path, '/', true).'/' : $path;
+            if (! in_array($top, $target['developer_paths'], true)) {
+                $paths[$top] = true;
+            }
+        }
 
-        return implode('', array_map(fn (string $path): string => ', `'.$path.'`', $paths));
+        return implode('', array_map(fn (string $path): string => ', `'.$path.'`', array_keys($paths)));
     }
 
     private function render(string $template, array $facts): string

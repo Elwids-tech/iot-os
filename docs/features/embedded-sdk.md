@@ -11,8 +11,8 @@ Code: [`firmware/sdk`](../../firmware/sdk/README.md), under the MIT
 [licence](../../firmware/sdk/LICENSE) for that folder only. Developers get it as a
 [firmware starter](#firmware-starters) for their profile and microcontroller (spec
 [027](../../specs/027-firmware-starter-kits/spec.md),
-[ADR-030](../adr/ADR-030-firmware-starters.md)); the NXP board port follows in spec 026
-PR 4.
+[ADR-030](../adr/ADR-030-firmware-starters.md)). Linux and the ESP32 are built targets;
+the NXP board port follows in spec 026 PR 4.
 
 ## Architecture
 
@@ -48,11 +48,37 @@ ports (integrator) ──▶ stream or mqtt, clock, storage, log, lock
 | `iotos_lock_port` | several tasks | A plain mutex |
 
 `firmware/sdk/ports/templates/` has an annotated template for each port that compiles as
-shipped (a CTest keeps them in step with the headers), and `ports/posix/` a working
-desktop set. Port structures only ever gain members at the end and treat `NULL` as
+shipped (a CTest keeps them in step with the headers), `ports/posix/` a working desktop
+set, and `ports/esp-idf/` an ESP-IDF v5.4 set (below). Port structures only ever gain members at the end and treat `NULL` as
 unsupported, so ports written with designated initialisers keep compiling. That is how
 store-and-forward will extend `iotos_storage_port`: new optional calls at the end, used
 only when set.
+
+### ESP-IDF and FreeRTOS
+
+`ports/esp-idf/` (`iotos_esp_idf.h`, `iotos_esp_idf_ports_init`) fills every port:
+
+- **stream**: esp-tls with the kit's CA, the broker host as SNI and as the name the
+  certificate must carry, within `IOTOS_CONNECT_TIMEOUT_MS`. esp-tls leaves that
+  timeout on the socket as its read timeout, so the port sets 20 ms after the handshake;
+  ESP-IDF's mbedTLS socket layer reports the expiry as "want read", which `recv` returns
+  as 0.
+- **clock**: UTC is valid once the SNTP server has answered in this boot (the RTC keeps
+  counting through a restart, so a plausible time is not trusted). With no server, the
+  application sets the time and UTC is valid once past 2024. `monotonic_ms` is
+  `esp_timer_get_time() / 1000`.
+- **storage**: one NVS blob per key in the namespace `iotos`; NVS replaces entries
+  atomically.
+- **log**: `ESP_LOG` with the tag `iotos`.
+- **lock**: `ports/freertos/` (`iotos_freertos_lock_init`), a non-recursive mutex created
+  with `xSemaphoreCreateMutexStatic`. It builds with ESP-IDF's FreeRTOS and with the
+  plain kernel, for the NXP port to share.
+
+`ports/esp-idf/component.cmake` registers the SDK as an ESP-IDF component from the same
+source list as the desktop library ([`cmake/iotos_sources.cmake`](../../firmware/sdk/cmake/iotos_sources.cmake)),
+so the ESP32 runs the code the tests ran (FR-013). A project must not also add the ESP
+Component Registry's coreMQTT, whose symbols clash, and does not use ESP-IDF's MQTT
+client.
 
 ## Limits
 
@@ -174,12 +200,39 @@ published profile revisions by the API's `Firmware` domain
 | `config/` | `README.md` only, until the settings are unpacked here | kept |
 
 **Targets** come from [`firmware/starters/targets.json`](../../firmware/starters/targets.json).
-A built target (`linux` today; ESP32 in 027-3, NXP in spec 026 PR 4) names its SDK
+A built target (`esp32-esp-idf` and `linux`; NXP in spec 026 PR 4) names its SDK
 example, toolchain, build and run commands, and is listed only when the example exists.
+It may add `build_notes`, a paragraph for the README's Build section, and
+`gitignore_extra`, lines for the starter's `.gitignore`.
 AI-assisted targets (`stm32`, `rpi-pico`, `nordic-nrf`, `other`) ship the port templates
 in `app/ports/` and [family notes](../../firmware/starters/families). Templates live in
 [`firmware/starters/templates`](../../firmware/starters/templates) with `{{name}}`
 placeholders that only ever receive starter facts.
+
+**The ESP32 starter** is an ESP-IDF v5.4.1 project from
+[`examples/esp32-wifi`](../../firmware/sdk/examples/esp32-wifi), with `main/` as the
+developer path:
+
+- `components/iotos/CMakeLists.txt` finds `sdk/`, `generated/` and `config/` beside
+  `main/` (or the SDK repository's sample tables), then includes
+  `sdk/ports/esp-idf/component.cmake`. The component's sources therefore come from the
+  replaceable `sdk/`, and an SDK update brings new files with it.
+- The settings' include folder and `IOTOS_KIT_HAVE_SETTINGS` are public on the component
+  (`iotos_starter_sources(... PUBLIC)`), so `main.c` sees them.
+- `main/CMakeLists.txt` builds every `.c` file in `main/` and requires every component,
+  so the agent can add a Modbus file or use the UART driver without editing build files.
+- `main.c` is the Linux example's program with ESP-IDF around it: Wi-Fi from
+  `CONFIG_IOTOS_WIFI_SSID` and `CONFIG_IOTOS_WIFI_PASSWORD` (`main/Kconfig.projbuild`,
+  set with `idf.py menuconfig`), NVS, the ports, the signal strength in the health
+  metrics, and a one-tick delay in the loop, because `iotos_poll` returns at once while
+  it waits to reconnect.
+- `sdkconfig` holds the Wi-Fi password, so the `.gitignore` adds it with
+  `sdkconfig.old` and `managed_components/`. `sdkconfig.defaults` sets the main task's
+  stack (the TLS handshake runs on it), a larger app partition, TLS over mbedTLS, and
+  SNTP.
+
+The target is called supported once the [ESP32 starter bench](../hardware/esp32-starter-bench.md)
+passes with two coding agents.
 
 **Connection settings** are a separate download that needs `Device.manage-connections`:
 `config/iotos_settings.h` and `.c` (format `IOTOS_KIT_SETTINGS_FORMAT 1`), the shared
@@ -205,6 +258,13 @@ to 2 of a fixture profile and checks the developer's files are unchanged.
   without a database; the `Firmware starters` CI job builds the Linux ones with `-Werror`,
   runs them to the missing-settings exit, builds the simulator inside them, and
   syntax-checks the AI-assisted ones.
+- Its `esp32` leg runs [`tooling/firmware/build-esp32-starters.sh`](../../tooling/firmware/build-esp32-starters.sh)
+  in `espressif/idf:v5.4.1`: every ESP32 starter as downloaded, a full kit with the
+  golden direct settings, and the example for the ESP32-C3 (RISC-V). Each build fails on
+  a compiler warning in its own files, and on compiling other core sources than the
+  desktop library ([`core_sources.py`](../../tooling/firmware/core_sources.py) reads both
+  `compile_commands.json` files). ccache is kept between runs. With ESP-IDF's
+  `export.sh` sourced, the same script runs locally.
 - `--golden` rewrites [`contracts/firmware/fixtures/expected`](../../contracts/firmware/fixtures/expected);
   `GoldenOutputTest` compares the generator with it byte for byte. Review that diff when
   the generator or the SDK headers change.

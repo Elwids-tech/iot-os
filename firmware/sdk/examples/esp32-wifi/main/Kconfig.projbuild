@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT
+
+menu "IoT OS application"
+
+    config IOTOS_WIFI_SSID
+        string "Wi-Fi network (SSID)"
+        default ""
+        help
+            The 2.4 GHz network the device joins. idf.py keeps it in sdkconfig, which
+            .gitignore keeps out of version control.
+
+    config IOTOS_WIFI_PASSWORD
+        string "Wi-Fi password"
+        default ""
+        help
+            Empty for an open network. Kept in sdkconfig, like the network's name.
+
+    config IOTOS_SNTP_SERVER
+        string "SNTP server"
+        default "pool.ntp.org"
+        help
+            Where the clock comes from. Readings wait until this server has answered,
+            so the platform never receives readings stamped in the past.
+
+endmenu

@@ -59,6 +59,8 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 
 ## Hardware
 
+- [ESP32 starter bench](hardware/esp32-starter-bench.md): the ESP32 firmware starter
+  with an AI coding agent, an RS-485 transceiver and a Modbus sensor
 - [Waveshare RGB and audio alarm board](hardware/waveshare-audio-board.md)
 
 ## Planning and history

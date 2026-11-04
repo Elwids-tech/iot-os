@@ -27,21 +27,11 @@ if(IOTOS_SANITIZE)
 endif()
 
 # The core: the SDK and the vendored coreMQTT, no OS, no heap.
-set(IOTOS_COREMQTT ${CMAKE_CURRENT_LIST_DIR}/third_party/coreMQTT/source)
-add_library(iotos STATIC
-  src/codec.c
-  src/commands.c
-  src/devices.c
-  src/health.c
-  src/mqtt_stream.c
-  src/session.c
-  src/writer.c
-  ${IOTOS_COREMQTT}/core_mqtt.c
-  ${IOTOS_COREMQTT}/core_mqtt_serializer.c
-  ${IOTOS_COREMQTT}/core_mqtt_state.c)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/iotos_sources.cmake)
+add_library(iotos STATIC ${IOTOS_CORE_SOURCES})
 target_include_directories(iotos
   PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include
-  PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src ${IOTOS_COREMQTT}/include ${IOTOS_COREMQTT}/interface)
+  PRIVATE ${IOTOS_CORE_PRIVATE_INCLUDE_DIRS})
 target_compile_options(iotos PRIVATE ${IOTOS_WARNINGS})
 
 if(CMAKE_CROSSCOMPILING)
