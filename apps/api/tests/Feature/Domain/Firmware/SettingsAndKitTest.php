@@ -71,7 +71,7 @@ final class SettingsAndKitTest extends TestCase
         $actual[$manifest] = $expected[$manifest]; // only generated_at may differ
         $this->assertSame($expected, $actual);
         $event = DB::table('activity_log')->where('event', 'device.firmware-kit.downloaded')->first();
-        $this->assertSame(['target' => 'linux', 'sdk_version' => '0.1.0', 'profiles' => [['code' => 'relay', 'revision' => 2]]], json_decode($event->properties, true));
+        $this->assertSameJsonDocument(['target' => 'linux', 'sdk_version' => '0.1.0', 'profiles' => [['code' => 'relay', 'revision' => 2]]], json_decode($event->properties, true));
     }
 
     public function test_gateway_settings_apply_broker_access_and_saved_choices_carry_over(): void
