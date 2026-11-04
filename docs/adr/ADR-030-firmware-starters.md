@@ -1,6 +1,6 @@
 # ADR-030: Firmware Starters and Connection Settings
 
-**Status:** Proposed
+**Status:** Accepted (built in spec 027 PR 027-1)
 **Date:** 2026-11-03
 **Relates to:** ADR-029 (amends §3), ADR-005, ADR-013
 

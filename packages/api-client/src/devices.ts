@@ -38,6 +38,8 @@ export type Gateway = {
   presence: DevicePresence
   last_seen_at: string | null
   sources_count: number
+  /** The choices saved by the last firmware download for this gateway (spec 027); only in the gateways list. */
+  firmware_selection?: import("./firmware").FirmwareSelection | null
 }
 export type DiscoveryCandidate = {
   assigned_device_uuid: string | null

@@ -19,3 +19,14 @@ changes are listed here.
 - The desktop gateway simulator (`examples/desktop-simulator`) with a 500-device
   self-test.
 - Contract fixtures that the runtime replays (`contracts/sparkplug/fixtures/sdk`).
+- Starter support (`starter/`): `iotos_starter.h`, `settings_missing.c` and
+  `iotos_starter.cmake`, so a firmware starter builds before its connection settings are
+  downloaded and stops with a message instead of connecting.
+- A Linux and macOS example (`examples/linux-app`), the project of the Linux starter.
+
+### Changed
+
+- The node's device type moved from `iotos_settings.c` to `iotos_types.c`
+  (`iotos_kit_node_type`); `iotos_kit_settings` leaves `node_type` NULL and programs set
+  it on a copy. Settings declare `IOTOS_KIT_SETTINGS_FORMAT 1`, and examples refuse other
+  formats. The desktop simulator reads a starter's `generated/` and `config/`.

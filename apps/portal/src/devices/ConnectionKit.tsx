@@ -21,15 +21,7 @@ import {
 import { CopyIcon, DownloadIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { RequestError } from "../components/forms";
-
-export function downloadFile(name: string, bytes: BlobPart, type: string) {
-  const url = URL.createObjectURL(new Blob([bytes], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+import { downloadFile } from "../lib/download";
 
 export function ConnectionKit({
   org,

@@ -1132,3 +1132,86 @@ test("an empty history range offers the latest data instead of retention advice"
   await expect(page.getByLabel("To", { exact: true })).not.toHaveValue("")
   expect(state.errors).toEqual([])
 })
+
+// The device page's Firmware menu (spec 027 US3): connection settings and full kits carry
+// credentials, so they are offered for direct devices to people with connection rights.
+const emptyZip = "UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA=="
+
+async function firmware(page: Page, { connections = true } = {}) {
+  const state = { calls: [] as string[], kits: [] as unknown[], provisioned: false }
+  const context = {
+    uuid: org, name: "Acme", slug: "acme",
+    capabilities: { devices: { view: true, manage: true, connections, activate: true, command: true } },
+  }
+  // Registered after setup(), so these answer first.
+  await page.route("**/api/**", async (route) => {
+    const request = route.request(),
+      path = new URL(request.url()).pathname
+    const json = (data: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(data) })
+    if (path === "/api/v1/me")
+      return json({ data: { id: 1, name: "Operator", email: "operator@example.test", email_verified_at: "2026-01-01", capabilities: { platform_administration: false }, organizations: [context] } })
+    if (path.endsWith("/context")) return json({ data: context })
+    if (path.endsWith("/firmware/targets"))
+      return json({ data: [
+        { id: "linux", name: "Linux or macOS", kind: "built", roles: ["direct", "gateway"], toolchain: "CMake 3.31, GCC 13 (ubuntu-24.04 runner)" },
+        { id: "stm32", name: "STM32", kind: "ai_assisted", roles: ["direct", "gateway"], toolchain: null },
+      ] })
+    if (path.endsWith(`/devices/${meterId}/onboarding/provision`)) {
+      state.calls.push("provision")
+      state.provisioned = true
+      return json({ data: { mode: "direct", provisioned: true, diagnostic: null } })
+    }
+    if (path.endsWith(`/devices/${meterId}/onboarding`))
+      return json({ data: { uuid: "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0", mode: "direct", source_device_id: "meter", provisioned: state.provisioned, diagnostic: null, broker_url: "ssl://mqtt.example.test:8883", device: detail, gateway, candidate: null, artifact: null } })
+    if (path.endsWith(`/devices/${meterId}/connection-settings`)) {
+      state.calls.push("connection-settings")
+      return json({ data: { filename: "sim-energy-meter-connection-settings.zip", manifest: null, archive_base64: emptyZip } })
+    }
+    if (path.endsWith(`/devices/${meterId}/firmware-kit`)) {
+      state.calls.push("firmware-kit")
+      state.kits.push(request.postDataJSON())
+      return json({ data: { filename: "sim-energy-meter-linux-firmware-kit.zip", manifest: null, archive_base64: emptyZip } })
+    }
+    return route.fallback()
+  })
+  return state
+}
+
+test("a direct device's Firmware menu provisions first, then saves its settings or a full kit", async ({ page }) => {
+  const state = await setup(page)
+  const calls = await firmware(page)
+  await page.goto(`${base}/devices/${meterId}`)
+  await page.getByRole("button", { name: "Device actions" }).click()
+  await expect(page.getByRole("menu").getByText("Firmware", { exact: true })).toBeVisible()
+  const settings = page.waitForEvent("download")
+  await page.getByRole("menuitem", { name: "Download settings" }).click()
+  expect((await settings).suggestedFilename()).toBe("sim-energy-meter-connection-settings.zip")
+  expect(calls.calls).toEqual(["provision", "connection-settings"])
+
+  // Three actions from the device page: open the menu, choose the kit and a target, download.
+  await page.getByRole("button", { name: "Device actions" }).click()
+  await page.getByRole("menuitem", { name: "Download firmware kit…" }).click()
+  const dialog = page.getByRole("dialog", { name: "Download firmware kit" })
+  await dialog.getByRole("combobox", { name: "Microcontroller or platform" }).click()
+  await expect(page.getByRole("option", { name: "STM32 · no tested example" })).toBeVisible()
+  await page.getByRole("option", { name: "Linux or macOS" }).click()
+  await axe(page)
+  const kit = page.waitForEvent("download")
+  await dialog.getByRole("button", { name: "Download firmware kit" }).click()
+  expect((await kit).suggestedFilename()).toBe("sim-energy-meter-linux-firmware-kit.zip")
+  expect(calls.kits).toEqual([{ target: "linux" }])
+  await expect(dialog).toHaveCount(0)
+  expect(state.errors).toEqual([])
+})
+
+test("people without connection rights see no Firmware menu", async ({ page }) => {
+  const state = await setup(page)
+  const calls = await firmware(page, { connections: false })
+  await page.goto(`${base}/devices/${meterId}`)
+  await page.getByRole("button", { name: "Device actions" }).click()
+  await expect(page.getByRole("menuitem", { name: "Edit details" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: "Download settings" })).toHaveCount(0)
+  await expect(page.getByRole("menuitem", { name: "Download firmware kit…" })).toHaveCount(0)
+  expect(calls.calls).toEqual([])
+  expect(state.errors).toEqual([])
+})

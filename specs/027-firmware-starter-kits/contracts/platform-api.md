@@ -6,13 +6,16 @@ from a new `app/Domain/Firmware/routes/api.php`, which `routes/api.php` requires
 the other domains. Each lands in the OpenAPI export and in `packages/api-client` in the
 same pull request (constitution IV).
 
-Responses that carry an archive use the existing kit shape:
+Responses that carry an archive use the existing kit shape, in `data` like the
+connection kit:
 
 ```json
 {
-  "filename": "wm-200-esp32-esp-idf-starter.zip",
-  "manifest": { "...": "iotos-starter.json, as in the data model" },
-  "archive_base64": "UEsDB…"
+  "data": {
+    "filename": "wm-200-esp32-esp-idf-starter.zip",
+    "manifest": { "...": "iotos-starter.json, as in the data model" },
+    "archive_base64": "UEsDB…"
+  }
 }
 ```
 

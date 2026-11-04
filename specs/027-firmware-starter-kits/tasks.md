@@ -48,8 +48,8 @@ appear in each story.
 
 ### Phase 2: Foundation (blocks every story)
 
-- [ ] T006 Create `firmware/starters/targets.json` with entries for `linux` (built, `example: "linux-app"`, `developer_paths: ["app/"]`, `toolchain: "CMake 3.31, GCC 13 (ubuntu-24.04 runner)"`), `stm32`, `rpi-pico`, `nordic-nrf` and `other` (AI-assisted, `developer_paths: ["app/"]`, `family_notes` for the first three, `null` for `other`). The data model's rules apply: `id` matches `[a-z0-9-]{2,40}` and is unique; `kind` is `built` or `ai_assisted`; `roles` is a non-empty subset of `direct`, `gateway`; `example` and `toolchain` only on built targets; `family_notes` only on AI-assisted ones; `order` is an integer within its group.
-- [ ] T007 [P] `contracts/firmware/starter-manifest.v1.schema.json` (draft 2020-12), exactly the fields in data model § Starter manifest:
+- [x] T006 Create `firmware/starters/targets.json` with entries for `linux` (built, `example: "linux-app"`, `developer_paths: ["app/"]`, `toolchain: "CMake 3.31, GCC 13 (ubuntu-24.04 runner)"`), `stm32`, `rpi-pico`, `nordic-nrf` and `other` (AI-assisted, `developer_paths: ["app/"]`, `family_notes` for the first three, `null` for `other`). The data model's rules apply: `id` matches `[a-z0-9-]{2,40}` and is unique; `kind` is `built` or `ai_assisted`; `roles` is a non-empty subset of `direct`, `gateway`; `example` and `toolchain` only on built targets; `family_notes` only on AI-assisted ones; `order` is an integer within its group.
+- [x] T007 [P] `contracts/firmware/v1/starter-manifest.schema.json` (draft 2020-12), exactly the fields in data model § Starter manifest:
   - `format` const 1;
   - `generated_at` RFC 3339;
   - `node` is either a profile reference or `{default_health: true}`;
@@ -57,35 +57,34 @@ appear in each story.
   - `warnings[]` of `{code, message, subject}`;
   - `additionalProperties: false` at the top level;
   - no property may hold a credential, broker address or device identity.
-- [ ] T008 [P] `contracts/firmware/device-brief.v1.schema.json` (draft 2020-12) from data model § Device brief:
+- [x] T008 [P] `contracts/firmware/v1/device-brief.schema.json` (draft 2020-12) from data model § Device brief:
   - `format` const 1;
   - the `Metric.source` kinds `modbus|analog|digital|i2c|spi|can|pulse|computed|unknown`, each with its required fields (`modbus` requires `function`, `register`, `type`; `byte_order` and `word_order` default to `big`);
   - `unknown` allowed for any leaf fact;
   - `unconfirmed[]`;
   - the cross-checks the schema cannot express, listed in the schema's `description`.
 
-  Add the five fixtures in `contracts/firmware/fixtures/briefs/` named in the [device brief contract](contracts/device-brief.md).
-- [ ] T009 [P] `contracts/firmware/fixtures/profiles/`: published-artifact fixtures in the API's artifact `definition` shape, each listing every published revision:
+  Add `device-brief.fixture.json` and `device-brief.cases.json` beside it, the examples named in the [device brief contract](contracts/device-brief.md).
+- [x] T009 [P] `contracts/firmware/fixtures/profiles/`: published-artifact fixtures in the API's artifact `definition` shape, each listing every published revision:
   - `direct-sensor.json` (two number metrics with units);
   - `relay.json` (revision 1, and revision 2 adding a metric and changing a unit; one boolean metric with `accepts_command: true`);
   - `water-meter.json` and `energy-meter.json` (gateway device types);
   - `wide-64.json` (exactly 64 reported metrics);
   - `wide-65.json` (65, for the limit test).
-- [ ] T010 `tooling/verify-devices-contracts.py`:
-  - validate both firmware schemas as draft 2020-12;
-  - validate every `fixtures/briefs/*.yaml` (valid names pass, `invalid-*` names fail);
+- [x] T010 `tooling/verify-devices-contracts.py`:
+  - both firmware schemas, their fixtures and cases are checked like every versioned contract (no script change);
   - check every `fixtures/profiles/*.json` has `revisions[]`.
 
   Add tests in `tooling/contracts/test_verify.py` for a passing set, an invalid brief that wrongly passes, and a missing schema.
-- [ ] T011 Put the firmware sources in the API image (research R15):
+- [x] T011 Put the firmware sources in the API image (research R15):
   - `.dockerignore`: `!firmware/sdk` and `!firmware/starters` after the `firmware` exclusion;
   - `COPY firmware/sdk /var/firmware/sdk` and `COPY firmware/starters /var/firmware/starters` in `deploy/docker/api/Dockerfile` and `deploy/docker/api/Dockerfile.release`;
   - `apps/api/config/firmware.php` with `path`: `base_path('../../firmware')` when it is a directory, otherwise `/var/firmware`, mirroring `devices.contracts_path`.
-- [ ] T012 Create the `Firmware` domain:
+- [x] T012 Create the `Firmware` domain:
   - `Firmware/routes/api.php`, required from `apps/api/routes/api.php` like the other domains, inside the organization route group used by `Domain/Devices/routes/api.php`;
   - `Firmware/Services/FirmwareArchive.php`: the `PharData` ZIP in a `0700` temporary directory removed in `finally`, moved from `Domain/Devices/Services/DeviceConnectionKit.php`, which now calls it and returns byte-identical file contents.
-- [ ] T013 [P] `Firmware/Services/TargetRegistry.php`: read `targets.json` under `config('firmware.path')` and validate entries against T006's rules (throw on an invalid registry). `available()` drops built targets whose `firmware/sdk/examples/<example>` is missing and named AI-assisted targets whose notes file is missing, and keeps `other`. Sort built targets first, then by `order`.
-- [ ] T014 [P] `Firmware/Services/MetricTables.php`:
+- [x] T013 [P] `Firmware/Services/TargetRegistry.php`: read `targets.json` under `config('firmware.path')` and validate entries against T006's rules (throw on an invalid registry). `available()` drops built targets whose `firmware/sdk/examples/<example>` is missing and named AI-assisted targets whose notes file is missing, and keeps `other`. Sort built targets first, then by `order`.
+- [x] T014 [P] `Firmware/Services/MetricTables.php`:
   - from an artifact `definition`, keep parameters with `reports_state` true and `kind` not `derived`;
   - map types per spec 026 research R20 (boolean→Boolean, integer→Int64, number→Double, enum|string→String, timestamp→DateTime, bytes→Bytes);
   - `writable` = `accepts_command`;
@@ -93,11 +92,11 @@ appear in each story.
   - render `generated/iotos_types.h` and `generated/iotos_types.c`, defining `iotos_kit_types[]`, `IOTOS_KIT_TYPE_COUNT` and `iotos_kit_node_type`;
   - render `generated/profiles/<code>.json` with key, label, description, datatype, unit, writable, enum values, min and max;
   - for the gateway default health table, use the names in `firmware/sdk/include/iotos/iotos_health.h`.
-- [ ] T015 [P] `Firmware/Services/MetricHistory.php`, from a profile's published artifacts in revision order:
+- [x] T015 [P] `Firmware/Services/MetricHistory.php`, from a profile's published artifacts in revision order:
   - per current key: `introduced_in` (first revision containing the key) and `changed_in` (last revision whose datatype or unit differs from the one before);
   - per removed key: `retired_in`.
-- [ ] T016 [P] Add `firmware/sdk/starter/settings_missing.c` (an `iotos_settings` with empty strings and `const int iotos_kit_settings_present = 0;`) and a `CHANGELOG.md` "Unreleased" entry. Split the desktop simulator's `examples/desktop-simulator/sample-config/` so the node type comes from `iotos_types.c` (`iotos_kit_node_type`) and `iotos_kit_settings` (still `const`) leaves `node_type` NULL; the simulator's `main.c` copies the settings into a mutable `iotos_settings` and sets `node_type = &iotos_kit_node_type`. Kit mode reads `generated/` and `config/` beside `sdk/` when built from a starter, keeping the `IOTOS_CONFIG_DIR` override. `ctest` stays green.
-- [ ] T017 Unit tests `apps/api/tests/Unit/Domain/Firmware/{TargetRegistryTest,MetricTablesTest,MetricHistoryTest}.php` against T009's fixtures:
+- [x] T016 [P] Add `firmware/sdk/starter/settings_missing.c` (an `iotos_settings` with empty strings and `const int iotos_kit_settings_present = 0;`) and a `CHANGELOG.md` "Unreleased" entry. Split the desktop simulator's `examples/desktop-simulator/sample-config/` so the node type comes from `iotos_types.c` (`iotos_kit_node_type`) and `iotos_kit_settings` (still `const`) leaves `node_type` NULL; the simulator's `main.c` copies the settings into a mutable `iotos_settings` and sets `node_type = &iotos_kit_node_type`. Kit mode reads `generated/` and `config/` beside `sdk/` when built from a starter, keeping the `IOTOS_CONFIG_DIR` override. `ctest` stays green.
+- [x] T017 Unit tests `apps/api/tests/Unit/Domain/Firmware/{TargetRegistryTest,MetricTablesTest,MetricHistoryTest}.php` against T009's fixtures:
   - registry validation and availability;
   - type mapping and identifier clashes;
   - `relay.json` history (the added metric's `introduced_in: 2`, the unit change's `changed_in: 2`).
@@ -110,22 +109,23 @@ appear in each story.
 
 **Independent test**: `php artisan test --compact --filter 'Starter|Targets|SecretScan'`, then quickstart 2.
 
-- [ ] T018 [US1] Add `firmware/sdk/examples/linux-app/`:
+- [x] T018 [US1] Add `firmware/sdk/examples/linux-app/`:
   - `CMakeLists.txt` that finds the SDK at `sdk/` (starter) or `../..` (repository), the tables at `generated/`, and compiles `config/iotos_settings.c` when present or `sdk/starter/settings_missing.c` otherwise (research R4);
   - the POSIX ports;
   - `#if IOTOS_KIT_SETTINGS_FORMAT != 1` then `#error "These connection settings need a newer starter"` when settings are present (constitution IV);
   - the executable is named `app`;
-  - `app/main.c`: copies the `const` `iotos_kit_settings` into a mutable `iotos_settings` and sets `node_type = &iotos_kit_node_type`; if `!iotos_kit_settings_present`, print "No connection settings: download them from the device's page in IoT OS and put the files in config/" and return 2. Otherwise connect, register `iotos_kit_types`, add the node or the devices from a small `app/devices.c` list, and poll, putting only metrics whose `field_read` succeeds (research R9).
+  - `app/main.c`: copies the `const` `iotos_kit_settings` into a mutable `iotos_settings` and sets `node_type = &iotos_kit_node_type`; if `!iotos_kit_settings_present`, print "No connection settings: download them from the device's page in IoT OS and put the files in config/" and return 2. Otherwise connect, register `iotos_kit_types`, add the node or the devices listed in `field_devices` in `app/field.c`, and poll, putting only metrics whose `field_read` succeeds (research R9).
 
   In the repository it builds against `examples/desktop-simulator/sample-config` for CI.
-- [ ] T019 [US1] Add the starter templates in `firmware/starters/templates/`:
+- [x] T019 [US1] Add the starter templates in `firmware/starters/templates/`:
   - `README.md.tmpl`: quickstart, build command, where settings go, the update steps naming the replaceable paths, and a "Start with AI" placeholder filled by T032;
   - `gitignore.tmpl`: `config/*`, `!config/README.md`, `build/`, plus a per-target `{{gitignore_extra}}`;
-  - `config-README.md`.
+  - `config-README.md`, shared by starters and connection settings;
+  - `CLAUDE.md.tmpl` (`@AGENTS.md`; named so Claude Code does not load it inside this repository).
 
   Use `{{name}}` placeholders only. The renderer gets starter facts and nothing else.
-- [ ] T020 [US1] `Firmware/Services/FieldStubs.php`: render `<developer path>/field.h` and `field.c` from the profiles. Per metric, `field_read_<type>_<metric>(const char *device_id, iotos_value *out)` returns `FIELD_UNAVAILABLE`. Per writable metric, `field_command_<type>_<metric>(...)` returns `FIELD_REJECTED`. Add dispatchers `field_read(type, index, device_id, out)` and `field_command(...)`, and render `device-brief.example.yaml`, annotated for these profiles. No stub returns a value.
-- [ ] T021 [US1] `Firmware/Services/StarterBuilder.php` (pure; no database or auth):
+- [x] T020 [US1] `Firmware/Services/FieldStubs.php`: render `<developer path>/field.h` and `field.c` from the profiles. Per metric, `field_read_<type>_<metric>(const char *device_id, iotos_value *out)` returns `FIELD_UNAVAILABLE`. Per writable metric, `field_command_<type>_<metric>(...)` returns `FIELD_REJECTED`. Add dispatchers `field_read(type, index, device_id, out)` and `field_command(...)`, and render `device-brief.example.yaml`, annotated for these profiles. No stub returns a value.
+- [x] T021 [US1] `Firmware/Services/StarterBuilder.php` (pure; no database or auth):
   - input: a target, a role, node and device-type artifact definitions with their histories, and the SDK path;
   - output: a file map plus the manifest, exactly as the [starter layout](contracts/starter-layout.md) describes;
   - root folder `<code>-<target>-starter/`;
@@ -134,8 +134,8 @@ appear in each story.
   - manifest `replaceable: ["sdk/", "generated/", ".iotos/", "AGENTS.md", "CLAUDE.md"]`;
   - warning `birth_over_tx_buffer` when a type's DBIRTH at the default ID length would exceed 4096 bytes;
   - refuse more than 8 device types (`IOTOS_MAX_DEVICE_TYPES`) and more than 64 metrics in a type (`IOTOS_MAX_METRICS_PER_TYPE`), naming the macro.
-- [ ] T022 [US1] `Firmware/Http/Controllers/FirmwareTargetController.php@index`, behind `DeviceProfile.view-any`: returns `TargetRegistry::available()` as in [platform-api](contracts/platform-api.md) § `GET firmware/targets`.
-- [ ] T023 [US1] `Firmware/Http/Requests/FirmwareStarterRequest.php` and `Firmware/Http/Controllers/FirmwareStarterController.php@store` (`POST firmware/starters`, `throttle:10,1`):
+- [x] T022 [US1] `Firmware/Http/Controllers/FirmwareTargetController.php@index`, behind `DeviceProfile.view-any`: returns `TargetRegistry::available()` as in [platform-api](contracts/platform-api.md) § `GET firmware/targets`.
+- [x] T023 [US1] `Firmware/Http/Requests/FirmwareStarterRequest.php` and `Firmware/Http/Controllers/FirmwareStarterController.php@store` (`POST firmware/starters`, `throttle:10,1`):
   - **Request rules**:
     - `target` in the available ids that support `role`;
     - `role` in `direct|gateway`;
@@ -145,9 +145,9 @@ appear in each story.
   - **Response**: build with `StarterBuilder`, zip with `FirmwareArchive`, and return `{filename, manifest, archive_base64}` with `Cache-Control: no-store, private` and `Pragma: no-cache`.
   - **Not recorded** in the activity log.
   - `gateway_uuid` is accepted here but handled in T042.
-- [ ] T024 [US1] `Firmware/Console/StarterFixtures.php`: `php artisan firmware:starter-fixtures --output=<dir>` builds, with `StarterBuilder` and no database, a starter for every available target and supported role from `contracts/firmware/fixtures/profiles/*.json`. The direct role uses `direct-sensor` and `relay`; the gateway role uses `water-meter` plus `energy-meter`. Unpack each into `<dir>/<target>/<role>/`.
-- [ ] T025 [US1] Golden outputs (research R19): add `--golden` to `firmware:starter-fixtures`, writing `contracts/firmware/fixtures/expected/direct-relay-r2-linux/` and `gateway-water-energy-linux/` (`generated/`, `iotos-starter.json` without `generated_at`, and the developer path's `field.c`, `field.h`, `device-brief.example.yaml`) and listing them in `contracts/firmware/fixtures/expected/cases.json`. Add `apps/api/tests/Feature/Domain/Firmware/GoldenOutputTest.php`, which regenerates every case and compares byte for byte. Extend `tooling/verify-devices-contracts.py` and its tests to check that every case in `cases.json` exists and is complete.
-- [ ] T026 [P] [US1] Feature tests in `apps/api/tests/Feature/Domain/Firmware/`:
+- [x] T024 [US1] `Firmware/Console/StarterFixtures.php`: `php artisan firmware:starter-fixtures --output=<dir>` builds, with `StarterBuilder` and no database, a starter for every available target and supported role from `contracts/firmware/fixtures/profiles/*.json`. The direct role uses `direct-sensor` and `relay`; the gateway role uses `water-meter` plus `energy-meter`. Unpack each into `<dir>/<target>/<role>/`.
+- [x] T025 [US1] Golden outputs (research R19): add `--golden` to `firmware:starter-fixtures`, writing `contracts/firmware/fixtures/expected/direct-relay-r2-linux/` and `gateway-water-energy-linux/` (`generated/`, `iotos-starter.json` without `generated_at`, and the developer path's `field.c`, `field.h`, `device-brief.example.yaml`) and listing them in `contracts/firmware/fixtures/expected/cases.json`. Add `apps/api/tests/Feature/Domain/Firmware/GoldenOutputTest.php`, which regenerates every case and compares byte for byte. Extend `tooling/verify-devices-contracts.py` and its tests to check that every case in `cases.json` exists and is complete.
+- [x] T026 [P] [US1] Feature tests in `apps/api/tests/Feature/Domain/Firmware/`:
   - `TargetsTest`;
   - `StarterTest`:
     - the layout per target and role;
@@ -159,24 +159,24 @@ appear in each story.
   - `StarterTenantIsolationTest` (another organization's artifact gives a 404; a member can download; an unauthenticated request gets 401);
   - a performance case: a gateway starter of 8 distinct 64-metric types (copies of `wide-64.json` with different codes, made in the test) is generated in under 3 s with an archive under 2 MB;
   - `SecretScanTest`: create a provisioned gateway and a direct device. Unpack starters for every target and role, and fail if any file outside `sdk/third_party/` contains the gateway's or device's username or password, the broker host, `BEGIN CERTIFICATE`, a group ID or an edge node ID (SC-005). Also assert `sdk/examples/desktop-simulator/sample-config/` is absent.
-- [ ] T027 [US1] API contract and client:
+- [x] T027 [US1] API contract and client:
   - add `contracts/openapi/supplements/firmware.yaml` describing the archive response and targets, then run `cd apps/api && php artisan contract:export` (never edit `openapi.json` by hand);
   - `packages/api-client/src/firmware.ts`: `firmwareTargets(org)`, `createFirmwareStarter(org, body)` and types `FirmwareTarget`, `StarterManifest`, `FirmwareArchive`, exported from `index.ts`.
-- [ ] T028 [P] [US1] `apps/portal/src/lib/download.ts`: `saveArchive({filename, archive_base64})`, decoding into a `Blob` and clicking a temporary link, as `devices/ConnectionKit.tsx` does now. `ConnectionKit.tsx` uses it, with no behaviour change.
-- [ ] T029 [US1] `apps/portal/src/profiles/FirmwareSection.tsx`, added as a **Firmware** section in `ProfileWorkspace.tsx`'s section list when the profile has a published revision. Inside one `Panel`:
+- [x] T028 [P] [US1] `apps/portal/src/lib/download.ts`: `saveArchive({filename, archive_base64})`, decoding into a `Blob` and clicking a temporary link, as `devices/ConnectionKit.tsx` does now. `ConnectionKit.tsx` uses it, with no behaviour change.
+- [x] T029 [US1] `apps/portal/src/profiles/FirmwareSection.tsx`, added as a **Firmware** section in `ProfileWorkspace.tsx`'s section list when the profile has a published revision. Inside one `Panel`:
   - a target `Select` grouped "Built" and "AI-assisted", each AI-assisted item reading "no tested example";
   - a role choice, "Connects directly" or "Behind a gateway" (research R14). For "Behind a gateway", the node is the organization's published profile with code `gateway-health` when it exists (spec 026 PR 2), otherwise `node_artifact_uuid: null` (the SDK default health table);
   - **Download starter**, which calls `createFirmwareStarter` and `saveArchive`, then shows manifest warnings in the panel;
   - text saying connection settings come from the device or gateway page.
 
   It is hidden for drafts-only profiles, with a "Publish to download firmware" note instead. Use the named type scale, and no local status maps.
-- [ ] T030 [US1] `apps/portal/e2e/firmware-profile.spec.ts` (mocked API):
+- [x] T030 [US1] `apps/portal/e2e/firmware-profile.spec.ts` (mocked API):
   - the section appears only with a published revision;
   - targets are grouped;
   - the request body for each role;
   - warnings render;
   - the download triggers within three actions from the profile page (open Firmware, choose target, download; SC-006).
-- [ ] T031 [US1] `.github/workflows/ci.yml`: a `firmware-starters` job with matrix `leg: [linux, ai-assisted]`:
+- [x] T031 [US1] `.github/workflows/ci.yml`: a `firmware-starters` job with matrix `leg: [linux, ai-assisted]`:
   - set up PHP with the composer cache, then `php artisan firmware:starter-fixtures --output=.local/starters`;
   - `linux`: build every starter under `.local/starters/linux/*` with CMake, and assert each binary exits 2 with the missing-settings message;
   - `ai-assisted`: assert the file list, and `cc -std=c99 -fsyntax-only` each `app/ports/*.c` with `-I sdk/include -I generated`.
@@ -191,7 +191,7 @@ appear in each story.
 
 **Independent test**: `php artisan test --compact --filter AgentsBriefDrift`, then a desk run of one agent on a Linux starter (T036).
 
-- [ ] T032 [US2] `firmware/starters/templates/AGENTS.md.tmpl` with the nine sections, in the order the [device brief contract](contracts/device-brief.md) § AI brief requires:
+- [x] T032 [US2] `firmware/starters/templates/AGENTS.md.tmpl` with the nine sections, in the order the [device brief contract](contracts/device-brief.md) § AI brief requires:
   - "Already known, do not ask" lists what `iotos-starter.json` and `generated/profiles/*.json` answer;
   - the interview asks metric sources as one table per device type and accepts "I don't know" as `unknown`;
   - the Port section renders only for AI-assisted targets;
@@ -199,15 +199,15 @@ appear in each story.
   - the Device brief section stops if an existing brief's `format` differs from the schema's, and asks for a newer starter.
 
   Add `CLAUDE.md` containing exactly `@AGENTS.md`, and fill the README's "Start with AI" section with the one-line prompt "Read AGENTS.md and follow it. Start with the interview."
-- [ ] T033 [P] [US2] `firmware/starters/templates/porting.md`: the six ports, the two network levels, the threading rules (`on_birth` holds the lock, `on_command` does not), the template files to fill, and how to check a port against the platform (connect, then birth, then a command). Add `firmware/starters/families/{stm32,rpi-pico,nordic-nrf}.md`: each family's usual TLS, network, storage and RTOS pieces, and its traps (for example, duplicate coreMQTT from vendor middleware).
-- [ ] T034 [US2] `StarterBuilder` renders `AGENTS.md`, `CLAUDE.md` and the README section for every target, from the starter's facts: target name and kind, developer path, build command, profile names and metric counts.
-- [ ] T035 [US2] `apps/api/tests/Feature/Domain/Firmware/AgentsBriefDriftTest.php`, for every available target and role:
+- [x] T033 [P] [US2] `firmware/starters/templates/porting.md`: the six ports, the two network levels, the threading rules (`on_birth` holds the lock, `on_command` does not), the template files to fill, and how to check a port against the platform (connect, then birth, then a command). Add `firmware/starters/families/{stm32,rpi-pico,nordic-nrf}.md`: each family's usual TLS, network, storage and RTOS pieces, and its traps (for example, duplicate coreMQTT from vendor middleware).
+- [x] T034 [US2] `StarterBuilder` renders `AGENTS.md`, `CLAUDE.md` and the README section for every target, from the starter's facts: target name and kind, developer path, build command, profile names and metric counts.
+- [x] T035 [US2] `apps/api/tests/Feature/Domain/Firmware/AgentsBriefDriftTest.php`, for every available target and role:
   - the nine headings appear in order;
   - every path named in `AGENTS.md` and `README.md` exists in that starter;
   - every `iotos_*` identifier named there is declared under `sdk/include/iotos/`;
   - `CLAUDE.md` is exactly `@AGENTS.md`;
   - no secret pattern from T026 appears.
-- [ ] T036 [US2] Desk run, recorded in the PR description, without transcripts: open a Linux direct starter for `relay` in Claude Code with the README prompt. Check that:
+- [x] T036 [US2] Desk run, recorded in the PR description, without transcripts: open a Linux direct starter for `relay` in Claude Code with the README prompt. Check that:
   - questions come first;
   - nothing in the manifest or profiles JSON is asked;
   - the brief validates against `.iotos/device-brief.schema.json` before any code;
@@ -224,26 +224,26 @@ appear in each story.
 
 **Independent test**: `php artisan test --compact --filter 'SettingsAndKit|FirmwareTenant'`, then quickstart 3 and the gateway half of quickstart 5 through the API.
 
-- [ ] T037 [US3] `Firmware/Services/ConnectionSettings.php`, the only class that reads credentials for downloads:
+- [x] T037 [US3] `Firmware/Services/ConnectionSettings.php`, the only class that reads credentials for downloads:
   - **direct device**: reuse `DeviceConnectionKit`'s checks (provisioned, not archived, `ssl` public endpoint, readable valid CA without a private key) and add its three existing files byte for byte;
   - **gateway**: the encrypted `SparkplugGateway.password`, `devices.broker_public_url`, the connection's group and host ID. First apply broker access through the same code as `POST gateways/{gateway}/provision`. Refuse a gateway without platform-issued credentials or a connection that is not ready;
   - render `config/iotos_settings.h` (spec 026 kit layout's macros plus `IOTOS_KIT_SETTINGS_FORMAT 1`), `config/iotos_settings.c` (`iotos_kit_settings` without `node_type`, and `iotos_kit_settings_present = 1`) and `config/README.md` (what the files are; that they work only inside a starter's or full kit's `config/`; keep them out of version control; how to replace leaked credentials by re-registering).
-- [ ] T038 [US3] Golden settings (research R19): `firmware:starter-fixtures --golden` also renders `ConnectionSettings` output for a fixture direct device and a fixture gateway (hosts `mqtt.example.test`, `fixture-` usernames and passwords, a throwaway test CA generated once and committed with the fixtures) into `contracts/firmware/fixtures/expected/settings-direct/` and `settings-gateway/`, listed in `cases.json`; `GoldenOutputTest` compares them.
-- [ ] T039 [US3] `Firmware/Http/Controllers/ConnectionSettingsController.php`, with `@device` (`POST devices/{device}/connection-settings`) and `@gateway` (`POST gateways/{gateway}/connection-settings`):
+- [x] T038 [US3] Golden settings (research R19): `firmware:starter-fixtures --golden` also renders `ConnectionSettings` output for a fixture direct device and a fixture gateway (hosts `mqtt.example.test`, `fixture-` usernames and passwords, a throwaway test CA generated once and committed with the fixtures) into `contracts/firmware/fixtures/expected/settings-direct/` and `settings-gateway/`, listed in `cases.json`; `GoldenOutputTest` compares them.
+- [x] T039 [US3] `Firmware/Http/Controllers/ConnectionSettingsController.php`, with `@device` (`POST devices/{device}/connection-settings`) and `@gateway` (`POST gateways/{gateway}/connection-settings`):
   - `Device.manage-connections`, `throttle:10,1`, 404 across organizations;
   - responds with `{filename, manifest: null, archive_base64}`, using the file names in the starter layout;
   - records `device.connection-settings.downloaded` or `gateway.connection-settings.downloaded` without secrets.
-- [ ] T040 [US3] Migration `apps/api/database/migrations/2026_11_*_add_firmware_selection_to_sparkplug_gateways.php`: a nullable `jsonb` column `firmware_selection`. Cast it to array on `SparkplugGateway`. The gateways list resource returns it with profile UUIDs the person may not view removed (data model § Gateway firmware selection; `saved_by_user_id` is the integer user id).
-- [ ] T041 [US3] `Firmware/Http/Controllers/FirmwareKitController.php@device` (`POST devices/{device}/firmware-kit`, body `{target}`): node type from the device's applied configuration artifact, otherwise its onboarding artifact; `StarterBuilder` plus `ConnectionSettings` placed in `<root>/config/` and, for a direct device, the three existing files at `<root>/`. File name `<device-code>-<target>-firmware-kit.zip`. `throttle:10,1`, `Cache-Control: no-store, private` and `Pragma: no-cache`. Record `device.firmware-kit.downloaded` with target, SDK version and profile revisions.
-- [ ] T042 [US3] `FirmwareKitController@gateway` (`POST gateways/{gateway}/firmware-kit`):
+- [x] T040 [US3] Migration `apps/api/database/migrations/2026_11_*_add_firmware_selection_to_sparkplug_gateways.php`: a nullable `jsonb` column `firmware_selection`. Cast it to array on `SparkplugGateway`. The gateways list resource returns it with profile UUIDs the person may not view removed (data model § Gateway firmware selection; `saved_by_user_id` is the integer user id).
+- [x] T041 [US3] `Firmware/Http/Controllers/FirmwareKitController.php@device` (`POST devices/{device}/firmware-kit`, body `{target}`): node type from the device's applied configuration artifact, otherwise its onboarding artifact; `StarterBuilder` plus `ConnectionSettings` placed in `<root>/config/` and, for a direct device, the three existing files at `<root>/`. File name `<device-code>-<target>-firmware-kit.zip`. `throttle:10,1`, `Cache-Control: no-store, private` and `Pragma: no-cache`. Record `device.firmware-kit.downloaded` with target, SDK version and profile revisions.
+- [x] T042 [US3] `FirmwareKitController@gateway` (`POST gateways/{gateway}/firmware-kit`):
   - takes the starter body without `role` or `gateway_uuid`, and missing fields default to `firmware_selection`;
   - on success, writes `firmware_selection` `{format: 1, target, node_profile_uuid, device_profile_uuids, saved_by_user_id, saved_at}`;
   - `throttle:10,1`, `Cache-Control: no-store, private` and `Pragma: no-cache`;
   - records `gateway.firmware-kit.downloaded`.
 
   `FirmwareStarterController` handles `gateway_uuid` the same way: it requires `Device.manage-connections` on that gateway and writes the selection.
-- [ ] T043 [P] [US3] `ActivityCatalogue` entries for the four new codes, worded like `device.connection-kit.downloaded`.
-- [ ] T044 [US3] Feature tests `SettingsAndKitTest` and `FirmwareTenantIsolationTest`:
+- [x] T043 [P] [US3] `ActivityCatalogue` entries for the four new codes, worded like `device.connection-kit.downloaded`.
+- [x] T044 [US3] Feature tests `SettingsAndKitTest` and `FirmwareTenantIsolationTest`:
   - a member gets 403 on settings and kits;
   - another organization's device or gateway gives 404;
   - an archived device and an unready gateway give 422;
@@ -253,8 +253,8 @@ appear in each story.
   - `firmware_selection` is saved and filtered;
   - `POST devices/{device}/connection-kit` is unchanged;
   - `php artisan devices:export-gateway` still writes its file for a provisioned gateway (FR-034).
-- [ ] T045 [US3] API contract and client: extend `supplements/firmware.yaml`, run `php artisan contract:export`, and add `deviceConnectionSettings`, `gatewayConnectionSettings`, `deviceFirmwareKit` and `gatewayFirmwareKit` to `packages/api-client/src/firmware.ts`, plus `firmware_selection` on the gateway type in `packages/api-client/src/devices.ts`.
-- [ ] T046 [US3] `apps/portal/src/devices/DeviceActions.tsx`: for direct devices, and only with `Device.manage-connections`, a **Firmware** menu with **Download settings** and **Download firmware kit**. The kit opens a small dialog with the target `Select`. It provisions first, as `ConnectionKit.tsx` does, keeps archive data only in component state, and keeps toasts clear of the dialog actions. Extend `apps/portal/e2e/firmware-profile.spec.ts` with the device menu, its permission gating and both requests.
+- [x] T045 [US3] API contract and client: extend `supplements/firmware.yaml`, run `php artisan contract:export`, and add `deviceConnectionSettings`, `gatewayConnectionSettings`, `deviceFirmwareKit` and `gatewayFirmwareKit` to `packages/api-client/src/firmware.ts`, plus `firmware_selection` on the gateway type in `packages/api-client/src/devices.ts`.
+- [x] T046 [US3] `apps/portal/src/devices/DeviceActions.tsx`: for direct devices, and only with `Device.manage-connections`, a **Firmware** menu with **Download settings** and **Download firmware kit**. The kit opens a small dialog with the target `Select`. It provisions first, as `ConnectionKit.tsx` does, keeps archive data only in component state, and keeps toasts clear of the dialog actions. Extend `apps/portal/e2e/firmware-profile.spec.ts` with the device menu, its permission gating and both requests.
 
 **Checkpoint**: quickstart 3 passes; a gateway full kit downloads through the API (026-4 can start once this PR merges).
 
@@ -264,8 +264,8 @@ appear in each story.
 
 **Independent test**: the CI update check in T048, then quickstart 4.
 
-- [ ] T047 [US6] README template update section: list the manifest's `replaceable[]`, give a short shell recipe that first checks the new `iotos-starter.json` has `"format": 1` (and stops otherwise) and then replaces exactly those paths from a newer starter, and explain reading `introduced_in`, `changed_in` and `retired` against one's old revision.
-- [ ] T048 [US6] In the `firmware-starters` job's `linux` leg, an update check:
+- [x] T047 [US6] README template update section: list the manifest's `replaceable[]`, give a short shell recipe that first checks the new `iotos-starter.json` has `"format": 1` (and stops otherwise) and then replaces exactly those paths from a newer starter, and explain reading `introduced_in`, `changed_in` and `retired` against one's old revision.
+- [x] T048 [US6] In the `firmware-starters` job's `linux` leg, an update check:
   1. generate the `relay` direct starter at revision 1;
   2. append a line to `app/field.c` and add `app/device-brief.yaml` from the `esp32-direct-sensor` fixture shape;
   3. replace the replaceable paths with the revision 2 starter;
@@ -275,14 +275,14 @@ appear in each story.
 
 ### Phase 7: PR 027-1 documentation and verification
 
-- [ ] T049 [P] Documentation:
+- [x] T049 [P] Documentation:
   - `docs/features/embedded-sdk.md`: targets, starters, settings and full kits, the AI brief and the device brief format;
   - `docs/features/devices.md`: the device page's Firmware menu;
   - `docs/features/device-profiles.md`: the Firmware section;
   - the public developer page `apps/docs/src/content/docs/docs/developers/embedded-sdk.mdx` in the Developers sidebar group, created here if spec 026 PR 4 has not yet: the SDK, the targets, the AI workflow, the device brief format, and that starters come from the Firmware section after signing in (FR-044). No repository paths and no licence names (`docs/dev/docs-site.md` writing rules);
   - `apps/api/resources/help/devices.md` and the profiles help: where firmware comes from;
   - `docs/dev/gotchas.md`: anything surprising found while building.
-- [ ] T050 Checks:
+- [x] T050 Checks:
   - `cd apps/api && php artisan test --compact`;
   - `php artisan contract:export --check`;
   - `pnpm --filter @iot-os/portal lint`;
@@ -291,8 +291,8 @@ appear in each story.
   - `python3 tooling/docs/check_links.py`;
   - `ctest` in `firmware/sdk`;
   - the `firmware-starters` job.
-- [ ] T051 Rebuild `api`, its workers and `portal` with the stack's env files and overlays (AGENTS.md command; [which services](../../docs/dev/local-setup.md#rebuild-one-service)). Run quickstart 1–4 on the stack, preserving any unsaved browser edits.
-- [ ] T052 Set ADR-030 to Accepted in its status line and its `docs/adr/README.md` row. Leak scan, then open PR 027-1 against `main`.
+- [x] T051 Rebuild `api`, its workers and `portal` with the stack's env files and overlays (AGENTS.md command; [which services](../../docs/dev/local-setup.md#rebuild-one-service)). Run quickstart 1–4 on the stack, preserving any unsaved browser edits.
+- [X] T052 Set ADR-030 to Accepted in its status line and its `docs/adr/README.md` row. Leak scan, then open PR 027-1 against `main`.
 
 **Checkpoint**: PR 027-1 merged. 026-4 (NXP target), 027-2, 027-3 and 026-2 can start in parallel.
 

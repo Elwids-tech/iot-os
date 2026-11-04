@@ -7,6 +7,8 @@ project.
 
 ## Target (file: `firmware/starters/targets.json`)
 
+The file is `{"format": 1, "targets": [...]}`; the API refuses another format.
+
 | Field | Type | Rules |
 | --- | --- | --- |
 | `id` | string | `[a-z0-9-]{2,40}`, unique, stable (used in URLs and manifests) |
@@ -16,7 +18,8 @@ project.
 | `example` | string | Built only: path under `firmware/sdk/examples/` |
 | `developer_paths` | string[] | Built: for example `["main/"]`; AI-assisted: `["app/"]` |
 | `toolchain` | string | Built only: the exact version CI uses, such as `ESP-IDF v5.4.1` |
-| `family_notes` | string \| null | AI-assisted only: path under `firmware/starters/families/` |
+| `build`, `run` | string | Built only: the commands the README and `AGENTS.md` give |
+| `family_notes` | string \| null | AI-assisted only: `families/<name>.md` under `firmware/starters/`, or null for `other` |
 | `order` | integer | Picker order within its group |
 
 **Available**: an entry is listed by the API only if its `example` (built) or its
@@ -53,7 +56,7 @@ code to `[a-z0-9_]`, numeric suffix on a clash).
 
 ## Starter manifest (`iotos-starter.json`)
 
-Schema `contracts/firmware/starter-manifest.v1.schema.json`.
+Schema `contracts/firmware/v1/starter-manifest.schema.json`.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -62,7 +65,7 @@ Schema `contracts/firmware/starter-manifest.v1.schema.json`.
 | `target` | `{id, kind, name}` | |
 | `role` | `direct` \| `gateway` | |
 | `generated_at` | RFC 3339 UTC | The only field allowed to differ between equal starters |
-| `node` | `{code, name, revision, artifact_uuid}` \| `{default_health: true}` | |
+| `node` | `{default_health: false, code, c_identifier, name, revision, artifact_uuid}` \| `{default_health: true, c_identifier: "gateway_health"}` | `default_health` tells the two apart |
 | `device_types[]` | `{code, c_identifier, name, revision, artifact_uuid}` | Gateway only |
 | `metrics{code}[]` | `{key, datatype, unit, writable, introduced_in, changed_in}` | `changed_in` is the last revision that changed datatype or unit |
 | `retired{code}[]` | `{key, retired_in}` | Keys removed since the first published revision |
@@ -130,7 +133,7 @@ artifact contents or settings.
 ## Device brief (developer's project, never stored by the platform)
 
 `<developer path>/device-brief.yaml`, validated against
-`contracts/firmware/device-brief.v1.schema.json` ([device brief contract](contracts/device-brief.md)).
+`contracts/firmware/v1/device-brief.schema.json` ([device brief contract](contracts/device-brief.md)).
 
 ```text
 format: 1

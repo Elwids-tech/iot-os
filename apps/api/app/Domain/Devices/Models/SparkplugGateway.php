@@ -15,7 +15,7 @@ final class SparkplugGateway extends DeviceModel
 
     protected function casts(): array
     {
-        return ['password' => 'encrypted', 'last_seen_at' => 'immutable_datetime', 'runtime_seen_at' => 'immutable_datetime'];
+        return ['password' => 'encrypted', 'last_seen_at' => 'immutable_datetime', 'runtime_seen_at' => 'immutable_datetime', 'firmware_selection' => 'array'];
     }
 
     public function connection(): BelongsTo

@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/firmware/v1/starter-manifest.schema.json",
+  "title": "Firmware starter manifest v1",
+  "description": "iotos-starter.json at the root of every firmware starter and full kit (spec 027). Produced by the API's StarterBuilder; read by developers, coding agents and the README's update recipe, which stops on any format other than 1. It holds no credentials, broker address, namespace or device identity. generated_at is the only field that differs between two starters built from the same target, role, artifacts and SDK version.",
+  "type": "object",
+  "properties": {
+    "format": { "const": 1 },
+    "sdk_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$" },
+    "target": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]{2,40}$" },
+        "kind": { "enum": ["built", "ai_assisted"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 }
+      },
+      "required": ["id", "kind", "name"],
+      "additionalProperties": false
+    },
+    "role": { "enum": ["direct", "gateway"] },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "node": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "default_health": { "const": false },
+            "code": { "$ref": "#/$defs/profile_code" },
+            "c_identifier": { "$ref": "#/$defs/c_identifier" },
+            "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "artifact_uuid": { "type": "string", "format": "uuid" }
+          },
+          "required": ["default_health", "code", "c_identifier", "name", "revision", "artifact_uuid"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "A gateway that uses the SDK's default health table (iotos_health.h) instead of a published profile.",
+          "properties": {
+            "default_health": { "const": true },
+            "c_identifier": { "const": "gateway_health" }
+          },
+          "required": ["default_health", "c_identifier"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "device_types": {
+      "type": "array",
+      "description": "Gateway only, in the order of iotos_kit_types; empty for a direct device.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": { "$ref": "#/$defs/profile_code" },
+          "c_identifier": { "$ref": "#/$defs/c_identifier" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "revision": { "type": "integer", "minimum": 1 },
+          "artifact_uuid": { "type": "string", "format": "uuid" }
+        },
+        "required": ["code", "c_identifier", "name", "revision", "artifact_uuid"],
+        "additionalProperties": false
+      },
+      "maxItems": 8
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Keyed by profile code, in alias order.",
+      "propertyNames": { "$ref": "#/$defs/profile_code" },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "datatype": { "enum": ["Boolean", "Int64", "Double", "String", "DateTime", "Bytes"] },
+            "unit": { "type": ["string", "null"], "maxLength": 64 },
+            "writable": { "type": "boolean" },
+            "introduced_in": { "type": "integer", "minimum": 1 },
+            "changed_in": {
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "description": "The last revision that changed the datatype or unit; null when neither has changed since introduced_in."
+            }
+          },
+          "required": ["key", "datatype", "unit", "writable", "introduced_in", "changed_in"],
+          "additionalProperties": false
+        },
+        "maxItems": 64
+      }
+    },
+    "retired": {
+      "type": "object",
+      "description": "Keyed by profile code: reported metrics removed since the profile's first published revision.",
+      "propertyNames": { "$ref": "#/$defs/profile_code" },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "retired_in": { "type": "integer", "minimum": 2 }
+          },
+          "required": ["key", "retired_in"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "replaceable": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "developer_paths": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9_-]+/$" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": { "enum": ["birth_over_tx_buffer"] },
+          "message": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "subject": { "type": "string", "minLength": 1, "maxLength": 255 }
+        },
+        "required": ["code", "message", "subject"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["format", "sdk_version", "target", "role", "generated_at", "node", "device_types", "metrics", "retired", "replaceable", "developer_paths", "warnings"],
+  "additionalProperties": false,
+  "$defs": {
+    "profile_code": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$", "maxLength": 255 },
+    "c_identifier": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 }
+  }
+}

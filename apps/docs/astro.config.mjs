@@ -48,7 +48,11 @@ export default defineConfig({
         { label: 'Start here', items: [{ label: 'Overview', link: '/docs/' }] },
         {
           label: 'Developers',
-          items: [{ label: 'Events and the event feed', link: '/docs/developers/events/' }, apiReference],
+          items: [
+            { label: 'Events and the event feed', link: '/docs/developers/events/' },
+            { label: 'Firmware and the embedded SDK', link: '/docs/developers/embedded-sdk/' },
+            apiReference,
+          ],
         },
         {
           label: 'User guides',

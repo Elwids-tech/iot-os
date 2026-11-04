@@ -6,6 +6,7 @@
 
 #include "iotos/iotos.h"
 
+#define IOTOS_KIT_SETTINGS_FORMAT 1 /* starters refuse other formats */
 #define IOTOS_KIT_BROKER_HOST "mqtt.example.test"
 #define IOTOS_KIT_BROKER_PORT 8883
 #define IOTOS_KIT_GROUP_ID "example-group"
@@ -19,6 +20,7 @@
     "-----END CERTIFICATE-----\n"
 #define IOTOS_KIT_GATEWAY 1 /* 0 in a direct-device kit */
 
-extern const iotos_settings iotos_kit_settings; /* defined in iotos_settings.c */
+extern const iotos_settings iotos_kit_settings; /* defined in iotos_settings.c, without the node type */
+extern const int iotos_kit_settings_present;
 
 #endif

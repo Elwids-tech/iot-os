@@ -664,3 +664,16 @@ Things that have cost time before. Add to this list when something surprises you
   so an enum value can be one unsigned byte: `(int)type < 0` is always false and fails
   `-Werror=type-limits`. Range-check enums as unsigned. The arm `iotos_size` build in CI
   catches this; the desktop compilers do not.
+- **The SDK matches device types by address.** A type header (`iotos_type_<id>.h`) defines
+  `static const` tables, so every file that includes it gets its own copy. Registering
+  `iotos_kit_types[i]` and then adding a device with another file's `&iotos_type_x` gives
+  `IOTOS_E_INVALID`. Starters keep the headers inside `generated/iotos_types.c` and
+  expose only `iotos_kit_types[]` and `iotos_kit_node_type`.
+- **A starter's settings are picked up at configure time.** `iotos_starter.cmake` checks
+  for `config/iotos_settings.c` when CMake configures. It adds `config/` to
+  `CMAKE_CONFIGURE_DEPENDS`, so unpacking the settings re-runs the configuration on the
+  next build; a folder created later than the first configure does not.
+- **Download endpoints share one throttle per person.** `throttle:10,1` keys on the user,
+  not the route, so onboarding provisioning, connection kits, firmware starters,
+  settings and kits all count against the same ten a minute. Feature tests that download
+  many archives turn off `ThrottleRequests`; `StarterTest` checks the limit once.

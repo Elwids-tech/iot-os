@@ -1,0 +1,85 @@
+[
+  {
+    "description": "a direct device whose metric changed unit in revision 2",
+    "valid": true,
+    "data": {
+      "format": 1,
+      "sdk_version": "0.1.0",
+      "target": { "id": "stm32", "kind": "ai_assisted", "name": "STM32" },
+      "role": "direct",
+      "generated_at": "2026-11-20T10:00:00Z",
+      "node": { "default_health": false, "code": "relay", "c_identifier": "relay", "name": "Relay", "revision": 2, "artifact_uuid": "73000000-0000-4000-8000-000000000002" },
+      "device_types": [],
+      "metrics": {
+        "relay": [
+          { "key": "relay_state", "datatype": "Boolean", "unit": null, "writable": true, "introduced_in": 1, "changed_in": null },
+          { "key": "coil_current", "datatype": "Double", "unit": "mA", "writable": false, "introduced_in": 1, "changed_in": 2 },
+          { "key": "trip_count", "datatype": "Int64", "unit": null, "writable": false, "introduced_in": 2, "changed_in": null }
+        ]
+      },
+      "retired": { "relay": [{ "key": "legacy_flag", "retired_in": 2 }] },
+      "replaceable": ["sdk/", "generated/", ".iotos/", "AGENTS.md", "CLAUDE.md"],
+      "developer_paths": ["app/"],
+      "warnings": [{ "code": "birth_over_tx_buffer", "message": "A birth of this type is about 4300 bytes; raise IOTOS_TX_BUFFER.", "subject": "relay" }]
+    }
+  },
+  {
+    "description": "a manifest written for another format version",
+    "valid": false,
+    "error": { "keyword": "const", "instance_location": "/format" },
+    "data": {
+      "format": 2,
+      "sdk_version": "0.1.0",
+      "target": { "id": "linux", "kind": "built", "name": "Linux or macOS" },
+      "role": "gateway",
+      "generated_at": "2026-11-20T10:00:00Z",
+      "node": { "default_health": true, "c_identifier": "gateway_health" },
+      "device_types": [],
+      "metrics": {},
+      "retired": {},
+      "replaceable": ["sdk/"],
+      "developer_paths": ["app/"],
+      "warnings": []
+    }
+  },
+  {
+    "description": "a profile node without its artifact",
+    "valid": false,
+    "error": { "keyword": "required", "instance_location": "/node" },
+    "data": {
+      "format": 1,
+      "sdk_version": "0.1.0",
+      "target": { "id": "linux", "kind": "built", "name": "Linux or macOS" },
+      "role": "direct",
+      "generated_at": "2026-11-20T10:00:00Z",
+      "node": { "default_health": false, "code": "relay", "c_identifier": "relay", "name": "Relay", "revision": 2 },
+      "device_types": [],
+      "metrics": {},
+      "retired": {},
+      "replaceable": ["sdk/"],
+      "developer_paths": ["app/"],
+      "warnings": []
+    }
+  },
+  {
+    "description": "a broker address added to the manifest",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": { "keyword": "additionalProperties", "instance_location": "" },
+    "data": {
+      "format": 1,
+      "sdk_version": "0.1.0",
+      "target": { "id": "linux", "kind": "built", "name": "Linux or macOS" },
+      "role": "direct",
+      "generated_at": "2026-11-20T10:00:00Z",
+      "node": { "default_health": true, "c_identifier": "gateway_health" },
+      "device_types": [],
+      "metrics": {},
+      "retired": {},
+      "replaceable": ["sdk/"],
+      "developer_paths": ["app/"],
+      "warnings": [],
+      "broker_host": "mqtt.example.test"
+    }
+  }
+]

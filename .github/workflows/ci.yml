@@ -322,6 +322,98 @@ jobs:
           cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE="$PWD/firmware/sdk/cmake/arm-none-eabi.cmake"
           cmake --build .local/sdk-arm --target iotos_size
 
+  firmware-starters:
+    name: Firmware starters (${{ matrix.leg }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Spec 027: 027-3 adds esp32 (idf.py build in espressif/idf:v5.4.1), and spec 026 PR 4
+        # adds nxp (the MCUXpresso SDK through west, on firmware changes and nightly).
+        leg: [linux, ai-assisted]
+    env:
+      # The fixtures command needs no database.
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite
+          coverage: none
+      - name: Locate the Composer cache
+        id: composer-cache
+        working-directory: apps/api
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('apps/api/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+      - run: composer install --no-interaction --no-progress --prefer-dist
+        working-directory: apps/api
+      # Every available target and role, from contracts/firmware/fixtures/profiles.
+      - name: Generate the fixture starters
+        working-directory: apps/api
+        run: |
+          export APP_KEY="base64:$(openssl rand -base64 32)"
+          php artisan firmware:starter-fixtures --output="$GITHUB_WORKSPACE/.local/starters"
+          php artisan firmware:starter-fixtures --output="$GITHUB_WORKSPACE/.local/starters-r1" --revision=1
+      # mbedTLS, pinned by hash in firmware/sdk/CMakeLists.txt.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.leg == 'linux'
+        with:
+          path: .local/fetchcontent
+          key: starters-fetchcontent-${{ hashFiles('firmware/sdk/CMakeLists.txt') }}
+      - name: Every Linux starter builds and stops without settings
+        if: matrix.leg == 'linux'
+        run: |
+          for starter in .local/starters/linux/*/; do
+            cmake -S "$starter" -B "${starter}build" -DAPP_WERROR=ON -DFETCHCONTENT_BASE_DIR="$PWD/.local/fetchcontent"
+            cmake --build "${starter}build" -j"$(nproc)"
+            set +e; output="$("${starter}build/app" 2>&1)"; status=$?; set -e
+            echo "$starter: exit $status: $output"
+            test "$status" -eq 2
+            grep -q "No connection settings: download them" <<<"$output"
+            cmake -S "${starter}sdk/examples/desktop-simulator" -B "${starter}build/simulator" -DFETCHCONTENT_BASE_DIR="$PWD/.local/fetchcontent"
+            cmake --build "${starter}build/simulator" -j"$(nproc)"
+          done
+      # SC-008: the README's own recipe replaces only the manifest's replaceable paths.
+      - name: Updating a starter keeps the developer's files
+        if: matrix.leg == 'linux'
+        run: |
+          project=.local/project
+          cp -R .local/starters-r1/linux/direct-relay "$project"
+          echo '/* the developer was here */' >> "$project/app/field.c"
+          cp "$project/app/device-brief.example.yaml" "$project/app/device-brief.yaml"
+          (cd "$project" && sha256sum app/* CMakeLists.txt README.md .gitignore config/README.md > ../developer-files.sha256)
+          awk '/^## Updating/{u=1} u&&/^```sh/{f=1;next} f&&/^```/{exit} f' "$project/README.md" > .local/update.sh
+          sed -i "s|^NEW=.*|NEW=$PWD/.local/starters/linux/direct-relay|" .local/update.sh
+          (cd "$project" && bash ../update.sh && sha256sum -c ../developer-files.sha256)
+          grep -q '"revision": 2' "$project/iotos-starter.json"
+          grep -q '"trip_count"' "$project/generated/iotos_type_relay.h"
+          cmake -S "$project" -B "$project/build" -DAPP_WERROR=ON -DFETCHCONTENT_BASE_DIR="$PWD/.local/fetchcontent"
+          cmake --build "$project/build" -j"$(nproc)"
+      - name: AI-assisted starters have their files, and their C compiles
+        if: matrix.leg == 'ai-assisted'
+        run: |
+          for target in stm32 rpi-pico nordic-nrf other; do
+            for starter in ".local/starters/$target"/*/; do
+              for file in AGENTS.md CLAUDE.md README.md iotos-starter.json .gitignore config/README.md .iotos/porting.md \
+                .iotos/device-brief.schema.json .iotos/reference/main.c app/field.c app/field.h app/device-brief.example.yaml \
+                app/ports/stream-template.c generated/iotos_types.c generated/iotos_types.h; do
+                test -f "$starter$file" || { echo "$starter is missing $file"; exit 1; }
+              done
+              if [ "$target" != other ]; then test -f "$starter.iotos/family.md"; fi
+              for file in "$starter"app/ports/*.c "$starter"app/field.c "$starter"generated/iotos_types.c; do
+                cc -std=c99 -Wall -Wextra -Werror -fsyntax-only -I "${starter}sdk/include" -I "${starter}sdk/starter" \
+                  -I "${starter}generated" -I "${starter}app" "$file"
+              done
+            done
+          done
+
   tooling:
     name: Tooling (Python)
     runs-on: ubuntu-latest

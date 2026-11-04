@@ -19,11 +19,12 @@
   "required_capabilities": [
     "profiles.view"
   ],
-  "revision": 1,
+  "revision": 2,
   "summary": "A device profile describes the meaning and behavior of a device’s parameters, calculations, and alarm templates.",
   "questions": [
     "How do I create a reusable device profile?",
-    "Does publishing update my devices?"
+    "Does publishing update my devices?",
+    "How do I get firmware for this profile?"
   ]
 }
 ---
@@ -40,6 +41,8 @@ You need profile viewing permission. Creating, editing, and publishing have sepa
 4. Save and validate the draft.
 5. Open **Review and publish** to inspect and publish a revision.
 6. Apply the chosen published revision through each device’s configuration.
+
+To write firmware for a published profile, open **Firmware**, choose the microcontroller or platform and how the device connects, and choose **Download starter**. The starter holds the SDK, this profile’s metrics and instructions for an AI coding agent, and no credentials. A device’s connection settings come from its own page.
 
 ## Expected result
 A published revision can be selected for device configuration. Existing devices do not automatically switch to a newer profile revision.

@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "sdk_version": "0.1.0",
+  "target": { "id": "linux", "kind": "built", "name": "Linux or macOS" },
+  "role": "gateway",
+  "generated_at": "2026-11-20T10:00:00Z",
+  "node": { "default_health": true, "c_identifier": "gateway_health" },
+  "device_types": [
+    { "code": "water-meter", "c_identifier": "water_meter", "name": "Water meter", "revision": 1, "artifact_uuid": "71000000-0000-4000-8000-000000000001" },
+    { "code": "energy-meter", "c_identifier": "energy_meter", "name": "Energy meter", "revision": 1, "artifact_uuid": "72000000-0000-4000-8000-000000000001" }
+  ],
+  "metrics": {
+    "water-meter": [
+      { "key": "flow_rate", "datatype": "Double", "unit": "L/min", "writable": false, "introduced_in": 1, "changed_in": null },
+      { "key": "total_volume", "datatype": "Double", "unit": "L", "writable": false, "introduced_in": 1, "changed_in": null },
+      { "key": "valve_open", "datatype": "Boolean", "unit": null, "writable": true, "introduced_in": 1, "changed_in": null }
+    ],
+    "energy-meter": [
+      { "key": "active_power", "datatype": "Double", "unit": "kW", "writable": false, "introduced_in": 1, "changed_in": null },
+      { "key": "energy_total", "datatype": "Double", "unit": "kWh", "writable": false, "introduced_in": 1, "changed_in": null }
+    ]
+  },
+  "retired": {},
+  "replaceable": ["sdk/", "generated/", ".iotos/", "AGENTS.md", "CLAUDE.md"],
+  "developer_paths": ["app/"],
+  "warnings": []
+}

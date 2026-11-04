@@ -33,6 +33,7 @@ import type {
 } from "./billing"
 export * from "./dashboards"
 export * from "./devices"
+export * from "./firmware"
 export * from "./telemetry"
 export * from "./alerts"
 export * from "./notifications"
@@ -1447,6 +1448,24 @@ export class ApiClient {
   }
   deviceConnectionKitArchiveUrl(org: string, id: string) {
     return this.baseUrl + this.devicePath(org, id) + '/connection-kit/archive'
+  }
+  firmwareTargets(org: string, signal?: AbortSignal) {
+    return this.data<import("./firmware").FirmwareTarget[]>(`/api/v1/organizations/${encodeURIComponent(org)}/firmware/targets`, "GET", undefined, signal)
+  }
+  createFirmwareStarter(org: string, body: import("./firmware").FirmwareStarterInput) {
+    return this.data<import("./firmware").FirmwareArchive>(`/api/v1/organizations/${encodeURIComponent(org)}/firmware/starters`, "POST", body)
+  }
+  deviceConnectionSettings(org: string, id: string) {
+    return this.data<import("./firmware").FirmwareArchive>(this.devicePath(org, id) + "/connection-settings", "POST")
+  }
+  deviceFirmwareKit(org: string, id: string, target: string) {
+    return this.data<import("./firmware").FirmwareArchive>(this.devicePath(org, id) + "/firmware-kit", "POST", { target })
+  }
+  gatewayConnectionSettings(org: string, id: string) {
+    return this.data<import("./firmware").FirmwareArchive>(`/api/v1/organizations/${encodeURIComponent(org)}/gateways/${encodeURIComponent(id)}/connection-settings`, "POST")
+  }
+  gatewayFirmwareKit(org: string, id: string, body: Omit<import("./firmware").FirmwareStarterInput, "role" | "gateway_uuid"> | Record<string, never> = {}) {
+    return this.data<import("./firmware").FirmwareArchive>(`/api/v1/organizations/${encodeURIComponent(org)}/gateways/${encodeURIComponent(id)}/firmware-kit`, "POST", body)
   }
   sites(org: string) {
     return this.request<{ data: Site[]; organization_timezone: string | null }>(

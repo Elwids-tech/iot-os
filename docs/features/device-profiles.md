@@ -101,6 +101,18 @@ Neither runs until a published revision is activated on a device.
 The runtime still accepts `device-profile.v1` and `device-configuration.v1`
 artifacts for existing devices; v1 cannot carry conversions.
 
+## Firmware
+
+A published profile's **Firmware** tab downloads a
+[firmware starter](embedded-sdk.md#firmware-starters): pick a target (built ones first;
+AI-assisted ones are marked "no tested example") and whether the device connects directly
+or sits behind a gateway, then **Download starter**. Behind a gateway, the profile is a
+device type and the node is the organization's published `gateway-health` profile, or the
+SDK's default health table when there is none. Warnings, such as a birth that may exceed
+the SDK's transmit buffer, show in the tab after the download. Starters hold no
+credentials, need only `DeviceProfile.view`, and are not recorded in the activity log.
+Profiles with drafts only show "Publish to download firmware".
+
 ## API
 
 Under `/api/v1/organizations/{organization}/device-profiles`

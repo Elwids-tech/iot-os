@@ -14,6 +14,7 @@ use App\Domain\Devices\Services\BrokerProvisioner;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Devices\Services\DeviceView;
+use App\Domain\Firmware\Services\FirmwareSelection;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -59,8 +60,10 @@ final class DiscoveryController
     public function gateways(Request $request, Organization $organization): array
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
+        $selection = app(FirmwareSelection::class)->viewer($organization, $request->user());
 
-        return $this->directory($request, SparkplugGateway::where('organization_id', $organization->id)->with('connection')->withCount('candidates')->orderBy('name'), fn ($g) => DeviceView::gateway($g), ['name', 'edge_node_id']);
+        return $this->directory($request, SparkplugGateway::where('organization_id', $organization->id)->with('connection')->withCount('candidates')->orderBy('name'),
+            fn ($g) => [...DeviceView::gateway($g), 'firmware_selection' => $selection($g)], ['name', 'edge_node_id']);
     }
 
     public function storeGateway(Request $request, Organization $organization)

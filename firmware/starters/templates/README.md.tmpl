@@ -1,0 +1,79 @@
+# {{title}}
+
+An IoT OS firmware starter for {{target_name}}: {{role_text}}.
+
+It holds the IoT OS embedded SDK {{sdk_version}}, the metric tables generated from the
+device profiles below, {{project_text}}, and instructions for AI coding agents. It holds
+no credentials, so it is safe to commit and to give to an AI tool.
+
+{{profiles_list}}
+
+## Start with AI
+
+Open this folder with an AI coding agent, such as Claude Code, Codex, Cursor or GitHub
+Copilot, and send:
+
+> Read AGENTS.md and follow it. Start with the interview.
+
+The agent asks about your hardware and where each value comes from, writes your answers
+to `{{developer_path}}device-brief.yaml`, and asks you to confirm them before it writes
+any code. It never opens your connection settings.
+
+## Build
+
+{{build_section}}
+
+Until the connection settings are in `config/`, the program says where to get them and
+stops without connecting.
+
+## Connection settings
+
+{{settings_section}} Unpack the archive into this folder: it puts the settings in
+`config/`, which `.gitignore` keeps out of version control. `config/README.md` explains
+the files.
+
+## Test without hardware
+
+The desktop simulator in `sdk/examples/desktop-simulator` builds against this starter's
+`generated/` and `config/`, and publishes made-up values. Use it to check the platform
+side, never as a device:
+
+```sh
+cmake -S sdk/examples/desktop-simulator -B build/simulator && cmake --build build/simulator
+./build/simulator/gateway-sim{{simulator_args}}
+```
+
+## What is here
+
+| Path | What it is | When you update |
+| --- | --- | --- |
+| `{{developer_path}}` | Your code: `field.c` reads the hardware{{developer_extra}} | kept |
+| `config/` | Connection settings, once downloaded | kept |
+| `README.md`, `.gitignore`{{project_files}} | This file, ignore rules{{project_files_text}} | kept |
+| `sdk/` | The IoT OS embedded SDK | replaced |
+| `generated/` | Device types and metrics from the profiles | replaced |
+| `.iotos/` | The device brief schema and the porting guide | replaced |
+| `AGENTS.md`, `CLAUDE.md` | Instructions for AI coding agents | replaced |
+| `iotos-starter.json` | What this starter was made from | replaced |
+
+## Updating
+
+When a profile gets a new revision, download a new starter for the same target and role,
+unpack it next to this folder, and replace only the paths `iotos-starter.json` lists in
+`replaceable`, plus the manifest itself:
+
+```sh
+NEW=../{{root}}-new   # the newer starter, unpacked
+grep -q '"format": 1,' "$NEW/iotos-starter.json" || { echo "The newer starter needs a newer update recipe: see its README."; exit 1; }
+for path in {{replaceable}}; do
+  path=${path%/}
+  rm -rf "./$path" && cp -R "$NEW/$path" "./$path"
+done
+cp "$NEW/iotos-starter.json" iotos-starter.json
+```
+
+Your code, the device brief, the settings and the build files stay as they are. To see
+what changed since the revision you had, read each metric in the new
+`iotos-starter.json`: `introduced_in` and `changed_in` later than your revision mark new
+and changed metrics, and `retired` lists metrics the profile no longer has. The new
+starter's `{{developer_path}}field.c` has stubs for new metrics to copy into yours.

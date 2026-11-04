@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "targets": [
+    {
+      "id": "linux",
+      "name": "Linux or macOS",
+      "kind": "built",
+      "roles": ["direct", "gateway"],
+      "example": "linux-app",
+      "developer_paths": ["app/"],
+      "toolchain": "CMake 3.31, GCC 13 (ubuntu-24.04 runner)",
+      "build": "cmake -S . -B build && cmake --build build",
+      "run": "./build/app",
+      "order": 30
+    },
+    {
+      "id": "stm32",
+      "name": "STM32",
+      "kind": "ai_assisted",
+      "roles": ["direct", "gateway"],
+      "developer_paths": ["app/"],
+      "family_notes": "families/stm32.md",
+      "order": 10
+    },
+    {
+      "id": "rpi-pico",
+      "name": "Raspberry Pi Pico (RP2040, RP2350)",
+      "kind": "ai_assisted",
+      "roles": ["direct", "gateway"],
+      "developer_paths": ["app/"],
+      "family_notes": "families/rpi-pico.md",
+      "order": 20
+    },
+    {
+      "id": "nordic-nrf",
+      "name": "Nordic nRF",
+      "kind": "ai_assisted",
+      "roles": ["direct", "gateway"],
+      "developer_paths": ["app/"],
+      "family_notes": "families/nordic-nrf.md",
+      "order": 30
+    },
+    {
+      "id": "other",
+      "name": "Other microcontroller",
+      "kind": "ai_assisted",
+      "roles": ["direct", "gateway"],
+      "developer_paths": ["app/"],
+      "family_notes": null,
+      "order": 90
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+    "format": 1,
+    "sdk_version": "0.1.0",
+    "target": {
+        "id": "linux",
+        "kind": "built",
+        "name": "Linux or macOS"
+    },
+    "role": "direct",
+    "node": {
+        "default_health": false,
+        "code": "relay",
+        "c_identifier": "relay",
+        "name": "Relay",
+        "revision": 2,
+        "artifact_uuid": "00000073-0000-4000-8000-000000000002"
+    },
+    "device_types": [],
+    "metrics": {
+        "relay": [
+            {
+                "key": "relay_state",
+                "datatype": "Boolean",
+                "unit": null,
+                "writable": true,
+                "introduced_in": 1,
+                "changed_in": null
+            },
+            {
+                "key": "coil_current",
+                "datatype": "Double",
+                "unit": "mA",
+                "writable": false,
+                "introduced_in": 1,
+                "changed_in": 2
+            },
+            {
+                "key": "trip_count",
+                "datatype": "Int64",
+                "unit": null,
+                "writable": false,
+                "introduced_in": 2,
+                "changed_in": null
+            }
+        ]
+    },
+    "retired": {
+        "relay": [
+            {
+                "key": "legacy_flag",
+                "retired_in": 2
+            }
+        ]
+    },
+    "replaceable": [
+        "sdk/",
+        "generated/",
+        ".iotos/",
+        "AGENTS.md",
+        "CLAUDE.md"
+    ],
+    "developer_paths": [
+        "app/"
+    ],
+    "warnings": []
+}

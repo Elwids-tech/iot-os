@@ -1,0 +1,48 @@
+{
+    "format": 1,
+    "cases": [
+        {
+            "name": "direct-relay-r2-linux",
+            "files": [
+                "app/device-brief.example.yaml",
+                "app/field.c",
+                "app/field.h",
+                "generated/iotos_type_relay.h",
+                "generated/iotos_types.c",
+                "generated/iotos_types.h",
+                "generated/profiles/relay.json",
+                "iotos-starter.json"
+            ]
+        },
+        {
+            "name": "gateway-water-energy-linux",
+            "files": [
+                "app/device-brief.example.yaml",
+                "app/field.c",
+                "app/field.h",
+                "generated/iotos_type_energy_meter.h",
+                "generated/iotos_type_gateway_health.h",
+                "generated/iotos_type_water_meter.h",
+                "generated/iotos_types.c",
+                "generated/iotos_types.h",
+                "generated/profiles/energy-meter.json",
+                "generated/profiles/water-meter.json",
+                "iotos-starter.json"
+            ]
+        },
+        {
+            "name": "settings-direct",
+            "files": [
+                "config/iotos_settings.c",
+                "config/iotos_settings.h"
+            ]
+        },
+        {
+            "name": "settings-gateway",
+            "files": [
+                "config/iotos_settings.c",
+                "config/iotos_settings.h"
+            ]
+        }
+    ]
+}

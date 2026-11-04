@@ -40,6 +40,7 @@ import { ParametersSection } from "./ParametersSection"
 import { CalculationsSection } from "./CalculationsSection"
 import { AlarmsSection } from "./AlarmsSection"
 import { ReviewSection } from "./ReviewSection"
+import { FirmwareSection } from "./FirmwareSection"
 import { ConflictReview } from "./ConflictReview"
 import {
   TextField,
@@ -66,6 +67,7 @@ const sections = [
   { key: "calculations", label: "Calculations" },
   { key: "alarms", label: "Alarm templates" },
   { key: "review", label: "Review and publish" },
+  { key: "firmware", label: "Firmware" },
 ]
 function Workspace() {
   const { capabilities: deviceCapabilities } = useDeviceOrganization()
@@ -211,6 +213,8 @@ function Workspace() {
             <CalculationsSection />
           ) : current === "alarms" ? (
             <AlarmsSection />
+          ) : current === "firmware" ? (
+            <FirmwareSection />
           ) : (
             <ReviewSection />
           )}

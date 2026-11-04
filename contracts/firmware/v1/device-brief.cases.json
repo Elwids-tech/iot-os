@@ -1,0 +1,99 @@
+[
+  {
+    "description": "a direct ESP32 device with one Modbus sensor and one analog input",
+    "valid": true,
+    "data": {
+      "format": 1,
+      "device": { "board": "ESP32-DevKitC", "mcu": "ESP32-WROOM-32E", "framework": "ESP-IDF", "framework_version": "5.4.1" },
+      "uplink": { "kind": "wifi", "modem_runs_mqtt": false },
+      "time_source": "sntp",
+      "credential_storage": "flash",
+      "device_types": {
+        "tank-sensor": {
+          "addressing": { "bus": "modbus_rtu", "port": "UART2, GPIO16 RX, GPIO17 TX", "serial": { "baud": 9600, "parity": "none", "data_bits": 8, "stop_bits": 1 }, "addresses": [1] },
+          "poll_interval_s": 5,
+          "report": { "mode": "on_change", "deadband": 1 },
+          "metrics": {
+            "level": { "source": { "kind": "modbus", "function": 3, "register": 0, "type": "uint16", "scale": 0.1, "offset": 0 } },
+            "temperature": { "source": { "kind": "analog", "pin": "GPIO34", "calibration": "10 mV per degree, 500 mV at 0 °C" } }
+          }
+        }
+      },
+      "power": { "mode": "mains" },
+      "watchdog": { "enabled": true, "timeout_s": 10 },
+      "unconfirmed": []
+    }
+  },
+  {
+    "description": "unknown sources and answers waiting for a reading",
+    "valid": true,
+    "data": {
+      "format": 1,
+      "device": { "board": "unknown", "mcu": "STM32F429", "framework": "STM32Cube with FreeRTOS", "framework_version": "unknown" },
+      "uplink": { "kind": "cellular_modem", "modem_runs_mqtt": "unknown" },
+      "time_source": "unknown",
+      "credential_storage": "unknown",
+      "device_types": {
+        "relay": {
+          "addressing": { "bus": "gpio" },
+          "metrics": {
+            "relay_state": { "source": { "kind": "digital", "pin": "PB7", "active_low": "unknown" } },
+            "coil_current": { "source": { "kind": "unknown" } }
+          },
+          "commands": { "relay_state": { "effect": "Drives PB7", "read_back": "unknown" } }
+        }
+      },
+      "watchdog": { "enabled": "unknown" },
+      "unconfirmed": ["device_types.relay.metrics.relay_state.source"]
+    }
+  },
+  {
+    "description": "a Modbus source without its register",
+    "valid": false,
+    "error": { "keyword": "required", "instance_location": "/device_types/water-meter/metrics/flow_rate/source" },
+    "data": {
+      "format": 1,
+      "device": { "board": "EVKB", "mcu": "MIMXRT1052", "framework": "MCUXpresso" },
+      "uplink": { "kind": "ethernet" },
+      "time_source": "sntp",
+      "credential_storage": "compiled",
+      "device_types": {
+        "water-meter": {
+          "addressing": { "bus": "modbus_rtu" },
+          "metrics": { "flow_rate": { "source": { "kind": "modbus", "function": 4, "type": "float32" } } }
+        }
+      }
+    }
+  },
+  {
+    "description": "a source kind outside the list",
+    "valid": false,
+    "error": { "keyword": "const", "instance_location": "/device_types/relay/metrics/relay_state/source/kind" },
+    "data": {
+      "format": 1,
+      "device": { "board": "Pico W", "mcu": "RP2040", "framework": "Pico SDK" },
+      "uplink": { "kind": "wifi" },
+      "time_source": "sntp",
+      "credential_storage": "flash",
+      "device_types": {
+        "relay": {
+          "addressing": { "bus": "gpio" },
+          "metrics": { "relay_state": { "source": { "kind": "telepathy" } } }
+        }
+      }
+    }
+  },
+  {
+    "description": "a brief written for another format version",
+    "valid": false,
+    "error": { "keyword": "const", "instance_location": "/format" },
+    "data": {
+      "format": 2,
+      "device": { "board": "Pico W", "mcu": "RP2040", "framework": "Pico SDK" },
+      "uplink": { "kind": "wifi" },
+      "time_source": "sntp",
+      "credential_storage": "flash",
+      "device_types": { "relay": { "addressing": { "bus": "gpio" }, "metrics": {} } }
+    }
+  }
+]
