@@ -18391,6 +18391,84 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/devices/{device}/connection-settings": {
+      "post": {
+        "operationId": "connectionSettings.device",
+        "tags": [
+          "ConnectionSettings"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "device",
+            "in": "path",
+            "required": true,
+            "description": "The device UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmwareArchiveResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 10,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "The connection settings of a direct device, to unpack into a starter. Needs Device.manage-connections; recorded as device.connection-settings.downloaded."
+      }
+    },
     "/v1/organizations/{organization}/devices/{device}/deactivate": {
       "post": {
         "operationId": "device.deactivate",
@@ -18451,6 +18529,109 @@
         "x-audience": "organization",
         "x-organization-scoped": true,
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/devices/{device}/firmware-kit": {
+      "post": {
+        "operationId": "firmwareKit.device",
+        "tags": [
+          "FirmwareKit"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "device",
+            "in": "path",
+            "required": true,
+            "description": "The device UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "type": "string",
+                    "enum": [
+                      "linux",
+                      "stm32",
+                      "rpi-pico",
+                      "nordic-nrf",
+                      "other"
+                    ]
+                  }
+                },
+                "required": [
+                  "target"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The full kit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmwareArchiveResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 10,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "A starter for the direct device's published profile revision with its connection settings in config/. Needs Device.manage-connections; recorded as device.firmware-kit.downloaded."
       }
     },
     "/v1/organizations/{organization}/devices/{device}/lifecycle": {
@@ -19632,6 +19813,141 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/firmware/starters": {
+      "post": {
+        "operationId": "firmwareStarter.store",
+        "tags": [
+          "FirmwareStarter"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirmwareStarterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The starter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmwareArchiveResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 10,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "A credential-free firmware starter for published profile revisions and a target. Needs DeviceProfile.view, and Device.manage-connections on `gateway_uuid` when given, which saves the choices on that gateway. Not recorded in the activity log."
+      }
+    },
+    "/v1/organizations/{organization}/firmware/targets": {
+      "get": {
+        "operationId": "firmwareTarget.index",
+        "tags": [
+          "FirmwareTarget"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The available targets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FirmwareTarget"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "The firmware targets a starter can be built for, built targets first. Needs DeviceProfile.view-any."
+      }
+    },
     "/v1/organizations/{organization}/gateways": {
       "get": {
         "operationId": "discovery.gateways",
@@ -19858,6 +20174,200 @@
           }
         ],
         "description": "Queues a bulk onboarding run over selected discovered sources of the gateway with one published profile revision (spec 026). Each source becomes a device with a generated name and code, the profile's suggested mappings and an activation request. Repeating the request with the same `operation_uuid` returns the same run."
+      }
+    },
+    "/v1/organizations/{organization}/gateways/{gateway}/connection-settings": {
+      "post": {
+        "operationId": "connectionSettings.gateway",
+        "tags": [
+          "ConnectionSettings"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "gateway",
+            "in": "path",
+            "required": true,
+            "description": "The gateway UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmwareArchiveResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 10,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "The connection settings of a gateway, after applying its broker access. Needs Device.manage-connections; recorded as gateway.connection-settings.downloaded."
+      }
+    },
+    "/v1/organizations/{organization}/gateways/{gateway}/firmware-kit": {
+      "post": {
+        "operationId": "firmwareKit.gateway",
+        "tags": [
+          "FirmwareKit"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "gateway",
+            "in": "path",
+            "required": true,
+            "description": "The gateway UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "type": "string",
+                    "enum": [
+                      "linux",
+                      "stm32",
+                      "rpi-pico",
+                      "nordic-nrf",
+                      "other"
+                    ]
+                  },
+                  "node_artifact_uuid": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  },
+                  "device_type_artifact_uuids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "uniqueItems": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The full kit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmwareArchiveResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 10,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "A gateway starter with the gateway's connection settings in config/. Fields left out default to the gateway's saved choices, with each profile's newest revision. Needs Device.manage-connections; saves the choices and is recorded as gateway.firmware-kit.downloaded."
       }
     },
     "/v1/organizations/{organization}/gateways/{gateway}/provision": {
@@ -28615,6 +29125,143 @@
           }
         }
       },
+      "FirmwareArchive": {
+        "type": "object",
+        "description": "A ZIP archive. Starters and full kits carry their manifest (contracts/firmware/v1/starter-manifest.schema.json); connection settings carry none.",
+        "required": [
+          "filename",
+          "manifest",
+          "archive_base64"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "manifest": {
+            "description": "The starter's iotos-starter.json, so warnings can be shown before the file is saved; null for connection settings.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StarterManifest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "archive_base64": {
+            "type": "string",
+            "contentEncoding": "base64",
+            "contentMediaType": "application/zip"
+          }
+        }
+      },
+      "FirmwareArchiveResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FirmwareArchive"
+          }
+        }
+      },
+      "FirmwareStarterRequest": {
+        "type": "object",
+        "description": "POST firmware/starters (spec 027 platform API). Permissions are checked by the controller.",
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": [
+              "linux",
+              "stm32",
+              "rpi-pico",
+              "nordic-nrf",
+              "other"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "gateway"
+            ]
+          },
+          "node_artifact_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "device_type_artifact_uuids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 8,
+            "uniqueItems": true
+          },
+          "gateway_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "target",
+          "role"
+        ],
+        "title": "FirmwareStarterRequest"
+      },
+      "FirmwareTarget": {
+        "type": "object",
+        "description": "A target from firmware/starters/targets.json whose files exist in this release. Built targets have a tested example and a toolchain; AI-assisted ones have port templates and notes for a coding agent.",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "roles",
+          "toolchain"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{2,40}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "built",
+              "ai_assisted"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "direct",
+                "gateway"
+              ]
+            }
+          },
+          "toolchain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The exact toolchain CI builds the target's starters with; null for AI-assisted targets."
+          }
+        }
+      },
       "ForgotPasswordRequest": {
         "type": "object",
         "properties": {
@@ -30281,6 +30928,277 @@
                 "minimum": 0
               }
             }
+          }
+        }
+      },
+      "StarterManifest": {
+        "type": "object",
+        "description": "The starter manifest (contracts/firmware/v1/starter-manifest.schema.json). No credentials, broker address or device identity.",
+        "additionalProperties": false,
+        "required": [
+          "format",
+          "sdk_version",
+          "target",
+          "role",
+          "generated_at",
+          "node",
+          "device_types",
+          "metrics",
+          "retired",
+          "replaceable",
+          "developer_paths",
+          "warnings"
+        ],
+        "properties": {
+          "format": {
+            "type": "integer",
+            "const": 1
+          },
+          "sdk_version": {
+            "type": "string"
+          },
+          "target": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "kind",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "built",
+                  "ai_assisted"
+                ]
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "gateway"
+            ]
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "node": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "default_health",
+                  "code",
+                  "c_identifier",
+                  "name",
+                  "revision",
+                  "artifact_uuid"
+                ],
+                "properties": {
+                  "default_health": {
+                    "type": "boolean",
+                    "const": false
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "c_identifier": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "integer"
+                  },
+                  "artifact_uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "default_health",
+                  "c_identifier"
+                ],
+                "properties": {
+                  "default_health": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "c_identifier": {
+                    "type": "string",
+                    "const": "gateway_health"
+                  }
+                }
+              }
+            ]
+          },
+          "device_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StarterManifestProfile"
+            }
+          },
+          "metrics": {
+            "type": "object",
+            "description": "Keyed by profile code, in alias order.",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/StarterManifestMetric"
+              }
+            }
+          },
+          "retired": {
+            "type": "object",
+            "description": "Keyed by profile code.",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "key",
+                  "retired_in"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "retired_in": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "replaceable": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "developer_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code",
+                "message",
+                "subject"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "birth_over_tx_buffer"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                },
+                "subject": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "StarterManifestMetric": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "datatype",
+          "unit",
+          "writable",
+          "introduced_in",
+          "changed_in"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "datatype": {
+            "type": "string",
+            "enum": [
+              "Boolean",
+              "Int64",
+              "Double",
+              "String",
+              "DateTime",
+              "Bytes"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "writable": {
+            "type": "boolean"
+          },
+          "introduced_in": {
+            "type": "integer"
+          },
+          "changed_in": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "StarterManifestProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "c_identifier",
+          "name",
+          "revision",
+          "artifact_uuid"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "c_identifier": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "artifact_uuid": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

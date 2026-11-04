@@ -617,7 +617,7 @@ class Repository(unittest.TestCase):
         status, output = self.run_main(self.copy())
         self.assertEqual(0, status, output)
         self.assertIn("PASS", output)
-        for directory in ("devices/v1", "events/v1", "location/v1", "rules/v1", "ingestion/v1", "internal"):
+        for directory in ("devices/v1", "events/v1", "firmware/v1", "location/v1", "rules/v1", "ingestion/v1", "internal"):
             self.assertIn(directory, output)
 
     def test_an_unlisted_sdk_fixture_is_refused(self):
@@ -636,6 +636,38 @@ class Repository(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("lists ddeath.bin, which is missing", output)
         self.assertIn("dcmd-bool.bin", output)
+
+    def test_a_golden_case_missing_a_file_or_holding_an_extra_one_is_named(self):
+        root = self.copy()
+        expected = root / "contracts/firmware/fixtures/expected"
+        (expected / "settings-gateway/config/iotos_settings.c").unlink()
+        (expected / "settings-direct/config/stray.h").write_text("/* stray */\n")
+        (expected / "unlisted-case").mkdir()
+        status, output = self.run_main(root)
+        self.assertEqual(1, status)
+        self.assertIn("case settings-gateway lists config/iotos_settings.c, which is missing", output)
+        self.assertIn("is not listed in case settings-direct of cases.json", output)
+        self.assertIn("unlisted-case", output)
+
+    def test_a_profile_fixture_without_revisions_is_refused(self):
+        root = self.copy()
+        (root / "contracts/firmware/fixtures/profiles/empty.json").write_text(json.dumps({"profile": {"code": "empty"}, "revisions": []}))
+        status, output = self.run_main(root)
+        self.assertEqual(1, status)
+        self.assertIn("empty.json", output)
+        self.assertIn("needs revisions[]", output)
+
+    def test_an_invalid_device_brief_that_passes_is_caught(self):
+        root = self.copy()
+        path = root / "contracts/firmware/v1/device-brief.schema.json"
+        schema = json.loads(path.read_text())
+        # Without the register requirement the "missing register" case would wrongly pass.
+        modbus = schema["$defs"]["source"]["oneOf"][0]
+        modbus["required"] = [name for name in modbus["required"] if name != "register"]
+        path.write_text(json.dumps(schema))
+        status, output = self.run_main(root)
+        self.assertEqual(1, status)
+        self.assertIn("a Modbus source without its register", output)
 
     def test_the_command_expiry_check_still_runs(self):
         root = self.copy()

@@ -20,7 +20,7 @@ cites it as 026-Rn.
   - `families/<family>.md`: the notes for AI-assisted families.
 
   Adding a family or editing the brief needs no SDK release (FR-014).
-- The device brief schema is a contract: `contracts/firmware/device-brief.v1.schema.json`
+- The device brief schema is a contract: `contracts/firmware/v1/device-brief.schema.json`
   with fixtures (R8).
 
 **Rationale**: the SDK keeps one meaning ("the C library and its tested ports"). Starter
@@ -172,7 +172,7 @@ with a connection that is not ready. Settings use `devices.broker_public_url`.
 ### R6. Manifest and change history
 
 **Decision**: `iotos-starter.json` (schema
-`contracts/firmware/starter-manifest.v1.schema.json`) records:
+`contracts/firmware/v1/starter-manifest.schema.json`) records:
 - `format: 1`, `sdk_version`, `target` (id and kind), `role`;
 - `generated_at`;
 - `profiles[]`: code, name, revision and artifact UUID;
@@ -245,7 +245,7 @@ entry point's endpoint.
      device's own display.
   9. **Changing things later**: update the brief first, then the code.
 - **The device brief** is YAML, with a JSON Schema (draft 2020-12) in
-  `contracts/firmware/device-brief.v1.schema.json`, plus valid and invalid fixtures that
+  `contracts/firmware/v1/device-brief.schema.json`, plus valid and invalid fixtures that
   `tooling/verify-devices-contracts.py` checks. It contains:
   - `format: 1` and `device` (board, MCU, framework and version, memory notes);
   - `uplink` (kind, and whether the modem runs TLS and MQTT itself);

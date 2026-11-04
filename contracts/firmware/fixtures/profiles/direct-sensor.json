@@ -1,0 +1,113 @@
+{
+  "profile": {
+    "code": "direct-sensor",
+    "name": "Direct sensor",
+    "uuid": "00000070-0000-4000-8000-000000000000"
+  },
+  "revisions": [
+    {
+      "revision": 1,
+      "artifact_uuid": "00000070-0000-4000-8000-000000000001",
+      "definition": {
+        "alarm_templates": [],
+        "calculations": [],
+        "parameters": [
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "number",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "level",
+            "kind": "measurement",
+            "label": "Tank level",
+            "reporting": null,
+            "reports_state": true,
+            "unit": "%",
+            "uuid": "00000070-0000-4000-8000-000000000100",
+            "validation": {
+              "engine": "json_logic",
+              "rule": {
+                "and": [
+                  {
+                    ">=": [
+                      {
+                        "var": "value"
+                      },
+                      0
+                    ]
+                  },
+                  {
+                    "<=": [
+                      {
+                        "var": "value"
+                      },
+                      100
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "number",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "temperature",
+            "kind": "measurement",
+            "label": "Temperature",
+            "reporting": null,
+            "reports_state": true,
+            "unit": "°C",
+            "uuid": "00000070-0000-4000-8000-000000000101",
+            "validation": null
+          },
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "boolean",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "level_alarm",
+            "kind": "derived",
+            "label": "Level alarm",
+            "reporting": null,
+            "reports_state": true,
+            "unit": null,
+            "uuid": "00000070-0000-4000-8000-000000000102",
+            "validation": null
+          },
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "timestamp",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "calibrated_at",
+            "kind": "state",
+            "label": "Calibrated at",
+            "reporting": null,
+            "reports_state": false,
+            "unit": null,
+            "uuid": "00000070-0000-4000-8000-000000000103",
+            "validation": null
+          }
+        ],
+        "profile": {
+          "category": "environment",
+          "code": "direct-sensor",
+          "name": "Direct sensor",
+          "revision": 1,
+          "uuid": "00000070-0000-4000-8000-000000000000"
+        },
+        "schema_version": "device-profile.v2"
+      }
+    }
+  ]
+}

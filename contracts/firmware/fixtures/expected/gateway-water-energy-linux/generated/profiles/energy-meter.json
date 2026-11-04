@@ -1,0 +1,59 @@
+{
+    "format": 1,
+    "code": "energy-meter",
+    "name": "Energy meter",
+    "revision": 1,
+    "artifact_uuid": "00000072-0000-4000-8000-000000000001",
+    "c_identifier": "energy_meter",
+    "role": "device_type",
+    "metrics": [
+        {
+            "key": "active_power",
+            "label": "Active power",
+            "description": null,
+            "datatype": "Double",
+            "unit": "kW",
+            "writable": false,
+            "enum_values": null,
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        },
+        {
+            "key": "energy_total",
+            "label": "Energy total",
+            "description": null,
+            "datatype": "Double",
+            "unit": "kWh",
+            "writable": false,
+            "enum_values": null,
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        },
+        {
+            "key": "tariff",
+            "label": "Tariff",
+            "description": null,
+            "datatype": "String",
+            "unit": null,
+            "writable": false,
+            "enum_values": null,
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        },
+        {
+            "key": "last_reset",
+            "label": "Last reset",
+            "description": null,
+            "datatype": "DateTime",
+            "unit": null,
+            "writable": false,
+            "enum_values": null,
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        }
+    ]
+}

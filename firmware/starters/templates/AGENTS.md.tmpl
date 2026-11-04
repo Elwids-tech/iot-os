@@ -1,0 +1,138 @@
+# Instructions for AI coding agents
+
+These instructions are for the AI coding agent working in this folder. Claude Code reads
+them through `CLAUDE.md`. Follow the steps in order. The person you work with is a
+firmware developer.
+
+## 1. What this project is
+
+An IoT OS firmware starter for {{target_name}}, for {{role_text}}. It contains:
+
+- `sdk/`: the IoT OS embedded SDK. It owns the connection: MQTT over TLS, and Sparkplug B
+  births, deaths, sequence numbers, aliases, rebirths and the gateway health metrics.
+  `sdk/include/iotos/iotos.h` is the only API. The program uses `iotos_init`,
+  `iotos_register_type`, `iotos_device_add`, `iotos_begin`, the `iotos_put_` calls,
+  `iotos_commit` and `iotos_poll`.
+- `generated/`: the device types and metrics from the platform's device profiles.
+- `{{developer_path}}`: the code you work on. `main.c` runs the SDK and `field.c` reads
+  the hardware.
+
+You write the field side: how each metric's value is read from the hardware, and how
+each command is applied. One task calls `iotos_poll`, and every callback runs on that
+task. `on_birth` runs while the SDK holds its lock and may only call the `iotos_put_`
+calls on its writer. `on_command` runs with the lock released.
+
+## 2. Rules
+
+- Never open, print, copy or commit anything in `config/` except `config/README.md`.
+  The other files there hold this device's credentials.
+- Never edit `sdk/`, `generated/`, `.iotos/`, `AGENTS.md` or `CLAUDE.md`. An update
+  replaces them.
+- Write no code before the developer has confirmed the device brief (step 5).
+- Never invent a value. A metric whose source is unknown keeps its stub, which returns
+  `FIELD_UNAVAILABLE`, so the platform shows no value instead of a wrong one.
+- Build, and run where you can, before saying that something works.
+
+## 3. Already known: do not ask
+
+The platform has already decided what this device publishes. Read these files instead
+of asking:
+
+- `iotos-starter.json`: the role ({{role_word}}), the profiles and their revisions, and
+  for each metric its key, Sparkplug datatype, unit and whether it accepts commands.
+- `generated/profiles/`: one file per profile, with each metric's label, description,
+  unit, allowed values and range. Metrics with `filled_by_sdk` are filled by the SDK.
+
+Never ask for metric names, datatypes, units, ranges or allowed values, which metrics
+accept commands, or whether this is a gateway or a direct device.
+
+{{profiles_list}}
+
+## 4. Interview
+
+Ask only what the developer knows and the platform cannot, in this order, a few
+questions at a time. Accept "I don't know" and record it as `unknown`.
+
+1. **Hardware**: the board, the microcontroller, the framework or RTOS and its version,
+   and memory limits.{{hardware_note}}
+2. **Uplink**: Ethernet, Wi-Fi, a cellular modem or something else. For a modem, ask
+   whether it runs TLS and MQTT itself.
+3. **Time and credentials**: where the clock comes from (SNTP, the modem, GPS or a
+   real-time clock), and where the credentials will be kept (compiled in, flash or a
+   secure element).
+4. **Each device type** in turn:
+   - **Addressing**: the bus (Modbus RTU or TCP, I2C, SPI, CAN, GPIO or analog), the
+     port and its serial settings, and the addresses{{gateway_note}}.
+   - **Sources**: where each metric's value comes from. Ask with one table per type and
+     one row per metric, so the developer can fill a whole table at once:
+     - Modbus: function, register, data type, byte and word order, scale and offset;
+     - analog: pin and calibration;
+     - digital: pin, and whether it is active low;
+     - I2C or SPI: the part;
+     - CAN: the ID and signal;
+     - pulse counter: the pin and the units per pulse;
+     - computed: from which values, and how.
+   - **Commands**: for each metric that accepts commands, what happens physically, and
+     how the new state is read back.
+   - **Timing**: how often to poll, whether to report on change (with a deadband) or at
+     an interval, and after how many missed polls a device counts as offline.
+5. **Power and watchdog**: mains or battery, sleep, and the watchdog timeout.
+6. **Instructions**: anything else, such as wiring, calibration or quirks.
+
+## 5. Device brief
+
+If `{{developer_path}}device-brief.yaml` exists and its `format` is not 1, stop. Ask the
+developer to download a newer starter, because this one does not understand that brief.
+
+Otherwise:
+
+1. Write the answers to `{{developer_path}}device-brief.yaml`, in the shape of
+   `{{developer_path}}device-brief.example.yaml`.
+2. Check it against `.iotos/device-brief.schema.json`. Also check that every metric and
+   command key exists in the profile's file in `generated/profiles/`, and that every
+   command key is a metric that accepts commands.
+3. List the answers no reading has proved yet under `unconfirmed`.
+4. Show the brief to the developer, and wait for an explicit confirmation before writing
+   any code.
+
+## 6. Port
+
+{{port_section}}
+
+## 7. Field side
+
+Write `{{developer_path}}field.c` from the confirmed brief only:
+
+- each `field_read_` function fills `out` and returns `FIELD_OK`, or returns
+  `FIELD_OFFLINE` when the device does not answer. A source that is `unknown` keeps
+  returning `FIELD_UNAVAILABLE`;
+- each `field_command_` function applies the value and returns `FIELD_OK`. `main.c`
+  then reads the metric back and publishes it, which confirms the command;
+- {{devices_note}}
+- `field_init` opens the buses and ports.
+
+`on_birth` reads with the SDK's lock held, so when a read is slow, keep the last value
+read and return that.
+
+`{{developer_path}}main.c` is the developer's too. As shipped, it reads every metric at each
+poll and sends every value it gets, and marks a device offline after a number of missed
+polls. Set the poll interval and the missed polls from the brief with the `APP_` macros at
+its top. When the brief asks to report on change (with a deadband) or at a longer interval,
+write that in `main.c`'s publish step: the SDK sends what it is given.
+
+## 8. Verify
+
+1. Build with {{build_command}}.
+2. If `config/iotos_settings.c` exists, run the program and watch for `event: online`
+   and the first data. Check only that the file exists: never open it.
+3. Ask the developer to compare the first readings with the device's own display. Move
+   each confirmed answer out of `unconfirmed`.
+
+## 9. Later changes
+
+Change the brief first, confirm it with the developer, then change the code.
+
+After a starter update, compare `introduced_in`, `changed_in` and `retired` in
+`iotos-starter.json` with the revision the project had. Copy the stubs for new metrics
+from the new starter's `{{developer_path}}field.c`, and ask about their sources as in
+step 4.

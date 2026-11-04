@@ -151,7 +151,7 @@ Additions only, with no change to the public API (FR-012):
 
 ### Contracts (`contracts/firmware/`, new)
 
-- `device-brief.v1.schema.json` and `starter-manifest.v1.schema.json` (draft 2020-12).
+- `device-brief.schema.json` and `starter-manifest.schema.json` (draft 2020-12).
 - `fixtures/briefs/*.yaml`: the valid and invalid briefs listed in the
   [device brief contract](contracts/device-brief.md).
 - `fixtures/profiles/*.json`: published-artifact fixtures for CI starter builds (R16): a

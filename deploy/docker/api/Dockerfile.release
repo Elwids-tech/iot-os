@@ -11,6 +11,8 @@ RUN composer install --no-dev --no-scripts --no-interaction --prefer-dist --opti
 COPY apps/api ./
 RUN php artisan help:validate
 COPY contracts /var/contracts
+COPY firmware/sdk /var/firmware/sdk
+COPY firmware/starters /var/firmware/starters
 COPY deploy/docker/api/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY deploy/docker/api/release.ini /usr/local/etc/php/conf.d/release.ini
 RUN composer dump-autoload --no-dev --optimize \

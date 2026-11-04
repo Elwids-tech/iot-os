@@ -5,26 +5,29 @@
 **File**: `<developer path>/device-brief.yaml` in the developer's project. The platform
 never receives it (Q2).
 
-**Schema**: `contracts/firmware/device-brief.v1.schema.json` (JSON Schema draft 2020-12),
+**Schema**: `contracts/firmware/v1/device-brief.schema.json` (JSON Schema draft 2020-12),
 copied into every starter as `.iotos/device-brief.schema.json`. Its structure is in the
 [data model](../data-model.md#device-brief-developers-project-never-stored-by-the-platform).
 
-**Fixtures** in `contracts/firmware/fixtures/briefs/`:
+**Examples**, beside the schema in `contracts/firmware/v1/`, checked by
+`tooling/verify-devices-contracts.py` like every versioned contract:
 
-| Fixture | Valid? | Shows |
+| Example | Valid? | Shows |
 | --- | --- | --- |
-| `modbus-gateway.yaml` | valid | Two Modbus RTU device types on two RS-485 ports, address ranges, a writable coil |
-| `esp32-direct-sensor.yaml` | valid | A direct ESP32 device with one Modbus sensor and one analog input |
-| `with-unknowns.yaml` | valid | `unknown` sources and an `unconfirmed[]` list |
-| `invalid-modbus-missing-register.yaml` | invalid | A Modbus source without `register` |
-| `invalid-unknown-kind.yaml` | invalid | A source kind outside the enum |
+| `device-brief.fixture.json` | valid | Two Modbus RTU device types on two RS-485 ports, address ranges, a writable coil |
+| `device-brief.cases.json` "a direct ESP32 device…" | valid | A direct ESP32 device with one Modbus sensor and one analog input |
+| `device-brief.cases.json` "unknown sources…" | valid | `unknown` sources and an `unconfirmed[]` list |
+| `device-brief.cases.json` "a Modbus source without its register" | invalid (`required`) | A Modbus source without `register` |
+| `device-brief.cases.json` "a source kind outside the list" | invalid (`const`) | A source kind outside the enum |
+| `device-brief.cases.json` "a brief written for another format version" | invalid (`const`) | `format: 2` |
 
-`tooling/verify-devices-contracts.py` validates the fixtures (valid ones pass, invalid
-ones fail). Its tests cover the check.
+The examples are JSON, the parsed form of the YAML the agent writes, so the verifier needs
+no YAML parser. Every starter's `device-brief.example.yaml` is parsed and validated by
+`AgentsBriefDriftTest`.
 
 **Versioning**:
-- `format: 1`. A breaking change adds `device-brief.v2.schema.json` and keeps v1 in the
-  repository, so existing projects stay valid.
+- `format: 1`. A breaking change adds `contracts/firmware/v2/device-brief.schema.json` and
+  keeps v1 in the repository, so existing projects stay valid.
 - Starters ship the schema version their `AGENTS.md` writes.
 
 **Cross-checks** the schema cannot express are made by the agent, as `AGENTS.md`

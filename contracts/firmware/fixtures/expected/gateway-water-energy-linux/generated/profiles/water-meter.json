@@ -1,0 +1,63 @@
+{
+    "format": 1,
+    "code": "water-meter",
+    "name": "Water meter",
+    "revision": 1,
+    "artifact_uuid": "00000071-0000-4000-8000-000000000001",
+    "c_identifier": "water_meter",
+    "role": "device_type",
+    "metrics": [
+        {
+            "key": "flow_rate",
+            "label": "Flow rate",
+            "description": null,
+            "datatype": "Double",
+            "unit": "L/min",
+            "writable": false,
+            "enum_values": null,
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        },
+        {
+            "key": "total_volume",
+            "label": "Total volume",
+            "description": null,
+            "datatype": "Double",
+            "unit": "L",
+            "writable": false,
+            "enum_values": null,
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        },
+        {
+            "key": "valve_open",
+            "label": "Valve open",
+            "description": null,
+            "datatype": "Boolean",
+            "unit": null,
+            "writable": true,
+            "enum_values": null,
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        },
+        {
+            "key": "alarm_state",
+            "label": "Alarm state",
+            "description": null,
+            "datatype": "String",
+            "unit": null,
+            "writable": false,
+            "enum_values": [
+                "ok",
+                "leak",
+                "fault"
+            ],
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        }
+    ]
+}

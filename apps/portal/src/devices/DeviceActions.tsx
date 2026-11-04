@@ -24,13 +24,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@iot-os/ui/components/dialog"
-import { FieldDescription, FieldError, FieldGroup, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@iot-os/ui/components/select"
 import { Input } from "@iot-os/ui/components/input"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
 import { RadioGroup, RadioGroupItem } from "@iot-os/ui/components/radio-group"
 import { CircleCheckIcon } from "lucide-react"
 import { api } from "../lib/api"
+import { saveArchive } from "../lib/download"
 import { useUnsaved } from "../lib/unsaved"
 import {
   EditorSheet,
@@ -444,6 +446,94 @@ export function AddToDashboard({
             onClick={add}
           >
             {busy ? "Adding…" : selected === NEW_DASHBOARD ? "Create and add panel" : "Add panel"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Provisions a direct device's connection when needed, as the setup bundle does, then saves its settings (spec 027 US3). */
+export async function downloadDeviceSettings(org: string, device: DeviceDetail) {
+  await provisioned(org, device)
+  saveArchive(await api.deviceConnectionSettings(org, device.uuid))
+  toast.success("Connection settings downloaded. Keep them private.")
+}
+
+async function provisioned(org: string, device: DeviceDetail) {
+  const setup = await api.deviceOnboarding(org, device.uuid)
+  if (setup && !setup.provisioned) {
+    const result = await api.provisionDeviceOnboarding(org, device.uuid)
+    if (!result.provisioned) throw new Error(result.diagnostic ?? "Connection setup is not ready. Please retry.")
+  }
+}
+
+/** A starter for the device's profile with its connection settings in place: choose the target, then download. */
+export function FirmwareKitDialog({ org, device, onClose }: { org: string; device: DeviceDetail; onClose: () => void }) {
+  const [target, setTarget] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const targets = useQuery({ queryKey: ["firmware-targets", org], queryFn: ({ signal }) => api.firmwareTargets(org, signal), staleTime: 5 * 60_000 })
+  const options = (targets.data ?? []).filter((item) => item.roles.includes("direct"))
+  async function download() {
+    if (!target || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await provisioned(org, device)
+      // The archive stays in this function: it holds the device's credentials.
+      saveArchive(await api.deviceFirmwareKit(org, device.uuid, target))
+      toast.success("Firmware kit downloaded. Its config/ folder holds the credentials: keep it private.")
+      onClose()
+    } catch (reason) {
+      setError(reason)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Download firmware kit</DialogTitle>
+          <DialogDescription>
+            A starter for {device.name}'s profile with its connection settings in config/. It builds and connects as
+            downloaded. Keep it out of version control.
+          </DialogDescription>
+        </DialogHeader>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="firmware-kit-target">Microcontroller or platform</FieldLabel>
+            <Select value={target} onValueChange={setTarget} disabled={targets.isPending}>
+              <SelectTrigger id="firmware-kit-target" className="w-full">
+                <SelectValue placeholder={targets.isPending ? "Loading targets…" : "Choose a target"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(["built", "ai_assisted"] as const).map((kind) => {
+                  const items = options.filter((item) => item.kind === kind)
+                  return items.length ? (
+                    <SelectGroup key={kind}>
+                      <SelectLabel>{kind === "built" ? "Built" : "AI-assisted"}</SelectLabel>
+                      {items.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name}
+                          {kind === "ai_assisted" && <span className="text-meta text-muted-foreground"> · no tested example</span>}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ) : null
+                })}
+              </SelectContent>
+            </Select>
+          </Field>
+        </FieldGroup>
+        <RequestError error={error ?? targets.error} />
+        <DialogFooter>
+          <Button variant="outline" disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={busy || !target} onClick={() => void download()}>
+            {busy ? "Preparing…" : "Download firmware kit"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -10,6 +10,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@iot-os/ui/components/dropdown-menu"
@@ -44,7 +45,8 @@ import { ConfigurationSection } from "./ConfigurationSection"
 import { MeasurementsSection } from "./MeasurementsSection"
 import { CommandsSection } from "./CommandsSection"
 import { DeviceOverview } from "./DeviceOverview"
-import { AddToDashboard, EditDetails } from "./DeviceActions"
+import { AddToDashboard, EditDetails, FirmwareKitDialog, downloadDeviceSettings } from "./DeviceActions"
+import { toast } from "sonner"
 import { DeviceControls } from "../controls/DeviceControls"
 import { DeviceConnectivity } from "./DeviceOnboarding"
 
@@ -243,9 +245,17 @@ function Workspace({
     disabled: locked,
     onUnconfirmed,
   })
-  const [dialog, setDialog] = useState<"details" | "dashboard" | "archive" | null>(
+  const [dialog, setDialog] = useState<"details" | "dashboard" | "archive" | "firmware" | null>(
     null,
   )
+  // Firmware settings and kits are for devices that connect directly, and carry credentials (spec 027).
+  const onboarding = useQuery({
+    queryKey: ["device-onboarding", org, device.uuid],
+    queryFn: () => api.deviceOnboarding(org, device.uuid),
+    enabled: capabilities.connections && device.lifecycle !== "archived",
+  })
+  const firmware = capabilities.connections && device.lifecycle !== "archived" && onboarding.data?.mode === "direct"
+  const [settingsBusy, setSettingsBusy] = useState(false)
   const [dashboardParameters, setDashboardParameters] = useState<string[]>([])
   const archived = device.lifecycle === "archived"
   const addParameter =
@@ -263,6 +273,7 @@ function Workspace({
   const menu = [
     capabilities.manage && !archived,
     capabilities.activate && lifecycle.action,
+    firmware,
   ].some(Boolean)
   // /history and /commands open the merged tab and bring their panel into view.
   useEffect(() => {
@@ -299,6 +310,24 @@ function Workspace({
                     <DropdownMenuItem onSelect={() => setDialog("details")}>
                       Edit details
                     </DropdownMenuItem>
+                  )}
+                  {firmware && (
+                    <>
+                      <DropdownMenuLabel>Firmware</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        disabled={settingsBusy}
+                        onSelect={() => {
+                          setSettingsBusy(true)
+                          void downloadDeviceSettings(org, device)
+                            .catch((reason: unknown) => toast.error(reason instanceof Error ? reason.message : "The settings could not be downloaded."))
+                            .finally(() => setSettingsBusy(false))
+                        }}
+                      >
+                        Download settings
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setDialog("firmware")}>Download firmware kit…</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
                   )}
                   {capabilities.activate && lifecycle.action && (
                     <MenuAction
@@ -400,6 +429,7 @@ function Workspace({
           onClose={() => setDialog(null)}
         />
       )}
+      {dialog === "firmware" && <FirmwareKitDialog org={org} device={device} onClose={() => setDialog(null)} />}
       {dialog === "dashboard" && (
         <AddToDashboard org={org} device={device} initialParameters={dashboardParameters} onClose={() => setDialog(null)} />
       )}

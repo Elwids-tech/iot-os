@@ -1,0 +1,105 @@
+{
+  "profile": {
+    "code": "water-meter",
+    "name": "Water meter",
+    "uuid": "00000071-0000-4000-8000-000000000000"
+  },
+  "revisions": [
+    {
+      "revision": 1,
+      "artifact_uuid": "00000071-0000-4000-8000-000000000001",
+      "definition": {
+        "alarm_templates": [],
+        "calculations": [],
+        "parameters": [
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "number",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "flow_rate",
+            "kind": "measurement",
+            "label": "Flow rate",
+            "reporting": null,
+            "reports_state": true,
+            "unit": "L/min",
+            "uuid": "00000071-0000-4000-8000-000000000100",
+            "validation": null
+          },
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "number",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "total_volume",
+            "kind": "counter",
+            "label": "Total volume",
+            "reporting": null,
+            "reports_state": true,
+            "unit": "L",
+            "uuid": "00000071-0000-4000-8000-000000000101",
+            "validation": null
+          },
+          {
+            "accepts_command": true,
+            "counter": null,
+            "data_type": "boolean",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "valve_open",
+            "kind": "state",
+            "label": "Valve open",
+            "reporting": null,
+            "reports_state": true,
+            "unit": null,
+            "uuid": "00000071-0000-4000-8000-000000000102",
+            "validation": null
+          },
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "enum",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "alarm_state",
+            "kind": "state",
+            "label": "Alarm state",
+            "reporting": null,
+            "reports_state": true,
+            "unit": null,
+            "uuid": "00000071-0000-4000-8000-000000000103",
+            "validation": {
+              "engine": "json_logic",
+              "rule": {
+                "in": [
+                  {
+                    "var": "value"
+                  },
+                  [
+                    "ok",
+                    "leak",
+                    "fault"
+                  ]
+                ]
+              }
+            }
+          }
+        ],
+        "profile": {
+          "category": "utilities",
+          "code": "water-meter",
+          "name": "Water meter",
+          "revision": 1,
+          "uuid": "00000071-0000-4000-8000-000000000000"
+        },
+        "schema_version": "device-profile.v2"
+      }
+    }
+  ]
+}

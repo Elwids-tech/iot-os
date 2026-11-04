@@ -1,0 +1,141 @@
+{
+  "profile": {
+    "code": "relay",
+    "name": "Relay",
+    "uuid": "00000073-0000-4000-8000-000000000000"
+  },
+  "revisions": [
+    {
+      "revision": 1,
+      "artifact_uuid": "00000073-0000-4000-8000-000000000001",
+      "definition": {
+        "alarm_templates": [],
+        "calculations": [],
+        "parameters": [
+          {
+            "accepts_command": true,
+            "counter": null,
+            "data_type": "boolean",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "relay_state",
+            "kind": "state",
+            "label": "Relay state",
+            "reporting": null,
+            "reports_state": true,
+            "unit": null,
+            "uuid": "00000073-0000-4000-8000-000000000100",
+            "validation": null
+          },
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "number",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "coil_current",
+            "kind": "measurement",
+            "label": "Coil current",
+            "reporting": null,
+            "reports_state": true,
+            "unit": "A",
+            "uuid": "00000073-0000-4000-8000-000000000101",
+            "validation": null
+          },
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "boolean",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "legacy_flag",
+            "kind": "state",
+            "label": "Legacy flag",
+            "reporting": null,
+            "reports_state": true,
+            "unit": null,
+            "uuid": "00000073-0000-4000-8000-000000000102",
+            "validation": null
+          }
+        ],
+        "profile": {
+          "category": "control",
+          "code": "relay",
+          "name": "Relay",
+          "revision": 1,
+          "uuid": "00000073-0000-4000-8000-000000000000"
+        },
+        "schema_version": "device-profile.v2"
+      }
+    },
+    {
+      "revision": 2,
+      "artifact_uuid": "00000073-0000-4000-8000-000000000002",
+      "definition": {
+        "alarm_templates": [],
+        "calculations": [],
+        "parameters": [
+          {
+            "accepts_command": true,
+            "counter": null,
+            "data_type": "boolean",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "relay_state",
+            "kind": "state",
+            "label": "Relay state",
+            "reporting": null,
+            "reports_state": true,
+            "unit": null,
+            "uuid": "00000073-0000-4000-8000-000000000100",
+            "validation": null
+          },
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "number",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "coil_current",
+            "kind": "measurement",
+            "label": "Coil current",
+            "reporting": null,
+            "reports_state": true,
+            "unit": "mA",
+            "uuid": "00000073-0000-4000-8000-000000000101",
+            "validation": null
+          },
+          {
+            "accepts_command": false,
+            "counter": null,
+            "data_type": "integer",
+            "display": null,
+            "format": null,
+            "ingress_conversion": null,
+            "key": "trip_count",
+            "kind": "counter",
+            "label": "Trip count",
+            "reporting": null,
+            "reports_state": true,
+            "unit": null,
+            "uuid": "00000073-0000-4000-8000-000000000102",
+            "validation": null
+          }
+        ],
+        "profile": {
+          "category": "control",
+          "code": "relay",
+          "name": "Relay",
+          "revision": 2,
+          "uuid": "00000073-0000-4000-8000-000000000000"
+        },
+        "schema_version": "device-profile.v2"
+      }
+    }
+  ]
+}

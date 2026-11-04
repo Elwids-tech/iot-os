@@ -1,0 +1,47 @@
+{
+    "format": 1,
+    "code": "relay",
+    "name": "Relay",
+    "revision": 2,
+    "artifact_uuid": "00000073-0000-4000-8000-000000000002",
+    "c_identifier": "relay",
+    "role": "direct_device",
+    "metrics": [
+        {
+            "key": "relay_state",
+            "label": "Relay state",
+            "description": null,
+            "datatype": "Boolean",
+            "unit": null,
+            "writable": true,
+            "enum_values": null,
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        },
+        {
+            "key": "coil_current",
+            "label": "Coil current",
+            "description": null,
+            "datatype": "Double",
+            "unit": "mA",
+            "writable": false,
+            "enum_values": null,
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        },
+        {
+            "key": "trip_count",
+            "label": "Trip count",
+            "description": null,
+            "datatype": "Int64",
+            "unit": null,
+            "writable": false,
+            "enum_values": null,
+            "min": null,
+            "max": null,
+            "filled_by_sdk": false
+        }
+    ]
+}

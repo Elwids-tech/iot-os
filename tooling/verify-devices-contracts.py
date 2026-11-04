@@ -18,7 +18,8 @@ skipped: the HTTP API description and its tooling schemas have their own gate,
 
 The repository-specific checks follow: the committed-telemetry negative cases, the
 configuration profile hash, the command expiry, the pinned Sparkplug proto hash, and the
-embedded SDK's payload fixtures (every file present and listed in expected.json).
+embedded SDK's payload fixtures (every file present and listed in expected.json), and the
+firmware starter fixtures (profiles with revisions, golden cases complete and listed).
 """
 import argparse
 import hashlib
@@ -546,6 +547,38 @@ class Checker:
             lambda upstream: proto.is_file() and hashlib.sha256(proto.read_bytes()).hexdigest() == upstream["sha256"],
         )
         self.check_sdk_fixtures()
+        self.check_firmware_fixtures()
+
+    # Firmware starters (spec 027): the profile fixtures CI builds starters from, and the
+    # golden generator outputs that GoldenOutputTest compares, each listed in cases.json.
+    def check_firmware_fixtures(self):
+        fixtures = self.contracts_root / "firmware/fixtures"
+        if not fixtures.is_dir():
+            return
+        for path in sorted((fixtures / "profiles").glob("*.json")):
+            profile = self.report.read_json(path)
+            revisions = profile.get("revisions") if isinstance(profile, dict) else None
+            if not isinstance(revisions, list) or not revisions or not all(
+                isinstance(item, dict) and isinstance(item.get("revision"), int) and isinstance(item.get("definition"), dict) for item in revisions
+            ):
+                self.report.fail(path, "needs revisions[], each with an integer revision and a definition")
+        expected = fixtures / "expected"
+        cases = self.report.read_json(expected / "cases.json")
+        if cases is None:
+            return
+        try:
+            listed = {case["name"]: case["files"] for case in cases["cases"]}
+        except (KeyError, TypeError) as error:
+            self.report.fail(expected / "cases.json", f"needs cases with a name and files each ({error!r})")
+            return
+        for name, files in listed.items():
+            present = {path.relative_to(expected / name).as_posix() for path in (expected / name).rglob("*") if path.is_file()}
+            for missing in sorted(set(files) - present):
+                self.report.fail(expected / "cases.json", f"case {name} lists {missing}, which is missing")
+            for extra in sorted(present - set(files)):
+                self.report.fail(expected / name / extra, f"is not listed in case {name} of cases.json")
+        for directory in sorted(path for path in expected.iterdir() if path.is_dir() and path.name not in listed):
+            self.report.fail(directory, "is not a case in cases.json")
 
     # The embedded SDK's payloads, replayed by the runtime (TestSDKFixtures). Written by
     # firmware/sdk/tools/fixtures.c; commands/ by the runtime's TestSDKCommandFixtures.

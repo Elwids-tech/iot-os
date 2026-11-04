@@ -18,26 +18,32 @@ CLAUDE.md                    "@AGENTS.md"                                      r
 iotos-starter.json           manifest (data model)                             replaced on update
 .gitignore                   config/*, !config/README.md, build/, and per target extras
 config/README.md             where connection settings go; holds no settings
-sdk/                         firmware/sdk: include/, src/, ports/, third_party/,  replaceable
-                             starter/settings_missing.c,
+sdk/                         firmware/sdk: CMakeLists.txt, cmake/, include/, src/,   replaceable
+                             ports/, third_party/, starter/ (iotos_starter.h,
+                             settings_missing.c, iotos_starter.cmake),
                              examples/desktop-simulator/ (without sample-config/),
-                             LICENSE, THIRD_PARTY.md, CHANGELOG.md, VERSION
+                             README.md, LICENSE, THIRD_PARTY.md, CHANGELOG.md, VERSION
 generated/                   replaceable
-  iotos_types.h              includes every type header; declares iotos_kit_types[],
-                             IOTOS_KIT_TYPE_COUNT, iotos_kit_node_type
-  iotos_types.c              defines them
+  iotos_types.h              declares iotos_kit_types[], iotos_kit_node_type,
+                             IOTOS_KIT_TYPE_COUNT and IOTOS_KIT_ROLE_GATEWAY
+  iotos_types.c              includes every type header and defines them; the SDK
+                             matches types by address, so nothing else includes them
   iotos_type_<id>.h          one per type (026 kit layout), node included
   profiles/<code>.json       per profile: key, label, description, datatype, unit,
                              writable, enum values, min/max; what the agent must not ask
 .iotos/                      replaceable
-  device-brief.schema.json   copy of contracts/firmware/device-brief.v1.schema.json
+  device-brief.schema.json   copy of contracts/firmware/v1/device-brief.schema.json
   porting.md                 the porting guide (AI-assisted targets; also in built ones)
   family.md                  the family notes (named AI-assisted targets only)
+  reference/main.c           the Linux example's main.c (AI-assisted targets only)
 <target project files>       from the target's example (below)
 <developer paths>            developer-owned after the first download
   main.c                     connect, register types, add devices or the node, loop
+                             (built targets; the agent writes it for AI-assisted ones)
   field.c, field.h           one read stub per metric, one command stub per writable
-                             metric, all returning "unavailable" or "rejected" (R9)
+                             metric, all returning FIELD_UNAVAILABLE or FIELD_REJECTED
+                             (R9); field_read and field_command dispatch by type code
+                             and metric name; field_devices lists a gateway's devices
   device-brief.example.yaml  an annotated example for this profile set
 ```
 
@@ -64,6 +70,11 @@ Rules:
   then `#error "These connection settings need a newer starter"` (constitution IV).
 - **Settings object**: `main.c` copies the `const` `iotos_kit_settings` into a mutable
   `iotos_settings` and sets `node_type = &iotos_kit_node_type` before `iotos_init`.
+- **Role**: examples also refuse settings whose `IOTOS_KIT_GATEWAY` differs from
+  `IOTOS_KIT_ROLE_GATEWAY` in `generated/iotos_types.h`.
+- **CMake**: `sdk/starter/iotos_starter.cmake` adds `generated/iotos_types.c` and the
+  settings (or `settings_missing.c`) to a target, and re-runs the configuration when
+  `config/` changes.
 - **Simulator**: `sdk/examples/desktop-simulator/` builds against the starter's
   `generated/` and `config/` (its kit mode); the README shows the command.
 - **ESP32**: the `.gitignore` adds `sdkconfig`, `sdkconfig.old` and `managed_components/`,

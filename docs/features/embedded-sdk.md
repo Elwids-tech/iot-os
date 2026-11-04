@@ -8,8 +8,11 @@ spec [026](../../specs/026-embedded-gateway-sdk/spec.md), and the API contract
 [sdk-c-api](../../specs/026-embedded-gateway-sdk/contracts/sdk-c-api.md).
 
 Code: [`firmware/sdk`](../../firmware/sdk/README.md), under the MIT
-[licence](../../firmware/sdk/LICENSE) for that folder only. Gateway kits that bundle it with generated settings, and the board port, follow
-in later pull requests of spec 026.
+[licence](../../firmware/sdk/LICENSE) for that folder only. Developers get it as a
+[firmware starter](#firmware-starters) for their profile and microcontroller (spec
+[027](../../specs/027-firmware-starter-kits/spec.md),
+[ADR-030](../adr/ADR-030-firmware-starters.md)); the NXP board port follows in spec 026
+PR 4.
 
 ## Architecture
 
@@ -147,6 +150,64 @@ cmake -S firmware/sdk/examples/desktop-simulator -B .local/sim && cmake --build 
 ```
 
 Built from the repository it uses `sample-config/` (placeholder broker and credentials);
-built from a kit it uses the kit's `config/`. A direct-device kit simulates the node's
-own metrics and refuses `--devices`. The birth rate is the compile-time
-`IOTOS_BIRTHS_PER_SECOND`.
+built inside a starter (`sdk/examples/desktop-simulator`) it uses the starter's
+`generated/` and `config/`, and without settings it says where to get them and exits
+with status 2. A direct-device starter simulates the node's own metrics and refuses
+`--devices`. The birth rate is the compile-time `IOTOS_BIRTHS_PER_SECOND`.
+
+## Firmware starters
+
+A starter is a credential-free project for one target and one role, generated from
+published profile revisions by the API's `Firmware` domain
+([`app/Domain/Firmware`](../../apps/api/app/Domain/Firmware)). Signed-in members with
+`DeviceProfile.view` download it from a profile's **Firmware** tab. The layout is the
+[starter layout contract](../../specs/027-firmware-starter-kits/contracts/starter-layout.md):
+
+| Path | Holds | On update |
+| --- | --- | --- |
+| `sdk/` | The SDK without tests, tools or other boards' examples, plus `starter/` (`iotos_starter.h`, `settings_missing.c`, `iotos_starter.cmake`) | replaced |
+| `generated/` | `iotos_type_<id>.h` per type, `iotos_types.h` and `.c` (`iotos_kit_types[]`, `iotos_kit_node_type`, `IOTOS_KIT_ROLE_GATEWAY`), `profiles/<code>.json` | replaced |
+| `.iotos/` | The device brief schema, the porting guide, family notes, and for AI-assisted targets `reference/main.c` | replaced |
+| `AGENTS.md`, `CLAUDE.md` | The AI brief; `CLAUDE.md` is `@AGENTS.md` | replaced |
+| `iotos-starter.json` | The manifest ([schema](../../contracts/firmware/v1/starter-manifest.schema.json)): SDK version, profiles and revisions, per-metric `introduced_in` and `changed_in`, `retired`, warnings | replaced |
+| `app/` (or the target's developer path) | `main.c`, `field.c` and `field.h` (one stub per metric, all returning `FIELD_UNAVAILABLE` or `FIELD_REJECTED`), `device-brief.example.yaml` | kept |
+| `config/` | `README.md` only, until the settings are unpacked here | kept |
+
+**Targets** come from [`firmware/starters/targets.json`](../../firmware/starters/targets.json).
+A built target (`linux` today; ESP32 in 027-3, NXP in spec 026 PR 4) names its SDK
+example, toolchain, build and run commands, and is listed only when the example exists.
+AI-assisted targets (`stm32`, `rpi-pico`, `nordic-nrf`, `other`) ship the port templates
+in `app/ports/` and [family notes](../../firmware/starters/families). Templates live in
+[`firmware/starters/templates`](../../firmware/starters/templates) with `{{name}}`
+placeholders that only ever receive starter facts.
+
+**Connection settings** are a separate download that needs `Device.manage-connections`:
+`config/iotos_settings.h` and `.c` (format `IOTOS_KIT_SETTINGS_FORMAT 1`), the shared
+`config/README.md` and, for a direct device, the connection kit's three files. A **full
+kit** is a starter with them in place. Examples refuse settings of another format or role
+with `#error`; without settings they print where to get them and exit 2.
+
+**The AI brief** (`AGENTS.md`) has nine fixed sections: what the project is, rules (never
+open `config/`, never edit the replaceable paths, no code before a confirmed brief, never
+invent a value), what is already known, the interview, the device brief, the port (AI-
+assisted only), the field side, verification and later changes. The agent records the
+answers as `<developer path>/device-brief.yaml`
+([schema](../../contracts/firmware/v1/device-brief.schema.json), `unknown` allowed for
+any fact) and waits for confirmation before writing `field.c`.
+
+**Updating**: the README's recipe checks the new manifest's `format`, then replaces exactly
+the manifest's `replaceable` paths and the manifest. CI runs that recipe from revision 1
+to 2 of a fixture profile and checks the developer's files are unchanged.
+
+**Checks**:
+- `php artisan firmware:starter-fixtures --output=<dir>` builds every available target and
+  role from [`contracts/firmware/fixtures/profiles`](../../contracts/firmware/fixtures/profiles)
+  without a database; the `Firmware starters` CI job builds the Linux ones with `-Werror`,
+  runs them to the missing-settings exit, builds the simulator inside them, and
+  syntax-checks the AI-assisted ones.
+- `--golden` rewrites [`contracts/firmware/fixtures/expected`](../../contracts/firmware/fixtures/expected);
+  `GoldenOutputTest` compares the generator with it byte for byte. Review that diff when
+  the generator or the SDK headers change.
+- Feature tests cover the layout per target and role, tenant isolation, permissions,
+  limits (`IOTOS_MAX_METRICS_PER_TYPE`, `IOTOS_MAX_DEVICE_TYPES`), determinism, a secret
+  scan of every starter, and the brief's drift against the SDK headers.

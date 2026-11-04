@@ -1,0 +1,277 @@
+# Firmware operations (spec 027): targets, starters, connection settings and full kits.
+#
+# Archive bodies are built by a shared response helper that inference cannot read, so
+# they are described here. Downloads are never cached (Cache-Control: no-store, private).
+# Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    FirmwareTarget:
+      type: object
+      description: A target from firmware/starters/targets.json whose files exist in this release. Built targets have a tested example and a toolchain; AI-assisted ones have port templates and notes for a coding agent.
+      required: [id, name, kind, roles, toolchain]
+      properties:
+        id:
+          type: string
+          pattern: '^[a-z0-9-]{2,40}$'
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [built, ai_assisted]
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [direct, gateway]
+        toolchain:
+          type: [string, 'null']
+          description: The exact toolchain CI builds the target's starters with; null for AI-assisted targets.
+    FirmwareArchive:
+      type: object
+      description: A ZIP archive. Starters and full kits carry their manifest (contracts/firmware/v1/starter-manifest.schema.json); connection settings carry none.
+      required: [filename, manifest, archive_base64]
+      properties:
+        filename:
+          type: string
+        manifest:
+          description: The starter's iotos-starter.json, so warnings can be shown before the file is saved; null for connection settings.
+          oneOf:
+            - $ref: '#/components/schemas/StarterManifest'
+            - type: 'null'
+        archive_base64:
+          type: string
+          contentEncoding: base64
+          contentMediaType: application/zip
+    StarterManifestProfile:
+      type: object
+      additionalProperties: false
+      required: [code, c_identifier, name, revision, artifact_uuid]
+      properties:
+        code:
+          type: string
+        c_identifier:
+          type: string
+        name:
+          type: string
+        revision:
+          type: integer
+        artifact_uuid:
+          type: string
+          format: uuid
+    StarterManifestMetric:
+      type: object
+      additionalProperties: false
+      required: [key, datatype, unit, writable, introduced_in, changed_in]
+      properties:
+        key:
+          type: string
+        datatype:
+          type: string
+          enum: [Boolean, Int64, Double, String, DateTime, Bytes]
+        unit:
+          type: [string, 'null']
+        writable:
+          type: boolean
+        introduced_in:
+          type: integer
+        changed_in:
+          type: [integer, 'null']
+    StarterManifest:
+      type: object
+      description: The starter manifest (contracts/firmware/v1/starter-manifest.schema.json). No credentials, broker address or device identity.
+      additionalProperties: false
+      required: [format, sdk_version, target, role, generated_at, node, device_types, metrics, retired, replaceable, developer_paths, warnings]
+      properties:
+        format:
+          type: integer
+          const: 1
+        sdk_version:
+          type: string
+        target:
+          type: object
+          additionalProperties: false
+          required: [id, kind, name]
+          properties:
+            id:
+              type: string
+            kind:
+              type: string
+              enum: [built, ai_assisted]
+            name:
+              type: string
+        role:
+          type: string
+          enum: [direct, gateway]
+        generated_at:
+          type: string
+          format: date-time
+        node:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [default_health, code, c_identifier, name, revision, artifact_uuid]
+              properties:
+                default_health:
+                  type: boolean
+                  const: false
+                code:
+                  type: string
+                c_identifier:
+                  type: string
+                name:
+                  type: string
+                revision:
+                  type: integer
+                artifact_uuid:
+                  type: string
+                  format: uuid
+            - type: object
+              additionalProperties: false
+              required: [default_health, c_identifier]
+              properties:
+                default_health:
+                  type: boolean
+                  const: true
+                c_identifier:
+                  type: string
+                  const: gateway_health
+        device_types:
+          type: array
+          items:
+            $ref: '#/components/schemas/StarterManifestProfile'
+        metrics:
+          type: object
+          description: Keyed by profile code, in alias order.
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/StarterManifestMetric'
+        retired:
+          type: object
+          description: Keyed by profile code.
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              additionalProperties: false
+              required: [key, retired_in]
+              properties:
+                key:
+                  type: string
+                retired_in:
+                  type: integer
+        replaceable:
+          type: array
+          items:
+            type: string
+        developer_paths:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [code, message, subject]
+            properties:
+              code:
+                type: string
+                enum: [birth_over_tx_buffer]
+              message:
+                type: string
+              subject:
+                type: string
+    FirmwareArchiveResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/FirmwareArchive'
+operations:
+  GET /v1/organizations/{organization}/firmware/targets:
+    description: The firmware targets a starter can be built for, built targets first. Needs DeviceProfile.view-any.
+    responses:
+      '200':
+        description: The available targets.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/FirmwareTarget'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  POST /v1/organizations/{organization}/firmware/starters:
+    description: A credential-free firmware starter for published profile revisions and a target. Needs DeviceProfile.view, and Device.manage-connections on `gateway_uuid` when given, which saves the choices on that gateway. Not recorded in the activity log.
+    responses:
+      '200':
+        description: The starter.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FirmwareArchiveResponse'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+  POST /v1/organizations/{organization}/devices/{device}/connection-settings:
+    description: The connection settings of a direct device, to unpack into a starter. Needs Device.manage-connections; recorded as device.connection-settings.downloaded.
+    responses:
+      '200':
+        description: The settings.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FirmwareArchiveResponse'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'
+  POST /v1/organizations/{organization}/gateways/{gateway}/connection-settings:
+    description: The connection settings of a gateway, after applying its broker access. Needs Device.manage-connections; recorded as gateway.connection-settings.downloaded.
+    responses:
+      '200':
+        description: The settings.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FirmwareArchiveResponse'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'
+  POST /v1/organizations/{organization}/devices/{device}/firmware-kit:
+    description: A starter for the direct device's published profile revision with its connection settings in config/. Needs Device.manage-connections; recorded as device.firmware-kit.downloaded.
+    responses:
+      '200':
+        description: The full kit.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FirmwareArchiveResponse'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'
+  POST /v1/organizations/{organization}/gateways/{gateway}/firmware-kit:
+    description: A gateway starter with the gateway's connection settings in config/. Fields left out default to the gateway's saved choices, with each profile's newest revision. Needs Device.manage-connections; saves the choices and is recorded as gateway.firmware-kit.downloaded.
+    responses:
+      '200':
+        description: The full kit.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FirmwareArchiveResponse'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'

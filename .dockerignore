@@ -11,6 +11,9 @@ apps/api/.claude
 output
 prototypes
 firmware
+# The API image bundles the SDK and starter sources for firmware downloads (spec 027).
+!firmware/sdk
+!firmware/starters
 **/__pycache__
 **/.serena
 **/.turbo

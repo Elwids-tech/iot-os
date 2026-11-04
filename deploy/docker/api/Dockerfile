@@ -28,6 +28,8 @@ COPY --from=vendor /app/vendor ./vendor
 COPY apps/api ./
 RUN php artisan help:validate
 COPY contracts /var/contracts
+COPY firmware/sdk /var/firmware/sdk
+COPY firmware/starters /var/firmware/starters
 COPY deploy/docker/api/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY deploy/docker/api/development.ini /usr/local/etc/php/conf.d/development.ini
 

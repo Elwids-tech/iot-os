@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 /*
  * Desktop gateway simulator: the same SDK code a board runs, publishing many simulated
- * downstream devices over TLS. Built from a kit, it uses the kit's config/; built in the
- * repository, the sample config.
+ * downstream devices over TLS. Built inside a starter, it uses the starter's generated/
+ * and config/; built in the repository, the sample config.
  *
  *   gateway-sim --devices water_meter=500 [--devices <type>=<count> ...]
  *               [--interval <seconds>] [--state-file <directory>]
@@ -12,8 +12,8 @@
  * the simulator applies each one and publishes the new state from on_command, which is
  * how the platform confirms a command.
  *
- * A direct-device kit (IOTOS_KIT_GATEWAY 0) simulates the node's own metrics instead
- * and refuses --devices. The birth rate is IOTOS_BIRTHS_PER_SECOND, set when building.
+ * A direct-device starter (IOTOS_KIT_ROLE_GATEWAY 0) simulates the node's own metrics
+ * instead and refuses --devices. The birth rate is IOTOS_BIRTHS_PER_SECOND, set when building.
  */
 #define _POSIX_C_SOURCE 200809L
 #include <signal.h>
@@ -24,8 +24,18 @@
 
 #include "iotos/iotos.h"
 #include "iotos_posix.h"
-#include "iotos_settings.h"
+#include "iotos_starter.h"
 #include "iotos_types.h"
+
+#ifdef IOTOS_KIT_HAVE_SETTINGS
+#include "iotos_settings.h"
+#if IOTOS_KIT_SETTINGS_FORMAT != 1
+#error "These connection settings need a newer starter"
+#endif
+#if IOTOS_KIT_GATEWAY != IOTOS_KIT_ROLE_GATEWAY
+#error "These connection settings are for the other role: a gateway's settings need a gateway starter, and a direct device's a direct one"
+#endif
+#endif
 
 #ifdef IOTOS_SIM_SELFTEST
 #include "fakes.h"
@@ -51,6 +61,7 @@ typedef struct {
 #define KIT_TYPES (sizeof(iotos_kit_types) / sizeof(iotos_kit_types[0]))
 
 static iotos_gateway gateway;
+static iotos_settings settings; /* iotos_kit_settings with the node type set */
 static sim_device *devices;
 static int device_count;
 static sim_device node; /* a direct device's own metrics */
@@ -164,7 +175,7 @@ static void on_birth(void *ctx, const char *device_id, iotos_writer *w)
 {
     sim_device *d = find(device_id);
     (void)ctx;
-    if (d && d->type && (device_id || !IOTOS_KIT_GATEWAY)) {
+    if (d && d->type && (device_id || !IOTOS_KIT_ROLE_GATEWAY)) {
         write_values(d, w);
     }
 }
@@ -262,7 +273,7 @@ static int setup(const fleet_entry *fleet, int fleet_count)
             device_count++;
         }
     }
-    node.type = iotos_kit_settings.node_type;
+    node.type = settings.node_type;
     if (node.type) {
         seed(&node, 0);
     }
@@ -275,7 +286,7 @@ static void publish_all(void)
         step(&devices[i]);
         publish(&devices[i]);
     }
-    if (!IOTOS_KIT_GATEWAY && node.type) {
+    if (!IOTOS_KIT_ROLE_GATEWAY && node.type) {
         step(&node);
         publish(&node);
     }
@@ -298,7 +309,7 @@ static void selftest(void)
     static const iotos_callbacks quiet = {on_birth, on_command, NULL, NULL};
     char state_topic[IOTOS_TOPIC_MAX];
     const char *online = "{\"online\":true,\"timestamp\":1712345000000}";
-    fleet_entry fleet[2] = {{&iotos_type_water_meter, 250}, {&iotos_type_energy_meter, 250}};
+    fleet_entry fleet[2] = {{iotos_kit_types[0], 250}, {iotos_kit_types[1], 250}};
     size_t births;
 
     fake_clock_reset(TEST_TIME, true);
@@ -307,12 +318,14 @@ static void selftest(void)
     ports.mqtt = &port;
     ports.clock = &fake_clock;
     ports.lock = &fake_lock;
-    TEST_ASSERT_EQUAL(IOTOS_OK, iotos_init(&gateway, &iotos_kit_settings, &ports, &quiet));
+    settings = iotos_kit_settings;
+    settings.node_type = &iotos_kit_node_type;
+    TEST_ASSERT_EQUAL(IOTOS_OK, iotos_init(&gateway, &settings, &ports, &quiet));
     selftest_mqtt.gw = &gateway;
     TEST_ASSERT_EQUAL(0, setup(fleet, 2));
     TEST_ASSERT_EQUAL(IOTOS_OK, iotos_start(&gateway));
     TEST_ASSERT_EQUAL(IOTOS_OK, iotos_poll(&gateway, 10));
-    snprintf(state_topic, sizeof(state_topic), "spBv1.0/STATE/%s", iotos_kit_settings.host_id);
+    snprintf(state_topic, sizeof(state_topic), "spBv1.0/STATE/%s", settings.host_id);
     fake_mqtt_inject(&selftest_mqtt, state_topic, (const uint8_t *)online, strlen(online), true);
     for (int i = 0; i < 1000 && selftest_mqtt.published.count < 501; i++) {
         TEST_ASSERT_EQUAL(IOTOS_OK, iotos_poll(&gateway, 10));
@@ -379,8 +392,8 @@ int main(int argc, char **argv)
             char code[64];
             const char *equals = strchr(argv[++i], '=');
             size_t length = equals ? (size_t)(equals - argv[i]) : 0;
-            if (!IOTOS_KIT_GATEWAY) {
-                fprintf(stderr, "this is a direct-device kit: it simulates its own metrics and takes no --devices\n");
+            if (!IOTOS_KIT_ROLE_GATEWAY) {
+                fprintf(stderr, "this is a direct-device starter: it simulates its own metrics and takes no --devices\n");
                 return 2;
             }
             if (!equals || length >= sizeof(code) || fleet_count == IOTOS_MAX_DEVICE_TYPES) {
@@ -407,8 +420,14 @@ int main(int argc, char **argv)
         }
     }
 
+    if (!iotos_kit_settings_present) {
+        fprintf(stderr, "No connection settings: download them from the device's page in IoT OS and put the files in config/\n");
+        return 2;
+    }
+    settings = iotos_kit_settings;
+    settings.node_type = &iotos_kit_node_type;
     if (iotos_posix_ports_init(&posix, state_directory, IOTOS_LOG_INFO) != IOTOS_OK
-        || iotos_init(&gateway, &iotos_kit_settings, &posix.ports, &callbacks) != IOTOS_OK) {
+        || iotos_init(&gateway, &settings, &posix.ports, &callbacks) != IOTOS_OK) {
         fprintf(stderr, "could not initialise the SDK: check config/iotos_settings.h\n");
         return 1;
     }
@@ -419,8 +438,8 @@ int main(int argc, char **argv)
     (void)iotos_set_connection(&gateway, IOTOS_CONN_ETHERNET, false, 0);
     signal(SIGINT, request_stop);
     signal(SIGTERM, request_stop);
-    printf("simulating %d devices for %s/%s at %s:%u\n", device_count, iotos_kit_settings.group_id,
-           iotos_kit_settings.edge_node_id, iotos_kit_settings.broker_host, (unsigned)iotos_kit_settings.broker_port);
+    printf("simulating %d devices for %s/%s at %s:%u\n", device_count, settings.group_id, settings.edge_node_id,
+           settings.broker_host, (unsigned)settings.broker_port);
     fflush(stdout);
 
     (void)iotos_start(&gateway);

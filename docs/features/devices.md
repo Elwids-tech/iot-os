@@ -44,7 +44,11 @@ they can be onboarded or rejected. A source's `birth_revision` changes when
 metric names or types change. A source can belong to at most one non-archived
 device.
 
-An operator with server access can export a gateway's private configuration:
+Firmware for a gateway comes from a [firmware starter](embedded-sdk.md#firmware-starters)
+plus the gateway's connection settings (`POST gateways/{gateway}/connection-settings`) or
+both at once (`POST gateways/{gateway}/firmware-kit`); the gateway's Firmware dialog
+arrives in spec 027 PR 2. An operator with server access can still export a gateway's
+private configuration:
 
 ```sh
 php artisan devices:export-gateway <gateway-uuid> --output=/tmp/gateway.json \
@@ -75,6 +79,14 @@ username and password over verified TLS; the CA in the kit verifies the broker
 and is not a client certificate. Set `DEVICE_MQTT_PUBLIC_URL` to an `ssl://`
 host covered by the broker certificate (`localhost` only works for a simulator
 on the same machine) and `DEVICE_MQTT_CA_FILE` to the public CA path.
+
+For firmware written against the SDK, a direct device's **Device actions** menu has a
+**Firmware** group for people with `Device.manage-connections`: **Download settings**
+(the `config/` files to unpack into a [starter](embedded-sdk.md#firmware-starters), plus
+the three kit files) and **Download firmware kit** (a starter for the device's profile
+and a chosen target, with the settings in place). Both provision first when needed, are
+private and not cacheable, and are recorded as `device.connection-settings.downloaded`
+and `device.firmware-kit.downloaded`.
 
 Without the wizard: register a device (name and organization-unique code), then
 on its **Configuration** tab pick the source, profile and exact published
@@ -312,6 +324,7 @@ Organization routes are under `/api/v1/organizations/{organization}`
 | --- | --- |
 | `devices` | List (filters, `sort`), register, read, edit, archive |
 | `device-onboardings`, `devices/{d}/onboarding`, `.../connection-kit` | Guided setup, provisioning, kit download |
+| `devices/{d}/connection-settings`, `devices/{d}/firmware-kit`, `gateways/{g}/connection-settings`, `gateways/{g}/firmware-kit` | Firmware settings and full kits (spec 027) |
 | `devices/{d}/configuration`, `mapping-suggestions`, `validate` | Draft, suggestions, validation |
 | `devices/{d}/activate`, `deactivate`, `lifecycle`, `operations/{op}` | Acknowledged configuration and lifecycle operations |
 | `devices/{d}/measurements/latest`, `history`, `records`, `state-history`, `increase` | Latest values, aggregated and raw history, state timelines, counter consumption |
@@ -331,7 +344,7 @@ Admin: `GET/PUT /api/v1/admin/settings/telemetry-retention` and
 | --- | --- | --- |
 | `Device.view` | Read devices, measurements, sources | Admin, Moderator, Member |
 | `Device.manage` | Register, edit, map, validate | Admin |
-| `Device.manage-connections` | Broker connections, gateways, connection kits | Admin |
+| `Device.manage-connections` | Broker connections, gateways, connection kits, firmware settings and kits | Admin |
 | `Device.activate` | Activate, deactivate, roll back, suspend during capture; bulk onboarding also needs `Device.manage` | Admin |
 | `Device.command` | Send commands | Admin |
 

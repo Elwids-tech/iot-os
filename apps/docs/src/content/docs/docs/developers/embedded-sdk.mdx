@@ -1,0 +1,53 @@
+---
+title: Firmware and the embedded SDK
+description: Download a firmware starter for your device profile and microcontroller, and let an AI coding agent write the code that reads your hardware.
+---
+
+The embedded SDK is a small C library that gateways and devices compile in to send data to the platform. It handles the connection for you: MQTT over TLS, and the Sparkplug B births, deaths, sequence numbers and rebirths the platform expects. Your firmware only reads the hardware and hands the values to the SDK.
+
+You don't download the SDK on its own. You download a **firmware starter**: a project for your microcontroller with the SDK, the metrics of your device profile already filled in, and instructions for an AI coding agent.
+
+## Get a starter
+
+1. Sign in and open a published device profile.
+2. Open **Firmware**, choose your microcontroller or platform, and choose whether the device connects directly or sits behind a gateway.
+3. Choose **Download starter**.
+
+A starter holds no passwords, keys or broker addresses, so you can commit it and give it to an AI tool. The connection settings are a separate download on the device's page (**Firmware → Download settings**), for people allowed to manage connections. Unpack them into the starter's `config/` folder, which the starter keeps out of version control. **Download firmware kit** gives you both at once.
+
+## Targets
+
+- **Built targets** come with a project that builds as downloaded and is built on every change to the platform: Linux and macOS today, with ESP32 and NXP i.MX RT following.
+- **AI-assisted targets** (STM32, Raspberry Pi Pico, Nordic nRF and any other microcontroller) come with templates for the five small adapters the SDK needs (the TLS connection, the clock, storage, logging and a lock) and notes on each family's usual pieces and traps. Your coding agent writes those adapters with you before the code that reads your hardware.
+
+## Working with an AI coding agent
+
+Open the starter with Claude Code, Codex, Cursor, GitHub Copilot or another agent, and send:
+
+> Read AGENTS.md and follow it. Start with the interview.
+
+`AGENTS.md` tells the agent what it already knows from your profile (every metric's name, type, unit and range, and which ones accept commands) and what it must ask you instead:
+
+- your board, microcontroller, framework and memory limits;
+- how the device reaches the network, and where the time and the credentials come from;
+- for each kind of device, how it is addressed (for example its Modbus port and addresses), where each metric's value comes from, and what each command does physically;
+- how often to poll, when to report, and when a device counts as offline.
+
+It writes your answers to a **device brief**, asks you to confirm it, and only then writes the code that reads the hardware. A value nobody knows yet stays unpublished instead of guessed: the platform shows no value rather than a wrong one. The agent never opens your connection settings.
+
+## The device brief
+
+`device-brief.yaml` lives in your project, next to your code. The platform never receives it. A starter includes its JSON Schema and an annotated example for your profiles. The main parts are:
+
+| Part | Holds |
+| --- | --- |
+| `device`, `uplink` | Board, microcontroller, framework; Ethernet, Wi-Fi or a cellular modem |
+| `time_source`, `credential_storage` | SNTP, the modem, GPS or a real-time clock; compiled in, flash or a secure element |
+| `device_types` | Per profile: addressing, polling, reporting, offline rules, each metric's source and each command's effect |
+| `unconfirmed` | Answers no reading has proved yet |
+
+A metric's source is one of `modbus` (function, register, data type, byte and word order, scale, offset), `analog`, `digital`, `i2c`, `spi`, `can`, `pulse`, `computed` or `unknown`. Any fact can be `unknown`.
+
+## Updating a starter
+
+When your profile gets a new version, download a new starter for the same target and follow the **Updating** section of its README. It replaces only the SDK, the generated tables and the agent instructions, and leaves your code, your brief and your settings as they are. The starter's `iotos-starter.json` records, for each metric, the version that added it and the last version that changed its type or unit, so you can see what changed since the version you had.

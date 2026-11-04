@@ -1,0 +1,64 @@
+# An example device brief for this starter. The coding agent writes device-brief.yaml next to
+# this file from the interview in AGENTS.md, checks it against .iotos/device-brief.schema.json
+# and asks you to confirm it before writing any code. "unknown" is allowed for any fact.
+format: 1
+device:
+  board: unknown              # such as ESP32-DevKitC or i.MX RT1050 EVKB
+  mcu: unknown
+  framework: unknown          # such as ESP-IDF, MCUXpresso with FreeRTOS, or Linux
+  framework_version: unknown
+  memory_notes: ""
+uplink:
+  kind: unknown               # ethernet, wifi, cellular_modem or other
+  modem_runs_mqtt: unknown    # true when a cellular modem runs TLS and MQTT itself
+time_source: unknown          # sntp, modem, gps or rtc
+credential_storage: unknown   # compiled, flash or secure_element
+device_types:
+  water-meter:                # Water meter, revision 1
+    addressing:
+      bus: unknown             # modbus_rtu, modbus_tcp, i2c, spi, can, gpio, analog, none or other
+      addresses: unknown       # a list such as [1, 2], or a range such as "1-16"
+      device_id_pattern: unknown # how each device ID is formed, such as water-meter-1
+    poll_interval_s: unknown
+    report:
+      mode: unknown            # on_change (with a deadband) or interval (with interval_s)
+    offline_after:
+      missed_polls: unknown
+    metrics:
+      flow_rate:              # Double, L/min
+        source: {kind: unknown}  # modbus, analog, digital, i2c, spi, can, pulse or computed
+      total_volume:           # Double, L
+        source: {kind: unknown}  # modbus, analog, digital, i2c, spi, can, pulse or computed
+      valve_open:             # Boolean, accepts commands
+        source: {kind: unknown}  # modbus, analog, digital, i2c, spi, can, pulse or computed
+      alarm_state:            # String
+        source: {kind: unknown}  # modbus, analog, digital, i2c, spi, can, pulse or computed
+    commands:
+      valve_open:
+        effect: unknown        # what happens physically
+        read_back: unknown     # how the new state is read back
+  energy-meter:               # Energy meter, revision 1
+    addressing:
+      bus: unknown             # modbus_rtu, modbus_tcp, i2c, spi, can, gpio, analog, none or other
+      addresses: unknown       # a list such as [1, 2], or a range such as "1-16"
+      device_id_pattern: unknown # how each device ID is formed, such as energy-meter-1
+    poll_interval_s: unknown
+    report:
+      mode: unknown            # on_change (with a deadband) or interval (with interval_s)
+    offline_after:
+      missed_polls: unknown
+    metrics:
+      active_power:           # Double, kW
+        source: {kind: unknown}  # modbus, analog, digital, i2c, spi, can, pulse or computed
+      energy_total:           # Double, kWh
+        source: {kind: unknown}  # modbus, analog, digital, i2c, spi, can, pulse or computed
+      tariff:                 # String
+        source: {kind: unknown}  # modbus, analog, digital, i2c, spi, can, pulse or computed
+      last_reset:             # DateTime
+        source: {kind: unknown}  # modbus, analog, digital, i2c, spi, can, pulse or computed
+power:
+  mode: unknown               # mains, battery, solar or other
+watchdog:
+  enabled: unknown
+instructions: ""              # wiring, calibration, quirks
+unconfirmed: []               # answers not yet proved by a reading

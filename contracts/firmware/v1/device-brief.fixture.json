@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "device": {
+    "board": "i.MX RT1050 EVKB",
+    "mcu": "MIMXRT1052",
+    "framework": "MCUXpresso SDK with FreeRTOS",
+    "framework_version": "25.06",
+    "memory_notes": "512 KB on-chip RAM; keep the device count under 64"
+  },
+  "uplink": {
+    "kind": "ethernet",
+    "modem_runs_mqtt": false,
+    "notes": "On-board Ethernet, DHCP"
+  },
+  "time_source": "sntp",
+  "credential_storage": "compiled",
+  "device_types": {
+    "water-meter": {
+      "addressing": {
+        "bus": "modbus_rtu",
+        "port": "LPUART3 on the Arduino header, RS-485 transceiver with DE on GPIO_AD_B1_02",
+        "serial": { "baud": 9600, "parity": "even", "data_bits": 8, "stop_bits": 1 },
+        "addresses": "1-16",
+        "device_id_pattern": "wm-{address}"
+      },
+      "poll_interval_s": 10,
+      "report": { "mode": "on_change", "deadband": 0.5 },
+      "offline_after": { "missed_polls": 3 },
+      "metrics": {
+        "flow_rate": {
+          "source": { "kind": "modbus", "function": 4, "register": 0, "type": "float32", "byte_order": "big", "word_order": "little", "scale": 1, "offset": 0 }
+        },
+        "total_volume": {
+          "source": { "kind": "modbus", "function": 4, "register": 2, "type": "uint32", "scale": 0.001, "offset": 0 },
+          "notes": "The meter counts millilitres"
+        },
+        "valve_open": {
+          "source": { "kind": "modbus", "function": 1, "register": 0, "type": "bool" }
+        }
+      },
+      "commands": {
+        "valve_open": {
+          "effect": "Write coil 0 (function 5): true opens the valve, false closes it",
+          "read_back": "Read coil 0 again after 2 s and publish valve_open"
+        }
+      },
+      "instructions": "Meters reply within 200 ms; wait 50 ms between requests."
+    },
+    "energy-meter": {
+      "addressing": {
+        "bus": "modbus_rtu",
+        "port": "LPUART2, second RS-485 transceiver",
+        "serial": { "baud": 19200, "parity": "none", "data_bits": 8, "stop_bits": 2 },
+        "addresses": [1, 2, 3],
+        "device_id_pattern": "em-{address}"
+      },
+      "poll_interval_s": 30,
+      "report": { "mode": "interval", "interval_s": 30 },
+      "offline_after": { "missed_polls": 2 },
+      "metrics": {
+        "active_power": {
+          "source": { "kind": "modbus", "function": 3, "register": 52, "type": "float32", "scale": 1, "offset": 0 }
+        },
+        "energy_total": {
+          "source": { "kind": "modbus", "function": 3, "register": 342, "type": "float32", "scale": 1, "offset": 0 }
+        }
+      }
+    }
+  },
+  "power": { "mode": "mains" },
+  "watchdog": { "enabled": true, "timeout_s": 30 },
+  "instructions": "Both buses are terminated at the gateway end.",
+  "unconfirmed": ["device_types.energy-meter.metrics.energy_total.source"]
+}

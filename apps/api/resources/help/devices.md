@@ -24,13 +24,14 @@
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 3,
+  "revision": 4,
   "summary": "A registered device connects a discovered source to a published profile and an organization-owned configuration.",
   "questions": [
     "How do I register a device?",
     "What does offline mean?",
     "Where are my archived devices?",
-    "How do I onboard many devices from one gateway at once?"
+    "How do I onboard many devices from one gateway at once?",
+    "Where do I get firmware and connection settings for a device?"
   ]
 }
 ---
@@ -56,6 +57,8 @@ To onboard many sources of one type behind one gateway at once (this needs both 
 5. If some sources failed, choose **Retry failed**. Skipped sources need their own setup or a different profile.
 
 A run takes at most 500 sources. Running the same selection again creates no second device for any source.
+
+For firmware written with the IoT OS SDK, a device that connects directly has a **Firmware** group in **Device actions** (this needs connection-management permission). **Download settings** gives the private connection settings to unpack into a firmware starter’s `config/` folder. **Download firmware kit** gives a starter for the device’s profile and a chosen microcontroller with the settings already in place. Starters without credentials come from the profile’s **Firmware** tab.
 
 ## Expected result
 The directory shows one status per device, from its lifecycle, configuration and presence. The device workspace provides applied configuration and latest data.

@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/firmware/v1/device-brief.schema.json",
+  "title": "Device brief v1",
+  "description": "What a firmware developer told their AI coding agent about the hardware, written as device-brief.yaml in the developer's project and confirmed before any field code (spec 027). The platform never receives it. Starters copy this file to .iotos/device-brief.schema.json. The value \"unknown\" is allowed for any fact that can be missing. Checks this schema cannot express, made by the agent as AGENTS.md instructs: every key in device_types must be a profile code in iotos-starter.json; every key in metrics and commands must be a metric of that profile in generated/profiles/<code>.json; every key in commands must be a writable metric there; every entry in unconfirmed must name an answer in this brief.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": 1
+    },
+    "device": {
+      "type": "object",
+      "properties": {
+        "board": { "$ref": "#/$defs/text" },
+        "mcu": { "$ref": "#/$defs/text" },
+        "framework": { "$ref": "#/$defs/text" },
+        "framework_version": { "$ref": "#/$defs/text" },
+        "memory_notes": { "$ref": "#/$defs/text" }
+      },
+      "required": ["board", "mcu", "framework"],
+      "additionalProperties": false
+    },
+    "uplink": {
+      "type": "object",
+      "properties": {
+        "kind": { "enum": ["ethernet", "wifi", "cellular_modem", "other", "unknown"] },
+        "modem_runs_mqtt": { "$ref": "#/$defs/flag" },
+        "notes": { "$ref": "#/$defs/text" }
+      },
+      "required": ["kind"],
+      "additionalProperties": false
+    },
+    "time_source": { "enum": ["sntp", "modem", "gps", "rtc", "unknown"] },
+    "credential_storage": { "enum": ["compiled", "flash", "secure_element", "unknown"] },
+    "device_types": {
+      "type": "object",
+      "description": "Keyed by profile code: the node's profile for a direct device, each downstream profile for a gateway.",
+      "propertyNames": { "pattern": "^[a-z0-9][a-z0-9.-]*$" },
+      "additionalProperties": { "$ref": "#/$defs/device_type" },
+      "minProperties": 1,
+      "maxProperties": 9
+    },
+    "power": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["mains", "battery", "solar", "other", "unknown"] },
+        "notes": { "$ref": "#/$defs/text" }
+      },
+      "required": ["mode"],
+      "additionalProperties": false
+    },
+    "watchdog": {
+      "type": "object",
+      "properties": {
+        "enabled": { "$ref": "#/$defs/flag" },
+        "timeout_s": { "$ref": "#/$defs/number" }
+      },
+      "required": ["enabled"],
+      "additionalProperties": false
+    },
+    "instructions": { "$ref": "#/$defs/text" },
+    "unconfirmed": {
+      "type": "array",
+      "description": "Paths of answers not yet proved by a reading, such as device_types.water-meter.metrics.flow_rate.source.",
+      "items": { "type": "string", "minLength": 1, "maxLength": 512 },
+      "uniqueItems": true
+    }
+  },
+  "required": ["format", "device", "uplink", "time_source", "credential_storage", "device_types"],
+  "additionalProperties": false,
+  "$defs": {
+    "text": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "flag": {
+      "anyOf": [{ "type": "boolean" }, { "const": "unknown" }]
+    },
+    "number": {
+      "anyOf": [{ "type": "number" }, { "const": "unknown" }]
+    },
+    "integer": {
+      "anyOf": [{ "type": "integer" }, { "const": "unknown" }]
+    },
+    "device_type": {
+      "type": "object",
+      "properties": {
+        "addressing": {
+          "type": "object",
+          "properties": {
+            "bus": { "enum": ["modbus_rtu", "modbus_tcp", "i2c", "spi", "can", "gpio", "analog", "none", "other", "unknown"] },
+            "port": { "$ref": "#/$defs/text" },
+            "serial": {
+              "type": "object",
+              "properties": {
+                "baud": { "$ref": "#/$defs/integer" },
+                "parity": { "enum": ["none", "even", "odd", "unknown"] },
+                "data_bits": { "$ref": "#/$defs/integer" },
+                "stop_bits": { "$ref": "#/$defs/integer" }
+              },
+              "additionalProperties": false
+            },
+            "addresses": {
+              "description": "A list of bus addresses, or a description such as \"1-16\".",
+              "anyOf": [
+                { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+                { "$ref": "#/$defs/text" }
+              ]
+            },
+            "device_id_pattern": {
+              "description": "How each device's ID is formed, such as \"wm-{address}\". IDs are at most 24 characters (IOTOS_DEVICE_ID_MAX).",
+              "$ref": "#/$defs/text"
+            }
+          },
+          "required": ["bus"],
+          "additionalProperties": false
+        },
+        "poll_interval_s": { "$ref": "#/$defs/number" },
+        "report": {
+          "type": "object",
+          "properties": {
+            "mode": { "enum": ["on_change", "interval", "unknown"] },
+            "deadband": { "$ref": "#/$defs/number" },
+            "interval_s": { "$ref": "#/$defs/number" }
+          },
+          "required": ["mode"],
+          "additionalProperties": false
+        },
+        "offline_after": {
+          "type": "object",
+          "properties": {
+            "missed_polls": { "$ref": "#/$defs/integer" }
+          },
+          "required": ["missed_polls"],
+          "additionalProperties": false
+        },
+        "metrics": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-zA-Z][a-zA-Z0-9._-]*$" },
+          "additionalProperties": { "$ref": "#/$defs/metric" }
+        },
+        "commands": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-zA-Z][a-zA-Z0-9._-]*$" },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "effect": { "$ref": "#/$defs/text" },
+              "read_back": { "$ref": "#/$defs/text" }
+            },
+            "required": ["effect", "read_back"],
+            "additionalProperties": false
+          }
+        },
+        "instructions": { "$ref": "#/$defs/text" }
+      },
+      "required": ["addressing", "metrics"],
+      "additionalProperties": false
+    },
+    "metric": {
+      "type": "object",
+      "properties": {
+        "source": { "$ref": "#/$defs/source" },
+        "notes": { "$ref": "#/$defs/text" }
+      },
+      "required": ["source"],
+      "additionalProperties": false
+    },
+    "source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "modbus" },
+            "function": {
+              "description": "1 coils, 2 discrete inputs, 3 holding registers, 4 input registers.",
+              "anyOf": [{ "enum": [1, 2, 3, 4] }, { "const": "unknown" }]
+            },
+            "register": {
+              "anyOf": [{ "type": "integer", "minimum": 0, "maximum": 65535 }, { "const": "unknown" }]
+            },
+            "type": { "enum": ["bool", "int16", "uint16", "int32", "uint32", "int64", "uint64", "float32", "float64", "string", "unknown"] },
+            "byte_order": { "enum": ["big", "little", "unknown"], "default": "big" },
+            "word_order": { "enum": ["big", "little", "unknown"], "default": "big" },
+            "scale": { "$ref": "#/$defs/number", "default": 1 },
+            "offset": { "$ref": "#/$defs/number", "default": 0 }
+          },
+          "required": ["kind", "function", "register", "type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "analog" },
+            "pin": { "$ref": "#/$defs/text" },
+            "calibration": { "$ref": "#/$defs/text" }
+          },
+          "required": ["kind", "pin"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "digital" },
+            "pin": { "$ref": "#/$defs/text" },
+            "active_low": { "$ref": "#/$defs/flag" }
+          },
+          "required": ["kind", "pin"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "i2c" },
+            "part": { "$ref": "#/$defs/text" },
+            "address": { "$ref": "#/$defs/integer" }
+          },
+          "required": ["kind", "part"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "spi" },
+            "part": { "$ref": "#/$defs/text" }
+          },
+          "required": ["kind", "part"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "can" },
+            "id": { "$ref": "#/$defs/integer" },
+            "signal": { "$ref": "#/$defs/text" }
+          },
+          "required": ["kind", "id"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "pulse" },
+            "pin": { "$ref": "#/$defs/text" },
+            "per_unit": { "$ref": "#/$defs/number" }
+          },
+          "required": ["kind", "pin"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "computed" },
+            "from": { "type": "array", "items": { "type": "string" } },
+            "how": { "$ref": "#/$defs/text" }
+          },
+          "required": ["kind", "how"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "unknown" }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}
