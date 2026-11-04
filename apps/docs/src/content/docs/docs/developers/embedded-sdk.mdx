@@ -17,7 +17,7 @@ A starter holds no passwords, keys or broker addresses, so you can commit it and
 
 ## Targets
 
-- **Built targets** come with a project that builds as downloaded and is built on every change to the platform: Linux and macOS today, with ESP32 and NXP i.MX RT following.
+- **Built targets** come with a project that builds as downloaded and is built on every change to the platform: Linux and macOS, and the ESP32 on ESP-IDF v5.4.1, with NXP i.MX RT following. The ESP32 project joins a Wi-Fi network that you set with `idf.py menuconfig` before the first build, and builds for other ESP32 chips after `idf.py set-target`.
 - **AI-assisted targets** (STM32, Raspberry Pi Pico, Nordic nRF and any other microcontroller) come with templates for the five small adapters the SDK needs (the TLS connection, the clock, storage, logging and a lock) and notes on each family's usual pieces and traps. Your coding agent writes those adapters with you before the code that reads your hardware.
 
 ## Working with an AI coding agent

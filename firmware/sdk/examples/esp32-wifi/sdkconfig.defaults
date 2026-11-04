@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+# The SDK runs on the main task, and the TLS handshake with it.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+# One app partition with room for Wi-Fi, TLS and the SDK, on 2 MB of flash or more.
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+# TLS: esp-tls on mbedTLS checks the broker against the CA in config/. Never skip it.
+CONFIG_ESP_TLS_USING_MBEDTLS=y
+CONFIG_ESP_TLS_INSECURE=n
+CONFIG_MBEDTLS_SSL_PROTO_TLS1_2=y
+# SNTP: the server set in menuconfig, asked again every hour.
+CONFIG_LWIP_SNTP_MAX_SERVERS=1
+CONFIG_LWIP_SNTP_UPDATE_DELAY=3600000

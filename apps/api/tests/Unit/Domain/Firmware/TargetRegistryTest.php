@@ -47,6 +47,9 @@ final class TargetRegistryTest extends TestCase
         yield 'a developer path without a slash' => [['developer_paths' => ['app']], 'developer_paths'];
         yield 'a built target without a build command' => [['build' => null], 'a built target needs'];
         yield 'family notes on a built target' => [['family_notes' => 'families/x.md'], 'family_notes is only'];
+        yield 'empty build notes' => [['build_notes' => ' '], 'build_notes must be text'];
+        yield '.gitignore lines as one string' => [['gitignore_extra' => "sdkconfig\nbuild/"], 'gitignore_extra must list'];
+        yield 'a .gitignore line with a newline' => [['gitignore_extra' => ["sdkconfig\nbuild/"]], 'gitignore_extra must list'];
     }
 
     /** @param  array<string, mixed>  $change */
@@ -56,6 +59,13 @@ final class TargetRegistryTest extends TestCase
         $this->write([array_filter([...$this->built(), ...$change], fn ($value) => $value !== null)]);
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage($message);
+        (new TargetRegistry($this->root))->all();
+    }
+
+    public function test_build_notes_are_only_for_built_targets(): void
+    {
+        $this->write([[...$this->assisted('other', null, 90), 'build_notes' => 'Run menuconfig first.']]);
+        $this->expectExceptionMessage('build_notes are only for built targets');
         (new TargetRegistry($this->root))->all();
     }
 

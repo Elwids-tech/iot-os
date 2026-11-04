@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Domain\Firmware;
 
 use App\Domain\Firmware\Services\FixtureStarters;
+use App\Domain\Firmware\Services\TargetRegistry;
 use Opis\JsonSchema\Validator;
 use Symfony\Component\Yaml\Yaml;
 use Tests\TestCase;
@@ -35,8 +36,14 @@ final class AgentsBriefDriftTest extends TestCase
             $this->assertSame(self::SECTIONS, $headings[1], $label);
             $this->assertSame("@AGENTS.md\n", $files['CLAUDE.md'], $label);
             $developer = $item['starter']['manifest']['developer_paths'][0];
-            if (str_starts_with($item['target'], 'linux')) {
-                $this->assertStringNotContainsString('## 6. Port'."\n\n".'1.', $files['AGENTS.md'], 'built targets skip the port');
+            $target = app(TargetRegistry::class)->find($item['target']);
+            if ($target['kind'] === 'built') {
+                $this->assertStringNotContainsString('## 6. Port'."\n\n".'1.', $files['AGENTS.md'], $label.': built targets skip the port');
+                // The brief and the README give this target's own build, and name its developer path.
+                $this->assertStringContainsString('Build with `'.$target['build'].'`.', $files['AGENTS.md'], $label);
+                $this->assertStringContainsString("```sh\n".$target['build']."\n".$target['run']."\n```", $files['README.md'], $label);
+                $this->assertStringContainsString('- `'.$developer.'`: the code you work on. `main.c` runs the SDK', $files['AGENTS.md'], $label);
+                $this->assertArrayHasKey($developer.'main.c', $files, $label);
             }
             foreach (['AGENTS.md', 'README.md'] as $document) {
                 foreach ($this->mentions($files[$document]) as $mention) {

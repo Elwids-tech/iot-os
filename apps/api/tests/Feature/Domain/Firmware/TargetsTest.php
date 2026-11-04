@@ -30,9 +30,10 @@ final class TargetsTest extends TestCase
 
         $targets = $this->getJson($this->prefix.'/firmware/targets')->assertOk()->json('data');
 
-        $this->assertSame(['linux', 'stm32', 'rpi-pico', 'nordic-nrf', 'other'], array_column($targets, 'id'));
-        $this->assertSame(['id' => 'linux', 'name' => 'Linux or macOS', 'kind' => 'built', 'roles' => ['direct', 'gateway'], 'toolchain' => 'CMake 3.31, GCC 13 (ubuntu-24.04 runner)'], $targets[0]);
-        $this->assertNull($targets[1]['toolchain']);
+        $this->assertSame(['esp32-esp-idf', 'linux', 'stm32', 'rpi-pico', 'nordic-nrf', 'other'], array_column($targets, 'id'));
+        $this->assertSame(['id' => 'esp32-esp-idf', 'name' => 'ESP32 (ESP-IDF)', 'kind' => 'built', 'roles' => ['direct', 'gateway'], 'toolchain' => 'ESP-IDF v5.4.1'], $targets[0]);
+        $this->assertSame(['id' => 'linux', 'name' => 'Linux or macOS', 'kind' => 'built', 'roles' => ['direct', 'gateway'], 'toolchain' => 'CMake 3.31, GCC 13 (ubuntu-24.04 runner)'], $targets[1]);
+        $this->assertNull($targets[2]['toolchain']);
     }
 
     public function test_a_target_without_its_files_is_not_offered(): void

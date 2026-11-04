@@ -18569,6 +18569,7 @@
                   "target": {
                     "type": "string",
                     "enum": [
+                      "esp32-esp-idf",
                       "linux",
                       "stm32",
                       "rpi-pico",
@@ -20291,6 +20292,7 @@
                   "target": {
                     "type": "string",
                     "enum": [
+                      "esp32-esp-idf",
                       "linux",
                       "stm32",
                       "rpi-pico",
@@ -29173,6 +29175,7 @@
           "target": {
             "type": "string",
             "enum": [
+              "esp32-esp-idf",
               "linux",
               "stm32",
               "rpi-pico",
