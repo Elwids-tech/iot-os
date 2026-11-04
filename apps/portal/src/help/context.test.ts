@@ -20,6 +20,11 @@ describe("Help context", () => {
     ).toBe("device-profiles.review");
     expect(
       helpContextForPath(
+        "/organizations/private-org/device-profiles/private-profile/firmware",
+      ),
+    ).toBe("device-profiles.firmware");
+    expect(
+      helpContextForPath(
         "/organizations/private-org/alerts/notifications/private-workflow",
       ),
     ).toBe("alerts.notifications.workflow");

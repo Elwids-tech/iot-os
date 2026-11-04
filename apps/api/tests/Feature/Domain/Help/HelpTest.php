@@ -93,6 +93,7 @@ final class HelpTest extends TestCase
             ['devices', 'register device', 'devices'], ['devices', 'offline last seen', 'devices'],
             ['discovery', 'unassigned source', 'discovery'], ['gateways', 'disconnected gateway', 'gateways'],
             ['device-profiles', 'reusable profile', 'profiles'], ['device-profiles.parameters', 'Celsius multiplier offset', 'profile-parameters'],
+            ['device-profiles.firmware', 'SDK for my microcontroller', 'firmware'],
             ['telemetry', 'raw packet payload', 'telemetry'], ['telemetry', 'capture missing reading', 'telemetry'],
             ['geofences', 'draw a polygon', 'geofences'], ['geofences', 'outside boundary GPS', 'geofences'],
             ['automation', 'workflow rule', 'automations'], ['automation.simulation', 'test scenario simulate', 'automation-simulation'],

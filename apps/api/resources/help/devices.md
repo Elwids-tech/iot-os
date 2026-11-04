@@ -24,7 +24,7 @@
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 4,
+  "revision": 5,
   "summary": "A registered device connects a discovered source to a published profile and an organization-owned configuration.",
   "questions": [
     "How do I register a device?",
@@ -58,7 +58,7 @@ To onboard many sources of one type behind one gateway at once (this needs both 
 
 A run takes at most 500 sources. Running the same selection again creates no second device for any source.
 
-For firmware written with the platform’s embedded SDK, a device that connects directly has a **Firmware** group in **Device actions** (this needs connection-management permission). **Download settings** gives the private connection settings to unpack into a firmware starter’s `config/` folder. **Download firmware kit** gives a starter for the device’s profile and a chosen microcontroller with the settings already in place. Starters without credentials come from the profile’s **Firmware** tab.
+For firmware written with the platform’s embedded SDK, a device that connects directly has a **Firmware** group in **Device actions** (this needs connection-management permission). **Download settings** gives the private connection settings to unpack into a firmware starter’s `config/` folder. **Download firmware kit** gives a starter for the device’s profile and a chosen microcontroller with the settings already in place. Starters without credentials come from the profile’s **Firmware** tab. [Read the firmware guide](/help/firmware).
 
 ## Expected result
 The directory shows one status per device, from its lifecycle, configuration and presence. The device workspace provides applied configuration and latest data.
