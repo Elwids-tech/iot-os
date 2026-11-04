@@ -239,7 +239,7 @@ export function ProfileDirectory() {
                   <Link to={open(profile, "parameters")}>Parameters</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to={open(profile, "review")}>Review and publish</Link>
+                  <Link to={open(profile, "review")}>Review</Link>
                 </DropdownMenuItem>
                 {organization.capabilities.delete_draft &&
                   profile.status === "draft" &&

@@ -20,9 +20,9 @@ export function useReturnTo() {
 }
 
 /**
- * Shown while a device setup waits for a published profile. Once the profile has a live
- * version with nothing left to publish, the way back becomes the primary action and
- * preselects this profile.
+ * Shown while a device setup waits for a published profile. In the studio the header's
+ * primary button publishes and returns (or continues with the live version), so this
+ * stays a secondary way back that preselects the profile once it has a version.
  */
 export function DeviceSetupBanner({
   returnTo,
@@ -57,13 +57,13 @@ export function DeviceSetupBanner({
           </AlertTitle>
           <AlertDescription>
             {live
-              ? "Return to device setup to use this profile."
+              ? "Continue setup to use this profile."
               : profile
-                ? "Publish this profile, then return to device setup."
+                ? "Publishing takes you back to device setup with this profile selected."
                 : "Create or open a profile and publish it, then return to device setup."}
           </AlertDescription>
         </div>
-        <Button asChild size="sm" variant={live ? "default" : "outline"}>
+        <Button asChild size="sm" variant={profile ? "ghost" : "outline"}>
           <Link to={back}>Back to device setup</Link>
         </Button>
       </Alert>

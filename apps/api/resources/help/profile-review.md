@@ -18,8 +18,8 @@
   "required_capabilities": [
     "profiles.view"
   ],
-  "revision": 1,
-  "summary": "**Review and publish** validates the saved draft and lets you inspect a revision before publication.",
+  "revision": 2,
+  "summary": "Every saved draft is checked automatically. **Review** shows any issues and what the next version contains or changes.",
   "questions": [
     "What do I need before publishing?",
     "Why is publication blocked?"
@@ -27,23 +27,22 @@
 }
 ---
 ## Purpose
-**Review and publish** validates the saved draft and lets you inspect a revision before publication.
+Every saved draft is checked automatically. **Review** shows any issues and what the next version contains or changes.
 
 ## Before you start
 Save pending profile edits first. Publication requires the profile publish capability.
 
 ## Steps
-1. Open **Review and publish**.
-2. Validate the saved draft and inspect blocking diagnostics.
-3. Review changes in **Fields** or the read-only **JSON** view.
-4. Resolve conflicting or invalid changes and validate again.
-5. Confirm publication of the reviewed revision.
+1. Save your edits. The status under the profile name shows **Checking…**, then **Ready to publish** or the number of issues to fix.
+2. Open **Review** to see the issues and where they are. A first version lists the parameters, calculations and alarm templates it will contain. Later versions list the changes since the live version in **Fields** or the read-only **JSON** view.
+3. Fix any issues and save. The check runs again.
+4. Choose **Publish version** in the profile header and confirm. When you came from adding a device, the button reads **Publish and continue setup** and takes you back with this profile selected.
 
 ## Expected result
 The profile gains a published revision. Device configuration activation remains a separate task.
 
 ## Troubleshooting
-Unsaved fields are not necessarily in the reviewed snapshot. When another editor changed the draft, review concurrent changes and retain the intended values before publishing.
+Only saved edits are checked and published. If the check didn't finish, choose **Check again** in **Review**. When another editor changed the draft, review concurrent changes and retain the intended values before publishing.
 
 ## Related guides
 [Read the related guide](/help/device-configuration)

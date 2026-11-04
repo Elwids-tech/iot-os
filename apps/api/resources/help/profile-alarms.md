@@ -35,8 +35,8 @@ Choose suitable parameters and supported alarm behavior. Editing requires profil
 1. Open **Alarm templates** in the profile.
 2. Select the relevant parameter and supported condition.
 3. Fill in the condition settings and clear/recovery behavior shown by the form.
-4. Save and validate the draft.
-5. Review and publish, then apply the profile configuration to the intended devices.
+4. Save the draft. Each save is checked automatically.
+5. Publish the profile, then apply the profile configuration to the intended devices.
 
 ## Expected result
 The published template is part of the chosen profile revision. Live alert records are inspected in **Alerts** after the configuration is applied and evaluated.

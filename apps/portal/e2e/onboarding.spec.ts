@@ -108,6 +108,23 @@ async function setup(page: Page, { adapters = true, status = "published" } = {})
     if (path.endsWith("/device-profiles")) return page1([current])
     if (path.endsWith(`/device-profiles/${profileId}`))
       return json({ data: { ...current, parameter_groups: [], parameters: [], alarm_templates: [], active_artifact: null } })
+    if (path.endsWith(`/device-profiles/${profileId}/validate`))
+      return json({ data: { draft_revision: current.draft_revision, valid: true, diagnostics: [] } })
+    if (path.endsWith(`/device-profiles/${profileId}/compile`))
+      return json({
+        data: {
+          draft_revision: current.draft_revision,
+          definition: {
+            schema_version: "device-profile.v2",
+            profile: { uuid: profileId, code: current.code, name: current.name, category: current.category, revision: 2 },
+            parameters: [],
+            calculations: [],
+            alarm_templates: [],
+          },
+          definition_hash: "a".repeat(64),
+          revision: 2,
+        },
+      })
     if (path.endsWith("/devices") || path.endsWith("/artifacts")) return page1([])
     return json({ data: [] })
   })
@@ -166,11 +183,15 @@ test("profile setup keeps a way back to device setup", async ({ page }) => {
   await expect(row.getByRole("cell", { name: "Water metering", exact: true })).toBeVisible()
   await row.getByRole("link", { name: "Water meter" }).click()
   await expect(page).toHaveURL(/returnTo=/)
-  await expect(page.getByText("Publish this profile, then return to device setup.")).toBeVisible()
+  await expect(page.getByText("Publishing takes you back to device setup with this profile selected.")).toBeVisible()
   await expect(page.getByText("Live: version 1", { exact: true })).toBeVisible()
   await expect(page.getByText(/^Draft changes saved 2 d ago$/)).toBeVisible()
-  await expect(page.getByRole("button", { name: "Publish as version 2", exact: true })).toBeVisible()
-  await page.getByRole("tab", { name: "Review and publish" }).click()
+  // The saved draft is checked without a Validate step, and Publish returns to setup.
+  await expect(page.getByText("Ready to publish", { exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Validate draft" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Publish and continue setup", exact: true })).toBeEnabled()
+  await page.getByRole("tab", { name: "Review", exact: true }).click()
+  await expect(page.getByText("Checks passed", { exact: true })).toBeVisible()
   await expect(page).toHaveURL(/\/review\?returnTo=/)
   await expect(page.getByRole("link", { name: "Back to device setup" })).toHaveAttribute("href", back + "?profile=" + profileId)
   await axe(page)
@@ -182,15 +203,17 @@ test("profile setup keeps a way back to device setup", async ({ page }) => {
   expect(state.errors).toEqual([])
 })
 
-test("a live profile with no changes points back to device setup", async ({ page }) => {
+test("a live profile with no changes continues device setup", async ({ page }) => {
   const state = await setup(page)
-  await page.goto(`${base}/device-profiles/${profileId}/overview?returnTo=${encodeURIComponent(`${base}/devices/onboard`)}`)
+  const back = `${base}/devices/onboard`
+  await page.goto(`${base}/device-profiles/${profileId}/overview?returnTo=${encodeURIComponent(back)}`)
   await expect(page.getByText("Version 1 is live", { exact: true })).toBeVisible()
   await expect(page.getByText("No changes since version 1", { exact: true })).toBeVisible()
-  const publish = page.getByRole("button", { name: "Publish as version 2", exact: true })
-  await expect(publish).toBeDisabled()
-  await expect(publish).toHaveAttribute("data-variant", "outline")
-  await expect(page.getByRole("link", { name: "Back to device setup" })).toHaveAttribute("data-variant", "default")
+  await expect(page.getByRole("button", { name: /^Publish/ })).toHaveCount(0)
+  const next = page.getByRole("link", { name: "Continue setup with version 1", exact: true })
+  await expect(next).toHaveAttribute("href", back + "?profile=" + profileId)
+  await expect(next).toHaveAttribute("data-variant", "default")
+  await expect(page.getByRole("link", { name: "Back to device setup" })).toHaveAttribute("data-variant", "ghost")
   await axe(page)
   expect(state.errors).toEqual([])
 })

@@ -81,6 +81,20 @@
   animation: value-flash 600ms ease-out;
 }
 
+/* A button just became the next step: two rings spread from it, then it rests. */
+@keyframes next-step {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 55%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 0.5rem color-mix(in oklch, var(--primary) 0%, transparent);
+  }
+}
+
+@utility animate-next-step {
+  animation: next-step 1.1s ease-out 2;
+}
+
 /* Scroll containers fade their edges so clipped content reads as scrollable. */
 @utility scroll-fade {
   mask-image: linear-gradient(

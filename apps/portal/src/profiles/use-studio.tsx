@@ -184,41 +184,35 @@ export function useStudio() {
   if (!studio) throw new Error("Studio provider is required.")
   return studio
 }
-/**
- * Validation and compiled draft for the current saved draft revision. Kept in the query
- * cache per draft revision, so switching tabs keeps it and any save makes it outdated.
- */
-export function useProfileValidation() {
-  const { org, profile } = useStudio()
-  const cache = useQueryClient()
-  const key = [
-    "profile-validation",
-    org,
-    profile.uuid,
-    profile.draft_revision,
-  ]
-  const query = useQuery({
-    queryKey: key,
+/** Query for the check of one saved draft revision: validation, then the compiled draft when valid. */
+export function profileCheck(org: string, uuid: string, revision: number) {
+  return {
+    queryKey: ["profile-validation", org, uuid, revision],
     queryFn: async () => {
-      const validation = await api.validateDeviceProfile(
-        org,
-        profile.uuid,
-        profile.draft_revision,
-      )
+      const validation = await api.validateDeviceProfile(org, uuid, revision)
       return {
         validation,
         compiled: validation.valid
-          ? await api.compileDeviceProfile(
-              org,
-              profile.uuid,
-              profile.draft_revision,
-            )
+          ? await api.compileDeviceProfile(org, uuid, revision)
           : null,
       }
     },
-    enabled: false,
     staleTime: Infinity,
     gcTime: 30 * 60_000,
+  }
+}
+
+/**
+ * The check of the current saved draft. It runs on its own once per draft revision (both
+ * calls only read the draft), so every save is checked and switching tabs keeps the result.
+ */
+export function useProfileValidation() {
+  const { org, profile, capabilities } = useStudio()
+  const cache = useQueryClient()
+  const check = profileCheck(org, profile.uuid, profile.draft_revision)
+  const query = useQuery({
+    ...check,
+    enabled: capabilities.validate && profile.status === "draft",
   })
   return {
     ...query,
@@ -226,7 +220,7 @@ export function useProfileValidation() {
       query.data?.compiled && profile.status === "draft",
     ),
     validate: () => query.refetch(),
-    clear: () => cache.removeQueries({ queryKey: key }),
+    clear: () => cache.removeQueries({ queryKey: check.queryKey }),
   }
 }
 /** Why Publish is unavailable, or null when it can run. */
@@ -239,16 +233,20 @@ export function publishBlocker(
   if (profile.status === "archived") return "Archived profiles can't be published"
   if (profile.status === "published")
     return "No changes since version " + profile.revision
-  if (studio.busy || check.isFetching) return "Wait for the current action"
+  if (studio.busy) return "Wait for the current action"
+  if (check.isFetching) return "Checking the draft…"
   if (studio.blocked) return "Refresh the saved draft first"
-  if (!check.data) return "Validate the saved draft first"
+  if (!check.data)
+    return check.isError
+      ? "The check didn't finish. Check again from Review"
+      : "Checking the draft…"
   if (!check.ready)
     return (
-      "Resolve " +
+      "Fix " +
       check.data.validation.diagnostics.length +
       " issue" +
       (check.data.validation.diagnostics.length === 1 ? "" : "s") +
-      " and validate again"
+      " to publish"
     )
   return null
 }
