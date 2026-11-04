@@ -170,15 +170,17 @@ Things that have cost time before. Add to this list when something surprises you
 
 - **Updating a stream NATS recovered rewrites its creation time.** After a restart, a
   stream's file store remembers the server's start time, and any update (a larger
-  byte limit, a compression change) writes that into the stream's metadata. The
-  next restart then reports it as the stream's `created`. The workflow checkpoint
-  and the reference committed consumer bind to `IOT_COMMITTED_TELEMETRY`'s
-  `created`, so evaluation pauses with "checkpoint lost continuity" until it is
-  rebaselined, which skips the telemetry in between. Seen on NATS 2.14.5.
+  byte limit, a compression change, an operator's `nats stream edit`) writes that
+  into the stream's metadata. The next restart then reports it as the stream's
+  `created`. Seen on NATS 2.14.5. Never use `created` to recognise a stream: the
+  workflow checkpoint and the reference committed consumer bind to the
+  `iot.stream_id` metadata the runtime sets, which survives updates and restarts.
+  They used to bind to `created`, which paused workflow evaluation after a limit
+  raise and a NATS restart.
 - **A compression change applies only after NATS restarts.** The stream reports S2 at
   once, but blocks keep being written uncompressed until the server reopens the
-  stream, and blocks written before stay as they are until they expire. Together
-  with the trap above, this is why the runtime compresses new streams only.
+  stream, and blocks written before stay as they are until they expire. This is
+  why the runtime compresses new streams only.
 - **Byte limits count uncompressed bytes.** `IOT_NATS_*_MAX_BYTES` and
   `IOT_NATS_STORE_MAX_BYTES` cap message bytes, not disk, so compression saves disk
   without letting a stream hold more messages.

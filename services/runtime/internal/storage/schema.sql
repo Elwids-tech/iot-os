@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS device_runtime.rule_checkpoint (
  singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton), stream_created timestamptz NOT NULL,
  sequence bigint NOT NULL
 );
+-- The committed stream's runtime-assigned ID (StreamIdentity). Checkpoints bound
+-- before streams carried one keep NULL until the runtime adopts the ID.
+ALTER TABLE device_runtime.rule_checkpoint ADD COLUMN IF NOT EXISTS stream_id text;
 CREATE TABLE IF NOT EXISTS device_runtime.rule_inputs (
  event_uuid uuid PRIMARY KEY, consumed_at timestamptz NOT NULL
 );

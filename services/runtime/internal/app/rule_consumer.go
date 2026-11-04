@@ -17,7 +17,7 @@ func (a *Application) startRuleConsumer(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	sequence, err := a.Store.PrepareRuleConsumer(ctx, info.Created, info.State.FirstSeq, info.State.LastSeq)
+	sequence, err := a.Store.PrepareRuleConsumer(ctx, streamIdentity(info), info.State.FirstSeq, info.State.LastSeq)
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func (a *Application) startRuleConsumer(ctx context.Context) error {
 		for ctx.Err() == nil {
 			cutoffAt := time.Now().UTC()
 			if stream, e := a.JS.StreamInfo(devices.CommittedTelemetryStream); e == nil {
-				if _, e = a.Store.PrepareRuleConsumer(ctx, stream.Created, stream.State.FirstSeq, stream.State.LastSeq); e == nil {
+				if _, e = a.Store.PrepareRuleConsumer(ctx, streamIdentity(stream), stream.State.FirstSeq, stream.State.LastSeq); e == nil {
 					e = a.Store.TickDAGs(ctx, cutoffAt, stream.State.LastSeq)
 				}
 				if e != nil {
@@ -58,7 +58,7 @@ func (a *Application) startRuleConsumer(ctx context.Context) error {
 				// continuity so a retention gap cannot silently become "safe".
 				stream, e := a.JS.StreamInfo(devices.CommittedTelemetryStream)
 				if e == nil {
-					_, e = a.Store.PrepareRuleConsumer(ctx, stream.Created, stream.State.FirstSeq, stream.State.LastSeq)
+					_, e = a.Store.PrepareRuleConsumer(ctx, streamIdentity(stream), stream.State.FirstSeq, stream.State.LastSeq)
 				}
 				pending, e2 := a.JS.ConsumerInfo(devices.CommittedTelemetryStream, durable)
 				if e == nil && e2 != nil {
@@ -91,7 +91,7 @@ func (a *Application) startRuleConsumer(ctx context.Context) error {
 					stream, inspectErr := a.JS.StreamInfo(devices.CommittedTelemetryStream)
 					e = inspectErr
 					if e == nil {
-						_, e = a.Store.PrepareRuleConsumer(ctx, stream.Created, stream.State.FirstSeq, stream.State.LastSeq)
+						_, e = a.Store.PrepareRuleConsumer(ctx, streamIdentity(stream), stream.State.FirstSeq, stream.State.LastSeq)
 					}
 				}
 				var input devices.CommittedTelemetry
@@ -116,6 +116,11 @@ func (a *Application) startRuleConsumer(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+// streamIdentity is what the workflow checkpoint binds to (storage.StreamIdentity).
+func streamIdentity(info *nats.StreamInfo) storage.StreamIdentity {
+	return storage.StreamIdentity{ID: info.Config.Metadata[devices.StreamIDMetadata], Created: info.Created}
 }
 
 // skipRuleTelemetry dead-letters an undecodable committed message and moves the
@@ -221,7 +226,8 @@ func (a *Application) rebaselineRules(w http.ResponseWriter, r *http.Request) {
 		respond(w, 503, map[string]string{"message": "The committed telemetry stream is unavailable."})
 		return
 	}
-	created, sequence, err := a.Store.RebaselineRuleCheckpoint(r.Context(), info.Created, info.State.FirstSeq, info.State.LastSeq)
+	current := streamIdentity(info)
+	previous, sequence, err := a.Store.RebaselineRuleCheckpoint(r.Context(), current, info.State.FirstSeq, info.State.LastSeq)
 	if errors.Is(err, storage.ErrRuleCheckpointContinuous) {
 		respond(w, 409, map[string]string{"message": "Workflow evaluation is continuous; there is nothing to recover."})
 		return
@@ -231,14 +237,14 @@ func (a *Application) rebaselineRules(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.Logger.Warn("workflow checkpoint rebaselined by operator", "reason", request.Reason,
-		"previous_stream_created", created, "previous_sequence", sequence,
-		"stream_created", info.Created, "first_sequence", info.State.FirstSeq, "sequence", info.State.LastSeq)
+		"previous_stream_id", previous.ID, "previous_stream_created", previous.Created, "previous_sequence", sequence,
+		"stream_id", current.ID, "stream_created", current.Created, "first_sequence", info.State.FirstSeq, "sequence", info.State.LastSeq)
 	select {
 	case a.rulesRetry <- struct{}{}:
 	default:
 	}
 	respond(w, 200, map[string]any{
-		"previous": map[string]any{"stream_created": created, "sequence": sequence},
-		"current":  map[string]any{"stream_created": info.Created, "first_sequence": info.State.FirstSeq, "sequence": info.State.LastSeq},
+		"previous": map[string]any{"stream_id": previous.ID, "stream_created": previous.Created, "sequence": sequence},
+		"current":  map[string]any{"stream_id": current.ID, "stream_created": current.Created, "first_sequence": info.State.FirstSeq, "sequence": info.State.LastSeq},
 	})
 }

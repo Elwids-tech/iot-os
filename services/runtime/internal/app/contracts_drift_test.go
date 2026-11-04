@@ -181,7 +181,7 @@ func TestDriftedCommittedTelemetryIsConsumedAsToday(t *testing.T) {
 				}
 			}
 			path := filepath.Join(t.TempDir(), "checkpoint.json")
-			checkpoint, err := committedconsumer.Open(path, "drift", "stream-created")
+			checkpoint, err := committedconsumer.Open(path, "drift", committedconsumer.Stream{ID: "drift"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -190,7 +190,7 @@ func TestDriftedCommittedTelemetryIsConsumedAsToday(t *testing.T) {
 			if err != nil || !fresh {
 				t.Fatalf("checkpoint apply: fresh %v, %v", fresh, err)
 			}
-			reopened, err := committedconsumer.Open(path, "drift", "stream-created")
+			reopened, err := committedconsumer.Open(path, "drift", committedconsumer.Stream{ID: "drift"})
 			if err != nil {
 				t.Fatal(err)
 			}

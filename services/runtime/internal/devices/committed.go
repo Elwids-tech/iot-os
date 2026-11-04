@@ -6,6 +6,11 @@ const CommittedTelemetryVersion = "telemetry.committed.v1"
 const CommittedTelemetrySubject = "iot.committed.telemetry.v1"
 const CommittedTelemetryStream = "IOT_COMMITTED_TELEMETRY"
 
+// StreamIDMetadata is the stream metadata key holding the random ID the runtime
+// gives each stream. Checkpoints bind to it rather than the stream's creation time,
+// which NATS rewrites after updating a stream it recovered (docs/dev/gotchas.md).
+const StreamIDMetadata = "iot.stream_id"
+
 // CommittedReading is an explicit projection, never a serialization of a device
 // definition or of the retained last-valid value used by the latest-value UI.
 type CommittedReading struct {

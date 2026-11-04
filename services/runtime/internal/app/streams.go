@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/storage"
 	"github.com/nats-io/nats.go"
 )
 
@@ -26,10 +28,10 @@ func (a *Application) ensureStream(cfg *nats.StreamConfig) error {
 	existing, err := a.JS.StreamInfo(cfg.Name)
 	if err == nats.ErrStreamNotFound {
 		// Runtime JSON repeats its identifiers, so S2 shrinks sealed blocks 15-40x.
-		// Existing streams keep their encoding: NATS applies a compression change
-		// only after it restarts, and updating a stream it recovered rewrites the
-		// creation time that binds the workflow checkpoint (docs/dev/gotchas.md).
+		// Existing streams keep their encoding: NATS would apply a change only after
+		// it restarts and leave older blocks raw (docs/dev/gotchas.md).
 		cfg.Compression = nats.S2Compression
+		cfg.Metadata = map[string]string{devices.StreamIDMetadata: storage.UUID()}
 		_, err = a.JS.AddStream(cfg)
 		return err
 	}
@@ -45,9 +47,21 @@ func (a *Application) ensureStream(cfg *nats.StreamConfig) error {
 	if c.MaxBytes <= 0 {
 		return fmt.Errorf("%s requires an explicit migration to bounded capacity", cfg.Name)
 	}
-	// Growing a stream NATS recovered also rewrites its creation time.
+	update := false
+	// Streams created before stream IDs get one once. Checkpoints bound to the
+	// creation time adopt it before the next NATS restart rewrites that time.
+	if c.Metadata[devices.StreamIDMetadata] == "" {
+		if c.Metadata == nil {
+			c.Metadata = map[string]string{}
+		}
+		c.Metadata[devices.StreamIDMetadata] = storage.UUID()
+		update = true
+	}
 	if c.MaxBytes < cfg.MaxBytes {
 		c.MaxBytes = cfg.MaxBytes
+		update = true
+	}
+	if update {
 		_, err = a.JS.UpdateStream(&c)
 	}
 	return err

@@ -110,7 +110,7 @@ func TestCommittedPublicationRecovery(t *testing.T) {
 	sub, err := js.PullSubscribe(devices.CommittedTelemetrySubject, "recovery-test", nats.BindStream(devices.CommittedTelemetryStream), nats.ManualAck(), nats.AckExplicit(), nats.AckWait(100*time.Millisecond))
 	must(err)
 	statePath := filepath.Join(t.TempDir(), "projection.json")
-	checkpoint, err := committedconsumer.Open(statePath, "recovery-test", info.Created.Format(time.RFC3339Nano))
+	checkpoint, err := committedconsumer.Open(statePath, "recovery-test", committedconsumer.Stream{ID: info.Config.Metadata[devices.StreamIDMetadata]})
 	must(err)
 	apply := func(message *nats.Msg) bool {
 		t.Helper()
@@ -129,7 +129,7 @@ func TestCommittedPublicationRecovery(t *testing.T) {
 	}
 	// Consumer dies after fsync and before ACK. Reopen its independent projection.
 	must(checkpoint.Close())
-	checkpoint, err = committedconsumer.Open(statePath, "recovery-test", info.Created.Format(time.RFC3339Nano))
+	checkpoint, err = committedconsumer.Open(statePath, "recovery-test", committedconsumer.Stream{ID: info.Config.Metadata[devices.StreamIDMetadata]})
 	must(err)
 	defer func() { checkpoint.Close() }()
 	must(messages[0].Nak())

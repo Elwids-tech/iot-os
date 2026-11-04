@@ -16,7 +16,10 @@ created at runtime startup ([`internal/app/control.go`](../../services/runtime/i
 [`internal/app/streams.go`](../../services/runtime/internal/app/streams.go)). All use
 file storage, limits retention, a **seven-day maximum age** and **discard-new**.
 Streams are created with S2 compression; streams created before it keep their
-encoding ([why](../dev/gotchas.md#nats-jetstream)).
+encoding ([why](../dev/gotchas.md#nats-jetstream)). Each stream carries a random ID
+in its `iot.stream_id` metadata, added at startup to streams created without one.
+Checkpoints bind to it rather than the stream's `created` time, which NATS can
+rewrite.
 
 | Stream | Subjects | Carries | Byte limit (code default → Compose/release default) | Env var |
 | --- | --- | --- | --- | --- |
@@ -131,8 +134,10 @@ for trusted services (it mixes organizations), not a tenant API.
   returns `pending`, `oldest_age_seconds` and `publication_failures_since_start`.
 - Example consumer: `go run ./cmd/committed-consumer -durable <name> -state
   <absolute path>/checkpoint.json` from `services/runtime` (also `/committed-consumer`
-  in the runtime image). It refuses a changed stream identity, a broker checkpoint
-  ahead of its file, missing history and unknown versions rather than resetting.
+  in the runtime image). It refuses a changed stream ID, a broker checkpoint
+  ahead of its file, missing history and unknown versions rather than resetting. A
+  checkpoint file saved before stream IDs adopts the ID while the stream's `created`
+  time still matches.
 
 ## Integration events
 
