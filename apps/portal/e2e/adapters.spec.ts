@@ -1232,6 +1232,65 @@ test("a message written while the assistant answers is sent when the answer ends
   expect(errors).toEqual([]);
 });
 
+test("the assistant publishes the profile it drafted once checks pass, then hands back", async ({ page }) => {
+  const { errors, requests } = await setup(page);
+  const drafted = "50000000-0000-4000-8000-000000000001";
+  let published = false;
+  await onboardingAssistant(page, requests, [
+    {
+      id: "c-5",
+      title: "Tank sensors",
+      adapter_uuid: null,
+      detail: () => ({
+        profile_uuid: drafted,
+        profile_name: "Tank level sensor",
+        runs: [assistantRun("r-1", "Draft a profile for our tank level sensors.", "I saved every section of the profile draft.")],
+      }),
+    },
+  ]);
+  await page.route(`**/device-profiles/${drafted}**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const data = (value: unknown) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: value }) });
+    if (route.request().method() === "POST") requests.push({ path, body: route.request().postDataJSON() });
+    if (path.endsWith("/validate")) return data({ draft_revision: 2, valid: true, diagnostics: [] });
+    if (path.endsWith("/compile"))
+      return data({ draft_revision: 2, definition: {}, definition_hash: "a".repeat(64), revision: 1 });
+    if (path.endsWith("/publish")) {
+      published = true;
+      return data({ uuid: "a-1", revision: 1 });
+    }
+    return data({
+      uuid: drafted,
+      code: "tank-level",
+      name: "Tank level sensor",
+      status: published ? "published" : "draft",
+      revision: published ? 1 : 0,
+      draft_revision: 2,
+      parameters: [{ uuid: "level", key: "level", label: "Level", data_type: "number", unit: "%" }],
+      parameter_groups: [],
+      alarm_templates: [],
+      active_artifact: null,
+    });
+  });
+  await page.goto(base);
+  const chat = await openConversation(page, "Tank sensors");
+  await expect(chat).toContainText("Checks passed. Version 1 can be used for devices once it is published.");
+  await chat.getByRole("button", { name: "Publish version 1" }).click();
+  const confirm = page.getByRole("alertdialog", { name: "Publish version 1?" });
+  await expect(confirm).toContainText("Tank level sensor becomes available when you add devices.");
+  await confirm.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(chat).toContainText("Version 1 is live");
+  expect(requests.find((r) => r.path.endsWith(`/device-profiles/${drafted}/publish`))?.body).toEqual({
+    draft_revision: 2,
+  });
+  await chat.getByRole("button", { name: "Continue setup" }).click();
+  await expect
+    .poll(() => requests.find((r) => r.path.endsWith("/conversations/c-5/messages"))?.body.text)
+    .toBe("I published Tank level sensor version 1.");
+  expect(errors).toEqual([]);
+});
+
 test("Activity lists webhook outcomes and rejections, and a failed delivery becomes a fixture", async ({
   page,
 }) => {

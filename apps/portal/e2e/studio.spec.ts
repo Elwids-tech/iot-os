@@ -173,7 +173,9 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
   await saved(page)
   await addParameter(page, "Voltage", "voltage")
   await choose(page, "Group", "Electrical")
-  await page.getByLabel("Stored unit").fill("V")
+  await page.getByRole("combobox", { name: "Stored unit", exact: true }).click()
+  await page.getByRole("combobox", { name: "Search stored unit" }).fill("V")
+  await page.getByRole("option", { name: /^V · / }).click()
   await page.getByRole("tab", { name: "Validation", exact: true }).click()
   await choose(page, "Value constraints", "Number range")
   await page.getByLabel("Maximum (inclusive)").fill("480")
@@ -610,14 +612,14 @@ test("guided values and advanced JSON preserve custom configuration", async ({
   let typed = ""
   for (const character of "blink\nstrobe\nrainbow") {
     await page
-      .getByLabel("Allowed values", { exact: true })
+      .getByRole("textbox", { name: "Allowed values", exact: true })
       .press(character === "\n" ? "Enter" : character)
     typed += character
     await expect(
-      page.getByLabel("Allowed values", { exact: true }),
+      page.getByRole("textbox", { name: "Allowed values", exact: true }),
     ).toHaveValue(typed)
   }
-  await expect(page.getByLabel("Allowed values", { exact: true })).toHaveValue(
+  await expect(page.getByRole("textbox", { name: "Allowed values", exact: true })).toHaveValue(
     "blink\nstrobe\nrainbow",
   )
   await saveParameter(page)
@@ -786,8 +788,21 @@ test("tenant invitation acceptance for new and existing accounts", async ({
     page.getByRole("heading", { name: "Account ready" }),
   ).toBeVisible()
   await page.getByRole("link", { name: "Open tenant portal" }).click()
-  await page.getByRole("link", { name: /Northstar Utilities/ }).click()
-  await openProfiles(page)
+  // Accepting opens the organization that sent the invitation.
+  await expect(
+    page.getByRole("button", { name: "Organization: Northstar Utilities" }),
+  ).toBeVisible()
+  // Members can't author profiles, so the navigation leaves them out; the page stays read-only.
+  await expect(
+    page
+      .getByRole("navigation", { name: "Workspace" })
+      .getByRole("link", { name: "Device profiles", exact: true }),
+  ).toHaveCount(0)
+  const tenant = new URL(page.url()).pathname.match(/^\/organizations\/[^/]+/)?.[0]
+  await page.goto(tenant + "/device-profiles")
+  await expect(
+    page.getByRole("heading", { name: "Device profiles", exact: true }),
+  ).toBeVisible()
   await expect(
     page.getByRole("button", { name: "New profile", exact: true }),
   ).toHaveCount(0)
