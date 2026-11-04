@@ -95,6 +95,10 @@
     "title": "Review and publish a profile",
     "overview": "profile-review"
   },
+  "device-profiles.firmware": {
+    "title": "Get firmware for a device profile",
+    "overview": "firmware"
+  },
   "telemetry": {
     "title": "Telemetry",
     "overview": "telemetry"

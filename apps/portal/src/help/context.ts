@@ -9,7 +9,7 @@ export function helpContextForPath(pathname: string): string {
         : "devices";
     case "device-profiles":
       return resource
-        ? `device-profiles.${["overview", "parameters", "calculations", "alarms", "review"].includes(tab) ? tab : "overview"}`
+        ? `device-profiles.${["overview", "parameters", "calculations", "alarms", "review", "firmware"].includes(tab) ? tab : "overview"}`
         : "device-profiles";
     case "automation":
       return resource ? "automation.editor" : "automation";
