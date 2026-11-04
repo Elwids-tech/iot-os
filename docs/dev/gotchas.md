@@ -699,6 +699,11 @@ Things that have cost time before. Add to this list when something surprises you
   is a project file, not a replaceable one, so it only locates the folders and includes
   `sdk/ports/esp-idf/component.cmake`. A source list written there would miss files a
   later SDK adds.
+- **ZIP times have no time zone.** Phar writes each entry's DOS time as the server's
+  UTC wall clock, and unzip tools read it as local time, so a starter unpacked west of
+  UTC held files hours in the future. CMake then sees its inputs newer than the build
+  and regenerates forever (`build.ninja still dirty after 100 tries` with `idf.py`).
+  `FirmwareArchive` stamps every entry a day back, which is in the past in every zone.
 - **Download endpoints share one throttle per person.** `throttle:10,1` keys on the user,
   not the route, so onboarding provisioning, connection kits, firmware starters,
   settings and kits all count against the same ten a minute. Feature tests that download

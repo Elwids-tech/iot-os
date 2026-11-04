@@ -391,6 +391,7 @@ appear in each story.
 - [X] T073 [P] `docs/features/embedded-sdk.md`: the ESP32 target and its port. Add a `firmware/sdk/CHANGELOG.md` "Unreleased" entry.
 - [X] T074 Checks as in T050, including the `esp32` leg of `.github/workflows/ci.yml`.
 - [ ] T075 Rebuild `api` (it bundles `firmware/`) and confirm the ESP32 target appears in `GET firmware/targets` on the stack. Leak scan, then open PR 027-3 against `main`.
+- [X] T076 [US1] Starter, settings and kit archives date every entry a day back (`FirmwareArchive`). Phar wrote the server's UTC wall clock as each entry's zoneless ZIP time, so starters unpacked west of UTC held files from hours ahead and `idf.py build` regenerated forever. Found while building an ESP32 starter downloaded from the stack.
 
 ---
 
