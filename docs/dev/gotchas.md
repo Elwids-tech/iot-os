@@ -481,7 +481,10 @@ Things that have cost time before. Add to this list when something surprises you
   `STUDIO_BASE_URL=http://localhost:<port>`, not `127.0.0.1`.
 - **`e2e/studio.spec.ts` needs a live API** at `STUDIO_API_URL` (default
   `127.0.0.1:8013`, started by `tooling/test-profile-studio.mjs`). Against
-  `vite preview` alone it fails with "Failed to fetch".
+  `vite preview` alone it fails with "Failed to fetch". CI skips it, so it
+  drifts: run `node tooling/test-profile-studio.mjs` after changing the studio.
+  In a worktree, run `composer install` in `apps/api` first. A vendor copied from
+  another checkout can lack a package, and every save then fails with a 500.
 - **Full-page screenshots break dashboards.** Playwright `fullPage` screenshots
   make react-grid-layout re-measure and collapse panels in the capture. Grow the
   viewport height instead.
