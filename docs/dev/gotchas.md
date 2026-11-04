@@ -546,6 +546,13 @@ Things that have cost time before. Add to this list when something surprises you
   devices with `conversion_mode: none`, so a profile's `ingress_conversion` does nothing
   for them and the decoder must return the profile's units. A WM-300 profile drafted with
   an mL→L conversion stored 12,000 L/min from a decoder that passed mL through.
+- **Evidence pointers name items by their key.** The assistant writes a proposal's
+  evidence as free-form pointers such as `parameters.temp.unit`, so renaming the key in
+  review left every source for that item pointing at nothing, and the review kept
+  saying you approved `temp`. `editedEvidence` now replaces an edited value's sources and
+  rewrites the rest as `changes.N.values.<field>`. `evidenceTargets` also pairs old
+  pointers with the one item nothing else names, which covers proposals saved before
+  that change.
 
 ## UI
 

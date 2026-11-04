@@ -224,27 +224,23 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
       (item: { key: string }) => item.key === "voltage.double",
     ).calculation.inputs[0].alias,
   ).toBe("voltage")
-  await section(page, "Review and publish")
-  await page
-    .getByRole("button", { name: "Validate draft", exact: true })
-    .click()
+  // Each saved draft is checked on its own; a first version lists its contents, not a diff.
+  await section(page, "Review")
+  await expect(page.getByText("Checks passed", { exact: true })).toBeVisible()
   await expect(
-    page.getByText("Saved draft passed validation", { exact: true }),
-  ).toBeVisible()
-  await expect(
-    page.getByRole("button", { name: "Publish as version 1", exact: true }),
+    page.getByRole("button", { name: "Publish version 1", exact: true }),
   ).toBeEnabled()
   await expect(
-    page.getByRole("cell", { name: "Energy meter studio", exact: true }),
+    page.getByRole("heading", { name: "Version 1 will contain", exact: true }),
   ).toBeVisible()
-  await page.getByRole("tab", { name: "JSON", exact: true }).click()
   await expect(
-    page.getByRole("textbox", { name: "Changes as JSON", exact: true }),
-  ).toContainText("Energy meter studio")
+    page.getByRole("list", { name: "Parameters" }).getByRole("listitem").first(),
+  ).toBeVisible()
+  await expect(page.getByRole("heading", { name: /^Versions/ })).toHaveCount(0)
   await healthy(page)
   await screenshot(page, info, "review-before-publish")
   await page
-    .getByRole("button", { name: "Publish as version 1", exact: true })
+    .getByRole("button", { name: "Publish version 1", exact: true })
     .click()
   await page
     .getByRole("alertdialog")
@@ -272,12 +268,12 @@ test("tenant authoring, calculation, alarm CRUD and immutable publication", asyn
     (await (await request(page, "GET", path + "/artifacts/1")).json()).data
       .definition,
   ).toEqual(first.definition)
-  await section(page, "Review and publish")
+  await section(page, "Review")
+  await expect(
+    page.getByRole("heading", { name: /^Changes since version 1/ }),
+  ).toBeVisible()
   await page
-    .getByRole("button", { name: "Validate draft", exact: true })
-    .click()
-  await page
-    .getByRole("button", { name: "Publish as version 2", exact: true })
+    .getByRole("button", { name: "Publish version 2", exact: true })
     .click()
   await page
     .getByRole("alertdialog")

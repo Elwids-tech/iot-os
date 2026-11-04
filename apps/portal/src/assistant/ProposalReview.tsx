@@ -1,4 +1,11 @@
-import { lazy, Suspense, useEffect, useId, useState } from "react"
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useId,
+  useState,
+  type ReactNode,
+} from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import type {
   AssistantChange,
@@ -48,7 +55,12 @@ import {
 import { Choice, Confirm, RequestError, TextField } from "../components/forms"
 import { api } from "../lib/api"
 import { IncomingConversionFields } from "../profiles/IncomingConversionFields"
-import { editedEvidence, fieldDiff } from "./state"
+import {
+  EDITED_NOTE,
+  editedEvidence,
+  evidenceTargets,
+  fieldDiff,
+} from "./state"
 
 const JsonCode = lazy(() => import("@iot-os/ui/components/json-code"))
 const enums: Record<string, string[]> = {
@@ -168,19 +180,24 @@ function ValueField({
 function Fields({
   entries,
   onChange,
+  note,
 }: {
   entries: [string, AssistantValue][]
   onChange: (key: string, value: AssistantValue) => void
+  /** Shown under a top-level field, such as where its value came from. */
+  note?: (key: string) => ReactNode
 }) {
   const nested = (value: AssistantValue) =>
     value !== null && typeof value === "object"
   const field = ([key, value]: [string, AssistantValue]) => (
-    <ValueField
-      key={key}
-      name={key}
-      value={value}
-      onChange={(next) => onChange(key, next)}
-    />
+    <div key={key} className="flex min-w-0 flex-col gap-1.5">
+      <ValueField
+        name={key}
+        value={value}
+        onChange={(next) => onChange(key, next)}
+      />
+      {note?.(key)}
+    </div>
   )
   const flags = entries.filter(([, value]) => typeof value === "boolean")
   return (
@@ -251,6 +268,72 @@ const operationBadge = {
   Update: "info",
   Remove: "destructive",
 } as const
+
+type Evidence = AssistantProposal["evidence"][number]
+
+/** A source's note as shown: a plain "you confirmed it" note repeats the label, the edit note says what was suggested. */
+function shownNote(item: Evidence) {
+  if (item.origin === "user_confirmed" && !item.note?.startsWith(EDITED_NOTE))
+    return null
+  return item.note?.replace(/`([^`]*)`/g, "“$1”") ?? null
+}
+
+/** One line per distinct source, so a value confirmed twice reads once. */
+function distinct<T extends { item: Evidence }>(entries: T[]) {
+  const line = ({ item }: T) =>
+    JSON.stringify([item.origin, item.source_id, item.location, shownNote(item)])
+  return entries.filter(
+    (entry, i) => entries.findIndex((other) => line(other) === line(entry)) === i,
+  )
+}
+
+/** One source under a field: where the value came from, its file, and Confirm when it was only suggested. */
+function SourceLine({
+  item,
+  source,
+  href,
+  onConfirm,
+}: {
+  item: Evidence
+  source?: AssistantSource
+  href?: string
+  onConfirm?: () => void
+}) {
+  const open = item.origin === "suggested" || item.origin === "unresolved"
+  const note = shownNote(item)
+  return (
+    <li
+      className={
+        "flex flex-wrap items-baseline gap-x-1.5 text-meta " +
+        (open ? "text-warning" : "text-muted-foreground")
+      }
+    >
+      <span className="font-medium">{evidenceLabel(item.origin)}</span>
+      {href && (
+        <a
+          className="text-primary underline-offset-2 hover:underline"
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {source?.name ?? "Source"}
+          {item.location ? ` · ${item.location}` : ""}
+        </a>
+      )}
+      {note && <span>· {note}</span>}
+      {open && onConfirm && (
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto p-0 text-meta"
+          onClick={onConfirm}
+        >
+          Confirm
+        </Button>
+      )}
+    </li>
+  )
+}
 
 function ChangeTitle({
   id,
@@ -329,17 +412,96 @@ export function ProposalReview({
     JSON.stringify(evidence) !== JSON.stringify(proposal.evidence)
   const blocked = proposal.diagnostics.some((item) => item.blocking)
   const pending = proposal.status === "pending"
-  async function revalidate() {
+  // Compare changes only helps when something existed before; a new item is all additions.
+  const comparable = changes.some(
+    (change) => operation(proposal, change) !== "Add",
+  )
+  // Sources are matched against the proposal as sent, so a renamed key keeps its sources.
+  const targets = evidenceTargets(evidence, proposal.changes)
+  const located = evidence.map((item, index) => ({
+    item,
+    index,
+    target: targets[index],
+  }))
+  const changedValue = (index: number, key: string) =>
+    JSON.stringify(changes[index]?.values[key]) !==
+    JSON.stringify(proposal.changes[index]?.values[key])
+  const unconfirmed = located.filter(
+    ({ item, target }) =>
+      (item.origin === "suggested" || item.origin === "unresolved") &&
+      !(target && changedValue(target.index, target.key)),
+  ).length
+  function confirm(index: number) {
+    setEvidence((current) =>
+      current.map((entry, i) =>
+        i === index
+          ? {
+              ...entry,
+              origin: "user_confirmed",
+              note: "Explicitly confirmed during section review",
+            }
+          : entry,
+      ),
+    )
+  }
+  const sourceLine = ({ item, index }: (typeof located)[number]) => (
+    <SourceLine
+      key={index}
+      item={item}
+      source={sources.find((source) => source.id === item.source_id)}
+      href={
+        item.source_id
+          ? api.assistantSourceUrl(org, conversation, item.source_id)
+          : undefined
+      }
+      onConfirm={pending ? () => confirm(index) : undefined}
+    />
+  )
+  function sourceNote(index: number, key: string) {
+    if (changedValue(index, key))
+      return (
+        <p className="text-meta text-primary">
+          Edited by you · the assistant suggested{" "}
+          {show(proposal.changes[index]?.values[key])}
+        </p>
+      )
+    const entries = distinct(
+      located.filter(
+        ({ target }) => target?.index === index && target.key === key,
+      ),
+    )
+    return entries.length ? (
+      <ul className="flex flex-col gap-0.5">{entries.map(sourceLine)}</ul>
+    ) : null
+  }
+  // Sources not tied to a field; a bare "you confirmed it" says nothing without one.
+  const loose = distinct(
+    located.filter(
+      ({ item, target }) =>
+        !target && (shownNote(item) || item.source_id || item.origin !== "user_confirmed"),
+    ),
+  )
+  // One step: edits are checked as a new proposal and saved when nothing blocks;
+  // otherwise the checked proposal opens here with its issues.
+  async function save() {
     setSaving(true)
     setError(null)
     try {
-      const next = await api.assistantPreview(org, conversation, {
-        section: proposal.section,
-        summary: proposal.summary,
-        changes,
-        evidence: editedEvidence(proposal, changes, evidence),
-      })
-      onPreview(next)
+      let checked = proposal
+      if (edited) {
+        checked = await api.assistantPreview(org, conversation, {
+          section: proposal.section,
+          summary: proposal.summary,
+          changes,
+          evidence: editedEvidence(proposal, changes, evidence),
+        })
+        if (checked.diagnostics.some((item) => item.blocking)) {
+          onPreview(checked)
+          return
+        }
+      }
+      await onDecision(checked, "approve")
+      onClose()
     } catch (error) {
       setError(error)
     } finally {
@@ -376,19 +538,19 @@ export function ProposalReview({
             Review {label(proposal.section).toLowerCase()}
           </DialogTitle>
           <DialogDescription>
-            {proposal.summary.replace(/\.$/, "")}. This saves a draft section.
-            Publication is a separate step.
+            {proposal.summary.replace(/\.$/, "")}. Saving checks these values
+            and adds them to the profile draft.
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">
-              {proposal.draft_revision === null
-                ? "New profile"
-                : `Based on draft ${proposal.draft_revision}`}
-            </Badge>
-            <Badge variant="outline">{proposal.status}</Badge>
-          </div>
+          {(proposal.draft_revision === null || !pending) && (
+            <div className="flex flex-wrap gap-2">
+              {proposal.draft_revision === null && (
+                <Badge variant="secondary">New profile</Badge>
+              )}
+              {!pending && <Badge variant="outline">{proposal.status}</Badge>}
+            </div>
+          )}
           <RequestError error={error} />
           {dirty && (
             <Alert>
@@ -400,13 +562,27 @@ export function ProposalReview({
             </Alert>
           )}
           <Tabs defaultValue="fields">
-            <TabsList className="grid w-full grid-cols-2 gap-1 group-data-[orientation=horizontal]/tabs:h-auto sm:grid-cols-4">
+            <TabsList
+              className={
+                "grid w-full gap-1 group-data-[orientation=horizontal]/tabs:h-auto " +
+                (comparable ? "grid-cols-3" : "grid-cols-2")
+              }
+            >
               <TabsTrigger value="fields">Edit fields</TabsTrigger>
-              <TabsTrigger value="changes">Compare changes</TabsTrigger>
+              {comparable && (
+                <TabsTrigger value="changes">Compare changes</TabsTrigger>
+              )}
               <TabsTrigger value="json">JSON · read only</TabsTrigger>
-              <TabsTrigger value="sources">Evidence</TabsTrigger>
             </TabsList>
             <TabsContent value="fields" className="flex flex-col gap-4">
+              {pending && unconfirmed > 0 && (
+                <p className="text-sm text-warning">
+                  {unconfirmed === 1
+                    ? "1 value was suggested by the assistant."
+                    : unconfirmed + " values were suggested by the assistant."}{" "}
+                  Confirm or change {unconfirmed === 1 ? "it" : "them"} below.
+                </p>
+              )}
               {changes.map((change, index) => (
                 <Panel key={index} className="shrink-0 border">
                   <PanelHeader>
@@ -481,6 +657,7 @@ export function ProposalReview({
                               </p>
                             )}
                           <Fields
+                            note={(key) => sourceNote(index, key)}
                             entries={Object.entries(change.values).filter(
                               ([key]) =>
                                 key !== "ingress_conversion" ||
@@ -505,7 +682,16 @@ export function ProposalReview({
                   </PanelContent>
                 </Panel>
               ))}
+              {loose.length > 0 && (
+                <section className="flex flex-col gap-1.5">
+                  <h3 className="text-sm font-medium">Other sources</h3>
+                  <ul className="flex flex-col gap-0.5">{loose.map(sourceLine)}</ul>
+                </section>
+              )}
               <p className="text-sm text-muted-foreground">
+                {evidence.length
+                  ? ""
+                  : "No sources were attached, so check the values against your device documentation. "}
                 Need a different structure, more fields, or another parameter?
                 Close this review and describe the change in chat.
               </p>
@@ -570,89 +756,22 @@ export function ProposalReview({
                 </Suspense>
               </div>
             </TabsContent>
-            <TabsContent value="sources" className="flex flex-col gap-3">
-              {evidence.length ? (
-                evidence.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex flex-col gap-1 rounded-lg border p-3 text-sm"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{item.field}</span>
-                      <Badge variant="outline">{evidenceLabel(item.origin)}</Badge>
-                    </div>
-                    {item.note && <p>{item.note}</p>}
-                    {pending &&
-                      (item.origin === "unresolved" ||
-                        item.origin === "suggested") && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setEvidence((current) =>
-                              current.map((entry, i) =>
-                                i === index
-                                  ? {
-                                      ...entry,
-                                      origin: "user_confirmed",
-                                      note: "Explicitly confirmed during section review",
-                                    }
-                                  : entry,
-                              ),
-                            )
-                          }
-                        >
-                          I confirm this value
-                        </Button>
-                      )}
-                    {item.source_id && (
-                      <a
-                        className="text-primary underline"
-                        href={api.assistantSourceUrl(
-                          org,
-                          conversation,
-                          item.source_id,
-                        )}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {sources.find((source) => source.id === item.source_id)
-                          ?.name ?? "Source"}
-                        {item.location ? ` · ${item.location}` : ""}
-                      </a>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No source evidence was attached. Confirm the values against
-                  your device documentation.
-                </p>
-              )}
-            </TabsContent>
           </Tabs>
-          {proposal.diagnostics.map((item, index) => (
-            <Alert
-              key={index}
-              variant={item.blocking ? "destructive" : "default"}
-            >
-              <AlertTitle>
-                {item.blocking
-                  ? "Resolve before saving"
-                  : "Still needed before publication"}
-              </AlertTitle>
-              <AlertDescription>{item.message}</AlertDescription>
-            </Alert>
-          ))}
-          {edited && (
-            <Alert>
-              <AlertTitle>Changes need validation</AlertTitle>
-              <AlertDescription>
-                Validate your edits, then review the updated proposal before
-                saving.
-              </AlertDescription>
-            </Alert>
-          )}
+          {/* Issues belong to the proposal as sent; after an edit, saving checks again. */}
+          {!edited &&
+            proposal.diagnostics.map((item, index) => (
+              <Alert
+                key={index}
+                variant={item.blocking ? "destructive" : "default"}
+              >
+                <AlertTitle>
+                  {item.blocking
+                    ? "Resolve before saving"
+                    : "Still needed before publication"}
+                </AlertTitle>
+                <AlertDescription>{item.message}</AlertDescription>
+              </Alert>
+            ))}
         </div>
         <DialogFooter>
           <Button variant="ghost" disabled={saving} onClick={onClose}>
@@ -667,21 +786,16 @@ export function ProposalReview({
               >
                 Dismiss proposal
               </Button>
-              {edited ? (
-                <Button
-                  disabled={saving || busy}
-                  onClick={() => void revalidate()}
-                >
-                  {saving ? "Validating…" : "Validate edits"}
-                </Button>
-              ) : (
-                <Button
-                  disabled={saving || busy || dirty || blocked}
-                  onClick={() => void decide("approve")}
-                >
-                  {saving ? "Saving…" : "Save this section"}
-                </Button>
-              )}
+              <Button
+                disabled={saving || busy || dirty || (blocked && !edited)}
+                onClick={() => void save()}
+              >
+                {saving
+                  ? edited
+                    ? "Checking and saving…"
+                    : "Saving…"
+                  : "Save this section"}
+              </Button>
             </>
           )}
         </DialogFooter>

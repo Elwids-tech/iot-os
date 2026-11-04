@@ -36,6 +36,7 @@ import {
 } from "./use-studio"
 import { plural } from "./ProfileDirectory"
 import { DeviceSetupBanner, useReturnTo } from "./device-setup"
+import { withParam } from "./return-to"
 import { ParametersSection } from "./ParametersSection"
 import { CalculationsSection } from "./CalculationsSection"
 import { AlarmsSection } from "./AlarmsSection"
@@ -66,8 +67,8 @@ const sections = [
   { key: "parameters", label: "Parameters" },
   { key: "calculations", label: "Calculations" },
   { key: "alarms", label: "Alarm templates" },
-  { key: "review", label: "Review and publish" },
   { key: "firmware", label: "Firmware" },
+  { key: "review", label: "Review" },
 ]
 function Workspace() {
   const { capabilities: deviceCapabilities } = useDeviceOrganization()
@@ -96,6 +97,18 @@ function Workspace() {
   const next = profile.revision + 1
   // "published" means the saved draft matches the live version: nothing to publish.
   const unchanged = profile.status === "published"
+  const checked = studio.capabilities.validate && profile.status === "draft"
+  const checking = checked && (check.isFetching || (!check.data && !check.isError))
+  // Publish rings once when a save makes it the next step, not when a page opens ready.
+  const ready = !blocker
+  const [wasReady, setWasReady] = useState(ready)
+  const [announce, setAnnounce] = useState(false)
+  if (ready !== wasReady) {
+    setWasReady(ready)
+    setAnnounce(ready)
+  }
+  const back = returnTo && withParam(returnTo, "profile", profile.uuid)
+  const devices = usage.data ?? 0
   const saved = (
     <span title={formatDateTime(profile.updated_at)}>
       {formatAge(profile.updated_at)} ago
@@ -129,27 +142,28 @@ function Workspace() {
         actions={
           <>
             {profile.revision > 0 && deviceCapabilities.manage && !returnTo && <Button asChild size="sm" variant="outline"><Link to={`/organizations/${studio.org}/devices/onboard?profile=${profile.uuid}`}>Connect a device</Link></Button>}
-            {studio.capabilities.validate && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={check.isFetching || studio.busy || studio.blocked}
-                onClick={() => void check.validate()}
-              >
-                {check.isFetching ? "Checking…" : "Validate draft"}
+            {back && unchanged ? (
+              <Button asChild size="sm">
+                <Link to={back}>Continue setup with version {profile.revision}</Link>
               </Button>
-            )}
-            {studio.capabilities.publish && (
-              <span title={blocker ?? undefined}>
-                <Button
-                  size="sm"
-                  variant={unchanged ? "outline" : "default"}
-                  disabled={Boolean(blocker)}
-                  onClick={() => setConfirm(true)}
-                >
-                  Publish as version {next}
-                </Button>
-              </span>
+            ) : (
+              studio.capabilities.publish && (
+                <>
+                  {blocker && !unchanged && !checking && (
+                    <span className="text-meta text-muted-foreground">{blocker}</span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={unchanged ? "outline" : "default"}
+                    disabled={Boolean(blocker)}
+                    className={announce ? "motion-safe:animate-next-step" : undefined}
+                    onAnimationEnd={() => setAnnounce(false)}
+                    onClick={() => setConfirm(true)}
+                  >
+                    {back ? "Publish and continue setup" : "Publish version " + next}
+                  </Button>
+                </>
+              )
             )}
           </>
         }
@@ -175,20 +189,28 @@ function Workspace() {
             ) : (
               <span>Draft saved {saved}</span>
             )}
-            {usage.data !== undefined && (
+            {usage.data !== undefined && profile.revision > 0 && (
               <span>Used by {plural(usage.data, "device")}</span>
             )}
-            {result && (
+            {checked && (checking || result || check.isError) && (
               <span>
-                <Link to={keep(base + "/review")} className="hover:underline">
-                  {result.valid ? (
-                    <StatusMark tone="good">Validation passed</StatusMark>
-                  ) : (
-                    <StatusMark tone="critical">
-                      {plural(result.diagnostics.length, "issue")}
-                    </StatusMark>
-                  )}
-                </Link>
+                {checking ? (
+                  <StatusMark tone="muted">Checking…</StatusMark>
+                ) : (
+                  <Link to={keep(base + "/review")} className="hover:underline">
+                    {!result ? (
+                      <StatusMark tone="critical">Check didn't finish</StatusMark>
+                    ) : result.valid ? (
+                      <StatusMark tone="good">
+                        {studio.capabilities.publish ? "Ready to publish" : "Checks passed"}
+                      </StatusMark>
+                    ) : (
+                      <StatusMark tone="critical">
+                        {plural(result.diagnostics.length, "issue")} to fix
+                      </StatusMark>
+                    )}
+                  </Link>
+                )}
               </span>
             )}
 </div>
@@ -222,20 +244,30 @@ function Workspace() {
       </EntityPage>
       <Confirm
         open={confirm}
-        title={"Publish as version " + next + "?"}
+        title={"Publish version " + next + "?"}
         description={
-          "Your saved draft becomes version " +
-          next +
-          ". Later edits stay as draft changes and earlier versions stay as they are. Devices are not changed."
+          (profile.revision === 0
+            ? profile.name +
+              " becomes available when you add devices. Later edits stay as a draft."
+            : "Your saved draft becomes version " +
+              next +
+              ". " +
+              (devices
+                ? "The " +
+                  plural(devices, "device") +
+                  " using version " +
+                  profile.revision +
+                  (devices === 1 ? " is" : " are") +
+                  " not changed."
+                : "Earlier versions stay as they are.")) +
+          (back ? " You go back to device setup with this version selected." : "")
         }
-        action="Publish"
+        action={back ? "Publish and continue" : "Publish"}
         destructive={false}
         onClose={() => setConfirm(false)}
         onConfirm={async () => {
           if (!check.ready)
-            throw new Error(
-              "Validate the latest saved draft before publishing.",
-            )
+            throw new Error("Wait for the check of the saved draft to finish.")
           await studio.perform(() =>
             api.publishDeviceProfile(
               studio.org,
@@ -244,6 +276,7 @@ function Workspace() {
             ),
           )
           check.clear()
+          if (back) navigate(back)
         }}
       />
     </Tabs>

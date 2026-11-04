@@ -38,8 +38,8 @@ You need profile viewing permission. Creating, editing, and publishing have sepa
 1. Open **Device profiles**, create or select a profile, and complete its identity in **Overview**.
 2. Add the device’s parameters in **Parameters**.
 3. Add calculations or alarm templates where needed.
-4. Save and validate the draft.
-5. Open **Review and publish** to inspect and publish a revision.
+4. Save the draft. Each save is checked automatically.
+5. Choose **Publish version** in the profile header, or open **Review** first to see what the version contains.
 6. Apply the chosen published revision through each device’s configuration.
 
 To write firmware for a published profile, open **Firmware**, choose the microcontroller or platform and how the device connects, and choose **Download starter**. The starter holds the SDK, this profile’s metrics and instructions for an AI coding agent, and no credentials. A device’s connection settings come from its own page. [Read the firmware guide](/help/firmware).

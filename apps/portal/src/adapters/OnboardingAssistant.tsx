@@ -80,6 +80,7 @@ import { Questions, sectionLabel } from "../assistant/AssistantPanel";
 import { ProposalReview, evidenceLabel } from "../assistant/ProposalReview";
 import { conversationCost, formatCost } from "../assistant/cost";
 import { ActivateAdapterDevice } from "./ActivateDevice";
+import { ProfilePublishCard, useProfileToPublish } from "./ProfilePublishCard";
 
 export type OnboardingStep = NonNullable<OnboardingState["next_step"]>["step"];
 
@@ -281,6 +282,7 @@ export default function OnboardingAssistantBody({
   const active = isActive(data);
   const enabled = settings.data?.enabled ?? false;
   const locked = busy || uploading || active || !canEdit || !enabled;
+  const publishable = useProfileToPublish(org, data?.profile_uuid);
 
   /**
    * Opens a page from the conversation. Ask stays on this conversation there, so a step
@@ -643,6 +645,28 @@ export default function OnboardingAssistantBody({
           </ActionCard>
         ),
       });
+  // Once every drafted section is saved, the profile is published here instead of in the studio.
+  if (
+    !active &&
+    (publishable.published ||
+      (publishable.draft && !data?.proposals.some((proposal) => proposal.status === "pending")))
+  )
+    items.push({
+      id: "publish-profile",
+      at: Infinity,
+      content: (
+        <ProfilePublishCard
+          org={org}
+          state={publishable}
+          disabled={locked}
+          onOpen={() => {
+            keepConversation();
+            if (sheet) closePanel();
+          }}
+          onContinue={(text) => void send(text)}
+        />
+      ),
+    });
   for (const proposal of data?.adapter_proposals ?? [])
     if (proposal.status === "pending")
       items.push({

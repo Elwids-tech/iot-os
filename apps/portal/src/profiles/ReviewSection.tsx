@@ -69,6 +69,44 @@ function locate(diagnostic: DeviceProfileDiagnostic, profile: DeviceProfileDetai
     }
   return { section: "overview", item: profile.name }
 }
+/** What version 1 will hold: counts and the parameters by name, since nothing came before. */
+function FirstVersion({ profile }: { profile: DeviceProfileDetail }) {
+  const counts = [
+    ["Parameters", profile.parameters.length],
+    [
+      "Calculations",
+      profile.parameters.filter((item) => item.calculation).length,
+    ],
+    ["Alarm templates", profile.alarm_templates.length],
+  ] as const
+  return (
+    <section aria-labelledby="review-contents" className="flex flex-col gap-3">
+      <h2 id="review-contents" className="text-sm font-semibold">
+        Version 1 will contain
+      </h2>
+      <dl className="grid max-w-lg grid-cols-3 rounded-md border">
+        {counts.map(([label, value]) => (
+          <div key={label} className="flex flex-col gap-0.5 px-3 py-2 not-first:border-l">
+            <dt className="text-meta text-muted-foreground">{label}</dt>
+            <dd className="font-mono text-heading tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {profile.parameters.length > 0 && (
+        <ul aria-label="Parameters" className="flex flex-wrap gap-1.5">
+          {profile.parameters.map((item) => (
+            <li key={item.uuid} className="rounded-full border px-2.5 py-0.5 text-meta">
+              {item.label}
+              {item.unit && (
+                <span className="ml-1 text-muted-foreground">{item.unit}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
 export function ReviewSection() {
   const studio = useStudio(),
     { profile } = studio
@@ -95,24 +133,38 @@ export function ReviewSection() {
     "/organizations/" + studio.org + "/device-profiles/" + profile.uuid
   const blocker = publishBlocker(studio, check)
   const { keep } = useReturnTo()
+  // Before version 1 there is nothing to compare: show what the first version will hold.
+  const first = profile.revision === 0
   return (
     <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-8">
         <section aria-labelledby="review-validation" className="flex flex-col gap-3">
           <h2 id="review-validation" className="text-sm font-semibold">
-            Validation
+            Checks
           </h2>
-          <RequestError error={check.error} />
+          <RequestError error={check.error}>
+            <Button variant="outline" onClick={() => void check.validate()}>
+              Check again
+            </Button>
+          </RequestError>
           {!studio.capabilities.validate ? (
             <p className="text-sm text-muted-foreground">
-              Your role can view this profile but can't validate it.
+              Your role can view this profile but can't check it.
+            </p>
+          ) : profile.status !== "draft" ? (
+            <p className="text-sm text-muted-foreground">
+              {profile.status === "archived"
+                ? "Archived profiles aren't checked."
+                : "No changes since version " + profile.revision + "."}
             </p>
           ) : !result ? (
-            <p className="text-sm text-muted-foreground">
-              Validate the saved draft to check it and list its changes.
-            </p>
+            !check.isError && (
+              <p role="status" className="text-sm text-muted-foreground">
+                Checking the saved draft…
+              </p>
+            )
           ) : result.validation.valid ? (
-            <StatusMark tone="good">Saved draft passed validation</StatusMark>
+            <StatusMark tone="good">Checks passed</StatusMark>
           ) : (
             <>
               <StatusMark tone="critical">
@@ -166,7 +218,9 @@ export function ReviewSection() {
             </>
           )}
         </section>
-        {result?.compiled && (
+        {first ? (
+          <FirstVersion profile={profile} />
+        ) : result?.compiled && (
           <section aria-labelledby="review-changes">
             <Tabs defaultValue="fields" className="gap-3">
               <div className="flex flex-wrap items-center gap-3">
@@ -248,6 +302,7 @@ export function ReviewSection() {
             Publishing doesn't change devices. Activation is separate.
           </p>
         </section>
+        {!first && (
         <section aria-labelledby="review-versions" className="flex flex-col gap-2">
           <h2 id="review-versions" className="text-sm font-semibold">
             Versions
@@ -334,6 +389,7 @@ export function ReviewSection() {
             />
           )}
         </section>
+        )}
       </aside>
       <Dialog
         open={Boolean(artifact)}
