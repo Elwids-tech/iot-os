@@ -79,6 +79,7 @@ import { Confirm, RequestError } from "../components/forms";
 import { Questions, sectionLabel } from "../assistant/AssistantPanel";
 import { ProposalReview, evidenceLabel } from "../assistant/ProposalReview";
 import { conversationCost, formatCost } from "../assistant/cost";
+import { FirmwareOfferCard } from "../assistant/FirmwareOfferCard";
 import { ActivateAdapterDevice } from "./ActivateDevice";
 import { ProfilePublishCard, useProfileToPublish } from "./ProfilePublishCard";
 
@@ -552,6 +553,13 @@ export default function OnboardingAssistantBody({
           }
         />
       ),
+    });
+  // A firmware starter the assistant offered sits where it was offered; it needs the assistant enabled.
+  if (enabled && state?.firmware_offer)
+    items.push({
+      id: "firmware-" + state.firmware_offer.at,
+      at: time(state.firmware_offer.at),
+      content: <FirmwareOfferCard org={org} offer={state.firmware_offer} disabled={locked} />,
     });
   items.sort((a, b) => a.at - b.at);
   if (sending && (data?.runs.length ?? 0) === sending.runs)

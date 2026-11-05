@@ -15,6 +15,12 @@ You don't download the SDK on its own. You download a **firmware starter**: a pr
 
 A starter holds no passwords, keys or broker addresses, so you can commit it and give it to an AI tool. The connection settings are a separate download on the device's page (**Firmware → Download settings**), for people allowed to manage connections. Unpack them into the starter's `config/` folder, which the starter keeps out of version control. **Download firmware kit** gives you both at once.
 
+The same starter is offered wherever firmware work starts:
+
+- **A gateway's page** has **Firmware**. Pick the gateway's health profile, the device types it reads (up to eight) and a target, then download the starter. People allowed to manage connections can also download the gateway's settings, or a full kit with them in place, and the choices are saved for whoever opens the gateway next.
+- **Adding a device** that connects directly offers **I’m writing the firmware** on the connection step, next to the setup bundle.
+- **The assistant**, when it's on, shows a card that downloads the starter when you ask it for firmware for a profile. It never handles connection settings.
+
 ## Targets
 
 - **Built targets** come with a project that builds as downloaded and is built on every change to the platform: Linux and macOS, the ESP32 on ESP-IDF v5.4.1, and the NXP i.MX RT1050 on the MCUXpresso SDK 26.09.00. The ESP32 project joins a Wi-Fi network that you set with `idf.py menuconfig` before the first build, and builds for other ESP32 chips after `idf.py set-target`.

@@ -16,10 +16,11 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@iot-os/ui/compone
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { EntityPage, PropertyList } from "@iot-os/ui/templates/entity-page"
-import { EllipsisIcon, KeyRoundIcon, RouterIcon } from "lucide-react"
+import { CpuIcon, EllipsisIcon, RouterIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { Confirm, RequestError } from "../components/forms"
-import { GatewayCredentials, TechnicalDetails } from "./GatewaysPage"
+import { TechnicalDetails } from "./GatewaysPage"
+import { GatewayFirmwareDialog } from "./GatewayFirmwareDialog"
 import { sourceLabel } from "./OnboardSource"
 import { devicePath, discoveryPath, gatewayPath, metricCount, useDeviceOrganization } from "./shared"
 
@@ -38,7 +39,7 @@ async function everyPage<T>(load: (page: number) => Promise<{ data: T[]; meta: {
 export function GatewayPage() {
   const { org, capabilities } = useDeviceOrganization()
   const { gatewayUuid = "" } = useParams()
-  const [credentials, setCredentials] = useState(false)
+  const [firmware, setFirmware] = useState(false)
   const [provisioning, setProvisioning] = useState(false)
   const gateways = useQuery({
     queryKey: ["gateways", org, "all"],
@@ -134,9 +135,9 @@ export function GatewayPage() {
       back={back}
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={() => setCredentials(true)}>
-            <KeyRoundIcon data-icon="inline-start" />
-            Get credentials
+          <Button variant="outline" size="sm" onClick={() => setFirmware(true)}>
+            <CpuIcon data-icon="inline-start" />
+            Firmware
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -220,7 +221,15 @@ export function GatewayPage() {
           empty={<EmptyState inset title="No sources announced yet" />}
         />
       </section>
-      {credentials && <GatewayCredentials gateway={gateway} onClose={() => setCredentials(false)} />}
+      {firmware && (
+        <GatewayFirmwareDialog
+          org={org}
+          gateway={gateway}
+          devices={devices.isError ? [] : gatewayDevices}
+          canManage={capabilities.connections}
+          onClose={() => setFirmware(false)}
+        />
+      )}
       <Confirm
         open={provisioning}
         title={`Apply access for ${gateway.name}?`}

@@ -667,10 +667,12 @@ test("gateways list their devices and discovery shows a clearable gateway filter
   await expect(page).toHaveURL(`${base}/gateways/${gatewayId}`)
   await expect(page.getByRole("heading", { name: "Simulator gateway", level: 1 })).toBeVisible()
   await expect(page.getByRole("link", { name: "Energy Meter Simulator" })).toBeVisible()
-  await page.getByRole("button", { name: "Get credentials" }).click()
-  await expect(page.getByRole("dialog", { name: "Get gateway credentials" })).toContainText(
-    `devices:export-gateway ${gatewayId}`,
-  )
+  // Firmware replaced Get credentials, and server commands are not shown in the portal.
+  await expect(page.getByRole("button", { name: "Get credentials" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Firmware", exact: true }).click()
+  const firmware = page.getByRole("dialog", { name: "Gateway firmware" })
+  await expect(firmware.getByRole("combobox", { name: "Gateway health" })).toBeVisible()
+  await expect(firmware).not.toContainText("artisan")
   await page.keyboard.press("Escape")
   await axe(page)
   await page.getByRole("link", { name: "Back to Gateways" }).click()

@@ -83,7 +83,7 @@ cd apps/api && php artisan test --compact --filter=Firmware
 - The gateway connects, and the births of its node and two device types match their
   profiles.
 - Reopening the dialog shows the saved selection, for a second admin too.
-- **Get credentials** is gone, and its server-export text remains as a note.
+- **Get credentials** is gone, and the portal shows no server commands.
 
 ## 6. Onboarding and assistant (US4, US5)
 

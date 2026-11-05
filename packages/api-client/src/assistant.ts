@@ -1,4 +1,5 @@
 import type { DeviceProfileCapabilities } from "./index"
+import type { FirmwareRole } from "./firmware"
 
 export type AssistantSection =
   | "identity"
@@ -89,6 +90,13 @@ export type AssistantConversation = {
   profile_name: string | null
   updated_at: string
 }
+/** A firmware starter the assistant offered as a card (spec 027 US5); the person's press downloads it. */
+export type FirmwareOffer = {
+  profile_uuid: string
+  target: string
+  role: FirmwareRole
+  at: string
+}
 export type AssistantDetail = AssistantConversation & {
   runs: AssistantRun[]
   sources: AssistantSource[]
@@ -96,6 +104,7 @@ export type AssistantDetail = AssistantConversation & {
   onboarding_state: {
     questions?: AssistantQuestion[]
     answers?: AssistantAnswer[]
+    firmware_offer?: FirmwareOffer | null
   } | null
   cursor: number
 }
@@ -193,6 +202,7 @@ export type OnboardingState = {
   source_type?: "platform" | "vendor" | "webhook" | "poll" | null
   next_step?: { step: "credentials" | "secret" | "test" | "deploy" | "activate" | "cursor"; message: string; adapter_uuid: string; at: string } | null
   last_fetch?: { adapter_uuid: string; status: number | null; record_count: number; next_cursor: string | null; error: string | null; at: string } | null
+  firmware_offer?: FirmwareOffer | null
 }
 export type OnboardingConversation = {
   id: string

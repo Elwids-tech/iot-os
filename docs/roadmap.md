@@ -50,7 +50,7 @@ Grouped by area. Links point at the decision or doc that explains the item.
   commit together with it.
 - **Typed runtime events.** Give the internal runtime events JSON Schemas in
   `contracts/` and validate them on both sides instead of untyped maps.
-- **Unused infrastructure.** Redis, MinIO and the stock Node-RED service run in the
+- **Unused infrastructure.** Redis and the stock Node-RED service run in the
   development stack but nothing uses them; remove them or adopt them deliberately.
 
 ### Control plane
