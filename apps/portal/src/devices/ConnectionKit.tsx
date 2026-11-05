@@ -1,6 +1,13 @@
 import { useState } from "react";
 import type { DeviceConnectionKit, DeviceOnboarding } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
+import { Checkbox } from "@iot-os/ui/components/checkbox";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from "@iot-os/ui/components/field";
 import {
   Accordion,
   AccordionContent,
@@ -21,7 +28,12 @@ import {
 import { CopyIcon, DownloadIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { RequestError } from "../components/forms";
-import { downloadFile } from "../lib/download";
+import { downloadFile, saveArchive } from "../lib/download";
+import {
+  FirmwareDownloadButton,
+  FirmwareTargetSelect,
+  useFirmwareTargets,
+} from "../lib/firmware";
 
 export function ConnectionKit({
   org,
@@ -148,6 +160,12 @@ export function ConnectionKit({
             this kit.
           </p>
         )}
+        <WritingFirmware
+          org={org}
+          setup={setup}
+          canDownload={canDownload}
+          onProvisioned={onProvisioned}
+        />
       </div>
       <div className="flex flex-col gap-2">
         <h2 className="font-semibold">
@@ -281,6 +299,136 @@ export function ConnectionKit({
         Keep this bundle private. It contains the credentials for this
         connection.
       </p>
+    </div>
+  );
+}
+
+/**
+ * "I'm writing the firmware" (spec 027 US4): a credential-free starter for the device's
+ * profile for anyone at this step, and its firmware kit (the starter with this device's
+ * connection settings) for people who may manage connections.
+ */
+function WritingFirmware({
+  org,
+  setup,
+  canDownload,
+  onProvisioned,
+}: {
+  org: string;
+  setup: DeviceOnboarding;
+  canDownload: boolean;
+  onProvisioned: () => void;
+}) {
+  const [writing, setWriting] = useState(false);
+  const [target, setTarget] = useState("");
+  const [busy, setBusy] = useState<"starter" | "kit" | null>(null),
+    [error, setError] = useState<unknown>(null),
+    [done, setDone] = useState("");
+  const targets = useFirmwareTargets(org, "direct", writing);
+  async function download(kind: "starter" | "kit") {
+    if (busy || !target) return;
+    setBusy(kind);
+    setError(null);
+    setDone("");
+    try {
+      if (kind === "starter") {
+        saveArchive(
+          await api.createFirmwareStarter(org, {
+            target,
+            role: "direct",
+            node_artifact_uuid: setup.artifact.uuid,
+          }),
+        );
+        setDone("Starter downloaded.");
+        return;
+      }
+      if (!setup.provisioned) {
+        const result = await api.provisionDeviceOnboarding(
+          org,
+          setup.device.uuid,
+        );
+        onProvisioned();
+        if (!result.provisioned)
+          throw new Error(
+            result.diagnostic ?? "Connection setup is not ready. Please retry.",
+          );
+      }
+      // The archive stays in this function: it holds the device's credentials.
+      saveArchive(await api.deviceFirmwareKit(org, setup.device.uuid, target));
+      setDone(
+        "Firmware kit downloaded. Its config/ folder holds the credentials: keep it private.",
+      );
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <div className="mt-3 flex w-full flex-col gap-3">
+      <Field orientation="horizontal">
+        <Checkbox
+          id="writing-firmware"
+          checked={writing}
+          onCheckedChange={(checked) => setWriting(checked === true)}
+        />
+        <FieldContent>
+          <FieldLabel htmlFor="writing-firmware">
+            I’m writing the firmware
+          </FieldLabel>
+          <FieldDescription>
+            Get a starter project with the IoT OS SDK and this profile's
+            metrics, ready for you or an AI coding agent.
+          </FieldDescription>
+        </FieldContent>
+      </Field>
+      {writing && (
+        <div className="flex flex-col items-start gap-3 pl-7">
+          <Field className="max-w-sm">
+            <FieldLabel htmlFor="onboarding-firmware-target">
+              Microcontroller or platform
+            </FieldLabel>
+            <FirmwareTargetSelect
+              id="onboarding-firmware-target"
+              targets={targets.options}
+              value={target}
+              onChange={setTarget}
+              loading={targets.isPending}
+            />
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <FirmwareDownloadButton
+              hint="A project for the chosen target with the SDK, this profile's metric tables and instructions for an AI coding agent. It holds no credentials, so it is safe to commit and share."
+              variant="outline"
+              disabled={!target || busy !== null}
+              onClick={() => void download("starter")}
+            >
+              <DownloadIcon data-icon="inline-start" />
+              {busy === "starter" ? "Preparing…" : "Download starter"}
+            </FirmwareDownloadButton>
+            {canDownload && (
+              <FirmwareDownloadButton
+                hint="The starter with this device's connection settings already in config/, so it builds and connects as downloaded. Keep it private."
+                variant="outline"
+                disabled={!target || busy !== null}
+                onClick={() => void download("kit")}
+              >
+                <DownloadIcon data-icon="inline-start" />
+                {busy === "kit" ? "Preparing…" : "Download firmware kit"}
+              </FirmwareDownloadButton>
+            )}
+          </div>
+          <p className="text-meta text-muted-foreground">
+            {canDownload
+              ? "The starter holds no credentials. The firmware kit adds this device's connection settings in config/: keep it private."
+              : "The starter holds no credentials. Its connection settings come from an administrator."}
+          </p>
+          <RequestError error={error ?? targets.error} />
+          <p role="status" className="text-meta">
+            {done}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

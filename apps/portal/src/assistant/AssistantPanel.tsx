@@ -77,6 +77,7 @@ import { Choice, Confirm, RequestError } from "../components/forms"
 import { ProposalReview } from "./ProposalReview"
 import { applyTextEvents } from "./state"
 import { conversationCost, formatCost } from "./cost"
+import { FirmwareOfferCard } from "./FirmwareOfferCard"
 
 type Draft = { text: string; sources: string[] }
 const SECTION_LABELS: Record<string, string> = {
@@ -624,6 +625,14 @@ export default function ProfileAssistantBody({
           </Button>
         </ActionCard>
       ),
+    })
+  // A firmware starter the assistant offered sits where it was offered; it needs the assistant enabled.
+  const firmwareOffer = detail?.onboarding_state?.firmware_offer
+  if (available && firmwareOffer)
+    messages.push({
+      id: "firmware-" + firmwareOffer.at,
+      at: Date.parse(firmwareOffer.at),
+      content: <FirmwareOfferCard org={org} offer={firmwareOffer} disabled={locked} />,
     })
   messages.sort((a, b) => a.at - b.at)
   if (sending && (detail?.runs.length ?? 0) === sending.runs)

@@ -238,7 +238,8 @@ Additions only, with no change to the public API (FR-012):
   - **Download starter**, **Download settings** and **Download full kit**, the last two
     behind the permission.
 
-  The server-export command stays as a note under a disclosure.
+  The server-export command keeps working for operators but is not shown in the portal
+  (FR-034; owner, 2026-11-05).
 - **`devices/ConnectionKit.tsx`**: "I'm writing the firmware" reveals a target `Select`,
   **Download starter**, and **Download firmware kit** (with `Device.manage-connections`)
   beside the unchanged **Download setup bundle**.

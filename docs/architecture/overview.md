@@ -117,7 +117,7 @@ flowchart TB
 | Database | TimescaleDB 2.29 on PostgreSQL 17 | Laravel owns the `public` schema; Go owns `device_runtime` (telemetry, latest state, outboxes, rule and DAG state) |
 | NATS | JetStream | Four streams, created and consumed only by the runtime ([events](../reference/events.md#nats-jetstream)) |
 
-The local development stack also starts Redis, MinIO and a stock Node-RED; the
+The local development stack also starts Redis and a stock Node-RED; the
 application does not use them ([local setup](../dev/local-setup.md)).
 
 ## Key flows

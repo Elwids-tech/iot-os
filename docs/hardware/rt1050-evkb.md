@@ -82,8 +82,10 @@ so a pass over a mostly empty bus takes about half a minute. On a real bus, narr
 
 ## Protocol
 
-1. **Start the clock** when the gateway's **Firmware** tab is opened.
-2. Choose **NXP i.MX RT1050 (MCUXpresso SDK)** and download the full kit. Check its
+1. **Start the clock** when **Firmware** is chosen on the gateway's page.
+2. In the gateway's Firmware dialog, keep the preselected gateway health profile and the
+   device type suggested from the devices behind the gateway, choose **NXP i.MX RT1050
+   (MCUXpresso SDK)** and **Download full kit**. Check its
    layout: `CMakeLists.txt`, `prj.conf`, `lwipopts.h` and `board/` at the root, the
    developer's code in `app/`, `app/modbus_rtu.c` present, and no vendor SDK.
 3. Fetch the SDK as the README's Build section shows, then write `app/field.c`: each

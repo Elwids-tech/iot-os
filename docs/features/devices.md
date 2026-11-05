@@ -44,11 +44,24 @@ they can be onboarded or rejected. A source's `birth_revision` changes when
 metric names or types change. A source can belong to at most one non-archived
 device.
 
-Firmware for a gateway comes from a [firmware starter](embedded-sdk.md#firmware-starters)
-plus the gateway's connection settings (`POST gateways/{gateway}/connection-settings`) or
-both at once (`POST gateways/{gateway}/firmware-kit`); the gateway's Firmware dialog
-arrives in spec 027 PR 2. An operator with server access can still export a gateway's
-private configuration:
+Firmware for a gateway comes from its **Firmware** dialog, on the gateway's page and in
+the gateway list's row menu; it replaced **Get credentials**. The dialog picks the
+gateway's node profile, up to 8 device types (`IOTOS_MAX_DEVICE_TYPES`) and a target:
+
+- **Preselected**: the choices saved on the gateway (`firmware_selection`, the same for
+  everyone who opens it). With nothing saved, the node is the organization's published
+  `gateway-health` profile, otherwise the SDK's default health metrics, and the device
+  types are the profiles of the devices already behind the gateway.
+- **Download starter**: a credential-free [firmware starter](embedded-sdk.md#firmware-starters),
+  for anyone who may view profiles.
+- **Download settings** (`POST gateways/{gateway}/connection-settings`) and **Download
+  full kit** (`POST gateways/{gateway}/firmware-kit`): only with
+  `Device.manage-connections`. A starter or kit downloaded by such a person saves the
+  choices on the gateway.
+
+The dialog confirms downloads in place rather than in a toast. The portal shows no server
+commands; an operator with server access can still export a gateway's private
+configuration:
 
 ```sh
 php artisan devices:export-gateway <gateway-uuid> --output=/tmp/gateway.json \
@@ -67,9 +80,12 @@ guided path:
    ID, or choose [**The gateway itself**](#the-gateway-itself)), pick a published
    profile and name the device.
 2. For a direct device, download the connection kit ZIP (`device-config.json`,
-   `ca.crt`, `quickstart.md`) or copy the settings. A device behind a gateway gets
-   no kit: the gateway already holds the connection, and its credentials leave the
-   platform only in the gateway's own firmware settings.
+   `ca.crt`, `quickstart.md`) or copy the settings. **I’m writing the firmware**
+   reveals a target picker, **Download starter** (a credential-free starter for the
+   device's profile, for anyone at this step) and **Download firmware kit** (the starter
+   with this device's settings, with `Device.manage-connections`). A device behind a
+   gateway gets no kit: the gateway already holds the connection, and its credentials
+   leave the platform only in the gateway's own firmware settings.
 3. Start the publisher. The wizard waits for the birth and suggests mappings from
    announced metrics to profile parameters. Samples at this stage are previews.
 4. Review validation and activate. The setup completes only after runtime

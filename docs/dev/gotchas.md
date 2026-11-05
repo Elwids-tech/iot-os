@@ -230,6 +230,15 @@ Things that have cost time before. Add to this list when something surprises you
   logs `MQTT connection pending`. `./taskw devices:up` runs
   `php artisan devices:reprovision-broker`; run it in the `api` container after
   recreating the volume by hand.
+- **A pinned image that leaves its registry breaks a fresh `up` for every service.**
+  Compose pulls the stack's images in parallel and one failed pull aborts the
+  rest, so nothing starts. On 2026-11-05 Docker Hub refused
+  `minio/minio:RELEASE.2025-09-07T16-13-09Z` ("repository does not exist"), and
+  a reset Docker could not start the dev stack although nothing used MinIO. Local
+  image caches hide this until a Docker reset or a new machine. MinIO was removed
+  from the dev stack; for another image, `docker compose ... pull
+  --ignore-pull-failures` names the missing one, and `up -d` with the other
+  services listed starts the rest. Pin an image that is still published.
 - **Rebuilding `api` signs everyone out.** The dev API uses the `file` session
   driver inside the container ([`compose.app.yml`](../../deploy/compose/compose.app.yml)).
   This is expected, not a regression.

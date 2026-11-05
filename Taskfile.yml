@@ -62,7 +62,6 @@ tasks:
       - test "$(docker compose --env-file .env -f {{.COMPOSE_FILE}} exec -T redis redis-cli ping)" = "PONG"
       - curl --fail --silent http://127.0.0.1:${IOT_NATS_MONITOR_PORT}/healthz >/dev/null
       - curl --fail --silent http://127.0.0.1:${IOT_NODE_RED_PORT} >/dev/null
-      - curl --fail --silent http://127.0.0.1:${IOT_MINIO_API_PORT}/minio/health/live >/dev/null
       - curl --fail --silent http://127.0.0.1:${IOT_MAILPIT_UI_PORT:-8025}/ >/dev/null
 
   deps:logs:

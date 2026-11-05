@@ -454,7 +454,8 @@ and the project still builds.
   recorded in the activity log without secrets, as kits are today (ADR-029).
 - **FR-033**: The direct-device kit's existing files MUST keep their current content.
 - **FR-034**: The gateway page MUST replace the "Get credentials" instructions with
-  these downloads; the server export command MUST keep working.
+  these downloads; the server export command MUST keep working, but the portal MUST NOT
+  show it, because server commands are for operators, not customers (owner, 2026-11-05).
 
 **Entry points**
 
