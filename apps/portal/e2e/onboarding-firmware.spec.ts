@@ -142,6 +142,8 @@ test("writing the firmware reveals a target picker, then the starter and the kit
   expect(state.starters).toEqual([{ target: "esp32-esp-idf", role: "direct", node_artifact_uuid: artifactId }])
 
   // The kit provisions the connection first, as the setup bundle does.
+  await page.getByRole("button", { name: "Download firmware kit" }).hover()
+  await expect(page.getByRole("tooltip")).toContainText("this device's connection settings already in config/")
   const kit = page.waitForEvent("download")
   await page.getByRole("button", { name: "Download firmware kit" }).click()
   expect((await kit).suggestedFilename()).toBe("pump-relay-1-esp32-esp-idf-firmware-kit.zip")

@@ -29,7 +29,11 @@ import { CopyIcon, DownloadIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { RequestError } from "../components/forms";
 import { downloadFile, saveArchive } from "../lib/download";
-import { FirmwareTargetSelect, useFirmwareTargets } from "../lib/firmware";
+import {
+  FirmwareDownloadButton,
+  FirmwareTargetSelect,
+  useFirmwareTargets,
+} from "../lib/firmware";
 
 export function ConnectionKit({
   org,
@@ -393,23 +397,25 @@ function WritingFirmware({
             />
           </Field>
           <div className="flex flex-wrap gap-2">
-            <Button
+            <FirmwareDownloadButton
+              hint="A project for the chosen target with the SDK, this profile's metric tables and instructions for an AI coding agent. It holds no credentials, so it is safe to commit and share."
               variant="outline"
               disabled={!target || busy !== null}
               onClick={() => void download("starter")}
             >
               <DownloadIcon data-icon="inline-start" />
               {busy === "starter" ? "Preparing…" : "Download starter"}
-            </Button>
+            </FirmwareDownloadButton>
             {canDownload && (
-              <Button
+              <FirmwareDownloadButton
+                hint="The starter with this device's connection settings already in config/, so it builds and connects as downloaded. Keep it private."
                 variant="outline"
                 disabled={!target || busy !== null}
                 onClick={() => void download("kit")}
               >
                 <DownloadIcon data-icon="inline-start" />
                 {busy === "kit" ? "Preparing…" : "Download firmware kit"}
-              </Button>
+              </FirmwareDownloadButton>
             )}
           </div>
           <p className="text-meta text-muted-foreground">

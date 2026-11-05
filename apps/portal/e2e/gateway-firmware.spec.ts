@@ -152,6 +152,12 @@ test("Firmware replaces Get credentials and downloads a starter in three actions
   await expect(dialog.getByRole("combobox", { name: "Device type 1" })).toHaveText("Water meter")
   await expect(dialog.getByRole("combobox", { name: "Device type 2" })).toHaveText("Pump relay")
   await expect(dialog.getByRole("combobox", { name: "Device type 3" })).toHaveCount(0)
+  // Each download says what it holds, even while it waits for a target.
+  await expect(dialog.getByRole("button", { name: "Download starter" })).toBeDisabled()
+  await dialog.getByRole("button", { name: "Download starter" }).locator("..").hover()
+  await expect(page.getByRole("tooltip")).toContainText("It holds no credentials")
+  await page.mouse.move(0, 0, { steps: 5 })
+  await expect(page.getByRole("tooltip")).toHaveCount(0)
   await axe(page)
   // 2. Choose the target.
   await dialog.getByRole("combobox", { name: "Microcontroller or platform" }).click()
@@ -200,6 +206,12 @@ test("saved choices come first and the full kit and settings use them", async ({
   await page.getByRole("combobox", { name: "Search device type 2" }).fill("water")
   await page.getByRole("option", { name: "Water meter" }).click()
 
+  await dialog.getByRole("button", { name: "Download settings" }).hover()
+  await expect(page.getByRole("tooltip")).toContainText("Only this gateway's connection settings")
+  await page.mouse.move(0, 0, { steps: 5 })
+  await expect(page.getByRole("tooltip")).toHaveCount(0)
+  await dialog.getByRole("button", { name: "Download full kit" }).hover()
+  await expect(page.getByRole("tooltip")).toContainText("already in config/, so it builds and connects as downloaded")
   const kit = page.waitForEvent("download")
   await dialog.getByRole("button", { name: "Download full kit" }).click()
   expect((await kit).suggestedFilename()).toBe("line-2-gateway-firmware-kit.zip")

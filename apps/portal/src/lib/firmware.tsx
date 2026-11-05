@@ -1,5 +1,8 @@
+import type { ComponentProps } from "react"
 import { useQuery } from "@tanstack/react-query"
 import type { DeviceProfile, FirmwareArchive, FirmwareRole, FirmwareTarget } from "@iot-os/api-client"
+import { Button } from "@iot-os/ui/components/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@iot-os/ui/components/tooltip"
 import {
   Select,
   SelectContent,
@@ -63,6 +66,30 @@ export function FirmwareTargetSelect({
         })}
       </SelectContent>
     </Select>
+  )
+}
+
+/**
+ * A firmware download button whose tooltip says what the archive holds, so starters,
+ * settings and kits side by side are not confused. The tooltip also shows while the
+ * button waits for a target.
+ */
+export function FirmwareDownloadButton({ hint, disabled, ...props }: ComponentProps<typeof Button> & { hint: string }) {
+  const button = <Button disabled={disabled} {...props} />
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {disabled ? (
+          // A disabled button gets no pointer or focus events, so the wrapper carries the tooltip.
+          <span tabIndex={0} className="inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring *:flex-1">
+            {button}
+          </span>
+        ) : (
+          button
+        )}
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64">{hint}</TooltipContent>
+    </Tooltip>
   )
 }
 

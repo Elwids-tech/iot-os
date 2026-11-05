@@ -17,7 +17,13 @@ import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { DownloadIcon, PlusIcon, XIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { saveArchive } from "../lib/download"
-import { FirmwareTargetSelect, gatewayHealthProfile, publishedArtifact, useFirmwareTargets } from "../lib/firmware"
+import {
+  FirmwareDownloadButton,
+  FirmwareTargetSelect,
+  gatewayHealthProfile,
+  publishedArtifact,
+  useFirmwareTargets,
+} from "../lib/firmware"
 import { RequestError } from "../components/forms"
 
 /** IOTOS_MAX_DEVICE_TYPES: the most device types one gateway starter holds. */
@@ -232,19 +238,33 @@ function FirmwareChoices({
           Close
         </Button>
         {canManage && (
-          <Button variant="outline" disabled={busy !== null} onClick={() => void download("settings")}>
+          <FirmwareDownloadButton
+            hint="Only this gateway's connection settings: its credentials, the broker address and the CA certificate. Unpack them into a starter's config/ folder. Keep them private."
+            variant="outline"
+            disabled={busy !== null}
+            onClick={() => void download("settings")}
+          >
             {busy === "settings" ? "Preparing…" : "Download settings"}
-          </Button>
+          </FirmwareDownloadButton>
         )}
-        <Button variant={canManage ? "outline" : "default"} disabled={!ready || busy !== null} onClick={() => void download("starter")}>
+        <FirmwareDownloadButton
+          hint="A project for the chosen target with the SDK, metric tables for these profiles and instructions for an AI coding agent. It holds no credentials, so it is safe to commit and share."
+          variant={canManage ? "outline" : "default"}
+          disabled={!ready || busy !== null}
+          onClick={() => void download("starter")}
+        >
           <DownloadIcon data-icon="inline-start" />
           {busy === "starter" ? "Preparing…" : "Download starter"}
-        </Button>
+        </FirmwareDownloadButton>
         {canManage && (
-          <Button disabled={!ready || busy !== null} onClick={() => void download("kit")}>
+          <FirmwareDownloadButton
+            hint="The starter with this gateway's connection settings already in config/, so it builds and connects as downloaded. Keep it private."
+            disabled={!ready || busy !== null}
+            onClick={() => void download("kit")}
+          >
             <DownloadIcon data-icon="inline-start" />
             {busy === "kit" ? "Preparing…" : "Download full kit"}
-          </Button>
+          </FirmwareDownloadButton>
         )}
       </DialogFooter>
     </>
