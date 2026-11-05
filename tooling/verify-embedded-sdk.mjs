@@ -313,6 +313,9 @@ try {
   const valveDevice = (await api("POST", path + "/devices", { name: `Embedded SDK ${suffix} valve`, code: `${edge}-valve` }, 201)).data
   created.push(valveDevice.uuid)
   const applied = await activate(valveDevice.uuid, valve, valveSource)
+  // The activation's own rebirth resets every device's birth, and a command before the valve is
+  // announced again gets 422 ("needs a current compatible birth certificate").
+  await birthsSettled()
   const open = valve.definition.parameters.find((p) => p.accepts_command)
   const command = (await api("POST", `${path}/devices/${valveDevice.uuid}/commands/send`, { configuration_uuid: applied.applied_configuration_uuid, parameter_uuid: open.uuid, value: true, idempotency_key: randomUUID() })).data
   await until("the command to be observed", () => api("GET", `${path}/devices/${valveDevice.uuid}/commands`), (r) => r.data.some((c) => c.uuid === command.uuid && c.status === "observed"), 120)
