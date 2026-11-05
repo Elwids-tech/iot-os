@@ -63,6 +63,7 @@ type node struct {
 	BdSeq     uint64
 	Seq       uint64
 	BirthHash string
+	Born      time.Time
 	Sources   map[string]*registry
 	Online    bool
 }
@@ -127,7 +128,7 @@ func (e *Engine) Accept(connection string, topic string, raw []byte, at time.Tim
 		if n != nil && n.Online && n.BirthHash == birthHash {
 			return p, ErrDuplicate
 		}
-		n = &node{Session: fmt.Sprintf("%s:%d:%d:%d", k, bd, payload.GetTimestamp(), at.UnixNano()), BdSeq: bd, Seq: 0, BirthHash: birthHash, Sources: map[string]*registry{}, Online: true}
+		n = &node{Session: fmt.Sprintf("%s:%d:%d:%d", k, bd, payload.GetTimestamp(), at.UnixNano()), BdSeq: bd, Seq: 0, BirthHash: birthHash, Born: at, Sources: map[string]*registry{}, Online: true}
 		e.nodes[k] = n
 	} else {
 		if n == nil || !n.Online {
@@ -369,6 +370,19 @@ func (e *Engine) NodeOnline(connection, edge string) bool {
 	defer e.mu.Unlock()
 	n := e.nodes[connection+"/"+edge]
 	return n != nil && n.Online
+}
+
+// BirthDue reports whether a source's edge node is online and has not announced the
+// source in its current session yet, and when that session began (its NBIRTH). A
+// source that died in the session is not due.
+func (e *Engine) BirthDue(source devices.Source) (time.Time, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	n := e.nodes[source.ConnectionUUID+"/"+source.EdgeNodeID]
+	if n == nil || !n.Online || n.Sources[source.DeviceID] != nil {
+		return time.Time{}, false
+	}
+	return n.Born, true
 }
 func (e *Engine) Disconnect(connection string) {
 	e.mu.Lock()
