@@ -1,8 +1,8 @@
 name: ${IOT_COMPOSE_PROJECT_NAME:-iot-os-dev}
 
-# Infrastructure ports listen on localhost only. Databases, NATS, Redis, MinIO
-# and the Node-RED editor have development credentials or none, so they must
-# not be reachable from the LAN. Set IOT_DEV_BIND_ADDRESS=0.0.0.0 to expose
+# Infrastructure ports listen on localhost only. Databases, NATS, Redis and the
+# Node-RED editor have development credentials or none, so they must not be
+# reachable from the LAN. Set IOT_DEV_BIND_ADDRESS=0.0.0.0 to expose
 # them deliberately. Device-facing MQTTS (compose.devices.yml) stays public so
 # hardware on the LAN can connect. A localhost port cannot be shared with a
 # native service, so pick free IOT_*_PORT values (./taskw doctor checks them).
@@ -86,26 +86,6 @@ services:
       - adapter
       - internal
 
-  minio:
-    image: ${IOT_MINIO_IMAGE}
-    command: ["server", "/data", "--console-address", ":9001"]
-    environment:
-      MINIO_ROOT_USER: ${IOT_MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${IOT_MINIO_ROOT_PASSWORD}
-    ports:
-      - "${IOT_DEV_BIND_ADDRESS:-127.0.0.1}:${IOT_MINIO_API_PORT}:9000"
-      - "${IOT_DEV_BIND_ADDRESS:-127.0.0.1}:${IOT_MINIO_CONSOLE_PORT}:9001"
-    volumes:
-      - minio-data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:9000/minio/health/live >/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-    restart: unless-stopped
-    networks:
-      - internal
-
   mailpit:
     image: ${IOT_MAILPIT_IMAGE:-axllent/mailpit:v1.27.7}
     environment:
@@ -128,5 +108,4 @@ volumes:
   redis-data:
   nats-data:
   node-red-data:
-  minio-data:
   mailpit-data:

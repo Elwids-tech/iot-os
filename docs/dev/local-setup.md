@@ -26,7 +26,7 @@ values; never reuse them anywhere else.
 
 | Command | Starts | Use it for |
 | --- | --- | --- |
-| `./taskw deps:up` | Infrastructure only ([`compose.dev.yml`](../../deploy/compose/compose.dev.yml)): TimescaleDB, Redis, NATS, Node-RED, MinIO, Mailpit | Running the API natively |
+| `./taskw deps:up` | Infrastructure only ([`compose.dev.yml`](../../deploy/compose/compose.dev.yml)): TimescaleDB, Redis, NATS, Node-RED, Mailpit | Running the API natively |
 | `./taskw stack:up` | Infrastructure + API, workers, portal, admin ([`compose.app.yml`](../../deploy/compose/compose.app.yml)) | UI and API work without devices (no Go runtime) |
 | `./taskw devices:setup` then `./taskw devices:up` | Everything above + Mosquitto over TLS, `broker-admin` and the Go runtime ([`compose.devices.yml`](../../deploy/compose/compose.devices.yml)) | **The full platform.** This is the normal development stack |
 
@@ -74,7 +74,7 @@ not an upgrade tool. Demo accounts and example devices:
 | NATS monitoring | http://127.0.0.1:8222 (not published with the Devices overlay) |
 | Storybook (when running) | http://localhost:6006 |
 
-Infrastructure ports (Postgres, Redis, NATS, MinIO, Node-RED) bind to `${IOT_DEV_BIND_ADDRESS:-127.0.0.1}`; set it to
+Infrastructure ports (Postgres, Redis, NATS, Node-RED) bind to `${IOT_DEV_BIND_ADDRESS:-127.0.0.1}`; set it to
 `0.0.0.0` only when you mean to expose them. Postgres and Redis default to host
 ports 15432 and 16379 so they do not collide with a native Postgres or Redis, and
 `./taskw doctor` fails when a configured port is held by a non-Docker process. The
@@ -82,7 +82,7 @@ device-facing MQTTS port and the portal, admin and API ports listen on all
 interfaces so LAN hardware and demos work. Use one hostname (`localhost` or
 `127.0.0.1`) consistently so session cookies are shared.
 
-The stack also starts Redis, MinIO and a stock Node-RED (editor on 1880); the
+The stack also starts Redis and a stock Node-RED (editor on 1880); the
 application does not use them.
 
 ## Rebuild one service

@@ -98,7 +98,6 @@ if [ -f "$repository_root/.env" ]; then
   check_configured_port "NATS client" "$IOT_NATS_CLIENT_PORT" nats
   check_configured_port "NATS monitor" "$IOT_NATS_MONITOR_PORT" nats
   check_configured_port "Node-RED" "$IOT_NODE_RED_PORT" node-red
-  check_configured_port "MinIO API" "$IOT_MINIO_API_PORT" minio
 else
   fail ".env is missing; run ./tooling/bootstrap"
 fi
