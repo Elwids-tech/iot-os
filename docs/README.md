@@ -61,6 +61,8 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 
 - [ESP32 starter bench](hardware/esp32-starter-bench.md): the ESP32 firmware starter
   with an AI coding agent, an RS-485 transceiver and a Modbus sensor
+- [RT1050 gateway bench](hardware/rt1050-evkb.md): the NXP i.MX RT1050 starter as an
+  Ethernet gateway polling Modbus RTU, with the Modbus simulator and the modem template
 - [Waveshare RGB and audio alarm board](hardware/waveshare-audio-board.md)
 
 ## Planning and history

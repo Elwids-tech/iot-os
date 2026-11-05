@@ -1,0 +1,101 @@
+name: Firmware NXP
+# The NXP i.MX RT1050 starter (spec 027 R11, spec 026 PR 4): every generated starter, a full
+# kit and the SDK's example build with the MCUXpresso SDK 26.09.00 and the Arm GNU Toolchain
+# 14.2, without warnings in the project's own files and with the desktop library's core
+# sources (FR-013). The vendor SDK is large, so this runs only when the firmware, its
+# contracts or its generator change, and nightly; both downloads are cached by version.
+on:
+  pull_request:
+    paths:
+      - firmware/**
+      - contracts/firmware/**
+      - apps/api/app/Domain/Firmware/**
+      - tooling/firmware/**
+      - .github/workflows/firmware-nxp.yml
+  push:
+    branches: [main]
+    paths:
+      - firmware/**
+      - contracts/firmware/**
+      - apps/api/app/Domain/Firmware/**
+      - tooling/firmware/**
+      - .github/workflows/firmware-nxp.yml
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: firmware-nxp-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  MCUXSDK_REVISION: v26.09.00
+  ARMGCC_VERSION: 14.2.rel1
+  ARMGCC_SHA256: 62a63b981fe391a9cbad7ef51b17e49aeaa3e7b0d029b36ca1e9c3b2a9b78823
+jobs:
+  nxp:
+    name: Firmware starters (nxp)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      # The fixtures command needs no database.
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite
+          coverage: none
+      - name: Locate the Composer cache
+        id: composer-cache
+        working-directory: apps/api
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('apps/api/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+      - run: composer install --no-interaction --no-progress --prefer-dist
+        working-directory: apps/api
+      - name: Generate the fixture starters
+        working-directory: apps/api
+        run: |
+          export APP_KEY="base64:$(openssl rand -base64 32)"
+          php artisan firmware:starter-fixtures --output="$GITHUB_WORKSPACE/.local/starters"
+      # FR-013: what the desktop library compiles, which every NXP build must match.
+      - name: The desktop library's core sources
+        run: |
+          cmake -S firmware/sdk -B .local/sdk-sources -DIOTOS_BUILD_POSIX=OFF -DIOTOS_BUILD_TESTS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          python3 tooling/firmware/core_sources.py .local/sdk-sources/compile_commands.json firmware/sdk | tee .local/desktop-sources.txt
+          grep -q '^src/session.c$' .local/desktop-sources.txt
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/mcuxsdk
+          key: mcuxsdk-${{ env.MCUXSDK_REVISION }}-${{ hashFiles('tooling/firmware/fetch-mcuxsdk.sh') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/armgcc
+          key: armgcc-${{ env.ARMGCC_VERSION }}-x86_64
+      - name: Fetch the MCUXpresso SDK and the Arm GNU Toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build
+          python3 -m venv .local/west
+          .local/west/bin/pip install -q west==1.5.0
+          PATH="$PWD/.local/west/bin:$PATH" tooling/firmware/fetch-mcuxsdk.sh .local/mcuxsdk
+          # The SDK's configure step runs its own Python scripts (Kconfig, the board's runners).
+          .local/west/bin/pip install -q -r .local/mcuxsdk/mcuxsdk/scripts/requirements-base.txt
+          if [ ! -x .local/armgcc/bin/arm-none-eabi-gcc ]; then
+            archive="arm-gnu-toolchain-$ARMGCC_VERSION-x86_64-arm-none-eabi.tar.xz"
+            curl -sSLf -o "/tmp/$archive" "https://developer.arm.com/-/media/Files/downloads/gnu/$ARMGCC_VERSION/binrel/$archive"
+            echo "$ARMGCC_SHA256  /tmp/$archive" | sha256sum -c -
+            mkdir -p .local/armgcc
+            tar -xf "/tmp/$archive" -C .local/armgcc --strip-components=1
+          fi
+          .local/armgcc/bin/arm-none-eabi-gcc --version | head -1
+      - name: Every NXP starter builds, with a full kit and the example
+        run: |
+          export PATH="$PWD/.local/west/bin:$PATH" MCUXSDK_ROOT="$PWD/.local/mcuxsdk/mcuxsdk" ARMGCC_DIR="$PWD/.local/armgcc"
+          tooling/firmware/build-nxp-starters.sh .local/starters/nxp-imxrt1050-mcuxpresso .local/desktop-sources.txt .local/nxp-builds

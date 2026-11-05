@@ -239,7 +239,15 @@ folder's licence changes (Q2).
 **Decision**: the board example targets the MIMXRT1050-EVKB with MCUXpresso SDK 25.x and
 its CMake/armgcc build (also usable from MCUXpresso for VS Code). It is based on the
 SDK's lwIP + mbedTLS + FreeRTOS examples. Kits do not redistribute the vendor SDK: the
-integrator points `MCUXSDK_ROOT` at their copy. CI cross-compiles the SDK core (and,
+integrator points `MCUXSDK_ROOT` at their copy.
+
+*Amended 2026-11-04 (PR 4):* the example is built with MCUXpresso SDK 26.09.00, the
+current release. NXP's 26.x SDK replaced the `armgcc/build_*.sh` scripts with a CMake and
+Kconfig build of "freestanding" projects (`CMakeLists.txt` and `prj.conf` at the project
+root, the board files in the project), so the example is one of those, built as
+`flexspi_nor_sdram_debug` (code in HyperFlash, data in SDRAM). It uses the SDK's mbedTLS
+3.6.7 without PSA and its own `lwipopts.h` and mbedTLS configuration. CI also builds every
+NXP starter against the real SDK, in a separate path-filtered and nightly workflow. CI cross-compiles the SDK core (and,
 once the board port lands, the FreeRTOS port against pinned FreeRTOS-Kernel headers) with
 `arm-none-eabi-gcc -mcpu=cortex-m7 -mfpu=fpv5-d16
 -mfloat-abi=hard -std=c99 -Wall -Wextra -Werror` and reports flash and RAM size. The

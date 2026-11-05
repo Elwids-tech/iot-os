@@ -22,12 +22,13 @@ logging and locking are small ports you implement or copy from `ports/`.
 | `third_party/coreMQTT/` | coreMQTT v2.3.1, vendored (`THIRD_PARTY.md`) |
 | `ports/posix/` | Desktop ports: mbedTLS over sockets, clock, file storage, stderr log, pthread lock |
 | `ports/esp-idf/` | ESP-IDF v5.4 ports: esp-tls, SNTP and esp_timer, NVS, ESP_LOG; `component.cmake` makes the SDK an ESP-IDF component |
-| `ports/freertos/` | A FreeRTOS lock: a static, non-recursive mutex |
-| `ports/templates/` | Annotated templates for each port, which compile as shipped |
+| `ports/freertos/` | A FreeRTOS lock (a static, non-recursive mutex) and log |
+| `ports/mcuxpresso-lwip/` | MCUXpresso SDK 26.x ports: mbedTLS over lwIP sockets, the TRNG, lwIP SNTP and the FreeRTOS tick; `iotos_mcux.cmake` adds them to a project |
+| `ports/templates/` | Annotated templates for each port, which compile as shipped, and an untested modem MQTT port (`modem-at-mqtt-template.c`) |
 | `examples/desktop-simulator/` | A gateway simulator with many simulated devices |
 | `cmake/iotos_sources.cmake` | The core's source list, which every build uses |
 | `tests/`, `tools/` | Unit tests and the contract fixture writer (repository only) |
-| `examples/linux-app/`, `examples/esp32-wifi/` | The Linux and ESP32 starters' projects (repository only) |
+| `examples/linux-app/`, `examples/esp32-wifi/`, `examples/rt1050-evkb-ethernet/` | The Linux, ESP32 and NXP starters' projects (repository only) |
 
 ## Using it
 
@@ -87,9 +88,11 @@ is lost, because the birth asks `on_birth` for the current values.
 | log | no | Short sentences explaining problems |
 | lock | when several tasks call the SDK | A plain, non-recursive mutex |
 
-Start from `ports/templates/`; `ports/posix/` is a complete desktop set and
-`ports/esp-idf/` a complete ESP-IDF one (`iotos_esp_idf_ports_init`). Port structures
-only gain members at the end, so write them with designated initialisers.
+Start from `ports/templates/`; `ports/posix/` is a complete desktop set,
+`ports/esp-idf/` a complete ESP-IDF one (`iotos_esp_idf_ports_init`) and
+`ports/mcuxpresso-lwip/` an MCUXpresso one without storage (`iotos_mcux_ports_init`).
+Port structures only gain members at the end, so write them with designated
+initialisers.
 
 ## Limits
 

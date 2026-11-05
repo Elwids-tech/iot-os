@@ -29,7 +29,7 @@ The work has four parts:
 **Language/Version**: C99 (SDK); PHP 8.4 / Laravel 13; TypeScript / React 19; Go 1.27 (fixture test only)
 
 **Primary Dependencies**:
-- SDK: coreMQTT (MIT), mbedTLS 3.x (ports), FreeRTOS and MCUXpresso SDK 25.x (board port), Unity (tests)
+- SDK: coreMQTT (MIT), mbedTLS 3.x (ports), FreeRTOS and MCUXpresso SDK 26.09.00 (board port; research R13), Unity (tests)
 - Platform: existing; no new packages
 
 **Storage**: PostgreSQL 17: `device_bulk_onboardings`, `device_bulk_onboarding_items`; no runtime storage change

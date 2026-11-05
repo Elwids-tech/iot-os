@@ -61,7 +61,9 @@ Things that have cost time before. Add to this list when something surprises you
   `cd apps/api && php artisan contract:export`; CI's `contract:export --check` fails on
   any byte that a fresh export would not write. Change the code or a supplement in
   `contracts/openapi/supplements/` and export again
-  ([API surface](../reference/api.md#contract)).
+  ([API surface](../reference/api.md#contract)). Data files can change it too: the
+  target ids in `firmware/starters/targets.json` are the firmware-kit and starter request
+  enums, so a new target needs an export, and `./taskw lint` does not catch it.
 - **Generator pins change the contract.** `dedoc/scramble` is pinned exactly because a
   new version infers differently and rewrites `openapi.json`. Upgrade it in a pull
   request of its own that contains only the upgrade and the re-export.
@@ -718,3 +720,23 @@ Things that have cost time before. Add to this list when something surprises you
   not the route, so onboarding provisioning, connection kits, firmware starters,
   settings and kits all count against the same ten a minute. Feature tests that download
   many archives turn off `ThrottleRequests`; `StarterTest` checks the limit once.
+- **MCUXpresso SDK 26.x has no `armgcc/build_*.sh` scripts.** Projects are
+  "freestanding": a `CMakeLists.txt` that includes `cmake/extension/mcux.cmake` before
+  `project()` and the SDK's `CMakeLists.txt` after it, a `prj.conf` merged after the
+  device's, board's and examples' own, and the board files copied into the project. The
+  build type (`flexspi_nor_sdram_debug`) picks the linker script, and the board's CMake
+  adds the DCD and `SKIP_SYSCLK_INIT` for it. Kconfig rejects a number for a bool
+  (`configCHECK_FOR_STACK_OVERFLOW=y`, not `2`).
+- **The MCUXpresso ENET port passes `-DCHECKSUM_GEN_IP=1` and friends.** An `lwipopts.h`
+  that also defines the `CHECKSUM_*` options fails with redefinitions under `-Werror`.
+  lwIP's SNTP hook (`SNTP_SET_SYSTEM_TIME_US`) is a function-like macro, which the
+  generated lwIP configuration cannot express, so the RT1050 example sets
+  `middleware.lwip.generated_config=n` and keeps its own `lwipopts.h`; that file needs
+  `LWIP_DEFINE_LWIP_RAND_IN_CC_H 1` for `LWIP_RAND`.
+- **The RT1050 has no MCUXpresso mbedTLS entropy port.** `port.rng` is not offered for
+  it, and NXP's RT1050 examples take entropy from a PSA driver in another repository.
+  The IoT OS port builds mbedTLS without PSA and reads the TRNG in
+  `mbedtls_hardware_poll` (`MBEDTLS_ENTROPY_HARDWARE_ALT`).
+- **pymodbus data blocks are 1-based.** `ModbusSequentialDataBlock.getValues` receives
+  the register number plus one, so a block that starts at 0 answers every read one
+  register late. `tooling/hardware/modbus_simulator.py` starts its block at 1.

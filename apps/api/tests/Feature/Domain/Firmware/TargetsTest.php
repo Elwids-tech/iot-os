@@ -30,10 +30,11 @@ final class TargetsTest extends TestCase
 
         $targets = $this->getJson($this->prefix.'/firmware/targets')->assertOk()->json('data');
 
-        $this->assertSame(['esp32-esp-idf', 'linux', 'stm32', 'rpi-pico', 'nordic-nrf', 'other'], array_column($targets, 'id'));
+        $this->assertSame(['esp32-esp-idf', 'nxp-imxrt1050-mcuxpresso', 'linux', 'stm32', 'rpi-pico', 'nordic-nrf', 'other'], array_column($targets, 'id'));
         $this->assertSame(['id' => 'esp32-esp-idf', 'name' => 'ESP32 (ESP-IDF)', 'kind' => 'built', 'roles' => ['direct', 'gateway'], 'toolchain' => 'ESP-IDF v5.4.1'], $targets[0]);
-        $this->assertSame(['id' => 'linux', 'name' => 'Linux or macOS', 'kind' => 'built', 'roles' => ['direct', 'gateway'], 'toolchain' => 'CMake 3.31, GCC 13 (ubuntu-24.04 runner)'], $targets[1]);
-        $this->assertNull($targets[2]['toolchain']);
+        $this->assertSame(['id' => 'nxp-imxrt1050-mcuxpresso', 'name' => 'NXP i.MX RT1050 (MCUXpresso SDK)', 'kind' => 'built', 'roles' => ['direct', 'gateway'], 'toolchain' => 'MCUXpresso SDK 26.09.00, Arm GNU Toolchain 14.2.rel1'], $targets[1]);
+        $this->assertSame(['id' => 'linux', 'name' => 'Linux or macOS', 'kind' => 'built', 'roles' => ['direct', 'gateway'], 'toolchain' => 'CMake 3.31, GCC 13 (ubuntu-24.04 runner)'], $targets[2]);
+        $this->assertNull($targets[3]['toolchain']);
     }
 
     public function test_a_target_without_its_files_is_not_offered(): void

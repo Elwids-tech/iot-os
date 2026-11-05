@@ -1,2 +1,4 @@
 -r ../simulators/requirements.txt
 pyserial==3.5
+# The RS-485 bus simulator for the RT1050 gateway bench (modbus_simulator.py).
+pymodbus==3.11.4

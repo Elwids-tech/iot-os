@@ -16,6 +16,19 @@
       "order": 10
     },
     {
+      "id": "nxp-imxrt1050-mcuxpresso",
+      "name": "NXP i.MX RT1050 (MCUXpresso SDK)",
+      "kind": "built",
+      "roles": ["direct", "gateway"],
+      "example": "rt1050-evkb-ethernet",
+      "developer_paths": ["app/"],
+      "toolchain": "MCUXpresso SDK 26.09.00, Arm GNU Toolchain 14.2.rel1",
+      "build": "cmake -S . -B build -G Ninja && cmake --build build",
+      "run": "LinkServer flash MIMXRT1052xxxxB:EVKB-IMXRT1050 load build/iotos_app.elf",
+      "build_notes": "Before the first build, fetch the MCUXpresso SDK 26.09.00, which is not included (about\n2 GB for this board), and point the build at it and at the Arm GNU Toolchain:\n\n```sh\nwest init -m https://github.com/nxp-mcuxpresso/mcuxsdk-manifests --mr v26.09.00 mcuxsdk-26.09\ncd mcuxsdk-26.09\nwest update --narrow -o=--depth=1 core CMSIS mcux-devices-rt mcu-sdk-examples mcu-sdk-components \\\n  mcuxsdk-tool-data lwip mbedtls3x freertos-kernel freertos-kernel-upstream mcux-freertos-drivers\nexport MCUXSDK_ROOT=\"$PWD/mcuxsdk\" ARMGCC_DIR=/path/to/arm-gnu-toolchain-14.2.rel1\n```\n\nThe build finds the SDK only through `MCUXSDK_ROOT` and the toolchain through `ARMGCC_DIR`,\nso set both in every shell that builds. The project is for the MIMXRT1050-EVKB over Ethernet: its pins, clocks and PHY are in\n`board/`, and the SDK components it uses are in `prj.conf`. Code runs from the board's flash\nand data from its SDRAM. A gateway also polls Modbus RTU devices over RS-485 on LPUART3, in\n`app/modbus_rtu.c`. Flash with LinkServer through the board's debug USB port, or with a\nJ-Link. The SDK brings its own MQTT client, so leave the MCUXpresso coreMQTT middleware\nunselected: two copies give duplicate symbols.",
+      "order": 20
+    },
+    {
       "id": "linux",
       "name": "Linux or macOS",
       "kind": "built",

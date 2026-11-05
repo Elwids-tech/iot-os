@@ -41,7 +41,7 @@ ports); YAML and JSON Schema (device brief)
 **Primary Dependencies**:
 - Existing platform packages; no new PHP or JS packages.
 - ESP-IDF v5.4.1 (ESP32 target).
-- MCUXpresso SDK 25.x through `west` (NXP CI only).
+- MCUXpresso SDK 26.09.00 through `west` (NXP CI only).
 - `jsonschema` 4.26 (already used by the contracts verifier).
 
 **Storage**: PostgreSQL 17: one nullable `jsonb` column, `sparkplug_gateways.firmware_selection`.
@@ -146,7 +146,7 @@ Additions only, with no change to the public API (FR-012):
   `Kconfig.projbuild` for Wi-Fi.
 - `CHANGELOG.md` "Unreleased" entries; no version bump until release.
 
-`examples/rt1050-evkb-ethernet/` comes from spec 026 PR 4. Its `armgcc` CMake locates
+`examples/rt1050-evkb-ethernet/` comes from spec 026 PR 4. Its CMake locates
 `sdk/`, `generated/` and `config/` the same way (R11).
 
 ### Contracts (`contracts/firmware/`, new)
@@ -259,9 +259,10 @@ Additions only, with no change to the public API (FR-012):
   - **`linux`**: build each starter, and run it to the missing-settings exit.
   - **`esp32`**: `idf.py build` per starter in `espressif/idf:v5.4.1`.
   - **`nxp`**: the MCUXpresso SDK through `west` at a pinned manifest revision (cached),
-    then the armgcc build. It runs on PRs that touch `firmware/**`,
-    `contracts/firmware/**` or `apps/api/app/Domain/Firmware/**`, and nightly
-    (`schedule`). It is skipped until the NXP registry entry exists.
+    then the CMake build with the Arm GNU Toolchain. It runs on PRs that touch
+    `firmware/**`, `contracts/firmware/**`, `apps/api/app/Domain/Firmware/**` or
+    `tooling/firmware/**`, and nightly (`schedule`). Built in spec 026 PR 4 as its own
+    workflow (`firmware-nxp.yml`) so the path filter applies to it alone.
   - **`ai-assisted`**: file list checks and `-fsyntax-only` on the templates in `app/ports/`.
 - **The existing `sdk` job** keeps building the SDK and its desktop examples.
 
@@ -356,7 +357,7 @@ merged. Spec 026 PRs are listed where they now fit.
   SDK through `west` is large.
   - Mitigation: a pinned image and cache, the NXP leg path-filtered and nightly, and a
     parallel matrix.
-- **Vendor drift.** ESP-IDF 5.4 and MCUXpresso 25.x will age.
+- **Vendor drift.** ESP-IDF 5.4 and MCUXpresso 26.09 will age.
   - Mitigation: the registry's `toolchain` is the single pin. Bumping it is a reviewed
     change with CI proof.
 - **Developers committing settings.** `.gitignore` and the README warn, but this cannot

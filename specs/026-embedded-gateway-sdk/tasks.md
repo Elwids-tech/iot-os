@@ -644,15 +644,16 @@ home paths.
 
 **Independent test**: quickstart 8 on the bench.
 
-- [ ] T081 [P] [US1] `ports/freertos/lock.c` (a non-recursive mutex from `xSemaphoreCreateMutexStatic`, which the SDK never takes twice on one task) and `ports/freertos/log.c` (through a `IOTOS_FREERTOS_PRINTF` macro, defaulting to `PRINTF`), with `iotos_freertos.h`.
-- [ ] T082 [US1] `.github/workflows/ci.yml`:
+- [x] T081 [P] [US1] `ports/freertos/lock.c` (a non-recursive mutex from `xSemaphoreCreateMutexStatic`, which the SDK never takes twice on one task) and `ports/freertos/log.c` (through a `IOTOS_FREERTOS_PRINTF` macro, defaulting to `PRINTF`), with `iotos_freertos.h`.
+- [x] T082 [US1] `.github/workflows/ci.yml`:
   - the `sdk` cross-compile also builds `ports/freertos` against FreeRTOS-Kernel headers pinned with `FetchContent`, using a minimal `FreeRTOSConfig.h` in `firmware/sdk/tests/freertos-config/`;
   - the `firmware-starters` job (spec 027) gains an `nxp` leg: the MCUXpresso SDK through `west` at a pinned manifest revision, limited to the RT1050 device, FreeRTOS, lwIP and mbedTLS, and cached by revision; then the armgcc build of every `.local/starters/nxp-imxrt1050-mcuxpresso/*` starter. It runs on pull requests touching `firmware/**`, `contracts/firmware/**` or `apps/api/app/Domain/Firmware/**`, and nightly (`schedule`). It also asserts the example compiles the same `firmware/sdk/src/*.c` and coreMQTT sources as the desktop library (spec 027 FR-013).
-- [ ] T083 [US1] `ports/mcuxpresso-lwip/`, with `iotos_mcux.h`:
+  - Built as its own workflow, `.github/workflows/firmware-nxp.yml`, because a matrix leg cannot have its own path filter: `tooling/firmware/fetch-mcuxsdk.sh` (SDK 26.09.00, trimmed to about 550 MB) and `tooling/firmware/build-nxp-starters.sh` (every starter, a full kit and the example, with the warning and FR-013 checks). The cross-compile builds `iotos_freertos_check` against FreeRTOS-Kernel V11.3.1.
+- [x] T083 [US1] `ports/mcuxpresso-lwip/`, with `iotos_mcux.h`:
   - `stream_mbedtls_lwip.c`: mbedTLS over lwIP sockets, with hostname verification, the settings CA, and entropy from the board's TRNG.
   - `clock_sntp.c`: lwIP SNTP, valid after the first sync.
-- [ ] T084 [US1] `examples/rt1050-evkb-ethernet/`:
-  - **Build:** CMake/armgcc using `MCUXSDK_ROOT`, pinned to the MCUXpresso SDK 25.x version it was verified with (stated in its README).
+- [x] T084 [US1] `examples/rt1050-evkb-ethernet/`:
+  - **Build:** CMake/armgcc using `MCUXSDK_ROOT`, pinned to the MCUXpresso SDK 25.x version it was verified with (stated in its README). *Built with 26.09.00 (research R13, amended): a freestanding CMake and Kconfig project, `CMakeLists.txt`, `prj.conf`, `lwipopts.h` and `board/` at the starter root instead of `armgcc/`.*
   - **Base:** the SDK's lwIP + mbedTLS + FreeRTOS examples (ENET, DHCP).
   - **coreMQTT:** builds the SDK's pinned copy from `sdk/third_party/coreMQTT/`. The README says to leave the MCUXpresso coreMQTT middleware unselected, because two copies give duplicate symbols (R3).
   - **Tasks:**
@@ -660,16 +661,17 @@ home paths.
     - an RS-485 polling stub: an LPUART Modbus RTU read loop over addresses 1–247, with the integrator's hooks marked `TODO(integrator)`. It is built only when `IOTOS_KIT_GATEWAY` is 1, so a direct kit's example has no polling task.
   - **Console:** logs the clock sync, TLS and births.
   - **Config and layout:** follows spec 027's [starter layout](../027-firmware-starter-kits/contracts/starter-layout.md). The project files sit at the starter root (`armgcc/`), the developer path is `app/` (`main.c` and the generated `field.c`/`field.h`), and the build locates the SDK only through `sdk/` (or `../..` in the repository), the tables through `generated/`, and `config/iotos_settings.c` or `sdk/starter/settings_missing.c`. It copies the `const` settings and sets `node_type`, and has the `IOTOS_KIT_SETTINGS_FORMAT` `#error` check.
-- [ ] T085 [US1] Add the `nxp-imxrt1050-mcuxpresso` entry to `firmware/starters/targets.json` (`kind: built`, `example: "rt1050-evkb-ethernet"`, `developer_paths: ["app/"]`, `toolchain` naming the exact MCUXpresso SDK 25.x and armgcc versions, both roles). Extend spec 027's `StarterTest`, `SecretScanTest` and `AgentsBriefDriftTest` (`apps/api/tests/Feature/Domain/Firmware/`) with the NXP layout. The README says the vendor SDK is not included and to set `MCUXSDK_ROOT`.
-- [ ] T086 [P] [US3] `ports/templates/modem-at-mqtt-template.c`, an MQTT port annotated for the BG95 command family (R5):
+- [x] T085 [US1] Add the `nxp-imxrt1050-mcuxpresso` entry to `firmware/starters/targets.json` (`kind: built`, `example: "rt1050-evkb-ethernet"`, `developer_paths: ["app/"]`, `toolchain` naming the exact MCUXpresso SDK 25.x and armgcc versions, both roles). Extend spec 027's `StarterTest`, `SecretScanTest` and `AgentsBriefDriftTest` (`apps/api/tests/Feature/Domain/Firmware/`) with the NXP layout. The README says the vendor SDK is not included and to set `MCUXSDK_ROOT`.
+  - The toolchain is "MCUXpresso SDK 26.09.00, Arm GNU Toolchain 14.2.rel1". `AgentsBriefDriftTest` covers the NXP starters without changes, because it walks every fixture starter.
+- [x] T086 [P] [US3] `ports/templates/modem-at-mqtt-template.c`, an MQTT port annotated for the BG95 command family (R5):
   - `AT+QMTCFG` for the will, `AT+QMTOPEN`, `AT+QMTCONN`, `AT+QMTPUBEX` with an explicit length, `AT+QMTSUB`, and the `+QMTRECV` URC.
   - Which receive mode keeps binary payloads intact, and the `AT+QLTS`/`AT+CCLK` clock.
   - The header says "untested" until the phase-2 bench modem passes, and names the transparent-TLS-socket fallback.
-- [ ] T087 [P] [US1] `tooling/hardware/modbus_simulator.py`:
+- [x] T087 [P] [US1] `tooling/hardware/modbus_simulator.py`:
   - A pymodbus RTU server answering addresses 1–247 on one serial port, with `--port`, `--baud` and a register map matching the board example.
   - Pin `pymodbus` in `tooling/hardware/requirements.txt`.
   - Add `tooling/hardware/test_modbus_simulator.py` for the register map, run locally like the other hardware tests.
-- [ ] T088 [P] [US1] `docs/hardware/rt1050-evkb.md`:
+- [x] T088 [P] [US1] `docs/hardware/rt1050-evkb.md`:
   - The bench: the board, an RS-485 click on an Arduino click shield, a USB-RS485 adapter, and an optional Modbus sensor.
   - Wiring, the shield's single-UART limit, the Modbus simulator, and the phase-2 modem.
   - No partner names.
@@ -685,7 +687,7 @@ home paths.
 
 ### Phase 15: Polish (PR 4)
 
-- [ ] T090 [P] Public developer page `apps/docs/src/content/docs/docs/developers/embedded-sdk.mdx`, in the Developers sidebar group: add the NXP board to the page spec 027 PR 027-1 creates (create it if that PR has not). It has no repository paths and names no licence (`docs/dev/docs-site.md` writing rules).
+- [x] T090 [P] Public developer page `apps/docs/src/content/docs/docs/developers/embedded-sdk.mdx`, in the Developers sidebar group: add the NXP board to the page spec 027 PR 027-1 creates (create it if that PR has not). It has no repository paths and names no licence (`docs/dev/docs-site.md` writing rules).
 - [ ] T091 Check, release and open PR 4:
   - **Checks:**
     - quickstart 1 and 2, with the cross-compile now including `ports/freertos`;
@@ -694,7 +696,9 @@ home paths.
     - `python -m unittest discover -s tooling/hardware -p 'test_*.py'`;
     - `./taskw lint`.
   - Move the `firmware/sdk/CHANGELOG.md` entries under `0.1.0`.
+    - Not in PR 4: spec 026 PR 2 has not merged, so the entries stay under "Unreleased" until the last of PR 2 and PR 4 merges.
   - If PR 3 has already merged, remove spec 026 from `docs/roadmap.md` here (T079 does it if PR 3 merges last).
+    - Not in PR 4: PR 3 has merged but PR 2 has not, so the roadmap entry stays until PR 2 merges.
   - Leak scan, then open PR 4 against `main` once spec 027's PR 027-1 has merged (T085 and T089 need its generator and endpoints).
 
 **Checkpoint**: the feature is complete. Run `/speckit-converge` before closing it.

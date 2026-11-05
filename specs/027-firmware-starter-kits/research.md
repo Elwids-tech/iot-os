@@ -338,7 +338,7 @@ the moment settings are added); omitting stubs (the agent would invent the struc
 
 **Decision**:
 - **Project template**: the NXP target is spec 026 PR 4's
-  `firmware/sdk/examples/rt1050-evkb-ethernet/` (MCUXpresso SDK 25.x, armgcc CMake,
+  `firmware/sdk/examples/rt1050-evkb-ethernet/` (MCUXpresso SDK 26.09.00, its CMake build,
   lwIP, mbedTLS, FreeRTOS), with `app/` as the developer path.
 - **Registry**: its entry is added by spec 026 PR 4, which now depends on this spec's
   generator PR instead of spec 026 PR 2.

@@ -11,8 +11,8 @@ Code: [`firmware/sdk`](../../firmware/sdk/README.md), under the MIT
 [licence](../../firmware/sdk/LICENSE) for that folder only. Developers get it as a
 [firmware starter](#firmware-starters) for their profile and microcontroller (spec
 [027](../../specs/027-firmware-starter-kits/spec.md),
-[ADR-030](../adr/ADR-030-firmware-starters.md)). Linux and the ESP32 are built targets;
-the NXP board port follows in spec 026 PR 4.
+[ADR-030](../adr/ADR-030-firmware-starters.md)). Linux, the ESP32 and the NXP i.MX
+RT1050 are built targets.
 
 ## Architecture
 
@@ -49,8 +49,10 @@ ports (integrator) ──▶ stream or mqtt, clock, storage, log, lock
 
 `firmware/sdk/ports/templates/` has an annotated template for each port that compiles as
 shipped (a CTest keeps them in step with the headers), `ports/posix/` a working desktop
-set, and `ports/esp-idf/` an ESP-IDF v5.4 set (below). Port structures only ever gain members at the end and treat `NULL` as
-unsupported, so ports written with designated initialisers keep compiling. That is how
+set, `ports/esp-idf/` an ESP-IDF v5.4 set, `ports/freertos/` a lock and a log for any
+FreeRTOS build, and `ports/mcuxpresso-lwip/` an MCUXpresso SDK set (below). Port
+structures only ever gain members at the end and treat `NULL` as unsupported, so ports
+written with designated initialisers keep compiling. That is how
 store-and-forward will extend `iotos_storage_port`: new optional calls at the end, used
 only when set.
 
@@ -72,13 +74,61 @@ only when set.
 - **log**: `ESP_LOG` with the tag `iotos`.
 - **lock**: `ports/freertos/` (`iotos_freertos_lock_init`), a non-recursive mutex created
   with `xSemaphoreCreateMutexStatic`. It builds with ESP-IDF's FreeRTOS and with the
-  plain kernel, for the NXP port to share.
+  plain kernel, which the NXP port shares. The same folder has a log
+  (`iotos_freertos_log_init`) that prints through `IOTOS_FREERTOS_PRINTF`, by default the
+  MCUXpresso debug console's `PRINTF`; the CI cross-compile builds both against
+  FreeRTOS-Kernel V11.3.1 for a Cortex-M7 (`tests/freertos-config/`).
 
 `ports/esp-idf/component.cmake` registers the SDK as an ESP-IDF component from the same
 source list as the desktop library ([`cmake/iotos_sources.cmake`](../../firmware/sdk/cmake/iotos_sources.cmake)),
 so the ESP32 runs the code the tests ran (FR-013). A project must not also add the ESP
 Component Registry's coreMQTT, whose symbols clash, and does not use ESP-IDF's MQTT
 client.
+
+### MCUXpresso SDK, lwIP and FreeRTOS
+
+`ports/mcuxpresso-lwip/` (`iotos_mcux.h`, `iotos_mcux_ports_init`) fills every port
+but storage, for the MCUXpresso SDK 26.x with FreeRTOS and lwIP sockets:
+
+- **stream**: mbedTLS 3.6 over lwIP sockets, with the kit's CA, the broker host as SNI
+  and as the name the certificate must carry, within `IOTOS_CONNECT_TIMEOUT_MS`. The
+  socket then gets a 20 ms receive timeout, which `recv` reports as 0. Certificate dates
+  are checked once the clock is valid; before the first SNTP answer only the chain and the
+  host name are. Entropy comes from the TRNG through `mbedtls_hardware_poll`
+  (`MBEDTLS_ENTROPY_HARDWARE_ALT`), and mbedTLS allocates from the FreeRTOS heap.
+  `iotos_mbedtls_config.h` is a TLS 1.2 client configuration without PSA, which the build
+  selects with `MBEDTLS_CONFIG_FILE`.
+- **clock**: UTC is valid once lwIP SNTP has answered in this boot, through the project's
+  `lwipopts.h` (`SNTP_SET_SYSTEM_TIME_US` calls `iotos_mcux_sntp_set`); an application
+  with GPS or a real-time clock calls it instead. `monotonic_ms` is the FreeRTOS tick, so
+  `configTICK_RATE_HZ` must be 1000 (an `#error` checks it).
+- **log** and **lock**: `ports/freertos/`.
+- **storage**: none, so `bdSeq` restarts after a reset. A product adds one over its flash.
+
+`iotos_mcux.cmake` adds the core from `cmake/iotos_sources.cmake` and these ports to the
+project's target (FR-013). A project must leave the MCUXpresso coreMQTT middleware
+unselected.
+
+**The board example**, [`examples/rt1050-evkb-ethernet`](../../firmware/sdk/examples/rt1050-evkb-ethernet),
+is a freestanding MCUXpresso SDK 26.09.00 project for the MIMXRT1050-EVKB over Ethernet:
+`CMakeLists.txt` and `prj.conf` (the SDK's CMake and Kconfig build), the project's own
+`lwipopts.h`, and `board/` with NXP's pin, clock and PHY files from its `lwip_mqtt`
+example plus `rs485_pins.c`. It builds as `flexspi_nor_sdram_debug`: code runs from the
+HyperFlash and data from the 32 MB SDRAM, because the 128 KB DTCM is too small for a
+gateway with TLS. With the sample tables it uses 405 KB of flash, 92 KB of data and a
+256 KB heap. `app/main.c` joins the network with DHCP, starts SNTP and then the SDK
+task; a gateway also runs `app/modbus_rtu.c`, a Modbus RTU poller on LPUART3 (RS-485,
+the UART driving DE/RE through RTS) over addresses 1 to 247, with the parts to change
+marked `TODO(integrator)`. The [RT1050 gateway bench](../hardware/rt1050-evkb.md) is its
+hardware check, with [`tooling/hardware/modbus_simulator.py`](../../tooling/hardware/modbus_simulator.py)
+standing in for the bus. It is called supported once that bench passes.
+
+**The modem template**, `ports/templates/modem-at-mqtt-template.c`, is an MQTT port
+(level 2) annotated for the Quectel BG95 command family: the will, open, connect,
+publish by length, subscribe and the received-message URC, with the clock from the
+network. It is untested until the phase-2 bench modem passes, and names the fallback for
+modems that cannot carry binary payloads by length: their transparent TLS socket and the
+stream port.
 
 ## Limits
 
@@ -200,7 +250,7 @@ published profile revisions by the API's `Firmware` domain
 | `config/` | `README.md` only, until the settings are unpacked here | kept |
 
 **Targets** come from [`firmware/starters/targets.json`](../../firmware/starters/targets.json).
-A built target (`esp32-esp-idf` and `linux`; NXP in spec 026 PR 4) names its SDK
+A built target (`esp32-esp-idf`, `nxp-imxrt1050-mcuxpresso` and `linux`) names its SDK
 example, toolchain, build and run commands, and is listed only when the example exists.
 It may add `build_notes`, a paragraph for the README's Build section, and
 `gitignore_extra`, lines for the starter's `.gitignore`.
@@ -234,6 +284,13 @@ developer path:
 The target is called supported once the [ESP32 starter bench](../hardware/esp32-starter-bench.md)
 passes with two coding agents.
 
+**The NXP starter** is the board example above, with `app/` as the developer path and
+`CMakeLists.txt`, `prj.conf`, `lwipopts.h` and `board/` at the root. It holds no vendor
+code but NXP's BSD-licensed board files: the README's Build section fetches the
+MCUXpresso SDK 26.09.00 with `west`, narrowed to the projects the board needs, and the
+build finds it through `MCUXSDK_ROOT` and the toolchain through `ARMGCC_DIR`. A direct
+starter's `app/modbus_rtu.c` compiles to nothing (`IOTOS_KIT_ROLE_GATEWAY` is 0).
+
 **Connection settings** are a separate download that needs `Device.manage-connections`:
 `config/iotos_settings.h` and `.c` (format `IOTOS_KIT_SETTINGS_FORMAT 1`), the shared
 `config/README.md` and, for a direct device, the connection kit's three files. A **full
@@ -265,6 +322,15 @@ to 2 of a fixture profile and checks the developer's files are unchanged.
   desktop library ([`core_sources.py`](../../tooling/firmware/core_sources.py) reads both
   `compile_commands.json` files). ccache is kept between runs. With ESP-IDF's
   `export.sh` sourced, the same script runs locally.
+- The [`Firmware NXP`](../../.github/workflows/firmware-nxp.yml) workflow runs
+  [`tooling/firmware/build-nxp-starters.sh`](../../tooling/firmware/build-nxp-starters.sh)
+  the same way for every NXP starter, a full kit and the example, on changes to the
+  firmware, its contracts, its generator or the workflow, and nightly. It is a workflow
+  of its own because the vendor SDK is large:
+  [`fetch-mcuxsdk.sh`](../../tooling/firmware/fetch-mcuxsdk.sh) fetches a pinned
+  revision and trims it to the RT1050 (about 550 MB), and both it and the Arm GNU
+  Toolchain 14.2.rel1 are cached by version. The script runs locally with
+  `MCUXSDK_ROOT` and `ARMGCC_DIR` set.
 - `--golden` rewrites [`contracts/firmware/fixtures/expected`](../../contracts/firmware/fixtures/expected);
   `GoldenOutputTest` compares the generator with it byte for byte. Review that diff when
   the generator or the SDK headers change.
