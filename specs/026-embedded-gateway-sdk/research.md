@@ -162,9 +162,9 @@ The runtime's rules shape the session
   DCMD subscription is denied.
 - It births when the host's retained STATE says `{"online":true}`. Rebirth requests
   arrive as NCMD `Node Control/Rebirth`. The runtime sends them after its own
-  reconnects and after every activation, throttled to one per 30 s per edge node
-  (`application.go:246, 265, 622`). At 20 births per second, 500 devices re-announce in
-  25 s, inside that window (see R19).
+  reconnects and after an activation that applies at once, throttled to one per 30 s
+  per edge node (`requestRebirth` in `application.go`). At 20 births per second, 500
+  devices re-announce in 25 s, inside that window (see R19).
 
 ### R9. Aliases
 
@@ -381,6 +381,25 @@ of 248 selected sources (247 water meters and one energy meter) reached 247
 stored readings 40 s after submitting. The simulator logged **2 rebirths** for the run;
 a retry of 247 failed items on another gateway logged 1. Both are within three, so the
 runtime fallback (T080) is not needed.
+
+**Measured (PR 2, 2026-11-05, dev stack, the SDK's desktop simulator with 500
+devices)**: 247 activations brought 2 rebirths, but **29 were refused** as offline.
+The runtime's Sparkplug engine forgets a node's devices on its NBIRTH, and the SDK
+re-announces them at 20 per second, so after each rebirth a device has no birth for up
+to 25 s. An activation checked in that gap was refused, left the device `registered`,
+and was not covered by Retry failed. The Python simulator re-announces everything at
+once, so PR 3 did not see it.
+
+**Fix (runtime, after PR 2)**: an activation whose edge node is online but has not
+announced the source in its current session is held instead of refused, for up to
+90 s (`holdForBirth` in `application.go`). The control consumer moves on, and the
+device's fence stays free. The device's DBIRTH applies the held activation, checked
+against that birth, and the birth becomes its first reading, so it asks for no further
+rebirth. A held activation asks for a rebirth only when the node is not announcing
+already (none sent and no NBIRTH in the last 30 s), because a rebirth restarts the
+announcement. An activation that applies at once still asks for one, coalesced as
+before, since its readings need a birth after it. An offline node, a device that died
+in the node's session, and a birth that does not come within 90 s are still refused.
 
 ### R20. Profile types to Sparkplug types in the kit
 

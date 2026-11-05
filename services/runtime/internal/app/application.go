@@ -39,6 +39,25 @@ type broker struct {
 }
 type rebirthRequest struct{ Connection, Group, Edge string }
 type reportedPresence struct{ Presence, Diagnostic string }
+
+// heldActivation is an activation waiting for its source's birth: the edge node is
+// online but has not announced the source in its current session yet (R19).
+type heldActivation struct {
+	Definition devices.Definition
+	Generation int
+	Birth      []devices.Metric
+	Operation  string
+	Deadline   time.Time
+}
+
+// rebirthInterval is the least time between rebirth requests to one edge node.
+const rebirthInterval = 30 * time.Second
+
+// birthWait bounds a held activation. An SDK gateway re-announces 512 devices in
+// about 26 s at 20 births per second, and a queued rebirth can restart that up to
+// rebirthInterval after the last one.
+const birthWait = 90 * time.Second
+
 type Application struct {
 	captures          *telemetry.Manager
 	committedFailures atomic.Uint64
@@ -70,6 +89,8 @@ type Application struct {
 	pending           map[string]*pendingCommand
 	rebirth           map[string]time.Time
 	rebirthPending    map[string]rebirthRequest
+	held              map[string]heldActivation // by device
+	heldFor           time.Duration             // bounds a hold; birthWait when zero
 	presenceAt        map[string]time.Time
 	reported          map[string]reportedPresence
 	subscriptions     []*nats.Subscription
@@ -262,7 +283,7 @@ func (a *Application) requestRebirth(connection, group, edge string) {
 	a.mu.Lock()
 	b := a.brokers[connection]
 	key := connection + "/" + edge
-	if time.Since(a.rebirth[key]) < 30*time.Second || b == nil || !b.Client.IsConnectionOpen() {
+	if time.Since(a.rebirth[key]) < rebirthInterval || b == nil || !b.Client.IsConnectionOpen() {
 		a.rebirthPending[key] = rebirthRequest{connection, group, edge}
 		a.mu.Unlock()
 		return
@@ -358,6 +379,9 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 		if p.Topic.Kind == "NDEATH" {
 			a.emit("gateway.presence.v1", map[string]any{"connection_uuid": c.UUID, "edge_node_id": p.Topic.Edge, "session_id": p.Session, "presence": presence, "last_seen_at": p.Received})
 		}
+	}
+	if p.Birth && p.Topic.Device != "" {
+		a.releaseHeld(c.UUID, p.Topic.Edge, p.Topic.Device, p.Received)
 	}
 	a.mu.Lock()
 	definitions := []devices.Definition{}
@@ -568,6 +592,16 @@ func (a *Application) rejectedPresence(c devices.Connection, p sparkplug.Packet,
 // activate applies d at generation. birth is the source's last stored birth, which an
 // adapter-fed source is validated against when it has no live one (ADR-027).
 func (a *Application) activate(d devices.Definition, generation int, birth []devices.Metric, operation ...string) error {
+	op := ""
+	if len(operation) > 0 {
+		op = operation[0]
+	}
+	return a.transition(d, generation, birth, op, time.Time{})
+}
+
+// transition applies or refuses an activation, or holds it for a birth that is due.
+// bornAt is the receipt of the birth that released a held activation, zero otherwise.
+func (a *Application) transition(d devices.Definition, generation int, birth []devices.Metric, op string, bornAt time.Time) error {
 	unlock := a.lockDevice(d.DeviceUUID)
 	defer unlock()
 	a.mu.Lock()
@@ -579,11 +613,13 @@ func (a *Application) activate(d devices.Definition, generation int, birth []dev
 	if generation == previous {
 		return a.Store.ReplayOutcome(a.ctx, d.DeviceUUID, generation)
 	}
-	op := ""
-	if len(operation) > 0 {
-		op = operation[0]
-	}
 	session, metrics, online := a.Engine.Snapshot(d.Source)
+	// Hold for a due birth. It can land between the two snapshots, unseen by releaseHeld.
+	if !online && (d.Adapter == nil || len(birth) == 0) && a.holdForBirth(d, generation, birth, op) {
+		if session, metrics, online = a.Engine.Snapshot(d.Source); !online {
+			return nil
+		}
+	}
 	var e error
 	switch {
 	case online:
@@ -601,6 +637,7 @@ func (a *Application) activate(d devices.Definition, generation int, birth []dev
 		}
 		a.mu.Lock()
 		a.generations[d.DeviceUUID] = generation
+		a.settleHeld(d.DeviceUUID, generation)
 		a.mu.Unlock()
 		return nil
 	}
@@ -613,7 +650,11 @@ func (a *Application) activate(d devices.Definition, generation int, birth []dev
 		a.activeSince = map[string]time.Time{}
 	}
 	a.activeSince[d.DeviceUUID] = time.Now().UTC()
+	if !bornAt.IsZero() {
+		a.activeSince[d.DeviceUUID] = bornAt
+	}
 	a.generations[d.DeviceUUID] = generation
+	a.settleHeld(d.DeviceUUID, generation)
 	if a.appliedGeneration == nil {
 		a.appliedGeneration = map[string]int{}
 	}
@@ -624,8 +665,81 @@ func (a *Application) activate(d devices.Definition, generation int, birth []dev
 	a.reviewRequired[d.DeviceUUID] = false
 	delete(a.reported, d.DeviceUUID) // the control plane resets presence on device.applied.v1
 	a.mu.Unlock()
-	a.requestRebirth(d.Source.ConnectionUUID, d.Source.GroupID, d.Source.EdgeNodeID)
+	// A released activation's birth carries the source's state, and packet() hands it on
+	// as the first readings. One applied at once validated a birth that predates it.
+	if bornAt.IsZero() {
+		a.requestRebirth(d.Source.ConnectionUUID, d.Source.GroupID, d.Source.EdgeNodeID)
+	}
 	return nil
+}
+
+// holdForBirth holds an activation whose source's birth is due, and reports whether
+// it is held. The birth releases it (releaseHeld); at its deadline it is refused.
+// Retries at the same generation (syncState) keep the deadline. A rebirth is asked
+// for only when the node is not announcing already, as one restarts the announcement.
+func (a *Application) holdForBirth(d devices.Definition, generation int, birth []devices.Metric, op string) bool {
+	born, due := a.Engine.BirthDue(d.Source)
+	if !due {
+		return false
+	}
+	now := time.Now()
+	a.mu.Lock()
+	if h, held := a.held[d.DeviceUUID]; held && h.Generation == generation {
+		a.mu.Unlock()
+		return now.Before(h.Deadline)
+	}
+	wait := birthWait
+	if a.heldFor > 0 {
+		wait = a.heldFor
+	}
+	if a.held == nil {
+		a.held = map[string]heldActivation{}
+	}
+	a.held[d.DeviceUUID] = heldActivation{Definition: d, Generation: generation, Birth: birth, Operation: op, Deadline: now.Add(wait)}
+	announcing := now.Sub(a.rebirth[d.Source.ConnectionUUID+"/"+d.Source.EdgeNodeID]) < rebirthInterval || now.Sub(born) < rebirthInterval
+	a.mu.Unlock()
+	time.AfterFunc(wait, func() { a.resumeHeld(d.DeviceUUID, generation, time.Time{}) })
+	if !announcing {
+		a.requestRebirth(d.Source.ConnectionUUID, d.Source.GroupID, d.Source.EdgeNodeID)
+	}
+	return true
+}
+
+// settleHeld drops a hold that generation answered or superseded. Callers hold a.mu.
+func (a *Application) settleHeld(device string, generation int) {
+	if h, held := a.held[device]; held && h.Generation <= generation {
+		delete(a.held, device)
+	}
+}
+
+// releaseHeld applies the activations held for a source whose birth arrived at bornAt,
+// before packet() hands that birth on.
+func (a *Application) releaseHeld(connection, edge, device string, bornAt time.Time) {
+	a.mu.Lock()
+	released := []heldActivation{}
+	for _, h := range a.held {
+		if s := h.Definition.Source; s.ConnectionUUID == connection && s.EdgeNodeID == edge && s.DeviceID == device {
+			released = append(released, h)
+		}
+	}
+	a.mu.Unlock()
+	for _, h := range released {
+		a.resumeHeld(h.Definition.DeviceUUID, h.Generation, bornAt)
+	}
+}
+
+// resumeHeld retries a held activation: on its source's birth, or with a zero bornAt
+// at its deadline. A failed retry keeps the hold, and syncState retries it.
+func (a *Application) resumeHeld(device string, generation int, bornAt time.Time) {
+	a.mu.Lock()
+	h, held := a.held[device]
+	a.mu.Unlock()
+	if !held || h.Generation != generation {
+		return
+	}
+	if e := a.transition(h.Definition, h.Generation, h.Birth, h.Operation, bornAt); e != nil {
+		a.Logger.Warn("held activation deferred", "device", device, "generation", generation, "error", e)
+	}
 }
 func (a *Application) deactivate(device, org string, generation int, operation ...string) error {
 	unlock := a.lockDevice(device)
@@ -672,6 +786,7 @@ func (a *Application) deactivate(device, org string, generation int, operation .
 	delete(a.presenceAt, device)
 	delete(a.reported, device)
 	a.generations[device] = generation
+	a.settleHeld(device, generation)
 	for id, pending := range a.pending {
 		if pending.Request.DeviceUUID == device {
 			delete(a.pending, id)
