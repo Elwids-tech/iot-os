@@ -18570,6 +18570,7 @@
                     "type": "string",
                     "enum": [
                       "esp32-esp-idf",
+                      "nxp-imxrt1050-mcuxpresso",
                       "linux",
                       "stm32",
                       "rpi-pico",
@@ -20293,6 +20294,7 @@
                     "type": "string",
                     "enum": [
                       "esp32-esp-idf",
+                      "nxp-imxrt1050-mcuxpresso",
                       "linux",
                       "stm32",
                       "rpi-pico",
@@ -29176,6 +29178,7 @@
             "type": "string",
             "enum": [
               "esp32-esp-idf",
+              "nxp-imxrt1050-mcuxpresso",
               "linux",
               "stm32",
               "rpi-pico",

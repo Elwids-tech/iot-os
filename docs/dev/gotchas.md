@@ -61,7 +61,9 @@ Things that have cost time before. Add to this list when something surprises you
   `cd apps/api && php artisan contract:export`; CI's `contract:export --check` fails on
   any byte that a fresh export would not write. Change the code or a supplement in
   `contracts/openapi/supplements/` and export again
-  ([API surface](../reference/api.md#contract)).
+  ([API surface](../reference/api.md#contract)). Data files can change it too: the
+  target ids in `firmware/starters/targets.json` are the firmware-kit and starter request
+  enums, so a new target needs an export, and `./taskw lint` does not catch it.
 - **Generator pins change the contract.** `dedoc/scramble` is pinned exactly because a
   new version infers differently and rewrites `openapi.json`. Upgrade it in a pull
   request of its own that contains only the upgrade and the re-export.
