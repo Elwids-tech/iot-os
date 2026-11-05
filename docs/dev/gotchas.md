@@ -749,8 +749,8 @@ Things that have cost time before. Add to this list when something surprises you
 - **After a rebirth, a paced gateway's devices have no birth for up to 25 s.** The
   runtime's Sparkplug engine forgets a node's devices on its NBIRTH, and the SDK
   re-announces them at 20 per second. Activations in that gap were refused as offline
-  (29 of 247 in a bulk onboarding), and each one that did apply asked for another
-  rebirth, which opened the gap again. The Python simulator re-announces at once, so
+  (up to 245 of 247 in a bulk onboarding), and each one that did apply asked for
+  another rebirth, which opened the gap again. The Python simulator re-announces at once, so
   checks against it never saw this. The runtime now holds such an activation until the
   device's birth, for up to 90 s (spec 026 research R19); test bulk paths against the
   SDK simulator, not only the Python one.

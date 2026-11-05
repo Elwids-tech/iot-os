@@ -383,12 +383,13 @@ a retry of 247 failed items on another gateway logged 1. Both are within three, 
 runtime fallback (T080) is not needed.
 
 **Measured (PR 2, 2026-11-05, dev stack, the SDK's desktop simulator with 500
-devices)**: 247 activations brought 2 rebirths, but **29 were refused** as offline.
-The runtime's Sparkplug engine forgets a node's devices on its NBIRTH, and the SDK
-re-announces them at 20 per second, so after each rebirth a device has no birth for up
-to 25 s. An activation checked in that gap was refused, left the device `registered`,
-and was not covered by Retry failed. The Python simulator re-announces everything at
-once, so PR 3 did not see it.
+devices)**: each bulk run of 247 activations brought 2 rebirths, but the runtime
+refused **29, 236, 245 and 245** of them as offline in four runs. The runtime's
+Sparkplug engine forgets a node's devices on its NBIRTH, and the SDK re-announces them
+at 20 per second, so after each rebirth a device has no birth for up to 25 s. The first
+activation's rebirth opened that gap, and a fast burst of the rest landed in it. A
+refused device stayed `registered`, and Retry failed did not cover it. The Python
+simulator re-announces everything at once, so PR 3 did not see it.
 
 **Fix (runtime, after PR 2)**: an activation whose edge node is online but has not
 announced the source in its current session is held instead of refused, for up to
