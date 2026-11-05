@@ -8,6 +8,7 @@ use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\AssistantEvents;
 use App\Domain\Assistant\Services\AssistantQuestions;
+use App\Domain\Assistant\Services\FirmwareOffers;
 use App\Domain\Assistant\Services\OnboardingProposals;
 use App\Domain\DeviceAdapters\Models\AdapterDelivery;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
@@ -47,14 +48,15 @@ final class OnboardingTools implements Tool
         return 'Device onboarding tools. Actions: find {kind: adapters|profiles, query?}; ask_questions {questions: [{id, prompt, required, options}]} (1-3); recommend_path {path: direct|gateway|adapter, source_type?: platform|vendor|webhook|poll, reason}; '
             .'propose_adapter {mode: reuse, adapter_uuid, artifact_uuid, source, summary} to continue on an existing ADAPTER from find adapters (only when its profile is the one these devices need and its source settings match theirs), or {mode: create, name, artifact_uuid, source, summary, code?, fixtures?} to create a new adapter for a published profile (artifact_uuid from find profiles; source holds non-secret settings such as {type: poll, request: {method, url, query}, credentials: {placement, name}, records, cursor}); status {}; samples {limit?}; fetch_now {}; '
             .'test_decoder {code, fixtures?: [{topic?, payload, source?}] (1-10 samples, such as the ones the person pasted), inputs?: fixtures|samples, artifact_uuid? (the profile to test against before an adapter is chosen)}; '
-            .'propose_change {summary, evidence, code?, source?, fixtures?}; next_step {step: credentials|secret|test|deploy|activate|cursor, message}; read_source {source_id}. '
+            .'propose_change {summary, evidence, code?, source?, fixtures?}; next_step {step: credentials|secret|test|deploy|activate|cursor, message}; read_source {source_id}; '
+            .'offer_firmware {profile_uuid (uuid from find profiles), target (a firmware target id such as linux or esp32-esp-idf), role: direct|gateway} shows the person a card that downloads a credential-free firmware starter for a published profile. '
             .'status, samples, fetch_now, propose_change and next_step need the conversation to be bound to an adapter (after a reuse or create proposal is applied). No action reveals credentials or secrets.';
     }
 
     public function schema(JsonSchema $schema): array
     {
         return [
-            'action' => $schema->string()->enum(['find', 'ask_questions', 'recommend_path', 'propose_adapter', 'status', 'samples', 'fetch_now', 'test_decoder', 'propose_change', 'next_step', 'read_source'])->required(),
+            'action' => $schema->string()->enum(['find', 'ask_questions', 'recommend_path', 'propose_adapter', 'status', 'samples', 'fetch_now', 'test_decoder', 'propose_change', 'next_step', 'read_source', 'offer_firmware'])->required(),
             'arguments_json' => $schema->string()->description('A JSON object with the action arguments. Use {} when there are none.')->required(),
         ];
     }
@@ -82,6 +84,7 @@ final class OnboardingTools implements Tool
                 'propose_change' => $this->proposeChange($run, $args),
                 'next_step' => $this->nextStep($run, $args),
                 'read_source' => $this->source((string) ($args['source_id'] ?? '')),
+                'offer_firmware' => app(FirmwareOffers::class)->offer($run, $args),
             };
             $encoded = json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
 

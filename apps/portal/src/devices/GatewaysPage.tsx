@@ -18,14 +18,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@iot-os/ui/components/collapsible"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@iot-os/ui/components/dialog"
 import { DropdownMenuItem } from "@iot-os/ui/components/dropdown-menu"
 import { FieldGroup } from "@iot-os/ui/components/field"
 import {
@@ -44,6 +36,7 @@ import {
   EditorSheet,
   SaveBar,
 } from "../components/forms"
+import { GatewayFirmwareDialog } from "./GatewayFirmwareDialog"
 import { connectionsPath, discoveryPath, gatewayPath, useDeviceOrganization } from "./shared"
 
 export function GatewaysPage() {
@@ -95,7 +88,7 @@ export function GatewaysPage() {
       | { kind: "connection"; item: SparkplugConnection }
       | null
     >(null),
-    [credentials, setCredentials] = useState<Gateway | null>(null)
+    [firmware, setFirmware] = useState<Gateway | null>(null)
   const ready = connections.data?.data.some((c) => c.status === "ready")
   // Links from before the gateway page used ?gateway=; send them to the page.
   if (legacy) return <Navigate to={gatewayPath(org, legacy)} replace />
@@ -197,7 +190,7 @@ export function GatewaysPage() {
                 <DropdownMenuItem asChild>
                   <Link to={discoveryPath(org, g.uuid)}>Open in discovery</Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setCredentials(g)}>Get credentials</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setFirmware(g)}>Firmware</DropdownMenuItem>
               </>
             )}
             refreshSeconds={5}
@@ -206,7 +199,7 @@ export function GatewaysPage() {
                 inset
                 icon={<RouterIcon />}
                 title="No gateways yet"
-                description="Add a broker connection and register a gateway. Its credentials come from a CLI export on the server, never from this page."
+                description="Add a broker connection and register a gateway. Its credentials come with its firmware settings, or from a CLI export on the server."
               />
             }
           />
@@ -258,38 +251,16 @@ export function GatewaysPage() {
           }
         }}
       />
-      {credentials && <GatewayCredentials gateway={credentials} onClose={() => setCredentials(null)} />}
+      {firmware && (
+        <GatewayFirmwareDialog
+          org={org}
+          gateway={firmware}
+          devices={devices.data ? (byGateway.get(firmware.uuid) ?? []) : devices.isError ? [] : undefined}
+          canManage={capabilities.connections}
+          onClose={() => setFirmware(null)}
+        />
+      )}
     </>
-  )
-}
-
-/** How an operator exports a gateway's credentials; the portal never shows them. */
-export function GatewayCredentials({ gateway, onClose }: { gateway: Gateway; onClose: () => void }) {
-  return (
-  <Dialog open onOpenChange={(open) => !open && onClose()}>
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Get gateway credentials</DialogTitle>
-        <DialogDescription>
-          The portal never shows credentials. An operator with server access
-          exports them to a new file from the API container:
-        </DialogDescription>
-      </DialogHeader>
-      <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs whitespace-pre-wrap break-all">
-        php artisan devices:export-gateway {gateway.uuid} --output=/tmp/gateway.json
-        --broker=ssl://BROKER_HOST:8883 --ca=/path/on/gateway/ca.crt
-      </pre>
-      <p className="text-sm text-muted-foreground">
-        Use the broker address and CA path the gateway can reach, then install
-        the file and the CA certificate on the gateway.
-      </p>
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
-          Close
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
   )
 }
 
@@ -378,7 +349,7 @@ export function GatewayEditor({
       description={
         kind === "connection"
           ? "Reserves a unique group on the managed broker."
-          : "Uses the Edge Node identifier your gateway reports. Its credentials come from a CLI export afterwards."
+          : "Uses the Edge Node identifier your gateway reports. Its credentials come with its firmware afterwards."
       }
       dirty={form.formState.isDirty}
       busy={form.formState.isSubmitting}
