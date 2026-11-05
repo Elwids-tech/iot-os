@@ -518,7 +518,7 @@ home paths.
 - [x] T061 Checks:
   - `cd apps/api && php artisan test --compact`, `vendor/bin/pint --test`, `php artisan contract:export --check` and `php artisan contract:check --base=origin/main`, as CI runs them.
   - `pnpm --filter @iot-os/portal lint`, the portal e2e specs and `./taskw lint`.
-  - Built: 1,047 API tests passed (2 skipped), Pint and both contract checks pass, `./taskw lint` (with the portal's) passes, the 150 mocked portal e2e tests pass, and the SDK's `ctest` passes 18 of 18.
+  - Built: after merging main (027-2), 1,051 API tests passed (2 skipped), Pint and both contract checks pass, `./taskw lint` (with the portal's) passes, the 160 mocked portal e2e tests pass, and the SDK's `ctest` passes 18 of 18.
 - [x] T062 Rebuild `api`, its workers and `portal` with the stack's env files and overlays (AGENTS.md command; see [the list](../../docs/dev/local-setup.md#rebuild-one-service)).
   - Run quickstart 3, 4, 6 and 7 against the running stack, preserving unsaved browser edits.
   - Check that the kit came from the image's `/var/firmware-sdk`.
