@@ -626,6 +626,7 @@ home paths.
   - Done 2026-11-03: PR 2 and PR 4 had not merged, so `verify-embedded-sdk.mjs` was not run and the roadmap entry stays. The dev compose's Devices overlay also needed the runtime settings for `default-worker` ([gotchas](../../docs/dev/gotchas.md#local-stack)).
 - [x] T080 [US5] Only if T079 counts more than three rebirths per run (R19): the runtime skips the activation rebirth when the source's current birth is already cached, in `services/runtime/internal/app/application.go`, with a test in `services/runtime/internal/app/`. Re-measure, then record the result in research R19.
   - Not needed: T079 measured 2 rebirths for a 248-source run (research R19).
+  - Done after PR 2 anyway (2026-11-05): with the SDK simulator, the activation rebirth refused commands to devices whose births it had just taken away (research R19).
 
 **Checkpoint**: PR 3 merged. 247 devices onboard in one action.
 

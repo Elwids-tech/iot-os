@@ -148,9 +148,11 @@ each item under a row lock. Each item does what a single setup does, in one
 transaction: a gateway-mode setup (`device.onboarding.started` with
 `bulk_run_uuid`), a draft, the compile checks and the activation request. The run
 then rolls up to `succeeded`, `partial_failure` or `failed`, and the activity log
-records `device.bulk_onboarding.started`, `.retried` and `.finished`. Activations
-queued together share the runtime's per-gateway rebirth throttle (one request per
-30 s), so a run causes a few rebirths, not one per device.
+records `device.bulk_onboarding.started`, `.retried` and `.finished`. An activation
+against a live birth asks for no rebirth, and one whose gateway is still announcing
+its device waits for that birth. The others share the runtime's per-gateway rebirth
+throttle (one request per 30 s), so a run causes a few rebirths at most, not one per
+device.
 
 ### Configuration and activation
 
@@ -161,8 +163,11 @@ queued together share the runtime's per-gateway rebirth throttle (one request pe
 - **Activate** creates an immutable configuration snapshot (pinned profile
   revision and hash, parameter UUIDs, source, mappings) and asks the runtime to
   apply it. It becomes **applied** only on runtime acknowledgement.
-- The runtime checks the configuration against the source's live birth. A device
-  that announces its own births must be online. A source fed by a
+- The runtime checks the configuration against the source's live birth, and the
+  source's current values become the first readings. A device that announces its own
+  births must be online. When its gateway is online but has not announced it yet,
+  as a gateway that paces its births does for up to half a minute after a rebirth,
+  the activation waits up to 90 s for the device's birth. A source fed by a
   [device adapter](adapters.md) is announced by the platform's adapter, so when it
   has not announced itself since the adapter restarted, the runtime checks the
   source's last stored birth instead. The configuration then applies with presence

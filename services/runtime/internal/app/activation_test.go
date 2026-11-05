@@ -16,6 +16,7 @@ import (
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/storage"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"google.golang.org/protobuf/proto"
 )
 
 // trackerDefinition maps battery and latitude from src-1 on the connection's adapter edge.
@@ -392,9 +393,65 @@ func TestActivationRefusesASourceThatStaysOffline(t *testing.T) {
 	}
 }
 
-// Bulk onboarding activates a gateway's devices within seconds while the gateway
-// re-announces them at its own pace. Every activation applies, whether its device's
-// birth came before or after it; the held ones ask for no rebirth of their own.
+// An activation that applied at once asked its edge node for a rebirth, so that its
+// device's state would reach storage. Behind a paced gateway that took every device's
+// birth away for up to 25 s, and commands to them were refused until it came back: the
+// valve the end-to-end check commanded right after activating it (dev stack,
+// 2026-11-05). The live state is now handed on as the first readings instead (R19).
+func TestActivationOfALiveSourceHandsOnItsStateWithoutARebirth(t *testing.T) {
+	a, base, c, client, js := heldFixture(t)
+	born := time.Now().Add(-time.Hour)
+	if _, err := a.Engine.Accept(c.UUID, "spBv1.0/group/NBIRTH/adapter", sparkplugPayload(t, 0, bdSeqMetric(0)), born); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Engine.Accept(c.UUID, "spBv1.0/group/DBIRTH/adapter/src-1", sparkplugPayload(t, 1, doubleMetric("battery", 1, 3.2), doubleMetric("latitude", 2, 51.04)), born); err != nil {
+		t.Fatal(err)
+	}
+	// Reported by exception: the battery changed half an hour ago, the latitude never.
+	changed := born.Add(30 * time.Minute).Truncate(time.Millisecond).UTC()
+	battery := doubleMetric("battery", 1, 3.1)
+	battery.Timestamp = proto.Uint64(uint64(changed.UnixMilli()))
+	if _, err := a.Engine.Accept(c.UUID, "spBv1.0/group/DDATA/adapter/src-1", sparkplugPayload(t, 2, battery), changed); err != nil {
+		t.Fatal(err)
+	}
+
+	d := trackerDefinition(base, c, false)
+	if err := a.activate(d, 2, nil, "live"); err != nil {
+		t.Fatal(err)
+	}
+	if row := storedDevice(t, a, d.DeviceUUID); row.Outcome != "device.applied.v1" || row.Generation != 2 || row.Applied != 2 {
+		t.Fatalf("a live source was not applied at once: %+v", row)
+	}
+	if topics := client.published(); len(topics) != 0 || len(a.rebirthPending) != 0 {
+		t.Fatalf("a live birth needs no rebirth: %v %v", topics, a.rebirthPending)
+	}
+	first := handedOff(t, js)[d.DeviceUUID]
+	if len(first) != 1 || first[0].Generation != 2 || len(first[0].Readings) != 2 {
+		t.Fatalf("the live state must be the first readings: %+v", first)
+	}
+	for _, r := range first[0].Readings {
+		if r.Key == "battery" && (fmt.Sprint(r.Value) != "3.1" || !r.ObservedAt.Equal(changed)) {
+			t.Fatalf("the battery reading is not the latest one the source reported: %+v", r)
+		}
+		if r.ReceivedAt.Before(a.activeSince[d.DeviceUUID]) {
+			t.Fatalf("the reading would show as retained from before the activation: %+v", r)
+		}
+	}
+	var seen time.Time
+	if err := a.Store.Pool.QueryRow(a.ctx, "SELECT (event->'payload'->>'last_seen_at')::timestamptz FROM device_runtime.outbox WHERE event->>'type'='device.presence.v1' AND event->'payload'->>'device_uuid'=$1 AND event->'payload'->>'presence'='online'", d.DeviceUUID).Scan(&seen); err != nil || !seen.Equal(changed) {
+		t.Fatalf("presence online, last seen when the source last reported: %v %v", seen, err)
+	}
+
+	// Data after the activation reaches storage once, from the packet.
+	a.packet(c, "spBv1.0/group/DDATA/adapter/src-1", sparkplugPayload(t, 3, doubleMetric("battery", 1, 3.0)))
+	if all := handedOff(t, js)[d.DeviceUUID]; len(all) != 2 || len(all[1].Readings) != 1 {
+		t.Fatalf("readings after the activation: %+v", all)
+	}
+}
+
+// A gateway that restarts re-announces its devices at its own pace, and bulk onboarding
+// activates them within seconds. Every activation applies, whether its device's birth
+// came before or after it, and none asks for a rebirth.
 func TestBurstOfActivationsDuringAPacedRebirthAllApply(t *testing.T) {
 	a, base, c, client, js := heldFixture(t)
 	const count = 40
@@ -424,7 +481,7 @@ func TestBurstOfActivationsDuringAPacedRebirthAllApply(t *testing.T) {
 		}
 	}
 
-	// The first activation applies at once and asks for a rebirth. The answer resets
+	// The first activation applies at once. Then the gateway restarts: its NBIRTH resets
 	// every source, and the births follow one by one while the burst arrives.
 	if err := a.activate(defs[0], 2, nil, "bulk-0"); err != nil {
 		t.Fatal(err)
@@ -451,14 +508,14 @@ func TestBurstOfActivationsDuringAPacedRebirthAllApply(t *testing.T) {
 		if row := storedDevice(t, a, d.DeviceUUID); row.Outcome != "device.applied.v1" || row.Generation != 2 || row.Applied != 2 {
 			t.Fatalf("device %d: %+v", i, row)
 		}
-		if i >= count/3 && (len(readings[d.DeviceUUID]) != 1 || readings[d.DeviceUUID][0].Generation != 2) {
-			t.Fatalf("device %d: its birth was not its first reading: %+v", i, readings[d.DeviceUUID])
+		if i > 0 && (len(readings[d.DeviceUUID]) != 1 || readings[d.DeviceUUID][0].Generation != 2) {
+			t.Fatalf("device %d: one first reading, from its birth or its live state: %+v", i, readings[d.DeviceUUID])
 		}
 	}
 	if len(a.held) != 0 {
 		t.Fatalf("%d activations still held", len(a.held))
 	}
-	if topics := client.published(); len(topics) != 1 {
+	if topics := client.published(); len(topics) != 0 {
 		t.Fatalf("rebirths sent during the burst: %v", topics)
 	}
 }

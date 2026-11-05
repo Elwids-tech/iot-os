@@ -446,61 +446,8 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 			if e != nil {
 				return
 			}
-			suspended := captures.Suspended(d.OrganizationUUID, d.DeviceUUID)
-			a.mu.Lock()
-			latest := a.latest[d.DeviceUUID]
-			if latest == nil || a.sessions[d.DeviceUUID] != session {
-				latest = map[string]devices.Reading{}
-			}
-			if !suspended {
-				a.latest[d.DeviceUUID] = latest
-				a.sessions[d.DeviceUUID] = session
-				a.compatible[d.DeviceUUID] = !a.reviewRequired[d.DeviceUUID]
-			}
-			var stages []devices.ReadingTrace
-			var trace *[]devices.ReadingTrace
-			if captureID != "" {
-				trace = &stages
-			}
-			readings := devices.ReadingsTraced(d, profile, p.Metrics, latest, p.Received, trace)
-			if suspended {
-				a.mu.Unlock()
-				captures.Outcome(captureID, telemetry.Outcome{Device: d.DeviceUUID, Configuration: d.ConfigurationUUID, Status: "suspended", Diagnostic: "Production ingestion suspended for this device; these samples will not be replayed.", Stages: stages, Readings: readings})
+			if !a.handOn(d, profile, applied, session, p.Metrics, p.Received, captureID) {
 				return
-			}
-			for _, r := range readings {
-				if !r.Historical {
-					if r.Quality != "good" {
-						if previous, ok := latest[r.ParameterUUID]; ok {
-							r.Value = previous.Value
-							r.ObservedAt = previous.ObservedAt
-						} else {
-							r.Value = nil
-						}
-					}
-					latest[r.ParameterUUID] = r
-				}
-			}
-			a.mu.Unlock()
-			if len(readings) > 0 {
-				captures.Outcome(captureID, telemetry.Outcome{Device: d.DeviceUUID, Configuration: d.ConfigurationUUID, Status: "pending", Stages: stages, Readings: readings})
-				telemetry := devices.Telemetry{CaptureID: captureID, UUID: storage.UUID(), Definition: d, Generation: applied, SessionID: session, Readings: readings}
-				data, e := json.Marshal(telemetry)
-				if e == nil {
-					message := nats.NewMsg("iot.telemetry.device")
-					message.Data = data
-					message.Header.Set(nats.MsgIdHdr, telemetry.UUID)
-					_, e = a.JS.PublishMsg(message)
-				}
-				if e != nil {
-					captures.Stored(captureID, d.DeviceUUID, "handoff_failed", e.Error())
-					a.Logger.Error("telemetry durable handoff failed", "device", d.DeviceUUID, "error", e)
-					a.mu.Lock()
-					a.compatible[d.DeviceUUID] = false
-					a.mu.Unlock()
-					a.devicePresence(d, "unknown", "Telemetry handoff failed; a data gap may exist.", p.Received, true)
-					return
-				}
 			}
 			a.mu.Lock()
 			review = a.reviewRequired[d.DeviceUUID]
@@ -512,6 +459,71 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 			}
 		}()
 	}
+}
+
+// handOn turns a source's metrics, received at received, into d's readings, keeps them
+// as its latest values and hands them to storage at the applied generation. It reports
+// whether the device may be reported present: not while its ingestion is suspended, nor
+// after a failed handoff.
+func (a *Application) handOn(d devices.Definition, profile devices.Profile, applied int, session string, metrics []devices.Metric, received time.Time, captureID string) bool {
+	captures := a.captureManager()
+	suspended := captures.Suspended(d.OrganizationUUID, d.DeviceUUID)
+	a.mu.Lock()
+	latest := a.latest[d.DeviceUUID]
+	if latest == nil || a.sessions[d.DeviceUUID] != session {
+		latest = map[string]devices.Reading{}
+	}
+	if !suspended {
+		a.latest[d.DeviceUUID] = latest
+		a.sessions[d.DeviceUUID] = session
+		a.compatible[d.DeviceUUID] = !a.reviewRequired[d.DeviceUUID]
+	}
+	var stages []devices.ReadingTrace
+	var trace *[]devices.ReadingTrace
+	if captureID != "" {
+		trace = &stages
+	}
+	readings := devices.ReadingsTraced(d, profile, metrics, latest, received, trace)
+	if suspended {
+		a.mu.Unlock()
+		captures.Outcome(captureID, telemetry.Outcome{Device: d.DeviceUUID, Configuration: d.ConfigurationUUID, Status: "suspended", Diagnostic: "Production ingestion suspended for this device; these samples will not be replayed.", Stages: stages, Readings: readings})
+		return false
+	}
+	for _, r := range readings {
+		if !r.Historical {
+			if r.Quality != "good" {
+				if previous, ok := latest[r.ParameterUUID]; ok {
+					r.Value = previous.Value
+					r.ObservedAt = previous.ObservedAt
+				} else {
+					r.Value = nil
+				}
+			}
+			latest[r.ParameterUUID] = r
+		}
+	}
+	a.mu.Unlock()
+	if len(readings) > 0 {
+		captures.Outcome(captureID, telemetry.Outcome{Device: d.DeviceUUID, Configuration: d.ConfigurationUUID, Status: "pending", Stages: stages, Readings: readings})
+		telemetry := devices.Telemetry{CaptureID: captureID, UUID: storage.UUID(), Definition: d, Generation: applied, SessionID: session, Readings: readings}
+		data, e := json.Marshal(telemetry)
+		if e == nil {
+			message := nats.NewMsg("iot.telemetry.device")
+			message.Data = data
+			message.Header.Set(nats.MsgIdHdr, telemetry.UUID)
+			_, e = a.JS.PublishMsg(message)
+		}
+		if e != nil {
+			captures.Stored(captureID, d.DeviceUUID, "handoff_failed", e.Error())
+			a.Logger.Error("telemetry durable handoff failed", "device", d.DeviceUUID, "error", e)
+			a.mu.Lock()
+			a.compatible[d.DeviceUUID] = false
+			a.mu.Unlock()
+			a.devicePresence(d, "unknown", "Telemetry handoff failed; a data gap may exist.", received, true)
+			return false
+		}
+	}
+	return true
 }
 
 // devicePresence reports a device's presence. at is when its packet was received;
@@ -644,12 +656,13 @@ func (a *Application) transition(d devices.Definition, generation int, birth []d
 	if e = a.Store.Apply(a.ctx, d, generation, "device.applied.v1", map[string]any{"operation_uuid": op}); e != nil {
 		return e
 	}
+	appliedAt := time.Now().UTC()
 	a.mu.Lock()
 	a.definitions[d.DeviceUUID] = d
 	if a.activeSince == nil {
 		a.activeSince = map[string]time.Time{}
 	}
-	a.activeSince[d.DeviceUUID] = time.Now().UTC()
+	a.activeSince[d.DeviceUUID] = appliedAt
 	if !bornAt.IsZero() {
 		a.activeSince[d.DeviceUUID] = bornAt
 	}
@@ -666,11 +679,47 @@ func (a *Application) transition(d devices.Definition, generation int, birth []d
 	delete(a.reported, d.DeviceUUID) // the control plane resets presence on device.applied.v1
 	a.mu.Unlock()
 	// A released activation's birth carries the source's state, and packet() hands it on
-	// as the first readings. One applied at once validated a birth that predates it.
-	if bornAt.IsZero() {
+	// as the first readings. One applied at once hands on the live state it was checked
+	// against; only a source without one (an adapter-fed source's stored birth) asks for
+	// a rebirth.
+	if bornAt.IsZero() && !a.handOnLive(d, generation, appliedAt) {
 		a.requestRebirth(d.Source.ConnectionUUID, d.Source.GroupID, d.Source.EdgeNodeID)
 	}
 	return nil
+}
+
+// handOnLive hands a live source's current state on as the first readings of an
+// activation applied at since, instead of asking for a rebirth (R19): a rebirth makes the
+// whole edge node announce again, and a paced gateway's devices refuse commands until
+// their births are back. Metrics received from since on are packet()'s to hand on. It
+// reports false when the source has no live birth that matches d.
+func (a *Application) handOnLive(d devices.Definition, generation int, since time.Time) bool {
+	session, metrics, online := a.Engine.Snapshot(d.Source)
+	if !online {
+		return false
+	}
+	// The birth can change after the activation's check; a rebirth lets packet() review it.
+	if _, e := devices.Preview(d, metrics); e != nil {
+		return false
+	}
+	profile, e := devices.ParseProfile(d)
+	if e != nil {
+		return false
+	}
+	state := []devices.Metric{}
+	var seen time.Time
+	for _, m := range metrics {
+		if m.ReceivedAt.Before(since) {
+			state = append(state, m)
+			if m.ReceivedAt.After(seen) {
+				seen = m.ReceivedAt
+			}
+		}
+	}
+	if a.handOn(d, profile, generation, session, state, since, "") {
+		a.devicePresence(d, "online", "", seen, true)
+	}
+	return true
 }
 
 // holdForBirth holds an activation whose source's birth is due, and reports whether

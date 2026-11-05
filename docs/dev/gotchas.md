@@ -404,12 +404,13 @@ Things that have cost time before. Add to this list when something surprises you
   the callback, which is how adapter sources apply backpressure instead of dropping.
   Never call the callback of a client you have ended: a queued PUBACK can acknowledge
   the wrong message on the next connection.
-- **Activating an adapter device triggers a rebirth from the old flow.** The runtime
-  asks the edge node to rebirth when the device's configuration activates; the flow
-  still running answers with metrics that carry no provenance, because the binding
-  arrives with the next deployment. The runtime now skips adapter readings with no
-  provenance instead of storing them as invalid. Deduplication keys are recorded only
-  for stored (bound) readings, so a cursor reset after activation backfills previews.
+- **Activating an adapter device sees a birth from the old flow.** The runtime hands
+  on the source's live birth when the device's configuration activates, or asks the
+  edge node to rebirth when it has none. Either birth comes from the flow still
+  running, so its metrics carry no provenance: the binding arrives with the next
+  deployment. The runtime now skips adapter readings with no provenance instead of
+  storing them as invalid. Deduplication keys are recorded only for stored (bound)
+  readings, so a cursor reset after activation backfills previews.
 - **Assistant tools get verbose search queries.** Models pass sentences such as "GPS
   asset tracker location stream profile with fields lat lon" to search actions;
   `OnboardingTools::find` matches any word and ranks by matches. Give each tool's
@@ -749,11 +750,13 @@ Things that have cost time before. Add to this list when something surprises you
 - **After a rebirth, a paced gateway's devices have no birth for up to 25 s.** The
   runtime's Sparkplug engine forgets a node's devices on its NBIRTH, and the SDK
   re-announces them at 20 per second. Activations in that gap were refused as offline
-  (up to 245 of 247 in a bulk onboarding), and each one that did apply asked for
-  another rebirth, which opened the gap again. The Python simulator re-announces at once, so
-  checks against it never saw this. The runtime now holds such an activation until the
-  device's birth, for up to 90 s (spec 026 research R19); test bulk paths against the
-  SDK simulator, not only the Python one.
+  (up to 245 of 247 in a bulk onboarding), commands to its devices too, and each
+  activation that did apply asked for another rebirth, which opened the gap again. The
+  Python simulator re-announces at once, so checks against it never saw this. The
+  runtime now holds such an activation until the device's birth, for up to 90 s, and
+  one whose device's birth is live hands that state on instead of asking for a rebirth
+  (spec 026 research R19). Test bulk paths against the SDK simulator, not only the
+  Python one.
 - **pymodbus data blocks are 1-based.** `ModbusSequentialDataBlock.getValues` receives
   the register number plus one, so a block that starts at 0 answers every read one
   register late. `tooling/hardware/modbus_simulator.py` starts its block at 1.

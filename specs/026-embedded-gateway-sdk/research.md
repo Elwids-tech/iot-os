@@ -162,9 +162,9 @@ The runtime's rules shape the session
   DCMD subscription is denied.
 - It births when the host's retained STATE says `{"online":true}`. Rebirth requests
   arrive as NCMD `Node Control/Rebirth`. The runtime sends them after its own
-  reconnects and after an activation that applies at once, throttled to one per 30 s
-  per edge node (`requestRebirth` in `application.go`). At 20 births per second, 500
-  devices re-announce in 25 s, inside that window (see R19).
+  reconnects and for an activation whose source has no live birth, throttled to one
+  per 30 s per edge node (`requestRebirth` in `application.go`). At 20 births per
+  second, 500 devices re-announce in 25 s, inside that window (see R19).
 
 ### R9. Aliases
 
@@ -398,9 +398,20 @@ device's fence stays free. The device's DBIRTH applies the held activation, chec
 against that birth, and the birth becomes its first reading, so it asks for no further
 rebirth. A held activation asks for a rebirth only when the node is not announcing
 already (none sent and no NBIRTH in the last 30 s), because a rebirth restarts the
-announcement. An activation that applies at once still asks for one, coalesced as
-before, since its readings need a birth after it. An offline node, a device that died
-in the node's session, and a birth that does not come within 90 s are still refused.
+announcement. An offline node, a device that died in the node's session, and a birth
+that does not come within 90 s are still refused.
+
+**Fix, part 2 (T080, same PR)**: an activation that applied at once still asked for a
+rebirth, so that its device's state would reach storage. With the hold in place, the
+end-to-end check onboarded 247 devices with none refused, but its next step failed: it
+activated a valve, whose birth was live, and commanded it at once. The activation's
+rebirth had taken every device's birth away, and the runtime refused the command
+until the valve was announced again. The runtime now hands the source's live state on
+as the activation's first readings instead (`handOnLive` in `application.go`): each
+metric's last value, with its source timestamp, received at the activation. It also
+reports the device online. Metrics received after the activation come through as
+usual. Only a source without a live birth asks for a rebirth: an adapter-fed source
+checked against its stored birth.
 
 ### R20. Profile types to Sparkplug types in the kit
 

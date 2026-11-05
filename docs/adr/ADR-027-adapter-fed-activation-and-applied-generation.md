@@ -57,7 +57,7 @@ the device from command bindings.
   incompatible live birth still refuses. When the source has no live birth, the
   runtime checks the configuration against `birth_metrics` and applies it if they
   match. Presence stays unknown until the device reports, and the runtime asks the
-  adapter for a rebirth as it does after every activation. Later births set and clear
+  adapter for a rebirth. Later births set and clear
   review as before (ADR-025). A device that announces its own births still needs a
   live, matching birth.
 - **Two generations.** The *deployment generation* fences requests, as before.
