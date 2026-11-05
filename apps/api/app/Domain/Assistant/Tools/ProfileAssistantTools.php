@@ -8,6 +8,7 @@ use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\AssistantEvents;
 use App\Domain\Assistant\Services\AssistantQuestions;
+use App\Domain\Assistant\Services\FirmwareOffers;
 use App\Domain\Assistant\Services\ProfileKnowledge;
 use App\Domain\Assistant\Services\ProfileProposalService;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
@@ -31,14 +32,14 @@ final class ProfileAssistantTools implements Tool
 
     public function description(): Stringable|string
     {
-        return 'Authorized profile workspace tools. Actions: schema (editable fields and required/optional questions), read_target, find_profiles (query), read_profile (uuid), source (source_id), record_facts (facts array of field, value string, source_id (omit for what the person said in chat), location, certainty explicit|inferred|uncertain), ask_questions (questions array, max 3, each with id, prompt, required boolean, options string array), preview_section (section, summary, changes array of {operation: upsert|remove, uuid or null, values}, evidence array of {field, origin, source_id?, location?, note?}), validate, test_calculation (expression object, samples object). '
+        return 'Authorized profile workspace tools. Actions: schema (editable fields and required/optional questions), read_target, find_profiles (query), read_profile (uuid), source (source_id), record_facts (facts array of field, value string, source_id (omit for what the person said in chat), location, certainty explicit|inferred|uncertain), ask_questions (questions array, max 3, each with id, prompt, required boolean, options string array), preview_section (section, summary, changes array of {operation: upsert|remove, uuid or null, values}, evidence array of {field, origin, source_id?, location?, note?}), validate, test_calculation (expression object, samples object), offer_firmware (profile_uuid, target such as linux or esp32-esp-idf, role direct|gateway: shows the person a card that downloads a credential-free firmware starter for a published profile). '
             .'Evidence origin is user_stated for what the person said in chat (no source_id), source for an attached file (with source_id), user_confirmed, suggested for your own defaults, or unresolved (blocks applying). Arguments are encoded as a JSON object to support the existing extensible JSON Logic and profile schema. No action saves a profile; preview_section returns an immutable review proposal. Use ApplyProfileSection afterward to request human approval.';
     }
 
     public function schema(JsonSchema $schema): array
     {
         return [
-            'action' => $schema->string()->enum(['schema', 'read_target', 'find_profiles', 'read_profile', 'source', 'record_facts', 'ask_questions', 'preview_section', 'validate', 'test_calculation'])->required(),
+            'action' => $schema->string()->enum(['schema', 'read_target', 'find_profiles', 'read_profile', 'source', 'record_facts', 'ask_questions', 'preview_section', 'validate', 'test_calculation', 'offer_firmware'])->required(),
             'arguments_json' => $schema->string()->description('A JSON object with the action arguments. Use {} when no arguments are needed.')->required(),
         ];
     }
@@ -64,6 +65,7 @@ final class ProfileAssistantTools implements Tool
                 'preview_section' => $this->proposal($service->preview($conversation, [...$arguments, 'evidence' => $this->evidence($arguments['evidence'] ?? [])], $run)->toArray()),
                 'validate' => ['diagnostics' => $conversation->profile ? array_map(fn ($d) => $d->toArray(), app(DeviceProfileValidator::class)->validate($conversation->profile)) : [['code' => 'profile.required', 'message' => 'Create the profile identity first.']]],
                 'test_calculation' => $this->testCalculation($arguments),
+                'offer_firmware' => app(FirmwareOffers::class)->offer($run, $arguments),
             };
 
             return json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);

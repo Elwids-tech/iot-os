@@ -27,7 +27,7 @@
   "required_capabilities": [
     "profiles.view"
   ],
-  "revision": 1,
+  "revision": 2,
   "summary": "The Firmware tab gives a firmware starter for a published profile: the embedded SDK, the profile’s metrics and a project for your microcontroller, with no credentials.",
   "questions": [
     "How do I get the embedded SDK for my microcontroller?",
@@ -56,7 +56,7 @@ Publish the profile first: starters are built from a published revision. Downloa
 With its settings in `config/`, the firmware connects, announces this profile’s metrics and sends readings, and the device shows as online with current measurements.
 
 ## Troubleshooting
-**Download starter** stays unavailable until the profile has a published revision. Without settings in `config/`, the program says where to get them and stops before connecting. `config/` holds credentials: `.gitignore` keeps it out of version control, and it must not be shared or given to an AI tool. A gateway’s connection settings come from the connection administrator. When the profile gets a new revision, download a new starter for the same target and follow **Updating** in its README: your code, the device brief and the settings stay as they are. To check the platform side without hardware, use the desktop simulator described in the README.
+**Download starter** stays unavailable until the profile has a published revision. Without settings in `config/`, the program says where to get them and stops before connecting. `config/` holds credentials: `.gitignore` keeps it out of version control, and it must not be shared or given to an AI tool. A gateway’s starter, settings and full kit also come from **Firmware** on the gateway’s page, and a device’s starter from **I’m writing the firmware** while adding it. When the assistant is on, ask it for firmware for a profile: it shows a card that downloads the same starter. When the profile gets a new revision, download a new starter for the same target and follow **Updating** in its README: your code, the device brief and the settings stay as they are. To check the platform side without hardware, use the desktop simulator described in the README.
 
 ## Related guides
 [Read the related guide](/help/profile-review)

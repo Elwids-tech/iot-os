@@ -1,6 +1,5 @@
 import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import type { FirmwareRole, FirmwareTarget, StarterManifest } from "@iot-os/api-client"
+import type { FirmwareRole, StarterManifest } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import { ChoiceCard } from "@iot-os/ui/components/choice-card"
@@ -14,24 +13,12 @@ import {
   PanelTitle,
 } from "@iot-os/ui/components/panel"
 import { RadioGroup } from "@iot-os/ui/components/radio-group"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@iot-os/ui/components/select"
 import { DownloadIcon } from "lucide-react"
 import { toast } from "sonner"
-import { api } from "../lib/api"
 import { saveArchive } from "../lib/download"
+import { FirmwareTargetSelect, profileStarter, useFirmwareTargets } from "../lib/firmware"
 import { RequestError } from "../components/forms"
 import { useStudio } from "./use-studio"
-
-/** The organization's health profile for gateways (spec 026), when one is published. */
-const GATEWAY_HEALTH = "gateway-health"
 
 /**
  * Firmware starters for this profile (spec 027 US1): a target, a role, and a credential-free
@@ -44,12 +31,7 @@ export function FirmwareSection() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [manifest, setManifest] = useState<StarterManifest | null>(null)
-  const targets = useQuery({
-    queryKey: ["firmware-targets", org],
-    queryFn: ({ signal }) => api.firmwareTargets(org, signal),
-    enabled: profile.revision > 0,
-    staleTime: 5 * 60_000,
-  })
+  const targets = useFirmwareTargets(org, undefined, profile.revision > 0)
 
   if (profile.revision === 0)
     return (
@@ -63,28 +45,14 @@ export function FirmwareSection() {
       </Panel>
     )
 
-  const options = targets.data ?? []
-  const chosen = options.find((item) => item.id === target)
-  const groups: [string, FirmwareTarget[]][] = [
-    ["Built", options.filter((item) => item.kind === "built")],
-    ["AI-assisted", options.filter((item) => item.kind === "ai_assisted")],
-  ]
+  const chosen = targets.options.find((item) => item.id === target)
 
   async function download() {
     if (!chosen || busy) return
     setBusy(true)
     setError(null)
     try {
-      const artifact = await publishedArtifact(org, profile.uuid)
-      const starter =
-        role === "direct"
-          ? await api.createFirmwareStarter(org, { target: chosen.id, role, node_artifact_uuid: artifact })
-          : await api.createFirmwareStarter(org, {
-              target: chosen.id,
-              role,
-              node_artifact_uuid: await gatewayHealthArtifact(org),
-              device_type_artifact_uuids: [artifact],
-            })
+      const starter = await profileStarter(org, profile.uuid, chosen.id, role)
       saveArchive(starter)
       setManifest(starter.manifest)
       toast.success("Starter downloaded")
@@ -108,28 +76,14 @@ export function FirmwareSection() {
         <PanelContent className="flex flex-col gap-6">
           <Field>
             <FieldLabel htmlFor="firmware-target">Microcontroller or platform</FieldLabel>
-            <Select value={target} onValueChange={setTarget} disabled={targets.isPending}>
-              <SelectTrigger id="firmware-target" className="w-full max-w-sm">
-                <SelectValue placeholder={targets.isPending ? "Loading targets…" : "Choose a target"} />
-              </SelectTrigger>
-              <SelectContent>
-                {groups
-                  .filter(([, items]) => items.length > 0)
-                  .map(([label, items]) => (
-                    <SelectGroup key={label}>
-                      <SelectLabel>{label}</SelectLabel>
-                      {items.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                          {item.kind === "ai_assisted" && (
-                            <span className="text-meta text-muted-foreground"> · no tested example</span>
-                          )}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-              </SelectContent>
-            </Select>
+            <FirmwareTargetSelect
+              id="firmware-target"
+              targets={targets.options}
+              value={target}
+              onChange={setTarget}
+              loading={targets.isPending}
+              className="w-full max-w-sm"
+            />
             <FieldDescription>
               {chosen?.kind === "built"
                 ? `Builds as downloaded with ${chosen.toolchain}.`
@@ -180,19 +134,4 @@ export function FirmwareSection() {
       </Panel>
     </div>
   )
-}
-
-/** The profile's newest published artifact. */
-async function publishedArtifact(org: string, profile: string): Promise<string> {
-  const artifacts = (await api.profileArtifacts(org, profile)).data
-  const active = artifacts.find((item) => item.status === "active") ?? [...artifacts].sort((a, b) => b.revision - a.revision)[0]
-  if (!active) throw new Error("This profile has no published version.")
-  return active.uuid
-}
-
-/** The organization's published gateway health profile, or null for the SDK's default health table. */
-async function gatewayHealthArtifact(org: string): Promise<string | null> {
-  const page = await api.deviceProfiles(org, { search: GATEWAY_HEALTH, perPage: 25 })
-  const health = page.data.find((item) => item.code === GATEWAY_HEALTH && item.revision > 0)
-  return health ? publishedArtifact(org, health.uuid) : null
 }

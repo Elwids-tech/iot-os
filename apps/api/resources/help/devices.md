@@ -24,7 +24,7 @@
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 5,
+  "revision": 6,
   "summary": "A registered device connects a discovered source to a published profile and an organization-owned configuration.",
   "questions": [
     "How do I register a device?",
@@ -59,6 +59,15 @@ To onboard many sources of one type behind one gateway at once (this needs both 
 A run takes at most 500 sources. Running the same selection again creates no second device for any source.
 
 For firmware written with the platform’s embedded SDK, a device that connects directly has a **Firmware** group in **Device actions** (this needs connection-management permission). **Download settings** gives the private connection settings to unpack into a firmware starter’s `config/` folder. **Download firmware kit** gives a starter for the device’s profile and a chosen microcontroller with the settings already in place. Starters without credentials come from the profile’s **Firmware** tab. [Read the firmware guide](/help/firmware).
+
+While adding a device that connects directly, the connection step offers **I’m writing the firmware**. Choose it, pick the microcontroller or platform, then choose **Download starter** for a starter for the device’s profile. With connection-management permission, **Download firmware kit** gives the starter with this device’s settings in place. **Download setup bundle** works as before.
+
+For a gateway, open it from **Gateways** and choose **Firmware** (or **Firmware** in the gateway’s row menu):
+
+1. Keep the preselected gateway health profile, or choose another. Without a published `gateway-health` profile, the SDK’s default health metrics are used.
+2. Check the device types, one published profile for each kind of device the gateway reads, up to 8. With nothing saved yet, the profiles of the devices already behind the gateway are suggested.
+3. Choose the microcontroller or platform, then **Download starter**.
+4. With connection-management permission, **Download settings** gives the gateway’s private settings and **Download full kit** gives the starter with them in place. Your choices are saved on the gateway for the next person who opens it.
 
 ## Expected result
 The directory shows one status per device, from its lifecycle, configuration and presence. The device workspace provides applied configuration and latest data.

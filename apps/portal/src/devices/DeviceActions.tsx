@@ -25,7 +25,6 @@ import {
   DialogTitle,
 } from "@iot-os/ui/components/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@iot-os/ui/components/select"
 import { Input } from "@iot-os/ui/components/input"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
@@ -33,6 +32,7 @@ import { RadioGroup, RadioGroupItem } from "@iot-os/ui/components/radio-group"
 import { CircleCheckIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { saveArchive } from "../lib/download"
+import { FirmwareTargetSelect, useFirmwareTargets } from "../lib/firmware"
 import { useUnsaved } from "../lib/unsaved"
 import {
   EditorSheet,
@@ -473,8 +473,7 @@ export function FirmwareKitDialog({ org, device, onClose }: { org: string; devic
   const [target, setTarget] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
-  const targets = useQuery({ queryKey: ["firmware-targets", org], queryFn: ({ signal }) => api.firmwareTargets(org, signal), staleTime: 5 * 60_000 })
-  const options = (targets.data ?? []).filter((item) => item.roles.includes("direct"))
+  const targets = useFirmwareTargets(org, "direct")
   async function download() {
     if (!target || busy) return
     setBusy(true)
@@ -504,27 +503,7 @@ export function FirmwareKitDialog({ org, device, onClose }: { org: string; devic
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="firmware-kit-target">Microcontroller or platform</FieldLabel>
-            <Select value={target} onValueChange={setTarget} disabled={targets.isPending}>
-              <SelectTrigger id="firmware-kit-target" className="w-full">
-                <SelectValue placeholder={targets.isPending ? "Loading targets…" : "Choose a target"} />
-              </SelectTrigger>
-              <SelectContent>
-                {(["built", "ai_assisted"] as const).map((kind) => {
-                  const items = options.filter((item) => item.kind === kind)
-                  return items.length ? (
-                    <SelectGroup key={kind}>
-                      <SelectLabel>{kind === "built" ? "Built" : "AI-assisted"}</SelectLabel>
-                      {items.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                          {kind === "ai_assisted" && <span className="text-meta text-muted-foreground"> · no tested example</span>}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ) : null
-                })}
-              </SelectContent>
-            </Select>
+            <FirmwareTargetSelect id="firmware-kit-target" targets={targets.options} value={target} onChange={setTarget} loading={targets.isPending} />
           </Field>
         </FieldGroup>
         <RequestError error={error ?? targets.error} />

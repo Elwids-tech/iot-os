@@ -78,6 +78,7 @@ final class ProfileAssistant implements Agent, Conversational, HasProviderOption
             'selected_text_sources' => $conversation->sources()->whereIn('id', $this->run->source_ids ?? [])->get()->filter(fn ($source) => str_starts_with($source->mime, 'text/') || $source->mime === 'application/json')->map(fn ($source) => ['id' => $source->id, 'name' => $source->name, 'text_excerpt' => mb_substr(Storage::disk('local')->get($source->path), 0, 12000)])->values()->all(),
             'onboarding' => ['questions' => $conversation->onboarding_state['questions'] ?? [], 'answers' => array_slice($conversation->onboarding_state['answers'] ?? [], -50)],
             'schema' => app(ProfileKnowledge::class)->describe(),
+            'firmware_targets' => OnboardingAssistant::firmwareTargets(),
         ];
         $encoded = json_encode($context, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         if (strlen($encoded) > config('assistant.max_context_characters')) {
@@ -97,6 +98,8 @@ Use preview_section once enough information for ONE coherent section is known. I
 After a valid preview with no blocking diagnostics, call ApplyProfileSection using its id and content_hash. This pauses for the user's review. Nothing is saved until that approved tool returns successfully. A conversational 'yes' is not an authenticated tool approval. Never claim saved, validated or published without the corresponding server result. When identity is approved, read the saved target and proceed to parameters. When a section is applied, ask what is still needed or suggest optional details. On completion use validate and direct the user to Review & publish.
 
 After inspecting selected sources, call record_facts before preview_section. Retain useful facts for later sections, including parameter meaning, type, unit, reported versus writable behavior, and constraints, even while preparing identity. Each fact has field, value string, source_id (omit it for what the user said in chat), location, certainty explicit|inferred|uncertain. Consult source_facts and collected answers before asking questions. Inferred or uncertain facts still need confirmation.
+
+Firmware: when the person wants to write firmware for this or another published profile, ask only for what you cannot infer (the target from firmware_targets, and whether the device connects directly or sits behind a gateway), then call offer_firmware with the profile uuid, the target id and the role. The person gets a card that downloads a starter with the SDK, the profile's metrics and instructions for an AI coding agent. Never ask for, accept, repeat or paste credentials or connection settings; for those, send the person to the device's or gateway's page, under Firmware. You do not write firmware here.
 
 Format replies as simple Markdown for a narrow chat panel: short paragraphs, bullet or numbered lists, **bold** for the key point, and `code` for exact keys, codes and field names. No headings, wide tables or raw HTML.
 

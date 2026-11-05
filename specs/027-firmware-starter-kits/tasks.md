@@ -306,22 +306,22 @@ appear in each story.
 
 **Independent test**: `pnpm --filter @iot-os/portal exec playwright test gateway-firmware onboarding-firmware`, then quickstart 5–6 (steps 1 and 3).
 
-- [ ] T053 [US4] `apps/portal/src/devices/GatewayFirmwareDialog.tsx`, opened by a **Firmware** button that replaces **Get credentials** in `GatewayPage.tsx` and the gateway menu in `GatewaysPage.tsx`:
+- [x] T053 [US4] `apps/portal/src/devices/GatewayFirmwareDialog.tsx`, opened by a **Firmware** button that replaces **Get credentials** in `GatewayPage.tsx` and the gateway menu in `GatewaysPage.tsx`:
   - **Node**: a `SearchableSelect` preselected from `firmware_selection`, otherwise the organization's published `gateway-health` profile, otherwise "SDK default health metrics".
   - **Device types**: up to 8 `SearchableSelect`s of published profiles, preselected from `firmware_selection`. With nothing saved, suggest the profiles of devices already under the gateway, from the page's device list (data model; FR-042).
   - **Target**: a `Select`.
   - **Actions**: **Download starter** (with `gateway_uuid` when the person may manage connections), and **Download settings** and **Download full kit** shown only with `Device.manage-connections`.
 
-  The server-export instructions move under a disclosure in the dialog. Archive data lives only in component state, and toasts stay clear of the dialog's actions.
-- [ ] T054 [US4] `apps/portal/src/devices/ConnectionKit.tsx`: an "I'm writing the firmware" choice that reveals a target `Select`, **Download starter** (`createFirmwareStarter` with the device's profile artifact, for anyone at this step) and **Download firmware kit** (`deviceFirmwareKit`, only with `Device.manage-connections`) beside the unchanged **Download setup bundle**. The wizard's later steps are unchanged.
-- [ ] T055 [P] [US4] `apps/portal/e2e/gateway-firmware.spec.ts` (mocked API):
+  The server-export instructions are removed from the portal; the command keeps working for operators (FR-034). Archive data lives only in component state, and toasts stay clear of the dialog's actions.
+- [x] T054 [US4] `apps/portal/src/devices/ConnectionKit.tsx`: an "I'm writing the firmware" choice that reveals a target `Select`, **Download starter** (`createFirmwareStarter` with the device's profile artifact, for anyone at this step) and **Download firmware kit** (`deviceFirmwareKit`, only with `Device.manage-connections`) beside the unchanged **Download setup bundle**. The wizard's later steps are unchanged.
+- [x] T055 [P] [US4] `apps/portal/e2e/gateway-firmware.spec.ts` (mocked API):
   - Get credentials is gone;
   - the preselection order;
   - 8 types maximum;
   - a member sees only Download starter;
   - the request bodies, and that `firmware_selection` reloads;
   - the starter downloads within three actions from the gateway page (SC-006).
-- [ ] T056 [P] [US4] `apps/portal/e2e/onboarding-firmware.spec.ts` (mocked API):
+- [x] T056 [P] [US4] `apps/portal/e2e/onboarding-firmware.spec.ts` (mocked API):
   - the choice reveals the target picker;
   - the kit request;
   - the setup bundle still downloads as before;
@@ -333,29 +333,29 @@ appear in each story.
 
 **Independent test**: `php artisan test --compact --filter OfferFirmware`, then quickstart 6 step 2.
 
-- [ ] T057 [US5] `apps/api/app/Domain/Assistant/Tools/OnboardingTools.php`: a new action `offer_firmware {profile_uuid, target, role}`, added to the schema enum and description:
+- [x] T057 [US5] `apps/api/app/Domain/Assistant/Tools/OnboardingTools.php`: a new action `offer_firmware {profile_uuid, target, role}`, added to the schema enum and description:
   - checks the conversation's organization, `DeviceProfile.view` for the run's user, a published revision, and that the target is available for the role;
   - writes `onboarding_state.firmware_offer` `{profile_uuid, target, role, at}` and emits `firmware_offer` through `AssistantEvents`, as `nextStep` does;
   - returns `{shown: true, profile: {name, revision}, target: {name, kind}}`, with no settings, credentials or archive.
 
   Add the same action to `ProfileAssistantTools.php`.
-- [ ] T058 [US5] Agent instructions in `Assistant/Agents/OnboardingAssistant.php` and `ProfileAssistant.php`: one paragraph. When someone wants to write firmware, confirm the profile and target, then call `offer_firmware`. Never ask for, repeat or paste credentials. For settings, send them to the device or gateway page.
-- [ ] T059 [US5] Render `firmware_offer` as an `ActionCard` titled "<target> starter for <profile>" in `apps/portal/src/adapters/OnboardingAssistant.tsx` and `apps/portal/src/assistant/AssistantPanel.tsx`. Its button calls `createFirmwareStarter` and `saveArchive` with the person's session.
-- [ ] T060 [US5] `apps/api/tests/Feature/Domain/Assistant/OfferFirmwareToolTest.php`:
+- [x] T058 [US5] Agent instructions in `Assistant/Agents/OnboardingAssistant.php` and `ProfileAssistant.php`: one paragraph. When someone wants to write firmware, confirm the profile and target, then call `offer_firmware`. Never ask for, repeat or paste credentials. For settings, send them to the device or gateway page.
+- [x] T059 [US5] Render `firmware_offer` as an `ActionCard` titled "<target> starter for <profile>" in `apps/portal/src/adapters/OnboardingAssistant.tsx` and `apps/portal/src/assistant/AssistantPanel.tsx`. Its button calls `createFirmwareStarter` and `saveArchive` with the person's session.
+- [x] T060 [US5] `apps/api/tests/Feature/Domain/Assistant/OfferFirmwareToolTest.php`:
   - refused without `DeviceProfile.view`, for a drafts-only profile, an unavailable target, or another organization;
   - state and event written;
   - with a provisioned device and gateway in the organization, the tool result and the stored conversation contain none of their usernames, passwords, broker host or CA (SC-005).
-- [ ] T061 [US5] `apps/portal/e2e/assistant-firmware.spec.ts` (mocked API): the card renders from `firmware_offer`, pressing it posts the starter request (one action once the card shows; SC-006), and nothing renders when the assistant is disabled.
+- [x] T061 [US5] `apps/portal/e2e/assistant-firmware.spec.ts` (mocked API): the card renders from `firmware_offer`, pressing it posts the starter request (one action once the card shows; SC-006), and nothing renders when the assistant is disabled.
 
 ### Phase 10: PR 027-2 documentation and verification
 
-- [ ] T062 [P] Documentation:
+- [x] T062 [P] Documentation:
   - `docs/features/devices.md`: the gateway Firmware dialog replaces "Get credentials";
   - `docs/features/assistant.md`: `offer_firmware` in the onboarding and profile scope rows;
   - `apps/api/resources/help/devices.md`: the gateway and onboarding steps.
-- [ ] T063 Checks as in T050, plus `pnpm --filter @iot-os/portal exec playwright test` for `apps/portal/e2e/{gateway-firmware,onboarding-firmware,assistant-firmware}.spec.ts`.
-- [ ] T064 Rebuild `api`, its workers and `portal` (AGENTS.md command; [which services](../../docs/dev/local-setup.md#rebuild-one-service)). Run quickstart 5–6 on the stack (the assistant with a configured provider, then with it disabled), preserving unsaved browser edits.
-- [ ] T065 Leak scan the diff (`git diff main --name-only`), then open PR 027-2 against `main`.
+- [x] T063 Checks as in T050, plus `pnpm --filter @iot-os/portal exec playwright test` for `apps/portal/e2e/{gateway-firmware,onboarding-firmware,assistant-firmware}.spec.ts`.
+- [x] T064 Rebuild `api`, its workers and `portal` (AGENTS.md command; [which services](../../docs/dev/local-setup.md#rebuild-one-service)). Run quickstart 5–6 on the stack (the assistant with a configured provider, then with it disabled), preserving unsaved browser edits.
+- [x] T065 Leak scan the diff (`git diff main --name-only`), then open PR 027-2 against `main`.
 
 ---
 
@@ -390,7 +390,7 @@ appear in each story.
 
 - [X] T073 [P] `docs/features/embedded-sdk.md`: the ESP32 target and its port. Add a `firmware/sdk/CHANGELOG.md` "Unreleased" entry.
 - [X] T074 Checks as in T050, including the `esp32` leg of `.github/workflows/ci.yml`.
-- [ ] T075 Rebuild `api` (it bundles `firmware/`) and confirm the ESP32 target appears in `GET firmware/targets` on the stack. Leak scan, then open PR 027-3 against `main`.
+- [x] T075 Rebuild `api` (it bundles `firmware/`) and confirm the ESP32 target appears in `GET firmware/targets` on the stack. Leak scan, then open PR 027-3 against `main`.
 - [X] T076 [US1] Starter, settings and kit archives date every entry a day back (`FirmwareArchive`). Phar wrote the server's UTC wall clock as each entry's zoneless ZIP time, so starters unpacked west of UTC held files from hours ahead and `idf.py build` regenerated forever. Found while building an ESP32 starter downloaded from the stack.
 
 ---

@@ -52,10 +52,20 @@ These hold for every assistant surface:
 
 | Scope | Where | Tools |
 | --- | --- | --- |
-| `profile` | Device profiles and the Add device wizard; any page through **Create a device profile** | Read the profile schema and authorized profiles, sources and retained facts; ask structured questions; preview and validate a section; apply an approved section ([`ProfileAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/ProfileAssistantTools.php), [`ApplyProfileSection`](../../apps/api/app/Domain/Assistant/Tools/ApplyProfileSection.php)) |
+| `profile` | Device profiles and the Add device wizard; any page through **Create a device profile** | Read the profile schema and authorized profiles, sources and retained facts; ask structured questions; preview and validate a section; apply an approved section; offer a firmware starter card ([`ProfileAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/ProfileAssistantTools.php), [`ApplyProfileSection`](../../apps/api/app/Domain/Assistant/Tools/ApplyProfileSection.php)) |
 | `automation` | Automation editor; any page through an automation suggestion | Read the node registry, applied configurations, controllable settings and geofences; propose a compiler-validated graph ([`WorkflowAssistantTools`](../../apps/api/app/Domain/Assistant/Tools/WorkflowAssistantTools.php)) |
-| `onboarding` | Ask on Add device and device adapter pages; **Ask the assistant** on an adapter's setup checklist | Ask how the device sends data and recommend the path; find adapters and profiles; propose reusing or creating an adapter; draft a missing profile with the profile tools; read samples; run Fetch now read-only; test decoder code; propose decoder, non-secret settings and fixtures; point to the next step ([`OnboardingTools`](../../apps/api/app/Domain/Assistant/Tools/OnboardingTools.php)) |
+| `onboarding` | Ask on Add device and device adapter pages; **Ask the assistant** on an adapter's setup checklist | Ask how the device sends data and recommend the path; find adapters and profiles; propose reusing or creating an adapter; draft a missing profile with the profile tools; read samples; run Fetch now read-only; test decoder code; propose decoder, non-secret settings and fixtures; point to the next step; offer a firmware starter card ([`OnboardingTools`](../../apps/api/app/Domain/Assistant/Tools/OnboardingTools.php)) |
 | `help` | Any page, through **Ask how to use the portal** or a question about the page | No tools; answers only from approved guide excerpts |
+
+Asked for firmware ("ESP32 firmware for the water meter"), the profile and onboarding
+assistants confirm only what they cannot infer (the profile, the target, and whether the
+device connects directly or behind a gateway) and call `offer_firmware`
+([`FirmwareOffers`](../../apps/api/app/Domain/Assistant/Services/FirmwareOffers.php),
+spec 027 US5). It checks `DeviceProfile.view`, a published revision and the target's
+roles, stores `onboarding_state.firmware_offer` and returns names only. The card's
+**Download starter** posts `firmware/starters` with the person's own session, and shows
+only while the assistant is enabled. Connection settings and full kits are never
+offered: the assistant sends the person to the device's or gateway's Firmware.
 
 The telemetry viewer's **AI troubleshoot** is a separate one-shot request on one
 captured sample ([devices](devices.md#telemetry-viewer)).
