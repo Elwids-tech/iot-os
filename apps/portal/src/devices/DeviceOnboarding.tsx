@@ -1,5 +1,5 @@
 import { RelativeTime } from "@iot-os/ui/components/freshness";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   useQuery,
   useQueryClient,
@@ -14,6 +14,7 @@ import {
 import type {
   DeviceDirectoryMeta,
   DeviceMapping,
+  DeviceProfile,
   DeviceOnboarding as Setup,
   DeviceValidation,
   DiscoveryCandidate,
@@ -22,7 +23,15 @@ import type {
 import { Button } from "@iot-os/ui/components/button";
 import { PageHeader } from "@iot-os/ui/components/page-header";
 import { ChoiceCard } from "@iot-os/ui/components/choice-card";
-import { Field, FieldError, FieldGroup } from "@iot-os/ui/components/field";
+import { Checkbox } from "@iot-os/ui/components/checkbox";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@iot-os/ui/components/field";
 import { Input } from "@iot-os/ui/components/input";
 import { RadioGroup } from "@iot-os/ui/components/radio-group";
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
@@ -50,6 +59,11 @@ import {
   TableRow,
 } from "@iot-os/ui/components/table";
 import { Badge } from "@iot-os/ui/components/badge";
+import {
+  Panel,
+  PanelHeader,
+  PanelTitle,
+} from "@iot-os/ui/components/panel";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { usePanel } from "../panel/context";
@@ -60,6 +74,7 @@ import {
   metricCount,
   useDeviceOrganization,
   devicePath,
+  profilePath,
 } from "./shared";
 import { ConnectionKit } from "./ConnectionKit";
 import { OnboardSource, sourceLabel } from "./OnboardSource";
@@ -71,6 +86,8 @@ type Form = {
   profile: string;
   gateway: string;
   source: string;
+  /** Gateway mode: the gateway's own metrics, which have no device ID. */
+  node: boolean;
   requestUuid: string;
 };
 const emptyForm = (): Form => ({
@@ -79,6 +96,7 @@ const emptyForm = (): Form => ({
   profile: "",
   gateway: "",
   source: "",
+  node: false,
   requestUuid: crypto.randomUUID(),
 });
 /** The wizard's four stops, named the way its own titles and buttons name them. */
@@ -100,6 +118,8 @@ const valueText = (v: unknown) =>
     : typeof v === "object"
       ? JSON.stringify(v)
       : String(v);
+/** The code of the organization's gateway health profile (POST device-profiles/gateway-health). */
+const GATEWAY_HEALTH = "gateway-health";
 export const onboardingPath = (org: string, id?: string) =>
   `${devicePath(org)}/onboard${id ? "/" + encodeURIComponent(id) : ""}`;
 /** Profile directory with a way back to this wizard's first step, which keeps its form in session storage. */
@@ -118,6 +138,7 @@ function DeviceOnboardingForm() {
   const { org, capabilities, query: organization } = useDeviceOrganization();
   const adaptersEnabled =
     organization.data?.capabilities?.features?.device_adapters === true;
+  const profileAccess = organization.data?.capabilities?.device_profiles;
   const { deviceUuid } = useParams(),
     navigate = useNavigate(),
     cache = useQueryClient();
@@ -200,6 +221,16 @@ function DeviceOnboardingForm() {
         per_page: 25,
       }),
     enabled: !deviceUuid && mode === "gateway",
+  });
+  // Suggested when the gateway itself is chosen; codes are unique per organization.
+  const healthProfile = useQuery({
+    queryKey: ["onboarding-health-profile", org],
+    queryFn: () =>
+      api
+        .deviceProfiles(org, { search: GATEWAY_HEALTH, perPage: 25 })
+        .then((r) => r.data.find((p) => p.code === GATEWAY_HEALTH) ?? null),
+    enabled: !deviceUuid && mode === "gateway",
+    staleTime: 0,
   });
   const sources = useQuery({
     queryKey: ["onboarding-sources", org, sourceSearch, sourcePage],
@@ -296,7 +327,7 @@ function DeviceOnboardingForm() {
     if (mode === "gateway") {
       if (!form.gateway)
         missing.gateway = "Choose the gateway this device connects through.";
-      if (!form.source.trim())
+      if (!form.node && !form.source.trim())
         missing.source = "Enter the device ID used on the gateway.";
     }
     setErrors(missing);
@@ -331,7 +362,12 @@ function DeviceOnboardingForm() {
         artifact_uuid: artifact.data.uuid,
         mode,
         ...(mode === "gateway"
-          ? { gateway_uuid: form.gateway, source_device_id: form.source.trim() }
+          ? {
+              gateway_uuid: form.gateway,
+              ...(form.node
+                ? { source: "node" as const }
+                : { source_device_id: form.source.trim() }),
+            }
           : {}),
       };
       const created = await api.startDeviceOnboarding(org, input);
@@ -346,6 +382,17 @@ function DeviceOnboardingForm() {
           ? devicePath(org, created.device.uuid) + "/connectivity"
           : onboardingPath(org, created.device.uuid) + "?step=2",
       );
+    });
+  }
+  /** Creates and publishes the gateway health profile (or finds the existing one), then selects it. */
+  async function createHealthProfile() {
+    await run(async () => {
+      const created = await api.createGatewayHealthProfile(org);
+      update({ profile: created.profile_uuid });
+      await Promise.all([
+        cache.invalidateQueries({ queryKey: ["onboarding-health-profile", org] }),
+        cache.invalidateQueries({ queryKey: ["onboarding-profiles", org] }),
+      ]);
     });
   }
   function metricFor(uuid: string, key: string, label: string) {
@@ -426,7 +473,9 @@ function DeviceOnboardingForm() {
     "",
     "How does this device send data?",
     setup?.mode === "gateway"
-      ? "Connect through your gateway"
+      ? setup.source_device_id === ""
+        ? "Report the gateway’s own metrics"
+        : "Connect through your gateway"
       : "Add these settings to your device",
     online
       ? `${setup?.device.name ?? "Your device"} is connected`
@@ -446,10 +495,15 @@ function DeviceOnboardingForm() {
           `Choose Sparkplug B if your hardware has its own Sparkplug B publisher. A gateway connects one or more devices on their behalf.${adaptersEnabled ? " Hardware that sends its manufacturer’s own MQTT or JSON messages needs an adapter to translate them." : ""} If the device is already reporting through a gateway, pick it from the sources waiting to be added.`,
         ]
       : step === 2
-        ? [
-            "Why these settings?",
-            "MQTT carries your Sparkplug B messages. The CA certificate verifies the broker; the username and password identify this connection.",
-          ]
+        ? setup?.mode === "gateway" && setup.source_device_id === ""
+          ? [
+              "Why is there nothing to download?",
+              "The gateway already holds its MQTT connection and credentials. Its own metrics only need its group and edge node, which it already uses.",
+            ]
+          : [
+              "Why these settings?",
+              "MQTT carries your Sparkplug B messages. The CA certificate verifies the broker; the username and password identify this connection.",
+            ]
         : step === 3
           ? online ? [
               "Match your measurements",
@@ -706,15 +760,52 @@ function DeviceOnboardingForm() {
                       )}
                     </Field>
                     <RequestError error={gateways.error} />
-                    <TextField
-                      id="source-id"
-                      label="Device ID on gateway"
-                      value={form.source}
-                      onChange={(e) => update({ source: e.target.value })}
-                      placeholder="water-meter"
-                      help="Must match the Device ID in your gateway’s Sparkplug messages."
-                      error={errors.source}
-                    />
+                    <Field orientation="horizontal">
+                      <Checkbox
+                        id="gateway-itself"
+                        checked={form.node}
+                        onCheckedChange={(checked) => {
+                          const node = checked === true;
+                          const health = healthProfile.data;
+                          update({
+                            node,
+                            ...(node && !form.profile && health?.revision
+                              ? { profile: health.uuid }
+                              : {}),
+                          });
+                        }}
+                      />
+                      <FieldContent>
+                        <FieldLabel htmlFor="gateway-itself">
+                          The gateway itself
+                        </FieldLabel>
+                        <FieldDescription>
+                          Its own health metrics, such as uptime and device
+                          counts, which have no device ID.
+                        </FieldDescription>
+                      </FieldContent>
+                    </Field>
+                    {form.node ? (
+                      <HealthProfileSuggestion
+                        org={org}
+                        health={healthProfile}
+                        selected={form.profile}
+                        canCreate={!!profileAccess?.create && !!profileAccess.publish}
+                        busy={busy}
+                        onUse={(uuid) => update({ profile: uuid })}
+                        onCreate={() => void createHealthProfile()}
+                      />
+                    ) : (
+                      <TextField
+                        id="source-id"
+                        label="Device ID on gateway"
+                        value={form.source}
+                        onChange={(e) => update({ source: e.target.value })}
+                        placeholder="water-meter"
+                        help="Must match the Device ID in your gateway’s Sparkplug messages."
+                        error={errors.source}
+                      />
+                    )}
                   </>
                 )}
               </FieldGroup>
@@ -738,13 +829,17 @@ function DeviceOnboardingForm() {
           )}
           {step === 2 && setup && (
             <>
-              <ConnectionKit
-                key={setup.device.uuid}
-                org={org}
-                setup={setup}
-                canDownload={capabilities.connections}
-                onProvisioned={() => void setupQuery.refetch()}
-              />
+              {setup.mode === "gateway" && setup.source_device_id === "" ? (
+                <GatewayNodeSettings setup={setup} />
+              ) : (
+                <ConnectionKit
+                  key={setup.device.uuid}
+                  org={org}
+                  setup={setup}
+                  canDownload={capabilities.connections}
+                  onProvisioned={() => void setupQuery.refetch()}
+                />
+              )}
               <Separator />
               <div className="flex justify-end">
                 <Button onClick={() => go(3)}>Next: Check connection</Button>
@@ -1051,6 +1146,125 @@ function DeviceOnboardingForm() {
 }
 
 /** Discovered sources no device has claimed; adding one hands off to Discovery's onboard action. */
+/** With "The gateway itself": the gateway health profile to use, or a way to create it. */
+function HealthProfileSuggestion({
+  org,
+  health,
+  selected,
+  canCreate,
+  busy,
+  onUse,
+  onCreate,
+}: {
+  org: string;
+  health: UseQueryResult<DeviceProfile | null>;
+  selected: string;
+  canCreate: boolean;
+  busy: boolean;
+  onUse: (uuid: string) => void;
+  onCreate: () => void;
+}) {
+  const profile = health.data;
+  if (health.error) return <RequestError error={health.error} />;
+  if (health.isPending || profile?.uuid === selected) return null;
+  if (profile && !profile.revision)
+    return (
+      <Alert>
+        <AlertTitle>{profile.name} has no published version</AlertTitle>
+        <AlertDescription>
+          <p>Publish it before adding the gateway itself.</p>
+          <Link
+            to={profilePath(org, profile.uuid) + "/overview"}
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            Open {profile.name}
+          </Link>
+        </AlertDescription>
+      </Alert>
+    );
+  return (
+    <Alert>
+      <AlertTitle>
+        {profile ? `Use ${profile.name}` : "Create the gateway health profile"}
+      </AlertTitle>
+      <AlertDescription>
+        <p>
+          Firmware built with the embedded SDK reports uptime, connection,
+          signal strength, versions and device counts as the gateway’s own
+          metrics.
+          {profile
+            ? " This organization’s gateway health profile lists them."
+            : " The gateway health profile lists them, and is published when it is created."}
+        </p>
+        {profile ? (
+          <Button size="sm" variant="outline" onClick={() => onUse(profile.uuid)}>
+            Use {profile.name}
+          </Button>
+        ) : canCreate ? (
+          <Button size="sm" variant="outline" disabled={busy} onClick={onCreate}>
+            Create gateway health profile
+          </Button>
+        ) : (
+          <p>Ask someone who can publish device profiles to create it.</p>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+/** Step 2 for the gateway's own source: its node birth and data carry the metrics, with no device ID. */
+function GatewayNodeSettings({ setup }: { setup: Setup }) {
+  const id = useId();
+  return (
+    <div className="flex flex-col gap-6">
+      <p className="text-sm text-muted-foreground">
+        {setup.gateway.name} already owns the MQTT connection. Its own metrics
+        travel in its node birth (NBIRTH) and node data (NDATA) messages, with
+        no device ID. Firmware built with the embedded SDK fills the gateway
+        health metrics by itself; other firmware publishes the metrics below.
+      </p>
+      <Panel aria-labelledby={id + "-gateway"}>
+        <PanelHeader>
+          <PanelTitle id={id + "-gateway"}>Gateway</PanelTitle>
+        </PanelHeader>
+        <Table>
+          <TableBody>
+            {[
+              ["Group ID", setup.gateway.group_id],
+              ["Edge Node ID", setup.gateway.edge_node_id],
+            ].map(([k, v]) => (
+              <TableRow key={k}>
+                <TableCell>{k}</TableCell>
+                <TableCell className="break-all whitespace-normal font-mono text-xs">{v}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Panel>
+      <Panel aria-labelledby={id + "-metrics"}>
+        <PanelHeader>
+          <PanelTitle id={id + "-metrics"}>Metrics in the node birth</PanelTitle>
+        </PanelHeader>
+        <Table>
+          <TableBody>
+            {setup.artifact.definition.parameters
+              .filter((p) => p.reports_state && p.kind !== "derived")
+              .map((p) => (
+                <TableRow key={p.uuid}>
+                  <TableCell>{p.label}</TableCell>
+                  <TableCell className="font-mono text-xs">{p.key}</TableCell>
+                  <TableCell>
+                    {p.data_type} · {p.unit ?? "No unit"}
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
+      </Panel>
+    </div>
+  );
+}
+
 function WaitingSources({
   org,
   sources,

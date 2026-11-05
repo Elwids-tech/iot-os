@@ -425,6 +425,17 @@ scripts (`docs/dev/testing.md:220-237`):
 `test-devices.mjs` calls it when a C compiler and CMake are present. CI runs only the
 SDK unit tests, the cross-compile and the Go fixture test.
 
+**Built (PR 2, 2026-11-05)**: step 1 downloads a gateway full kit for the Linux target
+(spec 027), with the gateway health profile as the node type. The simulator reports
+every 30 s: at 10 s, 500 devices send more presence events than the dev API takes from
+the runtime, one at a time, and outcomes lag by minutes (`docs/dev/gotchas.md`). Step 5
+found activations refused while the gateway re-announced its devices after a rebirth
+(R19, fixed in the runtime by #160). Until that fix lands, the script activates refused
+devices again in rounds timed between rebirths and records each round's count. The
+run that passed every step measured discovery in 28.4 s, re-announcement in 26.7 s,
+2 rebirths for 247 activations with 245, 203, 103 and 0 refused per round, the
+gateway's own source in 31.2 s, a command in 63.6 s and offline in 19.1 s.
+
 ### R22. Documentation placement
 
 **Decision**: new `docs/features/embedded-sdk.md` (SDK, kits, bench setup), with changes

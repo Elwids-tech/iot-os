@@ -121,6 +121,7 @@ Under `/api/v1/organizations/{organization}/device-profiles`
 | Path | Purpose |
 | --- | --- |
 | `/`, `/{profile}` | List (`search`, `status`, `category`, paging), create, read, update, delete draft |
+| `/gateway-health` | Create and publish the organization's gateway health profile once, or return it ([the gateway itself](devices.md#the-gateway-itself)) |
 | `/{profile}/parameters`, `parameter-order`, `parameter-groups`, `group-order` | Parameters and groups |
 | `/{profile}/calculations`, `parameters/{p}/calculation` | Calculations |
 | `/{profile}/alarm-templates` | Alarm suggestions |

@@ -211,6 +211,7 @@ static void on_command(void *ctx, const char *device_id, const char *metric, con
             break;
         }
         printf("command: %s %s applied\n", device_id ? device_id : "(node)", metric);
+        fflush(stdout);
     }
     /* Confirm by publishing the new state straight away. */
     if (iotos_begin(&gateway, device_id, &w) == IOTOS_OK) {

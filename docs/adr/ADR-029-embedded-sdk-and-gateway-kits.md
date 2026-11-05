@@ -1,6 +1,6 @@
 # ADR-029: Embedded SDK and Gateway Kits
 
-**Status:** Proposed; amended by [ADR-030](ADR-030-firmware-starters.md)
+**Status:** Accepted (built in spec 026); amended by [ADR-030](ADR-030-firmware-starters.md)
 **Date:** 2026-11-02
 **Relates to:** ADR-005, ADR-019
 

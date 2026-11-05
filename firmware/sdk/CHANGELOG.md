@@ -3,7 +3,7 @@
 The SDK has its own version (`VERSION`), recorded in every kit. Before 1.0, breaking
 changes are listed here.
 
-## Unreleased
+## 0.1.0 (2026-11-05)
 
 ### Added
 

@@ -86,10 +86,15 @@ it and publishes the new state, and the command completes as observed.
 ## 7. End to end, scripted (PR 2 and PR 3)
 
 ```bash
-node tooling/verify-embedded-sdk.mjs .local/devices/environment.json
+node tooling/verify-embedded-sdk.mjs
 ```
 
-Runs steps 3 to 6 against the local stack and prints the rebirth count and timings.
+Runs steps 3 to 6 against the dev stack, using a gateway full kit for the Linux target
+from `POST gateways/{gateway}/firmware-kit` (spec 027), and prints the rebirth count and
+timings. With the `environment.json` of `tooling/test-devices.mjs` as its argument it runs
+against that disposable harness instead, which also runs it when `cc` and `cmake` are on
+the PATH. `--keep` leaves the devices it creates; otherwise it deactivates and archives
+them.
 
 ## 8. Reference board (PR 4, bench)
 

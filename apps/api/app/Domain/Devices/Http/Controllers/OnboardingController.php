@@ -33,13 +33,17 @@ final class OnboardingController
             'request_uuid' => ['required', 'uuid'], 'name' => ['required', 'string', 'max:255'],
             'artifact_uuid' => ['required', 'uuid'], 'mode' => ['required', Rule::in(['direct', 'gateway'])],
             'gateway_uuid' => ['required_if:mode,gateway', 'nullable', 'uuid'],
-            'source_device_id' => ['required_if:mode,gateway', 'nullable', 'string', 'max:128', 'regex:/^[a-zA-Z0-9_.:-]+$/'],
+            // Gateway mode only: "node" sets up the gateway's own metrics instead of a downstream device's source_device_id.
+            'source' => ['nullable', 'prohibited_unless:mode,gateway', 'prohibits:source_device_id', Rule::in(['node'])],
+            'source_device_id' => [Rule::requiredIf(fn (): bool => $request->input('mode') === 'gateway' && $request->input('source') === null), 'nullable', 'string', 'max:128', 'regex:/^[a-zA-Z0-9_.:-]+$/'],
         ]);
+        // The node's own metrics have no device ID; '' is how setups, candidates and compiled sources name them.
+        $node = ($v['source'] ?? null) === 'node';
         if ($v['mode'] === 'direct') {
             $this->authorization->authorize($request->user(), DevicePermission::CONNECTIONS, $organization);
         }
-        $hash = hash('sha256', json_encode([$v['name'], $v['artifact_uuid'], $v['mode'], $v['gateway_uuid'] ?? null, $v['source_device_id'] ?? null]));
-        $setup = DB::transaction(function () use ($v, $organization, $request, $hash) {
+        $hash = hash('sha256', json_encode([$v['name'], $v['artifact_uuid'], $v['mode'], $v['gateway_uuid'] ?? null, $node ? '' : ($v['source_device_id'] ?? null)]));
+        $setup = DB::transaction(function () use ($v, $node, $organization, $request, $hash) {
             // Serialize setup allocation per tenant. A lost response can be retried without new devices or passwords.
             Organization::whereKey($organization->id)->lockForUpdate()->firstOrFail();
             $existing = DeviceOnboarding::where('uuid', $v['request_uuid'])->first();
@@ -65,8 +69,10 @@ final class OnboardingController
             } else {
                 $gateway = SparkplugGateway::where('organization_id', $organization->id)->where('uuid', $v['gateway_uuid'])->firstOrFail();
                 abort_unless($gateway->connection->status === 'ready', 422, 'The selected gateway connection must be provisioned first.');
-                $source = $v['source_device_id'];
-                abort_if(DeviceOnboarding::where('sparkplug_gateway_id', $gateway->id)->where('source_device_id', $source)->exists(), 409, 'This gateway device already has a setup. Resume its existing device.');
+                $source = $node ? '' : $v['source_device_id'];
+                abort_if(DeviceOnboarding::where('sparkplug_gateway_id', $gateway->id)->where('source_device_id', $source)->exists(), 409, $node
+                    ? 'This gateway\'s own metrics already have a setup. Resume its existing device.'
+                    : 'This gateway device already has a setup. Resume its existing device.');
                 $candidate = DiscoveryCandidate::where('sparkplug_gateway_id', $gateway->id)->where('source_device_id', $source)->first();
                 abort_if($candidate && Device::where('reserved_source_uuid', $candidate->uuid)->exists(), 409, 'This source is already assigned to another device.');
             }
@@ -81,7 +87,7 @@ final class OnboardingController
                 'mode' => $v['mode'], 'source_device_id' => $source, 'request_hash' => $hash,
                 'provisioned_at' => $v['mode'] === 'gateway' ? now() : null,
             ]);
-            DeviceAudit::record('device.onboarding.started', $organization->id, $request->user()->id, $device->uuid, ['mode' => $v['mode']]);
+            DeviceAudit::record('device.onboarding.started', $organization->id, $request->user()->id, $device->uuid, ['mode' => $v['mode'], ...($node ? ['source' => 'node'] : [])]);
 
             return $setup;
         });

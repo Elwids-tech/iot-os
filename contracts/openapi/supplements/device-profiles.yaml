@@ -4,7 +4,44 @@
 # the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
 # Success bodies stay pending until the domain is described.
 # Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    GatewayHealthProfile:
+      type: object
+      additionalProperties: false
+      required: [profile_uuid, artifact_uuid, created]
+      properties:
+        profile_uuid:
+          type: string
+          format: uuid
+        artifact_uuid:
+          type: [string, 'null']
+          format: uuid
+          description: The profile's latest published revision; null when a profile with the code exists but was never published.
+        created:
+          type: boolean
+    GatewayHealthProfileResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/GatewayHealthProfile'
 operations:
+  POST /v1/organizations/{organization}/device-profiles/gateway-health:
+    description: Creates and publishes the organization's gateway health profile (code gateway-health) from the embedded SDK's health metrics, or returns the existing one unchanged, edited or not. The request has no body. Needs DeviceProfile.create and DeviceProfile.publish; a creation is recorded as device_profile.gateway_health.created.
+    responses:
+      '200':
+        description: The profile already existed.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GatewayHealthProfileResponse'
+      '201':
+        description: The profile was created and published.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GatewayHealthProfileResponse'
   DELETE /v1/organizations/{organization}/device-profiles/{profile}:
     responses:
       '409':

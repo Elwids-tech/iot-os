@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use App\Domain\DeviceProfiles\Http\Controllers\DeviceProfileArtifactController;
 use App\Domain\DeviceProfiles\Http\Controllers\DeviceProfileController;
+use App\Domain\DeviceProfiles\Http\Controllers\GatewayHealthProfileController;
 use App\Domain\DeviceProfiles\Http\Controllers\ProfileAlarmTemplateController;
 use App\Domain\DeviceProfiles\Http\Controllers\ProfileCalculationController;
 use App\Domain\DeviceProfiles\Http\Controllers\ProfileParameterController;
@@ -23,6 +24,7 @@ Route::prefix('v1/organizations/{organization}')
     ->group(function (): void {
         Route::get('device-profiles', [DeviceProfileController::class, 'index'])->name('device-profiles.index');
         Route::post('device-profiles', [DeviceProfileController::class, 'store'])->name('device-profiles.store');
+        Route::post('device-profiles/gateway-health', [GatewayHealthProfileController::class, 'store'])->name('device-profiles.gateway-health.store');
         Route::get('device-profiles/{profile}', [DeviceProfileController::class, 'show'])->name('device-profiles.show');
         Route::patch('device-profiles/{profile}', [DeviceProfileController::class, 'update'])->name('device-profiles.update');
         Route::delete('device-profiles/{profile}', [DeviceProfileController::class, 'destroy'])->name('device-profiles.destroy');

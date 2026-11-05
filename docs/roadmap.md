@@ -105,11 +105,6 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### Devices and adapters
 
-- **Embedded gateway SDK** ([spec 026](../specs/026-embedded-gateway-sdk/spec.md),
-  [ADR-029](adr/ADR-029-embedded-sdk-and-gateway-kits.md)): an MIT-licensed C library
-  that connects gateway and device firmware over Sparkplug B, with the hardware ports
-  left to the integrator; a per-gateway kit downloaded from the portal; and onboarding
-  of hundreds of discovered devices in one action.
 - **Firmware starter kits** ([spec 027](../specs/027-firmware-starter-kits/spec.md),
   [ADR-030](adr/ADR-030-firmware-starters.md)): a credential-free SDK project per profile
   and microcontroller (ESP32, NXP i.MX RT, Linux, and other families with AI-assisted
