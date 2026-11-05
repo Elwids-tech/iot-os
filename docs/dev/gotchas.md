@@ -249,6 +249,14 @@ Things that have cost time before. Add to this list when something surprises you
   although every dev check passed. Paths the API must serve from a dot
   directory need their own `^~` location; `manage.py smoke` checks agent
   discovery when agents are on.
+- **The dev API answers one request at a time, and the runtime's events queue behind
+  it.** `api` runs `php artisan serve`. The runtime hands births, presence and device
+  outcomes to it one at a time (`devices-control-inbox`, `MaxAckPending(1)`), about 43
+  per second here. 500 simulated devices reporting every 10 s send more presence events
+  than that, so the backlog grew to 14,850 events and activations reached the API minutes
+  late. A script polling hundreds of single devices slows it further. Check the backlog
+  with `curl -s "http://nats:8222/jsz?consumers=true"` from inside `api`;
+  `verify-embedded-sdk.mjs` has its simulator report every 30 s and polls the device list.
 - **`docker run --env-file` reads each line literally.** Unlike Compose env
   files, it strips no quotes and cannot hold a multi-line value. After the
   Passport keys (PEM) entered the pilot environment, the checkpoint restore drill

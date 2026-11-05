@@ -226,6 +226,7 @@ stack. Each refuses non-local targets and cleans up its own fixtures.
 | --- | --- |
 | `verify-devices.mjs`, `verify-devices-browser.mjs`, `verify-devices-recovery.mjs`, `verify-device-lifecycle.mjs`, `verify-telemetry.mjs`, `verify-automation.mjs` | Run by the disposable devices harness |
 | `verify-rgb-controls.mjs` | Two-way RGB controls on the local stack |
+| `verify-embedded-sdk.mjs` | A gateway full kit's desktop simulator with 500 devices: discovery, restart, bulk onboarding and its rebirth count, the gateway's own source, a command, offline ([embedded SDK](../features/embedded-sdk.md)). Needs `cc`, `cmake` and `unzip`; the devices harness runs it when they are present |
 | `verify-integration-sdk.php` + `verify-integration-sdk.mjs`, `verify-telemetry-sdk.mjs`, `verify-vertical-demo.mjs`, `verify-workflow-dashboard.mjs`, `verify-integration-ui.mjs` | Application access, SDK and dashboard panels. The PHP script runs in the API container, writes a private fixture to `/tmp/iot-sdk-fixture.json`, waits, and cleans up when you `touch /tmp/iot-sdk-release` in the container. `IOT_VERIFY_TELEMETRY=1` and `IOT_VERIFY_DASHBOARD=1` add fixtures |
 | `verify-webhooks.mjs` | Webhook retries and signatures, with the `compose.webhook-verification.yml` sink |
 | `verify-workflow-execution.php` | Geofence workflow activation, alerts and email into Mailpit |

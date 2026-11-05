@@ -19,18 +19,20 @@
     "archived",
     "filter",
     "bulk",
-    "many devices"
+    "many devices",
+    "gateway health"
   ],
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 6,
+  "revision": 7,
   "summary": "A registered device connects a discovered source to a published profile and an organization-owned configuration.",
   "questions": [
     "How do I register a device?",
     "What does offline mean?",
     "Where are my archived devices?",
     "How do I onboard many devices from one gateway at once?",
+    "How do I track a gateway’s own health?",
     "Where do I get firmware and connection settings for a device?"
   ]
 }
@@ -57,6 +59,15 @@ To onboard many sources of one type behind one gateway at once (this needs both 
 5. If some sources failed, choose **Retry failed**. Skipped sources need their own setup or a different profile.
 
 A run takes at most 500 sources. Running the same selection again creates no second device for any source.
+
+To track a gateway’s own health, such as its uptime, connection and device counts, add the gateway itself as a device:
+
+1. Open **Devices → Add device** and choose **Through a gateway**.
+2. Pick the gateway and tick **The gateway itself** instead of entering a device ID.
+3. Use the suggested gateway health profile. If the organization has none, choose **Create gateway health profile** (this needs permission to create and publish profiles); it is created and published with the metrics gateways built with the embedded SDK report.
+4. Name the device and continue. Once the gateway is connected, review its metrics and activate as usual.
+
+A gateway’s own metrics can be added as one device only.
 
 For firmware written with the platform’s embedded SDK, a device that connects directly has a **Firmware** group in **Device actions** (this needs connection-management permission). **Download settings** gives the private connection settings to unpack into a firmware starter’s `config/` folder. **Download firmware kit** gives a starter for the device’s profile and a chosen microcontroller with the settings already in place. Starters without credentials come from the profile’s **Firmware** tab. [Read the firmware guide](/help/firmware).
 

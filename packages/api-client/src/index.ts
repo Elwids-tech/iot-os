@@ -1827,6 +1827,14 @@ export class ApiClient {
         encodeURIComponent(artifact),
     )
   }
+  /** Creates and publishes the gateway health profile, or returns the organization's existing one. */
+  createGatewayHealthProfile(org: string) {
+    return this.data<import("./devices").GatewayHealthProfile>(
+      `/api/v1/organizations/${encodeURIComponent(org)}/device-profiles/gateway-health`,
+      "POST",
+      {},
+    )
+  }
   createBulkOnboarding(org: string, gateway: string, values: import("./devices").BulkOnboardingInput) {
     return this.data<import("./devices").BulkOnboardingRun>(
       `/api/v1/organizations/${encodeURIComponent(org)}/gateways/${encodeURIComponent(gateway)}/bulk-onboardings`,

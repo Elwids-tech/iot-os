@@ -77,13 +77,15 @@ guided path:
 
 1. Choose **direct** (the device publishes as its own edge node and gets its own
    connection and gateway) or an **existing gateway** (set its downstream device
-   ID), pick a published profile and name the device.
+   ID, or choose [**The gateway itself**](#the-gateway-itself)), pick a published
+   profile and name the device.
 2. For a direct device, download the connection kit ZIP (`device-config.json`,
-   `ca.crt`, `quickstart.md`) or copy the settings. Shared gateway credentials are
-   never exported. **I’m writing the firmware** reveals a target picker,
-   **Download starter** (a credential-free starter for the device's profile, for anyone
-   at this step) and **Download firmware kit** (the starter with this device's settings,
-   with `Device.manage-connections`).
+   `ca.crt`, `quickstart.md`) or copy the settings. **I’m writing the firmware**
+   reveals a target picker, **Download starter** (a credential-free starter for the
+   device's profile, for anyone at this step) and **Download firmware kit** (the starter
+   with this device's settings, with `Device.manage-connections`). A device behind a
+   gateway gets no kit: the gateway already holds the connection, and its credentials
+   leave the platform only in the gateway's own firmware settings.
 3. Start the publisher. The wizard waits for the birth and suggests mappings from
    announced metrics to profile parameters. Samples at this stage are previews.
 4. Review validation and activate. The setup completes only after runtime
@@ -107,6 +109,28 @@ and `device.firmware-kit.downloaded`.
 Without the wizard: register a device (name and organization-unique code), then
 on its **Configuration** tab pick the source, profile and exact published
 revision, map parameters, validate and activate.
+
+### The gateway itself
+
+A gateway's own metrics, from its NBIRTH and NDATA, are a discovered source with no
+device ID ([spec 026](../../specs/026-embedded-gateway-sdk/spec.md), User Story 6). They
+are onboarded as a device like any other source: from Discovery, or in the wizard by
+choosing an existing gateway and **The gateway itself** instead of a device ID.
+`POST device-onboardings` then carries `"source": "node"` in place of
+`source_device_id` (exactly one of the two in gateway mode) and stores the setup with
+`source_device_id = ''`. The usual rule applies: one setup per gateway and source, so
+a gateway's own metrics are onboarded once. Step 2 lists the gateway's identifiers and
+the metrics its node birth must carry instead of a connection kit.
+
+The wizard suggests the organization's **gateway health profile** (code
+`gateway-health`, category `gateways`), or offers **Create gateway health profile** to
+people with `DeviceProfile.create` and `DeviceProfile.publish`.
+`POST device-profiles/gateway-health` creates and publishes it once per organization
+from the SDK's [health metrics](embedded-sdk.md#gateway-health) (`uptime` and
+`reconnects` as counters that start a new segment on a reboot, `connection_type` as an
+enum of `ethernet`, `wifi`, `cellular` and `other`, and every metric stale after 180 s,
+three health intervals) and records `device_profile.gateway_health.created`. It returns
+201 when it created the profile and 200 with the existing one, edited or not, otherwise.
 
 ### Bulk onboarding
 
@@ -344,7 +368,7 @@ Organization routes are under `/api/v1/organizations/{organization}`
 | Resource | Operations |
 | --- | --- |
 | `devices` | List (filters, `sort`), register, read, edit, archive |
-| `device-onboardings`, `devices/{d}/onboarding`, `.../connection-kit` | Guided setup, provisioning, kit download |
+| `device-onboardings`, `devices/{d}/onboarding`, `.../connection-kit` | Guided setup (including a gateway's own source), provisioning, kit download |
 | `devices/{d}/connection-settings`, `devices/{d}/firmware-kit`, `gateways/{g}/connection-settings`, `gateways/{g}/firmware-kit` | Firmware settings and full kits (spec 027) |
 | `devices/{d}/configuration`, `mapping-suggestions`, `validate` | Draft, suggestions, validation |
 | `devices/{d}/activate`, `deactivate`, `lifecycle`, `operations/{op}` | Acknowledged configuration and lifecycle operations |

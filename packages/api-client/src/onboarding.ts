@@ -19,7 +19,9 @@ export type OnboardingInput = {
   artifact_uuid: string;
   mode: "direct" | "gateway";
   gateway_uuid?: string;
+  /** Gateway mode: one of a downstream device's ID, or `source: "node"` for the gateway's own metrics. */
   source_device_id?: string;
+  source?: "node";
 };
 export type DeviceConnectionKit = {
   filename: string;

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { mkdtempSync, readFileSync, writeFileSync, openSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, resolve, join } from "node:path"
@@ -189,6 +189,9 @@ try {
     CORS_ALLOWED_ORIGINS: `http://127.0.0.1:${ports.portal},http://127.0.0.1:${ports.admin}`,
     DEVICE_RUNTIME_URL: `http://127.0.0.1:${ports.runtime}`,
     DEVICE_MQTT_URL: `ssl://localhost:${ports.mqtt}`,
+    // Firmware kits carry the public broker address and CA; here both are this harness's.
+    DEVICE_MQTT_PUBLIC_URL: `ssl://localhost:${ports.mqtt}`,
+    DEVICE_MQTT_CA_FILE: `${secrets.DEVICE_CERT_DIR}/ca.crt`,
     DEVICE_BROKER_ADMIN_URL: `http://127.0.0.1:${ports.brokerAdmin}`,
     DEVICE_BROKER_ADMIN_TOKEN: secrets.DEVICE_BROKER_ADMIN_TOKEN,
   }
@@ -346,6 +349,20 @@ try {
       ],
       { stdio: "inherit" },
     )
+    // The embedded SDK check builds a gateway kit's simulator, so it needs a C toolchain.
+    if (!process.argv.includes("--automation-only")) {
+      const missing = ["cc", "cmake", "unzip"].filter(
+        (tool) => spawnSync("sh", ["-c", `command -v ${tool}`]).status !== 0,
+      )
+      if (missing.length)
+        console.log(`Skipping verify-embedded-sdk.mjs: ${missing.join(", ")} not on the PATH.`)
+      else
+        await run(
+          process.execPath,
+          ["tooling/verify-embedded-sdk.mjs", join(directory, "environment.json")],
+          { stdio: "inherit" },
+        )
+    }
     await cleanup()
   }
 } catch (error) {

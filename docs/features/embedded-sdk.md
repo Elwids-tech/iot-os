@@ -193,6 +193,12 @@ When the node's type has them, the SDK fills `uptime`, `sdk_version`,
 NDATA every `IOTOS_HEALTH_INTERVAL_S`. `signal_strength` is a null when the network
 reports none.
 
+On the platform these metrics are the gateway's own source. The organization's
+**gateway health profile** (`POST device-profiles/gateway-health`) has the same eight keys,
+so a gateway kit built with it as the node type announces exactly them, and the gateway
+itself is onboarded as a device with it ([devices](devices.md#the-gateway-itself)). A
+feature test compares the profile's keys with `iotos_health.h`.
+
 ## Building and testing
 
 ```bash
@@ -337,3 +343,28 @@ to 2 of a fixture profile and checks the developer's files are unchanged.
 - Feature tests cover the layout per target and role, tenant isolation, permissions,
   limits (`IOTOS_MAX_METRICS_PER_TYPE`, `IOTOS_MAX_DEVICE_TYPES`), determinism, a secret
   scan of every starter, and the brief's drift against the SDK headers.
+
+**End to end**: [`tooling/verify-embedded-sdk.mjs`](../../tooling/verify-embedded-sdk.mjs)
+runs a gateway full kit against a local stack. It registers a gateway, downloads its Linux
+kit with the gateway health profile as the node type and two device types, builds the
+kit's desktop simulator with CMake and runs 500 devices, each reporting every 30 s
+(`EMBEDDED_INTERVAL_S`; the dev API cannot keep up with 500 devices every 10 s, see
+[gotchas](../dev/gotchas.md#local-stack)). It then checks:
+
+1. Discovery of every source, and a telemetry capture with no runtime diagnostics.
+2. A restart with the same state file re-announces every source within five minutes
+   with the next `bdSeq` (SC-004).
+3. Bulk onboarding of 247 devices, counting the rebirths the run causes. The runtime
+   refuses an activation it checks before the device's next birth, so the script
+   activates refused devices again in rounds timed between rebirths and records how
+   many each round refused.
+4. The gateway's own source onboarded with the health profile, with the SDK version and
+   device counts arriving.
+5. A command to a simulated valve is applied and observed.
+6. Stopping the simulator takes the gateway and its devices offline.
+
+It prints the timings, the rebirth count and the refusals per round, writes them to
+`.local/embedded-sdk/<gateway>/evidence.json`, and deactivates and archives the devices it
+created (`--keep` leaves them). `node tooling/verify-embedded-sdk.mjs` targets the dev
+stack; with an `environment.json` argument it targets the disposable devices harness,
+whose `tooling/test-devices.mjs` runs it when `cc` and `cmake` are on the PATH.

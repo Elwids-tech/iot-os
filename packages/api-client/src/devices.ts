@@ -368,6 +368,14 @@ export type DeviceDirectoryQuery = {
   unassigned?: boolean
 }
 
+/** The organization's gateway health profile, created and published once (spec 026). */
+export type GatewayHealthProfile = {
+  profile_uuid: string
+  /** The latest published revision; null when a profile with the code was never published. */
+  artifact_uuid: string | null
+  created: boolean
+}
+
 /** Bulk onboarding of a gateway's discovered sources with one published profile (spec 026). */
 export type BulkOnboardingInput = {
   /** Client-generated; keep it across retries of the same submit. */

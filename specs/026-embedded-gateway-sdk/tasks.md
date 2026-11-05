@@ -326,10 +326,11 @@ home paths.
 
 ### Phase 8: Kit foundation
 
-- [ ] T040 Put the SDK in the API image (R14):
+- [x] T040 Put the SDK in the API image (R14):
   - In `.dockerignore`, add `!firmware/sdk` after the `firmware` exclusion.
   - Add `COPY firmware/sdk /var/firmware-sdk` to `deploy/docker/api/Dockerfile` and `deploy/docker/api/Dockerfile.release`.
   - Add `sdk_path` to `apps/api/config/devices.php`: `base_path('../../firmware/sdk')` when it exists, otherwise `/var/firmware-sdk`, mirroring `contracts_path`.
+  - Already satisfied by spec 027's PR 027-1, so no second copy was added: `.dockerignore` re-includes `!firmware/sdk` and `!firmware/starters`, both Dockerfiles copy them to `/var/firmware/sdk` and `/var/firmware/starters`, and `config('firmware.path')` (`apps/api/config/firmware.php`) falls back from the checkout's `firmware/` to `/var/firmware`.
 
 ### Phase 9: User Story 6, the gateway's own health (P2)
 
@@ -337,7 +338,7 @@ home paths.
 
 **Independent test**: `php artisan test --compact --filter 'GatewayHealthProfile|GatewayNodeOnboarding'`, then quickstart 4.
 
-- [ ] T041 [US6] `apps/api/app/Domain/DeviceProfiles/Actions/PrepareGatewayHealthProfile.php`:
+- [x] T041 [US6] `apps/api/app/Domain/DeviceProfiles/Actions/PrepareGatewayHealthProfile.php`:
   - Under an organization lock, creates the profile and publishes it through `PublishDeviceProfile`, following `PrepareWaterMeterProfile`.
   - Code `gateway-health`, name "Gateway health", category `gateways`.
   - Every parameter has `reports_state = true` and `accepts_command = false`:
@@ -359,35 +360,40 @@ home paths.
     - Every parameter: `reporting_config.stale_after_seconds = 180`, three default health intervals.
   - Returns the existing profile, unchanged, when the code already exists.
   - Records `device_profile.gateway_health.created` with `revision`.
-- [ ] T042 [US6] `apps/api/app/Domain/DeviceProfiles/Http/Controllers/GatewayHealthProfileController.php` `@store`:
+  - Built: the enum's `validation_logic` also needs `engine: json_logic`, a `diagnostic_code` and a `message`, or publishing fails. A soft-deleted profile with the code (always an unpublished draft) still holds it, so it is force-deleted before the profile is created.
+- [x] T042 [US6] `apps/api/app/Domain/DeviceProfiles/Http/Controllers/GatewayHealthProfileController.php` `@store`:
   - Route `POST device-profiles/gateway-health` in `apps/api/app/Domain/DeviceProfiles/routes/api.php`, registered before the `device-profiles/{profile}` routes.
   - Requires `DeviceProfile.create` and `DeviceProfile.publish`.
   - Returns 201 when created and 200 when it already existed, with `{ "profile_uuid", "artifact_uuid", "created" }`.
   - Add an `ActivityCatalogue` entry.
-- [ ] T043 [US6] `apps/api/tests/Feature/Domain/DeviceProfiles/GatewayHealthProfileTest.php`:
+  - Built: the body is under `data`, like the API's other responses, and `artifact_uuid` is null when a profile with the code exists but was never published. The success bodies are described in `contracts/openapi/supplements/device-profiles.yaml`.
+- [x] T043 [US6] `apps/api/tests/Feature/Domain/DeviceProfiles/GatewayHealthProfileTest.php`:
   - Creates and publishes once; later calls return the same artifact.
   - The published revision has the counter, enum and staleness configuration from T041.
   - An edited profile is returned as is, with `created: false`.
   - Missing permissions get 403.
   - Another organization's profile is never returned.
   - The parameter keys equal the `IOTOS_HEALTH_*` names parsed from `firmware/sdk/include/iotos/iotos_health.h`.
-- [ ] T044 [US6] `POST device-onboardings` gains `source: "node"` in `OnboardingController` and its request (R16):
+- [x] T044 [US6] `POST device-onboardings` gains `source: "node"` in `OnboardingController` and its request (R16):
   - In gateway mode, exactly one of `source` and `source_device_id` is required.
   - `source: "node"` is stored as `source_device_id = ''`.
   - The existing one-setup-per-(gateway, source) rule applies.
   - Direct mode is unchanged.
-- [ ] T045 [US6] `apps/api/tests/Feature/Domain/Devices/GatewayNodeOnboardingTest.php`:
+- [x] T045 [US6] `apps/api/tests/Feature/Domain/Devices/GatewayNodeOnboardingTest.php`:
   - A node source onboards under an existing gateway without a new gateway or connection, and compiles `source.device_id = ''`.
   - A second attempt gets 422, and sending both fields gets 422.
   - Another organization's gateway gets 404.
   - The discovery path (`OnboardSource` → configuration) still attaches a node source.
   - Direct-mode tests pass unchanged.
-- [ ] T046 [P] [US6] `packages/api-client/src/onboarding.ts` adds `source: "node"` to the request type. `packages/api-client/src/devices.ts` adds `createGatewayHealthProfile`.
-- [ ] T047 [US6] `apps/portal/src/devices/DeviceOnboarding.tsx`:
+  - Built: a second setup for the node gets 409, the existing one-setup rule's status for any source, not 422. Both fields, neither field, another `source` value, and `source` in direct mode get 422.
+- [x] T046 [P] [US6] `packages/api-client/src/onboarding.ts` adds `source: "node"` to the request type. `packages/api-client/src/devices.ts` adds `createGatewayHealthProfile`.
+  - Built: the `GatewayHealthProfile` type is in `devices.ts`; the `createGatewayHealthProfile` method is on the client in `index.ts`, beside the other requests.
+- [x] T047 [US6] `apps/portal/src/devices/DeviceOnboarding.tsx`:
   - In gateway mode, a **The gateway itself** choice beside the device ID field.
   - When chosen, it suggests the organization's gateway health profile, or offers **Create gateway health profile** when there is none.
   - Uses the kit's `SearchableSelect`.
-- [ ] T048 [US6] Extend `apps/portal/e2e/onboarding.spec.ts` (mocked API): node onboarding, profile creation, and the request body carrying `source: "node"`.
+  - Built: a **The gateway itself** checkbox under the gateway picker replaces the device ID field. It selects the health profile when no profile is chosen yet, and otherwise an alert offers **Use Gateway health** or **Create gateway health profile** (with `DeviceProfile.create` and `.publish`). Step 2 of a node setup lists the gateway's identifiers and the node birth's metrics in `Panel`s instead of `ConnectionKit`, which spec 027's PR 027-2 edits.
+- [x] T048 [US6] Extend `apps/portal/e2e/onboarding.spec.ts` (mocked API): node onboarding, profile creation, and the request body carrying `source: "node"`.
 
 ### Phase 10: User Story 4, gateway kit (P2)
 
@@ -486,7 +492,7 @@ home paths.
 
 ### Phase 11: User Story 7, simulator from a kit, and the end-to-end check
 
-- [ ] T058 [US7] `tooling/verify-embedded-sdk.mjs` (R21), reading `.local/devices/environment.json`:
+- [x] T058 [US7] `tooling/verify-embedded-sdk.mjs` (R21), reading `.local/devices/environment.json`:
   1. Registers a gateway and downloads its kit into `.local/`.
   2. Builds `examples/desktop-simulator` with CMake.
   3. Runs it with `--devices water_meter=250 --devices <second type>=250`.
@@ -497,21 +503,36 @@ home paths.
   8. Sends one command and asserts it is confirmed.
   9. Stops the simulator and asserts the gateway and its devices go offline.
   - Prints timings, including the re-announcement time, and the rebirth count.
-- [ ] T059 [US7] `tooling/test-devices.mjs` runs `verify-embedded-sdk.mjs` when `cc` and `cmake` are on the PATH, and prints why when it skips.
+  - Built: the dev stack has no `environment.json`, so the script targets it by default (API on `localhost:8001`) and takes the harness's `environment.json` as an optional argument. Step 1 downloads the gateway full kit for the `linux` target from spec 027's `POST gateways/{gateway}/firmware-kit`, with the gateway health profile as the node type and the water meter and a dedicated `embedded-sdk-valve` profile (a writable `open`) as the device types; step 8 commands a valve. Step 4 reads a telemetry capture. The devices it creates are deactivated and archived at the end (`--keep` leaves them); the gateway stays, as gateways cannot be deleted.
+  - Built: the simulator reports every 30 s (`EMBEDDED_INTERVAL_S`). At its default 10 s, 500 devices send more presence events than the dev API takes from the runtime's sequential `devices-control-inbox` (about 43/s), and activation outcomes arrived minutes late (`docs/dev/gotchas.md`, local stack). Step 6 found that the runtime refuses an activation it checks before the device's next birth: the SDK re-announces at 20 births/s after the rebirth each activation requests (R19). First passes refused 29, 236, 245 and 245 of 247. Before the runtime held the activation (#160, merged), the script needed to activate refused devices again; it still does so in rounds timed between rebirths and records the count per round. It also waits for the births to settle before steps 7 and 8 activate a device, and before step 8 sends its command: an activation that applies at once requests a rebirth, and a command sent before the valve is announced again gets 422.
+- [x] T059 [US7] `tooling/test-devices.mjs` runs `verify-embedded-sdk.mjs` when `cc` and `cmake` are on the PATH, and prints why when it skips.
+  - Built: also when `unzip` is, and the harness's API gets `DEVICE_MQTT_PUBLIC_URL` and `DEVICE_MQTT_CA_FILE` for its own broker, which kits carry.
 
 ### Phase 12: PR 2 documentation and verification
 
-- [ ] T060 [P] Documentation:
+- [x] T060 [P] Documentation:
   - `docs/features/devices.md`: gateway kits and onboarding the gateway itself. This replaces the "the portal never shows gateway credentials" text.
   - The kits section of `docs/features/embedded-sdk.md`.
   - `apps/api/resources/help/devices.md`: the kit download steps.
-- [ ] T061 Checks:
+  - Built: spec 027 documented kits (the embedded SDK's firmware starters section, the profile and device Firmware help), and 027-2 adds the gateway Firmware dialog. This PR adds "The gateway itself" to `docs/features/devices.md` and the in-app Devices guide, the gateway health profile and the end-to-end check to `docs/features/embedded-sdk.md`, the endpoint to `docs/features/device-profiles.md`, and the script to `docs/dev/testing.md`.
+- [x] T061 Checks:
   - `cd apps/api && php artisan test --compact`, `vendor/bin/pint --test`, `php artisan contract:export --check` and `php artisan contract:check --base=origin/main`, as CI runs them.
   - `pnpm --filter @iot-os/portal lint`, the portal e2e specs and `./taskw lint`.
-- [ ] T062 Rebuild `api`, its workers and `portal` with the stack's env files and overlays (AGENTS.md command; see [the list](../../docs/dev/local-setup.md#rebuild-one-service)).
+  - Built: after merging main (027-2), 1,051 API tests passed (2 skipped), Pint and both contract checks pass, `./taskw lint` (with the portal's) passes, the 160 mocked portal e2e tests pass, and the SDK's `ctest` passes 18 of 18.
+- [x] T062 Rebuild `api`, its workers and `portal` with the stack's env files and overlays (AGENTS.md command; see [the list](../../docs/dev/local-setup.md#rebuild-one-service)).
   - Run quickstart 3, 4, 6 and 7 against the running stack, preserving unsaved browser edits.
   - Check that the kit came from the image's `/var/firmware-sdk`.
-- [ ] T063 Set ADR-029 to Accepted in its status line and in its `docs/adr/README.md` row. Leak scan, then open PR 2 against `main` after PR 1 has merged.
+  - Built (2026-11-05, dev stack): `api`, the API-image workers, `scheduler`, `adapter-worker`, `portal` and `admin` rebuilt from this branch, then `api` again for the simulator fix below. In the portal, **The gateway itself** hid the device ID, selected the gateway health profile and showed the gateway's identifiers and eight metrics in step 2. Kits come from `/var/firmware` in the image (spec 027 R15). Quickstart 3, 6 and 7 ran as `verify-embedded-sdk.mjs`, and step 6 is quickstart 4 through the API; the portal's **Download kit** is 027-2's gateway Firmware dialog. Run 4 (gateway `embedded-sdk-24ac7976`, Linux kit, 250 water meters and 250 valves) passed every step:
+    - discovery of 501 sources in 28.4 s, 200 captured packets with no runtime diagnostics;
+    - every source re-announced in 26.7 s after a restart, bdSeq 1 → 2;
+    - 247 bulk-onboarded water meters active in 269.8 s, with **2 rebirths**; refused activations per round 245 → 203 → 103 → 0;
+    - the gateway's own source onboarded in 31.2 s (SDK 0.1.0, 500 devices configured);
+    - a valve command applied and observed in 63.6 s;
+    - gateway and devices offline 19.1 s after the simulator stopped.
+  - The desktop simulator never flushed its `command:` line, so a piped log missed it until exit; `on_command` now flushes like `on_event`.
+  - Against PR #160's runtime (run 5, gateway `embedded-sdk-15dfe315`), every step passed with **0 refused activations**: the 247 devices were active in 73.8 s with 2 rebirths, the gateway's own source in 11.2 s, and the command in 84.2 s.
+- [x] T063 Set ADR-029 to Accepted in its status line and in its `docs/adr/README.md` row. Leak scan, then open PR 2 against `main` after PR 1 has merged.
+  - PR 4 (#157) had merged, so this last spec 026 PR also moved the `firmware/sdk/CHANGELOG.md` entries under `0.1.0` and removed spec 026 from `docs/roadmap.md` (T079, T091).
 
 **Checkpoint**: PR 2 merged. Kits and node onboarding are live.
 
@@ -626,6 +647,7 @@ home paths.
   - Done 2026-11-03: PR 2 and PR 4 had not merged, so `verify-embedded-sdk.mjs` was not run and the roadmap entry stays. The dev compose's Devices overlay also needed the runtime settings for `default-worker` ([gotchas](../../docs/dev/gotchas.md#local-stack)).
 - [x] T080 [US5] Only if T079 counts more than three rebirths per run (R19): the runtime skips the activation rebirth when the source's current birth is already cached, in `services/runtime/internal/app/application.go`, with a test in `services/runtime/internal/app/`. Re-measure, then record the result in research R19.
   - Not needed: T079 measured 2 rebirths for a 248-source run (research R19).
+  - PR 2's run on the SDK simulator also counted 2 rebirths, but found activations refused during the paced re-announcement (T062); the runtime fix is #160.
   - Done after PR 2 anyway (2026-11-05): with the SDK simulator, the activation rebirth refused commands to devices whose births it had just taken away (research R19).
 
 **Checkpoint**: PR 3 merged. 247 devices onboard in one action.
@@ -689,7 +711,7 @@ home paths.
 ### Phase 15: Polish (PR 4)
 
 - [x] T090 [P] Public developer page `apps/docs/src/content/docs/docs/developers/embedded-sdk.mdx`, in the Developers sidebar group: add the NXP board to the page spec 027 PR 027-1 creates (create it if that PR has not). It has no repository paths and names no licence (`docs/dev/docs-site.md` writing rules).
-- [ ] T091 Check, release and open PR 4:
+- [x] T091 Check, release and open PR 4:
   - **Checks:**
     - quickstart 1 and 2, with the cross-compile now including `ports/freertos`;
     - `cd apps/api && php artisan test --compact --filter 'Starter|SecretScan|AgentsBriefDrift'`;
@@ -701,6 +723,7 @@ home paths.
   - If PR 3 has already merged, remove spec 026 from `docs/roadmap.md` here (T079 does it if PR 3 merges last).
     - Not in PR 4: PR 3 has merged but PR 2 has not, so the roadmap entry stays until PR 2 merges.
   - Leak scan, then open PR 4 against `main` once spec 027's PR 027-1 has merged (T085 and T089 need its generator and endpoints).
+  - PR 4 merged as #157 on 2026-11-05. PR 2 merged after it, and moved the changelog entries and the roadmap entry (T063).
 
 **Checkpoint**: the feature is complete. Run `/speckit-converge` before closing it.
 

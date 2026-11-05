@@ -4169,7 +4169,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_124",
+        "operationId": "domain.devices.retention.show_125",
         "tags": [
           "Retention"
         ],
@@ -4218,7 +4218,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_125",
+        "operationId": "domain.devices.retention.update_126",
         "tags": [
           "Retention"
         ],
@@ -4556,7 +4556,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_122",
+        "operationId": "domain.devices.retention.show_123",
         "tags": [
           "Retention"
         ],
@@ -4588,7 +4588,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_123",
+        "operationId": "domain.devices.retention.update_124",
         "tags": [
           "Retention"
         ],
@@ -14196,6 +14196,17 @@
                     ],
                     "format": "uuid"
                   },
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Gateway mode only: \"node\" sets up the gateway's own metrics instead of a downstream device's source_device_id.",
+                    "enum": [
+                      "node",
+                      null
+                    ]
+                  },
                   "source_device_id": {
                     "type": [
                       "string",
@@ -14433,6 +14444,68 @@
         "x-audience": "organization",
         "x-organization-scoped": true,
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/device-profiles/gateway-health": {
+      "post": {
+        "operationId": "v1.organizations.device-profiles.gateway-health.store",
+        "tags": [
+          "GatewayHealthProfile"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The profile already existed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayHealthProfileResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The profile was created and published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayHealthProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "Creates and publishes the organization's gateway health profile (code gateway-health) from the embedded SDK's health metrics, or returns the existing one unchanged, edited or not. The request has no body. Needs DeviceProfile.create and DeviceProfile.publish; a creation is recorded as device_profile.gateway_health.created."
       }
     },
     "/v1/organizations/{organization}/device-profiles/{profile}": {
@@ -24754,7 +24827,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_165",
+        "operationId": "domain.automation.dag.settings_166",
         "tags": [
           "Dag"
         ],
@@ -24829,7 +24902,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_166",
+        "operationId": "domain.automation.dag.settings_167",
         "tags": [
           "Dag"
         ],
@@ -26071,7 +26144,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_177",
+        "operationId": "domain.automation.scenario.save_178",
         "tags": [
           "Scenario"
         ],
@@ -26187,7 +26260,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_178",
+        "operationId": "domain.automation.scenario.save_179",
         "tags": [
           "Scenario"
         ],
@@ -26732,7 +26805,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_169",
+        "operationId": "domain.automation.dag.timeline_170",
         "tags": [
           "Dag"
         ],
@@ -26803,7 +26876,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_170",
+        "operationId": "domain.automation.dag.timeline_171",
         "tags": [
           "Dag"
         ],
@@ -29281,6 +29354,43 @@
           "email"
         ],
         "title": "ForgotPasswordRequest"
+      },
+      "GatewayHealthProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "profile_uuid",
+          "artifact_uuid",
+          "created"
+        ],
+        "properties": {
+          "profile_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "artifact_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The profile's latest published revision; null when a profile with the code exists but was never published."
+          },
+          "created": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GatewayHealthProfileResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GatewayHealthProfile"
+          }
+        }
       },
       "GeoPosition": {
         "type": "array",
