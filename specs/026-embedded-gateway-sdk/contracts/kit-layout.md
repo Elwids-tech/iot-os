@@ -21,7 +21,7 @@ config/iotos_settings.c         defines iotos_kit_settings, including the node's
 config/iotos_types.h            includes every device type header; declares iotos_kit_types[] and IOTOS_KIT_TYPE_COUNT
 config/iotos_type_<code>.h      one per device type, plus iotos_type_gateway_health.h for the node
 sdk/                            the SDK release: include/, src/, ports/, third_party/coreMQTT/ (R3), LICENSE, THIRD_PARTY.md, CHANGELOG.md, VERSION
-examples/rt1050-evkb-ethernet/  board example (CMake/armgcc, MCUXSDK_ROOT)
+examples/rt1050-evkb-ethernet/  board example (MCUXpresso SDK 26.09 CMake, MCUXSDK_ROOT)
 examples/desktop-simulator/     desktop gateway simulator (CMake), --devices <type>=<count>
 ```
 

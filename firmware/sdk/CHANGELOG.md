@@ -26,9 +26,18 @@ changes are listed here.
 - ESP-IDF ports (`ports/esp-idf`, ESP-IDF v5.4): esp-tls with the kit's CA and the broker
   host checked, SNTP for UTC and esp_timer for intervals, NVS for `bdSeq`, and ESP_LOG.
   `ports/esp-idf/component.cmake` builds the SDK as an ESP-IDF component.
-- A FreeRTOS lock (`ports/freertos`): a statically created, non-recursive mutex.
+- A FreeRTOS lock and log (`ports/freertos`): a statically created, non-recursive mutex,
+  and a log through `IOTOS_FREERTOS_PRINTF` (the MCUXpresso debug console by default).
 - An ESP32 example (`examples/esp32-wifi`), the project of the ESP32 starter: Wi-Fi set
   with `idf.py menuconfig`, the same program as the Linux example.
+- MCUXpresso SDK ports (`ports/mcuxpresso-lwip`, SDK 26.x): mbedTLS 3.6 over lwIP sockets
+  with the kit's CA and the broker host checked, entropy from the TRNG, lwIP SNTP for UTC
+  and the FreeRTOS tick for intervals. `iotos_mcux.cmake` adds them and the core to a
+  project.
+- An MIMXRT1050-EVKB example (`examples/rt1050-evkb-ethernet`), the project of the NXP
+  starter: Ethernet with DHCP, and for a gateway a Modbus RTU poller on RS-485.
+- A modem MQTT port template (`ports/templates/modem-at-mqtt-template.c`), annotated for
+  the Quectel BG95 command family. Untested on a modem.
 
 ### Changed
 

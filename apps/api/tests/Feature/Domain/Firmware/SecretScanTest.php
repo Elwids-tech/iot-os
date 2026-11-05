@@ -33,8 +33,11 @@ final class SecretScanTest extends TestCase
         $gateway = $this->gateway();
         $direct = $this->directDevice($relay);
         $secrets = [...$this->secrets($gateway), ...$this->secrets($direct['gateway']), $direct['device']->code];
+        $targets = $this->getJson($this->prefix.'/firmware/targets')->json('data');
+        // Every built project is scanned, board files and port sources included.
+        $this->assertSame(['esp32-esp-idf', 'nxp-imxrt1050-mcuxpresso', 'linux'], array_column(array_filter($targets, fn (array $target): bool => $target['kind'] === 'built'), 'id'));
 
-        foreach ($this->getJson($this->prefix.'/firmware/targets')->json('data') as $target) {
+        foreach ($targets as $target) {
             foreach ([
                 ['target' => $target['id'], 'role' => 'direct', 'node_artifact_uuid' => $relay],
                 ['target' => $target['id'], 'role' => 'gateway', 'device_type_artifact_uuids' => [$water], 'gateway_uuid' => $gateway->uuid],

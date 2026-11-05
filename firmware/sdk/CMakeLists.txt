@@ -36,6 +36,9 @@ target_compile_options(iotos PRIVATE ${IOTOS_WARNINGS})
 
 if(CMAKE_CROSSCOMPILING)
   include(${CMAKE_CURRENT_LIST_DIR}/cmake/iotos_size.cmake)
+  if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/tests/freertos-config)
+    add_subdirectory(tests/freertos-config) # iotos_freertos_check; a kit's copy has no tests
+  endif()
 endif()
 
 include(FetchContent)

@@ -97,8 +97,10 @@ On an MIMXRT1050-EVKB on Ethernet, with a USB-RS485 adapter on a PC running a Mo
 simulator for addresses 1–247 and the example's RS-485 polling loop:
 
 1. Rebuild `api`, which bundles this PR's board example into kits, and download a fresh
-   kit from the local stack. Build its `examples/rt1050-evkb-ethernet` with
-   `MCUXSDK_ROOT` set, flash it, and open the serial console.
+   NXP full kit for the gateway from the local stack. Build the project at its root with
+   `MCUXSDK_ROOT` and `ARMGCC_DIR` set, flash it, and open the serial console. The
+   [RT1050 gateway bench](../../docs/hardware/rt1050-evkb.md) has the parts, wiring and
+   steps.
 2. Expected:
    - The console shows the clock synced, the TLS connection and the births.
    - The portal shows the gateway and its devices as in step 3.

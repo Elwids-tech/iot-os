@@ -57,7 +57,7 @@ exactly as the manifest's `replaceable[]` does.
 | --- | --- | --- | --- |
 | `linux` | `CMakeLists.txt` | `app/` | `cmake -S . -B build && cmake --build build` |
 | `esp32-esp-idf` | `CMakeLists.txt`, `sdkconfig.defaults`, `components/iotos/CMakeLists.txt`, `main/Kconfig.projbuild` (Wi-Fi) | `main/` | `idf.py build` (ESP-IDF v5.4.1) |
-| `nxp-imxrt1050-mcuxpresso` | `armgcc/CMakeLists.txt` and the board files from spec 026 PR 4's example | `app/` | `armgcc/build_flexspi_nor_debug.sh` with `MCUXSDK_ROOT` set |
+| `nxp-imxrt1050-mcuxpresso` | `CMakeLists.txt`, `prj.conf`, `lwipopts.h` and `board/` from spec 026 PR 4's example (an MCUXpresso SDK 26.09 freestanding project) | `app/` | `cmake -S . -B build -G Ninja && cmake --build build` with `MCUXSDK_ROOT` and `ARMGCC_DIR` set |
 | AI-assisted (`stm32`, `rpi-pico`, `nordic-nrf`, `other`) | none | `app/` (adds `app/ports/` with the port templates) | chosen by the developer and the agent |
 
 Rules:

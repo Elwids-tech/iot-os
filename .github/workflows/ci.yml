@@ -313,14 +313,15 @@ jobs:
           cmake -S firmware/sdk -B .local/sdk-build -DIOTOS_SANITIZE=ON -DFETCHCONTENT_BASE_DIR="$PWD/.local/fetchcontent"
           cmake --build .local/sdk-build -j"$(nproc)"
           ctest --test-dir .local/sdk-build --output-on-failure
-      # The board's compiler: fails on -Werror, a gateway over 32 KiB, static data or heap use.
+      # The board's compiler: fails on -Werror, a gateway over 32 KiB, static data or heap use,
+      # and builds the FreeRTOS ports against a pinned kernel (tests/freertos-config).
       - name: Cross-compile for the Cortex-M7 and check its size
         if: matrix.compiler == 'gcc'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq gcc-arm-none-eabi libnewlib-arm-none-eabi
           cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE="$PWD/firmware/sdk/cmake/arm-none-eabi.cmake"
-          cmake --build .local/sdk-arm --target iotos_size
+          cmake --build .local/sdk-arm --target iotos_size iotos_freertos_check
 
   firmware-starters:
     name: Firmware starters (${{ matrix.leg }})
@@ -329,8 +330,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Spec 027: spec 026 PR 4 adds nxp (the MCUXpresso SDK through west, on firmware
-        # changes and nightly).
+        # The NXP leg is its own workflow (firmware-nxp.yml): it fetches the MCUXpresso SDK, so
+        # it runs only on firmware changes and nightly.
         leg: [linux, esp32, ai-assisted]
     env:
       # The fixtures command needs no database.

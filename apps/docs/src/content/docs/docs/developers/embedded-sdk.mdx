@@ -17,8 +17,9 @@ A starter holds no passwords, keys or broker addresses, so you can commit it and
 
 ## Targets
 
-- **Built targets** come with a project that builds as downloaded and is built on every change to the platform: Linux and macOS, and the ESP32 on ESP-IDF v5.4.1, with NXP i.MX RT following. The ESP32 project joins a Wi-Fi network that you set with `idf.py menuconfig` before the first build, and builds for other ESP32 chips after `idf.py set-target`.
-- **AI-assisted targets** (STM32, Raspberry Pi Pico, Nordic nRF and any other microcontroller) come with templates for the five small adapters the SDK needs (the TLS connection, the clock, storage, logging and a lock) and notes on each family's usual pieces and traps. Your coding agent writes those adapters with you before the code that reads your hardware.
+- **Built targets** come with a project that builds as downloaded and is built on every change to the platform: Linux and macOS, the ESP32 on ESP-IDF v5.4.1, and the NXP i.MX RT1050 on the MCUXpresso SDK 26.09.00. The ESP32 project joins a Wi-Fi network that you set with `idf.py menuconfig` before the first build, and builds for other ESP32 chips after `idf.py set-target`.
+- **The NXP i.MX RT1050 project** is for the MIMXRT1050-EVKB evaluation board on Ethernet, with an address from DHCP and the time from an NTP server. NXP's SDK isn't included: the project's README shows how to fetch it with `west`, and the build finds it through `MCUXSDK_ROOT` and the Arm GNU Toolchain 14.2 through `ARMGCC_DIR`. A gateway's project also polls Modbus RTU devices over RS-485, with the bus speed, addresses and registers marked for you to change. The board's pins, clocks and Ethernet chip are in the project's `board/` folder, so another RT1050 board starts there.
+- **AI-assisted targets** (STM32, Raspberry Pi Pico, Nordic nRF and any other microcontroller) come with templates for the five small adapters the SDK needs (the TLS connection, the clock, storage, logging and a lock) and notes on each family's usual pieces and traps. Your coding agent writes those adapters with you before the code that reads your hardware. For a cellular modem that runs MQTT itself, there is also a template annotated for the Quectel BG95; it hasn't been tested on a modem yet.
 
 ## Working with an AI coding agent
 

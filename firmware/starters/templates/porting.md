@@ -11,7 +11,7 @@ member.
 | Port | Needed | What it does | Template |
 | --- | --- | --- | --- |
 | stream | one of stream or MQTT | A verified TLS byte stream to the broker. The SDK runs MQTT over it (level 1). | `stream-template.c` |
-| MQTT | one of stream or MQTT | A modem that runs MQTT and TLS itself (level 2). It hands each received message to `iotos_mqtt_inbound`. | none: follow `iotos_ports.h` |
+| MQTT | one of stream or MQTT | A modem that runs MQTT and TLS itself (level 2). It hands each received message to `iotos_mqtt_inbound`. | `modem-at-mqtt-template.c` (untested) |
 | clock | yes | UTC milliseconds once the time is set, and a monotonic millisecond counter. | `clock-template.c` |
 | storage | recommended | Keeps the Sparkplug `bdSeq` across reboots. Without it, bdSeq starts again after a reboot. | `storage-template.c` |
 | log | optional | Writes the SDK's messages somewhere a developer can read them. | `log-template.c` |
@@ -24,7 +24,10 @@ member.
   over it. The TLS handshake must verify the broker against the CA and the host name.
 - **Level 2, MQTT**, when a cellular modem runs MQTT itself (AT commands). Set
   `max_payload` to the largest publish the modem accepts. Births larger than that are
-  refused and logged.
+  refused and logged. The template is annotated for the Quectel BG95 command family and
+  has not passed a bench yet: check each command against the modem's application notes.
+  Sparkplug payloads are binary, so a modem that cannot publish, receive and set its will
+  by length belongs on level 1, through its transparent TLS socket.
 
 Never add a second MQTT client. Vendor middleware that bundles coreMQTT or another MQTT
 library must be left out of the build, or the program fails to link or runs two

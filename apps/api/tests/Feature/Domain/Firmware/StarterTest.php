@@ -79,6 +79,29 @@ final class StarterTest extends TestCase
         $this->assertStringContainsString('| `README.md`, `.gitignore`, `CMakeLists.txt`, `components/`, `sdkconfig.defaults` |', $files[$root.'README.md']);
     }
 
+    public function test_an_nxp_starter_is_a_freestanding_mcuxpresso_project_without_the_vendor_sdk(): void
+    {
+        $water = $this->publish('water-meter')[0];
+        $starter = $this->starter(['target' => 'nxp-imxrt1050-mcuxpresso', 'role' => 'gateway', 'device_type_artifact_uuids' => [$water]]);
+        $root = 'water-meter-nxp-imxrt1050-mcuxpresso-starter/';
+        $files = $this->unzip($starter['archive_base64']);
+
+        $this->assertSame(['app/'], $starter['manifest']['developer_paths']);
+        foreach (['CMakeLists.txt', 'prj.conf', 'lwipopts.h', 'board/pin_mux.c', 'board/hardware_init.c', 'board/rs485_pins.c', 'app/main.c',
+            'app/modbus_rtu.c', 'app/modbus_rtu.h', 'sdk/cmake/iotos_sources.cmake', 'sdk/ports/mcuxpresso-lwip/iotos_mcux.cmake',
+            'sdk/ports/mcuxpresso-lwip/stream_mbedtls_lwip.c', 'sdk/ports/mcuxpresso-lwip/iotos_mbedtls_config.h', 'sdk/ports/freertos/log.c'] as $path) {
+            $this->assertArrayHasKey($root.$path, $files, $path);
+        }
+        // The field side is generated for this profile, not copied from the example's sample tables.
+        $this->assertStringContainsString('water_meter', $files[$root.'app/field.c']);
+        // The MCUXpresso SDK, its toolchain and its build output stay with the developer.
+        $this->assertSame([], array_values(array_filter(array_keys($files), fn (string $path): bool => preg_match('#/(mcuxsdk|devices|drivers|middleware|build|\.west)/#', $path) === 1)));
+        $this->assertStringContainsString('`MCUXSDK_ROOT`', $files[$root.'README.md']);
+        $this->assertStringContainsString('| `README.md`, `.gitignore`, `CMakeLists.txt`, `board/`, `lwipopts.h`, `prj.conf` |', $files[$root.'README.md']);
+        // A direct device has no bus to poll: the poller builds only for a gateway.
+        $this->assertStringContainsString('#if IOTOS_KIT_ROLE_GATEWAY', $files[$root.'app/modbus_rtu.c']);
+    }
+
     public function test_a_gateway_without_a_health_profile_uses_the_sdk_default_table(): void
     {
         $manifest = $this->starter(['target' => 'linux', 'role' => 'gateway', 'device_type_artifact_uuids' => [$this->publish('water-meter')[0]]])['manifest'];
