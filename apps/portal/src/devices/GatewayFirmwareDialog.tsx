@@ -3,7 +3,6 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 import type { Device, FirmwareArchive, Gateway, StarterManifest } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@iot-os/ui/components/collapsible"
 import {
   Dialog,
   DialogContent,
@@ -15,7 +14,7 @@ import {
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { ChevronDownIcon, DownloadIcon, PlusIcon, XIcon } from "lucide-react"
+import { DownloadIcon, PlusIcon, XIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { saveArchive } from "../lib/download"
 import { FirmwareTargetSelect, gatewayHealthProfile, publishedArtifact, useFirmwareTargets } from "../lib/firmware"
@@ -228,7 +227,6 @@ function FirmwareChoices({
       <p role="status" className="text-meta">
         {done}
       </p>
-      <ServerExport gateway={gateway} />
       <DialogFooter>
         <Button variant="outline" disabled={busy !== null} onClick={onClose}>
           Close
@@ -307,33 +305,6 @@ function ProfilePicker({
       help={help}
       className={className}
     />
-  )
-}
-
-/** How an operator exports the gateway's credentials on the server instead (FR-034). */
-function ServerExport({ gateway }: { gateway: Gateway }) {
-  return (
-    <Collapsible>
-      <CollapsibleTrigger asChild>
-        <Button variant="ghost" size="sm" className="group -ml-2 text-muted-foreground">
-          Export credentials on the server
-          <ChevronDownIcon data-icon="inline-end" className="transition-transform group-data-[state=open]:rotate-180" />
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-2 pt-1">
-        <p className="text-meta text-muted-foreground">
-          An operator with server access can write the gateway's credentials to a file from the API container instead:
-        </p>
-        <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-code whitespace-pre-wrap break-all">
-          php artisan devices:export-gateway {gateway.uuid} --output=/tmp/gateway.json --broker=ssl://BROKER_HOST:8883
-          --ca=/path/on/gateway/ca.crt
-        </pre>
-        <p className="text-meta text-muted-foreground">
-          Use the broker address and CA path the gateway can reach, then install the file and the CA certificate on the
-          gateway.
-        </p>
-      </CollapsibleContent>
-    </Collapsible>
   )
 }
 

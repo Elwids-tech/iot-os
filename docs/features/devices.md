@@ -59,8 +59,9 @@ gateway's node profile, up to 8 device types (`IOTOS_MAX_DEVICE_TYPES`) and a ta
   `Device.manage-connections`. A starter or kit downloaded by such a person saves the
   choices on the gateway.
 
-The dialog confirms downloads in place rather than in a toast. Under **Export credentials
-on the server** it keeps the export for an operator with server access:
+The dialog confirms downloads in place rather than in a toast. The portal shows no server
+commands; an operator with server access can still export a gateway's private
+configuration:
 
 ```sh
 php artisan devices:export-gateway <gateway-uuid> --output=/tmp/gateway.json \

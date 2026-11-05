@@ -214,9 +214,9 @@ test("saved choices come first and the full kit and settings use them", async ({
   expect((await settings).suggestedFilename()).toBe("line-2-gateway-connection-settings.zip")
   expect(state.settings).toBe(1)
 
-  // The server export stays as a note.
-  await dialog.getByRole("button", { name: "Export credentials on the server" }).click()
-  await expect(dialog).toContainText(`devices:export-gateway ${gatewayId}`)
+  // Server commands are for operators and are not shown in the portal.
+  await expect(dialog).not.toContainText("artisan")
+  await expect(dialog).not.toContainText("export-gateway")
   expect(state.errors).toEqual([])
 })
 

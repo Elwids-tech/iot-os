@@ -426,8 +426,8 @@ cost); more built targets now (Q3 declined).
   - downloads the starter, settings or full kit.
 
   The selection is saved on the gateway when a download succeeds (data model), so
-  teammates see the same choices (FR-042). The server-export text stays as a secondary
-  note.
+  teammates see the same choices (FR-042). The server-export command is not shown in the
+  portal (FR-034).
 - **Onboarding**: today's wizard ([`DeviceOnboarding.tsx`](../../apps/portal/src/devices/DeviceOnboarding.tsx),
   `ConnectionKit.tsx`) gains "I'm writing the firmware" in its connection step. It adds
   a target `Select`, **Download starter** for anyone at that step, and **Download

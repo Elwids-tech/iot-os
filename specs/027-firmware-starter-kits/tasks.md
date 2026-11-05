@@ -312,7 +312,7 @@ appear in each story.
   - **Target**: a `Select`.
   - **Actions**: **Download starter** (with `gateway_uuid` when the person may manage connections), and **Download settings** and **Download full kit** shown only with `Device.manage-connections`.
 
-  The server-export instructions move under a disclosure in the dialog. Archive data lives only in component state, and toasts stay clear of the dialog's actions.
+  The server-export instructions are removed from the portal; the command keeps working for operators (FR-034). Archive data lives only in component state, and toasts stay clear of the dialog's actions.
 - [x] T054 [US4] `apps/portal/src/devices/ConnectionKit.tsx`: an "I'm writing the firmware" choice that reveals a target `Select`, **Download starter** (`createFirmwareStarter` with the device's profile artifact, for anyone at this step) and **Download firmware kit** (`deviceFirmwareKit`, only with `Device.manage-connections`) beside the unchanged **Download setup bundle**. The wizard's later steps are unchanged.
 - [x] T055 [P] [US4] `apps/portal/e2e/gateway-firmware.spec.ts` (mocked API):
   - Get credentials is gone;

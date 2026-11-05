@@ -199,7 +199,7 @@ export function GatewaysPage() {
                 inset
                 icon={<RouterIcon />}
                 title="No gateways yet"
-                description="Add a broker connection and register a gateway. Its credentials come with its firmware settings, or from a CLI export on the server."
+                description="Add a broker connection and register a gateway. Its connection settings come from its Firmware."
               />
             }
           />
@@ -349,7 +349,7 @@ export function GatewayEditor({
       description={
         kind === "connection"
           ? "Reserves a unique group on the managed broker."
-          : "Uses the Edge Node identifier your gateway reports. Its credentials come with its firmware afterwards."
+          : "Uses the Edge Node identifier your gateway reports. Its connection settings come from its Firmware afterwards."
       }
       dirty={form.formState.isDirty}
       busy={form.formState.isSubmitting}
