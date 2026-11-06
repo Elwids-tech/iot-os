@@ -32,8 +32,8 @@ export const moments = {
   mailIn: 19500,
 } as const
 
-/** The loop restarts after this. */
-export const duration = 23500
+/** The loop restarts after this: the finished picture holds for about ten seconds first. */
+export const duration = 30000
 
 export const beats: Beat[] = [
   { id: 'firmware', label: 'Firmware', start: 0 },
