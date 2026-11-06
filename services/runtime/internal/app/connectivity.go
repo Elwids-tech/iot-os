@@ -258,6 +258,7 @@ type gatewayTrack struct {
 	thresholdValue   time.Duration
 	thresholdApplies bool
 	affectedNow      []string
+	lastHeard        time.Time // the edge's, as the last evaluation saw it
 }
 
 type edgeTrack struct {
@@ -882,7 +883,7 @@ func (t *connectivityTracker) deviceCondition(d *deviceTrack, e *edgeTrack, gate
 }
 
 func (t *connectivityTracker) evaluateGateway(g *gatewayTrack, e *edgeTrack, members []*deviceTrack, now time.Time) []connectivityChange {
-	g.grace, g.threshold, g.thresholdValue, g.thresholdApplies = 0, nil, 0, false
+	g.grace, g.threshold, g.thresholdValue, g.thresholdApplies, g.lastHeard = 0, nil, 0, false, e.lastHeard
 	g.affectedNow = make([]string, 0, len(members))
 	for _, d := range members {
 		g.affectedNow = append(g.affectedNow, d.def.DeviceUUID)
@@ -963,7 +964,7 @@ func (g *gatewayTrack) event(transition string, at time.Time, stop string) conne
 		affected = g.affectedNow
 	}
 	ev := connectivityEvent{OrganizationUUID: g.organization, Subject: connectivitySubject{Kind: connectivityKindGate, ConnectionUUID: &connection, EdgeNodeID: &edge}, Episode: g.episode, Transition: transition, Cause: text(g.cause), At: at.UTC(),
-		GraceSeconds: int(g.grace / time.Second), AffectedDeviceUUIDs: affected, StopReason: text(stop)}
+		LastHeardAt: timePointer(g.lastHeard), GraceSeconds: int(g.grace / time.Second), AffectedDeviceUUIDs: affected, StopReason: text(stop)}
 	if g.open {
 		ev.OfflineSince = timePointer(g.offlineSince)
 	}

@@ -666,6 +666,7 @@ func TestAGatewayDeathOpensOneEpisodeListingItsDevices(t *testing.T) {
 		t.Fatalf("gateway event %+v", ev)
 	}
 	at(t, ev.OfflineSince, died, "offline_since")
+	at(t, ev.LastHeardAt, died, "last_heard_at")
 	if state := g.state(g.meter); !state.SuppressedByGateway {
 		t.Fatalf("%+v", state)
 	}

@@ -343,6 +343,7 @@ describe("device connectivity (spec 018)", () => {
       connectivityStatus({ state: "interrupted", interruption: "adapter", before_monitoring: false }, "Adapter paused; offline alerts resume when it is resumed."),
     ).toBe("adapter_paused")
     expect(connectivityStatus({ state: "interrupted", interruption: "connection", before_monitoring: false })).toBe("interrupted")
+    expect(connectivityStatus({ state: "monitored", interruption: null, before_monitoring: false, suppressed_by_gateway: true })).toBe("offline")
   })
   it("states the Offline after in effect, or that it is still learning", () => {
     const runtime = { state: "monitored" as const, offline_after_seconds: 900, offline_after_automatic: true, readings_counted: 64 }

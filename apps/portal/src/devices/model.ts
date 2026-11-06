@@ -474,10 +474,12 @@ export function formatDuration(seconds: number) {
  * and an adapter interruption as restarting, or paused when the device says so.
  */
 export function connectivityStatus(
-  state: Pick<ConnectivityRuntimeState, "state" | "interruption" | "before_monitoring">,
+  state: Pick<ConnectivityRuntimeState, "state" | "interruption" | "before_monitoring"> & { suppressed_by_gateway?: boolean | null },
   diagnostic?: string | null,
 ) {
   if (state.state === "waiting" && state.before_monitoring) return "before_monitoring"
+  // Its gateway's alert speaks for it: the device itself is not judged meanwhile.
+  if (state.suppressed_by_gateway && ["monitored", "learning", "pending"].includes(state.state)) return "offline"
   if (state.state === "interrupted" && state.interruption === "adapter")
     return /paused/i.test(diagnostic ?? "") ? "adapter_paused" : "adapter_restarting"
   return state.state
