@@ -4,11 +4,17 @@ import type {
   DeviceConfiguration,
   LocationBinding,
   Measurement,
+  OfflineAlert,
   WorkflowAlert,
 } from "@iot-os/api-client"
 import {
   configurationSummary,
+  connectivityStatus,
   deviceConnection,
+  formatDuration,
+  offlineAfterText,
+  offlineReason,
+  listStatuses,
   deviceHealth,
   groupAlerts,
   healthDetails,
@@ -255,10 +261,96 @@ describe("device alert groups", () => {
       alert("a2", "door", "active", "2026-09-30T08:00:00Z"),
       alert("a1", "fence", "cleared", "2026-09-29T08:00:00Z"),
     ])
-    expect(groups.map((g) => [g.workflow_uuid, g.count, g.active, g.latest.uuid])).toEqual([
+    expect(groups.map((g) => [g.key, g.count, g.active, g.latest.uuid])).toEqual([
       ["door", 1, 1, "a2"],
       ["fence", 3, 0, "a5"],
       ["temp", 1, 0, "a4"],
     ])
+    expect(groups[0].filter).toBe("workflow=door")
+  })
+  it("groups offline alerts by kind and subject and filters the list by kind", () => {
+    const offline = (uuid: string, kind: string, subject: string, condition: string) =>
+      ({
+        uuid,
+        kind,
+        workflow_uuid: null,
+        workflow_name: null,
+        subject: { type: kind === "gateway_offline" ? "gateway" : "device", uuid: subject, name: subject === "g1" ? "Yard gateway" : "Box" },
+        condition,
+        activated_at: "2026-10-04T08:00:00Z",
+        cleared_at: condition === "cleared" ? "2026-10-04T09:00:00Z" : null,
+      }) as never
+    const groups = groupAlerts([
+      offline("o3", "device_offline", "d1", "cleared"),
+      offline("o2", "gateway_offline", "g1", "active"),
+      offline("o1", "device_offline", "d1", "cleared"),
+    ])
+    expect(groups.map((g) => [g.key, g.name, g.count, g.filter, g.apiFilter])).toEqual([
+      ["gateway_offline:g1", "Gateway offline — Yard gateway", 1, "kind=gateway_offline", "kind%5B%5D=gateway_offline"],
+      ["device_offline:d1", "Device offline", 2, "kind=device_offline", "kind%5B%5D=device_offline"],
+    ])
+  })
+})
+
+describe("device connectivity (spec 018)", () => {
+  const alert = (changes: Partial<OfflineAlert>): OfflineAlert => ({
+    uuid: "a1",
+    kind: "device_offline",
+    cause: "missed_check_in",
+    since: "2026-10-04T08:00:00Z",
+    subject: { type: "device", uuid: "d1", name: "Box" },
+    ...changes,
+  })
+  it("says why a device is offline: its own cause or its gateway", () => {
+    expect(offlineReason(alert({}))).toBe("Offline: missed check-in")
+    expect(offlineReason(alert({ cause: "death_certificate" }))).toBe("Offline: death certificate")
+    expect(
+      offlineReason(alert({ kind: "gateway_offline", cause: "death_certificate", subject: { type: "gateway", uuid: "g1", name: "Yard gateway" } })),
+    ).toBe("Offline because gateway Yard gateway is offline")
+  })
+  it("puts the open offline alert into the health tooltip", () => {
+    const now = Date.parse("2026-10-04T08:30:00Z")
+    expect(
+      healthDetails({ ...state("active", "offline", "applied"), offline_alert: alert({}) }, { now }),
+    ).toEqual([
+      ["Lifecycle", "Active"],
+      ["Connection", "Offline: missed check-in"],
+      ["Offline since", "30 min ago"],
+      ["Configuration", "Applied"],
+    ])
+  })
+  it("lists Offline alert as a directory status after Offline", () => {
+    expect(listStatuses.slice(0, 3)).toEqual([
+      { value: "online", label: "Online" },
+      { value: "offline", label: "Offline" },
+      { value: "offline_alert", label: "Offline alert" },
+    ])
+  })
+  it("formats intervals at a glance", () => {
+    expect(formatDuration(45)).toBe("45 s")
+    expect(formatDuration(900)).toBe("15 min")
+    expect(formatDuration(5400)).toBe("1 h 30 min")
+    expect(formatDuration(3600)).toBe("1 h")
+    expect(formatDuration(259200)).toBe("3 d")
+    expect(formatDuration(194400)).toBe("2 d 6 h")
+  })
+  it("reads the runtime state, labelling adapter restarts and devices silent before monitoring", () => {
+    const runtime = { state: "waiting" as const, interruption: null, before_monitoring: false }
+    expect(connectivityStatus(runtime)).toBe("waiting")
+    expect(connectivityStatus({ ...runtime, before_monitoring: true })).toBe("before_monitoring")
+    expect(connectivityStatus({ state: "interrupted", interruption: "adapter", before_monitoring: false })).toBe("adapter_restarting")
+    expect(
+      connectivityStatus({ state: "interrupted", interruption: "adapter", before_monitoring: false }, "Adapter paused; offline alerts resume when it is resumed."),
+    ).toBe("adapter_paused")
+    expect(connectivityStatus({ state: "interrupted", interruption: "connection", before_monitoring: false })).toBe("interrupted")
+  })
+  it("states the Offline after in effect, or that it is still learning", () => {
+    const runtime = { state: "monitored" as const, offline_after_seconds: 900, offline_after_automatic: true, readings_counted: 64 }
+    expect(offlineAfterText(runtime, null)).toBe("15 min (automatic)")
+    expect(offlineAfterText({ ...runtime, state: "learning", offline_after_seconds: null, readings_counted: 2 }, null)).toBe(
+      "Automatic, learning (2 of 3 readings)",
+    )
+    expect(offlineAfterText({ ...runtime, state: "unknown", offline_after_seconds: null }, null)).toBe("Automatic")
+    expect(offlineAfterText({ ...runtime, state: "unknown", offline_after_seconds: null }, 3600)).toBe("1 h (set)")
   })
 })

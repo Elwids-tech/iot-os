@@ -40,6 +40,8 @@ export type Gateway = {
   sources_count: number
   /** The choices saved by the last firmware download for this gateway (spec 027); only in the gateways list. */
   firmware_selection?: import("./firmware").FirmwareSelection | null
+  /** The open Gateway offline alert for this gateway (spec 018). */
+  offline_alert?: import("./connectivity").OfflineAlert | null
 }
 export type DiscoveryCandidate = {
   assigned_device_uuid: string | null
@@ -146,6 +148,8 @@ export type Device = {
   site?: { uuid: string; name: string; timezone: string } | null
   tags?: string[]
   attributes?: Record<string, DeviceAttributeValue>
+  /** The open connectivity alert listing this device: its own, or its gateway's (spec 018). Presence reads offline while it is open. */
+  offline_alert?: import("./connectivity").OfflineAlert | null
 }
 export type DeviceAttributeValue = string | number | boolean | null
 /** A physical location whose IANA time zone cuts days, months and shifts. */

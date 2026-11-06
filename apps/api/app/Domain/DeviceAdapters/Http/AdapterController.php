@@ -151,7 +151,7 @@ final class AdapterController
     {
         $this->authorize($r, $organization, $adapter, DevicePermission::VIEW);
 
-        return ['data' => $adapter->candidates()->with('installation.device')->latest('last_seen_at')->limit(100)->get()->map(fn ($c) => [...$c->only(['uuid', 'source_device_id', 'preview', 'status', 'last_seen_at']), 'installation_uuid' => $c->installation?->uuid, 'device' => $c->installation?->device ? DeviceView::device($c->installation->device) : null])];
+        return ['data' => $adapter->candidates()->with(['installation.device', ...array_map(fn (string $relation) => 'installation.device.'.$relation, DeviceView::CONNECTIVITY)])->latest('last_seen_at')->limit(100)->get()->map(fn ($c) => [...$c->only(['uuid', 'source_device_id', 'preview', 'status', 'last_seen_at']), 'installation_uuid' => $c->installation?->uuid, 'device' => $c->installation?->device ? DeviceView::device($c->installation->device) : null])];
     }
 
     public function activate(Request $r, Organization $organization, DeviceAdapter $adapter, AdapterCandidate $candidate)

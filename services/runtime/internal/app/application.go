@@ -93,6 +93,7 @@ type Application struct {
 	heldFor           time.Duration             // bounds a hold; birthWait when zero
 	presenceAt        map[string]time.Time
 	reported          map[string]reportedPresence
+	connectivity      *connectivityTracker
 	subscriptions     []*nats.Subscription
 	tlsConfig         *tls.Config
 }
@@ -156,6 +157,17 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 			a.activeSince[state.UUID] = time.Now().UTC()
 		}
 	}
+	// Offline detection resumes from its stored rows; silence counts from now (D3).
+	a.connectivity = newConnectivityTracker(time.Now().UTC(), a.Engine.NodeOnline)
+	rows, e := store.LoadConnectivity(ctx)
+	if e != nil {
+		nc.Close()
+		return nil, e
+	}
+	a.connectivity.load(rows)
+	for _, d := range a.definitions {
+		a.connectivity.define(d, time.Now().UTC())
+	}
 	if e = a.subscribe(); e != nil {
 		nc.Close()
 		return nil, e
@@ -171,6 +183,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 	go a.relay(ctx)
 	go a.relayCommitted(ctx)
 	go a.maintenance(ctx)
+	go a.seedConnectivity(ctx)
 	started = true
 	return a, nil
 }
@@ -205,6 +218,11 @@ func (a *Application) syncState() error {
 		}
 	}
 	for _, d := range state.Devices {
+		settings := devices.DefaultConnectivity()
+		if d.Connectivity != nil {
+			settings = *d.Connectivity
+		}
+		a.connectivity.configure(d.UUID, settings, time.Now().UTC())
 		a.mu.Lock()
 		generation := a.generations[d.UUID]
 		a.mu.Unlock()
@@ -256,6 +274,7 @@ func (a *Application) connect(c devices.Connection) error {
 			}
 			online, _ := json.Marshal(map[string]any{"online": true, "timestamp": stateTimestamp.Load()})
 			client.Publish("spBv1.0/STATE/"+c.HostID, 1, true, online)
+			a.connectivity.connect(c.UUID, time.Now().UTC())
 			a.mu.Lock()
 			defs := []devices.Definition{}
 			for _, d := range a.definitions {
@@ -306,6 +325,12 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 	if e != nil || parsed.Group != c.GroupID {
 		return
 	}
+	// Any packet shows its source is alive, before validation; a death counts once the
+	// engine has matched it to the session (D2).
+	death := parsed.Kind == "NDEATH" || parsed.Kind == "DDEATH"
+	if !death {
+		a.connectivity.heard(c.UUID, c.GroupID, parsed.Edge, parsed.Device, received)
+	}
 	captures := a.captureManager()
 	captureID := ""
 	if captures.Watching(c.OrganizationUUID, c.UUID, parsed.Edge, parsed.Device) {
@@ -332,6 +357,14 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 		captures.Record(c.OrganizationUUID, c.UUID, parsed.Edge, sample)
 	}
 	p, e := a.Engine.Accept(c.UUID, topic, raw, received)
+	switch {
+	case death && e == nil && p.Death:
+		a.connectivity.died(c.UUID, c.GroupID, parsed.Edge, parsed.Device, received)
+	case death:
+		a.connectivity.heard(c.UUID, c.GroupID, parsed.Edge, parsed.Device, received)
+	case e == nil && parsed.Kind == "NBIRTH":
+		a.connectivity.adapterBorn(c.UUID, c.GroupID, parsed.Edge, received)
+	}
 	if captureID != "" {
 		captures.Update(captureID, func(s *telemetry.Sample) {
 			if e != nil {
@@ -408,6 +441,11 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 			}
 
 			if p.Death {
+				// An adapter's node death is a redeploy, restart or pause, never its devices' (D3).
+				if adapterGroup(c.GroupID) && p.Topic.Kind == "NDEATH" {
+					a.devicePresence(d, "unknown", adapterRestarting, time.Time{}, true)
+					return
+				}
 				a.devicePresence(d, "offline", "Source sent a death certificate.", p.Received, true)
 				return
 			}
@@ -446,9 +484,11 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 			if e != nil {
 				return
 			}
-			if !a.handOn(d, profile, applied, session, p.Metrics, p.Received, captureID) {
+			readings, ok := a.handOn(d, profile, applied, session, p.Metrics, p.Received, captureID)
+			if !ok {
 				return
 			}
+			a.connectivity.readings(d.DeviceUUID, p.Topic.Kind == "DDATA", p.Received, observedTimes(readings))
 			a.mu.Lock()
 			review = a.reviewRequired[d.DeviceUUID]
 			a.mu.Unlock()
@@ -462,10 +502,10 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 }
 
 // handOn turns a source's metrics, received at received, into d's readings, keeps them
-// as its latest values and hands them to storage at the applied generation. It reports
-// whether the device may be reported present: not while its ingestion is suspended, nor
-// after a failed handoff.
-func (a *Application) handOn(d devices.Definition, profile devices.Profile, applied int, session string, metrics []devices.Metric, received time.Time, captureID string) bool {
+// as its latest values and hands them to storage at the applied generation. It returns
+// the readings and whether the device may be reported present: not while its ingestion
+// is suspended, nor after a failed handoff.
+func (a *Application) handOn(d devices.Definition, profile devices.Profile, applied int, session string, metrics []devices.Metric, received time.Time, captureID string) ([]devices.Reading, bool) {
 	captures := a.captureManager()
 	suspended := captures.Suspended(d.OrganizationUUID, d.DeviceUUID)
 	a.mu.Lock()
@@ -487,7 +527,7 @@ func (a *Application) handOn(d devices.Definition, profile devices.Profile, appl
 	if suspended {
 		a.mu.Unlock()
 		captures.Outcome(captureID, telemetry.Outcome{Device: d.DeviceUUID, Configuration: d.ConfigurationUUID, Status: "suspended", Diagnostic: "Production ingestion suspended for this device; these samples will not be replayed.", Stages: stages, Readings: readings})
-		return false
+		return nil, false
 	}
 	for _, r := range readings {
 		if !r.Historical {
@@ -520,10 +560,21 @@ func (a *Application) handOn(d devices.Definition, profile devices.Profile, appl
 			a.compatible[d.DeviceUUID] = false
 			a.mu.Unlock()
 			a.devicePresence(d, "unknown", "Telemetry handoff failed; a data gap may exist.", received, true)
-			return false
+			return nil, false
 		}
 	}
-	return true
+	return readings, true
+}
+
+// observedTimes are the observed times of readings not marked historical (D16).
+func observedTimes(readings []devices.Reading) []time.Time {
+	times := []time.Time{}
+	for _, r := range readings {
+		if !r.Historical && !r.ObservedAt.IsZero() {
+			times = append(times, r.ObservedAt)
+		}
+	}
+	return times
 }
 
 // devicePresence reports a device's presence. at is when its packet was received;
@@ -565,6 +616,7 @@ func (a *Application) connectionPresence(connection, presence, diagnostic string
 }
 func (a *Application) connectionLost(connection string, e error) {
 	a.Engine.Disconnect(connection)
+	a.connectivity.disconnect(connection, time.Now().UTC())
 	a.Logger.Warn("MQTT connection lost", "connection", connection, "error", e)
 	a.connectionPresence(connection, "unknown", "Broker connection was lost; waiting for fresh birth certificates.")
 }
@@ -678,6 +730,7 @@ func (a *Application) transition(d devices.Definition, generation int, birth []d
 	a.reviewRequired[d.DeviceUUID] = false
 	delete(a.reported, d.DeviceUUID) // the control plane resets presence on device.applied.v1
 	a.mu.Unlock()
+	a.connectivity.define(d, appliedAt)
 	// A released activation's birth carries the source's state, and packet() hands it on
 	// as the first readings. One applied at once hands on the live state it was checked
 	// against; only a source without one (an adapter-fed source's stored birth) asks for
@@ -716,7 +769,7 @@ func (a *Application) handOnLive(d devices.Definition, generation int, since tim
 			}
 		}
 	}
-	if a.handOn(d, profile, generation, session, state, since, "") {
+	if _, ok := a.handOn(d, profile, generation, session, state, since, ""); ok {
 		a.devicePresence(d, "online", "", seen, true)
 	}
 	return true
@@ -842,6 +895,7 @@ func (a *Application) deactivate(device, org string, generation int, operation .
 		}
 	}
 	a.mu.Unlock()
+	a.connectivity.remove(device, stopDeactivated)
 	return nil
 }
 func (a *Application) handleControl(ev devices.Event) error {
@@ -905,6 +959,7 @@ func (a *Application) maintenance(ctx context.Context) {
 		case <-ticker.C:
 			count++
 			a.expireCommands()
+			a.evaluateConnectivity(time.Now().UTC())
 			a.mu.Lock()
 			rebirths := []rebirthRequest{}
 			for _, request := range a.rebirthPending {
@@ -939,6 +994,13 @@ func (a *Application) cleanup() error {
 		return e
 	}
 	var failures []error
+	if active := a.connectivity.active(); active != nil {
+		if pruned, e := a.Store.PruneConnectivity(a.ctx, active); e != nil {
+			failures = append(failures, fmt.Errorf("connectivity pruning: %w", e))
+		} else if pruned > 0 {
+			a.Logger.Info("connectivity rows pruned", "deleted_rows", pruned)
+		}
+	}
 	ctx, cancel := context.WithTimeout(a.ctx, 2*time.Minute)
 	pruned, e := a.Store.PruneLedgers(ctx, time.Now().UTC())
 	cancel()

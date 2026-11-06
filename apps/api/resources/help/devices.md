@@ -20,12 +20,20 @@
     "filter",
     "bulk",
     "many devices",
-    "gateway health"
+    "gateway health",
+    "offline alert",
+    "missed check-in",
+    "learning",
+    "reporting interval",
+    "poll interval",
+    "offline after",
+    "adapter restarting",
+    "waiting for first report"
   ],
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 7,
+  "revision": 8,
   "summary": "A registered device connects a discovered source to a published profile and an organization-owned configuration.",
   "questions": [
     "How do I register a device?",
@@ -33,7 +41,9 @@
     "Where are my archived devices?",
     "How do I onboard many devices from one gateway at once?",
     "How do I track a gateway’s own health?",
-    "Where do I get firmware and connection settings for a device?"
+    "Where do I get firmware and connection settings for a device?",
+    "Why does a device say it is learning how often it reports?",
+    "Why is an adapter device unknown after a redeploy?"
   ]
 }
 ---
@@ -49,6 +59,7 @@ Viewing requires device viewing permission. Registration and editing require dev
 3. Choose the appropriate source when available.
 4. Open **Configuration** to map the source values to profile parameters.
 5. Review and activate, then inspect **Overview**, **Measurements**, and **History**.
+6. On **Overview**, the **Offline detection** panel shows whether the device is watched for going offline: when the platform last heard from it, when its last reading was taken, how often it usually reports, its polling interval if it is polled, and the **Offline after** in effect.
 
 To onboard many sources of one type behind one gateway at once (this needs both device management and activation permission):
 
@@ -85,8 +96,22 @@ The directory shows one status per device, from its lifecycle, configuration and
 
 **Filters** narrows the list by status (such as Online or Offline), lifecycle, profile and site. Archived devices are hidden by default; the list footer says how many, and **Show** (or Lifecycle **All**) includes them.
 
+While an offline alert is open for a device, the list and the device page show it as **Offline** with the cause, such as “missed check-in” or “offline because gateway *name* is offline”, even if its connection still looks online. The **Offline alert** status filter lists only those devices. [Read the alerts guide](/help/alerts#offline-alerts).
+
+The **Offline detection** panel’s state says how the device is being judged:
+
+- **Waiting for first report**: nothing has arrived since monitoring started, so it is never alerted.
+- **Learning how often it reports**: fewer than three readings so far; only a death certificate counts until the third.
+- **Monitored**, **Going offline** (within the 2-minute grace period), **Offline**, or **Coming back**.
+- **Offline since before monitoring started**: it was already silent when monitoring began; it is watched again from its next report.
+- **Adapter restarting**, **Adapter paused** or **Paused by the platform**: the platform cannot hear it for a reason of its own, so silence is not counted.
+
 ## Troubleshooting
 Presence and lifecycle answer different questions: a registered or active device may currently be offline. Check **Last seen**, its gateway connection, and the applied configuration. Registration does not automatically activate every draft.
+
+Devices fed by an adapter (a vendor broker, a webhook, or a vendor service the adapter polls) never send their own disconnect, so they are judged by silence alone and always count as connecting only to report. Only a new reading counts as hearing from them: when the adapter restarts it announces its devices again, which neither keeps a silent device online nor moves its **Last seen**. While the adapter is redeployed (activating a device through it does that), restarted or paused, its devices show unknown with the reason, and that time does not count as silence.
+
+A polled device’s readings arrive together, once per poll, up to one polling interval after they were taken, so **Last seen** can be minutes behind while the device is healthy. Its **Offline after** includes the polling interval for that reason. An hourly device through an hourly poll is offline after about 4 hours, a daily one after about 3 days.
 
 ## Related guides
 [Read the related guide](/help/device-configuration)

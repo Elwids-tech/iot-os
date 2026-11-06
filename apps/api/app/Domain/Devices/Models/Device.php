@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Models;
 
+use App\Domain\Automation\Models\Alert;
+use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -62,5 +65,18 @@ final class Device extends DeviceModel
     public function commands(): HasMany
     {
         return $this->hasMany(DeviceCommand::class);
+    }
+
+    /** Open offline alerts (spec 018) that list the device, its own or its gateway's, newest first. */
+    public function openConnectivityAlerts(): BelongsToMany
+    {
+        return $this->belongsToMany(Alert::class, 'automation_alert_devices', 'device_id', 'automation_alert_id')
+            ->where('automation_alerts.kind', '!=', Alert::WORKFLOW)->whereNull('automation_alerts.cleared_at')->orderByDesc('automation_alerts.id');
+    }
+
+    /** The adapter installation feeding the device, if one does. */
+    public function openInstallation(): HasOne
+    {
+        return $this->hasOne(DeviceInstallation::class)->whereNull('ended_at');
     }
 }

@@ -132,6 +132,17 @@ CREATE TABLE IF NOT EXISTS device_runtime.dag_evaluations (
 );
 CREATE INDEX IF NOT EXISTS dag_evaluation_workflow ON device_runtime.dag_evaluations(workflow_uuid,id DESC);
 CREATE INDEX IF NOT EXISTS dag_evaluation_retention ON device_runtime.dag_evaluations(organization_uuid,received_at);
+-- Offline detection (spec 018): one row per monitored device, gateway or adapter
+-- source, written when monitoring starts, the subject is first heard, or an episode
+-- opens, clears or stops; never per packet. subject_key is device:<device uuid>,
+-- gateway:<connection uuid>/<edge node id> or source:<adapter uuid>.
+CREATE TABLE IF NOT EXISTS device_runtime.connectivity (
+ subject_key text PRIMARY KEY, organization_uuid uuid NOT NULL, kind text NOT NULL,
+ monitoring_since timestamptz NOT NULL, heard_since_monitoring boolean NOT NULL DEFAULT false,
+ settings_generation bigint NOT NULL DEFAULT 0, episode integer NOT NULL DEFAULT 0,
+ open boolean NOT NULL DEFAULT false, offline_since timestamptz, opened_at timestamptz, cause text,
+ affected_device_uuids jsonb NOT NULL DEFAULT '[]', updated_at timestamptz NOT NULL DEFAULT now()
+);
 -- Retention and ledger pruning (Store.cleanup, Store.PruneLedgers).
 CREATE INDEX IF NOT EXISTS telemetry_outbox_retention ON device_runtime.telemetry_outbox(organization_uuid,created_at) WHERE published_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS runtime_outbox_published ON device_runtime.outbox(published_at) WHERE published_at IS NOT NULL;

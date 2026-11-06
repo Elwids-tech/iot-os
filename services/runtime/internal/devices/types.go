@@ -165,7 +165,28 @@ type DeviceState struct {
 	// BirthMetrics is the source's last stored birth, sent with an adapter-fed
 	// Desired configuration (ADR-027).
 	BirthMetrics []Metric `json:"birth_metrics,omitempty"`
+	// Connectivity is the device's effective offline-alert settings (spec 018); nil
+	// from a control plane that predates them, which means the defaults.
+	Connectivity *ConnectivitySettings `json:"connectivity,omitempty"`
 }
+
+// ConnectivitySettings are a device's effective offline-alert settings, from the
+// /state snapshot and device.connectivity-settings.v1 (spec 018, D6).
+type ConnectivitySettings struct {
+	Generation int64  `json:"generation"`
+	Enabled    bool   `json:"enabled"`
+	Style      string `json:"style"`
+	// OfflineAfterSeconds is nil when it is automatic (D16).
+	OfflineAfterSeconds *int `json:"offline_after_seconds"`
+	PollIntervalSeconds *int `json:"poll_interval_seconds"`
+	GraceSeconds        int  `json:"grace_seconds"`
+}
+
+// DefaultConnectivity is what a device uses when the control plane sends no settings.
+func DefaultConnectivity() ConnectivitySettings {
+	return ConnectivitySettings{Enabled: true, Style: "stays_connected", GraceSeconds: 120}
+}
+
 type Retention struct {
 	OrganizationUUID string `json:"organization_uuid"`
 	Days             int    `json:"days"`

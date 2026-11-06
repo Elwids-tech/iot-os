@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Http\Controllers;
 
+use App\Domain\Automation\Services\ConnectivityProjector;
 use App\Domain\Automation\Services\DagActions;
 use App\Domain\Automation\Services\WorkflowDeploymentService;
+use App\Domain\Connectivity\Services\ConnectivitySettings;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Devices\Models\DeviceOperation;
@@ -35,7 +37,7 @@ final class RuntimeController
      * The runtime reconciles against this snapshot every 30 seconds, so it is
      * built with a fixed number of queries however many devices exist.
      */
-    public function state(RetentionService $retention): array
+    public function state(RetentionService $retention, ConnectivitySettings $connectivity): array
     {
         $organizations = Organization::all();
         $organizationUuids = $organizations->pluck('uuid', 'id');
@@ -48,6 +50,8 @@ final class RuntimeController
         // A pending adapter-fed activation carries its source's stored birth, as the outbox message does.
         $candidates = DiscoveryCandidate::whereIn('id', $devices->where('deployment_status', 'pending')->pluck('device_discovery_candidate_id')->filter()->unique()->values())
             ->get()->keyBy('id');
+        // Each device's offline-alert settings (spec 018): adapter-fed devices connect to report.
+        $adapters = $connectivity->adapters();
 
         return [
             'connections' => SparkplugConnection::where('status', 'ready')->get()->map(fn ($c) => [
@@ -63,6 +67,7 @@ final class RuntimeController
                 ...($d->deployment_status === 'pending' && $d->desired_configuration_uuid
                     ? DeviceConfigurationService::storedBirth($configurations->get($d->desired_configuration_uuid)?->definition ?? [], $candidates->get($d->device_discovery_candidate_id))
                     : []),
+                'connectivity' => $connectivity->runtime($adapters[$d->id] ?? null),
             ]),
             'retention' => $organizations->map(fn ($o) => ['organization_uuid' => $o->uuid, ...$retention->effective($o)]),
         ];
@@ -104,7 +109,7 @@ final class RuntimeController
     public function event(Request $request): array
     {
         $event = $request->validate(['uuid' => ['required', 'uuid'], 'type' => ['required', Rule::in([
-            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1', 'workflow.deployment.v1', 'workflow.suspended.v1', 'workflow.transition.v1', 'workflow.membership.v1', 'automation.intent.v1',
+            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1', 'workflow.deployment.v1', 'workflow.suspended.v1', 'workflow.transition.v1', 'workflow.membership.v1', 'automation.intent.v1', 'device.connectivity.v1',
         ])], 'payload' => ['required', 'array']]);
 
         // The runtime retries 5xx and some 4xx forever and dead-letters other 4xx
@@ -135,6 +140,10 @@ final class RuntimeController
                 return ['ok' => true, 'duplicate' => true];
             }
             $p = $event['payload'];
+            if ($event['type'] === 'device.connectivity.v1') {
+                // Gateway and source episodes name no device, so they come before the device lookup.
+                return app(ConnectivityProjector::class)->project($p, $event['uuid']) ? ['ok' => true] : $this->unknownReference($event);
+            }
             if ($event['type'] === 'automation.intent.v1') {
                 app(DagActions::class)->accept($p);
 

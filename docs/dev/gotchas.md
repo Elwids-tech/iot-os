@@ -488,6 +488,42 @@ Things that have cost time before. Add to this list when something surprises you
   large backfill lost its only preview. A source's first preview is now queued and
   retried like run reports; later previews may still be dropped.
 
+## Offline alerts
+
+- **"Heard" is not "accepted".** Offline detection
+  ([alerts](../features/alerts.md#detection)) counts every packet the runtime receives
+  for a source, before validation. A rejected packet (a sequence gap, data before a
+  birth, a birth needing review) still proves the device is alive, and counting only
+  accepted packets would open an offline alert for a device that is merely waiting for
+  its rebirth. So the tracker hears a packet on receipt, before the session engine
+  judges it, and never from a path that only replays known state (an activation
+  handing on the source's live birth). Deaths are the opposite: only a death the
+  engine accepts for the current session counts, so a stale will from an earlier
+  session never marks a device offline.
+- **An adapter's deaths and births are the platform's, not the device's.** The managed
+  publisher sends NDEATH whenever the adapter is redeployed (activating a device does
+  that), restarted, replaced by a deploy or paused, and announces its stored births
+  again after its NBIRTH. Reading those as the devices' own would take every vendor
+  device offline at each redeploy, and make one that went quiet hours ago look heard.
+  It was worse before: an adapter-fed tracker was silent for 6 days but stayed online,
+  because its presence came only from births and the publisher kept announcing its
+  stored one; it went offline only when an adapter restart left it out of
+  `births-<adapter>.json`. On an `adapters-<organization uuid>` edge the tracker
+  therefore counts only a DDATA with a non-historical reading as heard, treats NDEATH as
+  an interruption (devices unknown, down time left out of silence at the next NBIRTH),
+  and never makes the edge a gateway. Such a tracker now goes offline from its own
+  silence, whatever the adapter does.
+- **Intervals use observed time; silence uses receipt time.** A polling adapter
+  delivers a device's readings together once per run, so their receipt gaps are near
+  zero and say nothing about how often it reports. The automatic *Offline after* is
+  therefore built from gaps between observed times (the median of up to 64, none older
+  than 7 days; a constant clock offset cancels out in a gap), plus the poll interval.
+  Silence itself, and every alert time, is measured from receipt, so a device's wrong
+  clock can neither open nor hide an episode. Do not mix the two: comparing
+  `observed_at` with `now()` to judge silence alerts every polled device between runs,
+  and measuring the interval by receipt makes a 2-minute reporter behind a 5-minute
+  poll look like it reports every 5 minutes with bursts of zero.
+
 ## Browser tests and screenshots
 
 - **Playwright browser version.** If the headless shell pinned by

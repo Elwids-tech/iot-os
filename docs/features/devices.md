@@ -233,6 +233,48 @@ dispatch, cancels unsent work and marks possibly-sent work uncertain. Nothing is
 replayed on reactivation. Deactivated devices can be archived, which keeps
 history and releases the source.
 
+## Offline detection
+
+Every active device is watched for going offline, and an open offline alert is what
+the device page and list show as offline ([offline alerts](alerts.md#offline-alerts)).
+Presence still comes from births, deaths and the broker connection; the alert adds the
+cases presence cannot see, such as a sensor that goes quiet behind a live gateway or a
+vendor device behind an adapter.
+
+- **List.** While a connectivity alert concerning a device is open, the device shows
+  **Offline** with its cause ("missed check-in", "death certificate", or "offline
+  because gateway *name* is offline"), even when its presence still reads online. Each
+  row of `GET devices` carries `offline_alert` (`{uuid, kind, cause, since, subject}`,
+  null when none is open). The **Offline** status filter includes these devices,
+  **Online** excludes them, and the **Offline alert** filter lists only them.
+- **Adapter devices.** A device fed by a [device adapter](adapters.md) is never shown
+  offline because its adapter restarted, was redeployed or was paused. It shows unknown
+  with the reason ("Adapter restarting; waiting for it to reconnect", or "adapter
+  paused") until the adapter is back and the device reports. Review
+  ([ADR-025](../adr/ADR-025-review-follows-current-birth.md)) never makes a device
+  offline either.
+- **Offline detection panel.** The device's **Overview** has an **Offline detection** panel with
+  the runtime's view: the monitoring state, when the platform last heard from the
+  device (receipt time), when its newest reading was observed, its reporting interval,
+  its poll interval if it is polled, the *Offline after* in effect and where it comes
+  from (**Automatic** for now), and the locked **Connects to report** style of an
+  adapter device. The connection settings stay on the **Connectivity** tab.
+- **States.** **Waiting for first report** (nothing heard since monitoring started),
+  **Learning how often it reports** (fewer than three readings, so not judged by
+  silence yet), **Monitored**, **Going offline** (within the grace period),
+  **Offline**, **Coming back**, **Paused by the platform**, **Adapter restarting** or
+  **Adapter paused** (an interruption), and **Offline since before monitoring
+  started** for a device that was already silent when monitoring began.
+
+`GET devices/{device}/connectivity` (`Device.view`) returns the effective settings
+(`enabled`, `style`, `offline_after_seconds`, `grace_seconds`, `severity`,
+`poll_interval_seconds`), where each comes from (`inherited_from`: `default`,
+`automatic` or `adapter`), `style_locked` (`{reason: "adapter"}` or null), the
+runtime's `state` and the open `alert`. The control plane reads the state from the
+runtime's `GET /internal/connectivity` on request; when the runtime cannot be reached
+the state is `unknown`, and an inactive device reads `inactive` without asking it. The
+settings themselves are fixed defaults until profile and device settings arrive.
+
 ## Measurements and history
 
 The device page has **Overview**, **Data** (measurements and history),
@@ -367,7 +409,8 @@ Organization routes are under `/api/v1/organizations/{organization}`
 
 | Resource | Operations |
 | --- | --- |
-| `devices` | List (filters, `sort`), register, read, edit, archive |
+| `devices` | List (filters, `sort`; rows carry `offline_alert`), register, read, edit, archive |
+| `devices/{d}/connectivity` | Offline-alert settings in effect and the runtime's monitoring state ([offline detection](#offline-detection)) |
 | `device-onboardings`, `devices/{d}/onboarding`, `.../connection-kit` | Guided setup (including a gateway's own source), provisioning, kit download |
 | `devices/{d}/connection-settings`, `devices/{d}/firmware-kit`, `gateways/{g}/connection-settings`, `gateways/{g}/firmware-kit` | Firmware settings and full kits (spec 027) |
 | `devices/{d}/configuration`, `mapping-suggestions`, `validate` | Draft, suggestions, validation |
@@ -399,9 +442,14 @@ Knowing another organization's UUID never bypasses these checks.
 
 - **Runtime restart**: durable configuration and latest state load before
   subscribing; control needs a fresh compatible birth; claimed commands become
-  uncertain without replay.
+  uncertain without replay. Open offline episodes stay open, and every device's
+  silence restarts at the runtime's start.
 - **Broker interruption**: presence becomes unavailable and controls block; TLS
-  reconnect, Host STATE and rebirth restore the session.
+  reconnect, Host STATE and rebirth restore the session. No offline alert opens or
+  clears for it; silence restarts when the connection is restored.
+- **Adapter restart or redeploy**: the adapter's devices show unknown, not offline,
+  and the time it was down is left out of their silence
+  ([offline alerts](alerts.md#interruptions)).
 - **Edge node out of step** (sequence gap, unknown alias or metric, datatype
   change, data before a birth): only that edge node and its devices, or only the
   one device that sent data before its DBIRTH, become unknown until a rebirth.

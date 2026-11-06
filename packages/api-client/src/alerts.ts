@@ -5,19 +5,19 @@ export type AlertDevice = { uuid: string; name: string };
 /** What a device connectivity alert is about. */
 export type AlertSubject = { type: "device" | "gateway" | "adapter"; uuid: string; name: string };
 
-export type WorkflowAlert = {
+/** Why a device connectivity alert opened (spec 018). */
+export type ConnectivityCause = "death_certificate" | "missed_check_in" | "gateway_offline" | "source_disconnected";
+/** Why monitoring ended an open connectivity alert; such an alert reads as cleared. */
+export type ConnectivityStopReason = "device_deactivated" | "monitoring_disabled" | "definition_removed";
+export type ConnectivityKind = Exclude<AlertKind, "workflow">;
+
+/** Fields every alert has. The connectivity fields are null (false, 0) on automation alerts. */
+type AlertBase = {
   uuid: string;
-  /** Automation alerts; device connectivity alerts are the other `AlertKind`s. */
-  kind: "workflow";
-  /** Automation alerts are always `warning`. */
+  /** Automation alerts are always `warning`; connectivity alerts take their device's severity. */
   severity: AlertSeverity;
-  workflow_uuid: string;
-  workflow_name: string;
-  operation_uuid: string;
-  device_uuid: string;
-  /** Null when the device record is gone. */
-  device_name: string | null;
   episode: number;
+  /** A stopped connectivity alert is `cleared` with `stopped_reason` set. */
   condition: "active" | "cleared";
   activated_at: string | null;
   cleared_at: string | null;
@@ -26,11 +26,58 @@ export type WorkflowAlert = {
   acknowledged_by_name: string | null;
   assignee: { id: number; name: string } | null;
   assigned_at: string | null;
-  execution_stopped_reason: string | null;
   /** The devices the alert concerns, at most 100 by name; `devices_total` counts them all. */
   devices: AlertDevice[];
   devices_total: number;
+  /** The subject device's site; for a gateway, the site all its listed devices share. */
+  site: { uuid: string; name: string; timezone: string } | null;
+  cause: ConnectivityCause | null;
+  /** When the offline condition began (receipt time). */
+  offline_since: string | null;
+  /** When the platform last heard from the subject (receipt time). */
+  last_seen_at: string | null;
+  /** The observed time of the device's newest reading, as the device or vendor reported it. */
+  last_observed_at: string | null;
+  /** The Offline after in effect when the alert opened; null while it was still learning. */
+  threshold_seconds: number | null;
+  /** The threshold came from the reporting and poll intervals rather than a setting. */
+  threshold_automatic: boolean | null;
+  reporting_interval_seconds: number | null;
+  poll_interval_seconds: number | null;
+  grace_seconds: number | null;
+  stopped_reason: ConnectivityStopReason | null;
+  /** Opened while its subject was muted (spec 018 pull request 3). */
+  muted: boolean;
+  /** Opened while its subject was flapping, so nobody was notified. */
+  held: boolean;
+  held_count: number;
 };
+export type WorkflowAlert = AlertBase & {
+  /** Automation alerts; device connectivity alerts are the other `AlertKind`s. */
+  kind: "workflow";
+  workflow_uuid: string;
+  workflow_name: string;
+  operation_uuid: string;
+  device_uuid: string;
+  /** Null when the device record is gone. */
+  device_name: string | null;
+  execution_stopped_reason: string | null;
+  subject: null;
+};
+/** A device, gateway or adapter connection that went offline (spec 018). */
+export type ConnectivityAlert = AlertBase & {
+  kind: ConnectivityKind;
+  workflow_uuid: null;
+  workflow_name: null;
+  operation_uuid: null;
+  /** The subject device of a device alert; null for gateway and connection alerts. */
+  device_uuid: string | null;
+  device_name: string | null;
+  execution_stopped_reason: null;
+  subject: AlertSubject;
+};
+/** One alert episode of any kind, as GET alerts lists it. */
+export type Alert = WorkflowAlert | ConnectivityAlert;
 export type AlertComment = {
   uuid: string;
   body: string;
@@ -54,18 +101,29 @@ export type AlertPage<T> = {
   data: T[];
   meta: { current_page: number; last_page: number; total: number };
 };
-/** GET alerts?group=source: one row per workflow and device, counted over the filtered alerts. */
-export type WorkflowAlertSource = {
-  kind: "workflow";
-  workflow_uuid: string;
-  device_uuid: string;
+/** GET alerts?group=source: one row per source, counted over the filtered alerts. */
+type AlertSourceCounts = {
   occurrences: number;
   unacknowledged: number;
   active: number;
   first_activated_at: string | null;
   last_activated_at: string | null;
+};
+/** A workflow on one device. */
+export type WorkflowAlertSource = AlertSourceCounts & {
+  kind: "workflow";
+  workflow_uuid: string;
+  device_uuid: string;
   latest: WorkflowAlert;
 };
+/** A connectivity kind and its subject (device, gateway or adapter). */
+export type ConnectivityAlertSource = AlertSourceCounts & {
+  kind: ConnectivityKind;
+  workflow_uuid: null;
+  device_uuid: string | null;
+  latest: ConnectivityAlert;
+};
+export type AlertSource = WorkflowAlertSource | ConnectivityAlertSource;
 /** Listed alerts (all must belong to the organization), or every unacknowledged alert of one source. */
 export type AlertAcknowledgement =
   | { alert_uuids: string[] }

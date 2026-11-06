@@ -7,6 +7,7 @@ namespace App\Domain\Agents\Mcp\Tools;
 use App\Domain\Agents\Mcp\AgentContext;
 use App\Domain\Agents\Mcp\AgentTool;
 use App\Domain\Agents\Mcp\PortalUrls;
+use App\Domain\Connectivity\Services\ConnectivityState;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAuthorization;
@@ -20,7 +21,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsOpenWorld;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
-#[Description('One device\'s state: lifecycle, presence, last reading, configuration state, its source or gateway, and the latest value of every parameter with its quality (good, stale, invalid, inactive), age and diagnostic. Unknown values are null with a reason.')]
+#[Description('One device\'s state: lifecycle, presence, last reading, configuration state, its source or gateway, its offline-alert state (any open offline alert with its cause, and the Offline after threshold in effect), and the latest value of every parameter with its quality (good, stale, invalid, inactive), age and diagnostic. Unknown values are null with a reason.')]
 #[IsReadOnly]
 #[IsIdempotent]
 #[IsOpenWorld(false)]
@@ -63,11 +64,40 @@ final class GetDeviceHealth extends AgentTool
                     'birth_revision' => $candidate['birth_revision'],
                     'gateway' => $candidate['gateway'] ? ['name' => $candidate['gateway']['name'], 'presence' => $candidate['gateway']['presence'], 'last_seen_at' => $candidate['gateway']['last_seen_at'] ?? null] : null,
                 ],
+                'connectivity' => $this->connectivity($context, $device),
                 'readings' => $readings,
                 'readings_unavailable' => $unavailable,
                 'portal_url' => app(PortalUrls::class)->organization($context->organization, 'devices/'.$device->uuid),
             ],
             'targets' => [$device->uuid],
+        ];
+    }
+
+    /**
+     * Offline alerts (spec 018): the open one with its cause and threshold, and the
+     * threshold the runtime applies now (automatic until pull request 3 adds settings).
+     *
+     * @return array<string, mixed>
+     */
+    private function connectivity(AgentContext $context, Device $device): array
+    {
+        $alert = $device->openConnectivityAlerts()->with(['subjectDevice:id,uuid,name', 'subjectGateway:id,uuid,name', 'subjectAdapter:id,uuid,name'])->first();
+        $state = app(ConnectivityState::class)->of($context->organization, $device);
+
+        return [
+            'state' => $state['state'],
+            'offline_after_seconds' => $state['offline_after_seconds'],
+            'offline_after_automatic' => $state['offline_after_automatic'],
+            'reporting_interval_seconds' => $state['reporting_interval_seconds'],
+            'poll_interval_seconds' => $state['poll_interval_seconds'],
+            'last_heard_at' => $state['last_heard_at'],
+            'open_alert' => $alert === null ? null : [
+                'uuid' => $alert->uuid, 'kind' => $alert->kind, 'cause' => $alert->cause,
+                'offline_since' => $alert->offline_since?->toIso8601String(), 'last_seen_at' => $alert->last_seen_at?->toIso8601String(),
+                'threshold' => ['offline_after_seconds' => $alert->threshold_seconds, 'automatic' => $alert->threshold_automatic],
+                'gateway' => $alert->subjectGateway?->name,
+                'portal_url' => app(PortalUrls::class)->organization($context->organization, 'alerts/'.$alert->uuid),
+            ],
         ];
     }
 

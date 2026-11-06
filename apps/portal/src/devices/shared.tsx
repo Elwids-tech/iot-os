@@ -48,7 +48,8 @@ export function HealthStatus({
   freshness,
   className,
 }: {
-  device: Pick<Device, "lifecycle" | "presence" | "deployment_status" | "last_seen_at">
+  device: Pick<Device, "lifecycle" | "presence" | "deployment_status" | "last_seen_at"> &
+    Partial<Pick<Device, "offline_alert">>
   freshness?: Freshness
   className?: string
 }) {

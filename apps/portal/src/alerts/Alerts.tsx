@@ -16,19 +16,22 @@ import {
 } from "react-router-dom";
 import {
   ApiError,
+  type Alert as AlertItem,
   type AlertDelivery,
+  type AlertSource,
+  type ConnectivityAlert,
   type Dashboard,
-  type WorkflowAlert,
-  type WorkflowAlertSource,
 } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
 import { Checkbox } from "@iot-os/ui/components/checkbox";
-import { ToolbarButton } from "@iot-os/ui/components/data-table";
+import { DataTable, RowLink, ToolbarButton, type DataColumn } from "@iot-os/ui/components/data-table";
 import { Field, FieldLabel } from "@iot-os/ui/components/field";
 import { PageHeader } from "@iot-os/ui/components/page-header";
 import { InboxItem, InboxList, InboxPage } from "@iot-os/ui/templates/inbox-page";
+import { PropertyList } from "@iot-os/ui/templates/entity-page";
+import { Panel, PanelContent, PanelDescription, PanelHeader } from "@iot-os/ui/components/panel";
 import { Popover, PopoverContent, PopoverTrigger } from "@iot-os/ui/components/popover";
-import { SearchableSelect } from "@iot-os/ui/components/searchable-select";
+import { SearchableMultiSelect, SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { Status, StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark";
 import {
@@ -50,6 +53,7 @@ import {
   AlertTitle,
 } from "@iot-os/ui/components/alert";
 import { formatAge, formatDateTime } from "@iot-os/ui/lib/format";
+import { statusOf } from "@iot-os/ui/lib/status";
 import { api } from "../lib/api";
 import { alertBellKeys } from "./bell/model";
 import { useDashboardCapabilities } from "../dashboards/access";
@@ -59,19 +63,30 @@ import {
   DeviceEmpty,
   DevicePages,
   devicePath,
+  gatewayPath,
   useDeviceOrganization,
 } from "../devices/shared";
+import { formatDuration } from "../devices/model";
 import { notificationsPath } from "./NotificationSettings";
 import { EventLogPage } from "./EventLog";
 import { Inbox } from "./Inbox";
 import { ListFilterIcon } from "lucide-react";
 import {
+  alertCause,
+  alertCondition,
   alertDuration,
+  alertKinds,
   alertQuery,
   alertTitle,
   conditionOf,
   isAlertId,
+  kindLabel,
+  kindsOf,
+  sameSubject,
   sourceKey,
+  subjectQuery,
+  thresholdSource,
+  thresholdText,
 } from "./model";
 import { useWide } from "./shared";
 
@@ -98,22 +113,49 @@ function MovedToSettings({ section }: { section: "notifications" | "email" }) {
   return <Navigate replace to={`/organizations/${org}/settings/${section}${rest}`} />;
 }
 
-const conditionMark = (alert: WorkflowAlert) =>
-  alert.condition === "active" ? (
-    <StatusMark tone="warning">Active</StatusMark>
-  ) : (
-    <StatusMark tone="muted">Cleared</StatusMark>
-  );
+const conditionMark = (alert: AlertItem) => {
+  const { tone, label } = statusOf(alertCondition(alert), "alert");
+  return <StatusMark tone={tone}>{label}</StatusMark>;
+};
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${count.toLocaleString()} ${count === 1 ? one : many}`;
+const alertPath = (org: string, uuid: string) =>
+  `/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(uuid)}`;
+
+/**
+ * Every alert of a connectivity alert's source (its kind and subject) that matches `filters`.
+ * The alerts API filters by device, so the subject is matched here.
+ */
+async function subjectAlerts(org: string, alert: ConnectivityAlert, filters: Record<string, string> = {}) {
+  const found: AlertItem[] = [];
+  for (let page = 1, last = 1; page <= last; page++) {
+    const query = subjectQuery(alert);
+    for (const [key, value] of Object.entries(filters)) query.set(key, value);
+    query.set("per_page", "100");
+    query.set("page", String(page));
+    const result = await api.alerts(org, query.toString());
+    found.push(...result.data.filter((item) => sameSubject(item, alert)));
+    last = result.meta.last_page;
+  }
+  return found;
+}
+/** Acknowledges listed alerts, 500 at a time as the API allows; resolves to how many were new. */
+async function acknowledgeListed(org: string, uuids: string[]) {
+  let total = 0;
+  for (let index = 0; index < uuids.length; index += 500)
+    total += (await api.acknowledgeAlerts(org, { alert_uuids: uuids.slice(index, index + 500) })).acknowledged;
+  return total;
+}
 const isNotFound = (error: unknown) =>
   error instanceof ApiError && error.status === 404;
 
-/** Duration, acknowledgement and assignee; the title already names workflow and device. */
-function AlertMeta({ alert }: { alert: WorkflowAlert }) {
+/** Cause (connectivity), duration, acknowledgement and assignee; the title already names the source. */
+function AlertMeta({ alert }: { alert: AlertItem }) {
+  const cause = alertCause(alert);
   return (
     <>
-      {!alert.device_name && "Device not found · "}
+      {alert.kind === "workflow" && !alert.device_name && "Device not found · "}
+      {cause && `${cause} · `}
       {alertDuration(alert)}
       {alert.cleared_at && (
         <>
@@ -139,7 +181,7 @@ function AlertRow({
   select,
   children,
 }: {
-  alert: WorkflowAlert;
+  alert: AlertItem;
   to: string;
   current: boolean;
   select?: ReactNode;
@@ -263,16 +305,25 @@ function AlertsPage() {
       // Each source acknowledges what the list counted: the same condition and assignee filters.
       const assignee = server.get("assignee");
       let total = 0;
-      for (const key of chosen) {
-        const [workflow_uuid, device_uuid] = key.split("|");
-        total += (
-          await api.acknowledgeAlerts(org, {
-            workflow_uuid,
-            device_uuid,
-            ...(condition !== "all" && { condition }),
-            ...(assignee && { assignee: Number(assignee) }),
-          })
-        ).acknowledged;
+      for (const group of groups.filter((item) => chosen.includes(sourceKey(item)))) {
+        if (group.kind === "workflow") {
+          total += (
+            await api.acknowledgeAlerts(org, {
+              workflow_uuid: group.workflow_uuid,
+              device_uuid: group.device_uuid,
+              ...(condition !== "all" && { condition }),
+              ...(assignee && { assignee: Number(assignee) }),
+            })
+          ).acknowledged;
+          continue;
+        }
+        // Connectivity sources have no workflow: acknowledge their alerts by id.
+        const items = await subjectAlerts(org, group.latest, {
+          acknowledged: "0",
+          ...(condition !== "all" && { condition }),
+          ...(assignee && { assignee }),
+        });
+        total += await acknowledgeListed(org, items.map((item) => item.uuid));
       }
       return total;
     },
@@ -290,8 +341,9 @@ function AlertsPage() {
     setParams(next);
   };
   const denied = !organization.isPending && !capabilities.view;
-  const shown: WorkflowAlert[] = grouped ? groups.map((group) => group.latest) : rows;
-  const filtered = ["acknowledged", "device", "workflow", "assignee"].some((key) =>
+  const shown: AlertItem[] = grouped ? groups.map((group) => group.latest) : rows;
+  const kinds = kindsOf(params);
+  const filtered = ["acknowledged", "device", "workflow", "assignee", "kind"].some((key) =>
     params.has(key),
   );
   const deviceName =
@@ -304,7 +356,7 @@ function AlertsPage() {
     selectedAlert.data?.uuid === selected && selectedAlert.data
       ? sourceKey(selectedAlert.data)
       : null;
-  const isCurrent = (alert: WorkflowAlert) =>
+  const isCurrent = (alert: AlertItem) =>
     alert.uuid === selected || (grouped && selectedSource === sourceKey(alert));
   const empty = filtered
     ? ["No alerts match these filters", "Change or clear the filters to see more alerts."]
@@ -312,9 +364,16 @@ function AlertsPage() {
       ? ["No active alerts", "Nothing needs attention right now. Cleared alerts stay under Cleared."]
       : condition === "cleared"
         ? ["No cleared alerts", "Alerts appear here once their condition clears."]
-        : ["No alerts yet", "Alerts appear when an active workflow's condition changes."];
+        : ["No alerts yet", "Alerts appear when an active workflow's condition changes or a device goes offline."];
   const total = query.data?.meta.total;
-  const activeFilters = [params.get("device") && deviceName, params.get("workflow") && workflowName].filter(Boolean).length;
+  const activeFilters = [params.get("device") && deviceName, params.get("workflow") && workflowName, kinds.length > 0].filter(Boolean).length;
+  const changeKinds = (values: string[]) => {
+    const next = new URLSearchParams(params);
+    next.delete("page");
+    next.delete("kind");
+    for (const kind of alertKinds) if (values.includes(kind)) next.append("kind", kind);
+    setParams(next);
+  };
   return (
     <Inbox tab="alerts" header={!narrowDetail || denied}>
       {denied ? (
@@ -411,6 +470,15 @@ function AlertsPage() {
                     </ToolbarButton>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-80 gap-3 p-3" aria-label="Filter alerts">
+            <SearchableMultiSelect
+              label="Kind"
+              className="w-full"
+              values={kinds}
+              options={alertKinds.map((kind) => ({ value: kind, label: kindLabel(kind) }))}
+              placeholder="All kinds"
+              maximum={alertKinds.length}
+              onChange={changeKinds}
+            />
             <SearchableSelect
               label="Device"
               className="w-full"
@@ -624,7 +692,7 @@ function SourceRow({
   group,
   ...props
 }: {
-  group: WorkflowAlertSource;
+  group: AlertSource;
   to: string;
   current: boolean;
   select?: ReactNode;
@@ -693,24 +761,25 @@ function AlertsSummary() {
   );
 }
 
-/** Other occurrences of the alert's workflow on its device, with acknowledging every cleared one at once. */
+/** Other occurrences of the alert's source (its workflow on its device, or its offline subject), with acknowledging every cleared one at once. */
 function SourceOccurrences({
   alert,
   search,
   Heading,
 }: {
-  alert: WorkflowAlert;
+  alert: AlertItem;
   search: string;
   Heading: "h2" | "h3";
 }) {
   const { org, capabilities } = useDeviceOrganization();
   const cache = useQueryClient();
   const [confirm, setConfirm] = useState(false);
-  const source = new URLSearchParams({
-    workflow: alert.workflow_uuid,
-    device: alert.device_uuid,
-  });
-  const recent = `${source}&per_page=5`;
+  const workflow = alert.kind === "workflow";
+  // Connectivity sources are found through a device they list and matched by subject here.
+  const source = workflow
+    ? new URLSearchParams({ workflow: alert.workflow_uuid, device: alert.device_uuid })
+    : subjectQuery(alert);
+  const recent = `${source}&per_page=${workflow ? 5 : 100}`;
   const occurrences = useQuery({
     queryKey: ["alerts", org, recent],
     queryFn: () => api.alerts(org, recent),
@@ -720,26 +789,42 @@ function SourceOccurrences({
   const waiting = useQuery({
     queryKey: ["alerts", org, "count", waitingQuery],
     queryFn: () => api.alerts(org, waitingQuery),
-    enabled: capabilities.manage,
+    enabled: capabilities.manage && workflow,
     refetchInterval: 10000,
   });
+  const matching = workflow
+    ? (occurrences.data?.data ?? [])
+    : (occurrences.data?.data ?? []).filter((item) => sameSubject(item, alert));
+  const clearedWaiting = matching.filter((item) => item.condition === "cleared" && !item.acknowledged_at);
   const acknowledge = useMutation({
-    mutationFn: () =>
-      api.acknowledgeAlerts(org, {
-        workflow_uuid: alert.workflow_uuid,
-        device_uuid: alert.device_uuid,
-        condition: "cleared",
-      }),
+    mutationFn: async () =>
+      alert.kind === "workflow"
+        ? (
+            await api.acknowledgeAlerts(org, {
+              workflow_uuid: alert.workflow_uuid,
+              device_uuid: alert.device_uuid,
+              condition: "cleared",
+            })
+          ).acknowledged
+        : acknowledgeListed(org, clearedWaiting.map((item) => item.uuid)),
     onSettled: () => {
       void cache.invalidateQueries({ queryKey: ["alerts", org] });
       void cache.invalidateQueries({ queryKey: ["alert", org] });
     },
   });
-  const total = occurrences.data?.meta.total ?? 0;
+  const total = workflow ? (occurrences.data?.meta.total ?? 0) : matching.length;
   if (total < 2) return null;
-  const cleared = waiting.data?.meta.total ?? 0;
+  const cleared = workflow ? (waiting.data?.meta.total ?? 0) : clearedWaiting.length;
   const list = `/organizations/${org}/alerts`;
-  const all = new URLSearchParams({ view: "individual", condition: "all", ...Object.fromEntries(source) });
+  const all = new URLSearchParams({ view: "individual", condition: "all" });
+  if (workflow) {
+    all.set("workflow", alert.workflow_uuid);
+    all.set("device", alert.device_uuid);
+  } else {
+    all.set("kind", alert.kind);
+    if (source.get("device")) all.set("device", source.get("device")!);
+  }
+  const subject = workflow ? null : alert.subject.type === "adapter" ? "connection" : alert.subject.type;
   return (
     <section aria-labelledby="alert-occurrences" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -747,11 +832,13 @@ function SourceOccurrences({
           Occurrences
         </Heading>
         <Link className="text-sm underline underline-offset-4" to={`${list}?${all}`}>
-          Show all {total.toLocaleString()}
+          Show all {workflow ? total.toLocaleString() : ""}
         </Link>
       </div>
       <p className="text-sm text-muted-foreground">
-        This workflow has alerted {plural(total, "time")} on this device
+        {workflow
+          ? `This workflow has alerted ${plural(total, "time")} on this device`
+          : `This ${subject} has gone offline ${plural(total, "time")}`}
         {capabilities.manage && cleared
           ? `; ${cleared.toLocaleString()} cleared ${cleared === 1 ? "occurrence is" : "occurrences are"} unacknowledged.`
           : "."}
@@ -770,12 +857,12 @@ function SourceOccurrences({
       )}
       {acknowledge.isSuccess && !acknowledge.isPending && (
         <p role="status" className="text-sm">
-          Acknowledged {plural(acknowledge.data.acknowledged, "cleared alert")}.
+          Acknowledged {plural(acknowledge.data, "cleared alert")}.
         </p>
       )}
       {!confirm && <RequestError error={acknowledge.error} />}
       <ol aria-label="Recent occurrences" className="flex flex-col text-sm">
-        {(occurrences.data?.data ?? []).map((item) => (
+        {matching.slice(0, 5).map((item) => (
           <li
             key={item.uuid}
             className="flex flex-wrap items-baseline gap-x-3 border-b py-1.5 last:border-b-0"
@@ -798,13 +885,120 @@ function SourceOccurrences({
       <Confirm
         open={confirm}
         title={`Acknowledge ${plural(cleared, "cleared alert")}?`}
-        description="Records that you have seen every cleared, unacknowledged occurrence of this workflow on this device. Active occurrences stay unacknowledged for review."
+        description={
+          workflow
+            ? "Records that you have seen every cleared, unacknowledged occurrence of this workflow on this device. Active occurrences stay unacknowledged for review."
+            : `Records that you have seen every cleared, unacknowledged occurrence of this ${subject} going offline. Active occurrences stay unacknowledged for review.`
+        }
         action="Acknowledge"
         destructive={false}
         onClose={() => setConfirm(false)}
         onConfirm={() => acknowledge.mutateAsync()}
       />
     </section>
+  );
+}
+
+/** Where a connectivity alert's subject lives in the portal. */
+const subjectPath = (org: string, subject: ConnectivityAlert["subject"]) =>
+  subject.type === "device"
+    ? devicePath(org, subject.uuid)
+    : subject.type === "gateway"
+      ? gatewayPath(org, subject.uuid)
+      : `/organizations/${encodeURIComponent(org)}/adapters/${encodeURIComponent(subject.uuid)}`;
+
+/**
+ * What a connectivity alert knows about going offline (spec 018): cause, last heard and observed,
+ * the threshold and where it came from; a gateway alert lists the devices behind it.
+ */
+function OfflineDetails({ alert, Heading }: { alert: ConnectivityAlert; Heading: "h2" | "h3" }) {
+  const { org } = useDeviceOrganization();
+  const columns: DataColumn<{ uuid: string; name: string }>[] = [
+    {
+      id: "device",
+      header: "Device",
+      mobile: "title",
+      sortable: true,
+      value: (device) => device.name,
+      cell: (device) => <RowLink to={devicePath(org, device.uuid)}>{device.name}</RowLink>,
+    },
+  ];
+  const time = (at: string | null, never: string) =>
+    at ? (
+      <>
+        {formatDateTime(at)}
+        <span className="block text-xs text-muted-foreground">
+          <RelativeTime at={at} never={null} />
+        </span>
+      </>
+    ) : (
+      <span className="text-muted-foreground">{never}</span>
+    );
+  const threshold = thresholdText(alert);
+  return (
+    <>
+      <Panel>
+        <PanelHeader>
+          <Heading className="skin-label text-heading">Offline details</Heading>
+          <PanelDescription>Times are when the platform received data, unless they say observed.</PanelDescription>
+        </PanelHeader>
+        <PanelContent>
+          <PropertyList
+            items={[
+              { label: "Cause", value: alert.cause ? statusOf(alert.cause, "offline_cause").label : "Not recorded" },
+              { label: "Offline since", value: time(alert.offline_since, "Not recorded") },
+              { label: "Last heard", value: time(alert.last_seen_at, "Never") },
+              ...(alert.last_observed_at
+                ? [{ label: "Last reading observed", value: time(alert.last_observed_at, "Unknown") }]
+                : []),
+              {
+                label: "Offline after",
+                value: threshold ? (
+                  <>
+                    {threshold}
+                    <span className="block text-xs text-muted-foreground">{thresholdSource(alert)}</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Not in effect yet (still learning how often it reports)</span>
+                ),
+              },
+              ...(alert.reporting_interval_seconds !== null
+                ? [{ label: "Reporting interval", value: `About ${formatDuration(alert.reporting_interval_seconds)}` }]
+                : []),
+              ...(alert.poll_interval_seconds !== null
+                ? [{ label: "Poll interval", value: formatDuration(alert.poll_interval_seconds) }]
+                : []),
+              ...(alert.grace_seconds !== null
+                ? [{ label: "Grace period", value: formatDuration(alert.grace_seconds) }]
+                : []),
+              { label: "Site", value: alert.site?.name ?? <span className="text-muted-foreground">None</span> },
+            ]}
+          />
+        </PanelContent>
+      </Panel>
+      {alert.kind !== "device_offline" && (
+        <section aria-labelledby="alert-affected" className="flex flex-col gap-3">
+          <Heading id="alert-affected" className="text-sm font-semibold">
+            Affected devices
+          </Heading>
+          <DataTable
+            id="alert-affected-devices"
+            label="Affected devices"
+            noun={["device", "devices"]}
+            rows={alert.devices}
+            rowKey={(device) => device.uuid}
+            rowHref={(device) => devicePath(org, device.uuid)}
+            columns={columns}
+            empty={<DeviceEmpty title="No devices listed" />}
+            note={
+              alert.devices_total > alert.devices.length
+                ? `Showing ${alert.devices.length.toLocaleString()} of ${alert.devices_total.toLocaleString()} devices, by name.`
+                : undefined
+            }
+          />
+        </section>
+      )}
+    </>
   );
 }
 
@@ -905,13 +1099,27 @@ function AlertDetail({
     queryFn: () =>
       api.notificationRecipients(
         org,
-        alert!.workflow_uuid,
+        alert!.workflow_uuid!,
         memberSearch,
         memberPage,
       ),
-    enabled: capabilities.manage && Boolean(alert),
+    enabled: capabilities.manage && Boolean(alert?.workflow_uuid),
   });
-  const updated = (data: WorkflowAlert) => {
+  // Connectivity alerts have no workflow to list members from: they can be taken or released.
+  const session = useQuery({
+    queryKey: ["session"],
+    queryFn: () => api.me(),
+    staleTime: Infinity,
+    enabled: capabilities.manage && alert?.kind !== undefined && alert.kind !== "workflow",
+  });
+  const assignees =
+    alert && alert.kind !== "workflow"
+      ? [
+          ...(session.data ? [{ id: session.data.id, name: `${session.data.name} (me)` }] : []),
+          ...(alert.assignee && alert.assignee.id !== session.data?.id ? [alert.assignee] : []),
+        ]
+      : (members.data?.data ?? []);
+  const updated = (data: AlertItem) => {
     cache.setQueryData(["alert", org, id], data);
     void cache.invalidateQueries({ queryKey: ["alerts", org] });
   };
@@ -938,11 +1146,16 @@ function AlertDetail({
   const occurrence = alert ? `Occurrence ${alert.episode}` : undefined;
   // Sections sit under the page h1 when narrow and under the pane's h2 when wide.
   const Heading = back ? "h2" : "h3";
-  const settings = alert ? `${notificationsPath(org)}/${alert.workflow_uuid}` : "";
+  const settings = alert?.workflow_uuid ? `${notificationsPath(org)}/${alert.workflow_uuid}` : "";
+  const deviceUuids = alert
+    ? alert.kind === "workflow"
+      ? [alert.device_uuid]
+      : alert.devices.map((device) => device.uuid)
+    : [];
   const usedIn =
     alert && dashboards.data
       ? dashboards.data.filter((dashboard) =>
-          usesDevice(dashboard, alert.device_uuid),
+          deviceUuids.some((device) => usesDevice(dashboard, device)),
         )
       : [];
   const timeline: {
@@ -995,7 +1208,8 @@ function AlertDetail({
       key: "cleared",
       at: alert.cleared_at,
       tone: "muted",
-      text: "Cleared",
+      text: alert.stopped_reason ? "Stopped" : alert.kind === "workflow" ? "Cleared" : "Cleared, back online",
+      detail: alert.stopped_reason ? statusOf(alert.stopped_reason, "offline_stop").label : undefined,
     });
   timeline.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const body = (
@@ -1043,7 +1257,7 @@ function AlertDetail({
                 selectedLabel={alert.assignee?.name ?? "Unassigned"}
                 options={[
                   { value: "", label: "Unassigned" },
-                  ...(members.data?.data ?? []).map((member) => ({
+                  ...assignees.map((member) => ({
                     value: String(member.id),
                     label: member.name,
                   })),
@@ -1071,6 +1285,15 @@ function AlertDetail({
             )}
           </div>
           <RequestError error={acknowledge.error ?? assign.error} />
+          {alert.stopped_reason ? (
+            <Alert>
+              <AlertTitle>Monitoring stopped</AlertTitle>
+              <AlertDescription>
+                {statusOf(alert.stopped_reason, "offline_stop").label}. The alert ended
+                without the {alert.subject?.type === "adapter" ? "connection" : alert.subject?.type ?? "device"} coming back, so no recovery is recorded.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {alert.execution_stopped_reason ? (
             <Alert>
               <AlertTitle>Execution stopped</AlertTitle>
@@ -1115,27 +1338,40 @@ function AlertDetail({
             <Fact label="Cleared">
               {alert.cleared_at ? formatDateTime(alert.cleared_at) : "Not cleared"}
             </Fact>
-            <Fact label="Workflow">
-              {capabilities.manage ? (
-                <Link className="underline underline-offset-4" to={settings}>
-                  {alert.workflow_name}
-                </Link>
-              ) : (
-                alert.workflow_name
-              )}
-            </Fact>
-            <Fact label="Device">
-              {alert.device_name ? (
-                <Link
-                  className="underline underline-offset-4"
-                  to={devicePath(org, alert.device_uuid)}
-                >
-                  {alert.device_name}
-                </Link>
-              ) : (
-                "Device not found"
-              )}
-            </Fact>
+            {alert.kind === "workflow" ? (
+              <>
+                <Fact label="Workflow">
+                  {capabilities.manage ? (
+                    <Link className="underline underline-offset-4" to={settings}>
+                      {alert.workflow_name}
+                    </Link>
+                  ) : (
+                    alert.workflow_name
+                  )}
+                </Fact>
+                <Fact label="Device">
+                  {alert.device_name ? (
+                    <Link
+                      className="underline underline-offset-4"
+                      to={devicePath(org, alert.device_uuid)}
+                    >
+                      {alert.device_name}
+                    </Link>
+                  ) : (
+                    "Device not found"
+                  )}
+                </Fact>
+              </>
+            ) : (
+              <>
+                <Fact label="Kind">{kindLabel(alert.kind)}</Fact>
+                <Fact label={alert.subject.type === "adapter" ? "Connection" : alert.subject.type === "gateway" ? "Gateway" : "Device"}>
+                  <Link className="underline underline-offset-4" to={subjectPath(org, alert.subject)}>
+                    {alert.subject.name}
+                  </Link>
+                </Fact>
+              </>
+            )}
             <Fact label="Dashboards">
               {usedIn.length
                 ? usedIn.map((dashboard, index) => (
@@ -1154,6 +1390,7 @@ function AlertDetail({
                   : "None"}
             </Fact>
           </dl>
+          {alert.kind !== "workflow" && <OfflineDetails alert={alert} Heading={Heading} />}
           <SourceOccurrences alert={alert} search={search} Heading={Heading} />
           <section aria-labelledby="alert-timeline" className="flex flex-col gap-3">
             <Heading id="alert-timeline" className="text-sm font-semibold">
@@ -1201,12 +1438,14 @@ function AlertDetail({
                 <Heading id="alert-email" className="text-sm font-semibold">
                   Email delivery
                 </Heading>
-                <Link
-                  className="text-sm underline underline-offset-4"
-                  to={settings}
-                >
-                  Notification settings
-                </Link>
+                {settings && (
+                  <Link
+                    className="text-sm underline underline-offset-4"
+                    to={settings}
+                  >
+                    Notification settings
+                  </Link>
+                )}
               </div>
               {deliveries.isPending ? (
                 <Skeleton className="h-16 w-full" />

@@ -243,3 +243,114 @@ func TestBrokerDisconnectMarksEveryDeviceOnTheConnectionUnknown(t *testing.T) {
 		t.Fatal("disconnect dropped another connection's session")
 	}
 }
+
+// adapterMetric is a metric the managed adapter publisher sends for an installation.
+func adapterMetric(name string, alias uint64, value float64, installation string, observed time.Time, historical bool) *pb.Payload_Metric {
+	str := uint32(pb.DataType_String)
+	metric := doubleMetric(name, alias, value)
+	metric.Timestamp = proto.Uint64(uint64(observed.UnixMilli()))
+	metric.IsHistorical = proto.Bool(historical)
+	metric.Properties = &pb.Payload_PropertySet{Keys: []string{"installation_uuid", "adapter_revision_uuid"}, Values: []*pb.Payload_PropertyValue{
+		{Type: &str, Value: &pb.Payload_PropertyValue_StringValue{StringValue: installation}},
+		{Type: &str, Value: &pb.Payload_PropertyValue_StringValue{StringValue: "30000000-0000-4000-8000-000000000009"}},
+	}}
+	return metric
+}
+
+// An adapter's node death is a redeploy, restart or pause (spec 018, D3): its devices
+// are unknown, not offline, and only a new reading, never a birth announced again or
+// history, counts as hearing from them (D2).
+func TestAdapterNodeDeathIsUnknownAndOnlyNewReadingsAreHeard(t *testing.T) {
+	a, base := lifecycleFixture(t)
+	ctx := context.Background()
+	a.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	a.rebirth = map[string]time.Time{}
+	a.rebirthPending = map[string]rebirthRequest{}
+	a.JS = &recordingJetStream{}
+	c := devices.Connection{UUID: storage.UUID(), OrganizationUUID: base.OrganizationUUID, GroupID: "adapters-" + base.OrganizationUUID}
+	t.Cleanup(func() {
+		_, _ = a.Store.Pool.Exec(ctx, "DELETE FROM device_runtime.outbox WHERE event->'payload'->>'connection_uuid'=$1", c.UUID)
+	})
+	d := trackerDefinition(base, c, true)
+	if err := a.Store.Apply(ctx, d, 1, "device.applied.v1"); err != nil {
+		t.Fatal(err)
+	}
+	a.definitions = map[string]devices.Definition{d.DeviceUUID: d}
+	a.connectivity = newConnectivityTracker(time.Now().UTC(), a.Engine.NodeOnline)
+	a.connectivity.finishSeeding()
+	a.connectivity.connect(c.UUID, time.Now().UTC())
+	a.connectivity.define(d, time.Now().UTC())
+	installation := d.Adapter.InstallationUUID
+	topic := func(kind, device string) string {
+		if device == "" {
+			return "spBv1.0/" + c.GroupID + "/" + kind + "/adapter"
+		}
+		return "spBv1.0/" + c.GroupID + "/" + kind + "/adapter/" + device
+	}
+	state := func() connectivityState {
+		t.Helper()
+		states := a.connectivity.state(d.OrganizationUUID, []string{d.DeviceUUID}, time.Now().UTC())
+		if len(states) != 1 {
+			t.Fatalf("states %v", states)
+		}
+		return states[0]
+	}
+	observed := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Millisecond)
+
+	// The publisher's node birth and the source's stored birth, announced again.
+	a.packet(c, topic("NBIRTH", ""), sparkplugPayload(t, 0, bdSeqMetric(0)))
+	a.packet(c, topic("DBIRTH", "src-1"), sparkplugPayload(t, 1, adapterMetric("battery", 1, 3.9, installation, observed, false), adapterMetric("latitude", 2, 51.0, installation, observed, false)))
+	if s := state(); s.State != "waiting" || s.LastHeardAt != nil {
+		t.Fatalf("a birth announced again was heard: %+v", s)
+	}
+	// History is a backfill, not the device reporting.
+	a.packet(c, topic("DDATA", "src-1"), sparkplugPayload(t, 2, adapterMetric("", 1, 3.8, installation, observed.Add(-time.Hour), true)))
+	if s := state(); s.State != "waiting" || s.LastHeardAt != nil {
+		t.Fatalf("a historical reading was heard: %+v", s)
+	}
+	fresh := observed.Add(time.Hour)
+	a.packet(c, topic("DDATA", "src-1"), sparkplugPayload(t, 3, adapterMetric("", 1, 3.7, installation, fresh, false)))
+	s := state()
+	if s.LastHeardAt == nil || s.LastObservedAt == nil || !s.LastObservedAt.Equal(fresh) || s.State != "learning" {
+		t.Fatalf("a new reading: %+v", s)
+	}
+	heard := *s.LastHeardAt
+
+	// A redeploy: the node death reports the device unknown, with why, and keeps its last-seen time.
+	a.packet(c, topic("NDEATH", ""), sparkplugPayload(t, 0, bdSeqMetric(0)))
+	reported := presenceReports(a, ctx, d.DeviceUUID)
+	last := reported[len(reported)-1]
+	if last["presence"] != "unknown" || last["diagnostic"] != adapterRestarting || last["last_seen_at"] != nil {
+		t.Fatalf("presence after the adapter's death: %v", last)
+	}
+	for _, payload := range reported {
+		if payload["presence"] == "offline" {
+			t.Fatalf("an adapter death reported its device offline: %v", reported)
+		}
+	}
+	if s := state(); s.State != "interrupted" || *s.Interruption != interruptAdapter || !s.LastHeardAt.Equal(heard) {
+		t.Fatalf("during the redeploy: %+v", s)
+	}
+	a.packet(c, topic("NBIRTH", ""), sparkplugPayload(t, 0, bdSeqMetric(1)))
+	if s := state(); s.State != "learning" || !s.LastHeardAt.Equal(heard) {
+		t.Fatalf("after the redeploy: %+v", s)
+	}
+}
+
+// presenceReports lists the device.presence.v1 payloads reported for device, oldest first.
+func presenceReports(a *Application, ctx context.Context, device string) []map[string]any {
+	rows, err := a.Store.Pool.Query(ctx, "SELECT event->'payload' FROM device_runtime.outbox WHERE event->>'type'='device.presence.v1' AND event->'payload'->>'device_uuid'=$1 ORDER BY created_at", device)
+	if err != nil {
+		panic(err)
+	}
+	defer rows.Close()
+	result := []map[string]any{}
+	for rows.Next() {
+		var raw []byte
+		payload := map[string]any{}
+		if err = rows.Scan(&raw); err == nil && json.Unmarshal(raw, &payload) == nil {
+			result = append(result, payload)
+		}
+	}
+	return result
+}

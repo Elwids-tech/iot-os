@@ -28,7 +28,9 @@ final class AlertController
     public function index(Request $request, Organization $organization): array
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
-        $input = $request->validate(['condition' => 'sometimes|in:active,cleared', 'acknowledged' => 'sometimes|boolean', 'device' => 'sometimes|uuid', 'workflow' => 'sometimes|uuid', 'assignee' => 'sometimes|integer|min:1', 'group' => 'sometimes|in:source', 'page' => 'sometimes|integer|min:1', 'per_page' => 'sometimes|integer|min:1|max:100']);
+        $input = $request->validate(['condition' => 'sometimes|in:active,cleared', 'acknowledged' => 'sometimes|boolean', 'device' => 'sometimes|uuid', 'workflow' => 'sometimes|uuid', 'assignee' => 'sometimes|integer|min:1', 'kind' => 'sometimes|array', 'kind.*' => ['string', Rule::in(Alert::KINDS)], 'muted' => 'sometimes|boolean', 'group' => 'sometimes|in:source', 'page' => 'sometimes|integer|min:1', 'per_page' => 'sometimes|integer|min:1|max:100']);
+        // Alerts muted when they opened (spec 018) stay out of the inbox unless asked for.
+        $input['muted'] = $request->boolean('muted');
         $query = $this->filtered($organization, $input);
         if (isset($input['group'])) {
             return $this->sources($organization, $query, $request->integer('per_page', 25));

@@ -1,1 +1,61 @@
-[]
+[
+  {
+    "id": "device.connectivity.v1",
+    "group": "event",
+    "schema": "internal/events/device.connectivity.v1.schema.json",
+    "producer": "runtime",
+    "consumer": "control_plane",
+    "dedup": "uuid",
+    "fences": [
+      "episode"
+    ],
+    "reading": "tolerant",
+    "live_check": "none",
+    "producer_tests": [
+      "services/runtime/internal/app/connectivity_test.go",
+      "services/runtime/internal/storage/connectivity_integration_test.go"
+    ],
+    "consumer_tests": [
+      "apps/api/tests/Feature/Domain/Connectivity/ConnectivityProjectionTest.php"
+    ]
+  },
+  {
+    "id": "device.connectivity-settings.v1",
+    "group": "control",
+    "schema": "internal/control/device.connectivity-settings.v1.schema.json",
+    "producer": "control_plane",
+    "consumer": "runtime",
+    "dedup": "uuid",
+    "fences": [
+      "generation"
+    ],
+    "reading": "tolerant",
+    "live_check": "none",
+    "producer_tests": [
+      "apps/api/tests/Feature/Domain/Connectivity/ConnectivityProjectionTest.php"
+    ],
+    "consumer_tests": [
+      "services/runtime/internal/app/control_test.go"
+    ]
+  },
+  {
+    "id": "internal.control-state.v1",
+    "group": "state",
+    "schema": "internal/state/internal.control-state.v1.schema.json",
+    "producer": "control_plane",
+    "consumer": "runtime",
+    "dedup": "none",
+    "fences": [
+      "generation",
+      "connectivity.generation"
+    ],
+    "reading": "tolerant",
+    "live_check": "none",
+    "producer_tests": [
+      "apps/api/tests/Feature/Domain/Connectivity/ConnectivityProjectionTest.php"
+    ],
+    "consumer_tests": [
+      "services/runtime/internal/app/control_test.go"
+    ]
+  }
+]

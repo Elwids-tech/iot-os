@@ -83,6 +83,7 @@ func (a *Application) Handler() http.Handler {
 	internal.HandleFunc("GET /internal/measurements/state-history", a.stateHistoryHTTP)
 	internal.HandleFunc("GET /internal/measurements/increase", a.counterIncreaseHTTP)
 	internal.HandleFunc("GET /internal/status", a.statusHTTP)
+	internal.HandleFunc("GET /internal/connectivity", a.connectivityHTTP)
 	internal.HandleFunc("POST /internal/rules/checkpoint/rebaseline", a.rebaselineRules)
 	mux.Handle("/internal/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		expected := "Bearer " + a.Control.Token

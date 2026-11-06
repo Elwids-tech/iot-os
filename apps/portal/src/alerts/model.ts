@@ -1,17 +1,67 @@
-import type { NotificationEvent, WorkflowAlert } from "@iot-os/api-client";
+import type {
+  Alert,
+  AlertKind,
+  AlertSource,
+  NotificationEvent,
+  WorkflowAlert,
+} from "@iot-os/api-client";
 import { formatAge } from "@iot-os/ui/lib/format";
+import { statusOf } from "@iot-os/ui/lib/status";
+import { formatDuration } from "../devices/model";
 
-/** Workflow name plus the device, unless the name already carries it (geofence workflows embed the device). */
-export function alertTitle(alert: Pick<WorkflowAlert, "workflow_name" | "device_name">) {
+type Titled =
+  | Pick<WorkflowAlert, "kind" | "workflow_name" | "device_name">
+  | { kind: Exclude<AlertKind, "workflow">; subject: { name: string } };
+
+/**
+ * Workflow name plus the device, unless the name already carries it (geofence workflows embed
+ * the device); a connectivity alert reads as its kind and subject ("Device offline — Freezer 2").
+ */
+export function alertTitle(alert: Titled) {
+  if (alert.kind !== "workflow") return `${kindLabel(alert.kind)} — ${alert.subject.name}`;
   const device = alert.device_name?.trim();
   return device && !alert.workflow_name.toLowerCase().includes(device.toLowerCase())
     ? `${alert.workflow_name} — ${device}`
     : alert.workflow_name;
 }
 
+/** The kinds the alerts list filters on, in menu order. */
+export const alertKinds: AlertKind[] = ["workflow", "device_offline", "gateway_offline", "connection_lost"];
+export const kindLabel = (kind: AlertKind) => statusOf(kind, "alert_kind").label;
+
+/** What the alert's condition reads as: a connectivity alert that monitoring ended is Stopped, not Cleared. */
+export const alertCondition = (alert: Pick<Alert, "condition" | "stopped_reason">) =>
+  alert.condition === "active" ? "active" : alert.stopped_reason ? "stopped" : "cleared";
+
+/** Why a connectivity alert opened, and why it ended when monitoring stopped it. */
+export function alertCause(alert: Pick<Alert, "cause" | "stopped_reason">) {
+  const cause = alert.cause ? statusOf(alert.cause, "offline_cause").label : null;
+  const stop = alert.stopped_reason ? statusOf(alert.stopped_reason, "offline_stop").label : null;
+  return [cause, stop && `stopped: ${stop.toLowerCase()}`].filter(Boolean).join(" · ");
+}
+
+/** "15 min, automatic" or "1 h, set"; null when no threshold was in effect (still learning). */
+export function thresholdText(alert: Pick<Alert, "threshold_seconds" | "threshold_automatic">) {
+  if (alert.threshold_seconds === null) return null;
+  return `${formatDuration(alert.threshold_seconds)}${alert.threshold_automatic ? ", automatic" : ", set"}`;
+}
+
+/** How an automatic threshold came about, in words. */
+export function thresholdSource(
+  alert: Pick<Alert, "threshold_automatic" | "reporting_interval_seconds" | "poll_interval_seconds">,
+) {
+  if (!alert.threshold_automatic) return "Set on the device or its profile";
+  const reporting = alert.reporting_interval_seconds;
+  const poll = alert.poll_interval_seconds;
+  const from = reporting
+    ? `3 × ${formatDuration(reporting)} reporting interval${poll ? ` + ${formatDuration(poll)} poll` : ""}`
+    : "3 × reporting interval + poll interval";
+  return `Automatic: ${from}, at least 15 min`;
+}
+
 /** "Active for 5 d" or "Cleared after 4 min"; the bare condition when a time is missing. */
 export function alertDuration(
-  alert: Pick<WorkflowAlert, "activated_at" | "cleared_at">,
+  alert: Pick<Alert, "activated_at" | "cleared_at">,
   now = Date.now(),
 ) {
   if (!alert.cleared_at)
@@ -37,12 +87,44 @@ export function alertQuery(params: URLSearchParams, me?: number) {
   else query.set("condition", condition);
   query.delete("assignee");
   if (params.get("assignee") === "me" && me !== undefined) query.set("assignee", String(me));
+  // The page keeps kind=…&kind=…; the API takes a repeated kind[].
+  query.delete("kind");
+  for (const kind of kindsOf(params)) query.append("kind[]", kind);
   return query;
 }
 
-/** One key per workflow and device, as grouped by the alerts API. */
-export const sourceKey = (alert: Pick<WorkflowAlert, "workflow_uuid" | "device_uuid">) =>
-  `${alert.workflow_uuid}|${alert.device_uuid}`;
+/** The kinds in the page URL, known values only. */
+export const kindsOf = (params: URLSearchParams) =>
+  params.getAll("kind").filter((kind): kind is AlertKind => alertKinds.includes(kind as AlertKind));
+
+/**
+ * One key per source, as grouped by the alerts API: a workflow and its device, or a
+ * connectivity kind and its subject.
+ */
+export function sourceKey(item: Alert | AlertSource): string {
+  const alert = "latest" in item ? item.latest : item;
+  return alert.kind === "workflow"
+    ? `${alert.workflow_uuid}|${alert.device_uuid}`
+    : `${alert.kind}|${alert.subject.type}:${alert.subject.uuid}`;
+}
+
+/**
+ * The alerts filters that find every occurrence of a connectivity alert's source. The API
+ * filters by device, so a gateway or connection alert is found through a device it lists;
+ * callers keep the alerts whose subject matches (`sameSubject`).
+ */
+export function subjectQuery(alert: Pick<Alert, "kind" | "device_uuid" | "devices">) {
+  const device = alert.device_uuid ?? alert.devices[0]?.uuid;
+  const query = new URLSearchParams();
+  query.append("kind[]", alert.kind);
+  if (device) query.set("device", device);
+  return query;
+}
+export const sameSubject = (alert: Alert, other: Alert) =>
+  alert.kind === other.kind &&
+  (alert.kind === "workflow" || other.kind === "workflow"
+    ? alert.workflow_uuid === other.workflow_uuid && alert.device_uuid === other.device_uuid
+    : alert.subject.uuid === other.subject.uuid && alert.subject.type === other.subject.type);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Alert ids are UUIDs; any other path segment cannot name an alert, so there is nothing to ask the API. */

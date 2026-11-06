@@ -12,6 +12,7 @@ import { devicePath, formatValue } from "../devices/shared"
 import { appliedParameters } from "./model"
 import { useDeviceActivity, useDevices, useNow } from "./panelData"
 import { presenceLabel, presenceTone } from "./ReadoutPanels"
+import { kindLabel } from "../alerts/model"
 
 
 /** Devices referenced by panel sources and device health panels. */
@@ -83,7 +84,7 @@ export function ContextRail({
                       className="truncate hover:underline"
                       to={`/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(alert.uuid)}`}
                     >
-                      {alert.workflow_name} · Episode {alert.episode}
+                      {alert.workflow_name ?? kindLabel(alert.kind)} · Episode {alert.episode}
                     </Link>
                   </StatusMark>
                   {alert.activated_at && (

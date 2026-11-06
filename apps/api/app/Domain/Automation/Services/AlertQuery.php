@@ -21,11 +21,18 @@ final class AlertQuery
     public const LISTED_DEVICES = 100;
 
     /**
-     * @param  array{condition?: string, acknowledged?: bool, device?: string, workflow?: string, assignee?: int, site?: string}  $input
+     * @param  array{condition?: string, acknowledged?: bool, device?: string, workflow?: string, assignee?: int, site?: string, kind?: list<string>, muted?: bool}  $input
      */
     public function filtered(Organization $organization, array $input): Builder
     {
         $query = Alert::where('automation_alerts.organization_id', $organization->id);
+        if (! empty($input['kind'])) {
+            $query->whereIn('automation_alerts.kind', $input['kind']);
+        }
+        if (isset($input['muted'])) {
+            // Alerts that opened while their subject was muted (spec 018 D8) are hidden unless asked for.
+            $input['muted'] ? $query->whereNotNull('automation_alerts.suppressed_at') : $query->whereNull('automation_alerts.suppressed_at');
+        }
         if (isset($input['condition'])) {
             $input['condition'] === 'active' ? $query->whereNull('automation_alerts.cleared_at') : $query->whereNotNull('automation_alerts.cleared_at');
         }
@@ -70,11 +77,39 @@ final class AlertQuery
 
     public function views(Organization $organization, Collection $alerts): array
     {
-        $alerts->loadMissing(['workflow', 'deployment', 'acknowledger:id,name', 'assignee:id,name', 'subjectDevice:id,uuid,name']);
+        $alerts->loadMissing(['workflow', 'deployment', 'acknowledger:id,name', 'assignee:id,name', 'subjectDevice:id,uuid,name,site_id', 'subjectDevice.site:id,uuid,name,timezone', 'subjectGateway:id,uuid,name', 'subjectAdapter:id,uuid,name']);
         $deviceNames = Device::where('organization_id', $organization->id)->whereIn('uuid', $alerts->map(fn ($a) => self::boundDevice($a))->filter()->values())->pluck('name', 'uuid')->all();
         $listed = $this->listedDevices($organization, $alerts);
+        $gatewaySites = $this->gatewaySites($organization, $alerts);
 
-        return $alerts->map(fn ($a) => $this->view($a, $deviceNames, $listed[$a->id] ?? ['devices' => [], 'total' => 0]))->all();
+        return $alerts->map(fn ($a) => $this->view($a, $deviceNames, $listed[$a->id] ?? ['devices' => [], 'total' => 0], $gatewaySites[$a->id] ?? null))->all();
+    }
+
+    /**
+     * The site of each gateway alert, when every device it lists is at that one site.
+     *
+     * @return array<int, array{uuid: string, name: string, timezone: ?string}>
+     */
+    private function gatewaySites(Organization $organization, Collection $alerts): array
+    {
+        $gateways = $alerts->filter(fn (Alert $alert) => $alert->kind === Alert::GATEWAY_OFFLINE);
+        if ($gateways->isEmpty()) {
+            return [];
+        }
+        $rows = DB::table('automation_alert_devices')->join('devices', 'devices.id', '=', 'automation_alert_devices.device_id')
+            ->leftJoin('sites', 'sites.id', '=', 'devices.site_id')
+            ->where('devices.organization_id', $organization->id)->whereIn('automation_alert_devices.automation_alert_id', $gateways->modelKeys())
+            ->groupBy('automation_alert_devices.automation_alert_id')
+            ->havingRaw('count(distinct coalesce(devices.site_id, 0)) = 1')
+            ->selectRaw('automation_alert_devices.automation_alert_id as alert_id, max(cast(sites.uuid as varchar)) as uuid, max(sites.name) as name, max(sites.timezone) as timezone')->get();
+        $sites = [];
+        foreach ($rows as $row) {
+            if ($row->uuid !== null) {
+                $sites[$row->alert_id] = ['uuid' => (string) $row->uuid, 'name' => (string) $row->name, 'timezone' => $row->timezone];
+            }
+        }
+
+        return $sites;
     }
 
     /**
@@ -102,10 +137,18 @@ final class AlertQuery
         return $listed;
     }
 
-    private function view(Alert $alert, array $deviceNames, array $listed): array
+    private function view(Alert $alert, array $deviceNames, array $listed, ?array $gatewaySite): array
     {
         $workflow = $alert->isWorkflow();
         $device = $workflow ? self::boundDevice($alert) : $alert->subjectDevice?->uuid;
+        $subject = match (true) {
+            $workflow => null,
+            $alert->subjectDevice !== null => ['type' => 'device', 'uuid' => $alert->subjectDevice->uuid, 'name' => $alert->subjectDevice->name],
+            $alert->subjectGateway !== null => ['type' => 'gateway', 'uuid' => $alert->subjectGateway->uuid, 'name' => $alert->subjectGateway->name],
+            $alert->subjectAdapter !== null => ['type' => 'adapter', 'uuid' => $alert->subjectAdapter->uuid, 'name' => $alert->subjectAdapter->name],
+            default => null,
+        };
+        $site = $alert->subjectDevice?->site?->only(['uuid', 'name', 'timezone']) ?? $gatewaySite;
 
         return [
             ...$alert->only(['uuid', 'episode', 'activated_at', 'cleared_at', 'acknowledged_at', 'acknowledged_by', 'assigned_at', 'activation_transition_id', 'clear_transition_id']),
@@ -116,6 +159,10 @@ final class AlertQuery
             'devices' => $listed['devices'], 'devices_total' => $listed['total'],
             'acknowledged_by_name' => $alert->acknowledger?->name, 'assignee' => $alert->assignee?->only(['id', 'name']),
             'condition' => $alert->cleared_at ? 'cleared' : 'active', 'execution_stopped_reason' => $alert->deployment?->stopped_reason,
+            // Device connectivity alerts (spec 018); null or false for workflow alerts.
+            'subject' => $subject, 'site' => $workflow ? null : $site,
+            ...$alert->only(['cause', 'offline_since', 'last_seen_at', 'last_observed_at', 'threshold_seconds', 'threshold_automatic', 'reporting_interval_seconds', 'poll_interval_seconds', 'grace_seconds', 'stopped_reason']),
+            'muted' => $alert->suppressed_at !== null, 'held' => (bool) $alert->held, 'held_count' => (int) $alert->held_count,
         ];
     }
 }

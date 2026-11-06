@@ -1,13 +1,16 @@
 import type {
+  Alert,
+  ConnectivityRuntimeState,
   Device,
   DeviceDetail,
   LocationBinding,
   LocationBindingInput,
   Measurement,
-  WorkflowAlert,
+  OfflineAlert,
 } from "@iot-os/api-client"
 import type { StatusTone } from "@iot-os/ui/components/status-mark"
 import { formatAge } from "@iot-os/ui/lib/format"
+import { statusOf } from "@iot-os/ui/lib/status"
 
 export type DeviceHealth = {
   key:
@@ -39,7 +42,7 @@ const health: Record<DeviceHealth["key"], [StatusTone, string]> = {
   unknown: ["muted", "Connection unknown"],
 }
 type HealthInput = Pick<Device, "lifecycle" | "presence" | "deployment_status"> &
-  Partial<Pick<Device, "last_seen_at">>
+  Partial<Pick<Device, "last_seen_at" | "offline_alert">>
 /** How long an online device may go without data before it reads "no recent data". */
 export const RECENT_DATA_MS = 3_600_000
 export type Freshness = { now?: number; recentMs?: number }
@@ -92,9 +95,15 @@ export function deviceHealth(device: HealthInput, freshness: Freshness = {}): De
  * The statuses a device list filters on (DeviceDirectory::STATUSES in the API), in
  * menu order. Lists leave "quiet" to Last seen, and Lifecycle covers archived.
  */
-export const listStatuses = (
-  ["online", "offline", "unseen", "unknown", "unconfigured", "updating", "failed", "deactivated"] as const
-).map((key) => ({ value: key, label: health[key][1] }))
+export const listStatuses = [
+  ...(["online", "offline"] as const).map((key) => ({ value: key, label: health[key][1] })),
+  // Devices an open offline alert covers (spec 018), their own or their gateway's.
+  { value: "offline_alert", label: "Offline alert" },
+  ...(["unseen", "unknown", "unconfigured", "updating", "failed", "deactivated"] as const).map((key) => ({
+    value: key,
+    label: health[key][1],
+  })),
+]
 
 /**
  * Freshness window for one device: the slowest parameter's profile
@@ -128,16 +137,33 @@ const deploymentLabels = {
   failed: "Failed",
   inactive: "Off",
 }
+/**
+ * Why a device with an open offline alert is offline: its own cause, or the gateway it sits
+ * behind ("Offline because gateway Yard gateway is offline").
+ */
+export function offlineReason(alert: OfflineAlert) {
+  if (alert.kind === "gateway_offline")
+    return alert.subject ? `Offline because gateway ${alert.subject.name} is offline` : "Offline because its gateway is offline"
+  if (alert.kind === "connection_lost")
+    return alert.subject ? `Offline because connection ${alert.subject.name} is lost` : "Offline because its connection is lost"
+  return alert.cause ? `Offline: ${statusOf(alert.cause, "offline_cause").label.toLowerCase()}` : "Offline"
+}
+
 /** The lifecycle, connection and configuration behind a health state, for its tooltip. */
 export function healthDetails(device: HealthInput, freshness: Freshness = {}) {
   const off = device.lifecycle === "deactivated" || device.lifecycle === "archived"
-  const connection = quiet(device, freshness)
-    ? "Online, no recent data"
-    : (presenceLabels[device.presence] ?? "Unknown")
+  const connection = device.offline_alert
+    ? offlineReason(device.offline_alert)
+    : quiet(device, freshness)
+      ? "Online, no recent data"
+      : (presenceLabels[device.presence] ?? "Unknown")
   return [
     ["Lifecycle", lifecycleLabels[device.lifecycle] ?? device.lifecycle],
     // The runtime reports deactivated devices offline; that is not a connection fault.
     ...(off ? [] : [["Connection", connection]]),
+    ...(!off && device.offline_alert?.since
+      ? [["Offline since", formatAge(device.offline_alert.since, freshness.now) + " ago"]]
+      : []),
     ["Configuration", deploymentLabels[device.deployment_status] ?? device.deployment_status],
     ...(device.last_seen_at
       ? [["Last seen", formatAge(device.last_seen_at, freshness.now) + " ago"]]
@@ -375,26 +401,47 @@ export function lastPosition(
 }
 
 export type AlertGroup = {
-  workflow_uuid: string
-  workflow_name: string
+  /** The workflow, or the connectivity kind and its subject. */
+  key: string
+  /** The workflow's name, or the connectivity kind (and the gateway or connection it names). */
+  name: string
+  /** The Alerts page filter for this group's episodes (with the device's). */
+  filter: string
+  /** The same filter for GET alerts, which takes a repeated kind[]. */
+  apiFilter: string
   count: number
   active: number
   /** Newest episode: alerts arrive newest first. */
-  latest: WorkflowAlert
+  latest: Alert
 }
-/** Episodes grouped by workflow; groups with an active episode first, then newest. */
-export function groupAlerts(alerts: WorkflowAlert[]): AlertGroup[] {
+/** Episodes grouped by workflow or connectivity kind; groups with an active episode first, then newest. */
+export function groupAlerts(alerts: Alert[]): AlertGroup[] {
   const groups = new Map<string, AlertGroup>()
   for (const alert of alerts) {
-    const group = groups.get(alert.workflow_uuid)
+    const key =
+      alert.workflow_uuid !== null ? alert.workflow_uuid : `${alert.kind}:${alert.subject.uuid}`
+    const group = groups.get(key)
     const active = alert.condition === "active" ? 1 : 0
     if (group) {
       group.count++
       group.active += active
     } else
-      groups.set(alert.workflow_uuid, {
-        workflow_uuid: alert.workflow_uuid,
-        workflow_name: alert.workflow_name,
+      groups.set(key, {
+        key,
+        name:
+          alert.workflow_uuid !== null
+            ? alert.workflow_name
+            : alert.kind === "device_offline"
+              ? statusOf(alert.kind, "alert_kind").label
+              : `${statusOf(alert.kind, "alert_kind").label} — ${alert.subject.name}`,
+        filter:
+          alert.workflow_uuid !== null
+            ? `workflow=${encodeURIComponent(alert.workflow_uuid)}`
+            : `kind=${encodeURIComponent(alert.kind)}`,
+        apiFilter:
+          alert.workflow_uuid !== null
+            ? `workflow=${encodeURIComponent(alert.workflow_uuid)}`
+            : `${encodeURIComponent("kind[]")}=${encodeURIComponent(alert.kind)}`,
         count: 1,
         active,
         latest: alert,
@@ -405,4 +452,52 @@ export function groupAlerts(alerts: WorkflowAlert[]): AlertGroup[] {
   return [...groups.values()].sort(
     (a, b) => Number(b.active > 0) - Number(a.active > 0) || time(b) - time(a),
   )
+}
+
+/** "45 s", "15 min", "1 h 30 min", "2 d 6 h": a span of seconds at a glance. */
+export function formatDuration(seconds: number) {
+  const s = Math.max(0, Math.round(seconds))
+  if (s < 60) return `${s} s`
+  const minutes = Math.round(s / 60)
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60),
+    restMinutes = minutes % 60
+  if (hours < 24) return restMinutes ? `${hours} h ${restMinutes} min` : `${hours} h`
+  const days = Math.floor(hours / 24),
+    restHours = hours % 24
+  return restHours ? `${days} d ${restHours} h` : `${days} d`
+}
+
+/**
+ * The status value (connectivity domain) for what the runtime reports about a device:
+ * "offline since before monitoring started" while waiting on a device last seen earlier,
+ * and an adapter interruption as restarting, or paused when the device says so.
+ */
+export function connectivityStatus(
+  state: Pick<ConnectivityRuntimeState, "state" | "interruption" | "before_monitoring">,
+  diagnostic?: string | null,
+) {
+  if (state.state === "waiting" && state.before_monitoring) return "before_monitoring"
+  if (state.state === "interrupted" && state.interruption === "adapter")
+    return /paused/i.test(diagnostic ?? "") ? "adapter_paused" : "adapter_restarting"
+  return state.state
+}
+
+/**
+ * Offline after in effect, in words: "15 min (automatic)", "learning (2 of 3 readings)" while an
+ * automatic value has too few readings, or "Unknown" without the runtime.
+ */
+export function offlineAfterText(
+  state: Pick<
+    ConnectivityRuntimeState,
+    "state" | "offline_after_seconds" | "offline_after_automatic" | "readings_counted"
+  >,
+  configured: number | null,
+) {
+  if (state.offline_after_seconds !== null)
+    return `${formatDuration(state.offline_after_seconds)} (${state.offline_after_automatic ? "automatic" : "set"})`
+  if (configured !== null) return `${formatDuration(configured)} (set)`
+  if (state.state === "learning")
+    return `Automatic, learning (${Math.min(state.readings_counted ?? 0, 3)} of 3 readings)`
+  return "Automatic"
 }

@@ -217,11 +217,24 @@ from activation until cleared. Device connectivity alerts (spec 018) share the t
 with `kind` set and no workflow. Acknowledgement and assignment are separate from
 the condition; acknowledging never clears it. `Automation/Models/Alert.php`
 
+**Offline alert.** A `device_offline` or `gateway_offline` alert the runtime raises
+when a device or gateway goes offline, with no automation involved; it opens after a
+grace period and clears by itself ([alerts](../features/alerts.md#offline-alerts)).
+`app/connectivity.go`, `Automation/Services/ConnectivityProjector.php`
+
+**Heard.** The runtime received a packet for a source, before validation. On an
+adapter's edge, only a new non-historical reading counts.
+
+**Offline after.** How long a device may be silent, counted from receipt, before it
+is offline. Automatic unless set: three times the device's reporting interval (the
+median gap between its readings' observed times) plus its poll interval, at least 15
+minutes and at most 7 days. Distinct from a binding's freshness.
+
 **Alert delivery.** One message per alert, recipient, type (activated or cleared)
 and `channel` (`email`), with retry history. `Automation/Models/AlertDelivery.php`
 
-**Notification event.** An entry in the event log: workflow transitions, service
-monitoring alerts and watchdog failures. `Notifications/Models/NotificationEvent.php`
+**Notification event.** An entry in the event log: workflow and offline alert
+transitions, service monitoring alerts and watchdog failures. `Notifications/Models/NotificationEvent.php`
 
 ## Location
 

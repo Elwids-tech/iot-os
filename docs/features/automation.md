@@ -91,6 +91,16 @@ Settings dispatch independently: not atomic, no ordering guarantee.
   parameter's `reporting.stale_after_seconds` and twice the device's poll interval.
   It warns when a polled device's freshness is shorter than two intervals. The
   assistant's bindings default to 120 s; check them for polled devices.
+- Freshness is not a device's *Offline after*
+  ([offline alerts](alerts.md#offline-after)). Freshness says how old a reading may be
+  when an automation uses it, counted from its observed time; *Offline after* says how
+  long a device may be silent before it is offline, counted from receipt. They are
+  separate settings with separate clocks, and the editor's freshness default never
+  reads *Offline after*. A device that goes silent makes its bindings stale, which only
+  makes them unknown, so no automation alert opens or clears because of it; its
+  offline alert opens on its own. Use an automation only for what offline alerts do not
+  cover, such as one parameter going quiet while the device keeps reporting (spec 014's
+  *No data*, not built yet).
 - State, timer deadlines and intent identities commit in the same transaction as
   the consumer checkpoint, before the broker acknowledgement. A restart resumes
   from the database.

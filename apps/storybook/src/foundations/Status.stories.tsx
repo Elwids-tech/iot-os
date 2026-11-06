@@ -66,3 +66,21 @@ export const Tickets: StoryObj = {
     </div>
   ),
 }
+
+const connectivityStates = ["waiting", "learning", "monitored", "pending", "offline", "recovering", "interrupted", "adapter_restarting", "adapter_paused", "disabled", "before_monitoring"]
+const offlineCauses = ["death_certificate", "missed_check_in", "gateway_offline", "source_disconnected"]
+
+/** Device offline alerts (spec 018): where detection has a device, and why it went offline. */
+export const OfflineAlerts: StoryObj = {
+  render: () => (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap gap-4">
+        {connectivityStates.map((value) => <Status key={value} value={value} domain="connectivity" />)}
+      </div>
+      <div className="flex flex-wrap gap-4">
+        {offlineCauses.map((value) => <Status key={value} value={value} domain="offline_cause" />)}
+        <Status value="stopped" domain="alert" />
+      </div>
+    </div>
+  ),
+}

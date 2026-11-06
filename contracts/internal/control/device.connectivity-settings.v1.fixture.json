@@ -1,0 +1,14 @@
+{
+  "uuid": "18000000-0000-4000-8000-000000000101",
+  "type": "device.connectivity-settings.v1",
+  "payload": {
+    "organization_uuid": "18000000-0000-4000-8000-000000000001",
+    "device_uuid": "18000000-0000-4000-8000-000000000002",
+    "generation": 12,
+    "enabled": true,
+    "style": "connects_to_report",
+    "offline_after_seconds": null,
+    "poll_interval_seconds": 900,
+    "grace_seconds": 120
+  }
+}
