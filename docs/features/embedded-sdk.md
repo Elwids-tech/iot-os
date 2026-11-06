@@ -347,9 +347,10 @@ to 2 of a fixture profile and checks the developer's files are unchanged.
 **End to end**: [`tooling/verify-embedded-sdk.mjs`](../../tooling/verify-embedded-sdk.mjs)
 runs a gateway full kit against a local stack. It registers a gateway, downloads its Linux
 kit with the gateway health profile as the node type and two device types, builds the
-kit's desktop simulator with CMake and runs 500 devices, each reporting every 30 s
-(`EMBEDDED_INTERVAL_S`; the dev API cannot keep up with 500 devices every 10 s, see
-[gotchas](../dev/gotchas.md#local-stack)). It then checks:
+kit's desktop simulator with CMake and runs 500 devices, each reporting every 10 s
+(`EMBEDDED_INTERVAL_S`). The runtime hands their presence events to the API in batches
+([ADR-031](../adr/ADR-031-batched-runtime-events.md)); one at a time, the dev API fell
+minutes behind at this rate. It then checks:
 
 1. Discovery of every source, and a telemetry capture with no runtime diagnostics.
 2. A restart with the same state file re-announces every source within five minutes

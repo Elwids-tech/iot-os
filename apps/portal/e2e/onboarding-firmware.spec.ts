@@ -141,7 +141,10 @@ test("writing the firmware reveals a target picker, then the starter and the kit
   expect((await starter).suggestedFilename()).toBe("relay-esp32-esp-idf-starter.zip")
   expect(state.starters).toEqual([{ target: "esp32-esp-idf", role: "direct", node_artifact_uuid: artifactId }])
 
-  // The kit provisions the connection first, as the setup bundle does.
+  // The kit provisions the connection first, as the setup bundle does. Leave the starter first: when its
+  // tooltip is still open, Radix takes a single move from it to the next button as heading for that tooltip.
+  await page.mouse.move(0, 0, { steps: 5 })
+  await expect(page.getByRole("tooltip")).toHaveCount(0)
   await page.getByRole("button", { name: "Download firmware kit" }).hover()
   await expect(page.getByRole("tooltip")).toContainText("this device's connection settings already in config/")
   const kit = page.waitForEvent("download")

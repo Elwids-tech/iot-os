@@ -11,8 +11,9 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// Durable consumers process one message at a time to keep per-stream order.
-// A message that can never succeed would therefore block everything behind it,
+// Durable consumers process messages in stream order: one at a time, or in
+// batches settled before the next (devices-control-inbox, inbox.go). A message
+// that can never succeed would therefore block everything behind it,
 // so permanent failures are copied to the dead-letter stream and terminated,
 // while transient failures (database, broker or control plane unavailable) are
 // retried with backoff for as long as it takes.
