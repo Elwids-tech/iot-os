@@ -226,9 +226,7 @@ async function setup(
       if (path.endsWith("/measurements/increase")) {
       calls.increase.push(url.searchParams)
       // Three days of usage from the start of the requested range; the last is still counting.
-      // Each point sits at the middle of its day, so a daylight-saving change in the range
-      // (a 25-hour day) cannot move it into the day before.
-      const from = Date.parse(url.searchParams.get("from")!) + 12 * 3600000
+      const from = Date.parse(url.searchParams.get("from")!)
       return json({
         data: {
           from: url.searchParams.get("from"),

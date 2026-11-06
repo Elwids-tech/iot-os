@@ -550,12 +550,6 @@ Things that have cost time before. Add to this list when something surprises you
   the admin config, whose failure videos need Playwright's ffmpeg.
 - **`vite preview` listens on `localhost` (::1).** E2E against it needs
   `STUDIO_BASE_URL=http://localhost:<port>`, not `127.0.0.1`.
-- **Mocks that step whole days in milliseconds break around daylight saving.** The
-  consumption panel's mock put its daily points 24 hours apart from the start of the
-  range; for a week after Toronto's clocks went back, one day was 25 hours long, a point
-  landed in the day before, and the spec failed on every branch (2026-11-06). Place a
-  daily point inside its local day (the mock now uses noon), or step by calendar days in
-  the zone.
 - **`e2e/studio.spec.ts` needs a live API** at `STUDIO_API_URL` (default
   `127.0.0.1:8013`, started by `tooling/test-profile-studio.mjs`). Against
   `vite preview` alone it fails with "Failed to fetch". CI skips it, so it
