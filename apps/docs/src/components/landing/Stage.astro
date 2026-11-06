@@ -1,0 +1,419 @@
+---
+// The landing stage: one device from firmware to an alert, shown as an assistant
+// session beside a Three.js illustration of the same steps (src/scripts/stage). The
+// transcript is real text and complete without JavaScript; the scene only appears once
+// it has drawn. Motion plays when the stage scrolls into view, pauses off screen and
+// has a pause button; with reduced motion the stage shows its final state.
+import { docsConfig } from '../../../docs.config'
+import { beats, lines } from '../../scripts/stage/timeline'
+
+const speaker = { user: 'You', assistant: 'Assistant' } as const
+---
+
+<section class="stage not-content reveal" aria-labelledby="stage-title">
+  <div class="stage-head">
+    <p class="kicker">See it work</p>
+    <h2 id="stage-title">From a board on the bench to an alert in your inbox</h2>
+    <p class="intro">
+      One device, start to finish: its firmware, its connection, a dashboard and an alert. An illustration of the
+      real steps, played in about twenty seconds.
+    </p>
+  </div>
+
+  <div class="frame" data-stage>
+    <div class="toolbar">
+      <ol class="beats" aria-label="Steps">
+        {
+          beats.map((beat, index) => (
+            <li>
+              <button type="button" class="beat" data-beat={beat.id} data-start={beat.start} disabled>
+                <span class="beat-number" aria-hidden="true">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                {beat.label}
+                <span class="beat-progress" aria-hidden="true" />
+              </button>
+            </li>
+          ))
+        }
+      </ol>
+      <span class="badge">Illustration</span>
+      <button type="button" class="pause" data-pause aria-pressed="false" hidden>
+        <span class="pause-icon" aria-hidden="true"></span>
+        <span data-pause-label>Pause</span>
+      </button>
+    </div>
+
+    <div class="body">
+      <div class="scene" data-scene-host>
+        <canvas data-stage-canvas aria-hidden="true"></canvas>
+        <div class="labels" aria-hidden="true">
+          <span class="label" data-label="device"><span class="dot"></span><span data-label-text>cold-room-1</span></span>
+          <span class="label" data-label="platform"><span class="dot"></span><span data-label-text>{docsConfig.productName}</span></span>
+          <span class="label" data-label="dashboard"><span class="dot"></span><span data-label-text>Cold room dashboard</span></span>
+          <span class="label" data-label="phone"><span class="dot"></span><span data-label-text>Inbox</span></span>
+        </div>
+        <p class="sr-only">
+          Illustration: an ESP32 board receives a firmware starter and is flashed. Readings travel from the board to
+          {docsConfig.productName}, then on to a Cold room dashboard whose temperature chart fills in. The temperature
+          climbs past 8 °C, and an alert email arrives on a phone.
+        </p>
+      </div>
+
+      <div class="transcript" data-transcript>
+        <ol class="lines" data-lines aria-label="Assistant session">
+          {
+            lines.map((line) => (
+              <li class:list={['line', line.kind, line.tone]} data-at={line.at}>
+                {line.kind === 'card' ? (
+                  <div class="card">
+                    <span class="card-title">{line.text}</span>
+                    <span class="card-meta">{line.meta}</span>
+                    <span class="card-action">{line.action}</span>
+                  </div>
+                ) : (
+                  <>
+                    {(line.kind === 'user' || line.kind === 'assistant') && (
+                      <span class="sr-only">{speaker[line.kind]}: </span>
+                    )}
+                    {line.kind === 'command' && (
+                      <span class="prompt" aria-hidden="true">
+                        $
+                      </span>
+                    )}
+                    {line.kind === 'event' && <span class="status" aria-hidden="true" />}
+                    <span class:list={['text', (line.kind === 'user' || line.kind === 'assistant') && 'typed']} data-text>
+                      {line.text}
+                    </span>
+                  </>
+                )}
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // The scene loads when the stage comes near the viewport, so it never competes with
+  // the hero for the first paint.
+  const frame = document.querySelector<HTMLElement>('[data-stage]')
+  if (frame) {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return
+        observer.disconnect()
+        import('../../scripts/stage/play').then(({ playStage }) => playStage(frame)).catch(() => undefined)
+      },
+      { rootMargin: '300px 0px' },
+    )
+    observer.observe(frame)
+  }
+</script>
+
+<style>
+  .stage {
+    max-width: 76rem;
+    margin: clamp(4rem, 10vh, 6.5rem) auto 0;
+    padding-inline: 1.5rem;
+  }
+  .stage-head { max-width: 46rem; }
+  .kicker {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brand-accent);
+  }
+  h2 {
+    margin: 0.5rem 0 0;
+    font-family: var(--font-display);
+    font-size: var(--landing-heading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--foreground);
+    text-wrap: balance;
+  }
+  .intro {
+    margin: 0.85rem 0 0;
+    color: var(--muted-foreground);
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+
+  .frame {
+    --stage-height: clamp(26rem, 58vh, 33rem);
+    margin-top: 2rem;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 1.1rem;
+    background: color-mix(in oklab, var(--brand-surface) 82%, transparent);
+    box-shadow: 0 1.5rem 3.5rem -2rem color-mix(in oklab, var(--brand-from) 45%, transparent);
+    overflow: hidden;
+  }
+
+  /* ---------- Toolbar: the steps, the label and the pause button ---------- */
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid var(--brand-surface-line);
+  }
+  .beats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    flex: 1 1 auto;
+  }
+  .beats li { margin: 0; }
+  .beat {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.25rem;
+    padding: 0 0.8rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: none;
+    font: 500 0.875rem/1 var(--font-display);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    overflow: hidden;
+    transition:
+      color var(--duration-base) var(--ease-standard),
+      border-color var(--duration-base) var(--ease-standard),
+      background-color var(--duration-base) var(--ease-standard);
+  }
+  .beat:disabled { cursor: default; }
+  .beat:not(:disabled):hover { color: var(--foreground); }
+  .beat[aria-current="step"] {
+    border-color: var(--brand-surface-line);
+    background: color-mix(in oklab, var(--brand-mid) 12%, transparent);
+    color: var(--foreground);
+  }
+  .beat:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .beat-number {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--brand-accent);
+  }
+  .beat-progress {
+    position: absolute;
+    inset: auto 0.8rem 0.3rem;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--brand-from), var(--brand-to));
+    transform: scaleX(var(--progress, 0));
+    transform-origin: left;
+    opacity: 0;
+  }
+  .beat[aria-current="step"] .beat-progress { opacity: 1; }
+
+  .badge {
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 999px;
+    font: 500 0.75rem/1.4 var(--font-mono);
+    color: var(--muted-foreground);
+  }
+  .pause {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.25rem;
+    padding: 0 0.85rem;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 999px;
+    background: none;
+    font: 500 0.875rem/1 var(--font-display);
+    color: var(--foreground);
+    cursor: pointer;
+  }
+  .pause[hidden] { display: none; }
+  .pause:hover { border-color: var(--brand-accent); }
+  .pause:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .pause-icon {
+    width: 0.6rem;
+    height: 0.7rem;
+    border-inline: 0.2rem solid currentColor;
+  }
+  .pause[aria-pressed="true"] .pause-icon {
+    width: 0;
+    height: 0;
+    border-block: 0.38rem solid transparent;
+    border-inline: 0.62rem solid currentColor;
+    border-inline-end-width: 0;
+  }
+
+  /* ---------- Body: the scene beside the transcript ---------- */
+  .body { display: grid; }
+  /* A fixed height, not an aspect ratio: with a minimum height an aspect ratio would
+     set a minimum width too, wider than a phone. */
+  .scene {
+    position: relative;
+    display: none;
+    min-width: 0;
+    height: 18rem;
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 45%, var(--brand-glow), transparent 75%),
+      linear-gradient(180deg, var(--brand-hero-from), var(--brand-hero-to));
+  }
+  .frame[data-scene] .scene { display: block; }
+  .scene canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .labels { position: absolute; inset: 0; pointer-events: none; }
+  .label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--brand-surface) 88%, transparent);
+    font: 500 0.75rem/1.3 var(--font-mono);
+    color: var(--foreground);
+    white-space: nowrap;
+    /* The scene places each label over its object and shows it once the object is there. */
+    opacity: 0;
+    transition: opacity 300ms var(--ease-standard);
+  }
+  .label .dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--muted-foreground);
+  }
+  .label[data-state="active"] .dot { background: var(--brand-to); }
+  .label[data-state="success"] .dot { background: var(--success); }
+  .label[data-state="warning"] .dot { background: var(--warning); }
+
+  .transcript {
+    position: relative;
+    min-width: 0;
+    padding: 1.1rem 1rem;
+    border-top: 1px solid var(--brand-surface-line);
+  }
+  .frame:not([data-scene]) .transcript { border-top: 0; max-width: 44rem; }
+  .lines {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .line { margin: 0; line-height: 1.5; font-size: 0.9375rem; color: var(--foreground); }
+  .line.user {
+    align-self: flex-end;
+    max-width: 85%;
+    padding: 0.55rem 0.85rem;
+    border-radius: 1rem 1rem 0.3rem 1rem;
+    background: color-mix(in oklab, var(--brand-mid) 16%, var(--brand-surface));
+  }
+  .line.assistant { max-width: 95%; color: var(--foreground); }
+  .line.command,
+  .line.event {
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    font: 0.8125rem/1.5 var(--font-mono);
+    color: var(--muted-foreground);
+  }
+  .line.command { color: var(--foreground); }
+  .prompt { color: var(--brand-accent); }
+  .status {
+    flex: none;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--muted-foreground);
+    transform: translateY(-0.05rem);
+  }
+  .line.success .status { background: var(--success); }
+  .line.warning .status { background: var(--warning); }
+  .line.warning { color: var(--foreground); }
+  .card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.1rem 1rem;
+    align-items: center;
+    max-width: 26rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 0.75rem;
+    background: var(--brand-surface);
+  }
+  .card-title { font: 600 0.9375rem/1.3 var(--font-display); }
+  .card-meta { grid-column: 1; font-size: 0.8125rem; color: var(--muted-foreground); }
+  .card-action {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    padding: 0.4rem 0.8rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--brand-button-from), var(--brand-button-to));
+    font: 600 0.8125rem/1 var(--font-display);
+    color: var(--brand-button-text);
+  }
+
+  /* On a narrow screen the card's action sits under its text. */
+  @media (max-width: 30rem) {
+    .card { grid-template-columns: 1fr; }
+    .card-meta { grid-column: 1; }
+    .card-action { grid-column: 1; grid-row: auto; justify-self: start; margin-top: 0.35rem; }
+  }
+
+  /* While it plays, the transcript is a fixed window: lines appear at the bottom and
+     older ones scroll up and fade out under the top edge. */
+  .frame[data-motion] .transcript {
+    height: 18rem;
+    overflow: hidden;
+    mask-image: linear-gradient(180deg, transparent, #000 3.5rem);
+  }
+  .frame[data-motion] .lines {
+    transition: transform 450ms var(--ease-standard);
+  }
+  .frame[data-motion] .line {
+    transition:
+      opacity 350ms var(--ease-standard),
+      transform 350ms var(--ease-standard);
+  }
+  .frame[data-motion] .line:not([data-shown]) {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  .typed[data-typing]::after {
+    content: '';
+    display: inline-block;
+    width: 0.5em;
+    height: 1em;
+    margin-left: 0.1em;
+    vertical-align: -0.12em;
+    background: var(--brand-accent);
+    animation: stage-caret 900ms steps(1) infinite;
+  }
+  @keyframes stage-caret { 50% { opacity: 0; } }
+
+  @media (min-width: 56rem) {
+    .frame[data-scene] .body { grid-template-columns: minmax(0, 1.45fr) minmax(19rem, 1fr); }
+    .frame[data-scene] .scene { height: var(--stage-height); }
+    .frame[data-scene] .transcript { border-top: 0; border-left: 1px solid var(--brand-surface-line); }
+    .frame[data-motion] .transcript { height: var(--stage-height); }
+  }
+</style>

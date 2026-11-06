@@ -45,6 +45,29 @@ test('without a WebGL context, the slogan shows', async ({ page }) => {
   for (const word of await hero.locator('[data-word]').all()) await expect(word).toHaveCSS('opacity', '1')
 })
 
+// The stage: one device from firmware to an alert, as a transcript beside an illustration.
+test('the stage plays, can be paused and can be stepped', async ({ page }) => {
+  await page.goto('/')
+  const stage = page.locator('[data-stage]')
+  await stage.scrollIntoViewIfNeeded()
+  await expect(stage).toHaveAttribute('data-motion', 'playing', { timeout: 15_000 })
+  await expect(stage.getByRole('button', { name: 'Illustration' })).toHaveCount(0)
+  await expect(stage.getByText('Illustration', { exact: true })).toBeVisible()
+  const pause = stage.getByRole('button', { name: 'Pause' })
+  await expect(pause).toBeVisible()
+  await pause.click()
+  await expect(stage.getByRole('button', { name: 'Play' })).toHaveAttribute('aria-pressed', 'true')
+  const alert = stage.getByRole('button', { name: /Alert$/ })
+  await alert.click()
+  await expect(alert).toHaveAttribute('aria-current', 'step')
+  // Paused at the step's start, the transcript shows exactly the lines up to it.
+  const start = Number(await alert.getAttribute('data-start'))
+  const lines = stage.locator('[data-lines] > li')
+  const upToStart = await lines.evaluateAll((items, at) => items.filter((item) => Number((item as HTMLElement).dataset.at) <= at).length, start)
+  expect(upToStart).toBeGreaterThan(0)
+  await expect(lines.locator('visible=true').and(stage.locator('[data-shown]'))).toHaveCount(upToStart)
+})
+
 test.describe('with reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } })
   test('shows the final state at once, with no animation', async ({ page }) => {
@@ -53,5 +76,15 @@ test.describe('with reduced motion', () => {
     await expect(hero).not.toHaveAttribute('data-animate', /.+/)
     await expect(hero.locator('[data-slogan]')).toBeVisible()
     await expect(hero).not.toHaveAttribute('data-scene', /.+/)
+  })
+
+  test('the stage is a complete transcript with nothing moving', async ({ page }) => {
+    await page.goto('/')
+    const stage = page.locator('[data-stage]')
+    await stage.scrollIntoViewIfNeeded()
+    await expect(stage).not.toHaveAttribute('data-motion', /.+/)
+    await expect(stage.getByRole('button', { name: 'Pause' })).toBeHidden()
+    for (const line of await stage.locator('[data-lines] > li').all()) await expect(line).toHaveCSS('opacity', '1')
+    await expect(stage.getByText('email sent')).toBeVisible()
   })
 })

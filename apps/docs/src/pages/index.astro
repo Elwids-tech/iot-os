@@ -8,6 +8,7 @@ import Build from '../components/landing/Build.astro'
 import Hero from '../components/landing/Hero.astro'
 import LandingFooter from '../components/landing/LandingFooter.astro'
 import Layers from '../components/landing/Layers.astro'
+import Stage from '../components/landing/Stage.astro'
 import Steps from '../components/landing/Steps.astro'
 import { docsConfig } from '../../docs.config'
 
@@ -80,6 +81,7 @@ const footerColumns = [
   }}
 >
   <Hero actions={actions} facts={facts} />
+  <Stage />
   <Layers />
   <Steps />
   <Build links={developerLinks} />
