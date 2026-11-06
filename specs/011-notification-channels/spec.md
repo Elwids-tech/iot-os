@@ -53,20 +53,24 @@ reworking it.
   recipient on one personal channel, or to one destination.
 - *Manager*: a member with device management permission (`Device.manage`). Managers
   already configure workflow notifications and integration applications.
-- *SMS price*: what one SMS segment to a country costs, including carrier fees, taken
-  from Twilio's published prices.
-- *SMS budget*: the amount, in US dollars, an organization may spend on SMS per calendar
-  month (UTC).
+- *SMS allowance*: the number of SMS an organization's plan includes per calendar month
+  (UTC). Each part of a message counts as one SMS: 160 characters, or 70 when the text
+  has characters outside the basic SMS alphabet.
 
 ## Clarifications
 
 ### Session 2026-11-06
 
-- Q: Should an organization's SMS limit count messages or what they cost? → A: What they
-  cost. An SMS to some countries costs 25 times or more what one to the US or Canada
-  costs, so counting messages lets one recipient there cost as much as 25 in the US.
-  Each organization gets a monthly SMS budget in US dollars, and each SMS counts its
-  segments times its country's SMS price.
+- Q: How is an organization's SMS use limited? → A: By its plan. Pricing tiers include a
+  number of alerts and of SMS, so each organization gets a monthly SMS allowance and
+  every SMS counts against it. This replaces a cost-based budget considered earlier the
+  same day: with SMS limited to US and Canadian numbers, every SMS costs about the same.
+- Q: Which sender sends SMS? → A: One Twilio toll-free number for the deployment. SMS is
+  limited to US and Canadian mobile numbers for now. Toll-free numbers can send to other
+  countries one way, but delivery there is not dependable without a local sender, and
+  some countries cost 25 times as much.
+- Q: Who sends verification codes? → A: The platform, through the same toll-free number
+  and Twilio's Messages API, not Twilio Verify, which charges per verification on top.
 - Q: Existing members have no mobile number. How are they asked for one? → A: A banner
   above the page after sign-in, not a pop-up that blocks it, shown only when SMS could
   reach them. **Not now** hides it for 14 days and **Don't ask me again** until they are
@@ -152,9 +156,10 @@ accepted by Twilio. On the pilot, a real phone receives the text.
 
 **Acceptance Scenarios**:
 
-1. **Given** a member enters a mobile number in international format, **When** they ask
-   for a code, **Then** a six-digit code is texted to it; entering it within 10 minutes
-   verifies the number.
+1. **Given** a member enters a US or Canadian mobile number, **When** they ask for a code,
+   **Then** a six-digit code is texted to it from the deployment's toll-free number;
+   entering it within 10 minutes verifies the number. A number from any other country is
+   refused with "Text alerts can go to US and Canadian numbers only".
 2. **Given** a verified number, **Then** SMS is on for **Critical** workflow alerts only,
    and the member can choose **Warning**, **Info** and **Cleared** as well, or turn SMS
    off.
@@ -162,16 +167,14 @@ accepted by Twilio. On the pilot, a real phone receives the text.
    activates, **Then** each recipient with a verified number who allows critical SMS gets
    one text; other recipients get none, and the workflow's settings page shows which
    recipients have no verified number.
-4. **Given** what is left of the organization's SMS budget this month is less than an
-   SMS would cost, **When** that SMS is due, **Then** it is cancelled with "Not enough
-   SMS budget left this month"; email and destinations are unaffected, and managers see
-   the budget, what has been spent and what is left on the workflow settings page.
+4. **Given** what is left of the organization's SMS allowance this month is less than the
+   parts an SMS needs, **When** that SMS is due, **Then** it is cancelled with "SMS
+   allowance used up for this month"; email and destinations are unaffected, and managers
+   see the allowance, how much is used and what is left on the workflow settings page.
 5. **Given** the deployment has no Twilio account configured, **Then** phone numbers and
    SMS options are not shown, and the API refuses SMS settings with 422.
-6. **Given** a workflow whose SMS recipients have numbers in countries with different SMS
-   prices, **When** its alert activates, **Then** each SMS counts its own country's price
-   against the budget, and the workflow's settings page shows what one SMS alert to its
-   current recipients costs.
+6. **Given** an alert SMS that needs two parts, **When** Twilio accepts it, **Then** it
+   counts as two SMS against the allowance.
 
 ---
 
@@ -209,7 +212,7 @@ add one.
 **Why this priority**: SMS (User Story 3) reaches no one until people add numbers, and
 nobody has one today. It ships with User Story 3.
 
-**Independent Test**: with Twilio test credentials and an SMS budget above $0, subscribe
+**Independent Test**: with Twilio test credentials and an SMS allowance above 0, subscribe
 a member to a workflow with SMS on and sign in as them. The banner says they receive one
 workflow's alerts by text; adding and verifying a number from it hides the banner. Sign
 in as another member and choose **Not now**: the banner is gone, and with the clock
@@ -217,9 +220,9 @@ moved 14 days on it is back.
 
 **Acceptance Scenarios**:
 
-1. **Given** the deployment has Twilio configured, the organization's SMS budget is above
-   $0, and a member who can view devices has no verified number, **When** they open the
-   portal in that organization, **Then** a banner above the page asks them to add a
+1. **Given** the deployment has Twilio configured, the organization's SMS allowance is
+   above 0, and a member who can view devices has no verified number, **When** they open
+   the portal in that organization, **Then** a banner above the page asks them to add a
    mobile number. If they are an SMS recipient of any of its workflows, it says how many.
    A member whose number is opted out is asked to verify it again instead.
 2. **Given** the banner, **When** the member chooses **Add mobile number**, **Then** the
@@ -229,8 +232,8 @@ moved 14 days on it is back.
    for 14 days. **When** they choose **Don't ask me again**, **Then** it stays hidden
    until a manager adds them as an SMS recipient of another workflow or asks them for a
    number.
-4. **Given** the deployment has no Twilio account, the organization's budget is $0, the
-   member has a verified number that has not opted out, or they cannot view devices,
+4. **Given** the deployment has no Twilio account, the organization's SMS allowance is 0,
+   the member has a verified number that has not opted out, or they cannot view devices,
    **Then** no banner is shown.
 5. **Given** a workflow's settings list SMS recipients with no verified number, **When** a
    manager chooses **Ask them to add a number**, **Then** each of them gets an email with
@@ -242,8 +245,8 @@ moved 14 days on it is back.
 
 - **Alert bursts**: when 100 devices activate one workflow within a minute, each alert
   gets its own deliveries. Messages to one destination are paced under the provider's
-  rate limit so none is rejected or dropped. SMS stops when what is left of the budget
-  cannot pay for the next message.
+  rate limit so none is rejected or dropped. SMS stops when what is left of the
+  allowance cannot cover the next message.
 - **Cleared before sent**: an activation message that has not been sent when the alert
   clears is cancelled on every channel, as email is today.
 - **Lost access or changed choices**: a recipient who leaves the organization, loses
@@ -261,14 +264,15 @@ moved 14 days on it is back.
   the person sees this in their preferences. No SMS goes to it until they verify it
   again.
 - **Verification abuse**: wrong codes are limited to 5 per code, and code requests to 5
-  per person per hour and a deployment-wide hourly cap. Numbers outside the countries
-  the operator allows are refused, which limits SMS pumping fraud. Verification codes
-  belong to a person, not an organization, so they count against no budget; these limits
-  bound what they cost.
-- **Price changes**: when Twilio changes a country's price, SMS sent afterwards count the
-  new price. SMS already sent keep the cost they were counted at.
-- **Long names**: workflow and device names that would push an SMS past two segments are
-  shortened. Names in non-Latin scripts use the shorter Unicode segments.
+  per person per hour and a deployment-wide hourly cap. Numbers outside the US and
+  Canada are refused, which limits SMS pumping fraud. Verification codes belong to a
+  person, not an organization, so they count against no allowance; these limits bound
+  what they cost.
+- **Allowance changes mid-month**: a new allowance applies at once to what is left. SMS
+  already sent stay counted, so lowering it below what is used stops SMS until the next
+  month.
+- **Long names**: workflow and device names that would push an SMS past two parts are
+  shortened. Names in non-Latin scripts make each part shorter (70 characters).
 - **Same number on two accounts**: allowed (for example, a shared duty phone). Each
   account verifies it, and each subscription sends its own SMS.
 - **Several organizations**: a number and the banner choices belong to the person, not an
@@ -361,14 +365,16 @@ moved 14 days on it is back.
 
 #### SMS
 
-- **FR-020**: SMS MUST be available only when the deployment has a Twilio account and
-  sender configured. Without one, SMS options are hidden and the API refuses SMS
-  settings with 422.
-- **FR-021**: A person MUST be able to add one mobile number in international (E.164)
-  format and verify it with a six-digit code valid for 10 minutes. Each code allows 5
-  wrong entries; code requests are limited to 5 per person per hour and by a
-  deployment-wide hourly cap; the operator can limit the allowed country codes. Changing
-  the number requires verifying again, and removing it cancels pending SMS.
+- **FR-020**: SMS MUST be available only when the deployment has a Twilio account and a
+  toll-free number configured. Without them, SMS options are hidden and the API refuses
+  SMS settings with 422.
+- **FR-021**: A person MUST be able to add one US or Canadian mobile number, stored in
+  E.164 format, and verify it with a six-digit code valid for 10 minutes. The platform
+  creates the code and texts it from the toll-free number through Twilio's Messages API.
+  Each code allows 5 wrong entries; code requests are limited to 5 per person per hour
+  and by a deployment-wide hourly cap. Numbers from other countries, including other
+  +1 countries, are refused. Changing the number requires verifying again, and removing
+  it cancels pending SMS.
 - **FR-022**: Personal preferences MUST let a person choose the workflow levels they
   receive by SMS (**Critical**, **Warning**, **Info**, **Cleared**), with **Critical**
   only as the default once a number is verified. **Turn off all** covers every personal
@@ -376,28 +382,23 @@ moved 14 days on it is back.
 - **FR-023**: A subscription MUST let the manager choose which personal channels its
   recipients receive (email, SMS or both). The settings page shows which recipients have
   no verified number or have opted out.
-- **FR-024**: An SMS MUST fit in two segments and contain the severity, workflow name,
-  state and a link to the alert. It is sent from the deployment's configured sender.
-- **FR-025**: Each organization MUST have a monthly SMS budget in US dollars. The
-  deployment sets the default ($0 unless the operator sets one), and platform
-  administrators can change it per organization in the admin app, where they also see
-  what each organization has spent this month. An SMS costs its segments times its
-  country's SMS price, and is sent only if that cost fits in what is left; otherwise it
-  is cancelled with a reason. Concurrent sends MUST NOT overspend the budget. An SMS
-  accepted by Twilio counts its cost, recorded on its delivery; one cancelled or refused
-  before Twilio accepts it costs nothing. Managers see the budget, what has been spent
-  and what is left.
-- **FR-025a**: The deployment MUST keep an SMS price for each country the operator
-  allows, from Twilio's published prices, refreshed at least daily and including carrier
-  fees. Where a country's carriers charge different prices, the highest is used. Platform
-  administrators see each country's price and when it was last refreshed. A country with
-  no known price cannot receive SMS, and the delivery is cancelled with a reason.
+- **FR-024**: An SMS MUST fit in two parts and contain the severity, workflow name,
+  state and a link to the alert. It is sent from the deployment's toll-free number.
+- **FR-025**: Each organization MUST have a monthly SMS allowance: the number of SMS its
+  plan includes. The platform has no plans yet, so the deployment sets the default (0
+  unless the operator sets one) and platform administrators set it per organization in
+  the admin app, where they also see what each organization has used this month. Each
+  part of a message counts as one SMS. An SMS is sent only if its parts fit in what is
+  left; otherwise it is cancelled with a reason. Concurrent sends MUST NOT exceed the
+  allowance. An SMS accepted by Twilio counts, recorded on its delivery; one cancelled or
+  refused before Twilio accepts it counts nothing. Managers see the allowance, how much is
+  used and what is left.
 - **FR-026**: When Twilio refuses a message because the recipient opted out, the number
   MUST be marked opted out and shown to its owner, and no SMS is sent to it until it is
   verified again.
 - **FR-026a**: The portal MUST show a signed-in member a banner above the page, never a
   dialog that blocks it, asking for their mobile number when all of these hold: the
-  deployment has Twilio configured, the current organization's SMS budget is above $0,
+  deployment has Twilio configured, the current organization's SMS allowance is above 0,
   the member can view devices there, they have no verified number or it is opted out,
   and they have not postponed or declined the banner. It says how many of the
   organization's workflows send them SMS, when any do. **Add mobile number** opens the
@@ -415,12 +416,13 @@ moved 14 days on it is back.
 
 - **FR-027**: The OpenAPI description and `packages/api-client` MUST cover destinations,
   the extended subscription, phone verification, SMS preferences, the number banner and
-  requests, the SMS budget and prices, and the extended deliveries list. Existing fields
+  requests, the SMS allowance, and the extended deliveries list. Existing fields
   keep their meaning; user references use integer `user_id`
   ([ADR-013](../../docs/adr/ADR-013-integer-user-ids.md)).
 - **FR-028**: `docs/features/alerts.md`, the `alert-notifications` help article and the
-  deployment docs MUST describe the new channels, including the Twilio settings and the
-  outbound hosts an on-premise deployment must allow (Slack, Power Automate, Twilio).
+  deployment docs MUST describe the new channels, including the Twilio settings, the
+  toll-free verification Twilio requires before the number can send, and the outbound
+  hosts an on-premise deployment must allow (Slack, Power Automate, Twilio).
 
 ### Key Entities
 
@@ -435,15 +437,13 @@ moved 14 days on it is back.
   destination ids.
 - **Delivery**: one message for one alert transition on one channel to one recipient or
   destination, with its attempt history. It extends today's alert email delivery. An SMS
-  delivery also records its segments and counted cost.
+  delivery also records how many SMS it counted.
 - **Incident key**: stable per episode and shared by all of its deliveries.
 - **Channel preferences**: per person, the levels they receive on each personal channel.
 - **Number prompt**: per person, when the banner is postponed until, when they declined
   it, and when a manager last asked them for a number and who.
-- **SMS budget**: per organization, the monthly amount in US dollars and what has been
-  spent this month.
-- **SMS price**: per allowed country, the price of one segment including carrier fees,
-  and when it was last refreshed from Twilio.
+- **SMS allowance**: per organization, the number of SMS a month and how many are used
+  this month.
 
 ## Success Criteria *(mandatory)*
 
@@ -461,9 +461,8 @@ moved 14 days on it is back.
   line, audit entry or page. Tests search all of them for the saved URL.
 - **SC-005**: A person verifies a mobile number in under 2 minutes, and on the pilot a
   real phone receives the SMS for a critical workflow alert.
-- **SC-006**: Tests prove that no SMS is sent beyond an organization's monthly budget,
-  including when SMS are sent concurrently, that each SMS counts its own country's price
-  (a budget that covers ten SMS to one country covers fewer to a pricier one), and that
+- **SC-006**: Tests prove that no SMS is sent beyond an organization's monthly allowance,
+  including when SMS are sent concurrently, that a two-part SMS counts as two, and that
   none is sent for a level the recipient did not choose.
 - **SC-007**: Tests prove that another organization cannot list, use, test, change or
   delete a destination.
@@ -473,20 +472,24 @@ moved 14 days on it is back.
   and portal Playwright tests cover US1 to US5.
 - **SC-010**: A member with no number who is an SMS recipient adds and verifies one from
   the banner in under 2 minutes, and the banner does not return. Tests prove it never
-  shows without Twilio, with a $0 budget, to someone who cannot view devices, or within
-  14 days of **Not now**, and that a manager's request reaches a person at most once in
-  7 days.
+  shows without Twilio, with an allowance of 0, to someone who cannot view devices, or
+  within 14 days of **Not now**, and that a manager's request reaches a person at most
+  once in 7 days.
 
 ## Assumptions
 
-- Twilio is the only SMS provider: one account and sender per deployment, set by the
-  operator in the environment. The platform pays for SMS; organizations do not bring
-  their own accounts in this spec. WhatsApp can later use the same Twilio account's
-  WhatsApp sender.
-- Twilio prices and bills the account in US dollars. Counted costs come from Twilio's
-  published prices, not its invoice, so they can differ slightly (a cheaper carrier than
-  the country's highest, a price change during the month). The budget limits spending;
-  it does not bill organizations. Charging organizations for SMS is later work.
+- Twilio is the only SMS provider: one account and one toll-free number per deployment,
+  set by the operator in the environment, with Twilio's toll-free verification done
+  before SMS is turned on. The platform pays for SMS; organizations do not bring their
+  own accounts in this spec. WhatsApp can later use the same Twilio account's WhatsApp
+  sender.
+- Pricing tiers will include a number of alerts and of SMS per month. Plans, and limits
+  on alerts, are not part of this spec; until the platform has plans, administrators
+  copy each organization's SMS allowance from its plan. The allowance limits sending; it
+  does not bill organizations.
+- Other countries are later work. They need their own sender (often a registered
+  alphanumeric sender ID), and an SMS to a country that costs much more than the US or
+  Canada would have to count as more than one.
 - Teams uses webhooks from the Workflows app; Microsoft retired the Office 365 connector
   webhooks in 2026. Slack uses incoming webhooks. Installing a Slack app (OAuth, a
   channel picker, buttons) is later work.

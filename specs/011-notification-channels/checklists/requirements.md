@@ -36,13 +36,15 @@
   (principle IV). Specs 007 to 010 do the same.
 - Named providers (Twilio, Teams Workflows, Slack incoming webhooks) are product
   decisions the user made, not implementation choices.
-- The SMS limit counts what SMS cost, not how many are sent (clarified 2026-11-06): a
-  monthly budget in US dollars, with each SMS priced by its country (FR-025, FR-025a).
+- Decided 2026-11-06: each organization's plan sets a monthly SMS allowance (FR-025); one
+  Twilio toll-free number sends to US and Canadian numbers only (FR-020, FR-021); the
+  platform sends its own verification codes rather than using Twilio Verify (FR-021).
+  Counting each 160-character part as one SMS is a default chosen without asking.
 - Existing members are asked for a number by a banner and by managers (User Story 5,
   FR-026a, FR-026b; clarified 2026-11-06). Its 14-day **Not now** and the limit of one
   manager request per person per 7 days are defaults chosen without asking.
 - Defaults chosen without asking, to confirm in `/speckit-clarify` if needed: the SMS
-  budget is $0 until an operator or platform administrator sets it (FR-025); severity
+  allowance is 0 until an operator or platform administrator sets it (FR-025); severity
   lives in the subscription rather than each DAG alert action (FR-003); SMS defaults to
   critical only (FR-022); limits of 50 destinations per organization and 10 per
   subscription (FR-011, FR-018).

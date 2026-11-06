@@ -215,8 +215,8 @@
 <main>
 
   <h1>How SMS alerts would work</h1>
-  <p class="lede">A draft for spec 011. SMS is a second personal channel next to email: it uses the same alert path, recipients and retry rules. It adds a verified mobile number, per-person SMS levels and a monthly budget per organization.</p>
-  <p class="meta">Draft · 6 November 2026 · Twilio is the only provider · Nothing here is built yet</p>
+  <p class="lede">A draft for spec 011. SMS is a second personal channel next to email: it uses the same alert path, recipients and retry rules. It adds a verified mobile number, per-person SMS levels and a monthly SMS allowance from each organization's plan.</p>
+  <p class="meta">Draft · 6 November 2026 · One Twilio toll-free number · US and Canadian numbers · Nothing here is built yet</p>
 
   <!-- 1. Overview -->
   <h2>1. Where SMS fits</h2>
@@ -282,7 +282,7 @@
 
       <rect class="box new" x="340" y="268" width="320" height="64" rx="8"/>
       <text class="t new-t" x="356" y="295">DeliverAlertSms</text>
-      <text class="s" x="356" y="314">same checks + number, price, budget</text>
+      <text class="s" x="356" y="314">same checks + number and allowance</text>
 
       <rect class="box new" x="690" y="268" width="290" height="64" rx="8"/>
       <text class="t new-t" x="706" y="295">Destination delivery</text>
@@ -340,34 +340,34 @@
           <p>Everything email checks today (still a member with device view, still on the subscription, workflow not stopped, not already cleared), plus: a verified number, not opted out, the country allowed, and the person's SMS levels include this severity. A failed check cancels the delivery with a reason.</p>
         </li>
         <li>
-          <h3>Write the text (two segments at most)</h3>
-          <p>Long names are shortened so the message never exceeds two segments.</p>
+          <h3>Write the text (two parts at most)</h3>
+          <p>Long names are shortened so the message never needs more than two parts.</p>
           <div class="sms">CRITICAL · Tank 3 high level · Pump house · activated 14:02 · https://portal.example.com/a/7Kq2</div>
         </li>
         <li>
-          <h3>Price it and reserve the budget</h3>
-          <p>Cost = segments × the country's SMS price. Lock the organization's budget row for this month: if what is left covers the cost, add it to spent; otherwise cancel with <em>"Not enough SMS budget left this month"</em>.</p>
+          <h3>Count it and reserve the allowance</h3>
+          <p>Each part counts as one SMS. Lock the organization's allowance row for this month: if what is left covers the parts, add them to used; otherwise cancel with <em>"SMS allowance used up for this month"</em>.</p>
         </li>
         <li>
           <h3>Send through Twilio</h3>
-          <p>From the deployment's sender. Twilio's answer decides the outcome (table below).</p>
+          <p>From the deployment's toll-free number. Twilio's answer decides the outcome (table below).</p>
         </li>
       </ol>
     </div>
 
     <div class="grid" style="align-content:start">
       <div class="card">
-        <h3>Prices <span class="tag new">new</span></h3>
-        <p class="muted">A daily job reads Twilio's prices for each allowed country and keeps one price per segment: the country's most expensive carrier plus carrier fees. A country with no price can't be texted. Platform admins see the table and when each price was refreshed.</p>
+        <h3>Sender <span class="tag new">new</span></h3>
+        <p class="muted" style="margin-bottom:0">One toll-free number for the deployment, verified with Twilio before it can send. It reaches US and Canadian mobile numbers, which are the only ones accepted for now. Other countries need their own sender and cost up to 25 times as much, so they are later work.</p>
       </div>
       <div class="card">
-        <h3>Budget <span class="tag new">new</span></h3>
-        <p class="muted">One row per organization per month (UTC): budget and spent, in US dollars. The row lock makes concurrent sends wait their turn, so a burst can't overspend. Platform admins set each organization's budget; $0 means no SMS.</p>
-        <p class="muted" style="margin-bottom:0"><strong style="color:var(--text)">$20 a month</strong> ≈ <span class="num">1,250</span> one-segment alerts to US or Canadian numbers (≈ $0.016 each), or ≈ <span class="num">47</span> to a country priced at $0.42.</p>
+        <h3>Allowance <span class="tag new">new</span></h3>
+        <p class="muted">The number of SMS the organization's plan includes each month (UTC). One row per organization per month: allowance and used. The row lock makes concurrent sends wait their turn, so a burst can't go over. Until plans exist in the platform, admins enter each organization's allowance; 0 means no SMS.</p>
+        <p class="muted" style="margin-bottom:0">A part is 160 characters, or 70 with non-Latin text. Most alerts fit in one; none take more than two. Each part costs us about <span class="num">$0.012–0.017</span> with carrier fees, so <strong style="color:var(--text)">500 SMS</strong> costs at most about <span class="num">$8.50</span>.</p>
       </div>
       <div class="card">
         <h3>Verification codes</h3>
-        <p class="muted" style="margin-bottom:0">Sent through the same Messages API, but owned by the person, so they count against no organization's budget. 5 wrong tries per code, 5 codes per person per hour, plus a deployment-wide hourly cap and the allowed-country list to stop SMS pumping fraud.</p>
+        <p class="muted" style="margin-bottom:0">Our own six-digit codes, sent from the same toll-free number through the Messages API rather than Twilio Verify, which charges for each verification on top. They belong to the person, so they don't use any organization's allowance. 5 wrong tries per code, 5 codes per person per hour, and a deployment-wide hourly cap.</p>
       </div>
     </div>
   </div>
@@ -375,13 +375,13 @@
   <h3 style="margin-top:22px">What Twilio's answer does</h3>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Twilio says</th><th>Delivery</th><th>Budget</th><th>Also</th></tr></thead>
+      <thead><tr><th>Twilio says</th><th>Delivery</th><th>Allowance</th><th>Also</th></tr></thead>
       <tbody>
-        <tr><td>Accepted</td><td><span class="tag ok">sent</span> with Twilio's message ID</td><td>Cost stays counted</td><td>—</td></tr>
+        <tr><td>Accepted</td><td><span class="tag ok">sent</span> with Twilio's message ID</td><td>Its parts stay counted</td><td>—</td></tr>
         <tr><td>Recipient replied STOP (error 21610)</td><td><span class="tag bad">failed</span>, never retried</td><td>Released</td><td>Number marked opted out; the person sees it and must verify again</td></tr>
         <tr><td>Invalid or not a mobile number</td><td><span class="tag bad">failed</span>, never retried</td><td>Released</td><td>The person is asked to check their number</td></tr>
         <tr><td>Timeout, 429 or 5xx</td><td><span class="tag warn">pending</span>, retried at 10 s, 30 s, 2 min, 10 min</td><td>Released, reserved again on retry</td><td>A timeout after Twilio accepted can cause a duplicate</td></tr>
-        <tr><td>(not sent: budget short)</td><td><span class="tag">cancelled</span></td><td>Nothing counted</td><td>Managers see the budget on the workflow's settings</td></tr>
+        <tr><td>(not sent: allowance used up)</td><td><span class="tag">cancelled</span></td><td>Nothing counted</td><td>Managers see the allowance on the workflow's settings</td></tr>
       </tbody>
     </table>
   </div>
@@ -395,9 +395,8 @@
         <tr><td>Verification codes</td><td><span class="tag new">new</span></td><td>Hashed code, expiry (10 min), wrong tries</td></tr>
         <tr><td>Notification preferences</td><td><span class="tag">extended</span></td><td>Today's email grid, plus SMS levels: Critical (default), Warning, Info, Cleared</td></tr>
         <tr><td>Workflow notification settings</td><td><span class="tag">extended</span></td><td>Plus severity, channels (email, SMS) and destinations; still revisioned</td></tr>
-        <tr><td>Alert deliveries</td><td><span class="tag">extended</span></td><td>Channel <code>sms</code>, segments, cost, Twilio message ID</td></tr>
-        <tr><td>SMS budgets</td><td><span class="tag new">new</span></td><td>Organization, month, budget, spent (USD)</td></tr>
-        <tr><td>SMS prices</td><td><span class="tag new">new</span></td><td>Country, price per segment with carrier fees, refreshed at</td></tr>
+        <tr><td>Alert deliveries</td><td><span class="tag">extended</span></td><td>Channel <code>sms</code>, SMS counted, Twilio message ID</td></tr>
+        <tr><td>SMS allowances</td><td><span class="tag new">new</span></td><td>Organization, month, allowance, used</td></tr>
       </tbody>
     </table>
   </div>
@@ -431,6 +430,7 @@
           <div class="field">
             <label>Mobile number</label>
             <div class="input"><span>🇺🇸 +1</span><span class="muted">|</span><span>201 555 0142</span></div>
+            <span class="muted">US and Canadian mobile numbers</span>
           </div>
           <div class="field">
             <label>Code we texted you</label>
@@ -450,7 +450,7 @@
       <p class="muted">Only when all of these hold, so nobody is nagged about something that can't work:</p>
       <ul class="tight muted">
         <li>The deployment has Twilio set up.</li>
-        <li>The organization's SMS budget is above $0.</li>
+        <li>The organization's SMS allowance is above 0.</li>
         <li>The person can view devices in this organization.</li>
         <li>They have no verified number, or it's opted out.</li>
         <li>They haven't chosen "Not now" in the last 14 days. After "Don't ask me again", it returns only when a manager adds them to another SMS workflow or asks them for a number.</li>
@@ -516,9 +516,9 @@
             <div style="margin-top:8px"><span class="btn">Ask Jordan to add a number</span></div>
           </div>
           <div class="budget">
-            <div style="display:flex;justify-content:space-between"><strong>SMS budget this month</strong><span class="num">$7.60 of $20.00 used</span></div>
+            <div style="display:flex;justify-content:space-between"><strong>SMS this month</strong><span class="num">152 of 400 used</span></div>
             <div class="bar"><i></i></div>
-            <span class="muted">One alert from this workflow costs about $0.03 to its current SMS recipients.</span>
+            <span class="muted">One alert from this workflow uses 1 SMS: one recipient has a number.</span>
           </div>
         </div>
       </div>
@@ -559,30 +559,41 @@
         <tr><td>Channel per workflow</td><td>Always email</td><td>Manager ticks SMS</td></tr>
         <tr><td>Which levels reach me</td><td>My email grid (all on by default)</td><td>My SMS levels (Critical only by default)</td></tr>
         <tr><td>Address</td><td>Account email, verified at sign-up</td><td>Mobile number, verified with a code</td></tr>
-        <tr><td>Cost limit</td><td>None</td><td>Organization's monthly budget</td></tr>
+        <tr><td>Monthly limit</td><td>None</td><td>Organization's SMS allowance, from its plan</td></tr>
         <tr><td>Retries and history</td><td colspan="2">Identical: same backoff, attempt history and manager retry on the alert's deliveries list</td></tr>
       </tbody>
     </table>
   </div>
 
-  <!-- 5. Open questions -->
-  <h2>5. Open questions</h2>
+  <!-- 5. Decisions and open questions -->
+  <h2>5. Decided, and still open</h2>
+  <div class="table-wrap" style="margin-bottom:14px">
+    <table>
+      <thead><tr><th>Decided (6 November)</th><th>What it means</th></tr></thead>
+      <tbody>
+        <tr><td>Our own verification codes</td><td>Sent through the Messages API from the toll-free number; no Twilio Verify fee.</td></tr>
+        <tr><td>One toll-free number</td><td>Texts US and Canadian phones and needs no US 10DLC registration. Twilio must verify it before it sends.</td></tr>
+        <tr><td>SMS limited by plan</td><td>Each pricing tier includes a number of alerts and of SMS. The spec's SMS allowance is the SMS part.</td></tr>
+        <tr><td>Asking for numbers</td><td>The banner and the manager's nudge (User Story 5).</td></tr>
+      </tbody>
+    </table>
+  </div>
   <div class="grid grid-2">
     <div class="card">
-      <h3>Banner timings <span class="tag ok">in the spec</span></h3>
-      <p class="muted" style="margin-bottom:0">The banner and the manager's nudge are User Story 5 (FR-026a, FR-026b). Still to confirm: 14 days for "Not now", and at most one manager request per person a week.</p>
+      <h3>Count parts or messages?</h3>
+      <p class="muted" style="margin-bottom:0">The spec counts each 160-character part as one SMS, which matches what Twilio charges. Counting whole messages is simpler to explain on a pricing page but doubles our cost for a two-part alert.</p>
     </div>
     <div class="card">
-      <h3>Which sender?</h3>
-      <p class="muted" style="margin-bottom:0">One verified toll-free number texts both US and Canadian phones and skips US 10DLC registration. Other countries usually need a registered alphanumeric sender ID, which takes weeks per country.</p>
+      <h3>Plans in the platform</h3>
+      <p class="muted" style="margin-bottom:0">There are no plans in the code yet, so admins type in each organization's allowance. Plans with their alert and SMS limits need a spec of their own.</p>
     </div>
     <div class="card">
-      <h3>Our own codes or Twilio Verify?</h3>
-      <p class="muted" style="margin-bottom:0">Our own codes reuse the Messages API and the limits above. Twilio Verify adds fraud screening but charges per verification on top of the SMS.</p>
+      <h3>Banner timings</h3>
+      <p class="muted" style="margin-bottom:0">14 days for "Not now", and at most one manager request per person a week. Both are defaults to confirm.</p>
     </div>
     <div class="card">
-      <h3>Carrier fees in Twilio's price data</h3>
-      <p class="muted" style="margin-bottom:0">The plan must check whether Twilio's pricing API includes carrier fees. If it doesn't, they come from a small table the operator keeps, so the budget isn't undercounted by 30 to 50% in North America.</p>
+      <h3>Other countries, later</h3>
+      <p class="muted" style="margin-bottom:0">They need a local sender (often a registered alphanumeric ID, weeks per country), and an SMS that costs far more than in North America would have to count as several.</p>
     </div>
   </div>
 
