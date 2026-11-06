@@ -189,7 +189,7 @@ export function createStageScene(
 
   // ---------- The board ----------
   const board = new Group()
-  board.position.set(-3.1, -0.1, 0.5)
+  board.position.set(-3.0, -0.1, -0.6)
   const base = solid(new BoxGeometry(1.5, 0.07, 1.0))
   const chip = solid(new BoxGeometry(0.42, 0.1, 0.42))
   chip.group.position.y = 0.085
@@ -206,14 +206,14 @@ export function createStageScene(
 
   // The firmware starter: a small package that lands on the board and is flashed in.
   const starter = solid(new BoxGeometry(0.3, 0.3, 0.3), 0.8)
-  starter.group.position.set(-3.1, 2.4, 0.5)
+  starter.group.position.set(-3.0, 2.4, -0.6)
   scene.add(starter.group)
 
   // The alarm: a dome beacon on the floor at the front, opposite the phone and clear
   // of the board, which the automation switches on. The dome's only drawn edge is its
   // rim; the fill gives it its shape. Its pulse rings spread over the floor.
   const alarm = new Group()
-  alarm.position.set(-1.7, -0.135, 1.5)
+  alarm.position.set(-2.6, -0.135, 1.9)
   const alarmPlate = solid(new CylinderGeometry(0.34, 0.38, 0.06, 20))
   alarmPlate.group.position.y = 0.03
   const alarmDome = solid(new SphereGeometry(0.28, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), 0.9, 40)
@@ -224,24 +224,39 @@ export function createStageScene(
   alarm.add(alarmPlate.group, alarmDome.group, alarmGlow.group)
   scene.add(alarm)
 
-  // ---------- The platform ----------
+  // ---------- The platform: a small server rack ----------
   const platform = new Group()
-  platform.position.set(0, 0.1, 0)
-  const layers = [-0.3, 0.05, 0.4].map((y, index) => {
-    const layer = solid(new CylinderGeometry(0.95 - index * 0.08, 0.95 - index * 0.08, 0.16, 6))
-    layer.group.position.y = y
-    layer.group.rotation.y = Math.PI / 6
-    platform.add(layer.group)
-    return layer
+  platform.position.set(0, -0.135, -0.3)
+  platform.rotation.y = 0.45
+  // The cabinet is glass: it never hides the units inside and is drawn over them.
+  const cabinet = solid(new BoxGeometry(1.0, 1.75, 0.9), 0.3)
+  cabinet.group.position.y = 0.875
+  cabinet.fill.depthWrite = false
+  for (const child of cabinet.group.children) child.renderOrder = 2
+  platform.add(cabinet.group)
+  const units = [0.25, 0.55, 0.85, 1.15, 1.45].map((y) => {
+    const unit = solid(new BoxGeometry(0.88, 0.2, 0.8))
+    unit.group.position.y = y
+    platform.add(unit.group)
+    return unit
   })
+  // Two small lights on each unit's front, which blink as it works.
+  const lights = units.flatMap((unit, index) =>
+    [0, 1].map((slot) => {
+      const light = solid(new BoxGeometry(0.06, 0.06, 0.03), 0.95)
+      light.group.position.set(-0.34 + slot * 0.1, unit.group.position.y, 0.41)
+      platform.add(light.group)
+      return { light, phase: index * 1.7 + slot * 0.9 }
+    }),
+  )
   const pulseRing = solid(new TorusGeometry(1, 0.02, 8, 48), 0)
   pulseRing.group.rotation.x = Math.PI / 2
-  pulseRing.group.position.y = -0.3
+  pulseRing.group.position.y = 0.02
   platform.add(pulseRing.group)
-  // The automation, once activated: a ring that turns around the platform.
+  // The automation, once activated: a ring that turns around the rack.
   const rule = solid(new TorusGeometry(1.3, 0.022, 8, 64), 0)
   rule.group.rotation.x = Math.PI / 2
-  rule.group.position.y = 0.05
+  rule.group.position.y = 0.04
   platform.add(rule.group)
   scene.add(platform)
 
@@ -266,8 +281,8 @@ export function createStageScene(
   const phoneContext = phoneCanvas.getContext('2d')
   const phoneTexture = new CanvasTexture(phoneCanvas)
   const phone = new Group()
-  phone.position.set(2.9, -0.7, 1.3)
-  phone.rotation.y = -0.4
+  phone.position.set(0.3, -0.45, 1.7)
+  phone.rotation.y = -0.15
   phone.visible = false
   const phoneBody = solid(new BoxGeometry(0.62, 1.24, 0.07))
   const screen = new Mesh(new PlaneGeometry(0.54, 1.12), new MeshBasicMaterial({ map: phoneTexture }))
@@ -283,8 +298,8 @@ export function createStageScene(
   const mailContext = mailCanvas.getContext('2d')
   const mailTexture = new CanvasTexture(mailCanvas)
   const mail = new Group()
-  mail.position.set(1.05, 1.25, -1.5)
-  mail.rotation.y = -0.12
+  mail.position.set(2.6, -0.3, 1.6)
+  mail.rotation.y = -0.35
   mail.visible = false
   const mailPanel = new Mesh(new PlaneGeometry(1.3, 0.82), new MeshBasicMaterial({ map: mailTexture, transparent: true }))
   const mailEdge = new LineBasicMaterial({ transparent: true, opacity: 0.9 })
@@ -293,12 +308,12 @@ export function createStageScene(
 
   // ---------- The flows ----------
   const flowSpecs = [
-    { from: [-2.35, 0.0, 0.5], via: [-1.6, 1.25, 0.3], to: [-0.85, 0.35, 0.15], start: moments.connected, tone: 'brand' },
-    { from: [0.85, 0.35, -0.15], via: [1.5, 1.5, -0.4], to: [1.85, 1.0, -0.55], start: moments.panelAdded, tone: 'brand' },
-    // The automation's command to the alarm, then the email.
-    { from: [-0.4, -0.2, 0.7], via: [-1.1, 0.9, 1.3], to: [-1.7, 0.3, 1.5], start: moments.alarm, tone: 'warning' },
-    { from: [0.6, -0.15, 0.55], via: [1.7, -1.0, 1.1], to: [2.6, -0.65, 1.25], start: moments.phoneIn, tone: 'warning' },
-    { from: [0.5, 0.5, -0.5], via: [0.85, 1.55, -1.0], to: [1.05, 1.15, -1.3], start: moments.mailIn, tone: 'warning' },
+    { from: [-2.25, 0.0, -0.6], via: [-1.5, 1.3, -0.5], to: [-0.6, 0.6, -0.3], start: moments.connected, tone: 'brand' },
+    { from: [0.55, 1.0, -0.3], via: [1.6, 1.8, -0.5], to: [1.85, 1.0, -0.55], start: moments.panelAdded, tone: 'brand' },
+    // The automation's command to the alarm, then the text and the email.
+    { from: [-0.4, 0.2, 0.1], via: [-1.5, 0.9, 1.2], to: [-2.6, 0.3, 1.9], start: moments.alarm, tone: 'warning' },
+    { from: [0.2, 0.3, 0.2], via: [0.5, -0.3, 1.0], to: [0.3, -0.1, 1.4], start: moments.phoneIn, tone: 'warning' },
+    { from: [0.5, 0.4, 0.1], via: [1.7, 0.5, 1.0], to: [2.4, 0.0, 1.5], start: moments.mailIn, tone: 'warning' },
   ] as const
   const PER_FLOW = 26
   const random = seeded(7)
@@ -349,10 +364,14 @@ export function createStageScene(
       tint(mesh.material, palette.fill)
       tint(edges.material, palette.mid)
     }
-    layers.forEach((layer, index) => {
-      tint(layer.fill, mix(palette.fill, [palette.from, palette.mid, palette.to][index], 0.18))
-      tint(layer.edge, [palette.from, palette.mid, palette.to][index])
+    tint(cabinet.fill, palette.fill)
+    tint(cabinet.edge, palette.mid)
+    units.forEach((unit, index) => {
+      const tone = [palette.from, palette.mid, palette.to][index % 3]
+      tint(unit.fill, mix(palette.fill, tone, 0.18))
+      tint(unit.edge, tone)
     })
+    for (const { light } of lights) tint(light.edge, palette.to)
     tint(pulseRing.edge, palette.to)
     tint(panelEdge, palette.mid)
     tint(mailEdge, palette.mid)
@@ -580,17 +599,17 @@ export function createStageScene(
 
   // ---------- Labels ----------
   const anchors: Record<string, Vector3> = {
-    device: new Vector3(-3.1, 0.6, 0.5),
-    platform: new Vector3(0, 1.1, 0),
+    device: new Vector3(-3.0, 0.55, -0.6),
+    platform: new Vector3(0, 1.95, -0.3),
     dashboard: new Vector3(3.0, 2.05, -0.6),
-    alarm: new Vector3(-1.7, -0.5, 1.95),
-    phone: new Vector3(2.9, -1.4, 1.3),
-    mail: new Vector3(1.05, 1.85, -1.5),
+    alarm: new Vector3(-2.6, -0.5, 2.35),
+    phone: new Vector3(0.3, 0.5, 1.7),
+    mail: new Vector3(2.6, 0.45, 1.6),
   }
-  // The text message bubble sits to the phone's lower left, over the empty floor in
-  // front of the platform, its tail at the phone.
+  // The text message bubble sits to the phone's left, over the floor between the alarm
+  // and the phone, its tail at the phone.
   const bubble = host.querySelector<HTMLElement>('[data-bubble]')
-  const bubbleAnchor = new Vector3(2.52, -0.95, 1.3)
+  const bubbleAnchor = new Vector3(-0.08, -0.5, 1.7)
   const labelState = (time: number): Record<string, { state: string; shown: boolean }> => ({
     device: { state: time < moments.connected ? '' : time < moments.online ? 'active' : 'success', shown: true },
     platform: { state: time >= moments.alarm ? 'warning' : time >= moments.connected ? 'active' : '', shown: true },
@@ -619,7 +638,8 @@ export function createStageScene(
     }
     if (bubble) {
       point.copy(bubbleAnchor).project(camera)
-      const x = ((point.x + 1) / 2) * width
+      // Its right edge sits at the anchor, unless that would push it off the left edge.
+      const x = Math.max(bubble.offsetWidth + 8, Math.min(width - 8, ((point.x + 1) / 2) * width))
       const y = ((1 - point.y) / 2) * height
       bubble.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-100%, -50%)`
       bubble.toggleAttribute('data-shown', time >= moments.phoneIn + 700)
@@ -652,7 +672,7 @@ export function createStageScene(
     particleMaterial.uniforms.pixelRatio.value = pixelRatio
     camera.aspect = width / height
     // A narrower frame backs the camera off so the whole bench stays in view.
-    distance = 9.4 * Math.max(1, 1.7 / camera.aspect)
+    distance = 10.2 * Math.max(1, 1.7 / camera.aspect)
     camera.updateProjectionMatrix()
   }
 
@@ -667,7 +687,7 @@ export function createStageScene(
       distance,
     )
     // Aimed a little below the bench, so the picture sits high and leaves the ribbon room.
-    camera.lookAt(0.05, -0.4, 0)
+    camera.lookAt(0.05, -0.25, 0)
 
     // Fade the whole picture out and in around the loop.
     const fade = Math.min(ramp(time, 0, 400), ramp(duration - time, 0, 500))
@@ -685,11 +705,11 @@ export function createStageScene(
     tint(chip.edge, mix(palette.mid, palette.to, glow))
     chip.fill.opacity = 0.92
 
-    // The platform breathes, and rings out at each event.
-    platform.rotation.y = time / 14000
-    layers.forEach((layer, index) => {
-      layer.group.position.y = [-0.3, 0.05, 0.4][index] + 0.02 * Math.sin(time / 1100 + index)
-    })
+    // The rack's lights blink as it works, and it rings out at each event.
+    for (const { light, phase } of lights) {
+      const on = Math.sin(time / 380 + phase) > 0.3
+      tint(light.fill, on ? palette.to : palette.fill)
+    }
     const pulseAt = pulses.filter((moment) => time >= moment && time < moment + 900).at(-1)
     if (pulseAt !== undefined) {
       const progress = ramp(time, pulseAt, 900)
@@ -733,7 +753,7 @@ export function createStageScene(
     const phoneIn = easeOutCubic(ramp(time, moments.phoneIn, 600))
     phone.visible = phoneIn > 0
     phone.scale.setScalar(Math.max(0.001, phoneIn))
-    phone.position.y = -1.1 + 0.6 * phoneIn
+    phone.position.y = -0.85 + 0.4 * phoneIn
     if (phone.visible) drawPhone(time)
     const mailIn = easeOutCubic(ramp(time, moments.mailIn, 500))
     mail.visible = mailIn > 0
