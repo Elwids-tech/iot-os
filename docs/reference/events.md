@@ -39,13 +39,14 @@ needs reconciliation ([incident runbook](../ops/incident-runbook.md)).
 | Consumer | Stream | Does |
 | --- | --- | --- |
 | `devices-control` | `IOT_DEVICE_CONTROL` | Applies activations, deactivations, commands and deployments |
-| `devices-control-inbox` | `IOT_DEVICE_EVENTS` | POSTs each runtime event to Laravel |
+| `devices-control-inbox` | `IOT_DEVICE_EVENTS` | POSTs runtime events to Laravel in ordered batches |
 | `devices-storage` | `IOT_DEVICE_TELEMETRY` | Writes observations, latest values, diagnostics and the committed outbox in one transaction |
 | `workflow-evaluator-v1` | `IOT_COMMITTED_TELEMETRY` | Evaluates geofence rules and DAGs; state, timers, transitions, intents and checkpoint commit together |
 | `committed-demo` (example) | `IOT_COMMITTED_TELEMETRY` | [`cmd/committed-consumer`](../../services/runtime/cmd/committed-consumer), a reference consumer with a file checkpoint |
 
-The first three are push consumers with explicit acknowledgement and one message in
-flight. `GET /internal/status` on the runtime reports consumer health and the
+The first three are push consumers with explicit acknowledgement. `devices-control`
+and `devices-storage` have one message in flight; `devices-control-inbox` has up to
+200 and posts them in batches, in stream order ([ADR-031](../adr/ADR-031-batched-runtime-events.md)). `GET /internal/status` on the runtime reports consumer health and the
 `dead_letters` count.
 
 ## Control messages (Laravel → Go)
@@ -85,10 +86,17 @@ feeds every example through its decoders.
 ## Runtime events (Go → Laravel)
 
 Written to `device_runtime.outbox` with the runtime's own state change, relayed to
-`IOT_DEVICE_EVENTS`, and POSTed to `/api/internal/devices/events`
-([`RuntimeController`](../../apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php)).
-Laravel inserts the event UUID into `device_inbox` (primary key) and ignores
-duplicates, then drops events from older generations, operations or sessions.
+`IOT_DEVICE_EVENTS`, and POSTed in batches of up to 100 to
+`/api/internal/devices/events/batch`
+([`RuntimeController`](../../apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php),
+[`inbox.go`](../../services/runtime/internal/app/inbox.go)). Laravel applies a batch in
+one transaction, each event in its own savepoint, and answers each event with the
+status the single-event endpoint (`/api/internal/devices/events`) would return. An
+event answered 409 or 422 is dead-lettered on its own; any other failure rolls the
+batch back and the runtime sends it again, so events keep their stream order
+([ADR-031](../adr/ADR-031-batched-runtime-events.md)). Laravel inserts the event UUID
+into `device_inbox` (primary key) and ignores duplicates, then drops events from older
+generations, operations or sessions.
 
 | Type | Meaning |
 | --- | --- |

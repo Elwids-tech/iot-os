@@ -182,7 +182,7 @@ func (a *Application) subscribe() error {
 	for _, stream := range []struct {
 		Name, Subject, CapacityEnv string
 		Bytes                      int64
-	}{{"IOT_DEVICE_CONTROL", "iot.control.>", "IOT_NATS_CONTROL_MAX_BYTES", 64 << 20}, {"IOT_DEVICE_EVENTS", "iot.runtime.>", "IOT_NATS_EVENTS_MAX_BYTES", 256 << 20}, {"IOT_DEVICE_TELEMETRY", "iot.telemetry.>", "IOT_NATS_TELEMETRY_MAX_BYTES", 768 << 20}} {
+	}{{"IOT_DEVICE_CONTROL", "iot.control.>", "IOT_NATS_CONTROL_MAX_BYTES", 64 << 20}, {eventsStream, "iot.runtime.>", "IOT_NATS_EVENTS_MAX_BYTES", 256 << 20}, {"IOT_DEVICE_TELEMETRY", "iot.telemetry.>", "IOT_NATS_TELEMETRY_MAX_BYTES", 768 << 20}} {
 		capacity, err := streamCapacity(stream.CapacityEnv, stream.Bytes)
 		if err != nil {
 			return err
@@ -202,13 +202,6 @@ func (a *Application) subscribe() error {
 				return permanent(e)
 			}
 			return a.handleControl(ev)
-		}},
-		{"iot.runtime.>", "devices-control-inbox", func(m *nats.Msg) error {
-			var ev devices.Event
-			if e := storage.Decode(m.Data, &ev); e != nil {
-				return permanent(e)
-			}
-			return a.Control.request(a.ctx, "POST", "/events", ev, nil)
 		}},
 		{"iot.telemetry.>", "devices-storage", func(m *nats.Msg) error {
 			var telemetry devices.Telemetry
@@ -249,5 +242,5 @@ func (a *Application) subscribe() error {
 		}
 		a.subscriptions = append(a.subscriptions, sub)
 	}
-	return nil
+	return a.subscribeInbox()
 }

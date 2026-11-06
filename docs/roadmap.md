@@ -28,12 +28,13 @@ Grouped by area. Links point at the decision or doc that explains the item.
   inside the MQTT callback, holds one global lock and runs as a single instance
   (advisory lock). Measure the ceiling with the simulators, then pipeline it with
   per-device subjects and sharded state.
-- **Batched event delivery.** Runtime events reach Laravel one HTTP request at a
-  time: the `devices-control-inbox` consumer allows one unacknowledged message and
-  posts each event to `/api/internal/devices/events` on its own
-  ([ADR-014](adr/ADR-014-control-plane-data-plane-http-integration.md)). Accept a
-  batch per request, still deduplicated per event in `device_inbox`, so bursts such
-  as a gateway's births or a deploy's presence changes do not queue behind each other.
+- **Runtime outbox relay.** Once a second the relay claims Laravel's control outbox, then
+  publishes runtime events to JetStream one at a time, updating each outbox row on its
+  own. With 500 devices reporting together every 10 s it drains each burst of about 750
+  events in roughly 6 s (p95 3.0 s from write to JetStream, 2026-11-06), so it is the
+  next limit on the runtime → API path now that delivery is batched
+  ([ADR-031](adr/ADR-031-batched-runtime-events.md)). Mark a published batch in one
+  statement and give the control claim its own loop.
 - **Parallel control consumers.** The runtime applies control messages one at a time
   for every organization (`devices-control` with `MaxAckPending(1)`), and acknowledges
   each claimed outbox row with its own request. Acknowledge a claim in one request,
