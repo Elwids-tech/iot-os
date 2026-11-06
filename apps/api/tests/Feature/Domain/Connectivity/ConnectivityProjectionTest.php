@@ -167,6 +167,20 @@ final class ConnectivityProjectionTest extends TestCase
         $this->assertSame(['alert.opened', 'alert.cleared', 'alert.opened', 'alert.stopped'], DB::table('activity_log')->whereIn('subject_uuid', [$alert->uuid, $stopped->uuid])->orderBy('id')->pluck('event')->all());
     }
 
+    public function test_an_episode_arrives_in_the_runtimes_ordered_batches(): void
+    {
+        // The runtime delivers events in stream order, in batches (ADR-031).
+        $device = $this->device('box-2');
+        $events = array_map(fn (string $transition) => ['uuid' => (string) Str::uuid(), 'type' => self::EVENT, 'payload' => $this->payload($this->deviceSubject($device), [$device], $transition)], ['opened', 'cleared']);
+        foreach ($events as $event) {
+            $this->assertProduced(self::EVENT, $event);
+        }
+        $this->withToken(self::TOKEN)->postJson('/api/internal/devices/events/batch', ['events' => $events])
+            ->assertOk()->assertJsonPath('results.0.status', 200)->assertJsonPath('results.1.status', 200);
+        $alert = $this->alert('device:'.$device->uuid.'#1');
+        $this->assertSame(['2026-11-06T10:02:00Z', '2026-11-06T10:30:00Z'], [$alert->activated_at->utc()->toIso8601ZuluString(), $alert->cleared_at->utc()->toIso8601ZuluString()]);
+    }
+
     public function test_offline_alerts_notify_nobody(): void
     {
         $device = $this->device('box-1');
