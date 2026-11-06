@@ -616,6 +616,11 @@ Things that have cost time before. Add to this list when something surprises you
   through apt. That took 30 s on one run and 11 min 40 s on another, which
   pushed the docs job past its 20-minute limit. CI installs the headless shell
   without it.
+- **The Cortex-M7 toolchain download can stall until the job is cancelled.** The
+  Embedded SDK (gcc) job's `apt-get` normally fetches `gcc-arm-none-eabi` in 14 s;
+  twice on 2026-11-06 it printed nothing for 15 minutes, until the job's limit
+  cancelled it. The step now downloads under `timeout` and retries, then installs
+  from the downloaded files, so a kill never interrupts dpkg.
 - **A mocked spec that opens the workspace panel must mock `/help/page`.** Catch-all
   mocks answer `{ data: [] }`, and the panel reads `articles[0]` from the page
   object, so the whole page falls to its error screen. The adapters spec mocks it
