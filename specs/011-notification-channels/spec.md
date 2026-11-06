@@ -67,6 +67,11 @@ reworking it.
   costs, so counting messages lets one recipient there cost as much as 25 in the US.
   Each organization gets a monthly SMS budget in US dollars, and each SMS counts its
   segments times its country's SMS price.
+- Q: Existing members have no mobile number. How are they asked for one? → A: A banner
+  above the page after sign-in, not a pop-up that blocks it, shown only when SMS could
+  reach them. **Not now** hides it for 14 days and **Don't ask me again** until they are
+  added to another SMS workflow or a manager asks. Managers can ask a workflow's SMS
+  recipients with no number to add one. Only the owner can enter and verify a number.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -191,6 +196,48 @@ warning and trigger it again: that person receives no SMS.
    use the new severity; an open episode keeps the severity it activated with, so its
    clear matches.
 
+---
+
+### User Story 5 - Ask members for their mobile number (Priority: P2)
+
+Members who joined before SMS existed have no number, so SMS reaches nobody until they
+add one. After signing in, a member who could receive SMS sees a banner above the page
+asking for their mobile number. It opens the same add-and-verify steps as their
+preferences. A manager can also ask a workflow's SMS recipients who have no number to
+add one.
+
+**Why this priority**: SMS (User Story 3) reaches no one until people add numbers, and
+nobody has one today. It ships with User Story 3.
+
+**Independent Test**: with Twilio test credentials and an SMS budget above $0, subscribe
+a member to a workflow with SMS on and sign in as them. The banner says they receive one
+workflow's alerts by text; adding and verifying a number from it hides the banner. Sign
+in as another member and choose **Not now**: the banner is gone, and with the clock
+moved 14 days on it is back.
+
+**Acceptance Scenarios**:
+
+1. **Given** the deployment has Twilio configured, the organization's SMS budget is above
+   $0, and a member who can view devices has no verified number, **When** they open the
+   portal in that organization, **Then** a banner above the page asks them to add a
+   mobile number. If they are an SMS recipient of any of its workflows, it says how many.
+   A member whose number is opted out is asked to verify it again instead.
+2. **Given** the banner, **When** the member chooses **Add mobile number**, **Then** the
+   steps of their preferences open (number, code, SMS levels with **Critical** ticked),
+   and once the number is verified the banner disappears in every organization.
+3. **Given** the banner, **When** the member chooses **Not now**, **Then** it stays hidden
+   for 14 days. **When** they choose **Don't ask me again**, **Then** it stays hidden
+   until a manager adds them as an SMS recipient of another workflow or asks them for a
+   number.
+4. **Given** the deployment has no Twilio account, the organization's budget is $0, the
+   member has a verified number that has not opted out, or they cannot view devices,
+   **Then** no banner is shown.
+5. **Given** a workflow's settings list SMS recipients with no verified number, **When** a
+   manager chooses **Ask them to add a number**, **Then** each of them gets an email with
+   a link to the add-number steps and sees the banner again at their next visit, whatever
+   they chose before. A person is asked at most once in 7 days, however many managers or
+   workflows ask, and the settings page shows when each was last asked.
+
 ### Edge Cases
 
 - **Alert bursts**: when 100 devices activate one workflow within a minute, each alert
@@ -224,6 +271,14 @@ warning and trigger it again: that person receives no SMS.
   shortened. Names in non-Latin scripts use the shorter Unicode segments.
 - **Same number on two accounts**: allowed (for example, a shared duty phone). Each
   account verifies it, and each subscription sends its own SMS.
+- **Several organizations**: a number and the banner choices belong to the person, not an
+  organization. Verifying in one organization stops the banner in all of them, and a
+  person sees it only in organizations where it applies.
+- **Asked with emails turned off**: a manager's request is not emailed to someone who
+  turned off all emails; the banner still returns for them.
+- **Unverified number pending**: a person who asked for a code but did not enter it has
+  no verified number, so the banner still shows; it resumes at the code step while the
+  code is valid.
 - **Destinations only**: a subscription may be enabled with destinations and no
   recipients. Enabling it with neither is refused with 422.
 - **Service and watchdog alerts**: unchanged; they still go to the operator by email.
@@ -340,13 +395,29 @@ warning and trigger it again: that person receives no SMS.
 - **FR-026**: When Twilio refuses a message because the recipient opted out, the number
   MUST be marked opted out and shown to its owner, and no SMS is sent to it until it is
   verified again.
+- **FR-026a**: The portal MUST show a signed-in member a banner above the page, never a
+  dialog that blocks it, asking for their mobile number when all of these hold: the
+  deployment has Twilio configured, the current organization's SMS budget is above $0,
+  the member can view devices there, they have no verified number or it is opted out,
+  and they have not postponed or declined the banner. It says how many of the
+  organization's workflows send them SMS, when any do. **Add mobile number** opens the
+  steps of FR-021 and FR-022; **Not now** hides it for 14 days; **Don't ask me again**
+  hides it until they are added as an SMS recipient of a workflow or a manager asks them
+  (FR-026b). These choices belong to the person, across organizations.
+- **FR-026b**: On a workflow's notification settings, a manager MUST be able to ask its
+  SMS recipients who have no verified number, or an opted-out one, to add a number. Each
+  gets an email linking to the add-number steps, unless they turned off all emails, and
+  the banner returns for them whatever they chose before. A person is asked at most once
+  in 7 days, whoever asks; the page shows when each was last asked. Managers cannot
+  enter or change another person's number.
 
 #### Contracts and documentation
 
 - **FR-027**: The OpenAPI description and `packages/api-client` MUST cover destinations,
-  the extended subscription, phone verification, SMS preferences, the SMS budget and
-  prices, and the extended deliveries list. Existing fields keep their meaning; user
-  references use integer `user_id` ([ADR-013](../../docs/adr/ADR-013-integer-user-ids.md)).
+  the extended subscription, phone verification, SMS preferences, the number banner and
+  requests, the SMS budget and prices, and the extended deliveries list. Existing fields
+  keep their meaning; user references use integer `user_id`
+  ([ADR-013](../../docs/adr/ADR-013-integer-user-ids.md)).
 - **FR-028**: `docs/features/alerts.md`, the `alert-notifications` help article and the
   deployment docs MUST describe the new channels, including the Twilio settings and the
   outbound hosts an on-premise deployment must allow (Slack, Power Automate, Twilio).
@@ -367,6 +438,8 @@ warning and trigger it again: that person receives no SMS.
   delivery also records its segments and counted cost.
 - **Incident key**: stable per episode and shared by all of its deliveries.
 - **Channel preferences**: per person, the levels they receive on each personal channel.
+- **Number prompt**: per person, when the banner is postponed until, when they declined
+  it, and when a manager last asked them for a number and who.
 - **SMS budget**: per organization, the monthly amount in US dollars and what has been
   spent this month.
 - **SMS price**: per allowed country, the price of one segment including carrier fees,
@@ -397,7 +470,12 @@ warning and trigger it again: that person receives no SMS.
 - **SC-008**: The plan's data model shows WhatsApp and PagerDuty as additions that change
   no existing subscription, destination or delivery record.
 - **SC-009**: API tests for every acceptance scenario and edge case pass on PostgreSQL,
-  and portal Playwright tests cover US1 to US4.
+  and portal Playwright tests cover US1 to US5.
+- **SC-010**: A member with no number who is an SMS recipient adds and verifies one from
+  the banner in under 2 minutes, and the banner does not return. Tests prove it never
+  shows without Twilio, with a $0 budget, to someone who cannot view devices, or within
+  14 days of **Not now**, and that a manager's request reaches a person at most once in
+  7 days.
 
 ## Assumptions
 
@@ -425,4 +503,6 @@ warning and trigger it again: that person receives no SMS.
 - The Alerts inbox workflow filter and the dashboard alert picker still list only
   geofence workflows; that stays with the roadmap item "Retire workflow v1".
 - Messages are in English. Recipient limits stay at 20 per workflow.
+- Asking for a mobile number when someone accepts an invitation is later work; the
+  banner covers new members until then.
 - Delivery history is kept as long as the alert it belongs to.

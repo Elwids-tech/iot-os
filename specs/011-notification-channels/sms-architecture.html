@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMS Alerts Architecture</title>
+<style>
+  :root {
+    --bg: #f6f6f4;
+    --surface: #ffffff;
+    --surface-2: #f1f2f4;
+    --text: #1b1d21;
+    --muted: #5b616c;
+    --border: #dcdee2;
+    --line: #8a909a;
+    --new: #2457d6;
+    --new-soft: #e9effd;
+    --ok: #157a3c;
+    --ok-soft: #e6f4ea;
+    --warn: #a35a06;
+    --warn-soft: #fdf1e2;
+    --bad: #b42323;
+    --bad-soft: #fbe9e9;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115;
+      --surface: #171a20;
+      --surface-2: #1e222a;
+      --text: #e7e9ee;
+      --muted: #9aa1ad;
+      --border: #2b3039;
+      --line: #6f7681;
+      --new: #86a8ff;
+      --new-soft: #1b2643;
+      --ok: #6fd08f;
+      --ok-soft: #15291c;
+      --warn: #f0b35e;
+      --warn-soft: #2e2213;
+      --bad: #f08a8a;
+      --bad-soft: #2f1717;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115;
+    --surface: #171a20;
+    --surface-2: #1e222a;
+    --text: #e7e9ee;
+    --muted: #9aa1ad;
+    --border: #2b3039;
+    --line: #6f7681;
+    --new: #86a8ff;
+    --new-soft: #1b2643;
+    --ok: #6fd08f;
+    --ok-soft: #15291c;
+    --warn: #f0b35e;
+    --warn-soft: #2e2213;
+    --bad: #f08a8a;
+    --bad-soft: #2f1717;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: 40px 16px 80px; }
+  h1 { font-size: 28px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; margin: 56px 0 6px; letter-spacing: -0.005em; }
+  h3 { font-size: 15px; margin: 0 0 6px; }
+  p { margin: 0 0 12px; }
+  .lede { color: var(--muted); max-width: 72ch; }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .section-lede { color: var(--muted); margin-bottom: 18px; max-width: 76ch; }
+  code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  .grid { display: grid; gap: 14px; }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  .tag {
+    display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .02em;
+    padding: 2px 8px; border-radius: 999px; vertical-align: 2px;
+    background: var(--surface-2); color: var(--muted); border: 1px solid var(--border);
+  }
+  .tag.new { background: var(--new-soft); color: var(--new); border-color: transparent; }
+  .tag.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .tag.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+
+  /* Diagram */
+  figure { margin: 0; }
+  .diagram { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .diagram svg { display: block; min-width: 760px; width: 100%; height: auto; }
+  svg .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+  svg .box.new { fill: var(--new-soft); stroke: var(--new); stroke-width: 1.6; }
+  svg .box.ext { fill: var(--surface-2); stroke: var(--border); stroke-dasharray: 4 3; }
+  svg .t { fill: var(--text); font: 600 13px ui-sans-serif, system-ui, sans-serif; }
+  svg .s { fill: var(--muted); font: 11.5px ui-sans-serif, system-ui, sans-serif; }
+  svg .new-t { fill: var(--new); }
+  svg .wire { stroke: var(--line); stroke-width: 1.4; fill: none; }
+  svg .wire.new { stroke: var(--new); }
+  svg .arrow { fill: var(--line); }
+  svg .arrow-new { fill: var(--new); }
+  svg .band { fill: var(--surface-2); }
+  svg .band-label { fill: var(--muted); font: 600 10.5px ui-sans-serif, system-ui, sans-serif; letter-spacing: .08em; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 14px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1.4px solid var(--line); background: var(--surface); }
+  .legend .l-new::before { border-color: var(--new); background: var(--new-soft); }
+  .legend .l-ext::before { border-style: dashed; border-color: var(--line); background: var(--surface-2); }
+
+  /* Steps */
+  ol.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+  ol.steps > li {
+    counter-increment: s; position: relative; padding: 0 0 18px 44px;
+  }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: 0;
+    width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--new-soft); color: var(--new); font-weight: 700; font-size: 13px;
+  }
+  ol.steps > li::after {
+    content: ""; position: absolute; left: 13.5px; top: 32px; bottom: 4px; width: 1px; background: var(--border);
+  }
+  ol.steps > li:last-child::after { display: none; }
+  ol.steps p { color: var(--muted); margin: 2px 0 0; }
+  .sms {
+    font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px 14px 14px 4px;
+    padding: 10px 12px; margin-top: 8px; max-width: 460px; color: var(--text);
+  }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+  tr:last-child td { border-bottom: 0; }
+
+  /* Mockups */
+  .mock-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 8px; }
+  .mock { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .mock-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+  .mock-head .dot { width: 22px; height: 22px; border-radius: 6px; background: var(--surface-2); }
+  .banner {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 12px 14px; background: var(--new-soft); border-bottom: 1px solid var(--border); font-size: 14px;
+  }
+  .banner .msg { flex: 1 1 260px; }
+  .banner .msg strong { display: block; }
+  .banner .msg span { color: var(--muted); font-size: 13px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px;
+    border-radius: 7px; font-size: 13px; font-weight: 600; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); white-space: nowrap;
+  }
+  .btn.primary { background: var(--new); border-color: var(--new); color: #fff; }
+  :root[data-theme="dark"] .btn.primary { color: #0f1115; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0f1115; } }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .mock-body { padding: 16px; }
+  .page-skeleton { display: grid; gap: 8px; }
+  .page-skeleton i { display: block; height: 10px; border-radius: 4px; background: var(--surface-2); }
+  .field { display: grid; gap: 6px; margin-bottom: 12px; font-size: 13px; }
+  .field label { font-weight: 600; }
+  .input {
+    display: flex; align-items: center; height: 34px; border: 1px solid var(--border); border-radius: 7px;
+    padding: 0 10px; font-size: 13px; background: var(--surface); color: var(--text); gap: 8px;
+  }
+  .input .muted { color: var(--muted); }
+  .otp { display: flex; gap: 6px; }
+  .otp b { width: 34px; height: 40px; border: 1px solid var(--border); border-radius: 7px; display: grid; place-items: center; font-size: 16px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; }
+  .box-ck { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 11px; line-height: 1; }
+  .box-ck.on { background: var(--new); border-color: var(--new); color: #fff; }
+  .stepper { display: flex; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 14px; flex-wrap: wrap; }
+  .stepper span { padding: 3px 9px; border-radius: 999px; background: var(--surface-2); }
+  .stepper span.on { background: var(--new-soft); color: var(--new); font-weight: 600; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .row:last-child { border-bottom: 0; }
+  .row .who { display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--muted); }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; font-size: 12px; }
+  .seg span { padding: 5px 10px; border-right: 1px solid var(--border); }
+  .seg span:last-child { border-right: 0; }
+  .seg span.on { background: var(--new-soft); color: var(--new); font-weight: 600; }
+  .budget { display: grid; gap: 6px; font-size: 13px; padding: 12px; background: var(--surface-2); border-radius: 8px; margin-top: 12px; }
+  .bar { height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 38%; background: var(--new); }
+  .pgrid { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pgrid th, .pgrid td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: center; background: none; }
+  .pgrid th:first-child, .pgrid td:first-child { text-align: left; }
+  .pgrid tr:last-child td { border-bottom: 0; }
+  .pgrid .box-ck { margin: 0 auto; }
+
+  .callout { border-left: 3px solid var(--new); background: var(--surface); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 14px 0; }
+  .callout p:last-child { margin-bottom: 0; }
+  ul.tight { margin: 6px 0 0; padding-left: 18px; }
+  ul.tight li { margin: 3px 0; }
+  .muted { color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>How SMS alerts would work</h1>
+  <p class="lede">A draft for spec 011. SMS is a second personal channel next to email: it uses the same alert path, recipients and retry rules. It adds a verified mobile number, per-person SMS levels and a monthly budget per organization.</p>
+  <p class="meta">Draft · 6 November 2026 · Twilio is the only provider · Nothing here is built yet</p>
+
+  <!-- 1. Overview -->
+  <h2>1. Where SMS fits</h2>
+  <p class="section-lede">An alert reaches the API the way it does today. In the same database transaction, the alert projector creates one delivery per recipient and channel, and one per Teams or Slack destination. Each delivery is a queued job. SMS adds a new job beside the email job; nothing upstream changes.</p>
+
+  <figure class="diagram" aria-label="Architecture diagram: an alert travels from the device through the runtime and API to one queued job per channel; the SMS job sends through Twilio to the member's phone.">
+    <svg viewBox="0 0 1000 500" role="img">
+      <defs>
+        <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow"/></marker>
+        <marker id="an" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-new"/></marker>
+      </defs>
+
+      <!-- bands -->
+      <text class="band-label" x="20" y="14">DETECT</text>
+      <text class="band-label" x="20" y="122">RECORD (ONE TRANSACTION)</text>
+      <text class="band-label" x="20" y="242">DELIVER</text>
+
+      <!-- Row A -->
+      <rect class="box" x="20" y="22" width="160" height="64" rx="8"/>
+      <text class="t" x="36" y="49">Device / gateway</text>
+      <text class="s" x="36" y="68">Sparkplug or HTTP</text>
+
+      <rect class="box" x="220" y="22" width="180" height="64" rx="8"/>
+      <text class="t" x="236" y="49">Go runtime</text>
+      <text class="s" x="236" y="68">rules and DAG workflows</text>
+
+      <rect class="box" x="440" y="22" width="170" height="64" rx="8"/>
+      <text class="t" x="456" y="49">NATS JetStream</text>
+      <text class="s" x="456" y="68">durable alert events</text>
+
+      <rect class="box" x="650" y="22" width="330" height="64" rx="8"/>
+      <text class="t" x="666" y="49">API runtime event endpoint</text>
+      <text class="s" x="666" y="68">inbox de-duplication, workflow lock</text>
+
+      <path class="wire" d="M180 54 H218" marker-end="url(#a)"/>
+      <path class="wire" d="M400 54 H438" marker-end="url(#a)"/>
+      <path class="wire" d="M610 54 H648" marker-end="url(#a)"/>
+
+      <!-- Row B -->
+      <rect class="box" x="650" y="130" width="330" height="72" rx="8"/>
+      <text class="t" x="666" y="156">AlertProjector</text>
+      <text class="s" x="666" y="175">alert, episode, severity, incident key</text>
+      <text class="s" x="666" y="192">also the bell copy (spec 022)</text>
+      <path class="wire" d="M815 86 V128" marker-end="url(#a)"/>
+
+      <rect class="box new" x="220" y="130" width="390" height="72" rx="8"/>
+      <text class="t" x="236" y="156">Deliveries + jobs on the <tspan font-family="ui-monospace, Menlo, monospace">alerts</tspan> queue</text>
+      <text class="s" x="236" y="175">one per recipient × channel (email, SMS)</text>
+      <text class="s" x="236" y="192">one per destination (Teams, Slack)</text>
+      <path class="wire" d="M650 166 H612" marker-end="url(#a)"/>
+
+      <!-- fan out -->
+      <path class="wire" d="M415 202 V226"/>
+      <path class="wire" d="M165 226 H835"/>
+      <path class="wire" d="M165 226 V266" marker-end="url(#a)"/>
+      <path class="wire new" d="M500 226 V266" marker-end="url(#an)"/>
+      <path class="wire new" d="M835 226 V266" marker-end="url(#an)"/>
+
+      <!-- Row C: workers -->
+      <rect class="box" x="20" y="268" width="290" height="64" rx="8"/>
+      <text class="t" x="36" y="295">DeliverAlertEmail</text>
+      <text class="s" x="36" y="314">today: checks, then mail</text>
+
+      <rect class="box new" x="340" y="268" width="320" height="64" rx="8"/>
+      <text class="t new-t" x="356" y="295">DeliverAlertSms</text>
+      <text class="s" x="356" y="314">same checks + number, price, budget</text>
+
+      <rect class="box new" x="690" y="268" width="290" height="64" rx="8"/>
+      <text class="t new-t" x="706" y="295">Destination delivery</text>
+      <text class="s" x="706" y="314">paced per webhook (spec 011)</text>
+
+      <!-- Row D: providers -->
+      <path class="wire" d="M165 332 V360" marker-end="url(#a)"/>
+      <path class="wire new" d="M500 332 V360" marker-end="url(#an)"/>
+      <path class="wire new" d="M835 332 V360" marker-end="url(#an)"/>
+
+      <rect class="box ext" x="20" y="362" width="290" height="52" rx="8"/>
+      <text class="t" x="36" y="386">Mail provider (SMTP)</text>
+      <text class="s" x="36" y="403">deployment's mailer</text>
+
+      <rect class="box ext" x="340" y="362" width="320" height="52" rx="8"/>
+      <text class="t" x="356" y="386">Twilio Messages API</text>
+      <text class="s" x="356" y="403">accepts, or refuses: opted out, invalid number</text>
+
+      <rect class="box ext" x="690" y="362" width="290" height="52" rx="8"/>
+      <text class="t" x="706" y="386">Teams / Slack webhooks</text>
+      <text class="s" x="706" y="403">Workflows app, incoming webhook</text>
+
+      <!-- Row E: people -->
+      <path class="wire" d="M165 414 V440" marker-end="url(#a)"/>
+      <path class="wire new" d="M500 414 V440" marker-end="url(#an)"/>
+      <path class="wire new" d="M835 414 V440" marker-end="url(#an)"/>
+
+      <rect class="box" x="20" y="442" width="290" height="44" rx="8"/>
+      <text class="t" x="36" y="469">Member's inbox</text>
+      <rect class="box new" x="340" y="442" width="320" height="44" rx="8"/>
+      <text class="t" x="356" y="469">Member's phone</text>
+      <rect class="box" x="690" y="442" width="290" height="44" rx="8"/>
+      <text class="t" x="706" y="469">Team's channel</text>
+    </svg>
+  </figure>
+  <div class="legend"><span>Exists today</span><span class="l-new">New in spec 011</span><span class="l-ext">Outside service</span></div>
+
+  <div class="callout">
+    <p><strong>Why a job per channel:</strong> email and SMS succeed or fail on their own. A Twilio outage retries only the SMS deliveries, and an email bounce never blocks a text. It is the same pattern as <code>DeliverAlertEmail</code> today: the row is created in the alert's transaction, so a crash between "alert recorded" and "message queued" cannot lose a message.</p>
+  </div>
+
+  <!-- 2. One SMS -->
+  <h2>2. One SMS, step by step</h2>
+  <p class="section-lede">What the new <code>DeliverAlertSms</code> job does for one recipient. Steps 2 to 4 run under a row lock on the delivery, as the email job does.</p>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <ol class="steps">
+        <li>
+          <h3>Delivery created</h3>
+          <p>Only for recipients the workflow sends SMS to. Status <span class="tag">pending</span>, queued on <code>alerts</code> in the alert's transaction.</p>
+        </li>
+        <li>
+          <h3>Checks, repeated before every attempt</h3>
+          <p>Everything email checks today (still a member with device view, still on the subscription, workflow not stopped, not already cleared), plus: a verified number, not opted out, the country allowed, and the person's SMS levels include this severity. A failed check cancels the delivery with a reason.</p>
+        </li>
+        <li>
+          <h3>Write the text (two segments at most)</h3>
+          <p>Long names are shortened so the message never exceeds two segments.</p>
+          <div class="sms">CRITICAL · Tank 3 high level · Pump house · activated 14:02 · https://portal.example.com/a/7Kq2</div>
+        </li>
+        <li>
+          <h3>Price it and reserve the budget</h3>
+          <p>Cost = segments × the country's SMS price. Lock the organization's budget row for this month: if what is left covers the cost, add it to spent; otherwise cancel with <em>"Not enough SMS budget left this month"</em>.</p>
+        </li>
+        <li>
+          <h3>Send through Twilio</h3>
+          <p>From the deployment's sender. Twilio's answer decides the outcome (table below).</p>
+        </li>
+      </ol>
+    </div>
+
+    <div class="grid" style="align-content:start">
+      <div class="card">
+        <h3>Prices <span class="tag new">new</span></h3>
+        <p class="muted">A daily job reads Twilio's prices for each allowed country and keeps one price per segment: the country's most expensive carrier plus carrier fees. A country with no price can't be texted. Platform admins see the table and when each price was refreshed.</p>
+      </div>
+      <div class="card">
+        <h3>Budget <span class="tag new">new</span></h3>
+        <p class="muted">One row per organization per month (UTC): budget and spent, in US dollars. The row lock makes concurrent sends wait their turn, so a burst can't overspend. Platform admins set each organization's budget; $0 means no SMS.</p>
+        <p class="muted" style="margin-bottom:0"><strong style="color:var(--text)">$20 a month</strong> ≈ <span class="num">1,250</span> one-segment alerts to US or Canadian numbers (≈ $0.016 each), or ≈ <span class="num">47</span> to a country priced at $0.42.</p>
+      </div>
+      <div class="card">
+        <h3>Verification codes</h3>
+        <p class="muted" style="margin-bottom:0">Sent through the same Messages API, but owned by the person, so they count against no organization's budget. 5 wrong tries per code, 5 codes per person per hour, plus a deployment-wide hourly cap and the allowed-country list to stop SMS pumping fraud.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:22px">What Twilio's answer does</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Twilio says</th><th>Delivery</th><th>Budget</th><th>Also</th></tr></thead>
+      <tbody>
+        <tr><td>Accepted</td><td><span class="tag ok">sent</span> with Twilio's message ID</td><td>Cost stays counted</td><td>—</td></tr>
+        <tr><td>Recipient replied STOP (error 21610)</td><td><span class="tag bad">failed</span>, never retried</td><td>Released</td><td>Number marked opted out; the person sees it and must verify again</td></tr>
+        <tr><td>Invalid or not a mobile number</td><td><span class="tag bad">failed</span>, never retried</td><td>Released</td><td>The person is asked to check their number</td></tr>
+        <tr><td>Timeout, 429 or 5xx</td><td><span class="tag warn">pending</span>, retried at 10 s, 30 s, 2 min, 10 min</td><td>Released, reserved again on retry</td><td>A timeout after Twilio accepted can cause a duplicate</td></tr>
+        <tr><td>(not sent: budget short)</td><td><span class="tag">cancelled</span></td><td>Nothing counted</td><td>Managers see the budget on the workflow's settings</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:22px">What gets stored</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Data</th><th></th><th>Holds</th></tr></thead>
+      <tbody>
+        <tr><td>Mobile number (contact point)</td><td><span class="tag new">new</span></td><td>E.164 number, verified at, opted out at, one per person</td></tr>
+        <tr><td>Verification codes</td><td><span class="tag new">new</span></td><td>Hashed code, expiry (10 min), wrong tries</td></tr>
+        <tr><td>Notification preferences</td><td><span class="tag">extended</span></td><td>Today's email grid, plus SMS levels: Critical (default), Warning, Info, Cleared</td></tr>
+        <tr><td>Workflow notification settings</td><td><span class="tag">extended</span></td><td>Plus severity, channels (email, SMS) and destinations; still revisioned</td></tr>
+        <tr><td>Alert deliveries</td><td><span class="tag">extended</span></td><td>Channel <code>sms</code>, segments, cost, Twilio message ID</td></tr>
+        <tr><td>SMS budgets</td><td><span class="tag new">new</span></td><td>Organization, month, budget, spent (USD)</td></tr>
+        <tr><td>SMS prices</td><td><span class="tag new">new</span></td><td>Country, price per segment with carrier fees, refreshed at</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 3. Phone numbers -->
+  <h2>3. Getting numbers from existing members</h2>
+  <p class="section-lede">Nobody has a phone number today, and SMS does nothing until people add one. There are three ways in. The main one is a banner after sign-in; managers can also nudge the recipients of a workflow.</p>
+
+  <div class="grid grid-2">
+    <div>
+      <p class="mock-label">A · Banner after sign-in</p>
+      <div class="mock">
+        <div class="mock-head"><span class="dot"></span>Overview</div>
+        <div class="banner">
+          <div class="msg">
+            <strong>You're a recipient of 3 workflows that send critical alerts by text</strong>
+            <span>Add your mobile number to get them on your phone.</span>
+          </div>
+          <div style="display:flex;gap:6px"><span class="btn primary">Add mobile number</span><span class="btn ghost">Not now</span></div>
+        </div>
+        <div class="mock-body page-skeleton"><i style="width:40%"></i><i></i><i style="width:85%"></i><i style="width:70%"></i></div>
+      </div>
+      <p class="muted" style="font-size:13px;margin-top:10px">It sits where the runtime status banner sits today, above the page. Someone who isn't a recipient of any SMS workflow sees a softer line: "Get critical alerts by text message."</p>
+    </div>
+
+    <div>
+      <p class="mock-label">Add mobile number (dialog)</p>
+      <div class="mock">
+        <div class="mock-body">
+          <div class="stepper"><span>1 Number</span><span class="on">2 Code</span><span>3 Alerts</span></div>
+          <div class="field">
+            <label>Mobile number</label>
+            <div class="input"><span>🇺🇸 +1</span><span class="muted">|</span><span>201 555 0142</span></div>
+          </div>
+          <div class="field">
+            <label>Code we texted you</label>
+            <div class="otp"><b>4</b><b>8</b><b>1</b><b></b><b></b><b></b></div>
+            <span class="muted">Expires in 9:41 · <u>Send a new code</u></span>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end"><span class="btn">Back</span><span class="btn primary">Verify</span></div>
+        </div>
+      </div>
+      <p class="muted" style="font-size:13px;margin-top:10px">Step 3 asks which levels to text; Critical only is ticked. The dialog ends with "Don't ask me again" for people who will never want texts.</p>
+    </div>
+  </div>
+
+  <div class="grid grid-2" style="margin-top:14px">
+    <div class="card">
+      <h3>Who sees the banner</h3>
+      <p class="muted">Only when all of these hold, so nobody is nagged about something that can't work:</p>
+      <ul class="tight muted">
+        <li>The deployment has Twilio set up.</li>
+        <li>The organization's SMS budget is above $0.</li>
+        <li>The person can view devices in this organization.</li>
+        <li>They have no verified number, or it's opted out.</li>
+        <li>They haven't chosen "Not now" in the last 14 days. After "Don't ask me again", it returns only when a manager adds them to another SMS workflow or asks them for a number.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Why a banner, not a pop-up</h3>
+      <ul class="tight muted">
+        <li>People often sign in from an alert email to act on it. A pop-up gets in the way at the worst moment.</li>
+        <li>Verifying needs the phone in hand. A pop-up they can't finish now is closed and forgotten; a banner waits.</li>
+        <li>It reuses the portal's existing banner slot, with no new layer over the page.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid grid-3" style="margin-top:14px">
+    <div class="card">
+      <h3>B · Manager's nudge</h3>
+      <p class="muted" style="margin-bottom:0">On a workflow's settings, recipients without a number show <span class="tag warn">No number</span>. <strong style="color:var(--text)">Ask them to add one</strong> emails each one a link to the same dialog and brings their banner back, even after "Don't ask me again". At most once per person a week.</p>
+    </div>
+    <div class="card">
+      <h3>C · Preferences</h3>
+      <p class="muted" style="margin-bottom:0">Any time, under <strong style="color:var(--text)">Settings → Notification preferences</strong> (today's Email preferences, renamed). Change or remove the number there too.</p>
+    </div>
+    <div class="card">
+      <h3>D · New members (later)</h3>
+      <p class="muted" style="margin-bottom:0">An optional "mobile number for alerts" step when someone accepts an invitation. Skippable; the banner covers anyone who skips it.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p><strong>A manager can't type in someone else's number.</strong> Only the owner can add it, because it must be verified with a code sent to that phone. That keeps texts from going to a wrong or unwilling number and is what carriers expect for consent.</p>
+  </div>
+
+  <!-- 4. Alert configuration -->
+  <h2>4. Setting up alerts, the same way as email</h2>
+  <p class="section-lede">Two layers, like email today: a manager decides who a workflow alerts and on which channels; each person decides which levels reach them. A person gets an SMS only when both layers say yes.</p>
+
+  <div class="grid grid-2">
+    <div>
+      <p class="mock-label">Manager · Settings → Notifications → workflow</p>
+      <div class="mock">
+        <div class="mock-body">
+          <div class="field">
+            <label>Severity</label>
+            <div class="seg"><span class="on">Critical</span><span>Warning</span><span>Info</span></div>
+          </div>
+          <div class="field">
+            <label>Send by</label>
+            <div style="display:flex;gap:16px">
+              <span class="check"><span class="box-ck on">✓</span>Email</span>
+              <span class="check"><span class="box-ck on">✓</span>SMS</span>
+              <span class="check"><span class="box-ck on">✓</span>Recovery when it clears</span>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Recipients</label>
+            <div>
+              <div class="row"><span class="who"><span class="avatar">AR</span>Avery Rao</span><span class="tag ok">SMS ready</span></div>
+              <div class="row"><span class="who"><span class="avatar">JM</span>Jordan Mills</span><span class="tag warn">No number</span></div>
+              <div class="row"><span class="who"><span class="avatar">SK</span>Sam Kim</span><span class="tag">Email only (their choice)</span></div>
+            </div>
+            <div style="margin-top:8px"><span class="btn">Ask Jordan to add a number</span></div>
+          </div>
+          <div class="budget">
+            <div style="display:flex;justify-content:space-between"><strong>SMS budget this month</strong><span class="num">$7.60 of $20.00 used</span></div>
+            <div class="bar"><i></i></div>
+            <span class="muted">One alert from this workflow costs about $0.03 to its current SMS recipients.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="mock-label">Each person · Settings → Notification preferences</p>
+      <div class="mock">
+        <div class="mock-body">
+          <h3 style="margin-bottom:4px">Email</h3>
+          <p class="muted" style="font-size:13px">Unchanged: today's grid of sources by level.</p>
+          <table class="pgrid" style="margin-bottom:18px">
+            <thead><tr><th></th><th>Critical</th><th>Warning</th><th>Info</th><th>Cleared</th></tr></thead>
+            <tbody>
+              <tr><td>Workflow alerts</td><td><span class="box-ck on">✓</span></td><td><span class="box-ck on">✓</span></td><td><span class="box-ck on">✓</span></td><td><span class="box-ck on">✓</span></td></tr>
+            </tbody>
+          </table>
+          <h3 style="margin-bottom:4px">Text messages</h3>
+          <div class="row"><span>+1 201 555 0142 <span class="tag ok">Verified</span></span><span><span class="btn ghost">Change</span><span class="btn ghost">Remove</span></span></div>
+          <table class="pgrid">
+            <thead><tr><th></th><th>Critical</th><th>Warning</th><th>Info</th><th>Cleared</th></tr></thead>
+            <tbody>
+              <tr><td>Workflow alerts</td><td><span class="box-ck on">✓</span></td><td><span class="box-ck"></span></td><td><span class="box-ck"></span></td><td><span class="box-ck"></span></td></tr>
+            </tbody>
+          </table>
+          <div class="check" style="margin-top:12px"><span class="box-ck"></span>Turn off all notifications (email and text)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:22px">Email today vs SMS</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th></th><th>Email (today)</th><th>SMS</th></tr></thead>
+      <tbody>
+        <tr><td>Who is a recipient</td><td>Manager picks up to 20 members per workflow</td><td>The same list</td></tr>
+        <tr><td>Channel per workflow</td><td>Always email</td><td>Manager ticks SMS</td></tr>
+        <tr><td>Which levels reach me</td><td>My email grid (all on by default)</td><td>My SMS levels (Critical only by default)</td></tr>
+        <tr><td>Address</td><td>Account email, verified at sign-up</td><td>Mobile number, verified with a code</td></tr>
+        <tr><td>Cost limit</td><td>None</td><td>Organization's monthly budget</td></tr>
+        <tr><td>Retries and history</td><td colspan="2">Identical: same backoff, attempt history and manager retry on the alert's deliveries list</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 5. Open questions -->
+  <h2>5. Open questions</h2>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>Banner timings <span class="tag ok">in the spec</span></h3>
+      <p class="muted" style="margin-bottom:0">The banner and the manager's nudge are User Story 5 (FR-026a, FR-026b). Still to confirm: 14 days for "Not now", and at most one manager request per person a week.</p>
+    </div>
+    <div class="card">
+      <h3>Which sender?</h3>
+      <p class="muted" style="margin-bottom:0">One verified toll-free number texts both US and Canadian phones and skips US 10DLC registration. Other countries usually need a registered alphanumeric sender ID, which takes weeks per country.</p>
+    </div>
+    <div class="card">
+      <h3>Our own codes or Twilio Verify?</h3>
+      <p class="muted" style="margin-bottom:0">Our own codes reuse the Messages API and the limits above. Twilio Verify adds fraud screening but charges per verification on top of the SMS.</p>
+    </div>
+    <div class="card">
+      <h3>Carrier fees in Twilio's price data</h3>
+      <p class="muted" style="margin-bottom:0">The plan must check whether Twilio's pricing API includes carrier fees. If it doesn't, they come from a small table the operator keeps, so the budget isn't undercounted by 30 to 50% in North America.</p>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>
