@@ -209,22 +209,19 @@ export function createStageScene(
   starter.group.position.set(-3.1, 2.4, 0.5)
   scene.add(starter.group)
 
-  // The alarm: a dome beacon on the cold room's back wall, away from the board, which
-  // the automation switches on. The dome's only drawn edge is its rim; the fill gives
-  // it its shape.
+  // The alarm: a dome beacon on the floor at the front, opposite the phone and clear
+  // of the board, which the automation switches on. The dome's only drawn edge is its
+  // rim; the fill gives it its shape. Its pulse rings spread over the floor.
   const alarm = new Group()
-  alarm.position.set(-1.7, 0.315, -1.2)
-  alarm.rotation.y = 0.2
-  const alarmWall = solid(new BoxGeometry(0.8, 0.9, 0.06))
-  const alarmPlate = solid(new CylinderGeometry(0.24, 0.24, 0.05, 16))
-  alarmPlate.group.rotation.x = Math.PI / 2
-  alarmPlate.group.position.set(0, 0.1, 0.055)
-  const alarmDome = solid(new SphereGeometry(0.2, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), 0.9, 40)
-  alarmDome.group.rotation.x = Math.PI / 2
-  alarmDome.group.position.set(0, 0.1, 0.08)
-  const alarmGlow = solid(new TorusGeometry(0.26, 0.015, 8, 40), 0)
-  alarmGlow.group.position.set(0, 0.1, 0.1)
-  alarm.add(alarmWall.group, alarmPlate.group, alarmDome.group, alarmGlow.group)
+  alarm.position.set(-1.7, -0.135, 1.5)
+  const alarmPlate = solid(new CylinderGeometry(0.34, 0.38, 0.06, 20))
+  alarmPlate.group.position.y = 0.03
+  const alarmDome = solid(new SphereGeometry(0.28, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), 0.9, 40)
+  alarmDome.group.position.y = 0.06
+  const alarmGlow = solid(new TorusGeometry(0.36, 0.015, 8, 40), 0)
+  alarmGlow.group.rotation.x = Math.PI / 2
+  alarmGlow.group.position.y = 0.06
+  alarm.add(alarmPlate.group, alarmDome.group, alarmGlow.group)
   scene.add(alarm)
 
   // ---------- The platform ----------
@@ -283,7 +280,7 @@ export function createStageScene(
     { from: [-2.35, 0.0, 0.5], via: [-1.6, 1.25, 0.3], to: [-0.85, 0.35, 0.15], start: moments.connected, tone: 'brand' },
     { from: [0.85, 0.35, -0.15], via: [1.5, 1.5, -0.4], to: [1.85, 1.0, -0.55], start: moments.panelAdded, tone: 'brand' },
     // The automation's command to the alarm, then the email.
-    { from: [-0.6, 0.0, -0.5], via: [-1.1, 1.1, -0.9], to: [-1.65, 0.45, -1.0], start: moments.alarm, tone: 'warning' },
+    { from: [-0.4, -0.2, 0.7], via: [-1.1, 0.9, 1.3], to: [-1.7, 0.3, 1.5], start: moments.alarm, tone: 'warning' },
     { from: [0.6, -0.15, 0.55], via: [1.7, -1.0, 1.1], to: [2.6, -0.65, 1.25], start: moments.phoneIn, tone: 'warning' },
   ] as const
   const PER_FLOW = 26
@@ -325,7 +322,7 @@ export function createStageScene(
     particleMaterial.needsUpdate = true
     tint(gridMaterial, palette.mid)
     gridMaterial.opacity = palette.dark ? 0.16 : 0.14
-    for (const part of [base, antenna, starter, phoneBody, alarmWall, alarmPlate, alarmDome]) {
+    for (const part of [base, antenna, starter, phoneBody, alarmPlate, alarmDome]) {
       tint(part.fill, palette.fill)
       tint(part.edge, palette.mid)
     }
@@ -524,7 +521,7 @@ export function createStageScene(
     device: new Vector3(-3.1, 0.6, 0.5),
     platform: new Vector3(0, 1.1, 0),
     dashboard: new Vector3(3.0, 2.05, -0.6),
-    alarm: new Vector3(-1.7, 1.1, -1.2),
+    alarm: new Vector3(-1.7, -0.5, 1.95),
     phone: new Vector3(2.9, -1.4, 1.3),
   }
   const labelState = (time: number): Record<string, { state: string; shown: boolean }> => ({
