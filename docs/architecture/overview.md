@@ -158,7 +158,7 @@ diagnostics and keep the last valid value visible but marked
 2. The runtime claims the row over internal HTTP, places it on
    `IOT_DEVICE_CONTROL`, acknowledges the claim, then applies it.
 3. The runtime reports `device.applied.v1` (or `device.failed.v1`) through its
-   own outbox and `POST /api/internal/devices/events`.
+   own outbox and `POST /api/internal/devices/events/batch`.
 4. Laravel moves the applied pointer only for the matching generation and
    operation. The UI shows "pending" until then.
 

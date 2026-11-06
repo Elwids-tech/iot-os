@@ -249,14 +249,21 @@ Things that have cost time before. Add to this list when something surprises you
   although every dev check passed. Paths the API must serve from a dot
   directory need their own `^~` location; `manage.py smoke` checks agent
   discovery when agents are on.
-- **The dev API answers one request at a time, and the runtime's events queue behind
-  it.** `api` runs `php artisan serve`. The runtime hands births, presence and device
-  outcomes to it one at a time (`devices-control-inbox`, `MaxAckPending(1)`), about 43
-  per second here. 500 simulated devices reporting every 10 s send more presence events
-  than that, so the backlog grew to 14,850 events and activations reached the API minutes
-  late. A script polling hundreds of single devices slows it further. Check the backlog
-  with `curl -s "http://nats:8222/jsz?consumers=true"` from inside `api`;
-  `verify-embedded-sdk.mjs` has its simulator report every 30 s and polls the device list.
+- **One event per request could not keep up with a 500-device gateway.** Until
+  [ADR-031](../adr/ADR-031-batched-runtime-events.md) the runtime handed births, presence
+  and device outcomes to the API one at a time (`devices-control-inbox`,
+  `MaxAckPending(1)`): 22 to 43 per second on the dev API (`php artisan serve`), while
+  500 simulated devices reporting every 10 s send 50 to 75. The backlog grew to 14,850
+  events and activations reached the API minutes late. Events now go in ordered batches.
+  Check the backlog with `curl -s "http://nats:8222/jsz?consumers=true"` from inside
+  `api`; a script polling hundreds of single devices still slows the dev API.
+- **nats.go will not subscribe to a durable consumer whose window differs.** Subscribing
+  with `nats.MaxAckPending(n)` to an existing durable created with another value fails
+  ("configuration requests max ack pending to be …, but consumer's value is …"), so a
+  runtime that changes a consumer's window must update the consumer first
+  (`widenInbox` in [`inbox.go`](../../services/runtime/internal/app/inbox.go)), and an
+  older runtime cannot start against the widened consumer until it is narrowed again
+  ([ADR-031](../adr/ADR-031-batched-runtime-events.md#consequences)).
 - **`docker run --env-file` reads each line literally.** Unlike Compose env
   files, it strips no quotes and cannot hold a multi-line value. After the
   Passport keys (PEM) entered the pilot environment, the checkpoint restore drill
@@ -505,6 +512,18 @@ Things that have cost time before. Add to this list when something surprises you
   drifts: run `node tooling/test-profile-studio.mjs` after changing the studio.
   In a worktree, run `composer install` in `apps/api` first. A vendor copied from
   another checkout can lack a package, and every save then fails with a 500.
+- **Mocked days are not 24 hours long.** A mock that steps `from + n * 86400000`
+  across a daylight saving change lands an hour off the site's midnight, so a
+  reading can fall into the previous day. The consumption test in
+  `dashboards.spec.ts` failed every run for a week after Toronto's 2026-11-01
+  change. Place mocked readings at noon, and compare zoned times with
+  `Intl.DateTimeFormat`, never fixed UTC hours.
+- **A hover straight from an open tooltip opens nothing.** Radix treats the pointer
+  leaving an open tooltip's trigger as heading for that tooltip and ignores the next
+  move on another trigger. Playwright's `hover()` sends one move and stays still, so
+  the second tooltip never opens; it failed intermittently in CI after a click left
+  the first tooltip open. Move away first (`page.mouse.move(0, 0, { steps: 5 })`) and
+  expect no tooltip, as `gateway-firmware.spec.ts` and `onboarding-firmware.spec.ts` do.
 - **Full-page screenshots break dashboards.** Playwright `fullPage` screenshots
   make react-grid-layout re-measure and collapse panels in the capture. Grow the
   viewport height instead.

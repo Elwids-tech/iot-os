@@ -29,7 +29,7 @@ the code as evidence.
 | [ADR-011](ADR-011-dag-automation-in-go.md) | Automation runs as a typed DAG (v2) in the Go runtime; workflow v1 is legacy | Accepted |
 | [ADR-012](ADR-012-design-system-and-charts.md) | One design-system kit on shadcn/Radix with templates and guardrails; ECharts for charts | Accepted |
 | [ADR-013](ADR-013-integer-user-ids.md) | Users are identified by integer id in API contracts | Accepted |
-| [ADR-014](ADR-014-control-plane-data-plane-http-integration.md) | Laravel and Go integrate over internal HTTP with outboxes; JetStream stays inside Go | Accepted |
+| [ADR-014](ADR-014-control-plane-data-plane-http-integration.md) | Laravel and Go integrate over internal HTTP with outboxes; JetStream stays inside Go | Accepted; amended by ADR-031 |
 | [ADR-015](ADR-015-internal-contract-validation.md) | Internal messages are read tolerantly and the canonical envelope strictly; live contract checks only log and count | Accepted |
 | [ADR-016](ADR-016-public-api-contract.md) | The public API contract is generated from Laravel, supplemented by hand and enforced in CI | Accepted |
 | [ADR-018](ADR-018-agent-access-oauth.md) | AI agents sign in through Passport and act through connections; amends ADR-008 | Accepted |
@@ -45,6 +45,7 @@ the code as evidence.
 | [ADR-028](ADR-028-activity-log.md) | The activity log on `spatie/laravel-activitylog` is the one audit trail; explicit actions by people and the system, read by platform administrators as a timeline | Proposed |
 | [ADR-029](ADR-029-embedded-sdk-and-gateway-kits.md) | The platform ships an MIT-licensed C SDK for Sparkplug gateways and devices, and gateway kits with credentials can be downloaded from the portal | Accepted; amended by ADR-030 |
 | [ADR-030](ADR-030-firmware-starters.md) | Firmware is downloaded as a credential-free starter (profiles, target, AI brief) plus separate connection settings; starters only for signed-in members; the assistant offers starters, never credentials; built and AI-assisted targets | Accepted |
+| [ADR-031](ADR-031-batched-runtime-events.md) | Runtime events reach Laravel in ordered batches of up to 100, applied in one transaction with a savepoint per event; amends ADR-014 | Accepted |
 
 ## Template
 

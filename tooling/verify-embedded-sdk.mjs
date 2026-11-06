@@ -33,10 +33,9 @@ for (const url of [base, origin])
   assert.ok(["localhost", "127.0.0.1"].includes(new URL(url).hostname), "This check is local-only.")
 
 const DEVICES_PER_TYPE = 250
-// Seconds between each device's values. The runtime reports each source's presence to the API one
-// event at a time; the dev API (php artisan serve) answers one request at a time, about 43 events/s,
-// so 500 devices every 10 s (the simulator's default) outrun it and every outcome lags by minutes.
-const INTERVAL_S = Number(process.env.EMBEDDED_INTERVAL_S ?? 30)
+// Seconds between each device's values; 10 s is the simulator's default. 500 devices then send the
+// runtime 50 to 75 presence events a second, which it hands to the API in batches (ADR-031).
+const INTERVAL_S = Number(process.env.EMBEDDED_INTERVAL_S ?? 10)
 const BULK = 247
 const REANNOUNCE_LIMIT_S = 300
 const suffix = randomUUID().slice(0, 8)

@@ -466,7 +466,11 @@ again, in rounds timed between rebirths, and records each round's count; with #1
 first round has none. The
 run that passed every step measured discovery in 28.4 s, re-announcement in 26.7 s,
 2 rebirths for 247 activations with 245, 203, 103 and 0 refused per round, the
-gateway's own source in 31.2 s, a command in 63.6 s and offline in 19.1 s.
+gateway's own source in 31.2 s, a command in 63.6 s and offline in 19.1 s. Since
+runtime events go to the API in batches (ADR-031, 2026-11-06), the script reports every
+10 s again; that run measured discovery in 29.5 s, re-announcement in 28.3 s, 247 active
+in 16.4 s with no rebirths or refusals, the gateway's own source in 3.1 s, a command in
+5.9 s and offline in 2.8 s.
 
 ### R22. Documentation placement
 

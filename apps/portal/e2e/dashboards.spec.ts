@@ -226,6 +226,7 @@ async function setup(
       if (path.endsWith("/measurements/increase")) {
       calls.increase.push(url.searchParams)
       // Three days of usage from the start of the requested range; the last is still counting.
+      // Each sits at noon, so a daylight saving change inside the range keeps it on its day.
       const from = Date.parse(url.searchParams.get("from")!)
       return json({
         data: {
@@ -235,7 +236,7 @@ async function setup(
           timezone: url.searchParams.get("timezone") ?? "America/Toronto",
           unit: "kWh",
           points: [12.5, 9, 4.25].map((increase, day) => ({
-            at: new Date(from + day * 86400000).toISOString(),
+            at: new Date(from + day * 86400000 + 43200000).toISOString(),
             increase,
             samples: 96,
             resets: day === 1 ? 1 : 0,
@@ -804,7 +805,8 @@ test("consumption panels show counter usage per day in the site's time zone", as
   const request = calls.increase.at(-1)!
   expect(request.get("bucket")).toBe("1d")
   expect(request.get("timezone")).toBe("America/Toronto")
-  expect(new Date(request.get("from")!).getUTCHours()).toBe(4)
+  const torontoClock = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Toronto", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+  expect(torontoClock.format(new Date(request.get("from")!))).toBe("00:00")
   await page.screenshot({ path: info.outputPath("consumption.png") })
   const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
   expect(audit.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) }))).toEqual([])

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Devices;
 
+use App\Domain\Automation\Services\DagActions;
+use App\Domain\Devices\Http\Controllers\RuntimeController;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -12,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Tests\TestCase;
 
 final class RuntimeReliabilityTest extends TestCase
@@ -33,6 +36,50 @@ final class RuntimeReliabilityTest extends TestCase
     private function runtimeEvent(string $uuid, string $type, array $payload)
     {
         return $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/events', ['uuid' => $uuid, 'type' => $type, 'payload' => $payload]);
+    }
+
+    private function runtimeEvents(array $events)
+    {
+        return $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/events/batch', ['events' => $events]);
+    }
+
+    public function test_a_batch_answers_each_event_in_order_and_sets_aside_only_those_that_can_never_apply(): void
+    {
+        $connection = SparkplugConnection::create(['organization_id' => $this->organization->id, 'name' => 'Connection', 'group_id' => 'group', 'host_id' => 'host', 'username' => 'user', 'password' => 'secret', 'status' => 'ready']);
+        $online = ['uuid' => (string) Str::uuid(), 'type' => 'connection.presence.v1', 'payload' => ['connection_uuid' => $connection->uuid, 'presence' => 'online']];
+        $malformed = ['uuid' => (string) Str::uuid(), 'type' => 'connection.presence.v1', 'payload' => ['connection_uuid' => $connection->uuid]];
+        $unknown = ['uuid' => (string) Str::uuid(), 'type' => 'retention.cleanup.v1', 'payload' => ['organization_uuid' => (string) Str::uuid(), 'status' => 'completed']];
+
+        $this->runtimeEvents([$online, $malformed, ['uuid' => 'not-a-uuid', 'type' => 'device.applied.v9', 'payload' => []], 'not an event', $unknown, $online])
+            ->assertOk()->assertJsonCount(6, 'results')
+            ->assertJsonPath('results.*.status', [200, 422, 422, 422, 200, 200])
+            ->assertJsonPath('results.1.message', 'The runtime event payload is malformed.')
+            ->assertJsonPath('results.4.ignored', 'unknown_reference')
+            ->assertJsonPath('results.5.duplicate', true);
+        $this->assertEqualsCanonicalizing([$online['uuid'], $unknown['uuid']], DB::table('device_inbox')->pluck('uuid')->all());
+
+        $this->runtimeEvents([])->assertUnprocessable();
+        $this->runtimeEvents(array_fill(0, RuntimeController::BATCH_LIMIT + 1, $online))->assertUnprocessable();
+    }
+
+    public function test_a_batch_is_rolled_back_whole_when_an_event_must_be_retried(): void
+    {
+        $connection = SparkplugConnection::create(['organization_id' => $this->organization->id, 'name' => 'Connection', 'group_id' => 'group', 'host_id' => 'host', 'username' => 'user', 'password' => 'secret', 'status' => 'ready']);
+        // An outage partway through: the runtime sends the whole batch again, so nothing of it may stay applied.
+        $this->app->instance(DagActions::class, new class
+        {
+            public function accept(array $intent): void
+            {
+                throw new RuntimeException('The database connection was lost.');
+            }
+        });
+        $applied = (string) Str::uuid();
+
+        $this->runtimeEvents([
+            ['uuid' => $applied, 'type' => 'connection.presence.v1', 'payload' => ['connection_uuid' => $connection->uuid, 'presence' => 'online']],
+            ['uuid' => (string) Str::uuid(), 'type' => 'automation.intent.v1', 'payload' => ['id' => str_repeat('a', 64)]],
+        ])->assertServerError();
+        $this->assertSame(0, DB::table('device_inbox')->count());
     }
 
     public function test_events_about_deleted_records_are_acknowledged_instead_of_retried(): void

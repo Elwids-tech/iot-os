@@ -23,14 +23,19 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 use TypeError;
 use ValueError;
 
 final class RuntimeController
 {
+    /** The most events one batch may carry; the runtime sends at most 100. */
+    public const BATCH_LIMIT = 500;
+
     /**
      * The runtime reconciles against this snapshot every 30 seconds, so it is
      * built with a fixed number of queries however many devices exist.
@@ -103,10 +108,59 @@ final class RuntimeController
 
     public function event(Request $request): array
     {
-        $event = $request->validate(['uuid' => ['required', 'uuid'], 'type' => ['required', Rule::in([
-            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1', 'workflow.deployment.v1', 'workflow.suspended.v1', 'workflow.transition.v1', 'workflow.membership.v1', 'automation.intent.v1',
-        ])], 'payload' => ['required', 'array']]);
+        return $this->receive($request->validate(self::eventRules()));
+    }
 
+    /**
+     * Runtime events in stream order, as the runtime delivers them (ADR-031). They apply in
+     * one transaction, each in its own savepoint: an event that can never be processed gets
+     * its own answer and the others still apply, while anything the runtime would retry
+     * rolls the whole batch back for it to send again.
+     *
+     * @return array{results: list<array<string, mixed>>}
+     */
+    public function events(Request $request): array
+    {
+        $batch = $request->validate(['events' => ['required', 'list', 'max:'.self::BATCH_LIMIT]]);
+
+        return ['results' => DB::transaction(fn (): array => array_map($this->answer(...), $batch['events']))];
+    }
+
+    /** @return array<string, list<mixed>> */
+    private static function eventRules(): array
+    {
+        return ['uuid' => ['required', 'uuid'], 'type' => ['required', Rule::in([
+            'connection.presence.v1', 'discovery.presence.v1', 'discovery.birth.v1', 'gateway.presence.v1', 'device.presence.v1', 'device.applied.v1', 'device.failed.v1', 'device.deactivated.v1', 'command.status.v1', 'runtime.heartbeat.v1', 'retention.cleanup.v1', 'workflow.deployment.v1', 'workflow.suspended.v1', 'workflow.transition.v1', 'workflow.membership.v1', 'automation.intent.v1',
+        ])], 'payload' => ['required', 'array']];
+    }
+
+    /**
+     * One event's answer within a batch: what the single endpoint returns, with its status.
+     *
+     * @return array<string, mixed>
+     */
+    private function answer(mixed $event): array
+    {
+        $validator = Validator::make(is_array($event) ? $event : [], self::eventRules());
+        if ($validator->fails()) {
+            return ['status' => 422, 'message' => $validator->errors()->first()];
+        }
+        try {
+            return ['status' => 200, ...$this->receive($validator->validated())];
+        } catch (HttpExceptionInterface $exception) {
+            // Only an answer the runtime dead-letters belongs to one event; one it retries fails the batch.
+            $status = $exception->getStatusCode();
+            if ($status < 400 || $status >= 500 || in_array($status, [401, 403, 404, 408, 425, 429], true)) {
+                throw $exception;
+            }
+
+            return ['status' => $status, 'message' => $exception->getMessage()];
+        }
+    }
+
+    /** @param array{uuid: string, type: string, payload: array<string, mixed>} $event */
+    private function receive(array $event): array
+    {
         // The runtime retries 5xx and some 4xx forever and dead-letters other 4xx
         // (services/runtime/internal/app/deadletter.go). Deterministic failures must
         // therefore never surface as 500 or 404, or one event blocks every later one.
