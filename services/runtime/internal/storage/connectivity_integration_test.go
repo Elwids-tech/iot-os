@@ -132,7 +132,10 @@ func TestReportingSeedReadsDistinctRecentObservedTimesThatAreNotHistory(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := seed[tracker.DeviceUUID]
+	got := seed[tracker.DeviceUUID].Observed
+	if !seed[tracker.DeviceUUID].LastReceived.Equal(now.Add(time.Minute)) {
+		t.Fatalf("last received %s, want %s (the newest reading's receipt, not the historical one's)", seed[tracker.DeviceUUID].LastReceived, now.Add(time.Minute))
+	}
 	want = want[len(want)-SeedLimit:]
 	if len(got) != SeedLimit || !got[0].Equal(want[0]) || !got[len(got)-1].Equal(want[len(want)-1]) {
 		t.Fatalf("seed has %d times from %v to %v, want %d from %s to %s", len(got), got[0], got[len(got)-1], SeedLimit, want[0], want[len(want)-1])
@@ -142,7 +145,7 @@ func TestReportingSeedReadsDistinctRecentObservedTimesThatAreNotHistory(t *testi
 			t.Fatalf("gap %d is %s", i, got[i].Sub(got[i-1]))
 		}
 	}
-	if len(seed[quiet.DeviceUUID]) != 0 || len(seed) != 1 {
+	if len(seed[quiet.DeviceUUID].Observed) != 0 || len(seed) != 1 {
 		t.Fatalf("seeded devices without readings, or another organization's: %v", seed)
 	}
 }

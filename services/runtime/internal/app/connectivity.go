@@ -629,9 +629,10 @@ func (t *connectivityTracker) readings(device string, data bool, received time.T
 	}
 }
 
-// seed merges a device's stored observed times, read at start, and ends its learning
-// from them.
-func (t *connectivityTracker) seed(history map[string][]time.Time, batch []string) {
+// seed merges a device's stored readings, read at start, and ends its learning from
+// them. Its newest reading's receipt is when it was last heard, which alerts show; its
+// silence still counts from the runtime's start (D3).
+func (t *connectivityTracker) seed(history map[string]storage.SeedHistory, batch []string) {
 	if t == nil {
 		return
 	}
@@ -642,7 +643,14 @@ func (t *connectivityTracker) seed(history map[string][]time.Time, batch []strin
 		if d == nil {
 			continue
 		}
-		merged := append(slices.Clone(history[device]), d.times...)
+		stored := history[device]
+		if stored.LastReceived.After(d.lastHeard) {
+			d.lastHeard = stored.LastReceived
+			if e := t.edges[d.edgeKey()]; e != nil && !d.adapter && d.lastHeard.After(e.lastHeard) {
+				e.lastHeard = d.lastHeard
+			}
+		}
+		merged := append(slices.Clone(stored.Observed), d.times...)
 		slices.SortFunc(merged, func(a, b time.Time) int { return a.Compare(b) })
 		merged = slices.CompactFunc(merged, func(a, b time.Time) bool { return a.Equal(b) })
 		if len(merged) > storage.SeedLimit {

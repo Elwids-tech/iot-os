@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -162,12 +163,20 @@ type SeedDevice struct{ OrganizationUUID, DeviceUUID string }
 // enough for the tracker's 64 gaps.
 const SeedLimit = 65
 
+// SeedHistory is what a device's stored readings tell the tracker at start.
+type SeedHistory struct {
+	// Observed are distinct observed times, oldest first.
+	Observed []time.Time
+	// LastReceived is when the newest of them was received.
+	LastReceived time.Time
+}
+
 // ReportingSeed returns, per device, the distinct observed times of its readings
 // received since since that are not marked historical, oldest first, at most
-// SeedLimit of the newest. Older chunks may be compressed, so it allows longer than
-// the pool's statement limit.
-func (s *Store) ReportingSeed(ctx context.Context, batch []SeedDevice, since time.Time) (map[string][]time.Time, error) {
-	result := map[string][]time.Time{}
+// SeedLimit of the newest, and when the newest of them was received. Older chunks may
+// be compressed, so it allows longer than the pool's statement limit.
+func (s *Store) ReportingSeed(ctx context.Context, batch []SeedDevice, since time.Time) (map[string]SeedHistory, error) {
+	result := map[string]SeedHistory{}
 	if len(batch) == 0 {
 		return result, nil
 	}
@@ -183,31 +192,33 @@ func (s *Store) ReportingSeed(ctx context.Context, batch []SeedDevice, since tim
 	if _, e = tx.Exec(ctx, "SET LOCAL statement_timeout = '60s'"); e != nil {
 		return nil, e
 	}
-	rows, e := tx.Query(ctx, `SELECT d.device::text, t.observed_at FROM unnest($1::uuid[], $2::uuid[]) AS d(organization, device)
- CROSS JOIN LATERAL (SELECT DISTINCT o.observed_at FROM device_runtime.observations o
+	rows, e := tx.Query(ctx, `SELECT d.device::text, t.observed_at, t.received_at FROM unnest($1::uuid[], $2::uuid[]) AS d(organization, device)
+ CROSS JOIN LATERAL (SELECT o.observed_at, max(o.received_at) AS received_at FROM device_runtime.observations o
   WHERE o.organization_uuid=d.organization AND o.device_uuid=d.device AND o.received_at >= $3 AND o.observed_at >= $3
    AND NOT COALESCE((o.reading->>'historical')::boolean, false)
-  ORDER BY o.observed_at DESC LIMIT $4) t`, organizations, deviceUUIDs, since, SeedLimit)
+  GROUP BY o.observed_at ORDER BY o.observed_at DESC LIMIT $4) t`, organizations, deviceUUIDs, since, SeedLimit)
 	if e != nil {
 		return nil, e
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var device string
-		var observed time.Time
-		if e = rows.Scan(&device, &observed); e != nil {
+		var observed, received time.Time
+		if e = rows.Scan(&device, &observed, &received); e != nil {
 			return nil, e
 		}
-		result[device] = append(result[device], observed.UTC())
+		history := result[device]
+		history.Observed = append(history.Observed, observed.UTC())
+		if received.After(history.LastReceived) {
+			history.LastReceived = received.UTC()
+		}
+		result[device] = history
 	}
 	if e = rows.Err(); e != nil {
 		return nil, e
 	}
-	for device, times := range result {
-		for i, j := 0, len(times)-1; i < j; i, j = i+1, j-1 {
-			times[i], times[j] = times[j], times[i]
-		}
-		result[device] = times
+	for _, history := range result {
+		slices.Reverse(history.Observed)
 	}
 	return result, nil
 }

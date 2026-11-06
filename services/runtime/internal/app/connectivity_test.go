@@ -453,6 +453,10 @@ func TestARuntimeRestartAnchorsSilenceAtItsStartNotALaterActivation(t *testing.T
 		f.tr.configure(device, settingsWith(styleStaysConnected, 1800), f.now)
 	}
 	define()
+	// The stored readings say when it was last heard, which the alert shows; silence
+	// still counts from the restart.
+	received := trackerStart.Add(-10 * time.Minute)
+	f.tr.seed(map[string]storage.SeedHistory{device: {Observed: []time.Time{received.Add(-2 * time.Minute)}, LastReceived: received}}, []string{device})
 	f.tr.finishSeeding()
 	f.tr.connect(f.conn, trackerStart)
 	f.run(time.Hour/2-time.Minute, time.Minute)
@@ -462,6 +466,8 @@ func TestARuntimeRestartAnchorsSilenceAtItsStartNotALaterActivation(t *testing.T
 	if ev := f.last(); ev.Episode != 3 || !ev.OfflineSince.Equal(trackerStart.Add(30*time.Minute)) {
 		t.Fatalf("episode %d offline since %s", ev.Episode, ev.OfflineSince)
 	}
+	at(t, f.last().LastHeardAt, received, "last_heard_at")
+	at(t, f.last().LastObservedAt, received.Add(-2*time.Minute), "last_observed_at")
 }
 
 func TestALostBrokerConnectionFreezesAndAnchorsAtItsRestoration(t *testing.T) {
