@@ -512,6 +512,12 @@ Things that have cost time before. Add to this list when something surprises you
   drifts: run `node tooling/test-profile-studio.mjs` after changing the studio.
   In a worktree, run `composer install` in `apps/api` first. A vendor copied from
   another checkout can lack a package, and every save then fails with a 500.
+- **Mocked days are not 24 hours long.** A mock that steps `from + n * 86400000`
+  across a daylight saving change lands an hour off the site's midnight, so a
+  reading can fall into the previous day. The consumption test in
+  `dashboards.spec.ts` failed every run for a week after Toronto's 2026-11-01
+  change. Place mocked readings at noon, and compare zoned times with
+  `Intl.DateTimeFormat`, never fixed UTC hours.
 - **Full-page screenshots break dashboards.** Playwright `fullPage` screenshots
   make react-grid-layout re-measure and collapse panels in the capture. Grow the
   viewport height instead.
