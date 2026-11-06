@@ -242,7 +242,8 @@ test("manager creates grants, handles secrets, webhook retries, conflicts and re
     .getByRole("button", { name: "Disable webhook", exact: true })
     .click();
   await confirm(page, "Disable webhook");
-  expect(state.hook.enabled).toBe(false);
+  // The confirmation closes before the request lands; wait for the mock to see it.
+  await expect.poll(() => state.hook.enabled).toBe(false);
   await page.getByLabel("Application name").fill("Edited application");
   state.conflict = true;
   await page.getByRole("button", { name: "Save grants", exact: true }).click();
