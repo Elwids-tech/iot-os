@@ -45,6 +45,30 @@ test('without a WebGL context, the slogan shows', async ({ page }) => {
   for (const word of await hero.locator('[data-word]').all()) await expect(word).toHaveCSS('opacity', '1')
 })
 
+// The stage: one device from firmware to an alert, as a transcript beside an illustration.
+test('the stage plays, can be paused and can be stepped', async ({ page }) => {
+  await page.goto('/')
+  const stage = page.locator('[data-stage-frame]')
+  await stage.scrollIntoViewIfNeeded()
+  await expect(stage).toHaveAttribute('data-motion', 'playing', { timeout: 15_000 })
+  await expect(stage.getByRole('button', { name: 'Illustration' })).toHaveCount(0)
+  await expect(stage.getByText('Illustration', { exact: true })).toBeVisible()
+  const pause = stage.getByRole('button', { name: 'Pause' })
+  await expect(pause).toBeVisible()
+  await pause.click()
+  await expect(stage.getByRole('button', { name: 'Play' })).toHaveAttribute('aria-pressed', 'true')
+  const automate = stage.getByRole('button', { name: /Automate$/ })
+  await automate.click()
+  await expect(automate).toHaveAttribute('aria-current', 'step')
+  // Paused at the step's start, the ribbon shows that step's caption, and only it.
+  const start = Number(await automate.getAttribute('data-start'))
+  const current = stage.locator('[data-captions] > li[data-current]')
+  await expect(current).toHaveCount(1)
+  await expect(current).toHaveAttribute('data-at', String(start))
+  await expect(current).toContainText('automation')
+  await expect(stage.locator('[data-captions] > li').first()).toHaveCSS('opacity', '0')
+})
+
 test.describe('with reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } })
   test('shows the final state at once, with no animation', async ({ page }) => {
@@ -53,5 +77,15 @@ test.describe('with reduced motion', () => {
     await expect(hero).not.toHaveAttribute('data-animate', /.+/)
     await expect(hero.locator('[data-slogan]')).toBeVisible()
     await expect(hero).not.toHaveAttribute('data-scene', /.+/)
+  })
+
+  test('the stage is a complete list of captions with nothing moving', async ({ page }) => {
+    await page.goto('/')
+    const stage = page.locator('[data-stage-frame]')
+    await stage.scrollIntoViewIfNeeded()
+    await expect(stage).not.toHaveAttribute('data-motion', /.+/)
+    await expect(stage.getByRole('button', { name: 'Pause' })).toBeHidden()
+    for (const caption of await stage.locator('[data-captions] > li').all()) await expect(caption).toHaveCSS('opacity', '1')
+    await expect(stage.getByText('a text and an email')).toBeVisible()
   })
 })
