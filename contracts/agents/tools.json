@@ -69,7 +69,7 @@
         {
             "name": "get_device_health",
             "title": "Get Device Health",
-            "description": "One device's state: lifecycle, presence, last reading, configuration state, its source or gateway, and the latest value of every parameter with its quality (good, stale, invalid, inactive), age and diagnostic. Unknown values are null with a reason.",
+            "description": "One device's state: lifecycle, presence, last reading, configuration state, its source or gateway, its offline-alert state (any open offline alert with its cause, and the Offline after threshold in effect), and the latest value of every parameter with its quality (good, stale, invalid, inactive), age and diagnostic. Unknown values are null with a reason.",
             "inputSchema": {
                 "properties": {
                     "device_uuid": {
@@ -204,7 +204,7 @@
         {
             "name": "list_alerts",
             "title": "List Alerts",
-            "description": "Alert episodes, newest first: active ones by default, or cleared history. Filter by device, site or workflow. Acknowledging and assigning alerts happen in the portal (portal_url).",
+            "description": "Alert episodes, newest first: active ones by default, or cleared history. Kinds are automation alerts (workflow) and the platform's own offline alerts (device_offline, gateway_offline, connection_lost) with their cause and the Offline after threshold in effect. Filter by kind, device, site or workflow. Acknowledging and assigning alerts happen in the portal (portal_url).",
             "inputSchema": {
                 "properties": {
                     "condition": {
@@ -212,6 +212,16 @@
                         "enum": [
                             "active",
                             "cleared"
+                        ],
+                        "type": "string"
+                    },
+                    "kind": {
+                        "description": "Only alerts of this kind; device_offline, gateway_offline and connection_lost are offline alerts.",
+                        "enum": [
+                            "workflow",
+                            "device_offline",
+                            "gateway_offline",
+                            "connection_lost"
                         ],
                         "type": "string"
                     },

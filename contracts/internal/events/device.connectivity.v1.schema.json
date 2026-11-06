@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/internal/events/device.connectivity.v1.schema.json",
+  "title": "device.connectivity.v1",
+  "description": "An offline episode of a device, gateway or adapter source opened, cleared or stopped (spec 018). Producer: runtime connectivity tracker (Store.TransitionConnectivity), written to device_runtime.outbox in the transaction that changes device_runtime.connectivity, relayed on iot.runtime.device.connectivity.v1 and posted to /api/internal/devices/events. Consumer: control plane RuntimeController, which projects it into automation_alerts (ConnectivityProjector) by episode_key <subject_key>#<episode>. At least once; deduplicate by uuid, a UUID v5 of <subject_key>#<episode>#<transition>, in device_inbox. Times are receipt times in RFC 3339 UTC, except last_observed_at.",
+  "type": "object",
+  "properties": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "type": {
+      "const": "device.connectivity.v1"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "organization_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "subject": {
+          "description": "What went offline. device needs device_uuid, gateway needs connection_uuid and edge_node_id, source needs adapter_uuid; the other identities are null.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "device",
+                "gateway",
+                "source"
+              ]
+            },
+            "device_uuid": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            },
+            "connection_uuid": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            },
+            "edge_node_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "adapter_uuid": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "kind",
+            "device_uuid",
+            "connection_uuid",
+            "edge_node_id",
+            "adapter_uuid"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "device"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "device_uuid": {
+                    "type": "string"
+                  },
+                  "connection_uuid": {
+                    "type": "null"
+                  },
+                  "edge_node_id": {
+                    "type": "null"
+                  },
+                  "adapter_uuid": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "gateway"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "device_uuid": {
+                    "type": "null"
+                  },
+                  "connection_uuid": {
+                    "type": "string"
+                  },
+                  "edge_node_id": {
+                    "type": "string"
+                  },
+                  "adapter_uuid": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "source"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "device_uuid": {
+                    "type": "null"
+                  },
+                  "connection_uuid": {
+                    "type": "null"
+                  },
+                  "edge_node_id": {
+                    "type": "null"
+                  },
+                  "adapter_uuid": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "episode": {
+          "description": "The subject's episode number, from 1; with the subject and transition it derives the envelope uuid.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "transition": {
+          "enum": [
+            "opened",
+            "cleared",
+            "stopped"
+          ]
+        },
+        "cause": {
+          "description": "Why the subject is offline. Required on opened; cleared and stopped repeat the episode's cause.",
+          "enum": [
+            "death_certificate",
+            "missed_check_in",
+            "gateway_offline",
+            "source_disconnected",
+            null
+          ]
+        },
+        "offline_since": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$",
+          "description": "When the episode's offline condition began (receipt time)."
+        },
+        "at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$",
+          "description": "When the transition happened: the end of the grace period for opened, the time the subject came back for cleared, the stop for stopped (receipt times)."
+        },
+        "last_heard_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$",
+          "description": "When the platform last heard from the subject (receipt time), null if never."
+        },
+        "last_observed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$",
+          "description": "The observed time of the device's newest reading as reported; null for gateways and sources."
+        },
+        "offline_after_seconds": {
+          "description": "The silence threshold in effect, or null while it is automatic and still learning.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 60,
+          "maximum": 604800
+        },
+        "offline_after_automatic": {
+          "description": "The threshold was computed from the reporting and poll intervals (D16); null when there is none.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reporting_interval_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "poll_interval_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "grace_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600
+        },
+        "settings_generation": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "affected_device_uuids": {
+          "description": "The devices the episode concerns; for a device subject exactly its own.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "minItems": 1,
+          "maxItems": 10000,
+          "uniqueItems": true
+        },
+        "stop_reason": {
+          "description": "Why monitoring ended an open episode; required on stopped, null otherwise.",
+          "enum": [
+            "device_deactivated",
+            "monitoring_disabled",
+            "definition_removed",
+            null
+          ]
+        }
+      },
+      "required": [
+        "organization_uuid",
+        "subject",
+        "episode",
+        "transition",
+        "cause",
+        "offline_since",
+        "at",
+        "last_heard_at",
+        "last_observed_at",
+        "offline_after_seconds",
+        "offline_after_automatic",
+        "reporting_interval_seconds",
+        "poll_interval_seconds",
+        "grace_seconds",
+        "settings_generation",
+        "affected_device_uuids",
+        "stop_reason"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "transition": {
+                "const": "opened"
+              }
+            },
+            "required": [
+              "transition"
+            ]
+          },
+          "then": {
+            "properties": {
+              "cause": {
+                "type": "string"
+              },
+              "offline_since": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "transition": {
+                "const": "stopped"
+              }
+            },
+            "required": [
+              "transition"
+            ]
+          },
+          "then": {
+            "properties": {
+              "stop_reason": {
+                "type": "string"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "stop_reason": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "uuid",
+    "type",
+    "payload"
+  ],
+  "additionalProperties": false
+}

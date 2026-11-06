@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test"
+import { test, expect, type Locator, type Page } from "@playwright/test"
 import AxeBuilder from "@axe-core/playwright"
 import profile from "../../../contracts/definitions/device-profiles/three-phase-energy-meter.v1.json" with { type: "json" }
 import gpsProfile from "../../../contracts/definitions/device-profiles/gps-tracker.v1.json" with { type: "json" }
@@ -175,6 +175,36 @@ type Options = {
   history?: "unavailable" | "empty"
   alerts?: Record<string, any>[]
   bindings?: Record<string, any>[]
+  /** GET devices/{device}/connectivity (spec 018); a monitored device by default. */
+  connectivity?: Record<string, any>
+  gateways?: Record<string, any>[]
+}
+
+/** A device page panel by its heading. */
+const panel = (within: Locator, title: string) =>
+  within.locator("section").filter({ has: within.page().getByRole("heading", { name: title, exact: true }) })
+
+/** What the runtime reports for a device reporting every minute (spec 018). */
+const monitored = {
+  effective: { enabled: true, style: "stays_connected", offline_after_seconds: null, grace_seconds: 120, severity: "warning", poll_interval_seconds: null },
+  inherited_from: { enabled: "default", style: "default", offline_after_seconds: "automatic", grace_seconds: "default", severity: "default" },
+  style_locked: null,
+  state: {
+    state: "monitored",
+    monitoring_since: ago(86400),
+    last_heard_at: ago(3),
+    last_observed_at: ago(4),
+    anchor_at: ago(3),
+    reporting_interval_seconds: 60,
+    readings_counted: 64,
+    poll_interval_seconds: null,
+    offline_after_seconds: 900,
+    offline_after_automatic: true,
+    suppressed_by_gateway: false,
+    interruption: null,
+    before_monitoring: false,
+  },
+  alert: null,
 }
 
 async function setup(page: Page, options: Options = {}) {
@@ -231,7 +261,7 @@ async function setup(page: Page, options: Options = {}) {
       const rows = (options.devices ?? [meter, idle]).filter(
         (d) =>
           (!lifecycle || (lifecycle === "current" ? d.lifecycle !== "archived" : d.lifecycle === lifecycle)) &&
-          (!statuses.length || statuses.includes(listStatus(d))) &&
+          (!statuses.length || statuses.includes(listStatus(d)) || (statuses.includes("offline_alert") && Boolean(d.offline_alert))) &&
           (!profileUuid || d.profile?.uuid === profileUuid),
       )
       const perPage = Number(url.searchParams.get("per_page") ?? 25)
@@ -262,6 +292,7 @@ async function setup(page: Page, options: Options = {}) {
     }
     if (one && (options.details?.[one] || one === meterId))
       return json({ data: options.details?.[one] ?? detail })
+    if (/\/devices\/[^/]+\/connectivity$/.test(path)) return json({ data: options.connectivity ?? monitored })
     if (path.endsWith("/measurements/latest") && options.latest === "unavailable")
       return json({ message: "The device runtime is unavailable." }, 503)
     if (path.endsWith("/measurements/latest") && options.latest)
@@ -403,7 +434,7 @@ async function setup(page: Page, options: Options = {}) {
     }
     if (path.endsWith("/dashboards")) return json({ data: state.dashboards })
     if (path.endsWith("/gateways"))
-      return json({ data: [gateway], meta: { current_page: 1, last_page: 1, total: 1 } })
+      return json({ data: options.gateways ?? [gateway], meta: { current_page: 1, last_page: 1, total: 1 } })
     if (path.endsWith("/sparkplug-connections"))
       return json({
         data: [
@@ -517,6 +548,7 @@ test("device toolbar keeps search beside icon buttons and filters by status on t
   await expect(page.getByRole("option")).toHaveText([
     "Online",
     "Offline",
+    "Offline alert",
     "Not seen yet",
     "Connection unknown",
     "Needs configuration",
@@ -525,7 +557,7 @@ test("device toolbar keeps search beside icon buttons and filters by status on t
     "Deactivated",
   ])
   await page.getByRole("option", { name: "Needs configuration" }).click()
-  await page.getByRole("option", { name: "Offline" }).click()
+  await page.getByRole("option", { name: "Offline", exact: true }).click()
   await expect(page).toHaveURL(/status=unconfigured&status=offline/)
   // The list closes first and hands focus back; the next Escape closes Filters.
   await page.keyboard.press("Escape")
@@ -1215,5 +1247,117 @@ test("people without connection rights see no Firmware menu", async ({ page }) =
   await expect(page.getByRole("menuitem", { name: "Download settings" })).toHaveCount(0)
   await expect(page.getByRole("menuitem", { name: "Download firmware kit…" })).toHaveCount(0)
   expect(calls.calls).toEqual([])
+  expect(state.errors).toEqual([])
+})
+
+test("an offline device shows why, its connectivity, its gateway's alert and the Offline alert filter (spec 018)", async ({ page }) => {
+  const gatewayAlert = {
+    uuid: "a0000000-0000-4000-8000-000000000012",
+    kind: "gateway_offline",
+    cause: "death_certificate",
+    since: ago(600),
+    subject: { type: "gateway", uuid: gatewayId, name: gateway.name },
+  }
+  const offlineMeter = { ...meter, presence: "offline", diagnostic: `Offline because gateway ${gateway.name} is offline.`, offline_alert: gatewayAlert }
+  const offlineAlert = {
+    uuid: gatewayAlert.uuid,
+    kind: "gateway_offline",
+    severity: "warning",
+    workflow_uuid: null,
+    workflow_name: null,
+    operation_uuid: null,
+    device_uuid: null,
+    device_name: null,
+    subject: gatewayAlert.subject,
+    devices: [{ uuid: meterId, name: meter.name }],
+    devices_total: 1,
+    episode: 1,
+    condition: "active",
+    activated_at: ago(480),
+    cleared_at: null,
+    acknowledged_at: null,
+    acknowledged_by: null,
+    acknowledged_by_name: null,
+    assignee: null,
+    assigned_at: null,
+    execution_stopped_reason: null,
+    cause: "death_certificate",
+    stopped_reason: null,
+  }
+  const state = await setup(page, {
+    devices: [offlineMeter, idle],
+    details: { [meterId]: { ...detail, ...offlineMeter } },
+    gateways: [{ ...gateway, presence: "offline", offline_alert: gatewayAlert }],
+    alerts: [offlineAlert],
+    connectivity: {
+      ...monitored,
+      state: { ...monitored.state, state: "offline", last_heard_at: ago(600), last_observed_at: ago(602), suppressed_by_gateway: true },
+      alert: gatewayAlert,
+    },
+  })
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto(`${base}/devices/${meterId}`)
+  const summary = page.getByRole("complementary", { name: "Device summary" })
+  const connectivity = panel(summary, "Offline detection")
+  await expect(connectivity.getByText("Offline", { exact: true })).toBeVisible()
+  await expect(connectivity.getByRole("link", { name: "Offline because gateway Simulator gateway is offline" })).toHaveAttribute(
+    "href",
+    `${base}/alerts/${gatewayAlert.uuid}`,
+  )
+  await expect(connectivity.getByText("About 1 min")).toBeVisible()
+  await expect(connectivity.getByText("15 min (automatic)")).toBeVisible()
+  await expect(connectivity.getByText("Automatic: 3 × reporting interval + poll interval, at least 15 min")).toBeVisible()
+  await expect(connectivity.getByText("Not polled")).toBeVisible()
+  await expect(connectivity.getByText("Stays connected")).toBeVisible()
+  // The device's own alerts group the gateway's episode under its kind and gateway.
+  await expect(summary.getByRole("link", { name: "Gateway offline — Simulator gateway" })).toHaveAttribute(
+    "href",
+    `${base}/alerts/${gatewayAlert.uuid}`,
+  )
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    .toBe(true)
+  await axe(page)
+
+  // The directory lists it under Offline alert, and its status explains why on hover.
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto(`${base}/devices?status=offline_alert`)
+  const table = page.getByRole("table")
+  await expect(table.getByRole("row", { name: /Energy Meter Simulator/ })).toBeVisible()
+  await expect(table.getByRole("row", { name: /D1/ })).toHaveCount(0)
+  await expect(page.getByRole("group", { name: "Active filters" })).toContainText("Status: Offline alert")
+  await table.getByRole("row", { name: /Energy Meter Simulator/ }).getByText("Offline", { exact: true }).focus()
+  await expect(page.getByRole("tooltip")).toContainText("Offline because gateway Simulator gateway is offline")
+  await page.keyboard.press("Escape")
+
+  // The gateway page names its open alert.
+  await page.goto(`${base}/gateways/${gatewayId}`)
+  const notice = page.getByRole("alert").filter({ hasText: "Gateway offline" })
+  await expect(notice).toContainText("Death certificate.")
+  await expect(notice.getByRole("link", { name: "Open the alert" })).toHaveAttribute("href", `${base}/alerts/${gatewayAlert.uuid}`)
+  await axe(page)
+  expect(state.errors).toEqual([])
+})
+
+test("an adapter device's connectivity is locked to connects to report and shows its adapter restarting", async ({ page }) => {
+  const state = await setup(page, {
+    details: { [meterId]: { ...detail, presence: "unknown", diagnostic: "Adapter restarting; waiting for it to reconnect." } },
+    connectivity: {
+      ...monitored,
+      effective: { ...monitored.effective, style: "connects_to_report", poll_interval_seconds: 300 },
+      inherited_from: { ...monitored.inherited_from, style: "adapter" },
+      style_locked: { reason: "adapter" },
+      state: { ...monitored.state, state: "interrupted", interruption: "adapter", reporting_interval_seconds: 120, poll_interval_seconds: 300 },
+    },
+  })
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto(`${base}/devices/${meterId}`)
+  const connectivity = panel(page.getByRole("complementary", { name: "Device summary" }), "Offline detection")
+  await expect(connectivity.getByText("Adapter restarting")).toBeVisible()
+  await expect(connectivity.getByText(/Its adapter is not running/)).toBeVisible()
+  await expect(connectivity.getByText("Connects to report")).toBeVisible()
+  await expect(connectivity.getByText("Locked: a device adapter feeds this device, so only silence counts.")).toBeVisible()
+  await expect(connectivity.getByText("5 min", { exact: true })).toBeVisible()
+  await axe(page)
   expect(state.errors).toEqual([])
 })

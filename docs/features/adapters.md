@@ -51,6 +51,22 @@ under **Build → Device adapters** for users with `Device.manage`.
   Because the platform defines these births, a device fed by an adapter activates
   against its source's last stored birth when the source has not announced itself
   since a restart ([devices](devices.md#configuration-and-activation)).
+- **Offline alerts** treat the adapter as platform infrastructure
+  ([offline alerts](alerts.md#offline-alerts)):
+  - Only a new reading counts as hearing from an adapter's device: a DDATA with at
+    least one reading not marked historical. The births the publisher announces again
+    after a restart or a rebirth request, and history (a backfill, a cursor reset, a
+    record older than the newest already sent), are the publisher repeating itself.
+    They neither keep a device online nor move its last-seen time.
+  - The publisher's node death (a redeploy, which activating a device causes, a
+    restart, a platform deploy replacing the tenant runtime, or a pause) is a
+    platform-side interruption. Its devices show unknown ("Adapter restarting; waiting
+    for it to reconnect", or "adapter paused"), not offline; they are not judged while
+    it lasts, and at its next node birth the time it was down is left out of each
+    device's silence.
+  - Adapter devices always use the **connects to report** style, and an adapter's edge
+    is never a gateway, so each vendor device is judged by its own silence. Their
+    automatic *Offline after* includes the running revision's poll interval.
 - Laravel owns adapters, revisions, fixtures, credentials and discovery. It calls
   the manager's private API from the `device-adapters` queue
   (`adapter-worker`); the runtime reports back to `POST /api/internal/adapters/events`

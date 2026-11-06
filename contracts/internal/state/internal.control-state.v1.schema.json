@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/internal/state/internal.control-state.v1.schema.json",
+  "title": "internal.control-state.v1",
+  "description": "The control plane's desired state, GET /api/internal/devices/state. Producer: control plane RuntimeController::state, built with a fixed number of queries. Consumer: runtime syncState every 30 seconds and on start (MQTT connections, pending activations and deactivations, each device's offline-alert settings) and the daily retention cleanup. Read on demand, not delivered: no deduplication. Fences: each device's generation (activation) and connectivity.generation (settings; an equal generation is applied).",
+  "type": "object",
+  "properties": {
+    "connections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "group_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "host_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "username": {
+            "type": "string",
+            "minLength": 1
+          },
+          "password": {
+            "$comment": "secret",
+            "type": "string",
+            "minLength": 1
+          },
+          "broker_url": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "uuid",
+          "organization_uuid",
+          "group_id",
+          "host_id",
+          "username",
+          "password",
+          "broker_url"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "devices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "operation_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "lifecycle": {
+            "enum": [
+              "registered",
+              "active",
+              "deactivated"
+            ]
+          },
+          "deployment_status": {
+            "enum": [
+              "idle",
+              "pending",
+              "applied",
+              "failed",
+              "inactive",
+              "suspended"
+            ]
+          },
+          "desired": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "../../devices/v1/configuration.schema.json"
+              },
+              {
+                "$ref": "../../devices/v2/configuration.schema.json"
+              }
+            ]
+          },
+          "applied": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "../../devices/v1/configuration.schema.json"
+              },
+              {
+                "$ref": "../../devices/v2/configuration.schema.json"
+              }
+            ]
+          },
+          "birth_metrics": {
+            "description": "The metric names and datatypes of the source's last stored birth (Discovery), sent when the definition has an adapter binding. The platform's own adapter announces such a source, so the runtime checks the configuration against this set when the source has no live birth, and still prefers a live one (ADR-027).",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "datatype": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "datatype"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "connectivity": {
+            "description": "The device's effective offline-alert settings, the fields of device.connectivity-settings.v1 without the identities (spec 018).",
+            "type": "object",
+            "properties": {
+              "generation": {
+                "description": "Per-device settings generation. The runtime ignores a lower generation than the one it holds and applies an equal one (it stays 0 until spec 018 pull request 3 adds settings).",
+                "type": "integer",
+                "minimum": 0
+              },
+              "enabled": {
+                "description": "Offline alerts on for the device.",
+                "type": "boolean"
+              },
+              "style": {
+                "description": "stays_connected: a death certificate or silence counts. connects_to_report: deaths are ignored and a report clears at once. Always connects_to_report for a device fed by a device adapter (D5).",
+                "enum": [
+                  "stays_connected",
+                  "connects_to_report"
+                ]
+              },
+              "offline_after_seconds": {
+                "description": "Silence after which the device counts as offline; null is automatic: clamp(ceil_to_minute(3 x reporting interval + poll interval), 900, 604800) (D16).",
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 60,
+                "maximum": 604800
+              },
+              "poll_interval_seconds": {
+                "description": "The running adapter revision's poll interval, or null when the device is not polled.",
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 60,
+                "maximum": 86400
+              },
+              "grace_seconds": {
+                "description": "How long the device must stay offline before an episode opens, and back before it clears.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600
+              }
+            },
+            "required": [
+              "generation",
+              "enabled",
+              "style",
+              "offline_after_seconds",
+              "poll_interval_seconds",
+              "grace_seconds"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "uuid",
+          "organization_uuid",
+          "generation",
+          "operation_uuid",
+          "lifecycle",
+          "deployment_status",
+          "desired",
+          "applied",
+          "connectivity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "retention": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "organization_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "source": {
+            "enum": [
+              "organization",
+              "platform",
+              "default"
+            ]
+          },
+          "override_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "platform_days": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cutoff": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "organization_uuid",
+          "days",
+          "source",
+          "override_days",
+          "revision",
+          "platform_days",
+          "cutoff"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "connections",
+    "devices",
+    "retention"
+  ],
+  "additionalProperties": false
+}

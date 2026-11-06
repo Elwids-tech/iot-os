@@ -1,0 +1,32 @@
+{
+  "uuid": "6f1c0e3a-41d2-5c2e-9b7a-0e2c8f1d4a10",
+  "type": "device.connectivity.v1",
+  "payload": {
+    "organization_uuid": "18000000-0000-4000-8000-000000000001",
+    "subject": {
+      "kind": "gateway",
+      "device_uuid": null,
+      "connection_uuid": "18000000-0000-4000-8000-000000000003",
+      "edge_node_id": "edge-7",
+      "adapter_uuid": null
+    },
+    "episode": 4,
+    "transition": "opened",
+    "cause": "death_certificate",
+    "offline_since": "2026-10-25T14:02:11Z",
+    "at": "2026-10-25T14:04:11Z",
+    "last_heard_at": "2026-10-25T14:02:09.512Z",
+    "last_observed_at": null,
+    "offline_after_seconds": 900,
+    "offline_after_automatic": true,
+    "reporting_interval_seconds": 60,
+    "poll_interval_seconds": null,
+    "grace_seconds": 120,
+    "settings_generation": 0,
+    "affected_device_uuids": [
+      "18000000-0000-4000-8000-000000000002",
+      "18000000-0000-4000-8000-000000000004"
+    ],
+    "stop_reason": null
+  }
+}

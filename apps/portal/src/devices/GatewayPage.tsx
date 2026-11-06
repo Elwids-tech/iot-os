@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import type { Device, DiscoveryCandidate, Gateway } from "@iot-os/api-client"
+import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table"
 import {
@@ -15,6 +16,7 @@ import { Freshness, RelativeTime } from "@iot-os/ui/components/freshness"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
+import { statusOf } from "@iot-os/ui/lib/status"
 import { EntityPage, PropertyList } from "@iot-os/ui/templates/entity-page"
 import { CpuIcon, EllipsisIcon, RouterIcon } from "lucide-react"
 import { api } from "../lib/api"
@@ -163,6 +165,32 @@ export function GatewayPage() {
             Last seen <RelativeTime at={gateway.last_seen_at} never="never" />
           </span>
         </>
+      }
+      notices={
+        gateway.offline_alert ? (
+          <Alert>
+            <AlertTitle>Gateway offline</AlertTitle>
+            <AlertDescription>
+              <p>
+                {gateway.offline_alert.cause
+                  ? `${statusOf(gateway.offline_alert.cause, "offline_cause").label}. `
+                  : ""}
+                Its devices are offline with it; they open no alerts of their own until it is back.
+                {gateway.offline_alert.since && (
+                  <>
+                    {" "}Offline since <RelativeTime at={gateway.offline_alert.since} />.
+                  </>
+                )}
+              </p>
+              <Link
+                className="underline underline-offset-4"
+                to={`/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(gateway.offline_alert.uuid)}`}
+              >
+                Open the alert
+              </Link>
+            </AlertDescription>
+          </Alert>
+        ) : undefined
       }
       rail={
         <Panel>

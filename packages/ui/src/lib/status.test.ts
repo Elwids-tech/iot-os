@@ -33,6 +33,21 @@ describe("status vocabulary", () => {
     expect(statusOf("cleared", "alert")).toEqual({ tone: "muted", label: "Cleared" })
   })
 
+  it("reads offline alerts: kinds, causes, stop reasons and detection states (spec 018)", () => {
+    expect(statusOf("device_offline", "alert_kind")).toEqual({ tone: "critical", label: "Device offline" })
+    expect(statusOf("workflow", "alert_kind")).toEqual({ tone: "info", label: "Automation" })
+    expect(statusOf("missed_check_in", "offline_cause")).toEqual({ tone: "critical", label: "Missed check-in" })
+    expect(statusOf("source_disconnected", "offline_cause").label).toBe("Connection lost")
+    expect(statusOf("device_deactivated", "offline_stop").label).toBe("Device deactivated")
+    expect(statusOf("stopped", "alert")).toEqual({ tone: "muted", label: "Stopped" })
+    expect(statusOf("learning", "connectivity")).toEqual({ tone: "info", label: "Learning how often it reports" })
+    expect(statusOf("waiting", "connectivity").label).toBe("Waiting for first report")
+    // The platform not hearing a device never reads as the device being offline.
+    expect(statusOf("interrupted", "connectivity").tone).toBe("muted")
+    expect(statusOf("adapter_restarting", "connectivity")).toEqual({ tone: "muted", label: "Adapter restarting" })
+    expect(statusOf("offline", "connectivity")).toEqual(statusOf("offline"))
+  })
+
   it("humanizes values it does not know", () => {
     expect(statusOf("needs_review")).toEqual({ tone: "muted", label: "Needs review" })
     expect(statusOf(null)).toEqual({ tone: "muted", label: "Unknown" })

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Models;
 
+use App\Domain\Automation\Models\Alert;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class SparkplugGateway extends DeviceModel
 {
@@ -26,5 +28,11 @@ final class SparkplugGateway extends DeviceModel
     public function candidates(): HasMany
     {
         return $this->hasMany(DiscoveryCandidate::class);
+    }
+
+    /** The open Gateway offline alert of this gateway (spec 018), if any. */
+    public function offlineAlert(): HasOne
+    {
+        return $this->hasOne(Alert::class, 'subject_gateway_id')->ofMany(['id' => 'max'], fn ($query) => $query->where('automation_alerts.kind', Alert::GATEWAY_OFFLINE)->whereNull('automation_alerts.cleared_at'));
     }
 }

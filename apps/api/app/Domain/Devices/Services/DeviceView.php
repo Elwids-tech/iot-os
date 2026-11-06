@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Services;
 
+use App\Domain\Automation\Models\Alert;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
@@ -23,16 +24,80 @@ final class DeviceView
         return $operation->only(['uuid', 'target_state', 'kind', 'generation', 'configuration_uuid', 'status', 'diagnostic', 'created_at', 'completed_at']);
     }
 
+    /** What the runtime reports for an adapter-fed device while its adapter restarts (spec 018, D3). */
+    public const ADAPTER_RESTARTING = 'Adapter restarting; waiting for it to reconnect.';
+
+    public const ADAPTER_PAUSED = 'Adapter paused; offline alerts resume when it is resumed.';
+
+    /** Relations DeviceView::device reads, for lists to eager-load. */
+    public const CONNECTIVITY = ['openConnectivityAlerts.subjectDevice:id,uuid,name', 'openConnectivityAlerts.subjectGateway:id,uuid,name', 'openConnectivityAlerts.subjectAdapter:id,uuid,name'];
+
     public static function presence(Device $device): string
     {
         return $device->presence === 'online' && (! $device->runtime_seen_at || $device->runtime_seen_at->lt(now()->subSeconds(20))) ? 'unknown' : $device->presence;
     }
 
+    /**
+     * The open offline alert concerning a device (spec 018, D14): its own, or its
+     * gateway's, newest first. Null when none is open.
+     *
+     * @return ?array{uuid: string, kind: string, cause: ?string, since: ?string, subject: ?array{type: string, uuid: string, name: string}}
+     */
+    public static function offlineAlert(Device $device): ?array
+    {
+        $alert = $device->openConnectivityAlerts->first();
+
+        return $alert ? self::alert($alert) : null;
+    }
+
+    private static function alert(Alert $alert): array
+    {
+        $subject = match (true) {
+            $alert->subjectDevice !== null => ['type' => 'device', 'uuid' => $alert->subjectDevice->uuid, 'name' => $alert->subjectDevice->name],
+            $alert->subjectGateway !== null => ['type' => 'gateway', 'uuid' => $alert->subjectGateway->uuid, 'name' => $alert->subjectGateway->name],
+            $alert->subjectAdapter !== null => ['type' => 'adapter', 'uuid' => $alert->subjectAdapter->uuid, 'name' => $alert->subjectAdapter->name],
+            default => null,
+        };
+
+        return ['uuid' => $alert->uuid, 'kind' => $alert->kind, 'cause' => $alert->cause, 'since' => ($alert->offline_since ?? $alert->activated_at)?->toJSON(), 'subject' => $subject];
+    }
+
+    /**
+     * Presence and its explanation as people see them. An open offline alert shows the
+     * device offline with its cause, even behind a live gateway; a lost vendor connection
+     * shows it unknown. An adapter-fed device whose adapter restarts or is paused is
+     * unknown, never offline.
+     *
+     * @return array{0: string, 1: ?string}
+     */
+    public static function connectivity(Device $device, ?array $alert): array
+    {
+        if ($alert && $alert['kind'] === Alert::CONNECTION_LOST) {
+            return ['unknown', 'Connection lost'.($alert['subject'] ? ' to '.$alert['subject']['name'] : '').'; waiting for it to reconnect.'];
+        }
+        if ($alert) {
+            return ['offline', match (true) {
+                $alert['kind'] === Alert::GATEWAY_OFFLINE => 'Offline because gateway '.($alert['subject']['name'] ?? '').' is offline.',
+                $alert['cause'] === 'gateway_offline' => 'Offline because '.($device->candidate?->gateway ? 'gateway '.$device->candidate->gateway->name : 'its gateway').' is offline.',
+                $alert['cause'] === 'death_certificate' => 'Offline: death certificate.',
+                default => 'Offline: missed check-in.',
+            }];
+        }
+        if ($device->diagnostic === self::ADAPTER_RESTARTING && $device->openInstallation?->candidate?->adapter?->status === 'paused') {
+            return ['unknown', self::ADAPTER_PAUSED];
+        }
+
+        return [self::presence($device), $device->diagnostic];
+    }
+
     public static function device(Device $device, bool $detail = false): array
     {
-        $presence = self::presence($device);
+        $alert = self::offlineAlert($device);
+        [$presence, $diagnostic] = self::connectivity($device, $alert);
         $data = $device->only(['uuid', 'code', 'name', 'serial_number', 'description', 'lifecycle', 'deployment_status', 'draft_revision', 'deployment_generation', 'desired_configuration_uuid', 'applied_configuration_uuid', 'diagnostic', 'last_seen_at']);
         $data['presence'] = $presence;
+        $data['diagnostic'] = $diagnostic;
+        $data['offline_alert'] = $alert;
         $data['state_revision'] = (int) $device->state_revision;
         $data['last_applied_configuration_uuid'] = $device->last_applied_configuration_uuid;
         $data['operation'] = $device->latestOperation ? self::operation($device->latestOperation) : null;
@@ -76,7 +141,8 @@ final class DeviceView
         return [...$gateway->only(['uuid', 'name', 'edge_node_id', 'presence', 'last_seen_at']),
             'presence' => $gateway->presence === 'online' && (! $gateway->runtime_seen_at || $gateway->runtime_seen_at->lt(now()->subSeconds(20))) ? 'unknown' : $gateway->presence,
             'connection_uuid' => $gateway->connection->uuid, 'group_id' => $gateway->connection->group_id,
-            'sources_count' => $gateway->candidates_count ?? $gateway->candidates()->count()];
+            'sources_count' => $gateway->candidates_count ?? $gateway->candidates()->count(),
+            'offline_alert' => $gateway->offlineAlert ? self::alert($gateway->offlineAlert->setRelation('subjectGateway', $gateway)) : null];
     }
 
     public static function candidate(DiscoveryCandidate $candidate): array

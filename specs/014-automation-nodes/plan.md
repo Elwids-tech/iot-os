@@ -76,7 +76,7 @@ adding types follows it, so no ADR changes. The docs list in
 
 | Node | Ports | Config | Unknown when | Timer |
 | --- | --- | --- | --- | --- |
-| `nodata.v1` No data | `in: any` (straight from a source) → `out: boolean` | `seconds` 60–604,800, ≥ the binding's `fresh_seconds` | no reading and less than a full period since the anchor; broker connection lost (D1) | `max(LastFresh, anchor) + seconds` |
+| `nodata.v1` No data | `in: any` (straight from a source) → `out: boolean` | `seconds` 60–604,800, ≥ the binding's `fresh_seconds`; defaults to the bound device's *Offline after* (FR-005b) | no reading and less than a full period since the anchor; broker connection lost (D1) | `max(LastReceived, anchor) + seconds`, receipt times (FR-005b) |
 | `schedule.v1` Schedule | none → `out: boolean` | `time_zone` (IANA), `ranges` list of `{start, end}` `HH:MM` (1–8), `weekdays` list of ISO weekdays (1–7) | never | next boundary |
 | `state.v1` State match | `in: any` (boolean or string binding) → `out: boolean` | `values` list of scalars (1–16), type matching the input | input unknown or stale | — |
 | `not.v1` Not | `in: boolean` → `out: boolean` | — | input unknown | — |
@@ -90,10 +90,16 @@ adding types follows it, so no ADR changes. The docs list in
   condition without Correlate (D3). A workflow still needs a binding.
 - **Evaluator**: node logic per D2, D3, D5, D7; `NodeState` gains `LastFresh` and an
   anchor (zero values for existing state); `nextTimer` includes the new deadlines; known
-  outputs may carry a reason that traces show (D8).
+  outputs may carry a reason that traces show (D8). No data's silence counts from the
+  receipt time of the input's last fresh reading (`LastReceived`), not its observed
+  time, as spec 018's offline detection does (FR-005b); freshness still judges
+  whether the reading is fresh from its observed time.
 - **Broker guard (D1)**: the tick passes the set of devices whose broker connection is
   recorded as lost; No data reports unknown for them and moves its anchor to the
-  restore time. The recording location is confirmed in PR 1.
+  restore time. The recording location is confirmed in PR 1. Spec 018's connectivity
+  tracker keeps the same connection state in memory (its research D3), which the DAG
+  tick's database transaction cannot read; whichever lands second reuses it or
+  persists it.
 - **Simulation**: unchanged mechanics; clock steps drive the new timers.
 
 ### Contract (`contracts/rules/v2`)
@@ -111,6 +117,10 @@ the same cases so the contract and the runtime agree.
   field.
 - `ScenarioSimulation`: no change in behaviour; tests add clock-step scenarios for each
   node.
+- `GET workflows/dag/resources` gains `offline_after_seconds` per device beside
+  `poll_interval_seconds`: the *Offline after* in effect from the device's connectivity
+  settings, or its automatic value (spec 018 D16, D18). The editor pre-fills a new No
+  data node's period with it when the binding is made (FR-005b).
 - `WorkflowAssistant` prompt: when to use No data (silence), Schedule (time of day,
   zone from the device), State match and Not (switches, modes), Range (bands) and Rate
   of change (changes over time); replace "ask about dwell" with the new nodes where
@@ -124,8 +134,8 @@ the same cases so the contract and the runtime agree.
 - `packages/workflow-editor/src/presentation.ts`: palette group, icon, tone and summary
   for each type (FR-003); `types.ts`: the `list` field type; generic list fallback
   (JSON list editor).
-- `apps/portal/src/automation`: `renderConfig` components: `NoDataConfig` (duration
-  and the binding's freshness hint), `ScheduleConfig` (time ranges with `Input
+- `apps/portal/src/automation`: `renderConfig` components: `NoDataConfig` (duration,
+  defaulting to the device's *Offline after*, and the binding's freshness hint), `ScheduleConfig` (time ranges with `Input
   type="time"`, weekdays with `ToggleGroup`, zone with `SearchableSelect` defaulting to
   the first bound device's reporting zone), `StateMatchConfig` (allowed values as a
   `ToggleGroup` or checkbox list, or the new multi-value text input for free strings),
@@ -144,7 +154,7 @@ guide change.
 
 Each pull request is based on `main` after the previous one merges; none is stacked.
 
-1. **No data** (US1, FR-005, FR-005a, D1, D2, D8): runtime node, broker guard, timer,
+1. **No data** (US1, FR-005, FR-005a, FR-005b, D1, D2, D8): runtime node, broker guard, timer,
    trace reasons, contract cases, editor entry and `NoDataConfig`, assistant prompt, Help and
    docs. Live check: stop a simulated device, see the alert open and clear.
 2. **Schedule** (US2, FR-006, FR-012, D3, D4): `list` field type, runtime node with

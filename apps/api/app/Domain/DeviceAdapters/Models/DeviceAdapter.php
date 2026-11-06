@@ -62,7 +62,14 @@ final class DeviceAdapter extends DeviceModel
     public function pollIntervalSeconds(): ?int
     {
         $applied = $this->applied_revision_uuid ? $this->revisions()->where('uuid', $this->applied_revision_uuid)->value('definition') : null;
-        $source = $applied['source'] ?? $this->source;
+
+        return self::pollInterval($applied, $this->source);
+    }
+
+    /** The poll interval of a running revision's definition, else of the saved source; null when it does not poll. */
+    public static function pollInterval(?array $appliedDefinition, ?array $source): ?int
+    {
+        $source = $appliedDefinition['source'] ?? $source;
 
         return ($source['type'] ?? null) === 'poll' ? (int) ($source['interval_seconds'] ?? 300) : null;
     }

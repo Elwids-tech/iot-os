@@ -23,6 +23,7 @@ clears or stops, or settings change; never per packet (D1).
 | `offline_since` | timestamptz null | when the open episode's condition began |
 | `opened_at` | timestamptz null | when it opened (after grace) |
 | `cause` | text null | `death_certificate`, `missed_check_in`, `gateway_offline`, `source_disconnected` |
+| `affected_device_uuids` | jsonb | the open episode's devices, so it can still be stopped after its subject is gone (added while building pull request 2) |
 | `updated_at` | timestamptz | |
 
 Retention: rows for subjects with no active definition are deleted by the existing

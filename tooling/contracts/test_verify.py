@@ -605,6 +605,12 @@ class Repository(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         root = pathlib.Path(directory.name)
         shutil.copytree(REPOSITORY / "contracts", root / "contracts")
+        # The checker also reads the tests each catalogue entry names.
+        for catalogue in (root / "contracts").glob("**/catalogue.json"):
+            for entry in json.loads(catalogue.read_text()):
+                for test in entry["producer_tests"] + entry["consumer_tests"]:
+                    (root / test).parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(REPOSITORY / test, root / test)
         return root
 
     def run_main(self, root):

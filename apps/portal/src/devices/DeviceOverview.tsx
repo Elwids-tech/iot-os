@@ -42,6 +42,7 @@ import {
   LocationBindingSheet,
   useSaveLocationBinding,
 } from "../geospatial/LocationBindingSheet"
+import { ConnectivitySection } from "./ConnectivitySection"
 import {
   configurationSummary,
   groupAlerts,
@@ -119,6 +120,7 @@ export function DeviceOverview({
       >
         <DeviceLocation org={org} device={device} editable={editable && device.lifecycle !== "archived"} />
         <DeviceDetails org={org} device={device} />
+        {device.lifecycle === "active" && <ConnectivitySection org={org} device={device} />}
         {!!device.installations?.length && <Section title="Physical installation"><p className="text-sm text-muted-foreground">Readings belong to virtual device <code className="break-all">{device.uuid}</code>.</p>{device.installations.map(installation => <div key={installation.uuid} className="mt-3 flex flex-col gap-1 text-sm"><p>{installation.manufacturer_serial} · {installation.ended_at ? "Previous installation" : "Current hardware"}</p><p className="text-muted-foreground">Installed {formatDateTime(installation.started_at)}</p><code className="break-all text-xs">{installation.uuid}</code></div>)}</Section>}
         <UsedIn org={org} device={device} />
         <DeviceAlerts org={org} device={device} />
@@ -618,7 +620,7 @@ export function UsedIn({ org, device }: { org: string; device: DeviceDetail }) {
   )
 }
 
-/** Episodes grouped by workflow so a repeating alert reads as one line with its count. */
+/** Episodes grouped by workflow or offline kind so a repeating alert reads as one line with its count. */
 function DeviceAlerts({ org, device }: { org: string; device: DeviceDetail }) {
   const filter = `device=${encodeURIComponent(device.uuid)}`
   const alerts = useQuery({
@@ -628,11 +630,11 @@ function DeviceAlerts({ org, device }: { org: string; device: DeviceDetail }) {
     refetchIntervalInBackground: false,
   })
   const groups = groupAlerts(alerts.data?.data ?? []).slice(0, 5)
-  // Exact per-workflow counts only when the device has more episodes than one page.
+  // Exact per-group counts only when the device has more episodes than one page.
   const truncated = (alerts.data?.meta.total ?? 0) > (alerts.data?.data.length ?? 0)
   const totals = useQueries({
     queries: groups.map((group) => {
-      const query = `${filter}&workflow=${encodeURIComponent(group.workflow_uuid)}&per_page=1`
+      const query = `${filter}&${group.apiFilter}&per_page=1`
       return {
         queryKey: ["alerts", org, query],
         queryFn: () => api.alerts(org, query),
@@ -663,17 +665,17 @@ function DeviceAlerts({ org, device }: { org: string; device: DeviceDetail }) {
             const count = totals[index]?.data?.meta.total ?? group.count
             const latest = group.latest
             return (
-              <li key={group.workflow_uuid}>
+              <li key={group.key}>
                 <div className="flex items-center justify-between gap-3">
                   <Link
                     className="min-w-0 truncate text-primary underline-offset-4 hover:underline"
                     to={
                       count === 1
                         ? `${base}/${encodeURIComponent(latest.uuid)}`
-                        : `${base}?${filter}&workflow=${encodeURIComponent(group.workflow_uuid)}`
+                        : `${base}?${filter}&${group.filter}`
                     }
                   >
-                    {group.workflow_name}
+                    {group.name}
                   </Link>
                   <StatusMark
                     tone={group.active ? "critical" : "muted"}

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/internal/control/device.connectivity-settings.v1.schema.json",
+  "title": "device.connectivity-settings.v1",
+  "description": "A device's effective offline-alert settings (spec 018, D6). Producer: control plane, written to device_outbox whenever a device's effective settings change and claimed through POST /api/internal/devices/outbox/claim (spec 018 pull request 3; pull request 2 sends the same fields in the /state snapshot, internal.control-state.v1). Consumer: runtime devices-control, which applies them to its connectivity tracker. At least once; deduplicate by uuid. Fence: generation (a lower one is ignored, an equal one applied).",
+  "type": "object",
+  "properties": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "type": {
+      "const": "device.connectivity-settings.v1"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "organization_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "device_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "generation": {
+          "description": "Per-device settings generation. The runtime ignores a lower generation than the one it holds and applies an equal one (it stays 0 until spec 018 pull request 3 adds settings).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "enabled": {
+          "description": "Offline alerts on for the device.",
+          "type": "boolean"
+        },
+        "style": {
+          "description": "stays_connected: a death certificate or silence counts. connects_to_report: deaths are ignored and a report clears at once. Always connects_to_report for a device fed by a device adapter (D5).",
+          "enum": [
+            "stays_connected",
+            "connects_to_report"
+          ]
+        },
+        "offline_after_seconds": {
+          "description": "Silence after which the device counts as offline; null is automatic: clamp(ceil_to_minute(3 x reporting interval + poll interval), 900, 604800) (D16).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 60,
+          "maximum": 604800
+        },
+        "poll_interval_seconds": {
+          "description": "The running adapter revision's poll interval, or null when the device is not polled.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "grace_seconds": {
+          "description": "How long the device must stay offline before an episode opens, and back before it clears.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600
+        }
+      },
+      "required": [
+        "organization_uuid",
+        "device_uuid",
+        "generation",
+        "enabled",
+        "style",
+        "offline_after_seconds",
+        "poll_interval_seconds",
+        "grace_seconds"
+      ],
+      "additionalProperties": false
+    },
+    "lease_token": {
+      "description": "The outbox claim's lease, present when claimed.",
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "uuid",
+    "type",
+    "payload"
+  ],
+  "additionalProperties": false
+}

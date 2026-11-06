@@ -1,22 +1,26 @@
 # Alerts and notifications
 
-Alerts are episodes raised by automations: a geofence rule that has seen a device
-outside long enough, or a DAG's alert action. The **Alerts** inbox lists them with
-acknowledgement, assignment, comments and email delivery status. The **Event log**
-also records service monitoring alerts and watchdog failures.
+Alerts are episodes raised by automations (a geofence rule that has seen a device
+outside long enough, or a DAG's alert action) or by the platform itself when a device
+or gateway goes offline ([offline alerts](#offline-alerts)). The **Alerts** inbox lists
+them with acknowledgement, assignment, comments and email delivery status. The
+**Event log** also records service monitoring alerts and watchdog failures.
 
 Code: [`AlertController`](../../apps/api/app/Domain/Automation/Http/Controllers/AlertController.php),
 [`AlertProjector`](../../apps/api/app/Domain/Automation/Services/AlertProjector.php),
+[`ConnectivityProjector`](../../apps/api/app/Domain/Automation/Services/ConnectivityProjector.php),
 [`DeliverAlertEmail`](../../apps/api/app/Domain/Automation/Jobs),
-[`Domain/Notifications`](../../apps/api/app/Domain/Notifications); portal
-[`src/alerts`](../../apps/portal/src/alerts). Help:
+[`Domain/Notifications`](../../apps/api/app/Domain/Notifications); runtime
+[`internal/app/connectivity.go`](../../services/runtime/internal/app/connectivity.go);
+portal [`src/alerts`](../../apps/portal/src/alerts). Help:
 [`alerts.md`](../../apps/api/resources/help/alerts.md),
 [`alert-notifications.md`](../../apps/api/resources/help/alert-notifications.md).
 
 ## Episodes
 
-Each deployment and episode number has exactly one alert. Its condition is
-**active** until the runtime reports it cleared (`cleared_at`).
+Each deployment and episode number has exactly one alert; each offline episode has
+one too, keyed by `episode_key`. Its condition is **active** until the runtime reports
+it cleared (`cleared_at`).
 
 - Projection of the runtime transition, the alert, its audit record, the event-log
   entry, the integration event and queued email jobs commit in one transaction.
@@ -34,24 +38,157 @@ Each deployment and episode number has exactly one alert. Its condition is
 - A clear that arrives before its activation fills a historical cleared episode;
   the late activation does not reopen it or send a stale email.
 
-The inbox groups repeats of one workflow on one device, shows active alerts first,
-and filters by condition, acknowledgement, device and workflow. The workflow filter
-lists geofence workflows and DAG automations.
+The inbox groups repeats of one workflow on one device (or of one offline subject),
+shows active alerts first, and filters by kind, condition, acknowledgement, device and
+workflow. The workflow filter lists geofence workflows and DAG automations.
 
 ### Kinds
 
-Every alert has a `kind` and a `severity`. Automation alerts are `workflow`, always
-`warning`. The same table holds device connectivity alerts
-([spec 018](../../specs/018-device-offline-alerts/spec.md)): `device_offline`,
-`gateway_offline` and `connection_lost`, which have no workflow and name a device,
-gateway or adapter instead. `automation_alert_devices` lists the devices each alert
-concerns: a workflow alert's bound device (when it names a device of the
-organization), or every device a connectivity alert covers. The `device` filter
-matches a workflow alert's bound device or any device an alert lists. Integration
-reads, the `alert.*.v1` events and the per-workflow emails cover workflow alerts
-only.
+Every alert has a `kind` and a `severity`:
+
+| Kind | Shown as | Raised by |
+| --- | --- | --- |
+| `workflow` | Automation | A geofence rule or a DAG alert action; always `warning` |
+| `device_offline` | Device offline | The runtime, for one device ([offline alerts](#offline-alerts)) |
+| `gateway_offline` | Gateway offline | The runtime, for a gateway and the devices behind it |
+| `connection_lost` | Connection lost | Reserved for a lost vendor broker or failing vendor API; nothing raises it yet |
+
+Offline alerts ([spec 018](../../specs/018-device-offline-alerts/spec.md)) have no
+workflow and name a device, gateway or adapter instead. `automation_alert_devices`
+lists the devices each alert concerns: a workflow alert's bound device (when it names a
+device of the organization), or every device an offline alert covers. The `device`
+filter matches a workflow alert's bound device or any device an alert lists, so it
+also finds a gateway alert that lists the device. Integration reads, the `alert.*.v1`
+events and the per-workflow emails cover workflow alerts only.
+
+## Offline alerts
+
+Every active device is watched for going offline without anyone building an
+automation. An offline alert opens and clears by itself and appears on the Alerts
+page, in the Event log, on the device page and in the device list. **Nothing is sent
+for it yet**: no email, no bell notification and no integration event, because nobody
+has opted in. Personal subscriptions, routes, per-profile settings and mutes are not
+built yet; until they are, every device uses the defaults below.
+
+### Detection
+
+The runtime judges each monitored device, gateway and adapter source on its 5-second
+maintenance tick ([`connectivity.go`](../../services/runtime/internal/app/connectivity.go)).
+It asks the control plane nothing per packet and keeps detecting while the control
+plane is down; episodes recorded meanwhile arrive later with their true times.
+
+- **Heard.** Any packet the runtime receives for a source counts as hearing from it:
+  birth, data or death, before validation, so a rejected packet still proves the
+  device is alive. Node packets (NBIRTH, NDATA, NDEATH) count for the edge node and
+  its own device, never for the devices behind it. On an adapter's edge
+  (group `adapters-<organization uuid>`) only a DDATA with at least one reading not
+  marked historical counts: the adapter's births and deaths are its own, a birth it
+  announces again after a restart repeats an old reading, and a historical reading is
+  a backfill or a re-read ([adapters](adapters.md#how-it-fits-together)).
+- **Silence** is measured by receipt time, never the device's clock, from an anchor:
+  the later of the last packet heard, the runtime's start and the moment its broker
+  connection was last restored. Activating a new configuration does not move it.
+- **Connection style.** A *stays connected* device (the default) is offline when it,
+  or the edge node it sits behind, sends a death certificate, or when its silence
+  passes its *Offline after*. A *connects to report* device disconnects by design, so
+  deaths are ignored, only silence counts, and its next report clears an open episode
+  at once. Devices fed by a [device adapter](adapters.md) always use connects to
+  report: the adapter never sends a death of its own for them.
+- **Grace period.** An episode opens only after the device has been offline for 2
+  minutes without a break, and clears only after it has been back for 2 minutes.
+  A shorter drop leaves no alert, only the presence history.
+- **Causes.** **Death certificate** (the device, or the direct device's edge node,
+  sent one), **Missed check-in** (silence past *Offline after*) and **Gateway
+  offline** (the gateway a device sits behind sent its death certificate). **Connection
+  lost** is reserved for vendor connections.
+- **Severity** is `warning`.
+
+### Offline after
+
+*Offline after* is the silence after which a device counts as offline. Nobody sets it
+yet, so every device uses the **automatic** value:
+
+```text
+offline after = clamp(ceil_to_minute(3 × reporting interval + poll interval), 15 minutes, 7 days)
+```
+
+- The **reporting interval** is the median gap between the observed times of the
+  device's recent readings: at most the last 64 gaps between distinct observed times,
+  none older than 7 days, ignoring gaps of zero or less. Observed time is used because
+  a polled device's readings arrive in bursts whose receipt gaps are near zero; a
+  constant clock offset cancels out in a gap.
+- The **poll interval** is the running adapter revision's interval for a device fed by
+  a [polling adapter](adapters.md#http-polling), zero otherwise. A healthy polled
+  device can be silent for up to its interval plus one poll.
+- A device is **learning** until it has sent three readings in that window. While it
+  learns it is not judged by silence; a death certificate still counts for a stays
+  connected device. A silence in progress is never a gap, so a device that stops does
+  not raise its own threshold; one that slows down raises it as the new gaps complete.
+- On start the runtime seeds the gaps from the last 7 days of stored observations, in
+  batches of devices, without delaying ingestion; a device is learning until its batch
+  is read.
+
+A device reporting every 2 minutes behind a 5-minute poll gets 15 minutes (3 × 2 + 5 is
+11, raised to the minimum); a device reporting hourly gets 3 hours; a daily one 3 days.
+Each alert keeps the threshold it used, whether it was automatic, and the intervals it
+came from.
+
+### Interruptions
+
+Anything on the platform's side that stops it hearing from devices neither opens nor
+clears an episode, and an episode already open stays open through it.
+
+- **Runtime restart or deploy.** Silence restarts at the runtime's start: a device that
+  died during the restart is alerted only after its full *Offline after* (plus grace)
+  from then.
+- **Broker connection lost.** Devices on the connection show unknown and are not
+  judged; silence restarts when the connection is restored.
+- **Adapter restart, redeploy or pause.** An adapter's node death (a redeploy, which
+  activating a device through it causes, a restart, a platform deploy replacing its
+  runtime, or a pause) is platform-side. Its devices show **unknown** ("Adapter
+  restarting; waiting for it to reconnect", or "adapter paused") rather than offline,
+  are not judged while it lasts, and the time the adapter was down is left out of each
+  device's silence when its next node birth arrives. Activating trackers one after
+  another therefore never postpones an alert for one that stays silent.
+- **Device reasons are not interruptions.** A device in review
+  ([ADR-025](../adr/ADR-025-review-follows-current-birth.md)) or with a failed
+  telemetry hand-off is still sending, so it is neither offline nor paused.
+
+### Gateways
+
+An edge node with two or more monitored definitions that stay connected (its devices,
+and the gateway's own device if it has one) is a **gateway**. Its death certificate,
+or the node and every monitored device behind it going silent past their thresholds,
+opens one **Gateway offline** alert that lists the affected devices; they show
+"offline because gateway *name* is offline" and open no episodes of their own while it
+is open. A device already in its own open episode keeps it. When the gateway returns,
+each device that has still not reported is judged by its own *Offline after*, counted
+from the gateway's return. An edge with one monitored definition (a direct device) is
+a device alert. Adapter edges are never gateways.
+
+### Rollout, stopping and history
+
+- **Monitoring starts with the next packet.** A device that has sent nothing since
+  monitoring started shows "waiting for first report" and is never alerted. One already
+  silent when monitoring started (at release, or later when it is activated) shows
+  "offline since before monitoring started" instead of opening an episode, and is
+  watched from its next packet.
+- **Stop reasons.** Deactivating a device, or removing what was monitored, ends an open
+  episode with a stop reason (`device_deactivated`, `definition_removed`, and
+  `monitoring_disabled` once offline alerts can be turned off) instead of clearing it.
+  The alert is no longer active and shows the reason.
+- **Transitions.** The runtime writes each opened, cleared or stopped transition with
+  its outbox event in one transaction (`device.connectivity.v1`,
+  [events](../reference/events.md#runtime-events-go--laravel)). The control plane
+  deduplicates the event and keys the alert by `episode_key` (`<subject>#<episode>`):
+  an `opened` it already has is ignored, and a `cleared` or `stopped` whose `opened`
+  never arrived records a historical alert.
+- Acknowledging, assigning and commenting work as for automation alerts, with the
+  same permissions. Acknowledging never clears or silences the episode.
 
 ## Email
+
+Email covers automation alerts only; offline alerts send no email yet.
 
 ### Per-workflow recipients
 
@@ -109,7 +246,9 @@ first, 20 at a time with **Show older**: automation, device, **Activated** or
 - **Who gets them**: the same recipients as email. Each activation, and each clear when
   recovery is on, adds one notification per recipient, written with the delivery and
   whatever the person's email preferences. Being added later does not show older
-  alerts; leaving the organization or losing device view hides the bell.
+  alerts; leaving the organization or losing device view hides the bell. Offline alerts
+  have no recipients yet, so they never reach the bell; they still count in the
+  sidebar's **Alerts** badge.
 - **Read**: selecting a notification, opening the alert from anywhere (an email link,
   the Alerts page) or **Mark all read** marks it read. Mark all read stops at the
   newest one listed, so an alert that arrives meanwhile stays unread. The sidebar's
@@ -134,7 +273,8 @@ portal [`src/alerts/bell`](../../apps/portal/src/alerts/bell); kit
 ## Event log
 
 **Alerts → Event log** records, per organization, workflow alert transitions,
-service monitoring alerts and independent watchdog failures. Every entry reads
+offline alert transitions (source `connectivity`, with the alert's severity and a link
+to it), service monitoring alerts and independent watchdog failures. Every entry reads
 **Active** while it needs attention and **Cleared** afterwards, with severity
 (critical, warning, info) shown as text as well as colour. It refreshes every 15
 seconds. Members see events for organizations where they can view devices; service
@@ -164,8 +304,8 @@ Under `/api/v1/organizations/{organization}`:
 
 | Method and path | Purpose | Permission |
 | --- | --- | --- |
-| `GET alerts` | List; `condition=active\|cleared`, `acknowledged=0\|1`, `device`, `workflow`, `assignee`, `per_page` 1–100 | `Device.view` |
-| `GET alerts/{uuid}`, `GET alerts/{uuid}/comments` | Detail (`kind`, `severity`, device, the devices it concerns as `devices` (at most 100, by name) with `devices_total`, acknowledgement, assignee, stop reason), comments; the workflow fields are null for other kinds | `Device.view` |
+| `GET alerts` | List; `condition=active\|cleared`, `acknowledged=0\|1`, `device`, `workflow`, `assignee`, repeatable `kind[]` (`workflow`, `device_offline`, `gateway_offline`, `connection_lost`), `muted=0\|1` (default 0 hides muted alerts; nothing is muted yet), `per_page` 1–100 | `Device.view` |
+| `GET alerts/{uuid}`, `GET alerts/{uuid}/comments` | Detail (`kind`, `severity`, device, the devices it concerns as `devices` (at most 100, by name) with `devices_total`, acknowledgement, assignee, stop reason), comments; the workflow fields are null for other kinds. Offline alerts add `subject` (`{type, uuid, name}` of the device, gateway or adapter), `site`, `cause`, `offline_since`, `last_seen_at`, `last_observed_at`, `threshold_seconds`, `threshold_automatic`, `reporting_interval_seconds`, `poll_interval_seconds`, `grace_seconds`, `stopped_reason`, `muted`, `held` and `held_count`; these are null (or false and 0) for automation alerts | `Device.view` |
 | `POST alerts/{uuid}/acknowledge`, `POST alerts/acknowledge` | Acknowledge one, or several | `Device.manage` |
 | `PUT alerts/{uuid}/assignee`, `POST alerts/{uuid}/comments` | Assign, comment (max 5000 characters) | `Device.manage` |
 | `GET alerts/{uuid}/deliveries`, `POST .../deliveries/{d}/retry` | Delivery history, retry with `{retry_generation}` | `Device.manage` |
@@ -178,6 +318,8 @@ Under `/api/v1/organizations/{organization}`:
 `acknowledged_by`, `assigned_to` and `recipient_ids` are integer user ids
 ([ADR-013](../adr/ADR-013-integer-user-ids.md)). Personal preferences and the event
 log are under `/api/v1/notifications/*` (signed-in user, no organization prefix).
+A device's offline state is on `GET devices` (`offline_alert`) and `GET
+devices/{device}/connectivity` ([devices](devices.md#offline-detection)).
 
 Each delivery the platform records for a recipient also writes one alert notification
 for that person (Laravel database notifications, `type` `alert`), in the same

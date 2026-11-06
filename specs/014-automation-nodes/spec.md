@@ -4,7 +4,9 @@
 
 **Created**: 2026-10-18
 
-**Status**: Draft; decisions confirmed by the owner on 2026-10-18
+**Status**: Draft; decisions confirmed by the owner on 2026-10-18; No data's default
+period and clock aligned with device offline alerts on 2026-10-30
+([spec 018](../018-device-offline-alerts/spec.md), FR-037; FR-005b here)
 
 **Input**: "Do you think these nodes are sufficient? … I mean any new nodes that you
 think we should introduce?" The proposed answer, which the owner asked to specify: no
@@ -227,6 +229,13 @@ still pass.
 - **No data and freshness.** A binding's freshness says how long one reading counts;
   No data's period says how long silence must last. A period shorter than the
   binding's freshness is rejected, because the reading would still be fresh.
+- **No data and offline alerts.** Spec 018 watches every active device for going
+  offline without any workflow, after the device's *Offline after*. No data shares that
+  threshold as its default period and, like offline detection, counts silence from
+  when the platform received the input's last reading, never from the reading's
+  observed time, so a device's clock or a vendor's upload delay cannot open or hide it
+  (FR-005b). It is still needed for what offline alerts do not cover: one parameter
+  going quiet while the device keeps reporting, and an automation action on silence.
 - **No data never starts true by accident.** After activation the node waits a full
   period before declaring silence; until then it is unknown, and unknown never opens or
   clears an alert. A restart or a stream pause cannot make it true early: the last
@@ -292,6 +301,13 @@ still pass.
   reports through, No data for that device MUST be unknown, not true, and its silence
   period MUST restart when the connection returns, so a platform-side outage does not
   open an alert for every device.
+- **FR-005b** (spec 018 FR-037, owner decision of 2026-10-30): No data's period MUST
+  default to the bound device's *Offline after* in effect when the binding is made (the
+  value set on the device or its profile, or its automatic value), and MUST stay
+  editable per node; the period saved with the node does not follow later changes to
+  *Offline after*. Its silence MUST count from receipt: the time the platform received
+  the input's last reading, never the reading's observed time. Binding freshness stays
+  a separate setting with its own default (spec 018 FR-036).
 - **FR-006**: **Schedule** MUST output true inside any of its ranges on the selected
   weekdays in its configured IANA time zone, and false otherwise. It MUST change on
   the timer tick after each boundary. Ranges that end before they start run past

@@ -146,6 +146,47 @@ const domains = {
     activated: { tone: "warning", label: "Activated" },
     active: { tone: "warning", label: "Active" },
     cleared: { tone: "muted", label: "Cleared" },
+    /** A connectivity alert monitoring ended (deactivation, offline alerts off). */
+    stopped: { tone: "muted", label: "Stopped" },
+  },
+  /** What raised an alert (spec 018). */
+  alert_kind: {
+    workflow: { tone: "info", label: "Automation" },
+    device_offline: { tone: "critical", label: "Device offline" },
+    gateway_offline: { tone: "critical", label: "Gateway offline" },
+    connection_lost: { tone: "critical", label: "Connection lost" },
+  },
+  /** Why a device, gateway or connection counts as offline (spec 018). */
+  offline_cause: {
+    death_certificate: { tone: "critical", label: "Death certificate" },
+    missed_check_in: { tone: "critical", label: "Missed check-in" },
+    gateway_offline: { tone: "critical", label: "Gateway offline" },
+    source_disconnected: { tone: "critical", label: "Connection lost" },
+  },
+  /** Why monitoring ended an open connectivity alert. */
+  offline_stop: {
+    device_deactivated: { tone: "muted", label: "Device deactivated" },
+    monitoring_disabled: { tone: "muted", label: "Offline alerts turned off" },
+    definition_removed: { tone: "muted", label: "Monitoring ended" },
+  },
+  /**
+   * Where offline detection has a device (spec 018). Unknown and interrupted are never
+   * offline: the platform could not hear the device, which is not the device's fault.
+   */
+  connectivity: {
+    waiting: { tone: "muted", label: "Waiting for first report" },
+    learning: { tone: "info", label: "Learning how often it reports" },
+    monitored: { tone: "good", label: "Monitored" },
+    pending: { tone: "warning", label: "Going offline" },
+    offline: { tone: "critical", label: "Offline" },
+    recovering: { tone: "info", label: "Coming back" },
+    interrupted: { tone: "muted", label: "Paused by the platform" },
+    adapter_restarting: { tone: "muted", label: "Adapter restarting" },
+    adapter_paused: { tone: "muted", label: "Adapter paused" },
+    disabled: { tone: "muted", label: "Offline alerts off" },
+    inactive: { tone: "muted", label: "Not active" },
+    unknown: { tone: "muted", label: "Unknown" },
+    before_monitoring: { tone: "muted", label: "Offline since before monitoring started" },
   },
   /** Support ticket priority, set by the team. */
   priority: {

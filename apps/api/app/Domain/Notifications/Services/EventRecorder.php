@@ -13,6 +13,16 @@ use Illuminate\Support\Str;
 
 final class EventRecorder
 {
+    /**
+     * Sources of event-log entries. Connectivity alerts (spec 018) are logged before
+     * they have an email preference of their own, so these differ from Preferences::SOURCES.
+     */
+    public const SOURCES = ['workflow', 'service', 'watchdog', 'connectivity'];
+
+    private const KIND_TITLES = [Alert::DEVICE_OFFLINE => 'Device offline', Alert::GATEWAY_OFFLINE => 'Gateway offline', Alert::CONNECTION_LOST => 'Connection lost'];
+
+    private const CAUSES = ['death_certificate' => 'death certificate', 'missed_check_in' => 'missed check-in', 'gateway_offline' => 'gateway offline', 'source_disconnected' => 'connection lost'];
+
     public function record(array $values, bool $email = false): NotificationEvent
     {
         return DB::transaction(function () use ($values, $email): NotificationEvent {
@@ -63,6 +73,31 @@ final class EventRecorder
             'severity' => 'warning', 'status' => $type === 'activated' ? 'firing' : 'resolved',
             'title' => $alert->workflow->name,
             'summary' => 'Workflow condition '.($type === 'activated' ? 'activated' : 'cleared').'; episode '.$alert->episode.'.',
+            'link' => '/organizations/'.Organization::findOrFail($alert->organization_id)->uuid.'/alerts/'.$alert->uuid,
+            'occurred_at' => $occurredAt,
+        ]);
+    }
+
+    /**
+     * A connectivity alert's transition (spec 018): opened is firing, cleared and stopped
+     * resolve it. Severity comes from the alert.
+     */
+    public function connectivity(Alert $alert, string $transition, string $subject, string $occurredAt): void
+    {
+        if ($alert->isWorkflow()) {
+            throw new \LogicException('Workflow alerts are recorded as workflow events.');
+        }
+        $summary = match ($transition) {
+            'opened' => 'Offline: '.(self::CAUSES[$alert->cause] ?? 'unknown cause').($alert->last_seen_at ? '; last seen '.$alert->last_seen_at->utc()->toIso8601ZuluString() : '').'.',
+            'cleared' => 'Back online; episode '.$alert->episode.'.',
+            default => 'Monitoring stopped ('.str_replace('_', ' ', (string) $alert->stopped_reason).'); episode '.$alert->episode.'.',
+        };
+        $this->record([
+            'source' => 'connectivity', 'event_key' => $alert->uuid.':'.$transition,
+            'incident_key' => $alert->uuid, 'organization_id' => $alert->organization_id,
+            'severity' => $alert->severity ?? 'warning', 'status' => $transition === 'opened' ? 'firing' : 'resolved',
+            'title' => mb_substr((self::KIND_TITLES[$alert->kind] ?? 'Offline').': '.$subject, 0, 255),
+            'summary' => $summary,
             'link' => '/organizations/'.Organization::findOrFail($alert->organization_id)->uuid.'/alerts/'.$alert->uuid,
             'occurred_at' => $occurredAt,
         ]);

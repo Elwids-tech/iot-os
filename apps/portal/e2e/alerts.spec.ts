@@ -5,10 +5,14 @@ const org = "18b842d4-dbe9-44b7-a82f-8409bf31401a";
 const gps = "18b842d4-dbe9-44b7-a82f-8409bf314d01";
 const meter = "18b842d4-dbe9-44b7-a82f-8409bf314d02";
 const geofence = "18b842d4-dbe9-44b7-a82f-8409bf314f01";
+const box = "18b842d4-dbe9-44b7-a82f-8409bf314d03";
+const light = "18b842d4-dbe9-44b7-a82f-8409bf314d04";
+const yard = "18b842d4-dbe9-44b7-a82f-8409bf314e01";
 const voltage = "18b842d4-dbe9-44b7-a82f-8409bf314f02";
 const base = `/organizations/${org}/alerts`;
 // Alert links must be UUIDs; anything else reads as a broken link.
 const alertIds = { a1: "a0000000-0000-4000-8000-000000000001", a2: "a0000000-0000-4000-8000-000000000002", a3: "a0000000-0000-4000-8000-000000000003" };
+const offlineIds = { box: "a0000000-0000-4000-8000-000000000011", gateway: "a0000000-0000-4000-8000-000000000012", stopped: "a0000000-0000-4000-8000-000000000013" };
 const settings = `/organizations/${org}/settings/notifications`;
 const now = Date.now();
 const ago = (minutes: number) => new Date(now - minutes * 60000).toISOString();
@@ -40,7 +44,92 @@ const view = (workflow: Record<string, unknown>, op: Operation) => ({
   created_at: new Date().toISOString(),
   completed_at: op.status === "pending" ? null : new Date().toISOString(),
 });
-async function setup(page: Page, manage = true) {
+/** Device offline alerts (spec 018): a device, a gateway listing two devices, and one monitoring stopped. */
+const offlineAlerts = (): Alert[] => {
+  const base = {
+    severity: "warning",
+    workflow_uuid: null,
+    workflow_name: null,
+    operation_uuid: null,
+    condition: "active",
+    cleared_at: null,
+    acknowledged_at: null,
+    acknowledged_by: null,
+    acknowledged_by_name: null,
+    assignee: null,
+    assigned_at: null,
+    execution_stopped_reason: null,
+    site: { uuid: "s1", name: "Site A", timezone: "UTC" },
+    cause: "death_certificate",
+    last_observed_at: null,
+    threshold_seconds: 900,
+    threshold_automatic: true,
+    reporting_interval_seconds: 60,
+    poll_interval_seconds: null,
+    grace_seconds: 120,
+    stopped_reason: null,
+    muted: false,
+    held: false,
+    held_count: 0,
+  };
+  return [
+    {
+      ...base,
+      uuid: offlineIds.gateway,
+      kind: "gateway_offline",
+      device_uuid: null,
+      device_name: null,
+      subject: { type: "gateway", uuid: yard, name: "Yard gateway" },
+      devices: [
+        { uuid: meter, name: "Energy meter" },
+        { uuid: light, name: "RGB light" },
+      ],
+      devices_total: 2,
+      episode: 1,
+      activated_at: ago(3),
+      offline_since: ago(5),
+      last_seen_at: ago(5),
+    },
+    {
+      ...base,
+      uuid: offlineIds.box,
+      kind: "device_offline",
+      device_uuid: box,
+      device_name: "Hot work box 2",
+      subject: { type: "device", uuid: box, name: "Hot work box 2" },
+      devices: [{ uuid: box, name: "Hot work box 2" }],
+      devices_total: 1,
+      episode: 2,
+      cause: "missed_check_in",
+      activated_at: ago(8),
+      offline_since: ago(10),
+      last_seen_at: ago(25),
+      last_observed_at: ago(27),
+      threshold_seconds: 1020,
+      reporting_interval_seconds: 240,
+      poll_interval_seconds: 300,
+    },
+    {
+      ...base,
+      uuid: offlineIds.stopped,
+      kind: "device_offline",
+      device_uuid: box,
+      device_name: "Hot work box 2",
+      subject: { type: "device", uuid: box, name: "Hot work box 2" },
+      devices: [{ uuid: box, name: "Hot work box 2" }],
+      devices_total: 1,
+      episode: 1,
+      condition: "cleared",
+      activated_at: ago(400),
+      cleared_at: ago(390),
+      offline_since: ago(402),
+      last_seen_at: ago(402),
+      stopped_reason: "device_deactivated",
+    },
+  ];
+};
+
+async function setup(page: Page, manage = true, offline = false) {
   const alert = (
     uuid: string,
     workflow: string,
@@ -88,6 +177,7 @@ async function setup(page: Page, manage = true) {
         assignee: members[1],
         assigned_at: ago(290),
       }),
+      ...(offline ? offlineAlerts() : []),
     ],
     comments: [] as Record<string, unknown>[],
     queries: [] as URLSearchParams[],
@@ -187,7 +277,10 @@ async function setup(page: Page, manage = true) {
           (!q.get("condition") || a.condition === q.get("condition")) &&
           (!q.get("acknowledged") ||
             (q.get("acknowledged") === "1") === Boolean(a.acknowledged_at)) &&
-          (!q.get("device") || a.device_uuid === q.get("device")) &&
+          (!q.get("device") ||
+            a.device_uuid === q.get("device") ||
+            (a.devices as { uuid: string }[]).some((d) => d.uuid === q.get("device"))) &&
+          (!q.getAll("kind[]").length || q.getAll("kind[]").includes(a.kind as string)) &&
           (!q.get("workflow") || a.workflow_uuid === q.get("workflow")) &&
           (!q.get("assignee") || String(a.assignee?.id) === q.get("assignee")),
       );
@@ -198,11 +291,12 @@ async function setup(page: Page, manage = true) {
       if (q.get("group") === "source") {
         const groups = new Map<string, Alert[]>();
         for (const a of rows) {
-          const key = `${a.workflow_uuid}|${a.device_uuid}`;
+          const subject = a.subject as { uuid: string } | undefined;
+          const key = subject ? `${a.kind}|${subject.uuid}` : `${a.workflow_uuid}|${a.device_uuid}`;
           groups.set(key, [...(groups.get(key) ?? []), a]);
         }
         const data = [...groups.values()].map((items) => ({
-          kind: "workflow",
+          kind: items[0].kind,
           workflow_uuid: items[0].workflow_uuid,
           device_uuid: items[0].device_uuid,
           occurrences: items.length,
@@ -327,6 +421,7 @@ async function setup(page: Page, manage = true) {
         state.retried = true;
         return reply({ data: { status: "pending" } }, 202);
       }
+      if (suffix === "/deliveries" && item.kind !== "workflow") return reply({ data: [] });
       if (suffix === "/deliveries")
         return reply({
           data: [
@@ -810,5 +905,74 @@ test("the event log lives in Alerts, email preferences in Settings, and old link
   await page.getByRole("tab", { name: "Alerts" }).click();
   await expect(page).toHaveURL(new RegExp(`${base}$`));
   await expect(page.getByRole("list", { name: "Alert sources" })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("device offline alerts list beside automations, filter by kind and explain going offline (spec 018)", async ({ page }) => {
+  const { state, errors } = await setup(page, true, true);
+  await page.goto(base);
+  const sources = page.getByRole("list", { name: "Alert sources" });
+  await expect(sources.getByRole("link", { name: "Device offline — Hot work box 2", exact: true })).toBeVisible();
+  await expect(sources.getByRole("listitem").filter({ hasText: "Hot work box 2" })).toContainText("Missed check-in");
+  await expect(sources.getByRole("link", { name: "GPS demo geofence — GPS tracker", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByRole("combobox", { name: "Kind", exact: true }).click();
+  await expect(page.getByRole("option")).toHaveText(["Automation", "Device offline", "Gateway offline", "Connection lost"]);
+  await page.getByRole("option", { name: "Gateway offline" }).click();
+  await expect(page).toHaveURL(/kind=gateway_offline/);
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect.poll(() => state.queries.at(-1)?.getAll("kind[]")).toEqual(["gateway_offline"]);
+  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeVisible();
+  await expect(sources.getByRole("listitem")).toHaveCount(1);
+  await sources.getByRole("link", { name: "Gateway offline — Yard gateway", exact: true }).click();
+
+  const detail = page.getByRole("region", { name: "Alert detail" });
+  await expect(detail.getByRole("link", { name: "Yard gateway" })).toHaveAttribute("href", `/organizations/${org}/gateways/${yard}`);
+  await expect(detail.getByRole("heading", { name: "Offline details" })).toBeVisible();
+  await expect(detail.getByText("Death certificate")).toBeVisible();
+  const affected = detail.getByRole("table", { name: "Affected devices" });
+  await expect(affected.getByRole("link", { name: "RGB light" })).toHaveAttribute("href", `/organizations/${org}/devices/${light}`);
+  await expect(affected.getByRole("link", { name: "Energy meter" })).toBeVisible();
+  // Nothing is sent in this release: no email delivery and no workflow settings to link to.
+  await expect(detail.getByText("No email was requested for this alert.")).toBeVisible();
+  await expect(detail.getByRole("link", { name: "Notification settings" })).toHaveCount(0);
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+
+  // Phones: one device alert, its last heard and observed times and the automatic threshold.
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(`${base}/${offlineIds.box}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Device offline — Hot work box 2" })).toBeVisible();
+  const narrow = page.getByRole("region", { name: "Alert detail" });
+  await expect(narrow.getByText("Missed check-in")).toBeVisible();
+  await expect(narrow.getByText("Last reading observed")).toBeVisible();
+  await expect(narrow.getByText("17 min, automatic")).toBeVisible();
+  await expect(narrow.getByText("Automatic: 3 × 4 min reporting interval + 5 min poll, at least 15 min")).toBeVisible();
+  await expect(narrow.getByText("Site A")).toBeVisible();
+  await expect(narrow.getByRole("table", { name: "Affected devices" })).toHaveCount(0);
+  // The earlier, stopped occurrence of the same device.
+  await expect(narrow.getByRole("list", { name: "Recent occurrences" })).toContainText("Stopped");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+
+  await narrow.getByRole("link", { name: "Occurrence 1" }).click();
+  await expect(page.getByRole("region", { name: "Alert detail" }).getByText("Monitoring stopped")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Alert detail" }).getByText(/Device deactivated\./)).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("acknowledging a device offline source acknowledges its alerts by id, not by workflow", async ({ page }) => {
+  const { state, errors } = await setup(page, true, true);
+  await page.goto(`${base}?condition=all`);
+  const sources = page.getByRole("list", { name: "Alert sources" });
+  await expect(sources.getByRole("listitem").filter({ hasText: "Hot work box 2" })).toContainText("2 occurrences");
+  await page.getByRole("checkbox", { name: "Select Device offline — Hot work box 2" }).check();
+  await page.getByRole("button", { name: "Acknowledge selected (2)" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Acknowledge" }).click();
+  await expect(page.getByText("Acknowledged 2 alerts.")).toBeVisible();
+  expect(state.acknowledgements).toEqual([{ alert_uuids: [offlineIds.box, offlineIds.stopped] }]);
+  // The gateway listing the same devices is another source and stays unacknowledged.
+  expect(state.alerts.find((a) => a.uuid === offlineIds.gateway)?.acknowledged_at).toBeNull();
   expect(errors).toEqual([]);
 });

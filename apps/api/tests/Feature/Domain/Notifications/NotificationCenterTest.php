@@ -127,10 +127,10 @@ final class NotificationCenterTest extends TestCase
         $workflow($northstar, 'northstar-active', true);
         $this->actingAs($this->operator, 'sanctum');
         $this->getJson('/api/v1/notifications/events')->assertOk()->assertJsonPath('meta.total', 4)
-            ->assertJsonPath('summary.sources', ['workflow' => 2, 'service' => 1, 'watchdog' => 0]);
+            ->assertJsonPath('summary.sources', ['workflow' => 2, 'service' => 1, 'watchdog' => 0, 'connectivity' => 0]);
         $this->getJson('/api/v1/notifications/events?status=cleared')->assertJsonPath('meta.total', 1);
         $this->getJson('/api/v1/notifications/events?status=active&organization='.$acme->uuid)->assertJsonPath('meta.total', 2)
-            ->assertJsonPath('summary.sources', ['workflow' => 1, 'service' => 1, 'watchdog' => 0]);
+            ->assertJsonPath('summary.sources', ['workflow' => 1, 'service' => 1, 'watchdog' => 0, 'connectivity' => 0]);
         $this->getJson('/api/v1/notifications/events?status=finished')->assertUnprocessable();
         $this->ingest('resolved');
         $this->getJson('/api/v1/notifications/events?status=cleared&source=service')->assertJsonPath('meta.total', 2)->assertJsonPath('summary.sources.service', 0);

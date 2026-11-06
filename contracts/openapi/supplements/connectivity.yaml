@@ -1,0 +1,169 @@
+# Device offline alerts (spec 018).
+#
+# Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    OfflineAlertSubject:
+      type: object
+      additionalProperties: false
+      required: [type, uuid, name]
+      properties:
+        type:
+          type: string
+          enum: [device, gateway, adapter]
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+    OfflineAlertSummary:
+      type: object
+      additionalProperties: false
+      description: The open offline alert that lists the device, its own or its gateway's (newest first).
+      required: [uuid, kind, cause, since, subject]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [device_offline, gateway_offline, connection_lost]
+        cause:
+          type: [string, 'null']
+          enum: [death_certificate, missed_check_in, gateway_offline, source_disconnected, null]
+        since:
+          type: [string, 'null']
+          format: date-time
+          description: When the offline condition began (receipt time).
+        subject:
+          oneOf:
+            - $ref: '#/components/schemas/OfflineAlertSubject'
+            - type: 'null'
+    ConnectivitySettingsEffective:
+      type: object
+      additionalProperties: false
+      required: [enabled, style, offline_after_seconds, grace_seconds, severity, poll_interval_seconds]
+      properties:
+        enabled:
+          type: boolean
+        style:
+          type: string
+          enum: [stays_connected, connects_to_report]
+        offline_after_seconds:
+          type: [integer, 'null']
+          minimum: 60
+          maximum: 604800
+          description: Null is automatic, 3 × the reporting interval plus the poll interval, at least 15 minutes and at most 7 days.
+        grace_seconds:
+          type: integer
+          minimum: 0
+          maximum: 3600
+        severity:
+          type: string
+          enum: [critical, warning, info]
+        poll_interval_seconds:
+          type: [integer, 'null']
+          minimum: 1
+          description: The adapter's running poll interval; null when the device is not polled.
+    ConnectivityState:
+      type: object
+      additionalProperties: false
+      description: What the runtime's tracker knows about the device; `inactive` for a device that is not active, `unknown` when the runtime cannot say (the other fields are then null).
+      required: [state, monitoring_since, last_heard_at, last_observed_at, anchor_at, reporting_interval_seconds, readings_counted, poll_interval_seconds, offline_after_seconds, offline_after_automatic, suppressed_by_gateway, interruption, before_monitoring]
+      properties:
+        state:
+          type: string
+          enum: [waiting, learning, monitored, pending, offline, recovering, interrupted, disabled, inactive, unknown]
+        monitoring_since:
+          type: [string, 'null']
+          format: date-time
+        last_heard_at:
+          type: [string, 'null']
+          format: date-time
+          description: When the platform last heard from the device (receipt time).
+        last_observed_at:
+          type: [string, 'null']
+          format: date-time
+          description: The observed time of its newest reading.
+        anchor_at:
+          type: [string, 'null']
+          format: date-time
+          description: Where silence counts from when later than the last packet (a runtime start, a restored connection, an adapter's return).
+        reporting_interval_seconds:
+          type: [integer, 'null']
+        readings_counted:
+          type: [integer, 'null']
+        poll_interval_seconds:
+          type: [integer, 'null']
+        offline_after_seconds:
+          type: [integer, 'null']
+          description: The threshold in effect; null while it is automatic and still learning.
+        offline_after_automatic:
+          type: [boolean, 'null']
+        suppressed_by_gateway:
+          type: [boolean, 'null']
+        interruption:
+          type: [string, 'null']
+          enum: [connection, adapter, null]
+        before_monitoring:
+          type: boolean
+          description: Waiting, and last heard before monitoring began ("offline since before monitoring started").
+    DeviceConnectivity:
+      type: object
+      additionalProperties: false
+      required: [effective, inherited_from, style_locked, state, alert]
+      properties:
+        effective:
+          $ref: '#/components/schemas/ConnectivitySettingsEffective'
+        inherited_from:
+          type: object
+          additionalProperties: false
+          required: [enabled, style, offline_after_seconds, grace_seconds, severity]
+          properties:
+            enabled:
+              type: string
+              enum: [default]
+            style:
+              type: string
+              enum: [default, adapter]
+            offline_after_seconds:
+              type: string
+              enum: [automatic]
+            grace_seconds:
+              type: string
+              enum: [default]
+            severity:
+              type: string
+              enum: [default]
+        style_locked:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  enum: [adapter]
+            - type: 'null'
+        state:
+          $ref: '#/components/schemas/ConnectivityState'
+        alert:
+          oneOf:
+            - $ref: '#/components/schemas/OfflineAlertSummary'
+            - type: 'null'
+    DeviceConnectivityResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/DeviceConnectivity'
+operations:
+  GET /v1/organizations/{organization}/devices/{device}/connectivity:
+    description: A device's offline-alert settings in effect (spec 018), where each comes from, and the runtime's monitoring state. Pull request 2 has only the platform defaults; a device fed by a device adapter always connects to report.
+    responses:
+      '200':
+        description: The settings and state.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceConnectivityResponse'

@@ -36,6 +36,7 @@ export * from "./devices"
 export * from "./firmware"
 export * from "./telemetry"
 export * from "./alerts"
+export * from "./connectivity"
 export * from "./notifications"
 export * from "./adapters"
 export * from "./geospatial"
@@ -1369,7 +1370,7 @@ export class ApiClient {
       search?: string
       /** One lifecycle, or "current" for every lifecycle but archived. */
       lifecycle?: string
-      /** The list's status: online, offline, unseen, unknown, unconfigured, updating, failed, deactivated or archived. */
+      /** The list's status: online, offline, offline_alert (an open offline alert), unseen, unknown, unconfigured, updating, failed, deactivated or archived. */
       status?: string[]
       /** Devices whose applied (or last applied) configuration uses this profile. */
       profile_uuid?: string
@@ -1716,6 +1717,10 @@ export class ApiClient {
       this.devicePath(org, id) + "/measurements/increase?" + search,
       "GET", undefined, signal,
     )
+  }
+  /** The device's offline-alert settings and what the runtime knows about its connectivity (spec 018). */
+  deviceConnectivity(org: string, id: string, signal?: AbortSignal) {
+    return this.data<import("./connectivity").DeviceConnectivity>(this.devicePath(org, id) + "/connectivity", "GET", undefined, signal)
   }
   deviceCommands(org: string, id: string, signal?: AbortSignal) {
     return this.data<DeviceCommand[]>(this.devicePath(org, id) + "/commands", "GET", undefined, signal)
@@ -2138,20 +2143,21 @@ export class ApiClient {
     return `${this.baseUrl}${this.assistantPath(org, id, `/sources/${encodeURIComponent(source)}`)}`
   }
 
+  /** `query` is the alerts filters as a query string; repeat `kind[]` for several kinds. */
   alerts(org: string, query: string, signal?: AbortSignal) {
-    return this.request<import("./alerts").AlertPage<import("./alerts").WorkflowAlert>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts?${query}`, { signal })
+    return this.request<import("./alerts").AlertPage<import("./alerts").Alert>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts?${query}`, { signal })
   }
   alert(org: string, id: string) {
-    return this.data<import("./alerts").WorkflowAlert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}`)
+    return this.data<import("./alerts").Alert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}`)
   }
   acknowledgeAlert(org: string, id: string) {
-    return this.data<import("./alerts").WorkflowAlert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/acknowledge`, "POST", {})
+    return this.data<import("./alerts").Alert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/acknowledge`, "POST", {})
   }
   /** `query` takes the alerts filters; `group=source` is added. */
   alertSources(org: string, query: string, signal?: AbortSignal) {
     const params = new URLSearchParams(query)
     params.set("group", "source")
-    return this.request<import("./alerts").AlertPage<import("./alerts").WorkflowAlertSource>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts?${params}`, { signal })
+    return this.request<import("./alerts").AlertPage<import("./alerts").AlertSource>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts?${params}`, { signal })
   }
   /** Already acknowledged alerts are skipped; resolves to the number newly acknowledged. */
   acknowledgeAlerts(org: string, input: import("./alerts").AlertAcknowledgement) {
@@ -2159,7 +2165,7 @@ export class ApiClient {
   }
   /** `null` unassigns. The user must be an organization member (integer user id). */
   assignAlert(org: string, id: string, userId: number | null) {
-    return this.data<import("./alerts").WorkflowAlert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/assignee`, "PUT", { user_id: userId })
+    return this.data<import("./alerts").Alert>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/assignee`, "PUT", { user_id: userId })
   }
   alertComments(org: string, id: string, page: number) {
     return this.request<import("./alerts").AlertPage<import("./alerts").AlertComment>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(id)}/comments?page=${page}`)

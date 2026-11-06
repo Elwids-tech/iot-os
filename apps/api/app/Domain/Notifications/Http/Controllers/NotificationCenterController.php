@@ -6,6 +6,7 @@ namespace App\Domain\Notifications\Http\Controllers;
 
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Notifications\Models\NotificationEvent;
+use App\Domain\Notifications\Services\EventRecorder;
 use App\Domain\Notifications\Services\Preferences;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
@@ -51,7 +52,7 @@ final class NotificationCenterController
     public function events(Request $request, DeviceAuthorization $authorization): array
     {
         $input = $request->validate([
-            'source' => ['sometimes', Rule::in(Preferences::SOURCES)],
+            'source' => ['sometimes', Rule::in(EventRecorder::SOURCES)],
             'severity' => ['sometimes', Rule::in(['critical', 'warning', 'info'])],
             // "cleared" is every event that no longer needs attention; "resolved" only the clear notices.
             'status' => ['sometimes', Rule::in(['active', 'cleared', 'resolved'])],
@@ -85,7 +86,7 @@ final class NotificationCenterController
             'warning' => (clone $query)->where('active', true)->where('severity', 'warning')->count(),
             'info' => (clone $query)->where('active', true)->where('severity', 'info')->count(),
             'resolved' => (clone $query)->where('status', 'resolved')->count(),
-            'sources' => array_merge(array_fill_keys(Preferences::SOURCES, 0), (clone $query)->where('active', true)->groupBy('source')->selectRaw('source, count(*) as total')->pluck('total', 'source')->map(fn ($total) => (int) $total)->all()),
+            'sources' => array_merge(array_fill_keys(EventRecorder::SOURCES, 0), (clone $query)->where('active', true)->groupBy('source')->selectRaw('source, count(*) as total')->pluck('total', 'source')->map(fn ($total) => (int) $total)->all()),
         ];
         if (isset($input['status'])) {
             match ($input['status']) {

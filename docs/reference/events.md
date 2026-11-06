@@ -63,6 +63,7 @@ republished to `IOT_DEVICE_CONTROL`, then acknowledged.
 | `workflow.deploy.v1` | Geofence rule deployment ([`WorkflowDeploymentService`](../../apps/api/app/Domain/Automation/Services/WorkflowDeploymentService.php)) | Activate or disable a rule execution |
 | `workflow.deploy.v2` | DAG deployment ([`DagDeployment`](../../apps/api/app/Domain/Automation/Services/DagDeployment.php)) | Activate or disable a DAG execution |
 | `connection.changed.v1` | Broker provisioning | Re-read `GET /api/internal/devices/state` |
+| `device.connectivity-settings.v1` | Not written yet; offline-alert settings changes will write it | Apply a device's offline-alert settings, ignoring a lower `generation` |
 | `settings.retention.changed.v1` | Retention change | No-op; retention is read from state |
 
 Contracts, each with a fixture and cases:
@@ -76,6 +77,16 @@ Contracts, each with a fixture and cases:
   and [`device-configuration.v2`](../../contracts/devices/v2/configuration.schema.json),
   with an `adapter` binding for adapter-backed devices.
 - Deployments and workflows: [`contracts/rules`](../../contracts/rules).
+- `device.connectivity-settings.v1`, a device's effective offline-alert settings:
+  [`internal/control/device.connectivity-settings.v1.schema.json`](../../contracts/internal/control/device.connectivity-settings.v1.schema.json).
+- The `GET /api/internal/devices/state` snapshot (`internal.control-state.v1`):
+  [`internal/state/internal.control-state.v1.schema.json`](../../contracts/internal/state/internal.control-state.v1.schema.json).
+  Each device entry carries `connectivity`, the settings message's fields without the
+  identities (`generation`, `enabled`, `style`, `offline_after_seconds` (null is
+  automatic), `poll_interval_seconds`, `grace_seconds`). Until settings can be changed,
+  every device gets the defaults: enabled, stays connected (connects to report for an
+  adapter device, with its adapter's poll interval), automatic, 120 s, generation 0.
+  The runtime applies an equal generation, so a changed snapshot takes effect.
 
 The other control messages have no contract yet. Laravel's producer test
 ([`DriftedControlMessageTest`](../../apps/api/tests/Feature/Domain/Devices/Contracts/DriftedControlMessageTest.php))
@@ -101,7 +112,7 @@ generations, operations or sessions.
 | Type | Meaning |
 | --- | --- |
 | `device.applied.v1`, `device.failed.v1`, `device.deactivated.v1` | Outcome of an activation or deactivation for a generation and operation |
-| `device.presence.v1`, `gateway.presence.v1`, `connection.presence.v1` | Online/offline/unknown from births, deaths and broker state. `connection.presence.v1` (every gateway and candidate on the connection) is sent only when the broker connection is lost; a rejected packet sends `gateway.presence.v1` and `device.presence.v1` for its own edge node or device. `device.presence.v1` carries `last_seen_at` only when a packet arrived from the device; presence derived from the broker connection omits it, and Laravel keeps the stored value |
+| `device.presence.v1`, `gateway.presence.v1`, `connection.presence.v1` | Online/offline/unknown from births, deaths and broker state. An adapter's node death reports its devices `unknown` ("Adapter restarting; waiting for it to reconnect."), not offline. `connection.presence.v1` (every gateway and candidate on the connection) is sent only when the broker connection is lost; a rejected packet sends `gateway.presence.v1` and `device.presence.v1` for its own edge node or device. `device.presence.v1` carries `last_seen_at` only when a packet arrived from the device; presence derived from the broker connection omits it, and Laravel keeps the stored value |
 | `discovery.birth.v1`, `discovery.presence.v1` | A source announced metrics (new `birth_revision`) or changed presence |
 | `command.status.v1` | Command sent, observed, failed, timed out or uncertain |
 | `runtime.heartbeat.v1` | Every 10 seconds; presence becomes unknown after 20 seconds without one |
@@ -110,6 +121,44 @@ generations, operations or sessions.
 | `workflow.transition.v1` | Geofence rule `activated` / `cleared` (becomes an alert episode) |
 | `workflow.membership.v1` | Geofence `entered` / `exited` |
 | `automation.intent.v1` | A DAG action request, re-authorized by `automation-worker` |
+| `device.connectivity.v1` | An offline episode of a device, gateway or adapter source `opened`, `cleared` or `stopped` ([below](#offline-episodes)) |
+
+### Offline episodes
+
+`device.connectivity.v1`
+([schema](../../contracts/internal/events/device.connectivity.v1.schema.json)) is the
+runtime's connectivity tracker reporting an episode transition
+([offline alerts](../features/alerts.md#offline-alerts)).
+
+- **Subject.** `subject.kind` is `device` (with `device_uuid`), `gateway` (with
+  `connection_uuid` and `edge_node_id`) or `source` (with `adapter_uuid`, for vendor
+  connections; not produced yet). Its key is `device:<device uuid>`,
+  `gateway:<connection uuid>/<edge node id>` or `source:<adapter uuid>`.
+- **Episodes.** `episode` counts from 1 per subject. `transition` is `opened` (with a
+  `cause`: `death_certificate`, `missed_check_in`, `gateway_offline` or
+  `source_disconnected`), `cleared` or `stopped` (with a `stop_reason`:
+  `device_deactivated`, `monitoring_disabled` or `definition_removed`).
+- **Times.** `at` (the end of the grace period, the time the subject came back, or the
+  stop), `offline_since`, `last_heard_at` are receipt times in RFC 3339 UTC;
+  `last_observed_at` is the newest reading's observed time as reported (null for
+  gateways and sources).
+- **Threshold.** `offline_after_seconds` (null while an automatic value is still
+  learning), `offline_after_automatic`, and the `reporting_interval_seconds` and
+  `poll_interval_seconds` it came from; `grace_seconds`; `settings_generation`.
+- `affected_device_uuids` lists 1–10,000 devices; a device subject lists only itself.
+- **Idempotent.** The runtime writes the transition with its
+  `device_runtime.connectivity` row in one transaction. The envelope `uuid` is a UUID v5 of
+  `<subject key>#<episode>#<transition>`, so a re-emitted transition deduplicates in
+  `device_inbox`; Laravel keys the alert by `episode_key` (`<subject key>#<episode>`)
+  and ignores an `opened` it already has.
+
+The runtime also answers `GET /internal/connectivity?organization=<uuid>&devices=<uuid,…>`
+(at most 500 devices, runtime bearer token) with each monitored device's state
+(`waiting`, `learning`, `monitored`, `pending`, `offline`, `recovering`, `interrupted`,
+`disabled`), `interruption` (`connection`, `adapter` or null), monitoring start, last
+heard, last observed, anchor, reporting interval, readings counted, poll interval, the
+*Offline after* in effect and whether a gateway episode covers it. Laravel reads it for
+`GET devices/{device}/connectivity`; devices the runtime does not monitor are omitted.
 
 Adapter runtimes report separately to `POST /api/internal/adapters/events` with a
 per-tenant token ([adapters](../features/adapters.md)).

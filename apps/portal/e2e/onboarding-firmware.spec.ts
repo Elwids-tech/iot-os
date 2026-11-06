@@ -143,10 +143,13 @@ test("writing the firmware reveals a target picker, then the starter and the kit
 
   // The kit provisions the connection first, as the setup bundle does. Leave the starter first: when its
   // tooltip is still open, Radix takes a single move from it to the next button as heading for that tooltip.
-  await page.mouse.move(0, 0, { steps: 5 })
-  await expect(page.getByRole("tooltip")).toHaveCount(0)
-  await page.getByRole("button", { name: "Download firmware kit" }).hover()
-  await expect(page.getByRole("tooltip")).toContainText("this device's connection settings already in config/")
+  // A slow runner can still drop the one move hover() sends, so move off and hover again until it opens.
+  await expect(async () => {
+    await page.mouse.move(0, 0, { steps: 5 })
+    await expect(page.getByRole("tooltip")).toHaveCount(0)
+    await page.getByRole("button", { name: "Download firmware kit" }).hover()
+    await expect(page.getByRole("tooltip")).toContainText("this device's connection settings already in config/", { timeout: 2000 })
+  }).toPass({ timeout: 20000 })
   const kit = page.waitForEvent("download")
   await page.getByRole("button", { name: "Download firmware kit" }).click()
   expect((await kit).suggestedFilename()).toBe("pump-relay-1-esp32-esp-idf-firmware-kit.zip")

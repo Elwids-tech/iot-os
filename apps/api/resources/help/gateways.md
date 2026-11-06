@@ -14,17 +14,21 @@
     "session",
     "edge node",
     "broker",
-    "last seen"
+    "last seen",
+    "gateway offline",
+    "offline alert",
+    "death certificate"
   ],
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 2,
+  "revision": 3,
   "summary": "**Gateways** shows the transport sources that connect devices and report session or presence information.",
   "questions": [
     "How do I find the gateway for a device?",
     "Why is a device offline when its gateway is connected?",
-    "Where do I get firmware and connection settings for a gateway?"
+    "Where do I get firmware and connection settings for a gateway?",
+    "What happens when a gateway goes offline?"
   ]
 }
 ---
@@ -44,8 +48,10 @@ Viewing requires device viewing permission. Connection management requires the r
 ## Expected result
 You can determine which gateway supplies a source and whether the platform has recently seen activity.
 
+When a gateway with two or more active devices goes offline, by announcing it or by falling silent together with all of its devices, one **Gateway offline** alert opens after 2 minutes and lists its devices, instead of one alert per device. The gateway’s page shows the open alert, and its devices show “offline because gateway *name* is offline”. When the gateway returns and stays back for 2 minutes, the alert clears; a device that still does not report then gets its own alert once its own **Offline after** has passed. [Read the alerts guide](/help/alerts#offline-alerts).
+
 ## Troubleshooting
-A connected gateway can have an offline downstream device. A device’s own readings and presence must be checked separately. Ask the connection administrator when transport credentials or connectivity need attention; without connection-management permission, **Firmware** offers only the starter.
+A connected gateway can have an offline downstream device. A device’s own readings and presence must be checked separately: a device that stops reporting behind a live gateway gets its own **Device offline** alert with the cause “missed check-in”. A gateway with only one active device is treated as that device, so its alert reads **Device offline**. Ask the connection administrator when transport credentials or connectivity need attention; without connection-management permission, **Firmware** offers only the starter.
 
 ## Related guides
 [Read the related guide](/help/discovery)

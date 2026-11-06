@@ -117,4 +117,24 @@ final class AgentReadToolsTest extends TestCase
         $this->assertSame(1, $sites['North plant']['devices_count']);
         $this->assertSame('America/Toronto', $sites['North plant']['timezone']);
     }
+
+    public function test_offline_alerts_carry_their_kind_cause_and_threshold(): void
+    {
+        Http::fake(['*/internal/measurements/latest*' => Http::response(['data' => []])]);
+        $alert = Alert::create(['organization_id' => $this->acme->id, 'kind' => Alert::DEVICE_OFFLINE, 'episode' => 1, 'episode_key' => 'device:'.$this->device->uuid.'#1', 'subject_device_id' => $this->device->id,
+            'cause' => 'missed_check_in', 'offline_since' => now()->subHour(), 'last_seen_at' => now()->subHours(2), 'activated_at' => now()->subMinutes(58), 'threshold_seconds' => 3600, 'threshold_automatic' => true]);
+        $alert->devices()->attach($this->device->id);
+
+        $listed = $this->callTool($this->token, 'list_alerts', ['kind' => 'device_offline'])['body']['data']['alerts'];
+        $this->assertCount(1, $listed);
+        $this->assertSame(['device_offline', 'missed_check_in', ['offline_after_seconds' => 3600, 'automatic' => true], null], [$listed[0]['kind'], $listed[0]['cause'], $listed[0]['threshold'], $listed[0]['workflow']]);
+        $this->assertSame(['type' => 'device', 'uuid' => $this->device->uuid, 'name' => 'Boiler room sensor'], $listed[0]['subject']);
+        $this->assertSame([], $this->callTool($this->token, 'list_alerts', ['kind' => 'workflow'])['body']['data']['alerts']);
+
+        $health = $this->callTool($this->token, 'get_device_health', ['device_uuid' => $this->device->uuid])['body']['data'];
+        $this->assertSame('offline', $health['device']['presence']);
+        $this->assertSame(['missed_check_in', ['offline_after_seconds' => 3600, 'automatic' => true]], [$health['connectivity']['open_alert']['cause'], $health['connectivity']['open_alert']['threshold']]);
+        // An inactive device has no runtime state to ask for.
+        $this->assertSame('inactive', $health['connectivity']['state']);
+    }
 }

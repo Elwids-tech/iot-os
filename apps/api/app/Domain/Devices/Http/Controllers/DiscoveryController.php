@@ -62,7 +62,7 @@ final class DiscoveryController
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
         $selection = app(FirmwareSelection::class)->viewer($organization, $request->user());
 
-        return $this->directory($request, SparkplugGateway::where('organization_id', $organization->id)->with('connection')->withCount('candidates')->orderBy('name'),
+        return $this->directory($request, SparkplugGateway::where('organization_id', $organization->id)->with(['connection', 'offlineAlert'])->withCount('candidates')->orderBy('name'),
             fn ($g) => [...DeviceView::gateway($g), 'firmware_selection' => $selection($g)], ['name', 'edge_node_id']);
     }
 
@@ -89,7 +89,7 @@ final class DiscoveryController
         $query = DiscoveryCandidate::where('organization_id', $organization->id)
             ->where(fn ($q) => $q->where('source_device_id', '!=', '')->orWhereDoesntHave('gateway.connection', fn ($c) => $c->where('group_id', 'like', 'adapters-%')));
 
-        return $this->directory($request, $query->with(['gateway' => fn ($q) => $q->withCount('candidates'), 'gateway.connection', 'assignedDevice'])->orderBy('id'), fn ($c) => DeviceView::candidate($c), ['source_device_id'], true);
+        return $this->directory($request, $query->with(['gateway' => fn ($q) => $q->withCount('candidates'), 'gateway.connection', 'gateway.offlineAlert', 'assignedDevice'])->orderBy('id'), fn ($c) => DeviceView::candidate($c), ['source_device_id'], true);
     }
 
     public function provisionGateway(Request $request, Organization $organization, SparkplugGateway $gateway): array

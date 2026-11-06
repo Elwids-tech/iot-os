@@ -495,6 +495,57 @@ Things that have cost time before. Add to this list when something surprises you
   large backfill lost its only preview. A source's first preview is now queued and
   retried like run reports; later previews may still be dropped.
 
+## Offline alerts
+
+- **"Heard" is not "accepted".** Offline detection
+  ([alerts](../features/alerts.md#detection)) counts every packet the runtime receives
+  for a source, before validation. A rejected packet (a sequence gap, data before a
+  birth, a birth needing review) still proves the device is alive, and counting only
+  accepted packets would open an offline alert for a device that is merely waiting for
+  its rebirth. So the tracker hears a packet on receipt, before the session engine
+  judges it, and never from a path that only replays known state (an activation
+  handing on the source's live birth). Deaths are the opposite: only a death the
+  engine accepts for the current session counts, so a stale will from an earlier
+  session never marks a device offline.
+- **An adapter's deaths and births are the platform's, not the device's.** The managed
+  publisher sends NDEATH whenever the adapter is redeployed (activating a device does
+  that), restarted, replaced by a deploy or paused, and announces its stored births
+  again after its NBIRTH. Reading those as the devices' own would take every vendor
+  device offline at each redeploy, and make one that went quiet hours ago look heard.
+  It was worse before: an adapter-fed tracker was silent for 6 days but stayed online,
+  because its presence came only from births and the publisher kept announcing its
+  stored one; it went offline only when an adapter restart left it out of
+  `births-<adapter>.json`. On an `adapters-<organization uuid>` edge the tracker
+  therefore counts only a DDATA with a non-historical reading as heard, treats NDEATH as
+  an interruption (devices unknown, down time left out of silence at the next NBIRTH),
+  and never makes the edge a gateway. Such a tracker now goes offline from its own
+  silence, whatever the adapter does.
+- **Intervals use observed time; silence uses receipt time.** A polling adapter
+  delivers a device's readings together once per run, so their receipt gaps are near
+  zero and say nothing about how often it reports. The automatic *Offline after* is
+  therefore built from gaps between observed times (the median of up to 64, none older
+  than 7 days; a constant clock offset cancels out in a gap), plus the poll interval.
+  Silence itself, and every alert time, is measured from receipt, so a device's wrong
+  clock can neither open nor hide an episode. Do not mix the two: comparing
+  `observed_at` with `now()` to judge silence alerts every polled device between runs,
+  and measuring the interval by receipt makes a 2-minute reporter behind a 5-minute
+  poll look like it reports every 5 minutes with bursts of zero.
+- **After a runtime restart, "last heard" comes from stored readings.** The tracker keeps
+  last-heard times in memory, so a restarted runtime knew none until each device's next
+  packet: the device page read "not since monitoring started" and an episode opened in
+  that window (a device that died during a deploy) would have said "Last heard: never".
+  The start-up seed that reads 7 days of observed times therefore also returns when the
+  newest non-historical reading was received. Silence still counts from the restart
+  (D3); only what alerts show changed.
+- **A simulator restarted from a script ignores Ctrl-C.** A background job of a
+  non-interactive shell (`cmd &` in a script or an agent's shell) starts with SIGINT
+  ignored, so `pkill -INT` never reaches `sparkplug_simulator.py`'s handler, no NDEATH is
+  published, and a second copy started next to it fights over the same client id. To
+  test a death certificate, start the simulator from a terminal, or restore the default
+  disposition before it runs:
+  `python -c 'import os,signal,sys; signal.signal(signal.SIGINT, signal.SIG_DFL); os.execv(sys.argv[1], sys.argv[1:])' "$PY" tooling/simulators/sparkplug_simulator.py …`.
+  `SIGTERM` stops it without its NDEATH; the broker then sends its will instead.
+
 ## Browser tests and screenshots
 
 - **Playwright browser version.** If the headless shell pinned by
@@ -565,6 +616,11 @@ Things that have cost time before. Add to this list when something surprises you
   through apt. That took 30 s on one run and 11 min 40 s on another, which
   pushed the docs job past its 20-minute limit. CI installs the headless shell
   without it.
+- **The Cortex-M7 toolchain download can stall until the job is cancelled.** The
+  Embedded SDK (gcc) job's `apt-get` normally fetches `gcc-arm-none-eabi` in 14 s;
+  twice on 2026-11-06 it printed nothing for 15 minutes, until the job's limit
+  cancelled it. The step now downloads under `timeout` and retries, then installs
+  from the downloaded files, so a kill never interrupts dpkg.
 - **A mocked spec that opens the workspace panel must mock `/help/page`.** Catch-all
   mocks answer `{ data: [] }`, and the panel reads `articles[0]` from the page
   object, so the whole page falls to its error screen. The adapters spec mocks it
