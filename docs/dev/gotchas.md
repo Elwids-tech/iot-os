@@ -523,6 +523,21 @@ Things that have cost time before. Add to this list when something surprises you
   `observed_at` with `now()` to judge silence alerts every polled device between runs,
   and measuring the interval by receipt makes a 2-minute reporter behind a 5-minute
   poll look like it reports every 5 minutes with bursts of zero.
+- **After a runtime restart, "last heard" comes from stored readings.** The tracker keeps
+  last-heard times in memory, so a restarted runtime knew none until each device's next
+  packet: the device page read "not since monitoring started" and an episode opened in
+  that window (a device that died during a deploy) would have said "Last heard: never".
+  The start-up seed that reads 7 days of observed times therefore also returns when the
+  newest non-historical reading was received. Silence still counts from the restart
+  (D3); only what alerts show changed.
+- **A simulator restarted from a script ignores Ctrl-C.** A background job of a
+  non-interactive shell (`cmd &` in a script or an agent's shell) starts with SIGINT
+  ignored, so `pkill -INT` never reaches `sparkplug_simulator.py`'s handler, no NDEATH is
+  published, and a second copy started next to it fights over the same client id. To
+  test a death certificate, start the simulator from a terminal, or restore the default
+  disposition before it runs:
+  `python -c 'import os,signal,sys; signal.signal(signal.SIGINT, signal.SIG_DFL); os.execv(sys.argv[1], sys.argv[1:])' "$PY" tooling/simulators/sparkplug_simulator.py …`.
+  `SIGTERM` stops it without its NDEATH; the broker then sends its will instead.
 
 ## Browser tests and screenshots
 
