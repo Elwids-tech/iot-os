@@ -1,24 +1,12 @@
 // Plays the landing stage: a clock that loops over the script in timeline.ts, the
-// transcript that types and scrolls to it, the step buttons that seek, the pause
+// ribbon that shows the caption for the moment, the step buttons that seek, the pause
 // button, and the Three.js scene that draws the same moment. With reduced motion the
-// transcript stays complete and the scene draws its final moment once.
+// captions stay a complete list and the scene draws one still moment.
 import { createStageScene, type StageScene } from './scene'
 import { beatAt, beats, duration } from './timeline'
 
-/** Milliseconds per typed character. */
-const TYPE_MS = 16
-/** The moment shown with reduced motion: the alert has arrived. */
+/** The moment shown with reduced motion: the alarm is on and the email has arrived. */
 const STILL = 21500
-
-interface TranscriptLine {
-  element: HTMLElement
-  at: number
-  text: HTMLElement | null
-  full: string
-  typed: boolean
-  shown: boolean
-  chars: number
-}
 
 export async function playStage(frame: HTMLElement): Promise<void> {
   const motion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -27,8 +15,10 @@ export async function playStage(frame: HTMLElement): Promise<void> {
   const labels = Object.fromEntries(
     [...frame.querySelectorAll<HTMLElement>('[data-label]')].map((label) => [label.dataset.label, label]),
   )
-  const transcript = frame.querySelector<HTMLElement>('[data-transcript]')
-  const list = frame.querySelector<HTMLElement>('[data-lines]')
+  const captions = [...frame.querySelectorAll<HTMLElement>('[data-captions] > li')].map((element) => ({
+    element,
+    at: Number(element.dataset.at),
+  }))
   const pause = frame.querySelector<HTMLButtonElement>('[data-pause]')
   const pauseLabel = frame.querySelector<HTMLElement>('[data-pause-label]')
   const buttons = [...frame.querySelectorAll<HTMLButtonElement>('[data-beat]')]
@@ -53,70 +43,42 @@ export async function playStage(frame: HTMLElement): Promise<void> {
     }).observe(host)
   }
 
-  if (!motion || !transcript || !list) {
+  if (!motion) {
     scene?.resize()
     scene?.render(elapsed)
     return
   }
 
-  // ---------- Transcript ----------
-  const lines: TranscriptLine[] = [...list.querySelectorAll<HTMLElement>(':scope > li')].map((element) => {
-    const text = element.querySelector<HTMLElement>('[data-text]')
-    const typed = text?.classList.contains('typed') ?? false
-    return { element, at: Number(element.dataset.at), text, full: text?.textContent ?? '', typed, shown: true, chars: -1 }
-  })
+  // ---------- The ribbon ----------
   frame.dataset.motion = 'playing'
-
-  const follow = () => {
-    const last = lines.filter((line) => line.shown).at(-1)
-    if (!last) {
-      list.style.transform = ''
-      return
-    }
-    const bottom = last.element.offsetTop + last.element.offsetHeight
-    const limit = transcript.clientHeight - 18
-    list.style.transform = bottom > limit ? `translateY(${limit - bottom}px)` : ''
-  }
-
-  const applyTranscript = (time: number) => {
-    let changed = false
-    for (const line of lines) {
-      const shown = time >= line.at
-      if (shown !== line.shown) {
-        line.shown = shown
-        line.element.toggleAttribute('data-shown', shown)
-        changed = true
-      }
-      if (!line.typed || !line.text) continue
-      const chars = shown ? Math.min(line.full.length, Math.floor((time - line.at) / TYPE_MS)) : 0
-      if (chars === line.chars) continue
-      line.chars = chars
-      line.text.textContent = line.full.slice(0, chars)
-      line.text.toggleAttribute('data-typing', shown && chars < line.full.length)
-      changed = true
-    }
-    if (changed) follow()
+  let currentCaption: HTMLElement | null = null
+  const applyCaptions = (time: number) => {
+    const next = captions.reduce<HTMLElement | null>((current, caption) => (time >= caption.at ? caption.element : current), null)
+    if (next === currentCaption) return
+    currentCaption?.removeAttribute('data-current')
+    currentCaption = next
+    currentCaption?.setAttribute('data-current', '')
   }
 
   // ---------- Steps and pause ----------
-  let current: HTMLButtonElement | null = null
+  let currentBeat: HTMLButtonElement | null = null
   const applyBeats = (time: number) => {
     const beat = beatAt(time)
     const index = beats.indexOf(beat)
     const next = beats[index + 1]?.start ?? duration
-    const button = buttons[index]
-    if (button !== current) {
-      current?.removeAttribute('aria-current')
-      current?.style.removeProperty('--progress')
-      current = button ?? null
-      current?.setAttribute('aria-current', 'step')
+    const button = buttons[index] ?? null
+    if (button !== currentBeat) {
+      currentBeat?.removeAttribute('aria-current')
+      currentBeat?.style.removeProperty('--progress')
+      currentBeat = button
+      currentBeat?.setAttribute('aria-current', 'step')
     }
-    current?.style.setProperty('--progress', ((time - beat.start) / (next - beat.start)).toFixed(3))
+    currentBeat?.style.setProperty('--progress', ((time - beat.start) / (next - beat.start)).toFixed(3))
   }
 
   let playing = true
   const draw = (time: number) => {
-    applyTranscript(time)
+    applyCaptions(time)
     applyBeats(time)
     scene?.render(time)
   }
@@ -149,7 +111,7 @@ export async function playStage(frame: HTMLElement): Promise<void> {
     const delta = Math.min(100, now - last)
     last = now
     if (playing) elapsed = (elapsed + delta) % duration
-    // Thirty frames a second is enough for the typing, the chart and the particles.
+    // Thirty frames a second is enough for the chart and the particles.
     if (now - lastDraw >= 32) {
       lastDraw = now
       draw(elapsed)

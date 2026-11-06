@@ -48,7 +48,7 @@ test('without a WebGL context, the slogan shows', async ({ page }) => {
 // The stage: one device from firmware to an alert, as a transcript beside an illustration.
 test('the stage plays, can be paused and can be stepped', async ({ page }) => {
   await page.goto('/')
-  const stage = page.locator('[data-stage]')
+  const stage = page.locator('[data-stage-frame]')
   await stage.scrollIntoViewIfNeeded()
   await expect(stage).toHaveAttribute('data-motion', 'playing', { timeout: 15_000 })
   await expect(stage.getByRole('button', { name: 'Illustration' })).toHaveCount(0)
@@ -57,15 +57,16 @@ test('the stage plays, can be paused and can be stepped', async ({ page }) => {
   await expect(pause).toBeVisible()
   await pause.click()
   await expect(stage.getByRole('button', { name: 'Play' })).toHaveAttribute('aria-pressed', 'true')
-  const alert = stage.getByRole('button', { name: /Alert$/ })
-  await alert.click()
-  await expect(alert).toHaveAttribute('aria-current', 'step')
-  // Paused at the step's start, the transcript shows exactly the lines up to it.
-  const start = Number(await alert.getAttribute('data-start'))
-  const lines = stage.locator('[data-lines] > li')
-  const upToStart = await lines.evaluateAll((items, at) => items.filter((item) => Number((item as HTMLElement).dataset.at) <= at).length, start)
-  expect(upToStart).toBeGreaterThan(0)
-  await expect(lines.locator('visible=true').and(stage.locator('[data-shown]'))).toHaveCount(upToStart)
+  const automate = stage.getByRole('button', { name: /Automate$/ })
+  await automate.click()
+  await expect(automate).toHaveAttribute('aria-current', 'step')
+  // Paused at the step's start, the ribbon shows that step's caption, and only it.
+  const start = Number(await automate.getAttribute('data-start'))
+  const current = stage.locator('[data-captions] > li[data-current]')
+  await expect(current).toHaveCount(1)
+  await expect(current).toHaveAttribute('data-at', String(start))
+  await expect(current).toContainText('automation')
+  await expect(stage.locator('[data-captions] > li').first()).toHaveCSS('opacity', '0')
 })
 
 test.describe('with reduced motion', () => {
@@ -78,13 +79,13 @@ test.describe('with reduced motion', () => {
     await expect(hero).not.toHaveAttribute('data-scene', /.+/)
   })
 
-  test('the stage is a complete transcript with nothing moving', async ({ page }) => {
+  test('the stage is a complete list of captions with nothing moving', async ({ page }) => {
     await page.goto('/')
-    const stage = page.locator('[data-stage]')
+    const stage = page.locator('[data-stage-frame]')
     await stage.scrollIntoViewIfNeeded()
     await expect(stage).not.toHaveAttribute('data-motion', /.+/)
     await expect(stage.getByRole('button', { name: 'Pause' })).toBeHidden()
-    for (const line of await stage.locator('[data-lines] > li').all()) await expect(line).toHaveCSS('opacity', '1')
-    await expect(stage.getByText('email sent')).toBeVisible()
+    for (const caption of await stage.locator('[data-captions] > li').all()) await expect(caption).toHaveCSS('opacity', '1')
+    await expect(stage.getByText('emails the team')).toBeVisible()
   })
 })

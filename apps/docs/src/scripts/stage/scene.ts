@@ -27,6 +27,7 @@ import {
   QuadraticBezierCurve3,
   Scene,
   ShaderMaterial,
+  SphereGeometry,
   TorusGeometry,
   Vector3,
   WebGLRenderer,
@@ -118,7 +119,11 @@ interface Solid {
 }
 
 /** A mesh with a translucent fill and drawn edges, the stage's house style. */
-function solid(geometry: BoxGeometry | CylinderGeometry | PlaneGeometry | TorusGeometry, opacity = 0.92): Solid {
+function solid(
+  geometry: BoxGeometry | CylinderGeometry | PlaneGeometry | SphereGeometry | TorusGeometry,
+  opacity = 0.92,
+  edgeAngle = 12,
+): Solid {
   const fill = new MeshBasicMaterial({
     transparent: true,
     opacity,
@@ -129,7 +134,7 @@ function solid(geometry: BoxGeometry | CylinderGeometry | PlaneGeometry | TorusG
   const edge = new LineBasicMaterial({ transparent: true, opacity: 0.9 })
   const group = new Group()
   group.add(new Mesh(geometry, fill))
-  group.add(new LineSegments(new EdgesGeometry(geometry, 12), edge))
+  group.add(new LineSegments(new EdgesGeometry(geometry, edgeAngle), edge))
   return { group, fill, edge }
 }
 
@@ -184,7 +189,7 @@ export function createStageScene(
 
   // ---------- The board ----------
   const board = new Group()
-  board.position.set(-2.95, -0.1, 0.6)
+  board.position.set(-3.1, -0.1, 0.5)
   const base = solid(new BoxGeometry(1.5, 0.07, 1.0))
   const chip = solid(new BoxGeometry(0.42, 0.1, 0.42))
   chip.group.position.y = 0.085
@@ -201,8 +206,26 @@ export function createStageScene(
 
   // The firmware starter: a small package that lands on the board and is flashed in.
   const starter = solid(new BoxGeometry(0.3, 0.3, 0.3), 0.8)
-  starter.group.position.set(-2.95, 2.4, 0.6)
+  starter.group.position.set(-3.1, 2.4, 0.5)
   scene.add(starter.group)
+
+  // The alarm: a dome beacon on the cold room's back wall, away from the board, which
+  // the automation switches on. The dome's only drawn edge is its rim; the fill gives
+  // it its shape.
+  const alarm = new Group()
+  alarm.position.set(-1.7, 0.315, -1.2)
+  alarm.rotation.y = 0.2
+  const alarmWall = solid(new BoxGeometry(0.8, 0.9, 0.06))
+  const alarmPlate = solid(new CylinderGeometry(0.24, 0.24, 0.05, 16))
+  alarmPlate.group.rotation.x = Math.PI / 2
+  alarmPlate.group.position.set(0, 0.1, 0.055)
+  const alarmDome = solid(new SphereGeometry(0.2, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), 0.9, 40)
+  alarmDome.group.rotation.x = Math.PI / 2
+  alarmDome.group.position.set(0, 0.1, 0.08)
+  const alarmGlow = solid(new TorusGeometry(0.26, 0.015, 8, 40), 0)
+  alarmGlow.group.position.set(0, 0.1, 0.1)
+  alarm.add(alarmWall.group, alarmPlate.group, alarmDome.group, alarmGlow.group)
+  scene.add(alarm)
 
   // ---------- The platform ----------
   const platform = new Group()
@@ -232,9 +255,9 @@ export function createStageScene(
   const chartContext = chartCanvas.getContext('2d')
   const chartTexture = new CanvasTexture(chartCanvas)
   const dashboard = new Group()
-  dashboard.position.set(2.95, 0.95, -0.5)
+  dashboard.position.set(3.0, 1.0, -0.6)
   dashboard.rotation.y = -0.28
-  const panel = new Mesh(new PlaneGeometry(2.3, 1.44), new MeshBasicMaterial({ map: chartTexture, transparent: true }))
+  const panel = new Mesh(new PlaneGeometry(2.6, 1.62), new MeshBasicMaterial({ map: chartTexture, transparent: true }))
   const panelEdge = new LineBasicMaterial({ transparent: true, opacity: 0.9 })
   dashboard.add(panel, new LineSegments(new EdgesGeometry(panel.geometry), panelEdge))
   scene.add(dashboard)
@@ -246,8 +269,9 @@ export function createStageScene(
   const phoneContext = phoneCanvas.getContext('2d')
   const phoneTexture = new CanvasTexture(phoneCanvas)
   const phone = new Group()
-  phone.position.set(2.8, -0.78, 1.2)
+  phone.position.set(2.9, -0.7, 1.3)
   phone.rotation.y = -0.4
+  phone.visible = false
   const phoneBody = solid(new BoxGeometry(0.62, 1.24, 0.07))
   const screen = new Mesh(new PlaneGeometry(0.54, 1.12), new MeshBasicMaterial({ map: phoneTexture }))
   screen.position.z = 0.036
@@ -256,9 +280,11 @@ export function createStageScene(
 
   // ---------- The flows ----------
   const flowSpecs = [
-    { from: [-2.2, 0.0, 0.6], via: [-1.6, 1.2, 0.4], to: [-0.85, 0.35, 0.15], start: moments.connected, tone: 'brand' },
-    { from: [0.85, 0.35, -0.15], via: [1.5, 1.45, -0.35], to: [1.95, 0.95, -0.45], start: moments.panelAdded, tone: 'brand' },
-    { from: [0.6, -0.15, 0.55], via: [1.6, -1.05, 1.0], to: [2.5, -0.75, 1.15], start: moments.alert, tone: 'warning' },
+    { from: [-2.35, 0.0, 0.5], via: [-1.6, 1.25, 0.3], to: [-0.85, 0.35, 0.15], start: moments.connected, tone: 'brand' },
+    { from: [0.85, 0.35, -0.15], via: [1.5, 1.5, -0.4], to: [1.85, 1.0, -0.55], start: moments.panelAdded, tone: 'brand' },
+    // The automation's command to the alarm, then the email.
+    { from: [-0.6, 0.0, -0.5], via: [-1.1, 1.1, -0.9], to: [-1.65, 0.45, -1.0], start: moments.alarm, tone: 'warning' },
+    { from: [0.6, -0.15, 0.55], via: [1.7, -1.0, 1.1], to: [2.6, -0.65, 1.25], start: moments.phoneIn, tone: 'warning' },
   ] as const
   const PER_FLOW = 26
   const random = seeded(7)
@@ -299,7 +325,7 @@ export function createStageScene(
     particleMaterial.needsUpdate = true
     tint(gridMaterial, palette.mid)
     gridMaterial.opacity = palette.dark ? 0.16 : 0.14
-    for (const part of [base, antenna, starter, phoneBody]) {
+    for (const part of [base, antenna, starter, phoneBody, alarmWall, alarmPlate, alarmDome]) {
       tint(part.fill, palette.fill)
       tint(part.edge, palette.mid)
     }
@@ -466,10 +492,11 @@ export function createStageScene(
     context.textAlign = 'center'
     context.fillText('14:02', W / 2, 26)
     context.font = `300 52px ${fonts.display}`
-    context.fillStyle = css(textOn, time >= moments.alert ? 0.25 : 0.7)
+    const mailAt = moments.phoneIn + 350
+    context.fillStyle = css(textOn, time >= mailAt ? 0.25 : 0.7)
     context.fillText('14:02', W / 2, 200)
-    if (time >= moments.alert) {
-      const slide = easeOutCubic(ramp(time, moments.alert, 500))
+    if (time >= mailAt) {
+      const slide = easeOutCubic(ramp(time, mailAt, 500))
       const y = -130 + 182 * slide
       roundRect(context, 12, y, W - 24, 112, 16)
       context.fillStyle = css(mix(screenInk, textOn, 0.14))
@@ -494,16 +521,21 @@ export function createStageScene(
 
   // ---------- Labels ----------
   const anchors: Record<string, Vector3> = {
-    device: new Vector3(-2.95, 0.6, 0.6),
+    device: new Vector3(-3.1, 0.6, 0.5),
     platform: new Vector3(0, 1.1, 0),
-    dashboard: new Vector3(2.95, 1.95, -0.5),
-    phone: new Vector3(2.8, -1.7, 1.2),
+    dashboard: new Vector3(3.0, 2.05, -0.6),
+    alarm: new Vector3(-1.7, 1.1, -1.2),
+    phone: new Vector3(2.9, -1.4, 1.3),
   }
   const labelState = (time: number): Record<string, { state: string; shown: boolean }> => ({
     device: { state: time < moments.connected ? '' : time < moments.online ? 'active' : 'success', shown: true },
-    platform: { state: time >= moments.alert ? 'warning' : time >= moments.connected ? 'active' : '', shown: true },
-    dashboard: { state: time >= moments.alert ? 'warning' : time >= 11000 ? 'success' : '', shown: time >= moments.panelAdded },
-    phone: { state: time >= moments.alert ? 'warning' : '', shown: true },
+    platform: { state: time >= moments.alarm ? 'warning' : time >= moments.connected ? 'active' : '', shown: true },
+    dashboard: {
+      state: time >= moments.alarm ? 'warning' : time >= moments.panelAdded + 1400 ? 'success' : '',
+      shown: time >= moments.panelAdded,
+    },
+    alarm: { state: time >= moments.alarm ? 'warning' : '', shown: true },
+    phone: { state: 'warning', shown: time >= moments.phoneIn + 300 },
   })
   const placeLabels = (time: number) => {
     const states = labelState(time)
@@ -548,12 +580,12 @@ export function createStageScene(
     particleMaterial.uniforms.pixelRatio.value = pixelRatio
     camera.aspect = width / height
     // A narrower frame backs the camera off so the whole bench stays in view.
-    distance = 10.4 * Math.max(1, 1.6 / camera.aspect)
+    distance = 9.4 * Math.max(1, 1.7 / camera.aspect)
     camera.updateProjectionMatrix()
   }
 
   // ---------- A frame ----------
-  const pulses = [moments.connected, moments.online, moments.activated, moments.alert]
+  const pulses = [moments.connected, moments.online, moments.activated, moments.alarm]
   const render = (time: number) => {
     pointer.x += (pointer.targetX - pointer.x) * 0.08
     pointer.y += (pointer.targetY - pointer.y) * 0.08
@@ -562,7 +594,8 @@ export function createStageScene(
       2.7 + 0.15 * Math.cos(time / 5000) - pointer.y * 0.5,
       distance,
     )
-    camera.lookAt(0.05, 0.05, 0)
+    // Aimed a little below the bench, so the picture sits high and leaves the ribbon room.
+    camera.lookAt(0.05, -0.4, 0)
 
     // Fade the whole picture out and in around the loop.
     const fade = Math.min(ramp(time, 0, 400), ramp(duration - time, 0, 500))
@@ -591,7 +624,7 @@ export function createStageScene(
       pulseRing.group.visible = true
       pulseRing.group.scale.setScalar(1 + 1.4 * easeOutCubic(progress))
       pulseRing.edge.opacity = (1 - progress) * 0.9
-      tint(pulseRing.edge, pulseAt === moments.alert ? palette.warning : palette.to)
+      tint(pulseRing.edge, pulseAt === moments.alarm ? palette.warning : palette.to)
     } else {
       pulseRing.group.visible = false
     }
@@ -600,7 +633,7 @@ export function createStageScene(
     rule.group.rotation.z = time / 2600
     rule.edge.opacity = 0.9 * ruleIn
     rule.group.scale.setScalar(0.7 + 0.3 * easeOutCubic(ruleIn))
-    tint(rule.edge, time >= moments.alert ? palette.warning : palette.to)
+    tint(rule.edge, time >= moments.alarm ? palette.warning : palette.to)
 
     // The dashboard panel appears when its panel is added.
     const panelIn = easeOutCubic(ramp(time, moments.panelAdded, 500))
@@ -609,7 +642,27 @@ export function createStageScene(
     panel.material.opacity = panelIn
     panelEdge.opacity = 0.9 * panelIn
     if (dashboard.visible) drawChart(time)
-    drawPhone(time)
+
+    // The alarm: off until the automation switches it on, then flashing, with rings.
+    const on = time >= moments.alarm
+    const flash = on ? 0.7 + 0.3 * Math.sin(time / 85) : 0
+    tint(alarmDome.fill, on ? mix(palette.warning, [1, 1, 1], 0.25 * (1 - flash)) : palette.fill)
+    alarmDome.fill.opacity = on ? 0.97 : 0.9
+    tint(alarmDome.edge, on ? palette.warning : palette.mid)
+    alarmGlow.group.visible = on
+    if (on) {
+      const ring = ((time - moments.alarm) % 900) / 900
+      alarmGlow.group.scale.setScalar(1 + 3 * ring)
+      alarmGlow.edge.opacity = (1 - ring) * 0.9
+      tint(alarmGlow.edge, palette.warning)
+    }
+
+    // The phone comes in with the email.
+    const phoneIn = easeOutCubic(ramp(time, moments.phoneIn, 600))
+    phone.visible = phoneIn > 0
+    phone.scale.setScalar(Math.max(0.001, phoneIn))
+    phone.position.y = -1.1 + 0.6 * phoneIn
+    if (phone.visible) drawPhone(time)
 
     // Readings flow along each link once it is live.
     flows.forEach((flow, flowIndex) => {
