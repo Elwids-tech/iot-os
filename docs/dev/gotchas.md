@@ -518,6 +518,12 @@ Things that have cost time before. Add to this list when something surprises you
   `dashboards.spec.ts` failed every run for a week after Toronto's 2026-11-01
   change. Place mocked readings at noon, and compare zoned times with
   `Intl.DateTimeFormat`, never fixed UTC hours.
+- **A hover straight from an open tooltip opens nothing.** Radix treats the pointer
+  leaving an open tooltip's trigger as heading for that tooltip and ignores the next
+  move on another trigger. Playwright's `hover()` sends one move and stays still, so
+  the second tooltip never opens; it failed intermittently in CI after a click left
+  the first tooltip open. Move away first (`page.mouse.move(0, 0, { steps: 5 })`) and
+  expect no tooltip, as `gateway-firmware.spec.ts` and `onboarding-firmware.spec.ts` do.
 - **Full-page screenshots break dashboards.** Playwright `fullPage` screenshots
   make react-grid-layout re-measure and collapse panels in the capture. Grow the
   viewport height instead.
