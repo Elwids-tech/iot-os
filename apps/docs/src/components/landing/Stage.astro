@@ -50,12 +50,18 @@ import { beats, captions } from '../../scripts/stage/timeline'
         <span class="label" data-label="platform"><span class="dot"></span>{docsConfig.productName}</span>
         <span class="label" data-label="dashboard"><span class="dot"></span>Cold room dashboard</span>
         <span class="label" data-label="alarm"><span class="dot"></span>Alarm</span>
-        <span class="label" data-label="phone"><span class="dot"></span>Email</span>
+        <span class="label" data-label="phone"><span class="dot"></span>SMS</span>
+        <span class="label" data-label="mail"><span class="dot"></span>Inbox</span>
+        <div class="bubble" data-bubble>
+          <span class="bubble-from">Text message · now</span>
+          <span class="bubble-text">Cold room too warm: 8.6 °C for 5 minutes. cold-room-1</span>
+        </div>
       </div>
       <p class="sr-only">
         Illustration: an ESP32 board receives a firmware starter and is flashed. Readings travel from the board to
         {docsConfig.productName}, then on to a Cold room dashboard whose temperature chart fills in. The temperature
-        climbs past 8 °C: an automation turns on an alarm light beside the board, and an email arrives on a phone.
+        climbs past 8 °C: an automation lights an alarm dome on the floor, a phone comes in with a text message
+        reading "Cold room too warm: 8.6 °C for 5 minutes", and an inbox shows the same alert as an email.
       </p>
     </div>
 
@@ -278,6 +284,54 @@ import { beats, captions } from '../../scripts/stage/timeline'
     border-radius: 50%;
     background: var(--muted-foreground);
   }
+  /* The text message, readable beside the phone: its tail points at the phone. */
+  .bubble {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    width: max-content;
+    max-width: min(15rem, 46vw);
+    padding: 0.55rem 0.8rem 0.6rem;
+    border: 1px solid var(--brand-surface-line);
+    border-radius: 1rem 1rem 0.3rem 1rem;
+    background: color-mix(in oklab, var(--brand-surface) 94%, transparent);
+    box-shadow: 0 0.75rem 1.5rem -0.75rem color-mix(in oklab, var(--brand-from) 50%, transparent);
+    color: var(--foreground);
+    opacity: 0;
+    transform-origin: 100% 50%;
+    transition:
+      opacity 320ms var(--ease-standard),
+      scale 320ms var(--ease-standard);
+    scale: 0.85;
+  }
+  .bubble[data-shown] { opacity: 1; scale: 1; }
+  .bubble::after {
+    content: '';
+    position: absolute;
+    right: -0.45rem;
+    top: 50%;
+    border: 0.45rem solid transparent;
+    border-left-color: var(--brand-surface-line);
+    border-right: 0;
+    transform: translateY(-50%);
+  }
+  .bubble-from {
+    font: 500 0.7rem/1.3 var(--font-mono);
+    color: var(--muted-foreground);
+  }
+  .bubble-text {
+    font-size: 0.875rem;
+    line-height: 1.4;
+    text-wrap: pretty;
+  }
+  @media (max-width: 55.99rem) {
+    .bubble { padding: 0.45rem 0.65rem 0.5rem; }
+    .bubble-text { font-size: 0.8125rem; }
+  }
+
   .label[data-state="active"] .dot { background: var(--brand-to); }
   .label[data-state="success"] .dot { background: var(--success); }
   .label[data-state="warning"] .dot { background: var(--warning); }

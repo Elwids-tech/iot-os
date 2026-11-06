@@ -275,6 +275,22 @@ export function createStageScene(
   phone.add(phoneBody.group, screen)
   scene.add(phone)
 
+  // ---------- The inbox ----------
+  // A quiet panel at the back, beside the dashboard, where the alert email lands.
+  const mailCanvas = document.createElement('canvas')
+  mailCanvas.width = 416
+  mailCanvas.height = 262
+  const mailContext = mailCanvas.getContext('2d')
+  const mailTexture = new CanvasTexture(mailCanvas)
+  const mail = new Group()
+  mail.position.set(1.05, 1.25, -1.5)
+  mail.rotation.y = -0.12
+  mail.visible = false
+  const mailPanel = new Mesh(new PlaneGeometry(1.3, 0.82), new MeshBasicMaterial({ map: mailTexture, transparent: true }))
+  const mailEdge = new LineBasicMaterial({ transparent: true, opacity: 0.9 })
+  mail.add(mailPanel, new LineSegments(new EdgesGeometry(mailPanel.geometry), mailEdge))
+  scene.add(mail)
+
   // ---------- The flows ----------
   const flowSpecs = [
     { from: [-2.35, 0.0, 0.5], via: [-1.6, 1.25, 0.3], to: [-0.85, 0.35, 0.15], start: moments.connected, tone: 'brand' },
@@ -282,6 +298,7 @@ export function createStageScene(
     // The automation's command to the alarm, then the email.
     { from: [-0.4, -0.2, 0.7], via: [-1.1, 0.9, 1.3], to: [-1.7, 0.3, 1.5], start: moments.alarm, tone: 'warning' },
     { from: [0.6, -0.15, 0.55], via: [1.7, -1.0, 1.1], to: [2.6, -0.65, 1.25], start: moments.phoneIn, tone: 'warning' },
+    { from: [0.5, 0.5, -0.5], via: [0.85, 1.55, -1.0], to: [1.05, 1.15, -1.3], start: moments.mailIn, tone: 'warning' },
   ] as const
   const PER_FLOW = 26
   const random = seeded(7)
@@ -338,6 +355,7 @@ export function createStageScene(
     })
     tint(pulseRing.edge, palette.to)
     tint(panelEdge, palette.mid)
+    tint(mailEdge, palette.mid)
     for (const flow of flows) tint(flow.material, flow.tone === 'warning' ? palette.warning : palette.mid)
     flows.forEach((flow, flowIndex) => {
       const colour = flow.tone === 'warning' ? palette.warning : flowIndex === 0 ? palette.to : palette.mid
@@ -488,32 +506,76 @@ export function createStageScene(
     context.font = `12px ${fonts.mono}`
     context.textAlign = 'center'
     context.fillText('14:02', W / 2, 26)
-    context.font = `300 52px ${fonts.display}`
-    const mailAt = moments.phoneIn + 350
-    context.fillStyle = css(textOn, time >= mailAt ? 0.25 : 0.7)
-    context.fillText('14:02', W / 2, 200)
-    if (time >= mailAt) {
-      const slide = easeOutCubic(ramp(time, mailAt, 500))
-      const y = -130 + 182 * slide
-      roundRect(context, 12, y, W - 24, 112, 16)
-      context.fillStyle = css(mix(screenInk, textOn, 0.14))
-      context.fill()
-      context.fillStyle = css(palette.warning)
-      context.beginPath()
-      context.arc(32, y + 26, 6, 0, Math.PI * 2)
+    // A messages screen; the text arrives shortly after the phone does.
+    const smsAt = moments.phoneIn + 450
+    if (time < smsAt) {
+      context.font = `300 52px ${fonts.display}`
+      context.fillStyle = css(textOn, 0.7)
+      context.fillText('14:02', W / 2, 200)
+    } else {
+      context.fillStyle = css(textOn)
+      context.font = `600 14px ${fonts.display}`
+      context.fillText('Alerts', W / 2, 58)
+      const slide = easeOutCubic(ramp(time, smsAt, 450))
+      const y = 96 + 30 * (1 - slide)
+      roundRect(context, 14, y, W - 52, 108, 18)
+      context.fillStyle = css(mix(screenInk, textOn, 0.16), slide)
       context.fill()
       context.textAlign = 'left'
-      context.fillStyle = css(mutedOn)
-      context.font = `11px ${fonts.mono}`
-      context.fillText('Alert · now', 46, y + 30)
-      context.fillStyle = css(textOn)
-      context.font = `600 16px ${fonts.display}`
-      context.fillText('Cold room too warm', 24, y + 60)
-      context.fillStyle = css(mutedOn)
-      context.font = `13px ${fonts.body}`
-      context.fillText('cold-room-1 · 8.6 °C for 5 min', 24, y + 84)
+      context.fillStyle = css(textOn, slide)
+      context.font = `600 14px ${fonts.display}`
+      context.fillText('Cold room too warm:', 28, y + 30)
+      context.font = `14px ${fonts.body}`
+      context.fillText('8.6 °C for 5 minutes.', 28, y + 54)
+      context.fillStyle = css(mutedOn, slide)
+      context.font = `12px ${fonts.mono}`
+      context.fillText('cold-room-1', 28, y + 82)
+      context.fillText('now', 28, y + 126)
     }
     phoneTexture.needsUpdate = true
+  }
+
+  const drawMail = (time: number) => {
+    const context = mailContext
+    if (!context) return
+    const W = mailCanvas.width
+    const H = mailCanvas.height
+    context.fillStyle = css(palette.surface)
+    context.fillRect(0, 0, W, H)
+    context.textBaseline = 'alphabetic'
+    context.textAlign = 'left'
+    context.fillStyle = css(palette.text)
+    context.font = `600 17px ${fonts.display}`
+    context.fillText('Inbox', 18, 32)
+    context.strokeStyle = css(palette.muted, 0.28)
+    context.lineWidth = 1
+    const rows = [
+      { title: 'Alert: Cold room too warm', meta: 'cold-room-1 · 8.6 °C for 5 min · now', fresh: time >= moments.mailIn + 150 },
+      { title: 'cold-room-1 is online', meta: 'earlier today', fresh: false },
+      { title: 'Weekly device report', meta: 'yesterday', fresh: false },
+    ]
+    rows.forEach((row, index) => {
+      const y = 48 + index * 68
+      if (row.fresh) {
+        context.fillStyle = css(mix(palette.surface, palette.warning, 0.1))
+        context.fillRect(0, y, W, 68)
+        context.fillStyle = css(palette.warning)
+        context.beginPath()
+        context.arc(22, y + 30, 5, 0, Math.PI * 2)
+        context.fill()
+      }
+      context.beginPath()
+      context.moveTo(0, y)
+      context.lineTo(W, y)
+      context.stroke()
+      context.fillStyle = css(row.fresh ? palette.text : palette.muted)
+      context.font = `${row.fresh ? 600 : 500} 14px ${fonts.display}`
+      context.fillText(row.title, 38, y + 28)
+      context.fillStyle = css(palette.muted)
+      context.font = `12px ${fonts.body}`
+      context.fillText(row.meta, 38, y + 50)
+    })
+    mailTexture.needsUpdate = true
   }
 
   // ---------- Labels ----------
@@ -523,7 +585,12 @@ export function createStageScene(
     dashboard: new Vector3(3.0, 2.05, -0.6),
     alarm: new Vector3(-1.7, -0.5, 1.95),
     phone: new Vector3(2.9, -1.4, 1.3),
+    mail: new Vector3(1.05, 1.85, -1.5),
   }
+  // The text message bubble sits to the phone's lower left, over the empty floor in
+  // front of the platform, its tail at the phone.
+  const bubble = host.querySelector<HTMLElement>('[data-bubble]')
+  const bubbleAnchor = new Vector3(2.52, -0.95, 1.3)
   const labelState = (time: number): Record<string, { state: string; shown: boolean }> => ({
     device: { state: time < moments.connected ? '' : time < moments.online ? 'active' : 'success', shown: true },
     platform: { state: time >= moments.alarm ? 'warning' : time >= moments.connected ? 'active' : '', shown: true },
@@ -533,6 +600,7 @@ export function createStageScene(
     },
     alarm: { state: time >= moments.alarm ? 'warning' : '', shown: true },
     phone: { state: 'warning', shown: time >= moments.phoneIn + 300 },
+    mail: { state: 'warning', shown: time >= moments.mailIn + 200 },
   })
   const placeLabels = (time: number) => {
     const states = labelState(time)
@@ -548,6 +616,13 @@ export function createStageScene(
       const { state, shown } = states[name]
       if (label.dataset.state !== state) label.dataset.state = state
       label.style.opacity = shown ? '1' : '0'
+    }
+    if (bubble) {
+      point.copy(bubbleAnchor).project(camera)
+      const x = ((point.x + 1) / 2) * width
+      const y = ((1 - point.y) / 2) * height
+      bubble.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-100%, -50%)`
+      bubble.toggleAttribute('data-shown', time >= moments.phoneIn + 700)
     }
   }
 
@@ -654,12 +729,18 @@ export function createStageScene(
       tint(alarmGlow.edge, palette.warning)
     }
 
-    // The phone comes in with the email.
+    // The phone comes in with the text message, then the inbox shows the email.
     const phoneIn = easeOutCubic(ramp(time, moments.phoneIn, 600))
     phone.visible = phoneIn > 0
     phone.scale.setScalar(Math.max(0.001, phoneIn))
     phone.position.y = -1.1 + 0.6 * phoneIn
     if (phone.visible) drawPhone(time)
+    const mailIn = easeOutCubic(ramp(time, moments.mailIn, 500))
+    mail.visible = mailIn > 0
+    mail.scale.setScalar(0.8 + 0.2 * mailIn)
+    mailPanel.material.opacity = mailIn
+    mailEdge.opacity = 0.9 * mailIn
+    if (mail.visible) drawMail(time)
 
     // Readings flow along each link once it is live.
     flows.forEach((flow, flowIndex) => {

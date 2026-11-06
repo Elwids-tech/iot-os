@@ -16,6 +16,7 @@ describe('the stage script', () => {
     expect(moments.activated).toBeLessThan(moments.rise)
     expect(moments.rise).toBeLessThan(moments.alarm)
     expect(moments.alarm).toBeLessThan(moments.phoneIn)
+    expect(moments.phoneIn).toBeLessThan(moments.mailIn)
     for (let time = moments.panelAdded; time < moments.rise; time += 100) expect(temperature(time)).toBeLessThan(8)
     expect(temperature(moments.alarm)).toBeGreaterThan(8)
     expect(temperature(duration)).toBeCloseTo(8.6, 0)

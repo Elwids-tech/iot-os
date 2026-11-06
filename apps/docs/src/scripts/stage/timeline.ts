@@ -29,6 +29,7 @@ export const moments = {
   rise: 13700,
   alarm: 17400,
   phoneIn: 18300,
+  mailIn: 19500,
 } as const
 
 /** The loop restarts after this. */
@@ -47,7 +48,7 @@ export const captions: Caption[] = [
   { at: moments.connected, text: 'The device connects over Sparkplug B with TLS and announces what it reports: temperature, door and battery.' },
   { at: moments.panelAdded, text: 'Readings land on a dashboard, each with its unit and how fresh it is.' },
   { at: moments.activated, text: 'An automation watches the cold room: above 8 °C for 5 minutes.' },
-  { at: moments.alarm, text: 'Too warm. The automation turns the alarm on and emails the team.' },
+  { at: moments.alarm, text: 'Too warm. The alarm comes on, and the team gets a text and an email.' },
 ]
 
 /** The beat playing at `time`. */

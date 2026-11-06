@@ -86,6 +86,6 @@ test.describe('with reduced motion', () => {
     await expect(stage).not.toHaveAttribute('data-motion', /.+/)
     await expect(stage.getByRole('button', { name: 'Pause' })).toBeHidden()
     for (const caption of await stage.locator('[data-captions] > li').all()) await expect(caption).toHaveCSS('opacity', '1')
-    await expect(stage.getByText('emails the team')).toBeVisible()
+    await expect(stage.getByText('a text and an email')).toBeVisible()
   })
 })
