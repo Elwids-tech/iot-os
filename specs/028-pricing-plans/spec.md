@@ -420,6 +420,9 @@ other organizations.
 
 ## Related work
 
+- [Mockups](mockups.html): low-fidelity layouts of the admin Plans list and form, a
+  billing account's plan and usage, and the portal owner and manager views. Names and
+  numbers are placeholders.
 - [ADR-026](../../docs/adr/ADR-026-billing-accounts.md) and
   [spec 023](../023-billing-accounts/spec.md): billing accounts, owners and assignment
   history.
