@@ -35,7 +35,8 @@ export function BillingAccountDialog({
           name: account.name,
           contact_email: account.contact_email ?? "",
           notes: account.notes ?? "",
-          organization_limit: String(account.organization_limit),
+          // Empty when unlimited; the field is then left out of the request.
+          organization_limit: account.organization_limit === null ? "" : String(account.organization_limit),
         }
       : empty
   const [values, setValues] = useState(baseline)
@@ -75,7 +76,9 @@ export function BillingAccountDialog({
         name: values.name.trim(),
         contact_email: values.contact_email.trim() || null,
         notes: values.notes.trim() || null,
-        organization_limit: Number.parseInt(values.organization_limit, 10),
+        ...(values.organization_limit.trim() === ""
+          ? {}
+          : { organization_limit: Number.parseInt(values.organization_limit, 10) }),
       }
       const saved =
         account === "new"

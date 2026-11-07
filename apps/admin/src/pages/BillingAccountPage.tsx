@@ -252,7 +252,7 @@ export function BillingAccountPage() {
               <dt className="text-muted-foreground">Contact</dt>
               <dd className="min-w-0 break-words">{account.contact_email ?? "None"}</dd>
               <dt className="text-muted-foreground">Organization limit</dt>
-              <dd className="tabular-nums">{account.organization_limit.toLocaleString()}</dd>
+              <dd className="tabular-nums">{account.organization_limit?.toLocaleString() ?? "No limit"}</dd>
               <dt className="text-muted-foreground">Created</dt>
               <dd>
                 <RelativeTime at={account.created_at} />

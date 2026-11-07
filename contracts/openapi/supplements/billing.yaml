@@ -1,13 +1,40 @@
-# Billing accounts (spec 023, ADR-026).
+# Billing accounts (spec 023, ADR-026), plans and allowances (specs 028 and 029, ADR-035).
 #
 # Statuses the code returns that inference misses. Request and response bodies are
 # inferred from the form requests and resources.
 # Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    PlanChangeNeedsConfirmation:
+      type: object
+      required: [message, affected_accounts]
+      properties:
+        message:
+          type: string
+        affected_accounts:
+          type: integer
+          description: The billing accounts on the plan now. Send it back as `confirm_affected` to apply the change to all of them.
 operations:
   DELETE /v1/admin/billing-accounts/{billingAccount}:
     responses:
       '409':
         description: The billing account still has organizations; move them before deleting it. Nothing was deleted.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  PATCH /v1/admin/billing-plans/{billingPlan}:
+    responses:
+      '409':
+        description: The change alters the allowances of a plan billing accounts are on, and `confirm_affected` does not match their number. Nothing was changed.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanChangeNeedsConfirmation'
+  DELETE /v1/admin/billing-plans/{billingPlan}:
+    responses:
+      '409':
+        description: The plan has been assigned to a billing account at some point, so it cannot be deleted; archive it instead. Nothing was deleted.
         content:
           application/json:
             schema:

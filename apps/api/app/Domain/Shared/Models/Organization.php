@@ -37,7 +37,6 @@ class Organization extends Model
             if ($organization->billing_account_id === null) {
                 $organization->billing_account_id = BillingAccount::query()->create([
                     'name' => $organization->name,
-                    'organization_limit' => 1,
                 ])->getKey();
             }
         });

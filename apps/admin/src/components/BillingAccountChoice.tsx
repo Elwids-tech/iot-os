@@ -44,12 +44,16 @@ function loadAccounts(query: DirectoryQuery) {
   return apiClient.adminBillingAccounts(query)
 }
 
+/** A null limit is unlimited (the account's `organizations` allowance, ADR-035). */
 export const atLimit = (account: Pick<BillingAccountSummary, "organizations_count" | "organization_limit">) =>
-  account.organizations_count >= account.organization_limit
+  account.organization_limit !== null && account.organizations_count >= account.organization_limit
 
 /** "1 of 10 organizations", or "3 organizations, limit 1" once a platform administrator went past it. */
 export function organizationsOfLimit(account: Pick<BillingAccountSummary, "organizations_count" | "organization_limit">) {
   const { organizations_count: count, organization_limit: limit } = account
+  if (limit === null) {
+    return `${count} ${count === 1 ? "organization" : "organizations"}, no limit`
+  }
   return count > limit
     ? `${count} ${count === 1 ? "organization" : "organizations"}, limit ${limit}`
     : `${count} of ${limit} ${limit === 1 ? "organization" : "organizations"}`

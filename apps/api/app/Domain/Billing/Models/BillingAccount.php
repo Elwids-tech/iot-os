@@ -12,25 +12,20 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
 /**
  * The payer of record for one or more organizations (spec 023, ADR-026). It groups
- * organizations for billing and grants no access to them.
- *
- * @property int $organization_limit
+ * organizations for billing and grants no access to them. Its limits come from its
+ * plan and overrides (ADR-035), resolved by `Allowances`.
  */
-#[Fillable(['name', 'contact_email', 'notes', 'organization_limit'])]
+#[Fillable(['name', 'contact_email', 'notes'])]
 final class BillingAccount extends Model
 {
     /** @use HasFactory<BillingAccountFactory> */
     use HasFactory, SoftDeletes;
-
-    /** Mirrors the column default, which the audit event reads before a refresh. */
-    protected $attributes = [
-        'organization_limit' => 1,
-    ];
 
     protected static function booted(): void
     {
@@ -77,10 +72,29 @@ final class BillingAccount extends Model
         return $this->hasMany(BillingAccountAssignment::class);
     }
 
-    protected function casts(): array
+    /**
+     * @return HasMany<PlanAssignment, $this>
+     */
+    public function planAssignments(): HasMany
     {
-        return [
-            'organization_limit' => 'integer',
-        ];
+        return $this->hasMany(PlanAssignment::class);
+    }
+
+    /**
+     * The plan the account is on now, if any.
+     *
+     * @return HasOne<PlanAssignment, $this>
+     */
+    public function openPlanAssignment(): HasOne
+    {
+        return $this->hasOne(PlanAssignment::class)->whereNull('ended_at');
+    }
+
+    /**
+     * @return HasMany<AllowanceOverride, $this>
+     */
+    public function allowanceOverrides(): HasMany
+    {
+        return $this->hasMany(AllowanceOverride::class);
     }
 }

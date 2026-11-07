@@ -23,7 +23,7 @@ final class OwnedBillingAccountController
         $memberOf = $user->organizations()->pluck('organizations.id')->map(fn ($id): int => (int) $id)->all();
 
         $accounts = $user->ownedBillingAccounts()
-            ->with(['organizations' => fn ($query) => $query->orderBy('name')])
+            ->with(['organizations' => fn ($query) => $query->orderBy('name'), 'openPlanAssignment.plan.allowances', 'allowanceOverrides'])
             ->orderBy('name')
             ->get();
 

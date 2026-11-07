@@ -34,6 +34,13 @@ final class StoreOrganizationRequest extends FormRequest
             'new_billing_account' => ['nullable', 'array:name,contact_email'],
             'new_billing_account.name' => ['required_with:new_billing_account', 'string', 'max:255'],
             'new_billing_account.contact_email' => ['sometimes', 'nullable', 'email', 'max:255'],
+            // A plan for the new account (spec 028 FR-010); an existing account keeps its own.
+            'plan_uuid' => [
+                'nullable',
+                'uuid',
+                Rule::exists('billing_plans', 'uuid')->whereNull('archived_at'),
+                'prohibits:billing_account_uuid',
+            ],
         ];
     }
 
@@ -45,6 +52,8 @@ final class StoreOrganizationRequest extends FormRequest
         return [
             'billing_account_uuid.prohibits' => 'Choose an existing billing account or a new one, not both.',
             'billing_account_uuid.exists' => 'That billing account no longer exists.',
+            'plan_uuid.exists' => 'Choose a plan that exists and is not archived.',
+            'plan_uuid.prohibits' => 'An existing billing account keeps its plan; choose a plan only for a new account.',
         ];
     }
 }

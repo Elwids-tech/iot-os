@@ -32,6 +32,12 @@ Things that have cost time before. Add to this list when something surprises you
   `Organization::factory()->forBillingAccount($account)`. Quiet saves
   (`saveQuietly`, `WithoutModelEvents` in `DatabaseSeeder`) skip the hook, so
   `OrganizationSeeder` sets the account and assignment itself.
+- **A billing account's organization limit is an allowance, not a column.** Since
+  ADR-035 it is the `organizations` allowance: an override, else the account's plan,
+  else `config('billing.defaults.organizations')` (1). Read it with
+  `Allowances::value($account, AllowanceKind::Organizations)`, where `null` is unlimited.
+  `BillingAccountFactory::limit(n)` writes an override, so a test's limit survives any
+  plan it is given.
 - **On SQLite, changing a column rebuilds the table, and the rebuild clears
   set-null keys that point at it.** Inside a migration's transaction foreign keys stay
   on, so dropping the old table fires `ON DELETE SET NULL` in every child table.

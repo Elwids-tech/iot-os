@@ -29,11 +29,19 @@ final class BillingAccountHistory
         'organization_joined' => 3,
     ];
 
+    /**
+     * Plan and allowance changes (ADR-035) read as updates, with the plan or the
+     * allowance as the changed field; the organization limit keeps its field name.
+     */
     private const ACTIONS = [
         'billing_account.created' => 'created',
         'billing_account.updated' => 'updated',
         'billing_account.owner_added' => 'owner_added',
         'billing_account.owner_removed' => 'owner_removed',
+        'billing_account.plan_assigned' => 'updated',
+        'billing_account.plan_removed' => 'updated',
+        'billing_account.allowance_overridden' => 'updated',
+        'billing_account.allowance_override_removed' => 'updated',
     ];
 
     /**
@@ -96,6 +104,16 @@ final class BillingAccountHistory
                             'user' => ['id' => (int) ($details['user_id'] ?? 0), 'name' => (string) ($details['user_name'] ?? '')],
                         ],
                         'billing_account.updated' => ['changes' => $this->changes($details['changes'] ?? [])],
+                        'billing_account.plan_assigned', 'billing_account.plan_removed' => ['changes' => [
+                            new BillingAccountChange('plan', $details['from']['name'] ?? null, $details['to']['name'] ?? null),
+                        ]],
+                        'billing_account.allowance_overridden', 'billing_account.allowance_override_removed' => ['changes' => [
+                            new BillingAccountChange(
+                                self::allowanceField((string) ($details['kind'] ?? '')),
+                                self::allowanceText($details['from'] ?? null),
+                                self::allowanceText($details['to'] ?? null),
+                            ),
+                        ]],
                         default => [],
                     },
                 ];
@@ -150,6 +168,16 @@ final class BillingAccountHistory
         }
 
         return $list;
+    }
+
+    private static function allowanceField(string $kind): string
+    {
+        return $kind === 'organizations' ? 'organization_limit' : $kind;
+    }
+
+    private static function allowanceText(mixed $value): string
+    {
+        return $value === null ? 'Unlimited' : (string) $value;
     }
 
     /**

@@ -10,13 +10,11 @@ use App\Domain\Billing\Http\Requests\UpdateBillingAccountRequest;
 use App\Domain\Billing\Http\Resources\BillingAccountDetailResource;
 use App\Domain\Billing\Http\Resources\BillingAccountResource;
 use App\Domain\Billing\Models\BillingAccount;
-use App\Domain\Billing\Services\BillingAccountHistory;
 use App\Domain\Billing\Services\BillingAccounts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -24,16 +22,14 @@ use Illuminate\Support\Facades\Gate;
  */
 final class PlatformBillingAccountController
 {
-    public function __construct(
-        private readonly BillingAccounts $billingAccounts,
-        private readonly BillingAccountHistory $history,
-    ) {}
+    public function __construct(private readonly BillingAccounts $billingAccounts) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
         $search = trim((string) $request->query('search', ''));
+        $plan = trim((string) $request->query('plan', ''));
         $perPage = min(max((int) $request->query('per_page', 25), 1), 100);
 
         $accounts = BillingAccount::query()
@@ -43,8 +39,14 @@ final class PlatformBillingAccountController
                         ->orWhereLike('contact_email', "%{$search}%");
                 });
             })
+            // `plan` is a plan's uuid, or `none` for accounts on no plan (spec 028 US2).
+            ->when($plan === 'none', fn ($query) => $query->whereDoesntHave('openPlanAssignment'))
+            ->when($plan !== '' && $plan !== 'none', fn ($query) => $query->whereHas(
+                'openPlanAssignment.plan',
+                fn ($query) => $query->where('uuid', $plan),
+            ))
             ->withCount('organizations')
-            ->with(['owners' => fn ($query) => $query->orderBy('name')])
+            ->with(['owners' => fn ($query) => $query->orderBy('name'), 'openPlanAssignment.plan.allowances', 'allowanceOverrides'])
             ->orderBy('name')
             ->orderBy('id')
             ->paginate($perPage)
@@ -89,21 +91,6 @@ final class PlatformBillingAccountController
 
     private function detail(BillingAccount $account): BillingAccountDetailResource
     {
-        $account->load([
-            'owners' => fn ($query) => $query->orderBy('name'),
-            'organizations' => fn ($query) => $query
-                ->withCount('users')
-                ->addSelect(['devices_count' => DB::table('devices')
-                    ->selectRaw('count(*)')
-                    ->whereColumn('devices.organization_id', 'organizations.id')])
-                ->addSelect(['assigned_at' => DB::table('billing_account_assignments')
-                    ->select('started_at')
-                    ->whereColumn('billing_account_assignments.organization_id', 'organizations.id')
-                    ->whereNull('ended_at')
-                    ->limit(1)])
-                ->orderBy('name'),
-        ]);
-
-        return new BillingAccountDetailResource($account, $this->history->for($account));
+        return BillingAccountDetailResource::for($account);
     }
 }

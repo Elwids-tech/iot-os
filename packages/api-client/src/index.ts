@@ -24,10 +24,14 @@ import type {
 import type { Dashboard, DashboardInput, DashboardRevision, DashboardRevisionSummary } from "./dashboards"
 import type { ActivityPage, ActivityQuery } from "./activity"
 import type {
+  AllowanceKind,
   BillingAccountDetail,
   BillingAccountOwner,
   BillingAccountSummary,
   BillingAccountValues,
+  BillingPlan,
+  BillingPlanDetail,
+  BillingPlanValues,
   OwnedBillingAccount,
   OwnerOrganization,
 } from "./billing"
@@ -544,6 +548,18 @@ function directoryQuery(query: DirectoryQuery = {}): string {
   return value ? `?${value}` : ""
 }
 
+/** Adds one parameter to a query string from `directoryQuery`; an empty value adds nothing. */
+function withParameter(query: string, name: string, value: string | undefined): string {
+  if (!value) {
+    return query
+  }
+
+  const parameters = new URLSearchParams(query.startsWith("?") ? query.slice(1) : query)
+  parameters.set(name, value)
+
+  return `?${parameters.toString()}`
+}
+
 export type * from "./assistant"
 export type * from "./help"
 export type IntegrationAbility = "devices:read" | "alerts:read" | "events:read" | "telemetry:read" | "locations:read" | "geofences:read" | "geofences:manage" | "geofences:activate"
@@ -943,13 +959,15 @@ export class ApiClient {
 
   /**
    * Creates the organization under `billing_account_uuid`, or with `new_billing_account`;
-   * with neither, a new account named after the organization (spec 023).
+   * with neither, a new account named after the organization (spec 023). `plan_uuid`
+   * puts a new account on a plan (spec 028).
    */
   async createAdminOrganization(values: {
     name: string
     slug: string
     billing_account_uuid?: string
     new_billing_account?: { name: string; contact_email?: string | null }
+    plan_uuid?: string | null
   }): Promise<Organization> {
     return this.request<ApiResponse<Organization>>("/api/v1/admin/organizations", {
       method: "POST",
@@ -967,12 +985,94 @@ export class ApiClient {
     ).then((response) => response.data)
   }
 
+  /** `plan` is a plan's uuid, or `none` for accounts on no plan. */
   async adminBillingAccounts(
-    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> = {},
+    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> & { plan?: string } = {},
   ): Promise<PaginatedResponse<BillingAccountSummary>> {
+    const { plan, ...directory } = query
     return this.request<PaginatedResponse<BillingAccountSummary>>(
-      `/api/v1/admin/billing-accounts${directoryQuery(query)}`,
+      `/api/v1/admin/billing-accounts${withParameter(directoryQuery(directory), "plan", plan)}`,
     )
+  }
+
+  /** `archived: false` leaves archived plans out, `true` lists only them. */
+  async adminPlans(
+    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> & { archived?: boolean } = {},
+  ): Promise<PaginatedResponse<BillingPlan>> {
+    const { archived, ...directory } = query
+    return this.request<PaginatedResponse<BillingPlan>>(
+      `/api/v1/admin/billing-plans${withParameter(directoryQuery(directory), "archived", archived === undefined ? undefined : archived ? "1" : "0")}`,
+    )
+  }
+
+  async createPlan(values: BillingPlanValues): Promise<BillingPlanDetail> {
+    return this.request<ApiResponse<BillingPlanDetail>>("/api/v1/admin/billing-plans", {
+      method: "POST",
+      body: JSON.stringify(values),
+    }).then((response) => response.data)
+  }
+
+  async adminPlan(planUuid: string): Promise<BillingPlanDetail> {
+    return this.request<ApiResponse<BillingPlanDetail>>(
+      `/api/v1/admin/billing-plans/${encodeURIComponent(planUuid)}`,
+    ).then((response) => response.data)
+  }
+
+  /**
+   * Changing the allowances of a plan billing accounts are on answers 409 with
+   * `affected_accounts` until `confirmAffected` matches it.
+   */
+  async updatePlan(planUuid: string, values: Partial<BillingPlanValues>, confirmAffected?: number): Promise<BillingPlanDetail> {
+    return this.request<ApiResponse<BillingPlanDetail>>(`/api/v1/admin/billing-plans/${encodeURIComponent(planUuid)}`, {
+      method: "PATCH",
+      body: JSON.stringify(confirmAffected === undefined ? values : { ...values, confirm_affected: confirmAffected }),
+    }).then((response) => response.data)
+  }
+
+  async archivePlan(planUuid: string): Promise<BillingPlanDetail> {
+    return this.request<ApiResponse<BillingPlanDetail>>(
+      `/api/v1/admin/billing-plans/${encodeURIComponent(planUuid)}/archive`,
+      { method: "POST" },
+    ).then((response) => response.data)
+  }
+
+  async restorePlan(planUuid: string): Promise<BillingPlanDetail> {
+    return this.request<ApiResponse<BillingPlanDetail>>(
+      `/api/v1/admin/billing-plans/${encodeURIComponent(planUuid)}/restore`,
+      { method: "POST" },
+    ).then((response) => response.data)
+  }
+
+  /** Only a plan that was never assigned can be deleted; otherwise 409. */
+  async deletePlan(planUuid: string): Promise<void> {
+    await this.request(`/api/v1/admin/billing-plans/${encodeURIComponent(planUuid)}`, { method: "DELETE" })
+  }
+
+  /** Puts the account on a plan from now on; `null` takes it off its plan. */
+  async setBillingAccountPlan(billingAccountUuid: string, planUuid: string | null): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/plan`,
+      { method: "PUT", body: JSON.stringify({ plan_uuid: planUuid }) },
+    ).then((response) => response.data)
+  }
+
+  /** Replaces the plan's allowance for this account only; `value: null` is unlimited. */
+  async overrideAllowance(
+    billingAccountUuid: string,
+    kind: AllowanceKind,
+    values: { value: number | null; note: string },
+  ): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/allowances/${kind}`,
+      { method: "PUT", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  async removeAllowanceOverride(billingAccountUuid: string, kind: AllowanceKind): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/allowances/${kind}`,
+      { method: "DELETE" },
+    ).then((response) => response.data)
   }
 
   async createBillingAccount(values: BillingAccountValues): Promise<BillingAccountDetail> {
