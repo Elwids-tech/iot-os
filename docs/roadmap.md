@@ -144,6 +144,14 @@ Grouped by area. Links point at the decision or doc that explains the item.
   ([spec 013](../specs/013-website-developer-docs/spec.md),
   [docs site](dev/docs-site.md)).
 - **Pilot quotas and load tests** for the event feed, webhooks and telemetry reads.
+- **Applications that follow a plant** ([ADR-032](adr/ADR-032-applications-follow-a-plant.md),
+  spec 030). A server-sent telemetry stream, bulk latest, device parameters and sites
+  for applications, and grants by site or entity branch; the first consumer is the
+  Twin Studio connector. Then partner applications acting for a person
+  ([ADR-033](adr/ADR-033-partner-applications-act-for-a-person.md)) and organization
+  variables as automation inputs ([ADR-034](adr/ADR-034-organization-variables.md)).
+  Follow-up once streams multiply: move the SSE relay out of PHP-FPM into a dedicated
+  streaming process behind the same authentication.
 
 ### Assistant
 
