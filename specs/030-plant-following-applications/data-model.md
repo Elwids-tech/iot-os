@@ -53,10 +53,12 @@ Rows older than 30 days are pruned.
 
 ## Position
 
-A decimal string, `^[1-9][0-9]{0,19}$`, equal to the committed outbox `sequence`
+A decimal string, `^(0|[1-9][0-9]{0,19})$`, equal to the committed outbox `sequence`
 (`device_runtime.telemetry_outbox.sequence`, a global identity). Unique, increasing in
 storage order, gaps allowed. Opaque to clients. The organization's head is its greatest
-retained sequence, or `0`.
+retained sequence, or `0` when it has none; `0` presented as a resume position means
+"from the oldest retained event", and is answered with a `reset` once the organization
+holds events older than the client could have seen.
 
 ## Stream events (wire; see [the stream contract](contracts/telemetry-stream.md))
 

@@ -59,7 +59,7 @@ versioned contract (IV).
   created per stream. Laravel authenticates the application, resolves its grant, opens
   the internal request and relays it. A stream may name a subset of the granted devices. No new process and no new network path to the runtime: the application
   still talks only to Laravel, and the runtime still serves only Laravel.
-- **Bulk latest.** `POST .../telemetry/latest/query` with up to 100 device UUIDs
+- **Batch latest.** `POST .../telemetry/latest/query` with up to 100 device UUIDs
   returns the latest values of all of them in one response
   (`telemetry-latest-batch.v1`), under `telemetry:read`. A snapshot is one request.
 - **Parameters, sites and entities for applications.** `GET devices/{uuid}` carries

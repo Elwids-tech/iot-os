@@ -9,7 +9,7 @@
 **Input**: "Applications that follow a plant (phase 1 of the Twin Studio integration,
 ADR-032). An external application such as a digital twin can show a whole plant as it
 is now and keep it moving: a server-sent telemetry stream for the application's granted
-devices; bulk latest for up to 100 devices in one request; device parameters on the
+devices; batch latest for up to 100 devices in one request; device parameters on the
 device read; sites for applications; grants by site, with devices in a granted site
 granted while they are there; stream limits; SDK 0.6. Boundaries that must not change:
 existing integration routes and their semantics, the application token model, the
@@ -325,8 +325,8 @@ exceed the limit and compare the refusal with the documentation.
 - Readings of a device arrive on the stream before the application has taken its
   snapshot: the application applies the stream from its opening position after a
   snapshot taken after that position; the documentation describes this order.
-- A site scope names a site of another organization: refused as not found, and nothing
-  about it is revealed.
+- A site scope names a site of another organization: refused as invalid input with the
+  same generic field error a foreign device gets, and nothing about it is revealed.
 - A stream names a device subset and one of those devices later leaves the grant (moved
   out of the site): its readings stop within a minute; the stream stays open for the
   rest of the subset, and the hourly restart refuses the stale name as not found, which
@@ -376,11 +376,11 @@ exceed the limit and compare the refusal with the documentation.
 - **FR-007**: A client presenting a position it saw MUST receive every retained reading
   stored after it, in order, without duplicates or gaps; a position the platform no
   longer retains MUST be answered with a reset message carrying the current position.
-- **FR-008**: The stream MUST carry nothing about devices outside the application's
-  resolved grant, or outside the subset it named, including readings stored for other
-  organizations at the same time. The stream's device set MUST be re-resolved at least
-  every minute and at every hourly restart, so a device moved into or out of a granted
-  site appears on or disappears from the stream within a minute.
+- **FR-008**: A stream that named a subset MUST carry nothing outside that subset. The
+  stream's device set MUST be re-resolved at least every minute and at every hourly
+  restart, so a device moved into or out of a granted site appears on or disappears
+  from the stream within a minute, without the client reopening the stream and with
+  no second `open` message.
 - **FR-009**: The stream MUST send a keepalive after 60 s without data.
 - **FR-010**: A grant change, token rotation, token expiry, revocation or loss of the
   data plane MUST end an open stream with a message naming the reason. A stream MUST
@@ -419,15 +419,17 @@ exceed the limit and compare the refusal with the documentation.
   in the scope at the time of the request; a device with no site MUST never be in a
   site scope.
 - **FR-019**: Every read, the batch latest, the stream, the event feed and webhook
-  deliveries MUST filter by the same resolved grant, and every request MUST resolve it
-  afresh.
+  deliveries MUST filter by the same resolved grant, carrying nothing about devices
+  outside it, including readings stored for other organizations at the same time; every
+  request MUST resolve it afresh.
 - **FR-020**: Changing the scope MUST bump the grant revision with the same
   consequences as changing the device list: the token is invalidated, event cursors are
   rejected until rebuilt, and the webhook is disabled.
 - **FR-021**: Deleting a site in a scope MUST remove it from the scope, bump the
   revision, and record why in the application's history.
-- **FR-022**: A scope naming a site of another organization MUST be refused as not
-  found.
+- **FR-022**: A scope naming a site of another organization MUST be refused as invalid
+  input with a generic field error, as a device list naming a foreign device is today,
+  revealing nothing about the site.
 
 **SDK, contracts and documentation**
 

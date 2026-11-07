@@ -68,7 +68,7 @@ fields that are internal or already known to the client. The organization is the
 | Field | Type | Notes |
 | --- | --- | --- |
 | `schema_version` | `"telemetry-stream.v1"` | |
-| `position` | string, `^[1-9][0-9]*$` | The committed sequence; equal to the SSE `id`. Opaque: compare for equality, never compute with it |
+| `position` | string, `^(0\|[1-9][0-9]{0,19})$` | The committed sequence; equal to the SSE `id`. Opaque: compare for equality, never compute with it. `0` appears only in `open` for an organization with no retained events |
 | `event_id` | UUID | The committed event's id; the same event is never sent twice on one stream, and at-least-once across reconnections, so clients deduplicate by it when they must |
 | `device_uuid` | UUID | A granted device |
 | `configuration_uuid` | UUID | The device configuration the readings were mapped by |
@@ -100,7 +100,13 @@ SDK all read.
   with gaps (the number is shared by every organization). A client treats it as an
   opaque string.
 - A fresh stream starts at the head: the first `reading` is the first event stored
-  after `open`.
+  after `open`. An organization with no retained events has head `0`; resuming from
+  `0` means from the oldest retained event, and is answered with `reset` once events
+  the client could not have seen have been pruned.
+- The device set is re-resolved every 30 s on the platform side; when it changes (a
+  device moved into or out of a granted site), the platform reopens its internal
+  stream from the last position with the new set and relays no second `open`. The
+  client sees the device appear or disappear, nothing else.
 - A resumed stream (`Last-Event-ID` or `after`) sends every retained event with a
   greater position for the resolved set, in order, then continues live. The join is
   gapless and duplicate-free within one stream.
@@ -118,7 +124,9 @@ on the runtime, bearer `DEVICE_RUNTIME_TOKEN`, answered as the same SSE framing 
 resolves the set; the runtime never decides a grant). Up to 1 000 devices, as the
 connectivity endpoint accepts. The runtime does not send `closed`; Laravel writes it
 when it ends the relay for a reason of its own, and treats the runtime closing the
-connection as `runtime_unavailable`.
+connection as `runtime_unavailable`. Laravel relays the runtime's `open` only for the
+first internal stream of a client stream; when it reopens the internal stream with a
+changed device set, it drops that `open` and relays from the first `reading`.
 
 The runtime answers 401 without the token, 400 for a malformed request, and 503 when
 its storage is unavailable. It lifts its 10-second write deadline for this handler

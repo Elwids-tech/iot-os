@@ -66,7 +66,8 @@ curl -s -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
 each with readings, `presence` and `last_seen_at`; a device that never reported has
 `readings: []` and `configuration_uuid: null`. Repeat with the second organization's
 device UUID added: `404` for the whole request. Repeat with 101 UUIDs: `422` naming the
-limit.
+limit. With the simulator running 100 devices, send one request naming all 100 under
+`time`: the answer arrives in under 2 s (SC-001).
 
 ## 4. The stream (US2)
 
@@ -111,8 +112,12 @@ without `entities:read` gets `403` on sites.
 3. Run the simulator with 100 devices reporting every 10 s on one stream for 10
    minutes; log `received_at` against the local receive time.
 4. Read `/internal/ops/metrics` and the admin app's organization page.
+5. For SC-003: keep one stream open for the whole run and, beside it, a second stream
+   for the same devices that you interrupt 20 times (kill `curl`, reconnect with the
+   last `Last-Event-ID`), appending every `event_id` each receives to a file.
 
-**Expect**: 95 % of readings within 2 s (SC-002); no `runtime_unavailable` closes; the
+**Expect**: 95 % of readings within 2 s (SC-002); the interrupted stream's `event_id`
+set equals the uninterrupted stream's, with no duplicates (SC-003); no `runtime_unavailable` closes; the
 metrics show `integration_streams_open` and the admin page lists each open stream with
 its application, opened time, device count and last position. Record the api
 container's memory at ten open streams in the pull request; it sizes the release pool

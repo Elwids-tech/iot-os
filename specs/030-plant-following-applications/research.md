@@ -41,9 +41,13 @@ untouched. A new `TelemetryStreamController@stream`:
 2. opens `GET /internal/telemetry/stream` on the runtime with the resolved device
    set and the position, and relays every frame it receives, flushing after each;
 3. every 30 s, between frames, re-reads the application's `grant_revision`,
-   `revoked_at` and the token's existence and expiry with one query, refreshes the
-   session row, and ends the stream with `closed` (`grant_changed` or
-   `credentials_changed`) when they changed;
+   `revoked_at` and the token's existence and `expires_at` with one query, refreshes
+   the session row, and ends the stream with `closed` (`grant_changed` or
+   `credentials_changed`) when they changed; for a site scope it also re-resolves the
+   device set, and when the set differs from the one the internal stream was opened
+   with, it reopens the internal stream from the last relayed position with the new
+   set and does not relay that stream's `open`, so the client keeps one stream and
+   one `open` and sees the device appear or disappear (FR-008);
 4. ends the stream with `closed` (`lifetime`) one hour after it opened, with
    `runtime_unavailable` when the internal connection drops, and with `shutdown` when
    the worker is asked to stop;
@@ -121,9 +125,12 @@ in the platform metrics (`Operations.php:105-136`) and need cleanup on disconnec
 ### R4. Positions
 
 **Decision**: the position is the committed `sequence` as a decimal string, opaque to
-clients, validated as `^[1-9][0-9]{0,19}$`. The SSE `id` carries it; `Last-Event-ID`
+clients, validated as `^(0|[1-9][0-9]{0,19})$`. The SSE `id` carries it; `Last-Event-ID`
 and the `after` query parameter accept it. A fresh stream's `open` position is the
 organization's current head (the greatest sequence retained for it, or `0` when none).
+`0` as a resume position means "from the oldest retained event"; it is answered with
+`reset` once the organization holds events older than the client could have seen,
+which the floor rule in R3 already produces.
 
 **Rationale**: one number, already unique and increasing in storage order; strings keep
 64-bit values exact in JavaScript. Opaqueness lets a later version carry a stream id

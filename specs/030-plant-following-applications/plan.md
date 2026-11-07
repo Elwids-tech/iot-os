@@ -136,7 +136,11 @@ Phase 1 design: unchanged.
   - `Http/TelemetryStreamController.php` (new) with `Services/StreamRelay.php`,
     `Services/SseWriter.php`, `Services/StreamSessions.php` (limits, rows, pruning).
   - `routes.php`: the three operations; `config/integrations.php`:
-    `stream_lifetime_seconds` (3600), `streams_max_open` (10), `recheck_seconds` (30).
+    `stream_lifetime_seconds` (3600), `streams_max_open` (10),
+    `streams_per_application` (2), `streams_per_organization` (10),
+    `stream_recheck_seconds` (30), `stream_keepalive_seconds` (60).
+  - `StreamRelay` reopens the internal stream from the last relayed position when a
+    site scope's resolved set changes, relaying no second `open` (R2, FR-008).
 - **Domain `Devices`**: `RuntimeClient::stream()`; `SiteController::destroy` calls
   `ApplicationGrants::siteDeleted`.
 - **Operations**: `Operations::metrics()` adds `integration_streams_open`; the admin
