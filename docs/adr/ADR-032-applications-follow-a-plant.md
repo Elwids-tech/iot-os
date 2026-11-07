@@ -45,14 +45,19 @@ versioned contract (IV).
   `telemetry-stream.v1` message: `device_uuid` and the readings the runtime committed
   (`parameter_uuid`, `key`, `data_type`, `unit`, `value`, `quality`, `observed_at`,
   `received_at`), derived from `telemetry.committed.v1` without its internal fields.
-  The SSE `id` is the committed sequence; a client that reconnects with
-  `Last-Event-ID` resumes from that sequence while JetStream still holds it, and
-  receives a `reset` event, carrying the current head, when it does not.
+  The SSE `id` is the committed sequence, the storage outbox's own number; a client
+  that reconnects with `Last-Event-ID` resumes from that sequence while the committed
+  outbox still holds it (eight days, or the tenant's retention when shorter), and
+  receives a `reset` event, carrying the current head, when it does not. A stream ends
+  after one hour with its last position, so authorization is re-checked and the serving
+  worker released; the client resumes.
 - **Laravel serves the stream; JetStream stays inside Go.** The runtime gains an
-  internal endpoint, `GET /internal/telemetry/stream`, that fans the committed feed out
-  to one subscriber per request, filtered by organization and device set. Laravel
-  authenticates the application, resolves its grant, opens the internal request and
-  relays it. No new process and no new network path to the runtime: the application
+  internal endpoint, `GET /internal/telemetry/stream`, that fans committed events out
+  to one subscriber per request, filtered by organization and device set: a resuming
+  subscriber is first caught up from the committed outbox, then follows the live
+  events the relay publishes, deduplicated by sequence. No JetStream consumer is
+  created per stream. Laravel authenticates the application, resolves its grant, opens
+  the internal request and relays it. A stream may name a subset of the granted devices. No new process and no new network path to the runtime: the application
   still talks only to Laravel, and the runtime still serves only Laravel.
 - **Bulk latest.** `POST .../telemetry/latest/query` with up to 100 device UUIDs
   returns the latest values of all of them in one response

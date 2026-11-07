@@ -83,6 +83,30 @@ Recorded from ADR-032 so the plan does not reopen them:
   `telemetry:read`.
 - The per-minute request limit is unchanged; a stream counts once when it opens.
 
+## Clarifications
+
+### Session 2026-11-07
+
+- Q: Should an open telemetry stream have a maximum lifetime after which the platform
+  closes it and the client resumes from its last position? → A: Yes, one hour. The
+  platform closes it with a message carrying the last position and the client resumes
+  from there, so authorization is re-checked and the serving worker released every
+  hour with no gap in the readings.
+- Q: Can a client narrow an open stream below its grant, or does a stream always carry
+  every granted device? → A: A stream may name a subset of the granted devices when it
+  opens; naming an ungranted device refuses the whole request. Parameters are filtered
+  by the client. A stream's device set is re-resolved at least every minute and at
+  every hourly restart, so a device moved into or out of a granted site appears or
+  disappears within a minute.
+- Q: Should the batch latest answer carry each device's presence and last-seen time
+  alongside its readings? → A: Yes. Each device entry carries its readings, its presence
+  (online, offline or unknown) and its last-seen time, the same values the device read
+  returns, so one request answers both questions at load.
+- Q: Is there a ceiling on how many devices a site scope may resolve to, the way a
+  device list stops at 100? → A: No. A site scope covers whatever the site holds, now
+  and later; the organization's own device count is the bound, and the limit of 100
+  stays for explicit device lists only.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - See the plant as it is now (Priority: P1)
@@ -104,7 +128,8 @@ device that never reported and one UUID from another organization.
 1. **Given** an application with `telemetry:read` and sixty granted devices, **When**
    it asks for the latest values of all sixty in one request, **Then** it receives one
    answer with each device's retained values, quality and times, identical to what the
-   single-device read returns for that device.
+   single-device read returns for that device, plus the device's presence and last-seen
+   time as the device read returns them.
 2. **Given** a granted device that has never reported, **When** it is in the request,
    **Then** its entry has no readings, and the answer says so without inventing a
    value.
@@ -156,6 +181,18 @@ expect the reset.
 7. **Given** an application already holds two open streams, or its organization holds
    ten, **When** it opens another, **Then** the request is refused with a message naming
    the limit, and the open streams are unaffected.
+8. **Given** a stream has been open for one hour, **When** the hour passes, **Then** the
+   platform ends it with a message carrying the last position, and a client that
+   reconnects with that position receives every reading stored since, in order, with
+   no duplicates and no gaps.
+9. **Given** an application opens a stream naming twelve of its granted devices,
+   **When** readings of other granted devices are stored, **Then** only the twelve
+   devices' readings arrive; and **Given** the named list includes a device that is not
+   granted, **When** the stream is opened, **Then** the whole request is refused as not
+   found.
+10. **Given** a stream is open on a site scope, **When** a device is moved into or out
+    of a granted site, **Then** its readings start or stop arriving within a minute
+    without the application reopening the stream.
 
 ---
 
@@ -290,6 +327,10 @@ exceed the limit and compare the refusal with the documentation.
   snapshot taken after that position; the documentation describes this order.
 - A site scope names a site of another organization: refused as not found, and nothing
   about it is revealed.
+- A stream names a device subset and one of those devices later leaves the grant (moved
+  out of the site): its readings stop within a minute; the stream stays open for the
+  rest of the subset, and the hourly restart refuses the stale name as not found, which
+  the client handles by reopening with the devices it still has.
 - The batch latest names devices from both a list grant and a device that is granted
   only because of a site scope: impossible, since a grant is one or the other; the
   resolved set is what counts.
@@ -310,7 +351,8 @@ exceed the limit and compare the refusal with the documentation.
 - **FR-001**: An application with `telemetry:read` MUST be able to request the latest
   values of up to 100 granted devices in one request and receive one answer with each
   device's retained values, quality and times, equal to the existing single-device
-  latest read for that device.
+  latest read for that device, together with the device's presence (online, offline or
+  unknown) and last-seen time as the device read returns them.
 - **FR-002**: A batch request naming any device that is not granted, or not in the
   organization, MUST be refused as not found as a whole, revealing nothing about that
   device.
@@ -325,17 +367,26 @@ exceed the limit and compare the refusal with the documentation.
   `telemetry:stream`, MUST be able to open a stream that delivers every committed
   reading of its granted devices in storage order, each carrying the device, the
   parameter identifier and key, the value, its type and unit, its quality, when it was
-  observed, when it was received, and whether it is historical.
+  observed, when it was received, and whether it is historical. A stream MAY name a
+  subset of the granted devices when it opens, of at most 1 000 devices, and then
+  carries only those; naming an ungranted device MUST refuse the whole request as not
+  found. Parameters are not filtered by the platform.
 - **FR-006**: The stream MUST open with a message carrying the position it starts from
   and MUST mark every message with its position, so a client can resume.
 - **FR-007**: A client presenting a position it saw MUST receive every retained reading
   stored after it, in order, without duplicates or gaps; a position the platform no
   longer retains MUST be answered with a reset message carrying the current position.
 - **FR-008**: The stream MUST carry nothing about devices outside the application's
-  resolved grant, including readings stored for other organizations at the same time.
+  resolved grant, or outside the subset it named, including readings stored for other
+  organizations at the same time. The stream's device set MUST be re-resolved at least
+  every minute and at every hourly restart, so a device moved into or out of a granted
+  site appears on or disappears from the stream within a minute.
 - **FR-009**: The stream MUST send a keepalive after 60 s without data.
-- **FR-010**: A grant change, token rotation, revocation or loss of the data plane MUST
-  end an open stream with a message naming the reason.
+- **FR-010**: A grant change, token rotation, token expiry, revocation or loss of the
+  data plane MUST end an open stream with a message naming the reason. A stream MUST
+  also end one hour after it opened, with a message carrying the last position, so
+  that authorization is re-evaluated and the serving worker released; a client that
+  resumes from that position MUST miss nothing.
 - **FR-011**: An application MUST NOT hold more than two open streams and an
   organization MUST NOT hold more than ten; opening another MUST be refused naming the
   limit, leaving the open streams unaffected.
@@ -362,7 +413,8 @@ exceed the limit and compare the refusal with the documentation.
 
 - **FR-017**: A manager MUST be able to save an application's grant as a scope of one or
   more sites of the organization instead of a device list; a grant MUST be one or the
-  other, never both.
+  other, never both. A site scope has no ceiling on the number of devices it resolves
+  to; the limit of 100 applies to explicit device lists only.
 - **FR-018**: A device MUST count as granted when it is in the list, or when its site is
   in the scope at the time of the request; a device with no site MUST never be in a
   site scope.
@@ -381,8 +433,8 @@ exceed the limit and compare the refusal with the documentation.
 
 - **FR-023**: The SDK, at version 0.6, MUST offer the batch latest, the sites list,
   parameters on the device read, and the stream as an iterator that resumes on its own
-  and surfaces a reset as a distinct event; everything that worked in 0.5 MUST work
-  unchanged.
+  after a disconnection and after the hourly close, and surfaces a reset as a distinct
+  event; everything that worked in 0.5 MUST work unchanged.
 - **FR-024**: The stream message, the batch latest answer and the device read with
   parameters MUST each have a versioned contract with golden fixtures, and the public
   API description MUST describe every new operation, ability, limit and refusal and
@@ -397,7 +449,8 @@ exceed the limit and compare the refusal with the documentation.
   devices or a scope of one or more sites, with a revision that changes whenever the
   grant changes. The resolved set is computed from it on every request.
 - **Snapshot (batch latest)**: for up to 100 requested devices, each device's retained
-  latest values with quality and times, or an empty list.
+  latest values with quality and times, or an empty list, plus its presence and
+  last-seen time.
 - **Stream message**: one committed reading of a granted device with its position in
   the organization's stream; the opening message and the reset message carry a position
   only.
