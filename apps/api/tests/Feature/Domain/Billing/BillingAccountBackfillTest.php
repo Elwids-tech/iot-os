@@ -17,7 +17,11 @@ final class BillingAccountBackfillTest extends TestCase
 
     public function test_the_rollout_gives_every_organization_its_own_account_from_its_creation(): void
     {
+        // The plans migration (ADR-035) references billing accounts, so it goes first and
+        // comes back last; PostgreSQL refuses to drop a table other tables point at.
+        $plans = require database_path('migrations/2026_11_07_100000_create_billing_plans.php');
         $migration = require database_path('migrations/2026_10_31_000000_create_billing_accounts.php');
+        $plans->down();
         $migration->down();
 
         $this->organization('Corner Shop', '2026-03-01 08:00:00');
@@ -46,6 +50,9 @@ final class BillingAccountBackfillTest extends TestCase
         }
 
         $this->assertBillingAssignmentInvariants(Organization::query()->where('name', 'Corner Shop')->firstOrFail());
+
+        $plans->up();
+        $this->assertSame(0, DB::table('billing_allowance_overrides')->count());
     }
 
     private function organization(string $name, string $createdAt, ?string $deletedAt = null): void

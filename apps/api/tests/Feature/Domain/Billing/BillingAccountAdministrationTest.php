@@ -283,7 +283,7 @@ final class BillingAccountAdministrationTest extends TestCase
         // The limit is the `organizations` allowance (ADR-035): back at the default, the override goes.
         $this->assertSame(0, DB::table('activity_log')->where('subject_uuid', $account->uuid)->where('event', 'billing_account.updated')->count());
         $details = json_decode((string) DB::table('activity_log')->where('subject_uuid', $account->uuid)->where('event', 'billing_account.allowance_override_removed')->sole()->properties, true);
-        $this->assertSame(['kind' => 'organizations', 'from' => 3, 'to' => 1, 'to_source' => 'default'], $details);
+        $this->assertSameJsonDocument(['kind' => 'organizations', 'from' => 3, 'to' => 1, 'to_source' => 'default'], $details);
     }
 
     public function test_only_an_empty_billing_account_can_be_deleted(): void

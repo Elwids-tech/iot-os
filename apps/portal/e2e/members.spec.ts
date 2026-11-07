@@ -177,6 +177,9 @@ test("members with more access are protected; others can change roles or be remo
   await page.getByRole("button", { name: "Actions for Member Person" }).click()
   await page.getByRole("menuitem", { name: "Remove from organization" }).click()
   await page.getByRole("alertdialog").getByRole("button", { name: "Remove member" }).click()
+  // While the dialog is open the table is hidden from the accessibility tree, so the row
+  // count reads 0 before the removal is sent; the toast follows the request and refresh.
+  await expect(page.getByText("Member Person was removed")).toBeVisible()
   await expect(page.getByRole("row", { name: /Member Person/ })).toHaveCount(0)
   expect(state.members.map((item) => item.id)).toEqual([10, 11])
 
