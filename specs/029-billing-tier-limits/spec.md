@@ -431,8 +431,9 @@ has the next invoice number, and the billing contact and owners each receive one
 The integrator's owner opens **Billing accounts** in the portal and adds a card on the
 payment provider's secure form. When the month's invoice is issued, the card is charged
 and they receive a receipt. Next month the charge fails because the card has expired:
-the owners are emailed with a link to pay, the provider retries, and in the admin app
-the invoice shows as failed and, after its due date, the account shows as past due.
+the owners are emailed with a link to pay, the card is tried again on the due date,
+and in the admin app the invoice shows as failed and, after its due date, the account
+shows as past due.
 Nothing changes for the integrator's devices or customers. The super administrator
 calls the integrator, who updates the card and pays the open invoice online.
 
@@ -877,9 +878,11 @@ method", and once an owner adds a card it is charged from the next day.
   permission is not needed yet.
 - Tier names, prices, tax rates and the numbers each tier includes are entered in the
   platform, never written into this repository.
-- The payment provider is chosen in the plan and recorded in an ADR. It has a test
-  mode, hosts the card form and payment page, retries failed charges, and reports
-  payments to the platform.
+- The payment provider is Stripe, through Laravel Cashier
+  ([ADR-037](../../docs/adr/ADR-037-invoices-and-card-payments.md)). It has a test
+  mode, hosts the card form and payment page, and reports payments to the platform.
+  The platform tries a failed charge again on the due date and 7 days after, with the
+  reminders.
 - The admin app and the API client change in the same pull request as the endpoints
   (constitution IV).
 

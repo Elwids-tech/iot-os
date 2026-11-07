@@ -40,7 +40,7 @@ the code as evidence.
 | [ADR-023](ADR-023-protocol-connectors.md) | Every protocol is a connector feeding one telemetry envelope; Sparkplug B is the edge-gateway uplink; typed protocols use point maps | Accepted (direction) |
 | [ADR-024](ADR-024-capture-before-deploy.md) | Adapter sources capture raw input under a lease before any revision is deployed; setup credentials publish to any topic but other sources' filters until the first deploy; amends ADR-010 | Proposed |
 | [ADR-025](ADR-025-review-follows-current-birth.md) | A device's review follows its source's current birth: a later compatible birth clears it, and automations report `device_review_required` | Proposed |
-| [ADR-026](ADR-026-billing-accounts.md) | Every organization belongs to one billing account; organizations stay independent tenants, and billing account owners create organizations under it within a limit | Accepted |
+| [ADR-026](ADR-026-billing-accounts.md) | Every organization belongs to one billing account; organizations stay independent tenants, and billing account owners create organizations under it within a limit | Accepted; amended by ADR-035 |
 | [ADR-027](ADR-027-adapter-fed-activation-and-applied-generation.md) | An adapter-fed source activates against its stored birth when it has no live one; bindings use the applied generation, so a refused activation keeps them | Proposed |
 | [ADR-028](ADR-028-activity-log.md) | The activity log on `spatie/laravel-activitylog` is the one audit trail; explicit actions by people and the system, read by platform administrators as a timeline | Proposed |
 | [ADR-029](ADR-029-embedded-sdk-and-gateway-kits.md) | The platform ships an MIT-licensed C SDK for Sparkplug gateways and devices, and gateway kits with credentials can be downloaded from the portal | Accepted; amended by ADR-030 |
@@ -49,6 +49,9 @@ the code as evidence.
 | [ADR-032](ADR-032-applications-follow-a-plant.md) | Applications can follow a plant: a server-sent telemetry stream served by Laravel over an internal runtime fan-out, bulk latest, parameters and sites for applications, and grants by site or entity branch; amends ADR-014 | Proposed |
 | [ADR-033](ADR-033-partner-applications-act-for-a-person.md) | Partner applications act for a person: a Passport connection at access level `operate` permits commands and acknowledgements under the person's own permissions, logged as the person; amends ADR-018 | Proposed |
 | [ADR-034](ADR-034-organization-variables.md) | Organization variables are automation inputs: versioned named values written by people or applications, read by a `source.variable.v1` DAG node at evaluation | Proposed |
+| [ADR-035](ADR-035-plans-and-allowances.md) | Plans carry allowances (alerts, SMS, devices, data points, retention, organizations) as rows keyed by kind; accounts get one plan at a time plus overrides; usage is counted per account with organization shares; the organization limit becomes an allowance; amends ADR-026 | Proposed |
+| [ADR-036](ADR-036-runtime-counts-data-points.md) | The runtime counts stored readings in the storage transaction and reports cumulative hourly counts with a watermark; Laravel applies only increases | Proposed |
+| [ADR-037](ADR-037-invoices-and-card-payments.md) | The platform issues its own monthly invoices (unbroken numbering, admin-set tax, credit notes) and takes card payments through Stripe and Laravel Cashier; non-payment never restricts an account | Proposed |
 
 ## Template
 
