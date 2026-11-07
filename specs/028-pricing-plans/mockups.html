@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pricing Plan Mockups</title>
+<style>
+  :root {
+    --bg: #f6f6f4;
+    --surface: #ffffff;
+    --surface-2: #f1f2f4;
+    --text: #1b1d21;
+    --muted: #5b616c;
+    --faint: #80868f;
+    --border: #dcdee2;
+    --accent: #2457d6;
+    --accent-soft: #e9effd;
+    --on-accent: #ffffff;
+    --ok: #157a3c;
+    --ok-soft: #e6f4ea;
+    --warn: #a35a06;
+    --warn-fill: #e09a2b;
+    --warn-soft: #fdf1e2;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115;
+      --surface: #171a20;
+      --surface-2: #1e222a;
+      --text: #e7e9ee;
+      --muted: #9aa1ad;
+      --faint: #7b828d;
+      --border: #2b3039;
+      --accent: #86a8ff;
+      --accent-soft: #1b2643;
+      --on-accent: #0f1115;
+      --ok: #6fd08f;
+      --ok-soft: #15291c;
+      --warn: #f0b35e;
+      --warn-fill: #d38b25;
+      --warn-soft: #2e2213;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115;
+    --surface: #171a20;
+    --surface-2: #1e222a;
+    --text: #e7e9ee;
+    --muted: #9aa1ad;
+    --faint: #7b828d;
+    --border: #2b3039;
+    --accent: #86a8ff;
+    --accent-soft: #1b2643;
+    --on-accent: #0f1115;
+    --ok: #6fd08f;
+    --ok-soft: #15291c;
+    --warn: #f0b35e;
+    --warn-fill: #d38b25;
+    --warn-soft: #2e2213;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 24px; font-weight: 600; margin: 0 0 6px; }
+  h2 { font-size: 18px; font-weight: 600; margin: 40px 0 4px; }
+  p { margin: 0; }
+  .lead { color: var(--muted); max-width: 70ch; }
+  .note { color: var(--muted); font-size: 14px; margin: 0 0 14px; max-width: 75ch; }
+  .screen {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .where { font-size: 12px; color: var(--faint); margin-bottom: 10px; }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .stack > * + * { margin-top: 12px; }
+  .head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .head .grow { flex: 1 1 220px; }
+  .title { font-size: 18px; font-weight: 600; }
+  .sub { font-size: 13px; color: var(--muted); }
+  .btn {
+    font: inherit; font-size: 14px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .field {
+    font: inherit; font-size: 14px;
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .search { width: 200px; max-width: 100%; }
+  .label { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 400; font-size: 13px; }
+  tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; }
+  .dim { color: var(--faint); }
+  .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 8px; }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.off { background: var(--surface-2); color: var(--muted); }
+  .pill.info { background: var(--accent-soft); color: var(--accent); }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .big { font-size: 26px; font-weight: 600; margin-top: 6px; }
+  .big small { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin: 8px 0 6px; }
+  .bar span { display: block; height: 100%; background: var(--accent); }
+  .bar span.warn { background: var(--warn-fill); }
+  .warn-text { color: var(--warn); }
+  .dialog-backdrop { display: flex; justify-content: center; padding: 8px 0; }
+  .dialog { width: 100%; max-width: 440px; }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-top: 6px; }
+  .hint { font-size: 12px; color: var(--faint); margin: 10px 0 16px; }
+  .actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .history { font-size: 14px; }
+  .history div { display: flex; gap: 12px; padding: 4px 0; }
+  .history .when { color: var(--muted); flex: 0 0 56px; }
+  .split { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pricing plan mockups</h1>
+  <p class="lead">Spec 028. Low-fidelity layouts of the screens the spec describes, to agree
+  on content before planning. The real screens use the design system's
+  <code>CollectionPage</code>, <code>DataTable</code> and <code>Panel</code>. Plan names,
+  organization names and numbers are placeholders, not proposed tiers.</p>
+
+  <h2>1. Admin app: Plans</h2>
+  <p class="note">User Story 1, FR-001 to FR-006. One plan per tier, each with an alert and an
+  SMS allowance. Archived plans stay on their accounts but cannot be newly assigned.</p>
+  <div class="screen stack">
+    <div class="where">Admin · Plans</div>
+    <div class="head">
+      <div class="grow">
+        <p class="title">Plans</p>
+        <p class="sub">Monthly allowances for each tier. Plans store no price.</p>
+      </div>
+      <input class="field search" placeholder="Search plans" aria-label="Search plans">
+      <button class="btn primary" type="button">New plan</button>
+    </div>
+    <div class="panel table-wrap" style="padding: 0;">
+      <table>
+        <thead>
+          <tr><th>Name</th><th class="num">Alerts a month</th><th class="num">SMS a month</th><th class="num">Accounts</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Plan A</td><td class="num">500</td><td class="num">100</td><td class="num">12</td><td><span class="pill ok">Active</span></td></tr>
+          <tr><td>Plan B</td><td class="num">2,000</td><td class="num">500</td><td class="num">4</td><td><span class="pill ok">Active</span></td></tr>
+          <tr><td>Plan C</td><td class="num">Unlimited</td><td class="num">2,000</td><td class="num">1</td><td><span class="pill ok">Active</span></td></tr>
+          <tr class="dim"><td>Plan A (old terms)</td><td class="num">400</td><td class="num">50</td><td class="num">3</td><td><span class="pill off">Archived</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="dialog-backdrop">
+      <div class="panel dialog">
+        <p class="title" style="font-size: 16px;">New plan</p>
+        <p class="sub" style="margin-bottom: 16px;">Use the tier's name from the price list.</p>
+        <p class="label">Name</p>
+        <input class="field" placeholder="Plan D" aria-label="Name" style="margin-bottom: 12px;">
+        <p class="label">Description (optional)</p>
+        <input class="field" placeholder="For small sites with a few alarms" aria-label="Description" style="margin-bottom: 16px;">
+        <div class="grid2" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
+          <div>
+            <p class="label">Alerts a month</p>
+            <input class="field" type="number" value="1000" aria-label="Alerts a month">
+            <label class="check"><input type="checkbox"> Unlimited</label>
+          </div>
+          <div>
+            <p class="label">SMS a month</p>
+            <input class="field" type="number" value="250" aria-label="SMS a month">
+            <label class="check"><input type="checkbox"> Unlimited</label>
+          </div>
+        </div>
+        <p class="hint">Alerts past the allowance still go out and count as overage. SMS stop at
+        the allowance. Each 160-character part counts as one SMS.</p>
+        <div class="actions">
+          <button class="btn" type="button">Cancel</button>
+          <button class="btn primary" type="button">Create plan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>2. Admin app: a billing account's plan and usage</h2>
+  <p class="note">User Stories 2 and 3, FR-007 to FR-020. The account's organizations share its
+  allowances. Each allowance shows where it comes from (plan, override or deployment default).
+  Here the alert allowance is used up and counting overage, while the SMS allowance is
+  overridden for this account.</p>
+  <div class="screen stack">
+    <div class="where">Admin · Billing accounts / Example Integrator</div>
+    <div class="head">
+      <p class="title grow">Example Integrator</p>
+      <button class="btn" type="button">Override allowance</button>
+      <button class="btn primary" type="button">Change plan</button>
+    </div>
+    <div class="panel split">
+      <div>
+        <p style="font-weight: 600;">Plan B</p>
+        <p class="sub">Since 1 Nov 2026 · 3 organizations share its allowances</p>
+      </div>
+      <p class="sub">November 2026 (UTC)</p>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="split"><span class="sub">Alerts</span><span class="pill off">From plan</span></div>
+        <p class="big">2,240 <small>of 2,000</small></p>
+        <div class="bar"><span class="warn" style="width: 100%;"></span></div>
+        <p class="warn-text" style="font-size: 13px;">240 overage · alerts are still sent</p>
+      </div>
+      <div class="panel">
+        <div class="split"><span class="sub">SMS</span><span class="pill info">Override · plan has 500</span></div>
+        <p class="big">312 <small>of 600</small></p>
+        <div class="bar"><span style="width: 52%;"></span></div>
+        <p class="sub">288 left this month</p>
+      </div>
+    </div>
+    <div class="panel table-wrap" style="padding: 0;">
+      <p style="font-weight: 600; padding: 12px 12px 4px;">Usage by organization</p>
+      <table>
+        <thead><tr><th>Organization</th><th class="num">Alerts</th><th class="num">SMS</th></tr></thead>
+        <tbody>
+          <tr><td>Corner Shop</td><td class="num">1,650</td><td class="num">210</td></tr>
+          <tr><td>Lakeside Café</td><td class="num">420</td><td class="num">80</td></tr>
+          <tr><td>Home</td><td class="num">170</td><td class="num">22</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <p style="font-weight: 600; margin-bottom: 6px;">History</p>
+      <div class="history">
+        <div><span class="when">6 Nov</span><span>Owners emailed: alert allowance used up</span></div>
+        <div><span class="when">3 Nov</span><span>SMS allowance overridden to 600 by a platform administrator: "Agreed terms"</span></div>
+        <div><span class="when">1 Nov</span><span>Plan changed from Plan A to Plan B by a platform administrator</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>3. Portal: Billing accounts (owner)</h2>
+  <p class="note">User Story 4, FR-021 and FR-023. Owners see the plan, the shared usage and
+  each organization's share. They are emailed at 80% and 100% of each allowance.</p>
+  <div class="screen">
+    <div class="where">Portal · user menu · Billing accounts</div>
+    <div class="panel">
+      <div class="head" style="margin-bottom: 10px;">
+        <p class="title grow" style="font-size: 16px;">Example Integrator</p>
+        <p class="sub">Plan B · November 2026</p>
+      </div>
+      <div class="grid2" style="margin-bottom: 12px;">
+        <div>
+          <span class="sub">Alerts</span>
+          <div class="bar"><span class="warn" style="width: 100%;"></span></div>
+          <span style="font-size: 14px;">2,240 of 2,000 · <span class="warn-text">240 over</span></span>
+        </div>
+        <div>
+          <span class="sub">SMS</span>
+          <div class="bar"><span style="width: 52%;"></span></div>
+          <span style="font-size: 14px;">312 of 600 · 288 left</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Organization</th><th class="num">Alerts</th><th class="num">SMS</th></tr></thead>
+          <tbody>
+            <tr><td>Corner Shop</td><td class="num">1,650</td><td class="num">210</td></tr>
+            <tr><td>Lakeside Café</td><td class="num">420</td><td class="num">80</td></tr>
+            <tr><td>Home <span class="dim" style="font-size: 12px;">· Not a member</span></td><td class="num">170</td><td class="num">22</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <h2>4. Portal: Settings → Notifications (manager)</h2>
+  <p class="note">User Story 4, FR-022. A manager in one customer organization sees what is
+  left of the shared allowances and their own organization's use, but not the billing account
+  or its other organizations.</p>
+  <div class="screen">
+    <div class="where">Portal · Corner Shop · Settings → Notifications</div>
+    <div class="panel">
+      <div class="head" style="margin-bottom: 10px;">
+        <p class="grow" style="font-weight: 600;">This month's allowances</p>
+        <p class="sub">Resets 1 Dec (UTC)</p>
+      </div>
+      <div class="grid2">
+        <div>
+          <span class="sub">Alerts</span>
+          <p style="margin-top: 2px;">Allowance used · <span class="warn-text">240 over</span></p>
+          <p class="sub">This organization: 1,650. Alerts still go out.</p>
+        </div>
+        <div>
+          <span class="sub">SMS</span>
+          <p style="margin-top: 2px;">288 left</p>
+          <p class="sub">This organization: 210. When none are left, SMS are cancelled and email still goes.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>
