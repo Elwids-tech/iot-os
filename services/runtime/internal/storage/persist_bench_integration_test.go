@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -24,8 +25,10 @@ func BenchmarkPersistResult(b *testing.B) {
 	}
 	organization := UUID()
 	b.Cleanup(func() {
+		// b.Context() is cancelled before cleanups run, so the deletes need their own.
+		cleanup := context.Background()
 		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "devices", "usage_data_points"} {
-			_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1", organization)
+			_, _ = store.Pool.Exec(cleanup, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1", organization)
 		}
 		store.Pool.Close()
 	})
