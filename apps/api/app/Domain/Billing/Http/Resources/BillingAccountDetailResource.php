@@ -10,6 +10,7 @@ use App\Domain\Billing\Services\Allowances;
 use App\Domain\Billing\Services\BillingAccountHistory;
 use App\Domain\Billing\Services\BillingAccountHistoryEntry;
 use App\Domain\Billing\Services\MonthlyUsage;
+use App\Domain\Billing\Services\Prices;
 use App\Domain\Billing\Services\ResolvedAllowance;
 use App\Domain\Billing\Services\Usage;
 use Carbon\CarbonImmutable;
@@ -20,8 +21,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * A billing account's page: details, organizations, owners and the latest 100 history
  * entries, newest first (spec 023 US2), with its plan, allowances and this month's usage
- * (spec 028 US2). `organization_limit` is the `organizations` allowance, null when
- * unlimited.
+ * (spec 028 US2), and its prices, price overrides and billing details (spec 029 US6).
+ * `organization_limit` is the `organizations` allowance, null when unlimited.
  *
  * @extends JsonResource<BillingAccount>
  */
@@ -54,6 +55,7 @@ final class BillingAccountDetailResource extends JsonResource
                 ->orderBy('name'),
             'openPlanAssignment.plan.allowances',
             'allowanceOverrides',
+            'taxRate',
         ]);
 
         return new self(
@@ -81,6 +83,23 @@ final class BillingAccountDetailResource extends JsonResource
                 ? null
                 : new PlanAssignmentResource($this->resource->openPlanAssignment),
             'allowances' => AllowanceResource::collection(array_values($this->allowances)),
+            /**
+             * What the account pays on its plan, overrides included; null without a plan (spec 029 FR-030).
+             *
+             * @var array{currency: string, current: array{effective_from: string, base_price: int, alert_overage_price: int, data_point_overage_price: int, data_point_block_size: int}, next: array{effective_from: string, base_price: int, alert_overage_price: int, data_point_overage_price: int, data_point_block_size: int}|null}|null
+             */
+            'prices' => PriceSummary::forAccount($this->resource),
+            /**
+             * Each overridden price this month (`value`) and next (`next_value`); null is the plan's price.
+             *
+             * @var list<array{price: 'base_price'|'alert_overage_price'|'data_point_overage_price', value: int|null, note: string|null, next_value: int|null, next_note: string|null}>
+             */
+            'price_overrides' => app(Prices::class)->overrideList($this->resource, CarbonImmutable::now()),
+            'billing_details' => [
+                'billing_address' => $this->resource->billing_address === null ? null : (string) $this->resource->billing_address,
+                'tax_number' => $this->resource->tax_number === null ? null : (string) $this->resource->tax_number,
+                'tax_rate' => $this->resource->taxRate === null ? null : new TaxRateResource($this->resource->taxRate),
+            ],
             'usage' => UsageResource::collection(array_map(fn (MonthlyUsage $usage): UsageResource => new UsageResource($usage), $this->usage)),
             'owners' => BillingAccountOwnerResource::collection($this->resource->owners),
             'organizations' => BillingAccountOrganizationResource::collection($this->resource->organizations),

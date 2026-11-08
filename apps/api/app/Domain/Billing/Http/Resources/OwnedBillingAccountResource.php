@@ -6,6 +6,7 @@ namespace App\Domain\Billing\Http\Resources;
 
 use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Billing\Models\Invoice;
 use App\Domain\Billing\Services\Allowances;
 use App\Domain\Billing\Services\MonthlyUsage;
 use App\Domain\Billing\Services\ResolvedAllowance;
@@ -20,7 +21,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * owner is a member of each, and the limit (spec 023 US3): the `organizations`
  * allowance, null when unlimited (ADR-035). Its plan and since when, allowances and this month's usage
  * with each organization's share (spec 028 FR-021) leave SMS out when the deployment
- * cannot send it.
+ * cannot send it. Owners see their own prices and latest issued invoice (spec 029 FR-030,
+ * FR-036).
  *
  * @extends JsonResource<BillingAccount>
  */
@@ -45,6 +47,7 @@ final class OwnedBillingAccountResource extends JsonResource
             fn (ResolvedAllowance $allowance): bool => $sms || $allowance->kind !== AllowanceKind::Sms,
         ));
         $usage = app(Usage::class)->forAccount($this->resource, CarbonImmutable::now(), withSms: $sms);
+        $latest = $this->resource->invoices()->where('status', Invoice::ISSUED)->latest('month')->first();
 
         return [
             'uuid' => (string) $this->resource->uuid,
@@ -59,6 +62,14 @@ final class OwnedBillingAccountResource extends JsonResource
             ],
             'allowances' => AllowanceResource::collection(array_map(fn (ResolvedAllowance $allowance): AllowanceResource => new AllowanceResource($allowance), $allowances)),
             'usage' => UsageResource::collection(array_map(fn (MonthlyUsage $usage): UsageResource => new UsageResource($usage), $usage)),
+            /**
+             * What the account pays on its plan, overrides included; null without a plan (spec 029 FR-030).
+             *
+             * @var array{currency: string, current: array{effective_from: string, base_price: int, alert_overage_price: int, data_point_overage_price: int, data_point_block_size: int}, next: array{effective_from: string, base_price: int, alert_overage_price: int, data_point_overage_price: int, data_point_block_size: int}|null}|null
+             */
+            'prices' => PriceSummary::forAccount($this->resource),
+            /** The latest issued invoice; drafts are never shown to owners. */
+            'latest_invoice' => $latest === null ? null : new InvoiceResource($latest),
         ];
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Billing\Http\Controllers;
 
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
+use App\Domain\Billing\Http\Requests\SetPlanPricesRequest;
 use App\Domain\Billing\Http\Requests\StorePlanRequest;
 use App\Domain\Billing\Http\Requests\UpdatePlanRequest;
 use App\Domain\Billing\Http\Resources\PlanDetailResource;
@@ -13,6 +14,7 @@ use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Models\PlanAssignment;
 use App\Domain\Billing\Services\PlanHistory;
 use App\Domain\Billing\Services\Plans;
+use App\Domain\Billing\Services\Prices;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,6 +30,7 @@ final class PlatformPlanController
     public function __construct(
         private readonly Plans $plans,
         private readonly PlanHistory $history,
+        private readonly Prices $prices,
     ) {}
 
     /**
@@ -80,6 +83,16 @@ final class PlatformPlanController
         $plan = $this->plans->update($billingPlan, $values, $request->user(), $confirm === null ? null : (int) $confirm, $request->boolean('confirm_retention'));
 
         return $this->detail($plan);
+    }
+
+    /** Sets the plan's prices from next month (spec 029 FR-027, FR-028); the response says from when. */
+    public function prices(SetPlanPricesRequest $request, BillingPlan $billingPlan): PlanDetailResource
+    {
+        Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
+
+        $from = $this->prices->setPlanPrices($billingPlan, array_map('intval', $request->validated()), $request->user());
+
+        return $this->detail($billingPlan)->additional(['effective_from' => $from->toDateString()]);
     }
 
     public function archive(Request $request, BillingPlan $billingPlan): PlanDetailResource

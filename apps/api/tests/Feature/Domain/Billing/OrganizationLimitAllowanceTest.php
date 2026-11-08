@@ -32,9 +32,11 @@ final class OrganizationLimitAllowanceTest extends TestCase
 
     public function test_the_migration_keeps_raised_limits_as_overrides(): void
     {
-        // Usage references plan assignments; PostgreSQL refuses to drop a referenced table.
+        // Invoices and usage reference plans; PostgreSQL refuses to drop a referenced table.
+        $invoices = require database_path('migrations/2026_11_15_000000_create_billing_invoices.php');
         $usage = require database_path('migrations/2026_11_07_200000_create_billing_usage.php');
         $migration = require database_path('migrations/2026_11_07_100000_create_billing_plans.php');
+        $invoices->down();
         $usage->down();
         $migration->down();
 
@@ -43,6 +45,7 @@ final class OrganizationLimitAllowanceTest extends TestCase
 
         $migration->up();
         $usage->up();
+        $invoices->up();
 
         $this->assertFalse(Schema::hasColumn('billing_accounts', 'organization_limit'));
         $this->assertSame(
@@ -122,15 +125,18 @@ final class OrganizationLimitAllowanceTest extends TestCase
     public function test_the_down_migration_restores_limits_from_overrides(): void
     {
         $account = BillingAccount::factory()->limit(7)->create();
+        $invoices = require database_path('migrations/2026_11_15_000000_create_billing_invoices.php');
         $usage = require database_path('migrations/2026_11_07_200000_create_billing_usage.php');
         $migration = require database_path('migrations/2026_11_07_100000_create_billing_plans.php');
 
+        $invoices->down();
         $usage->down();
         $migration->down();
 
         $this->assertSame(7, (int) DB::table('billing_accounts')->where('id', $account->id)->value('organization_limit'));
         $migration->up();
         $usage->up();
+        $invoices->up();
         $this->assertSame(7, (int) DB::table('billing_allowance_overrides')->where('billing_account_id', $account->id)->value('value'));
     }
 }

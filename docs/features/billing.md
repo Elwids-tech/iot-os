@@ -5,7 +5,7 @@ Plans, the allowances they give billing accounts, and what accounts use
 [spec 029](../../specs/029-billing-tier-limits/spec.md),
 [ADR-035](../adr/ADR-035-plans-and-allowances.md)). Billing accounts themselves, the
 payer of record for one or more organizations, are described under
-[Access](access.md#billing-accounts). Invoices, payments and
+[Access](access.md#billing-accounts). Prices, tax and invoices are below; payments and
 trials are planned in
 [the billing plan](../../specs/029-billing-tier-limits/plan.md) and described here as
 they are built.
@@ -16,7 +16,10 @@ Code: Laravel [`Domain/Billing`](../../apps/api/app/Domain/Billing) (resolution:
 [`PlanAssignments`](../../apps/api/app/Domain/Billing/Services/PlanAssignments.php),
 usage: [`Usage`](../../apps/api/app/Domain/Billing/Services/Usage.php), warnings:
 [`UsageThresholds`](../../apps/api/app/Domain/Billing/Services/UsageThresholds.php) and
-[`Notices`](../../apps/api/app/Domain/Billing/Services/Notices.php)), defaults in
+[`Notices`](../../apps/api/app/Domain/Billing/Services/Notices.php), invoices:
+[`InvoiceDrafter`](../../apps/api/app/Domain/Billing/Services/InvoiceDrafter.php),
+[`InvoiceIssuer`](../../apps/api/app/Domain/Billing/Services/InvoiceIssuer.php) and
+[`CreditNotes`](../../apps/api/app/Domain/Billing/Services/CreditNotes.php)), defaults in
 [`config/billing.php`](../../apps/api/config/billing.php).
 
 ## Plans and allowances
@@ -275,6 +278,57 @@ retention.
 - **Direct changes** on Settings → Retention (an organization override or the platform
   default) keep their immediate behaviour and make no floor.
 
+## Prices and invoices
+
+Spec 029 US6, research R11–R14. Amounts are integers in the minor units of one
+currency per deployment (`BILLING_CURRENCY`, default `USD`), shown with two decimals;
+every division rounds half up.
+
+- **Prices.** A plan has a monthly base price, a price per alert over the allowance and
+  a price per block of data points over it, with the block size (`billing_plan_prices`).
+  A platform administrator can override any of them for one account, with a note
+  (`billing_price_overrides`; a null value goes back to the plan's). Every change applies
+  from the first day of the next UTC month, so a month is priced from one set of prices.
+  A plan with no prices is free. Owners see their own account's prices; managers and
+  members never see prices.
+- **Settings and tax.** One `billing_settings` row holds the operator's legal name,
+  address, tax number, invoice footer and number prefixes (`INV-`, `CN-`), saved with a
+  revision (409 when stale). Tax rates are named, in basis points, archived rather than
+  deleted. Each account has a billing address, an optional tax number and a rate or none.
+- **Drafting.** `billing:draft-invoices` (daily at 02:10) drafts last month's invoice for
+  each account that had a plan during it, once the runtime has reported data points to
+  the month's end. Each UTC day is charged to the assignment in force at 00:00, so a plan
+  assigned mid-day starts charging the next day; consecutive days of one assignment make
+  one line with the base price prorated by day, and trial days are shown at 0. Overage
+  from `billing_overage` is priced per assignment at that plan's prices for the month,
+  overrides applied: alerts one by one, data points by whole blocks rounded up, nothing
+  during a trial. Each organization's usage is snapshotted with the draft.
+- **Waiting.** Until usage is final, accounts wait; after `BILLING_INVOICE_WAIT_DAYS` (3)
+  the waiting list marks them overdue, and an administrator can draft anyway with a note,
+  which marks the draft possibly incomplete.
+- **Review.** Drafts are recalculated from the records at any time, keeping
+  administrators' adjustments (a charge, or a credit with a negative amount, with a note
+  only administrators see). The account's credit shows as a last line after tax.
+- **Issuing.** In one transaction: the next number from a locked counter row
+  (`billing_number_sequences`, so no gaps); snapshots of the operator's and the account's
+  details and the tax rate; tax on the subtotal; the account's credit applied; due in
+  `BILLING_INVOICE_DUE_DAYS` (14). An invoice with nothing to pay is paid. From then on
+  only `payment_status` changes; the model refuses any other write.
+- **Credit notes** have their own sequence and an amount up to the part of the invoice
+  not yet credited. Each takes what it can off what the invoice still owes (`applied`);
+  the rest becomes account credit (`billing_account_credits`) for the next invoice, shown
+  as "Credit from CN-…". An invoice whose credit notes leave nothing owed reads
+  `credited`. The invoice's own figures never change: `outstanding` is derived.
+- **Documents and email.** PDFs are rendered on request with dompdf from
+  `resources/views/billing/invoice.blade.php`; the CSV holds the lines, totals and usage.
+  An issued invoice or credit note is emailed once each to the billing contact and every
+  owner (`invoice_issued`, `credit_note_issued` notices), with the PDF attached. Owners
+  see issued invoices only; a draft answers 404.
+- **Deleting** an account with issued invoices answers 409; its drafts go with it
+  otherwise.
+
+Issuing dispatches `InvoiceIssued`, which card payments (PR 11) will listen to.
+
 ## API
 
 Admin routes need `PlatformAdministration.manage-organizations`:
@@ -287,13 +341,27 @@ Admin routes need `PlatformAdministration.manage-organizations`:
 | `PUT admin/billing-accounts/{uuid}/plan` | `{plan_uuid}`, or `null` to remove the plan |
 | `PUT/DELETE admin/billing-accounts/{uuid}/allowances/{kind}` | Override (`{value, note}`) or remove the override |
 | `GET admin/billing-accounts/{uuid}/usage?month=YYYY-MM` | Usage for a month (this month by default), with each organization's share |
+| `PUT admin/billing-plans/{uuid}/prices` | The plan's prices from next month; the response's `effective_from` says when |
+| `PUT admin/billing-accounts/{uuid}/prices/{price}` | `{value, note}` override from next month; `value: null` removes it |
+| `PATCH admin/billing-accounts/{uuid}/billing-details` | `{billing_address, tax_number, tax_rate_uuid}` |
+| `GET/PUT admin/billing/settings` | Operator details and prefixes, with `revision` (409 when stale); `currency` is read-only |
+| `GET/POST admin/billing/tax-rates`, `PATCH …/{uuid}`, `POST …/{uuid}/archive` | Tax rates |
+| `GET admin/billing/invoices?status=&month=&account=&payment_status=` | Invoices, newest month first |
+| `GET admin/billing/invoices/waiting?month=YYYY-MM` | Accounts waiting for final usage, with `waiting_since` and `overdue` |
+| `POST admin/billing-accounts/{uuid}/invoices` | `{month, note}`: draft anyway (409 when one exists) |
+| `GET admin/billing/invoices/{uuid}`, `.pdf`, `.csv` | Lines, usage and credit notes; documents |
+| `POST admin/billing/invoices/{uuid}/recalculate`, `/adjustments`, `DELETE …/adjustments/{line}` | Drafts only (409 once issued) |
+| `POST admin/billing/invoices/{uuid}/issue` | Number, fix and email it |
+| `POST admin/billing/invoices/{uuid}/credit-notes`, `GET admin/billing/credit-notes/{uuid}.pdf` | `{amount, reason}` on an issued invoice |
 
 The plan, allowance and organization-move routes answer 409 `retention` when the change
 shortens an organization's telemetry retention, until `confirm_retention: true` is
 sent ([retention](#retention)).
 
 `GET admin/billing-accounts/{uuid}` carries `plan_assignment`, `allowances` (each
-with `value`, `source` and `note`) and this month's `usage`. The admin account list
+with `value`, `source` and `note`), this month's `usage`, `prices` (this month's and,
+when a change waits, next month's), `price_overrides` and `billing_details`. Plans
+carry `prices` too. The admin account list
 carries `plan` and filters by `plan` (a plan's uuid, or `none`) and by
 `usage_at_least` (1 to 100; the list's filter is 80): accounts that have used at
 least that share of a limited allowance this month, resolved in SQL as
@@ -304,8 +372,10 @@ Owner and manager routes:
 
 | Route | Purpose |
 | --- | --- |
-| `GET billing-accounts` | The accounts the signed-in person owns, each with `plan`, `allowances` and this month's `usage` |
+| `GET billing-accounts` | The accounts the signed-in person owns, each with `plan`, `allowances`, this month's `usage`, `prices` and `latest_invoice` |
 | `GET billing-accounts/{uuid}/usage?month=YYYY-MM` | An owned account's usage for a month; 404 otherwise |
+| `GET billing-accounts/{uuid}/invoices` | Issued invoices and credit notes |
+| `GET billing-accounts/{uuid}/invoices/{uuid}`, `.pdf`, `.csv`; `GET billing-accounts/{uuid}/credit-notes/{uuid}.pdf` | Issued only; a draft or another account's answers 404 |
 | `GET organizations/{uuid}/usage` | This month's usage as a manager sees it, and the organization's `retention`; needs `Device.manage` |
 
 A usage entry is `{kind, month, count, allowance, left, overage, organizations}`,

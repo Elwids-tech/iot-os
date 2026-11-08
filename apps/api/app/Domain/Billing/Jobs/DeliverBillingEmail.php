@@ -12,9 +12,10 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Sends one billing email to one owner of the account (`Notices`). Ownership and a
- * verified address are checked again here, so someone removed as owner before the worker
- * runs gets nothing. One job per owner, so a retry never repeats another owner's email.
+ * Sends one billing email to one owner of the account, or to its billing contact
+ * (`Notices`). Ownership and a verified address are checked again here, so someone
+ * removed as owner before the worker runs gets nothing, and so does a contact address
+ * that changed meanwhile. One job per recipient, so a retry never repeats another's email.
  */
 final class DeliverBillingEmail implements ShouldQueue
 {
@@ -25,9 +26,10 @@ final class DeliverBillingEmail implements ShouldQueue
     public int $timeout = 30;
 
     public function __construct(
-        public readonly int $userId,
+        public readonly ?int $userId,
         public readonly int $billingAccountId,
         public readonly Mailable $mail,
+        public readonly ?string $address = null,
     ) {}
 
     /**
@@ -40,8 +42,17 @@ final class DeliverBillingEmail implements ShouldQueue
 
     public function handle(): void
     {
-        $user = User::query()->find($this->userId);
         $account = BillingAccount::query()->find($this->billingAccountId);
+
+        if ($this->address !== null) {
+            if ($account?->contact_email === $this->address) {
+                Mail::to($this->address)->send($this->mail);
+            }
+
+            return;
+        }
+
+        $user = User::query()->find($this->userId);
 
         if ($user === null || $account === null || $user->email_verified_at === null || ! $account->owners()->whereKey($user->getKey())->exists()) {
             return;

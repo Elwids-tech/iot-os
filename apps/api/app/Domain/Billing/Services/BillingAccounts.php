@@ -6,6 +6,7 @@ namespace App\Domain\Billing\Services;
 
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingAccountAssignment;
+use App\Domain\Billing\Models\Invoice;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\RetentionGuard;
 use App\Domain\Shared\Models\Organization;
@@ -75,6 +76,9 @@ final class BillingAccounts
                 $count,
                 $count === 1 ? 'organization' : 'organizations',
             ));
+            // Issued invoices are records for good (spec 029 FR-037); drafts go with the account.
+            abort_if($locked->invoices()->where('status', Invoice::ISSUED)->exists(), 409, 'This billing account has issued invoices, so it cannot be deleted.');
+            $locked->invoices()->where('status', Invoice::DRAFT)->get()->each->delete();
 
             $locked->delete();
             DeviceAudit::record('billing_account.deleted', null, $actor->getKey(), $locked->uuid, ['name' => $locked->name]);

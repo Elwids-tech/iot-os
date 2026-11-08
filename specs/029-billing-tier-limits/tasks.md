@@ -983,7 +983,7 @@ platform drafts, issues and corrects monthly invoices.
 **Independent Test**: spec 029 US6's test, using `billing:draft-invoices --now=` and
 **Draft anyway**.
 
-- [ ] T080 `composer require dompdf/dompdf` in `apps/api`. Migration
+- [X] T080 `composer require dompdf/dompdf` in `apps/api`. Migration
   `2026_11_15_000000_create_billing_invoices.php`, per data-model.md:
   - `billing_settings` (one row, seeded empty, `invoice_prefix` default `INV-`,
     `credit_note_prefix` default `CN-`, `revision`);
@@ -999,7 +999,11 @@ platform drafts, issues and corrects monthly invoices.
   - `billing_invoice_lines`, `billing_invoice_usage`, `billing_credit_notes` (unique
     `number`), `billing_account_credits`;
   - `billing_number_sequences` seeded with `invoice` and `credit_note` at 1.
-- [ ] T081 [US6] Services `BillingSettings.php` (get, update with revision 409),
+
+  As built (PR 9): `billing_credit_notes` gains `applied` (the part taken off its
+  invoice), so issued invoices never change; amounts are signed `bigint` where credit
+  can be negative. The tax rate foreign key restricts deletion (rates are archived).
+- [X] T081 [US6] Services `BillingSettings.php` (get, update with revision 409),
   `TaxRates.php` (CRUD, archive) and `Prices.php`:
   - `setPlanPrices(plan, values, actor)` writes or replaces the row for the next
     month;
@@ -1008,7 +1012,14 @@ platform drafts, issues and corrects monthly invoices.
   - `for(account, month)` resolves the plan row and the overrides in force.
 
   Audited.
-- [ ] T082 [US6] `apps/api/app/Domain/Billing/Services/InvoiceDrafter.php`:
+
+  As built (PR 9): also `BillingDetails` (account address, tax number, rate; an archived
+  rate can be kept but not newly chosen) and `Prices::overrideList` (each override this
+  month and next). Audit codes `billing_plan.prices_set`, `billing_account.price_overridden`,
+  `billing_account.billing_details_updated`, `billing_settings.updated` and
+  `billing_tax_rate.*` are in the catalogue; price and detail changes show in the account
+  and plan histories.
+- [X] T082 [US6] `apps/api/app/Domain/Billing/Services/InvoiceDrafter.php`:
   - `draft(account, month, ?User actor, ?string note)`: refuses when an invoice
     exists; `usage_incomplete` when the watermark is before the month's end. Lines:
     - for each UTC day of the month, the assignment in force at 00:00; consecutive
@@ -1021,7 +1032,12 @@ platform drafts, issues and corrects monthly invoices.
   - `recalculate(invoice)` (drafts only) keeps adjustments.
   - `draftDue(now)`: last month, every account with an assignment overlapping it and
     no invoice, when the watermark passed the month's end.
-- [ ] T083 [US6] `apps/api/app/Domain/Billing/Services/InvoiceIssuer.php::issue(invoice,
+
+  As built (PR 9): drafts also show the account's credit after tax as a `credit` line,
+  so "Credit from CN-…" appears on the draft; issuing applies it. Overage under no plan
+  is not invoiced. An administrator's draft needs a note; a month not yet started is 422.
+  `waiting(month)` and `computeLines` (for SC-009) are public.
+- [X] T083 [US6] `apps/api/app/Domain/Billing/Services/InvoiceIssuer.php::issue(invoice,
   actor)`, in one transaction:
   1. lock the invoice and the `invoice` sequence row, then set `number = prefix +
      zero-padded next` and increment;
@@ -1038,19 +1054,35 @@ platform drafts, issues and corrects monthly invoices.
   After commit, send `invoice_issued` notices to the billing contact and owners, and
   dispatch the payment hook (a no-op until PR 11). Issued invoices refuse every write
   except `payment_status`, enforced in the model's `updating`.
-- [ ] T084 [US6] `apps/api/app/Domain/Billing/Services/CreditNotes.php::issue(invoice,
+
+  As built (PR 9): issuing recomputes the totals under the account's row lock first, so
+  two issues cannot spend the same credit, and refuses a total below 0 (422). Numbers are
+  the prefix and four digits (`INV-0001`). The payment hook is an `InvoiceIssued` event.
+- [X] T084 [US6] `apps/api/app/Domain/Billing/Services/CreditNotes.php::issue(invoice,
   amount, reason, actor)`: the amount is "> 0 and ≤ total − earlier credit notes"; it
   takes a credit-note number; the amount due falls (not below 0) and the excess goes
   to `billing_account_credits`; `payment_status` becomes `credited` when nothing is
   left to pay. Notice `credit_note_issued`.
-- [ ] T085 [US6] `InvoicePdf.php` (dompdf from `resources/views/billing/invoice.blade.php`)
+
+  As built (PR 9): the invoice's `amount_due` stays as issued; the credit note records
+  `applied`, and `outstanding` (the API field) is the amount due less applied credit, 0
+  once paid. Credit notes on a paid invoice go wholly to account credit. Emails go to the
+  billing contact too, once per address (`Notices::sendWithContact`).
+- [X] T085 [US6] `InvoicePdf.php` (dompdf from `resources/views/billing/invoice.blade.php`)
   and a CSV stream of the lines and usage. A credit note PDF uses the same view with a
   flag.
-- [ ] T086 [US6] `apps/api/app/Domain/Billing/Console/DraftInvoices.php`
+
+  As built (PR 9): an adjustment's note is the administrator's own and appears in no
+  document; owners' API responses leave it and the draft note out. Emails attach the PDF,
+  rendered when sent.
+- [X] T086 [US6] `apps/api/app/Domain/Billing/Console/DraftInvoices.php`
   (`billing:draft-invoices`, daily 02:10, `--now=`) and `routes/console.php`. The
   waiting list: accounts due for last month without an invoice, with "waiting since"
   = the month's end.
-- [ ] T087 [US6] HTTP per the contract (Settings and tax; Invoices, credit notes; the
+
+  As built (PR 9): the waiting list is `InvoiceDrafter::waiting`, and the admin route
+  marks accounts `overdue` after `BILLING_INVOICE_WAIT_DAYS` (3).
+- [X] T087 [US6] HTTP per the contract (Settings and tax; Invoices, credit notes; the
   owner invoice routes for issued invoices only, drafts 404; PDF/CSV), plus `PUT
   billing-plans/{plan}/prices`, `PUT billing-accounts/{account}/prices/{price}` and
   `PATCH billing-accounts/{account}/billing-details`. The owner `GET
@@ -1058,7 +1090,13 @@ platform drafts, issues and corrects monthly invoices.
   month's, with overrides applied; 029 FR-030). Managers and members never receive
   prices. `BillingAccounts::delete` refuses an account with issued invoices (409,
   amending spec 023 FR-013).
-- [ ] T088 [P] [US6] `apps/api/tests/Feature/Domain/Billing/InvoiceDraftingTest.php`:
+
+  As built (PR 9): owner credit note PDFs are at
+  `billing-accounts/{account}/credit-notes/{note}.pdf`; the owner `GET billing-accounts`
+  also carries `latest_invoice`. Admin account detail carries `prices`,
+  `price_overrides` and `billing_details`, and plans carry `prices`. Deleting an account
+  with only drafts deletes them. Payments, reconcile and checkout routes are PR 11's.
+- [X] T088 [P] [US6] `apps/api/tests/Feature/Domain/Billing/InvoiceDraftingTest.php`:
   - proration across a mid-month plan change, with the day at 00:00 rule;
   - overage priced per assignment with data point blocks rounded up;
   - trial days and overage at 0;
@@ -1068,7 +1106,10 @@ platform drafts, issues and corrects monthly invoices.
   - recalculation keeps adjustments;
   - a month with no usage still has a base price line;
   - `recompute == stored` for every line and total (029 SC-009).
-- [ ] T089 [P] [US6] `apps/api/tests/Feature/Domain/Billing/InvoiceIssuingTest.php`:
+
+  As built (PR 9): eight tests, driving `billing:draft-invoices` with travelled time and
+  real `Usage::add` overage.
+- [X] T089 [P] [US6] `apps/api/tests/Feature/Domain/Billing/InvoiceIssuingTest.php`:
   - numbers are sequential with no gaps under concurrent issues;
   - issued invoices refuse edits;
   - snapshots survive later changes to settings and the account;
@@ -1081,9 +1122,17 @@ platform drafts, issues and corrects monthly invoices.
     (029 SC-007);
   - owners see their account's prices; the manager usage route carries none;
   - an account with issued invoices cannot be deleted.
-- [ ] T090 Docs: `docs/features/billing.md` (prices, tax, invoices, credit notes),
+
+  As built (PR 9): eight tests; the concurrent issue test forks six processes on
+  PostgreSQL (skipped on SQLite). Settings, tax rates, billing details, price overrides,
+  PDF and CSV are covered through the API.
+- [X] T090 Docs: `docs/features/billing.md` (prices, tax, invoices, credit notes),
   `docs/dev/gotchas.md` (issued invoices never change; amounts in minor units).
   Contract export, supplements (PDF/CSV responses) and api-client.
+
+  As built (PR 9): the api-client gains the price, tax, settings, invoice and credit note
+  types and methods, with document URLs for downloads. The 409s are in
+  `supplements/billing.yaml`; Scramble infers the PDF and CSV responses.
 - [ ] T091 Verify: tests, `contract:check`. Rebuild `api` and the API-image services
   (scheduler), then run quickstart section 6 through the API.
 

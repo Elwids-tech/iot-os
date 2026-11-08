@@ -35,6 +35,12 @@ final class PlanResource extends JsonResource
             'accounts_count' => (int) $this->resource->accounts_count,
             'ever_assigned' => (bool) $this->resource->ever_assigned,
             'created_at' => $this->resource->created_at?->toIso8601String(),
+            /**
+             * This month's prices and next month's when a change waits, in minor units (spec 029 FR-027).
+             *
+             * @var array{currency: string, current: array{effective_from: string, base_price: int, alert_overage_price: int, data_point_overage_price: int, data_point_block_size: int}, next: array{effective_from: string, base_price: int, alert_overage_price: int, data_point_overage_price: int, data_point_block_size: int}|null}
+             */
+            'prices' => PriceSummary::forPlan($this->resource),
         ];
     }
 }
