@@ -45,6 +45,7 @@ final class IntegrationContractTest extends TestCase
         'GET events' => ['GET', 'events', 'events:read'],
         'GET devices/{uuid}/telemetry/latest' => ['GET', 'devices/{device}/telemetry/latest', 'telemetry:read'],
         'POST telemetry/latest/query' => ['POST', 'telemetry/latest/query', 'telemetry:read'],
+        'GET telemetry/stream' => ['GET', 'telemetry/stream', 'telemetry:stream'],
         'GET devices/{uuid}/telemetry/history' => ['GET', 'devices/{device}/telemetry/history', 'telemetry:read'],
         'GET devices/{uuid}/telemetry/records' => ['GET', 'devices/{device}/telemetry/records', 'telemetry:read'],
         'GET devices/{uuid}/location-bindings' => ['GET', 'devices/{device}/location-bindings', 'telemetry:read'],
@@ -66,6 +67,7 @@ final class IntegrationContractTest extends TestCase
         'GET alerts' => ['query' => ['condition' => 'open']],
         'GET events' => ['query' => ['limit' => 0]],
         'POST telemetry/latest/query' => ['body' => ['device_uuids' => []]],
+        'GET telemetry/stream' => ['query' => ['after' => 'not-a-position']],
         'GET devices/{uuid}/telemetry/history' => ['query' => ['parameter_uuid' => 'not-a-uuid']],
         'GET devices/{uuid}/telemetry/records' => ['query' => []],
         'GET devices/{uuid}/location-bindings' => ['query' => ['per_page' => 0]],
@@ -205,7 +207,9 @@ final class IntegrationContractTest extends TestCase
     /**
      * Examples are the contract's golden fixtures (constitution principle IV): every
      * integration success response and the webhook carry one, and every example,
-     * including those of request bodies, matches its schema.
+     * including those of request bodies, matches its schema. A `text/event-stream`
+     * success documents its events under `x-events`, each with an example that matches
+     * the event contract its `data` refers to (spec 030, research R10).
      */
     public function test_every_integration_example_matches_its_schema(): void
     {
@@ -244,6 +248,9 @@ final class IntegrationContractTest extends TestCase
     private function exampleProblems(ContractDocument $document, string $where, object $body, array $segments, bool $required = true): array
     {
         $json = $body->content->{'application/json'} ?? null;
+        if ($json === null && isset($body->content->{'text/event-stream'})) {
+            return $this->eventStreamProblems($document, $where, $body->content->{'text/event-stream'}, [...$segments, 'content', 'text/event-stream']);
+        }
         if ($json === null) {
             return ["{$where}: no application/json content"];
         }
@@ -253,6 +260,40 @@ final class IntegrationContractTest extends TestCase
         $problem = $document->validate($json->example, ContractDocument::pointer([...$segments, 'content', 'application/json', 'schema']));
 
         return $problem === null ? [] : ["{$where}: example {$problem}"];
+    }
+
+    /**
+     * A server-sent event body: every event under `x-events` names whether it carries an
+     * `id`, refers to its `data` schema and carries an example that matches it.
+     *
+     * @param  list<string>  $segments  where the media type sits in the document
+     * @return list<string>
+     */
+    private function eventStreamProblems(ContractDocument $document, string $where, object $media, array $segments): array
+    {
+        $events = $media->{'x-events'} ?? null;
+        if (! is_object($events) || get_object_vars($events) === []) {
+            return ["{$where}: text/event-stream content documents no x-events"];
+        }
+        $problems = [];
+        foreach (get_object_vars($events) as $name => $event) {
+            if (! isset($event->data->{'$ref'}) || ! isset($event->id)) {
+                $problems[] = "{$where}: event {$name} needs an id note and a data \$ref";
+
+                continue;
+            }
+            if (! property_exists($event, 'example')) {
+                $problems[] = "{$where}: event {$name} has no example";
+
+                continue;
+            }
+            $problem = $document->validate($event->example, ContractDocument::pointer([...$segments, 'x-events', $name, 'data']));
+            if ($problem !== null) {
+                $problems[] = "{$where}: event {$name} example {$problem}";
+            }
+        }
+
+        return $problems;
     }
 
     /**

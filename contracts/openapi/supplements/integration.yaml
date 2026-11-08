@@ -10,6 +10,13 @@
 # recorded in specs/001-openapi-contract/drift-log.md.
 # Format: ../meta/supplement.schema.json.
 components:
+  responses:
+    NotAcceptable:
+      description: The request's `Accept` header does not allow the only media type the operation produces.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
   headers:
     NoStore:
       description: >-
@@ -1088,6 +1095,131 @@ operations:
                   readings: []
       '422':
         $ref: '#/components/responses/ValidationFailed'
+      '503':
+        $ref: '#/components/responses/RuntimeUnavailable'
+  GET /integration/v1/organizations/{organization}/telemetry/stream:
+    summary: Follow the granted devices' readings as server-sent events
+    description: >-
+      A live stream of committed readings for the application's granted devices, or
+      for the granted devices named in `devices[]` (spec 030). The response is a
+      standard server-sent event stream (`text/event-stream`): each event is an
+      `event:` line, an `id:` line for readings, one `data:` line holding one JSON
+      object, and a blank line; `: keepalive` comment lines carry no event and arrive
+      after 60 s of silence. The events and their payloads are described under
+      `x-events` of the 200 response: `open` once, first; `reading` per committed
+      event, in storage order, with the position as its `id`; `reset` when the
+      position the client resumed from is no longer retained; `closed` with a reason
+      when the platform ends the stream. Send the position of the last `reading`
+      received as `Last-Event-ID` (or `after`) to resume: every retained event after
+      it arrives first, then live ones, with no gap and no repeat within one stream.
+      A fresh stream starts at the organization's current head. Streams close after
+      one hour (`lifetime`), when the grant changes (`grant_changed`), when the
+      credentials change (`credentials_changed`), when the relay to the runtime fails
+      (`runtime_unavailable`) or when the serving process stops (`shutdown`); the
+      client reconnects with its last position. The authorization and, for a site
+      scope, the device set are re-checked every 30 s. Opening a stream counts as one
+      request against the application's limit; the data on it does not. Needs
+      `telemetry:stream` and `telemetry:read`, each on both the application and the
+      token. 404 when a named device is not granted (nothing about it is revealed) or
+      the grant resolves to no device; 406 unless `Accept` allows `text/event-stream`;
+      422 for more than 1000 devices, a repeated device, or a position this platform
+      never issued; 429 with `Retry-After` when the application already holds 2 open
+      streams, the organization 10, or the deployment its cap (the body names the
+      limit); 503 when the runtime is unavailable, never an empty stream.
+    x-abilities:
+      all: [telemetry:stream, telemetry:read]
+    responses:
+      '200':
+        description: >-
+          The event stream. `x-events` names each event, whether it carries an `id`,
+          the schema of its `data` object and an example.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+          X-Accel-Buffering:
+            description: '`no`: a buffering proxy passes each frame through as it is written.'
+            schema:
+              type: string
+              const: 'no'
+        content:
+          text/event-stream:
+            schema:
+              type: string
+              description: >-
+                Server-sent event framing. Each frame's `data` line is one of the JSON
+                objects under `x-events`.
+            x-events:
+              open:
+                description: >-
+                  Sent once, first. `position` is where the stream starts: the position
+                  the client resumed from, or the current head for a fresh stream (`0`
+                  for an organization with no retained events). `devices` is the size of
+                  the resolved device set the stream carries.
+                id: none
+                data:
+                  $ref: '../events/v1/telemetry-stream-open.schema.json'
+                example:
+                  schema_version: telemetry-stream-open.v1
+                  position: '9031'
+                  devices: 2
+                  opened_at: '2026-11-07T09:41:58Z'
+              reading:
+                description: >-
+                  One committed telemetry event of one granted device, in storage order.
+                  Derived from the runtime's committed event without its internal
+                  fields; the organization is the path's. At least once across
+                  reconnections: deduplicate by `event_id` when it matters.
+                id: the position
+                data:
+                  $ref: '../events/v1/telemetry-stream.schema.json'
+                example:
+                  schema_version: telemetry-stream.v1
+                  position: '9032'
+                  event_id: 7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f
+                  device_uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                  configuration_uuid: 8e7d6c5b-4a39-4281-9f0e-1d2c3b4a5968
+                  generation: 3
+                  readings:
+                    - parameter_uuid: 6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a
+                      key: vibration
+                      data_type: number
+                      unit: mm/s
+                      value: 1.8
+                      quality: good
+                      observed_at: '2026-11-07T09:41:57Z'
+                      received_at: '2026-11-07T09:41:58Z'
+                      historical: false
+              reset:
+                description: >-
+                  The position the client resumed from is no longer retained. `position`
+                  is the current head: take a new snapshot and reconnect from it. The
+                  stream closes after this event.
+                id: none
+                data:
+                  $ref: '../events/v1/telemetry-stream-reset.schema.json'
+                example:
+                  schema_version: telemetry-stream-reset.v1
+                  position: '9031'
+              closed:
+                description: >-
+                  The platform is ending the stream. `position` is the last reading sent,
+                  or the `open` position when none was; reconnect with it. `reason` is
+                  `lifetime`, `grant_changed` (event cursors must be rebuilt too),
+                  `credentials_changed` (obtain credentials first), `runtime_unavailable`
+                  (reconnect with backoff; a reconnect may be answered 503) or `shutdown`.
+                id: none
+                data:
+                  $ref: '../events/v1/telemetry-stream-closed.schema.json'
+                example:
+                  schema_version: telemetry-stream-closed.v1
+                  reason: lifetime
+                  position: '9032'
+      '406':
+        $ref: '#/components/responses/NotAcceptable'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
       '503':
         $ref: '#/components/responses/RuntimeUnavailable'
   GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/history:

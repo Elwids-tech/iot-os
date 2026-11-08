@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -63,9 +64,14 @@ func main() {
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		// Every request context ends with the signal context, so an open telemetry
+		// stream (spec 030) ends when the process is asked to stop.
+		BaseContext: func(net.Listener) context.Context { return shutdownContext },
 	}
 
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-shutdownContext.Done()
 
 		contextWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -81,4 +87,6 @@ func main() {
 		logger.Error("runtime health server failed", "error", err)
 		os.Exit(1)
 	}
+	// Streams drain before the deferred runtime.Close() releases the store and NATS.
+	<-shutdownDone
 }

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/events/v1/telemetry-stream-open.schema.json",
+  "description": "telemetry-stream-open.v1: the first event of an application telemetry stream (spec 030). `position` is where the stream starts: the position the client resumed from, or the organization's current head for a fresh stream (`0` when it has no retained events). `devices` is the size of the resolved device set the stream carries. Producer: the runtime, relayed once per client stream by Laravel. Consumer: applications and the integration SDK.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "telemetry-stream-open.v1"
+    },
+    "position": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    },
+    "devices": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "opened_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "schema_version",
+    "position",
+    "devices",
+    "opened_at"
+  ],
+  "additionalProperties": false
+}

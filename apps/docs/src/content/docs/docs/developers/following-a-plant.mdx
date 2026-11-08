@@ -1,0 +1,49 @@
+---
+title: Following a plant
+description: Grant a whole site, take one snapshot of its devices, and follow their readings live over a server-sent event stream.
+draft: true
+---
+
+import Config from '../../../../components/docs/Config.astro'
+
+An application that shows a plant, such as a digital twin or a control-room view, needs three things from the platform: to be granted the plant's devices without naming each one, to load every current value in one request, and to receive each new reading within a couple of seconds. This page covers the three features that provide them. Each needs an ability on both the application and its token, granted in the portal under **Connect → Integrations**.
+
+## Grant a site instead of a device list
+
+An application's grant is either a list of up to 100 devices or a scope of up to 50 sites. With a site scope, a device counts as granted while it is at one of the sites: devices registered at the site later are covered without touching the application, a device moved to another site stops being visible at its next request, and a device with no site is never in a scope. A device that joins a granted site also appears on an open stream within about 30 seconds, and one that leaves disappears from it.
+
+Changing a grant, whether a list or a scope, bumps its revision: the current token stops working, event-feed cursors must be rebuilt from a fresh checkpoint, and open streams close with the reason `grant_changed`. Deleting a site removes it from every scope that names it, with the same consequences.
+
+`GET sites` (ability `entities:read`) lists every site of the organization with `granted_devices_count`, the devices at the site that the application's grant covers, and `GET devices/{uuid}` carries the device's `profile`, `site` and `parameters` (`key`, `name`, `unit`, `data_type`, `decimals`, `accepts_command`, `reports_state`), so an application can learn what it can bind without a person copying identifiers.
+
+## One snapshot of the plant
+
+`POST telemetry/latest/query` with `{ "device_uuids": [...] }` (ability `telemetry:read`) returns the latest retained value of every parameter of 1 to 100 granted devices in one request, one entry per device in request order. Each entry carries the device's `presence` and `last_seen_at` as the device read reports them, and `readings` exactly as the single-device latest read returns them; a device that never reported has `readings: []` and `configuration_uuid: null`, never zeros. Any device outside the grant refuses the whole request with 404, so a bad list reveals nothing about devices the application cannot see.
+
+## The telemetry stream
+
+`GET telemetry/stream` (abilities `telemetry:stream` and `telemetry:read`, with `Accept: text/event-stream`) is a server-sent event stream of committed readings for the granted devices, or for the granted devices named in `devices[]` (at most 1000). Readings arrive within about two seconds of being stored.
+
+The stream carries four events:
+
+| Event | Meaning |
+| --- | --- |
+| `open` | Sent once, first. `position` is where the stream starts (the position you resumed from, or the current head) and `devices` the number of devices it carries. |
+| `reading` | One committed event of one device: `device_uuid`, `configuration_uuid`, `generation` and `readings[]`, each with `parameter_uuid`, `key`, `data_type`, `unit`, `value`, `quality`, `observed_at`, `received_at` and `historical`. The frame's `id` is its position. |
+| `reset` | The position you resumed from is no longer retained; `position` is the current head. The stream closes after it. |
+| `closed` | The platform is ending the stream: `reason` is `lifetime`, `grant_changed`, `credentials_changed`, `runtime_unavailable` or `shutdown`, and `position` is the last reading sent. |
+
+`: keepalive` comment lines arrive after 60 seconds without an event.
+
+**Resume.** Positions are opaque strings: compare them for equality, never compute with them. Send the last `reading` position you processed as `Last-Event-ID` (or `?after=`) when you reconnect: every retained event after it arrives first, in order, then live ones, with no gap and no repeat within one connection. Retention is eight days, or the organization's retention when it is shorter; an older position is answered with `reset`.
+
+**Order of work.** Open the stream, take the snapshot with `POST telemetry/latest/query` after the `open` (or `reset`) position arrives, then apply readings with a greater position. The same event can arrive again only across a reconnection from an older position, so deduplicate by `event_id` when it matters.
+
+**Lifetime and limits.** A stream closes after one hour with `closed` `lifetime`; reconnect with your position and nothing is lost. Authorization is re-checked every 30 seconds. An application may hold 2 open streams and an organization 10; the 429 that refuses a further one carries `Retry-After` and names the limit. Opening a stream counts as one request against the application's per-minute limit; the data on it does not.
+
+```sh
+curl -N -H "Authorization: Bearer $TOKEN" -H "Accept: text/event-stream" \
+  "<Config key="apiBaseUrl" />/api/integration/v1/organizations/$ORG/telemetry/stream?devices[]=$D1&devices[]=$D2"
+```
+
+The integration SDK (0.6.0) wraps all of it: `sites()`, `device()` with parameters, `latestQuery()`, and `telemetryStream()`, an async iterator that yields `open`, `reading` and `reset`, remembers the last position and reconnects with it after a close, a dropped connection or a 503.

@@ -1,6 +1,6 @@
 # ADR-032: Applications Can Follow a Plant
 
-**Status:** Proposed
+**Status:** Accepted (grants by site, the batch latest read and the stream shipped in spec 030's pull requests, November 2026)
 **Date:** 2026-11-07
 **Amends:** [ADR-014](ADR-014-control-plane-data-plane-http-integration.md)
 **Relates to:** [ADR-016](ADR-016-public-api-contract.md), [ADR-018](ADR-018-agent-access-oauth.md), spec 009 (entity hierarchy, draft), spec 030

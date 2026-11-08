@@ -28,6 +28,7 @@ const inputs = [
   'contracts/openapi',
   'contracts/agents',
   'contracts/location',
+  'contracts/events',
   'apps/api/resources/help',
   'packages/integration-sdk/package.json',
   'tooling/simulators',

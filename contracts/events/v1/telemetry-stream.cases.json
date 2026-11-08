@@ -1,0 +1,177 @@
+[
+  {
+    "description": "an adapter device's readings arrive without their provenance, with a unitless enum and a stored diagnostic reading",
+    "valid": true,
+    "data": {
+      "schema_version": "telemetry-stream.v1",
+      "position": "18446744073709551615",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        },
+        {
+          "parameter_uuid": "31000000-0000-4000-8000-000000000003",
+          "key": "valve_state",
+          "data_type": "enum",
+          "unit": null,
+          "value": null,
+          "quality": "invalid",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": true
+        }
+      ]
+    }
+  },
+  {
+    "description": "a position with a leading zero is not one the platform issues",
+    "valid": false,
+    "error": {
+      "keyword": "pattern",
+      "instance_location": "/position"
+    },
+    "data": {
+      "schema_version": "telemetry-stream.v1",
+      "position": "042",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "the committed event's internal fields are dropped, never relayed",
+    "valid": false,
+    "error": {
+      "keyword": "additionalProperties",
+      "instance_location": ""
+    },
+    "data": {
+      "schema_version": "telemetry-stream.v1",
+      "position": "42",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "telemetry_id": "30000000-0000-4000-8000-00000000000b",
+      "organization_uuid": "30000000-0000-4000-8000-000000000001",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "a reading keeps no provenance, diagnostic or timestamp source",
+    "valid": false,
+    "error": {
+      "keyword": "additionalProperties",
+      "instance_location": "/readings/0"
+    },
+    "data": {
+      "schema_version": "telemetry-stream.v1",
+      "position": "42",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "installation_uuid": "30000000-0000-4000-8000-000000000007",
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "timestamp_source": "source",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false
+        }
+      ]
+    }
+  },
+  {
+    "description": "an event without readings",
+    "valid": false,
+    "error": {
+      "keyword": "minItems",
+      "instance_location": "/readings"
+    },
+    "data": {
+      "schema_version": "telemetry-stream.v1",
+      "position": "42",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": []
+    }
+  },
+  {
+    "description": "a reading field a newer producer adds",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {
+      "keyword": "additionalProperties",
+      "instance_location": "/readings/0"
+    },
+    "data": {
+      "schema_version": "telemetry-stream.v1",
+      "position": "42",
+      "event_id": "30000000-0000-4000-8000-00000000000b",
+      "device_uuid": "30000000-0000-4000-8000-000000000002",
+      "configuration_uuid": "30000000-0000-4000-8000-000000000003",
+      "generation": 2,
+      "readings": [
+        {
+          "parameter_uuid": "31000000-0000-4000-8000-000000000001",
+          "key": "flow_rate",
+          "data_type": "number",
+          "unit": "L/min",
+          "value": 12.5,
+          "quality": "good",
+          "observed_at": "2026-10-12T07:59:58Z",
+          "received_at": "2026-10-12T08:00:00Z",
+          "historical": false,
+          "label": "Flow rate"
+        }
+      ]
+    }
+  }
+]

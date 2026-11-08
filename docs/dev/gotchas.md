@@ -907,6 +907,33 @@ Things that have cost time before. Add to this list when something surprises you
   one whose device's birth is live hands that state on instead of asking for a rebirth
   (spec 026 research R19). Test bulk paths against the SDK simulator, not only the
   Python one.
+- **`php artisan serve` is single-threaded per worker, and honours
+  `PHP_CLI_SERVER_WORKERS` only with `--no-reload`.** An open telemetry stream
+  (spec 030) holds its worker for up to an hour, so the development api image sets
+  `PHP_CLI_SERVER_WORKERS=8` (`deploy/compose/compose.app.yml` and the api
+  Dockerfile) and starts the server with `--no-reload`; without the flag Laravel
+  warns once in the container log and starts a single server, and one `curl -N` on
+  the stream then blocks every other request, including the portal's, until the
+  stream ends. A relay notices a client that left only at its next write (the next
+  reading or the 60 s keepalive), so a worker stays busy that long after the
+  client's `curl` exits. The development server also hands a connection that arrives
+  while another is being accepted to the same worker, so of ten streams opened at the
+  same instant one or two wait until that worker's stream ends: open streams one at a
+  time against `php artisan serve`, and measure capacity against the release's
+  PHP-FPM pool, which gives each request an idle child (`docs/ops/release.md`).
+- **The runtime's 10-second write deadline is lifted for the stream handler only.**
+  `telemetryStreamHTTP` calls `http.NewResponseController(w).SetWriteDeadline(time.Time{})`;
+  every other handler keeps the server's `WriteTimeout`. A new long-lived handler
+  must do the same or its connection is cut after ten seconds, and `main.go` must keep
+  the `BaseContext` tied to the signal context so the stream ends on shutdown before
+  `runtime.Close()` runs.
+- **Array union keeps the left side.** `$defaults + $overrides` in PHP keeps the
+  default where both name the key, so a fixture helper written that way ignores its
+  overrides and a header helper written that way never lets a test change `Accept`.
+  Spread (`[...$defaults, ...$overrides]`) or `array_merge` when the override must win.
+  JavaScript arrow functions have a cousin: a closure `use ($index)` and an arrow
+  `fn () => $index` capture by value, so a scripted stream whose `eof` reads a counter
+  it did not take by reference never ends.
 - **pymodbus data blocks are 1-based.** `ModbusSequentialDataBlock.getValues` receives
   the register number plus one, so a block that starts at 0 answers every read one
   register late. `tooling/hardware/modbus_simulator.py` starts its block at 1.

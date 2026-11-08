@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
@@ -78,6 +79,11 @@ func (a *Application) publishCommittedBatch(ctx context.Context) (int, error) {
 		}
 		if err = a.Store.AckCommitted(ctx, event.EventID); err != nil {
 			return i, err // stop here: retry this stable ID before later events
+		}
+		// Open telemetry streams see the event once it is published and acknowledged
+		// (spec 030, research R3); a stream that missed it catches up from the outbox.
+		if sequence, err := strconv.ParseInt(event.Sequence, 10, 64); err == nil {
+			a.broadcaster.Publish([]StreamEvent{{Organization: event.OrganizationUUID, Device: event.DeviceUUID, Sequence: sequence, Reading: devices.ProjectStream(event, sequence)}})
 		}
 	}
 	return len(events), nil

@@ -5,6 +5,14 @@ description: Changes to the integration API, its event types and the integration
 
 Each entry lists what changed for applications: the integration API version, its operations and event types, and the SDK version. The build checks that the newest versions have an entry here.
 
+## Integration API 1.1.0 · SDK 0.6.0
+
+Applications can follow a plant: grant a whole site, load it in one request and stream its readings ([following a plant](/docs/developers/following-a-plant/)).
+
+- **Integration API 1.1.0**: `GET sites` (new ability `entities:read`), `GET devices/{uuid}` with `profile`, `site` and `parameters`, `POST telemetry/latest/query` (the latest values of up to 100 devices), and `GET telemetry/stream` (new ability `telemetry:stream`), a server-sent event stream with resume by position. Grants may name up to 50 sites instead of a device list. Nothing in 1.0.0 changed.
+- **Event types**: unchanged.
+- **Integration SDK 0.6.0**: `sites()`, `device()` with parameters, `latestQuery()` and `telemetryStream()`; every 0.5.0 method is unchanged.
+
 ## Integration API 1.0.0 · SDK 0.5.0
 
 The first published reference.

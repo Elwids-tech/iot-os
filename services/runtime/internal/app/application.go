@@ -61,22 +61,26 @@ const birthWait = 90 * time.Second
 type Application struct {
 	captures          *telemetry.Manager
 	committedFailures atomic.Uint64
-	deadLetters       atomic.Uint64
-	rulesHealthy      atomic.Bool
-	rulesFault        atomic.Pointer[ruleFault]
-	rulesRetry        chan struct{}
-	fences            sync.Map
-	releaseRuntime    func()
-	ctx               context.Context
-	mu                sync.Mutex
-	Store             *storage.Store
-	Control           *ControlClient
-	JS                nats.JetStreamContext
-	NATS              *nats.Conn
-	Logger            *slog.Logger
-	Engine            *sparkplug.Engine
-	definitions       map[string]devices.Definition
-	generations       map[string]int
+	// broadcaster fans committed events out to open telemetry streams; streamsOpen
+	// counts them (spec 030).
+	broadcaster    committedBroadcaster
+	streamsOpen    atomic.Int64
+	deadLetters    atomic.Uint64
+	rulesHealthy   atomic.Bool
+	rulesFault     atomic.Pointer[ruleFault]
+	rulesRetry     chan struct{}
+	fences         sync.Map
+	releaseRuntime func()
+	ctx            context.Context
+	mu             sync.Mutex
+	Store          *storage.Store
+	Control        *ControlClient
+	JS             nats.JetStreamContext
+	NATS           *nats.Conn
+	Logger         *slog.Logger
+	Engine         *sparkplug.Engine
+	definitions    map[string]devices.Definition
+	generations    map[string]int
 	// appliedGeneration is the generation each applied definition came with; a refused
 	// activation advances generations and leaves it (ADR-027).
 	appliedGeneration map[string]int

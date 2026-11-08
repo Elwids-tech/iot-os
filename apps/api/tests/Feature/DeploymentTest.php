@@ -2,16 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Integrations\Models\IntegrationApplication;
+use App\Domain\Integrations\Models\IntegrationStreamSession;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use App\Http\Middleware\OperationRequestLog;
 use App\Support\DemoEnvironment;
 use App\Support\Operations;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 final class DeploymentTest extends TestCase
@@ -75,6 +79,29 @@ final class DeploymentTest extends TestCase
         $this->assertStringContainsString("iot_nats_unmanaged_consumer_pending 9000\n", $metrics);
         $this->assertStringContainsString("iot_nats_store_limit_bytes 1000\n", $metrics);
         $this->assertStringNotContainsString('retired-verification', $metrics);
+    }
+
+    public function test_open_telemetry_streams_are_counted_per_organization(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        Http::fake(['*' => Http::response(['storage' => 0])]);
+        $acme = Organization::where('slug', 'acme-manufacturing')->firstOrFail();
+        $northstar = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $application = fn (Organization $organization) => IntegrationApplication::create(['organization_id' => $organization->id, 'name' => 'Twin', 'abilities' => ['telemetry:read', 'telemetry:stream'], 'device_uuids' => [(string) Str::uuid()]]);
+        $session = fn (IntegrationApplication $app, array $attributes = []) => IntegrationStreamSession::create(['integration_application_id' => $app->id, 'organization_id' => $app->organization_id,
+            'opened_at' => now()->subMinutes(10), 'last_seen_at' => now()->subSeconds(5), 'device_count' => 3, ...$attributes]);
+        $twin = $application($acme);
+        $session($twin);
+        $session($twin);
+        $session($twin, ['closed_at' => now(), 'close_reason' => 'lifetime']);
+        $session($twin, ['last_seen_at' => now()->subMinutes(3)]); // a worker that died: no longer open
+        $session($application($northstar));
+
+        $metrics = app(Operations::class)->metrics();
+        $this->assertStringContainsString('iot_integration_streams_open{organization="acme-manufacturing"} 2'."\n", $metrics);
+        $this->assertStringContainsString('iot_integration_streams_open{organization="northstar-utilities"} 1'."\n", $metrics);
+        $this->assertStringContainsString("iot_integration_streams_open_total 3\n", $metrics);
+        $this->assertStringContainsString("iot_integration_streams_limit 10\n", $metrics);
     }
 
     public function test_expected_workers_report_never_started_and_recovered_heartbeats(): void

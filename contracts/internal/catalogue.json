@@ -77,5 +77,80 @@
     "consumer_tests": [
       "apps/api/tests/Feature/Domain/Billing/DataPointReportsTest.php"
     ]
+  },
+  {
+    "id": "telemetry-stream.v1",
+    "group": "event",
+    "schema": "events/v1/telemetry-stream.schema.json",
+    "producer": "runtime",
+    "consumer": "control_plane",
+    "dedup": "event_id",
+    "fences": [
+      "position"
+    ],
+    "reading": "tolerant",
+    "live_check": "none",
+    "producer_tests": [
+      "services/runtime/internal/devices/stream_test.go"
+    ],
+    "consumer_tests": [
+      "apps/api/tests/Feature/Domain/Integrations/TelemetryStreamTest.php",
+      "packages/integration-sdk/test/stream.test.mjs"
+    ]
+  },
+  {
+    "id": "telemetry-stream-open.v1",
+    "group": "event",
+    "schema": "events/v1/telemetry-stream-open.schema.json",
+    "producer": "runtime",
+    "consumer": "control_plane",
+    "dedup": "none",
+    "fences": [],
+    "reading": "tolerant",
+    "live_check": "none",
+    "producer_tests": [
+      "services/runtime/internal/devices/stream_test.go"
+    ],
+    "consumer_tests": [
+      "apps/api/tests/Feature/Domain/Integrations/TelemetryStreamTest.php",
+      "packages/integration-sdk/test/stream.test.mjs"
+    ]
+  },
+  {
+    "id": "telemetry-stream-reset.v1",
+    "group": "event",
+    "schema": "events/v1/telemetry-stream-reset.schema.json",
+    "producer": "runtime",
+    "consumer": "control_plane",
+    "dedup": "none",
+    "fences": [],
+    "reading": "tolerant",
+    "live_check": "none",
+    "producer_tests": [
+      "services/runtime/internal/devices/stream_test.go"
+    ],
+    "consumer_tests": [
+      "apps/api/tests/Feature/Domain/Integrations/TelemetryStreamTest.php",
+      "packages/integration-sdk/test/stream.test.mjs"
+    ]
+  },
+  {
+    "id": "telemetry-stream-closed.v1",
+    "group": "event",
+    "schema": "events/v1/telemetry-stream-closed.schema.json",
+    "producer": "control_plane",
+    "consumer": "control_plane",
+    "dedup": "none",
+    "fences": [],
+    "reading": "tolerant",
+    "live_check": "none",
+    "producer_tests": [
+      "apps/api/tests/Feature/Domain/Integrations/TelemetryStreamTest.php",
+      "services/runtime/internal/devices/stream_test.go"
+    ],
+    "consumer_tests": [
+      "apps/api/tests/Feature/Domain/Integrations/TelemetryStreamTest.php",
+      "packages/integration-sdk/test/stream.test.mjs"
+    ]
   }
 ]

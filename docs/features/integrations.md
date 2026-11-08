@@ -26,7 +26,7 @@ An **application** belongs to one organization and has:
   | `geofences:read` | Geofences and activation status |
   | `geofences:manage`, `geofences:activate` | Create and update geofences; activation needs both |
   | `entities:read` | Sites (and, once spec 009 lands, the entity hierarchy) |
-  | `telemetry:stream` | The live telemetry stream ([ADR-032](../adr/ADR-032-applications-follow-a-plant.md); served by a later pull request); also needs `telemetry:read` |
+  | `telemetry:stream` | The live telemetry stream ([below](#the-telemetry-stream), [ADR-032](../adr/ADR-032-applications-follow-a-plant.md)); also needs `telemetry:read` |
 
 - **a grant**: either 1–100 named devices of that organization, or a scope of 1–50
   of its sites ([grants by site](#grants-by-site)). Every request resolves the grant
@@ -49,7 +49,10 @@ and the token.
   organization, including revoked ones.
 - Applications belong to the organization, not to the manager who created them.
 - Limits: 60 requests per minute per application, 240 per minute per source IP;
-  429 includes `Retry-After`. Limits use Laravel's shared cache.
+  429 includes `Retry-After`. Limits use Laravel's shared cache. Open telemetry
+  streams are limited separately: 2 per application, 10 per organization and
+  `IOT_STREAMS_MAX_OPEN` (default 10) per deployment, counted on the
+  `integration_stream_sessions` table ([the telemetry stream](#the-telemetry-stream)).
 
 ### Grants by site
 
@@ -116,6 +119,7 @@ in time. Responses to authenticated requests carry `Cache-Control: no-store`.
 | `GET events/checkpoint`, `GET events?cursor=&limit=` | `events:read` | Ordered event feed (below) |
 | `GET devices/{uuid}/telemetry/latest` | `telemetry:read` | `telemetry-latest.v1` |
 | `POST telemetry/latest/query` | `telemetry:read` | `telemetry-latest-batch.v1`: the latest values of 1–100 granted devices in one request |
+| `GET telemetry/stream` | `telemetry:stream` (+ `telemetry:read`) | Server-sent events: `open`, `reading` (`telemetry-stream.v1`), `reset`, `closed` ([below](#the-telemetry-stream)) |
 | `GET devices/{uuid}/telemetry/history` | `telemetry:read` | `telemetry-history.v1` |
 | `GET devices/{uuid}/telemetry/records` | `telemetry:read` | `telemetry-records.v1` |
 | `GET devices/{uuid}/location-bindings` | `telemetry:read` | Successfully applied immutable bindings `{version_uuid, binding}` |
@@ -178,6 +182,92 @@ within the application's resolved grant; without `entities:read` it is 403.
   binding with the same resolver as geofencing ([automation](automation.md#location-bindings)).
   Consumers cannot submit coordinates or evaluation time; independent latest
   values are never paired into a fix.
+
+### The telemetry stream
+
+`GET telemetry/stream` follows the granted devices' readings as they are committed,
+as server-sent events ([spec 030](../../specs/030-plant-following-applications/spec.md),
+[contract](../../specs/030-plant-following-applications/contracts/telemetry-stream.md),
+[ADR-032](../adr/ADR-032-applications-follow-a-plant.md)). It needs `telemetry:stream`
+and `telemetry:read`, each on the application and the token, and
+`Accept: text/event-stream` (406 otherwise). Code: the runtime's
+[`stream.go`](../../services/runtime/internal/app/stream.go) and
+[`broadcast.go`](../../services/runtime/internal/app/broadcast.go), Laravel's
+[`StreamRelay`](../../apps/api/app/Domain/Integrations/Services/StreamRelay.php) and
+[`TelemetryStreamController`](../../apps/api/app/Domain/Integrations/Http/TelemetryStreamController.php),
+and the SDK's `telemetryStream()` ([README](../../packages/integration-sdk/README.md)).
+
+- **Events.** Each frame is `event:`, an `id:` line for readings, one `data:` line of
+  JSON and a blank line; `: keepalive` comments carry no event. `open` comes once,
+  first, with the `position` the stream starts at and the size of its device set;
+  `reading` carries one committed event of one granted device
+  (`telemetry-stream.v1`: `position`, `event_id`, `device_uuid`, `configuration_uuid`,
+  `generation`, `readings[]`), in storage order, derived from the internal
+  [committed feed](../reference/events.md#committed-telemetry) without its internal
+  fields; `reset` says a resumed position is no longer retained; `closed` says the
+  platform is ending the stream and why. The four payloads are contracts under
+  [`contracts/events/v1/`](../../contracts/events/v1/) (`telemetry-stream`, `-open`,
+  `-reset`, `-closed`) that the Go producer, the Laravel relay and the SDK all test
+  against.
+- **Device subsets.** `devices[]` (or `devices=a,b`) narrows the stream to granted
+  devices, at most 1000 distinct; any device outside the grant refuses the whole
+  request with 404 and reveals nothing. Absent, the stream carries the whole resolved
+  grant, which must hold 1 to 1000 devices (an emptied scope is 404, a larger scope a
+  422 asking for a subset). A site scope is re-resolved every 30 s: a device moved
+  into a granted site appears, one moved out disappears, with no second `open`.
+- **Positions and resume.** The `id` of a reading is its position: the committed
+  outbox sequence as a decimal string, unique and increasing in storage order with
+  gaps, opaque to clients. Reconnecting with `Last-Event-ID` (or `?after=`) replays
+  every retained event after it for the device set, in order, then continues live
+  with no gap and no repeat within one stream. A fresh stream opens at the
+  organization's current head (`0` when it has no retained events). Across
+  reconnections the stream is at-least-once: an event arrives again only when the
+  client reconnects from a position before it, so deduplicate by `event_id` when it
+  matters.
+- **Reset.** Retention is the committed outbox's (eight days, or the tenant's
+  retention when shorter). A position older than the organization's oldest retained
+  event is answered with `reset` carrying the head, and the stream closes: take a new
+  snapshot and reconnect from that position. The rule is conservative: it fires when
+  anything of the organization older than the position was pruned.
+- **Order of work.** Open the stream, take the snapshot (`POST telemetry/latest/query`)
+  after the `open` (or `reset`) position arrives, then apply readings with a greater
+  position. Within one connection a reading of the same device with a later
+  `received_at` only ever has a greater position.
+- **Lifetime and close reasons.** A stream ends after `IOT_STREAM_LIFETIME_SECONDS`
+  (default one hour) with `closed` `lifetime` and its last position; the client
+  reconnects and loses nothing. The relay re-checks every 30 s and closes with
+  `grant_changed` (the grant revision moved: reconnect, and rebuild event cursors as
+  documented for grants), `credentials_changed` (the token was rotated or expired, or
+  the application revoked: obtain credentials first), `runtime_unavailable` (the
+  internal relay failed or the runtime stopped: reconnect with backoff; a reconnect
+  may be answered 503) or `shutdown` (the serving worker is stopping). A client that
+  disconnects is recorded as `client`; a `reset` as `reset`. The runtime writes
+  `: keepalive` after 60 s of silence and the relay does the same when the runtime is
+  quiet for longer, so proxies and clients can tell a quiet stream from a dead one.
+- **Limits.** Opening a stream counts as one request against the per-minute limit;
+  data on it does not. 2 open streams per application, 10 per organization and
+  `IOT_STREAMS_MAX_OPEN` (default 10) per deployment; the 429 carries
+  `Retry-After: 30` and names the limit. A stream is open while its session row is
+  not closed and was touched within 90 s, so a worker that died frees its slot
+  without a reaper. Operators see open streams on the admin app's organization menu
+  (**Telemetry streams**) and in `iot_integration_streams_open{organization}`
+  ([release](../ops/release.md#telemetry-streams-and-the-api-pool)); the runtime's
+  `GET /internal/status` reports `streams.open` and `streams.dropped`.
+- **Behind proxies.** The response carries `Cache-Control: no-store` and
+  `X-Accel-Buffering: no`, which nginx honours; Caddy flushes `text/event-stream` as
+  it arrives. A proxy that buffers responses or times out idle connections under 60 s
+  shows a stream that never delivers or drops hourly: raise its read timeout above the
+  keepalive interval and disable buffering for this path. In development
+  `php artisan serve` is single-threaded per worker, so the api image runs with
+  `PHP_CLI_SERVER_WORKERS=8` ([gotchas](../dev/gotchas.md)).
+- **How it is served.** The runtime fans committed events out in-process to one
+  subscriber per stream, filtered by the organization and device set Laravel resolved
+  (it never decides a grant), catching a resumed subscriber up from the committed
+  outbox first and joining the live feed by sequence. A subscriber that falls 1000
+  events behind is closed and resumes with catch-up. Laravel relays the frames byte for
+  byte, re-checks authorization between them, and holds one PHP worker per stream for
+  up to the lifetime, which is why the release's PHP-FPM pool is sized for
+  `IOT_STREAMS_MAX_OPEN` ([release](../ops/release.md#telemetry-streams-and-the-api-pool)).
 
 ### Geofence activation
 

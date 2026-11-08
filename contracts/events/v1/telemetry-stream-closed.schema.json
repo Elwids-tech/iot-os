@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/events/v1/telemetry-stream-closed.schema.json",
+  "description": "telemetry-stream-closed.v1: the platform is ending an application telemetry stream (spec 030). `position` is the last reading sent, or the `open` position when none was; the client reconnects with it. `reason` says why: `lifetime` (one hour since `open`), `grant_changed` (the application's grant revision changed; event cursors must be rebuilt), `credentials_changed` (the token was rotated or expired, or the application was revoked), `runtime_unavailable` (the relay to the runtime failed; reconnect with backoff) or `shutdown` (the serving process is stopping). Producer: Laravel's relay; the runtime never sends it. Consumer: applications and the integration SDK.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "telemetry-stream-closed.v1"
+    },
+    "reason": {
+      "enum": [
+        "lifetime",
+        "grant_changed",
+        "credentials_changed",
+        "runtime_unavailable",
+        "shutdown"
+      ]
+    },
+    "position": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "reason",
+    "position"
+  ],
+  "additionalProperties": false
+}
