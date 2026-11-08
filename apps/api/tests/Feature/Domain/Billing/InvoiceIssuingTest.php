@@ -75,6 +75,20 @@ final class InvoiceIssuingTest extends TestCase
 
         $rate = $this->postJson('/api/v1/admin/billing/tax-rates', ['name' => 'Sales tax', 'basis_points' => 1500])->assertCreated()->json('data');
         $this->postJson('/api/v1/admin/billing/tax-rates', ['name' => 'Sales tax', 'basis_points' => 10])->assertUnprocessable();
+        $old = $this->postJson('/api/v1/admin/billing/tax-rates', ['name' => 'Old tax', 'basis_points' => 500])->assertCreated()->json('data');
+        $this->postJson('/api/v1/admin/billing/tax-rates/'.$old['uuid'].'/archive')->assertOk()->assertJsonPath('data.archived', true);
+        $this->getJson('/api/v1/admin/billing/tax-rates')
+            ->assertOk()
+            ->assertJsonPath('data.0.name', 'Sales tax')
+            ->assertJsonPath('data.1.name', 'Old tax');
+        $this->patchJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/billing-details', ['billing_address' => null, 'tax_number' => null, 'tax_rate_uuid' => $old['uuid']])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('tax_rate_uuid');
+        $this->putJson('/api/v1/admin/billing-plans/'.$this->plan->uuid.'/prices', ['base_price' => 333, 'alert_overage_price' => 0, 'data_point_overage_price' => 0, 'data_point_block_size' => 1_000_000])
+            ->assertOk()
+            ->assertJsonPath('effective_from', '2026-12-01')
+            ->assertJsonPath('data.prices.current.base_price', 333)
+            ->assertJsonPath('data.prices.next', null);
         $this->patchJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/billing-details', ['billing_address' => '2 Customer Road', 'tax_number' => 'CU-9', 'tax_rate_uuid' => $rate['uuid']])
             ->assertOk()
             ->assertJsonPath('data.billing_details.tax_rate.name', 'Sales tax');
@@ -102,6 +116,11 @@ final class InvoiceIssuingTest extends TestCase
             ->assertJsonPath('data.tax_basis_points', 1500)
             ->assertJsonPath('data.tax', 50);
 
+        $this->getJson('/api/v1/admin/billing/invoices?status=issued&month=2026-10&account='.$this->account->uuid)
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.number', 'INV-0001');
+        $this->getJson('/api/v1/admin/billing/invoices?status=draft')->assertOk()->assertJsonPath('meta.total', 0);
         $pdf = $this->get("/api/v1/admin/billing/invoices/{$invoice->uuid}.pdf")->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $this->assertStringStartsWith('%PDF', (string) $pdf->getContent());
         $csv = (string) $this->get("/api/v1/admin/billing/invoices/{$invoice->uuid}.csv")->assertOk()->getContent();
@@ -176,10 +195,17 @@ final class InvoiceIssuingTest extends TestCase
         $this->assertSame([333, PaymentStatus::Pending], [$invoice->amount_due, $invoice->payment_status]);
 
         $this->postJson("/api/v1/admin/billing/invoices/{$invoice->uuid}/credit-notes", ['amount' => 334, 'reason' => 'Too much'])->assertUnprocessable()->assertJsonValidationErrors('amount');
-        $this->postJson("/api/v1/admin/billing/invoices/{$invoice->uuid}/credit-notes", ['amount' => 100, 'reason' => 'Partial outage'])
+        $note = $this->postJson("/api/v1/admin/billing/invoices/{$invoice->uuid}/credit-notes", ['amount' => 100, 'reason' => 'Partial outage'])
             ->assertCreated()
             ->assertJsonPath('data.number', 'CN-0001')
-            ->assertJsonPath('data.applied', 100);
+            ->assertJsonPath('data.applied', 100)
+            ->json('data');
+        $this->assertStringStartsWith('%PDF', (string) $this->get("/api/v1/admin/billing/credit-notes/{$note['uuid']}.pdf")->assertOk()->getContent());
+        $this->actingAs($this->owner, 'sanctum')
+            ->get('/api/v1/billing-accounts/'.$this->account->uuid.'/credit-notes/'.$note['uuid'].'.pdf')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+        $this->actingAs($this->admin, 'sanctum');
         $this->getJson("/api/v1/admin/billing/invoices/{$invoice->uuid}")->assertJsonPath('data.outstanding', 233)->assertJsonPath('data.payment_status', 'pending');
 
         // The rest settles it, and nothing more can be credited.
@@ -263,6 +289,7 @@ final class InvoiceIssuingTest extends TestCase
             ->assertJsonPath('data.lines.1.note', null);
         $this->assertStringNotContainsString('Internal reason', (string) $detail->getContent());
         $this->get('/api/v1/billing-accounts/'.$this->account->uuid.'/invoices/'.$draft->uuid.'.csv')->assertOk();
+        $this->get('/api/v1/billing-accounts/'.$this->account->uuid.'/invoices/'.$draft->uuid.'.pdf')->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $this->getJson('/api/v1/billing-accounts')
             ->assertOk()
             ->assertJsonPath('data.0.prices.current.base_price', 333)
