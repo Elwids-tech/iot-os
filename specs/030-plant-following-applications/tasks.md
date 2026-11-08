@@ -89,7 +89,7 @@ appear in each story, and every new read has a foreign-organization case.
 ### Phase 5: PR 030-1 documentation and verification
 
 - [x] T024 `docs/features/integrations.md`: the abilities table (two new rows and the `telemetry:stream` rule), "Grants by site" under Applications and grants, the device read's new fields, the sites operation; `apps/api/resources/help` integrations guide if it describes grants
-- [ ] T025 Rebuild api, workers and portal; run quickstart runs 1 (API and SDK), 2 and 5; record the results in the PR; leak scan; open PR 030-1 against `main`
+- [x] T025 Rebuild api, workers and portal; run quickstart runs 1 (API and SDK), 2 and 5; record the results in the PR; leak scan; open PR 030-1 against `main`
 
 **Checkpoint**: PR 030-1 merged. PR 030-3 can start.
 
