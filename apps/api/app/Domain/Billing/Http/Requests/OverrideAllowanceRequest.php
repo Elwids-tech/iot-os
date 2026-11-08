@@ -26,6 +26,8 @@ final class OverrideAllowanceRequest extends FormRequest
         $kind = AllowanceKind::from((string) $this->route('kind'));
 
         return [
+            /** Applies a change that shortens organizations' telemetry retention, after the 409 named them. */
+            'confirm_retention' => ['sometimes', 'boolean'],
             'value' => [
                 'present',
                 ...($kind->allowsUnlimited() ? ['nullable'] : []),

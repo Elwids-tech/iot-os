@@ -770,11 +770,23 @@ shorten it wait 30 days, and owners are warned.
 
 **Independent Test**: spec 029 US4's test, and quickstart section 5.
 
-- [ ] T072 Migration `2026_11_14_000000_create_retention_floors.php`:
+**As built (PR 8)**:
+
+- The guard's 409 is `{message, retention: {deletion_from, organizations: [{uuid, name,
+  from_days, to_days}]}}`; every guarded route documents it in
+  `contracts/openapi/supplements/billing.yaml`.
+- `RetentionGuard::around` takes organization ids (an account's organizations, or the
+  one organization that moves) rather than accounts.
+- The state contract gains `billing_account` in the retention `source` enum. The runtime
+  reads only `days`, and a valid case covers it.
+
+- [X] T072 Migration `2026_11_14_000000_create_retention_floors.php`:
   `telemetry_retention_floors` (`organization_id` FK cascade, `days` integer, `until`
   timestampTz, `reason` string(64), `warned_at` nullable, `created_at`; index
   `(organization_id, until)`).
-- [ ] T073 [US4] `apps/api/app/Domain/Devices/Services/RetentionService.php`:
+
+  As built (PR 8): `2026_11_08_200000_create_retention_floors.php`.
+- [X] T073 [US4] `apps/api/app/Domain/Devices/Services/RetentionService.php`:
   - `effective()` resolves organization override, else
     `Allowances::resolve(account, RetentionDays)` when not null, else platform, else
     `config('devices.default_retention_days')`;
@@ -785,7 +797,12 @@ shorten it wait 30 days, and owners are warned.
   `RuntimeController::state()` sends `cleanupDays` in each retention item's `days`.
   The state contract is unchanged; add a contract-test case that the field still
   validates.
-- [ ] T074 [US4] `apps/api/app/Domain/Devices/Services/RetentionGuard.php::around(array
+
+  As built (PR 8): `effective()` also returns `billing_days` (what an organization
+  without an override inherits), and `update()` uses it for the cutoff when an override
+  is removed. `state()` lists the contract's fields itself instead of spreading
+  `effective()`, whose new fields the strict schema would refuse.
+- [X] T074 [US4] `apps/api/app/Domain/Devices/Services/RetentionGuard.php::around(array
   $accounts, callable $change, string $reason)`:
   1. compute each organization's effective days in those accounts before the change;
   2. run the change;
@@ -799,15 +816,30 @@ shorten it wait 30 days, and owners are warned.
   `PlanAssignments::assign|remove` and `BillingAccounts::move` (`organization_moved`).
   The API returns 409 with the deletion date and affected organizations unless
   `confirm_retention: true` (contract).
-- [ ] T075 [US4] `apps/api/app/Domain/Billing/Console/RetentionWarnings.php`
+
+  As built (PR 8): each service takes a `confirmRetention` flag; overrides are guarded
+  only for `retention_days`, plan edits only when allowances are sent. The services
+  resolve the guard lazily (`app(RetentionGuard::class)`), since it depends on
+  `Allowances` through `RetentionService`. Organization creation with a plan confirms by
+  itself. The email is one `RetentionReducedMail` for the change and the reminder.
+- [X] T075 [US4] `apps/api/app/Domain/Billing/Console/RetentionWarnings.php`
   (`billing:retention-warnings`, daily 08:00, `--now=`): floors with `until` within 7
   days and `warned_at` null send `RetentionWarningMail` to owners and set `warned_at`.
   `billing:prune` deletes expired floors.
-- [ ] T076 [US4] `apps/admin/src/pages/RetentionPage.tsx`: the source label
+
+  As built (PR 8): a floor the account undid in the meantime is marked warned without
+  an email. The reminder is `RetentionReducedMail` with `reminder: true`.
+- [X] T076 [US4] `apps/admin/src/pages/RetentionPage.tsx`: the source label
   "Billing account" and a pending reduction line "N days from {date}"
   (`RelativeTime`). The plan, override and assignment confirmations in the admin app
   show the deletion date and organizations from the 409.
-- [ ] T077 [P] [US4] `apps/api/tests/Feature/Domain/Billing/RetentionFollowsPlanTest.php`:
+
+  As built (PR 8): one `RetentionConfirmDialog` serves the plan dialog, the override
+  dialog, the plan change and override removal on the account page, and the
+  move-organization dialog. The pending date is absolute (`formatDateTime`), because
+  `RelativeTime` only reads "… ago". The inherit switch names the billing account when
+  it sets a retention.
+- [X] T077 [P] [US4] `apps/api/tests/Feature/Domain/Billing/RetentionFollowsPlanTest.php`:
   - resolution order and source;
   - a plan change to 7 days gives a floor of the previous days for 30 days, and
     `cleanupDays` stays at the previous days;
@@ -819,11 +851,28 @@ shorten it wait 30 days, and owners are warned.
   - emails at the change and 7 days before, once each;
   - `/state` carries the raised days;
   - rollout leaves every organization's effective retention unchanged.
-- [ ] T078 Docs: `docs/features/devices.md` Retention (the billing step, grace,
+
+  As built (PR 8): also plan edits, account overrides and moves, and a floor undone
+  before its warning. A mocked admin e2e test covers the confirmation.
+- [X] T078 Docs: `docs/features/devices.md` Retention (the billing step, grace,
   pending reductions), `docs/features/billing.md`. Contract export and api-client
   (`pending_reduction`, source).
-- [ ] T079 Verify: tests, `contract:check`, admin lint and e2e. Rebuild `api` and
+
+  As built (PR 8): the client also has `billing_days`, `RetentionNeedsConfirmation`
+  and a `confirmRetention` argument on the five guarded methods. `docs/dev/gotchas.md`
+  notes that a plan with a retention can itself need confirmation.
+- [X] T079 Verify: tests, `contract:check`, admin lint and e2e. Rebuild `api` and
   `admin`, then run quickstart section 5, including a runtime restart for cleanup.
+
+  As built (PR 8): both PHP suites, the Go suite, `contract:check`, the contract
+  checker, admin lint and all admin e2e pass. The runtime, the API family and admin were
+  rebuilt. On the dev account (one organization), a 7-day plan answered 409 naming the
+  organization (400 to 7 days) and the deletion date, then applied once confirmed,
+  emailed the owner, and showed "7 days from" with `/state` still at 400. A further move
+  to a 1-day plan also kept `/state` at 400, and the runtime's cleanup after a restart
+  deleted nothing (155,190 readings older than a day remained). In the live admin app
+  the Retention page showed the billing source and the pending reduction, and a plan
+  change opened the confirmation. The account was put back and the floors removed.
 
 ---
 

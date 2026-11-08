@@ -32,6 +32,7 @@ final class PlatformBillingAccountAllowanceController
             $value === null ? null : (int) $value,
             (string) $request->validated('note'),
             $request->user(),
+            $request->boolean('confirm_retention'),
         );
 
         return BillingAccountDetailResource::for($billingAccount);
@@ -41,7 +42,9 @@ final class PlatformBillingAccountAllowanceController
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
-        $this->allowances->removeOverride($billingAccount, AllowanceKind::from($kind), $request->user());
+        // A shorter retention needs `confirm_retention`, sent in the body or the query (spec 029 US4).
+        $request->validate(['confirm_retention' => ['sometimes', 'boolean']]);
+        $this->allowances->removeOverride($billingAccount, AllowanceKind::from($kind), $request->user(), $request->boolean('confirm_retention'));
 
         return BillingAccountDetailResource::for($billingAccount);
     }

@@ -225,3 +225,16 @@ export type OwnerOrganization = {
   name: string
   slug: string
 }
+
+/**
+ * The 409 a billing change answers when it would shorten organizations' telemetry
+ * retention (spec 029 US4). Resend with `confirmRetention`; older history is deleted only
+ * from `deletion_from`.
+ */
+export type RetentionNeedsConfirmation = {
+  message: string
+  retention: {
+    deletion_from: string
+    organizations: { uuid: string; name: string; from_days: number; to_days: number }[]
+  }
+}

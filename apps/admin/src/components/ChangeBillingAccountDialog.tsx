@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import type { BillingAccountSummary, DirectoryQuery } from "@iot-os/api-client"
+import type { BillingAccountSummary, DirectoryQuery, RetentionNeedsConfirmation } from "@iot-os/api-client"
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import {
@@ -18,6 +18,7 @@ import { useSearchOptions } from "../hooks/use-search-options"
 import { apiClient } from "../lib/api-client"
 import { fieldMessages, validationErrors } from "../lib/errors"
 import { organizationsOfLimit } from "./BillingAccountChoice"
+import { RetentionConfirmDialog, retentionConfirmation } from "./RetentionConfirmDialog"
 
 export type MovableOrganization = { uuid: string; name: string; billing_account?: { uuid: string; name: string } }
 
@@ -42,23 +43,31 @@ export function ChangeBillingAccountDialog({
   const [target, setTarget] = useState<BillingAccountSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [retention, setRetention] = useState<RetentionNeedsConfirmation | null>(null)
 
   useEffect(() => {
     setTarget(null)
     setError(null)
+    setRetention(null)
   }, [organization])
 
-  async function move() {
+  async function move(confirmRetention = false) {
     if (!organization || !target) return
     setBusy(true)
     setError(null)
 
     try {
-      await apiClient.moveOrganizationBillingAccount(organization.uuid, target.uuid)
+      await apiClient.moveOrganizationBillingAccount(organization.uuid, target.uuid, confirmRetention)
+      setRetention(null)
       toast.success(`${organization.name} moved to ${target.name}`)
       onMoved()
       onClose()
     } catch (reason) {
+      const shortens = retentionConfirmation(reason)
+      if (shortens) {
+        setRetention(shortens)
+        return
+      }
       setError(fieldMessages(validationErrors(reason), "billing_account_uuid")?.join(" ") ?? "Could not move this organization. Try again.")
     } finally {
       setBusy(false)
@@ -107,6 +116,12 @@ export function ChangeBillingAccountDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+      <RetentionConfirmDialog
+        confirmation={retention}
+        busy={busy}
+        onCancel={() => setRetention(null)}
+        onConfirm={() => void move(true)}
+      />
     </Dialog>
   )
 }

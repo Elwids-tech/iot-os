@@ -9,6 +9,7 @@ use App\Domain\Billing\Enums\PlanAssignmentKind;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Models\PlanAssignment;
+use App\Domain\Devices\Services\RetentionGuard;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -21,13 +22,14 @@ use Illuminate\Validation\ValidationException;
  */
 final class PlanAssignments
 {
-    public function assign(BillingAccount $account, BillingPlan $plan, ?User $actor, PlanAssignmentKind $kind = PlanAssignmentKind::Paid): PlanAssignment
+    public function assign(BillingAccount $account, BillingPlan $plan, ?User $actor, PlanAssignmentKind $kind = PlanAssignmentKind::Paid, bool $confirmRetention = false): PlanAssignment
     {
         if ($plan->isArchived()) {
             throw ValidationException::withMessages(['plan_uuid' => 'This plan is archived. Restore it before assigning it.']);
         }
 
-        return DB::transaction(function () use ($account, $plan, $actor, $kind): PlanAssignment {
+        // A plan with a shorter retention needs confirmation and waits out its grace (spec 029 US4).
+        return app(RetentionGuard::class)->around(RetentionGuard::organizationsOf([$account]), fn (): PlanAssignment => DB::transaction(function () use ($account, $plan, $actor, $kind): PlanAssignment {
             BillingAccount::query()->whereKey($account->getKey())->lockForUpdate()->firstOrFail();
             $open = $this->current($account);
 
@@ -56,15 +58,15 @@ final class PlanAssignments
             ]);
 
             return $assignment;
-        });
+        }), 'plan_changed', $confirmRetention);
     }
 
     /**
      * Takes the account off its plan; it falls back to the deployment's defaults.
      */
-    public function remove(BillingAccount $account, User $actor): void
+    public function remove(BillingAccount $account, User $actor, bool $confirmRetention = false): void
     {
-        DB::transaction(function () use ($account, $actor): void {
+        app(RetentionGuard::class)->around(RetentionGuard::organizationsOf([$account]), fn () => DB::transaction(function () use ($account, $actor): void {
             BillingAccount::query()->whereKey($account->getKey())->lockForUpdate()->firstOrFail();
             $open = $this->current($account);
 
@@ -76,7 +78,7 @@ final class PlanAssignments
             ActivityLog::record('billing_account.plan_removed', null, $actor, $account, [
                 'from' => ['uuid' => $open->plan->uuid, 'name' => $open->plan->name],
             ]);
-        });
+        }), 'plan_changed', $confirmRetention);
     }
 
     public function current(BillingAccount $account): ?PlanAssignment

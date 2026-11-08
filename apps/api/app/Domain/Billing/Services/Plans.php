@@ -6,9 +6,11 @@ namespace App\Domain\Billing\Services;
 
 use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Billing\Enums\AllowanceKind;
+use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Models\PlanAllowance;
 use App\Domain\Billing\Models\PlanAssignment;
+use App\Domain\Devices\Services\RetentionGuard;
 use App\Domain\Shared\Models\User;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -51,10 +53,33 @@ final class Plans
      *
      * @param  array{name?: string, description?: string|null, allowances?: array<string, int|null>}  $values
      */
-    public function update(BillingPlan $plan, array $values, User $actor, ?int $confirmAffected): BillingPlan
+    public function update(BillingPlan $plan, array $values, User $actor, ?int $confirmAffected, bool $confirmRetention = false): BillingPlan
     {
         $allowances = array_key_exists('allowances', $values) ? $this->allowanceMap($values['allowances']) : null;
 
+        if ($allowances === null) {
+            return $this->applyUpdate($plan, $values, null, $actor, $confirmAffected);
+        }
+
+        // A shorter retention reaches every organization of the accounts on the plan (spec 029 US4).
+        $organizations = RetentionGuard::organizationsOf(BillingAccount::query()
+            ->whereIn('id', PlanAssignment::query()->where('billing_plan_id', $plan->getKey())->whereNull('ended_at')->select('billing_account_id'))
+            ->get()
+            ->all());
+
+        return app(RetentionGuard::class)->around(
+            $organizations,
+            fn (): BillingPlan => $this->applyUpdate($plan, $values, $allowances, $actor, $confirmAffected),
+            'plan_edited',
+            $confirmRetention,
+        );
+    }
+
+    /**
+     * @param  array<string, int|null>|null  $allowances
+     */
+    private function applyUpdate(BillingPlan $plan, array $values, ?array $allowances, User $actor, ?int $confirmAffected): BillingPlan
+    {
         return DB::transaction(function () use ($plan, $values, $allowances, $actor, $confirmAffected): BillingPlan {
             $locked = BillingPlan::query()->whereKey($plan->getKey())->lockForUpdate()->firstOrFail();
             $changes = [];

@@ -75,7 +75,14 @@ final class RuntimeController
                     : []),
                 'connectivity' => $connectivity->runtime($adapters[$d->id] ?? null),
             ]),
-            'retention' => $organizations->map(fn ($o) => ['organization_uuid' => $o->uuid, ...$retention->effective($o)]),
+            'retention' => $organizations->map(function ($o) use ($retention): array {
+                $effective = $retention->effective($o);
+                // Cleanup keeps a shortened period until its 30-day grace ends (spec 029 US4).
+                $days = $retention->cleanupDays($o, $effective);
+
+                return ['organization_uuid' => $o->uuid, 'days' => $days, 'source' => $effective['source'], 'override_days' => $effective['override_days'],
+                    'revision' => $effective['revision'], 'platform_days' => $effective['platform_days'], 'cutoff' => now()->subDays($days)->toIso8601String()];
+            }),
         ];
     }
 

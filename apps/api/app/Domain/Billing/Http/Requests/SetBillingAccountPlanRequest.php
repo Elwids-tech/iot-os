@@ -24,6 +24,8 @@ final class SetBillingAccountPlanRequest extends FormRequest
     public function rules(): array
     {
         return [
+            /** Applies a change that shortens organizations' telemetry retention, after the 409 named them. */
+            'confirm_retention' => ['sometimes', 'boolean'],
             'plan_uuid' => ['present', 'nullable', 'uuid', Rule::exists('billing_plans', 'uuid')],
         ];
     }

@@ -26,10 +26,10 @@ final class PlatformBillingAccountPlanController
         $planUuid = $request->validated('plan_uuid');
 
         if ($planUuid === null) {
-            $this->assignments->remove($billingAccount, $request->user());
+            $this->assignments->remove($billingAccount, $request->user(), $request->boolean('confirm_retention'));
         } else {
             $plan = BillingPlan::query()->where('uuid', $planUuid)->firstOrFail();
-            $this->assignments->assign($billingAccount, $plan, $request->user());
+            $this->assignments->assign($billingAccount, $plan, $request->user(), confirmRetention: $request->boolean('confirm_retention'));
         }
 
         return BillingAccountDetailResource::for($billingAccount);

@@ -38,6 +38,12 @@ Things that have cost time before. Add to this list when something surprises you
   `Allowances::value($account, AllowanceKind::Organizations)`, where `null` is unlimited.
   `BillingAccountFactory::limit(n)` writes an override, so a test's limit survives any
   plan it is given.
+- **Putting an account on a plan that sets retention can need a retention
+  confirmation.** Without a plan, organizations use the platform default (400 days
+  unless set), so a plan with `retention_days` 90 shortens them: the API answers 409
+  `retention` until `confirm_retention: true`, and writes 30-day floors. Tests that
+  assign such a plan in setup must confirm it. Organization creation with `plan_uuid`
+  confirms by itself, since a new account has no history.
 - **PostgreSQL refuses to drop a table that later tables reference.** A test that
   reruns an old migration's `down()` and `up()` (as `BillingAccountBackfillTest`
   does for spec 023) must first roll back the later migrations whose foreign keys

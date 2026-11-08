@@ -335,10 +335,18 @@ export type RetentionSetting = {
   } | null
   cleanup_failures?: number
   days: number
-  source: "default" | "platform" | "organization"
+  /** `billing_account`: the organization's billing account sets it through its plan or an override. */
+  source: "default" | "platform" | "billing_account" | "organization"
   override_days: number | null
   revision: number
   platform_days: number
+  /** The billing account's retention for an organization, or null when it sets none. */
+  billing_days?: number | null
+  /**
+   * A billing change shortened retention to `days`; older history is kept until `from`
+   * (spec 029 US4). Null when nothing is pending.
+   */
+  pending_reduction?: { days: number; from: string } | null
   cutoff: string
 }
 export type DeviceValidation = {

@@ -707,5 +707,24 @@
         }
       ]
     }
+  },
+  {
+    "description": "retention from the billing account's plan, with cleanup days raised to a 30-day floor (spec 029 US4)",
+    "valid": true,
+    "data": {
+      "connections": [],
+      "devices": [],
+      "retention": [
+        {
+          "organization_uuid": "18000000-0000-4000-8000-000000000001",
+          "days": 90,
+          "source": "billing_account",
+          "override_days": null,
+          "revision": 0,
+          "platform_days": 400,
+          "cutoff": "2026-08-10T10:00:00+00:00"
+        }
+      ]
+    }
   }
 ]

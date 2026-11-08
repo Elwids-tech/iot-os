@@ -75,9 +75,9 @@ final class PlatformPlanController
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
-        $values = $request->safe()->except('confirm_affected');
+        $values = $request->safe()->except(['confirm_affected', 'confirm_retention']);
         $confirm = $request->validated('confirm_affected');
-        $plan = $this->plans->update($billingPlan, $values, $request->user(), $confirm === null ? null : (int) $confirm);
+        $plan = $this->plans->update($billingPlan, $values, $request->user(), $confirm === null ? null : (int) $confirm, $request->boolean('confirm_retention'));
 
         return $this->detail($plan);
     }

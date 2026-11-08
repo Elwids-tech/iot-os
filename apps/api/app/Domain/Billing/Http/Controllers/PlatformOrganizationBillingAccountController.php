@@ -25,7 +25,7 @@ final class PlatformOrganizationBillingAccountController
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
         $target = BillingAccount::query()->where('uuid', $request->validated('billing_account_uuid'))->firstOrFail();
-        $this->billingAccounts->move($organization, $target, $request->user());
+        $this->billingAccounts->move($organization, $target, $request->user(), $request->boolean('confirm_retention'));
 
         return response()->noContent();
     }

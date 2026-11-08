@@ -3781,6 +3781,16 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "description": "The change shortens organizations' telemetry retention (spec 029 US4). Send `confirm_retention` true to apply it; history older than the new period is deleted only after the grace period. Nothing was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionNeedsConfirmation"
+                }
+              }
+            }
+          },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
           },
@@ -3821,6 +3831,13 @@
               "pattern": "^(?:alerts|sms|devices|data_points|retention_days|organizations)$"
             },
             "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "confirm_retention",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -3851,8 +3868,21 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "description": "The change shortens organizations' telemetry retention (spec 029 US4). Send `confirm_retention` true to apply it; history older than the new period is deleted only after the grace period. Nothing was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionNeedsConfirmation"
+                }
+              }
+            }
+          },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
           }
         },
         "security": [
@@ -4043,6 +4073,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The change shortens organizations' telemetry retention (spec 029 US4). Send `confirm_retention` true to apply it; history older than the new period is deleted only after the grace period. Nothing was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionNeedsConfirmation"
+                }
+              }
+            }
           },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
@@ -4522,11 +4562,18 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The change alters the allowances of a plan billing accounts are on, and `confirm_affected` does not match their number. Nothing was changed.",
+            "description": "The change alters the allowances of a plan billing accounts are on, and `confirm_affected` does not match their number; or, once that matches, it shortens organizations' telemetry retention and needs `confirm_retention` (spec 029 US4). Nothing was changed.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PlanChangeNeedsConfirmation"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PlanChangeNeedsConfirmation"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RetentionNeedsConfirmation"
+                    }
+                  ]
                 }
               }
             }
@@ -4992,6 +5039,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The change shortens organizations' telemetry retention (spec 029 US4). Send `confirm_retention` true to apply it; history older than the new period is deleted only after the grace period. Nothing was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionNeedsConfirmation"
+                }
+              }
+            }
           },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
@@ -32205,6 +32262,10 @@
       "MoveOrganizationRequest": {
         "type": "object",
         "properties": {
+          "confirm_retention": {
+            "type": "boolean",
+            "description": "Applies a change that shortens organizations' telemetry retention, after the 409 named them."
+          },
           "billing_account_uuid": {
             "type": "string",
             "format": "uuid"
@@ -32572,6 +32633,10 @@
         "type": "object",
         "description": "An allowance for one billing account, replacing its plan's (spec 028 FR-008): a whole\nnumber, or null for unlimited where the kind allows it, and why.",
         "properties": {
+          "confirm_retention": {
+            "type": "boolean",
+            "description": "Applies a change that shortens organizations' telemetry retention, after the 409 named them."
+          },
           "value": {
             "type": "integer",
             "minimum": 0,
@@ -33379,10 +33444,68 @@
           }
         }
       },
+      "RetentionNeedsConfirmation": {
+        "type": "object",
+        "required": [
+          "message",
+          "retention"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "retention": {
+            "type": "object",
+            "required": [
+              "deletion_from",
+              "organizations"
+            ],
+            "properties": {
+              "deletion_from": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When history older than the new period starts to be deleted, after the grace period."
+              },
+              "organizations": {
+                "type": "array",
+                "description": "Each organization whose effective retention the change shortens.",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "uuid",
+                    "name",
+                    "from_days",
+                    "to_days"
+                  ],
+                  "properties": {
+                    "uuid": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "from_days": {
+                      "type": "integer"
+                    },
+                    "to_days": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "SetBillingAccountPlanRequest": {
         "type": "object",
         "description": "Puts a billing account on a plan, or takes it off with `plan_uuid: null` (spec 028\nUS2). Archived plans cannot be newly assigned.",
         "properties": {
+          "confirm_retention": {
+            "type": "boolean",
+            "description": "Applies a change that shortens organizations' telemetry retention, after the 409 named them."
+          },
           "plan_uuid": {
             "type": [
               "string",
@@ -35348,6 +35471,10 @@
               "null"
             ],
             "minimum": 0
+          },
+          "confirm_retention": {
+            "type": "boolean",
+            "description": "Applies a change that shortens organizations' telemetry retention, after the 409 named them."
           }
         },
         "title": "UpdatePlanRequest"

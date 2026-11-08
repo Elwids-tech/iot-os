@@ -30,6 +30,8 @@ final class UpdatePlanRequest extends FormRequest
             'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
             ...PlanAllowanceRules::rules(),
             'confirm_affected' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            /** Applies a change that shortens organizations' telemetry retention, after the 409 named them. */
+            'confirm_retention' => ['sometimes', 'boolean'],
         ];
     }
 
