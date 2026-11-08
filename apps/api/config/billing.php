@@ -20,6 +20,12 @@ return [
     ],
 
     /*
+    | Data point usage comes from the runtime's reports, about once a minute (spec 029
+    | FR-014). An open month not reported for longer than this shows as stale.
+    */
+    'usage_report_stale_seconds' => (int) env('BILLING_USAGE_REPORT_STALE_SECONDS', 300),
+
+    /*
     | How long cleanup keeps the previous period after a billing change shortens an
     | organization's telemetry retention (spec 029 FR-020). Owners are warned at the
     | change and 7 days before it ends.

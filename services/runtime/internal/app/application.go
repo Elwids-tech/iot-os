@@ -89,6 +89,9 @@ type Application struct {
 	pending           map[string]*pendingCommand
 	rebirth           map[string]time.Time
 	rebirthPending    map[string]rebirthRequest
+	// usageFinalThrough is the final_through of the last usage report written; only
+	// the maintenance loop touches it (spec 029 US3).
+	usageFinalThrough time.Time
 	held              map[string]heldActivation // by device
 	heldFor           time.Duration             // bounds a hold; birthWait when zero
 	presenceAt        map[string]time.Time
@@ -972,6 +975,9 @@ func (a *Application) maintenance(ctx context.Context) {
 			if count%2 == 0 {
 				a.emit("runtime.heartbeat.v1", map[string]any{"at": time.Now().UTC()})
 			}
+			if count%12 == 0 {
+				a.reportUsage(time.Now().UTC())
+			}
 			if count%6 == 0 {
 				if e := a.syncState(); e != nil {
 					a.Logger.Warn("control state refresh failed", "error", e)
@@ -988,6 +994,21 @@ func (a *Application) maintenance(ctx context.Context) {
 		}
 	}
 }
+
+// reportUsage sends the stored-reading counts that changed or became final (spec 029
+// US3). A failure is logged and retried on the next tick: counts are cumulative, so
+// nothing is lost.
+func (a *Application) reportUsage(now time.Time) {
+	ctx, cancel := context.WithTimeout(a.ctx, 30*time.Second)
+	defer cancel()
+	finalThrough, e := a.Store.ReportUsage(ctx, now, a.usageFinalThrough)
+	if e != nil {
+		a.Logger.Warn("usage report deferred", "error", e)
+		return
+	}
+	a.usageFinalThrough = finalThrough
+}
+
 func (a *Application) cleanup() error {
 	var state devices.ControlState
 	if e := a.Control.request(a.ctx, "GET", "/state", nil, &state); e != nil {
@@ -1000,6 +1021,11 @@ func (a *Application) cleanup() error {
 		} else if pruned > 0 {
 			a.Logger.Info("connectivity rows pruned", "deleted_rows", pruned)
 		}
+	}
+	if pruned, e := a.Store.PruneUsage(a.ctx, time.Now().UTC()); e != nil {
+		failures = append(failures, fmt.Errorf("usage pruning: %w", e))
+	} else if pruned > 0 {
+		a.Logger.Info("usage buckets pruned", "deleted_rows", pruned)
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, 2*time.Minute)
 	pruned, e := a.Store.PruneLedgers(ctx, time.Now().UTC())

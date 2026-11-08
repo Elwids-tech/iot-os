@@ -173,7 +173,7 @@ final class RetentionFollowsPlanTest extends TestCase
         $this->assertSame($expected, $keys('retention_reduction'));
         $this->assertSame($expected, $keys('retention_warning'));
 
-        $this->artisan('billing:prune', ['--now' => '2026-12-09 00:00:00'])->expectsOutput('Pruned 0 billing notices and 2 retention floors.');
+        $this->artisan('billing:prune', ['--now' => '2026-12-09 00:00:00'])->expectsOutput('Pruned 0 billing notices, 0 data point buckets and 2 retention floors.');
     }
 
     public function test_a_floor_that_was_undone_sends_no_warning(): void

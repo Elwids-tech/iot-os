@@ -26,14 +26,18 @@ export type Allowance = {
   note: string | null
 }
 
-/** The monthly allowances counted so far. */
-export type UsageKind = "alerts" | "sms"
+/** The monthly allowances counted: alerts, SMS and data points (stored readings). */
+export type UsageKind = "alerts" | "sms" | "data_points"
 
 /**
  * A billing account's usage of one allowance in one UTC month. `allowance` is the
  * account's allowance now (null when unlimited) and `left` follows from it, 0 once used
  * up. `overage` was fixed as each unit was counted. `organizations` is each
  * organization's share, deleted and moved-away ones included under the name they had.
+ *
+ * `data_points` come from the runtime's reports and alone carry `final` (the whole month
+ * is reported), `reported_at` and `stale` (an open month not reported for a while): show
+ * "Provisional" or "Last reported …" instead of presenting the count as current.
  */
 export type Usage = {
   kind: UsageKind
@@ -44,6 +48,9 @@ export type Usage = {
   left: number | null
   overage: number
   organizations: { organization_uuid: string; name: string; count: number }[]
+  final?: boolean
+  reported_at?: string | null
+  stale?: boolean
 }
 
 /**
@@ -58,6 +65,10 @@ export type OrganizationUsage = {
   allowance: number | null
   left: number | null
   overage: number
+  /** Data points only, as on `Usage`. */
+  final?: boolean
+  reported_at?: string | null
+  stale?: boolean
 }
 
 /** A plan in the platform administrators' list. */

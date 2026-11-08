@@ -50,6 +50,11 @@ Things that have cost time before. Add to this list when something surprises you
   point at its tables, then reapply them. SQLite drops the table anyway, so only the
   PostgreSQL job fails. The billing usage migration points at billing accounts and
   plan assignments, so tests rerunning those roll it back first.
+- **The runtime's usage reporter covers every organization.** `Store.ReportUsage`
+  reads all of `device_runtime.usage_data_points`, and the storage integration tests
+  share one database, so a test's report also carries buckets other tests left behind.
+  `usage_integration_test.go` keeps only its own organization's buckets when it reads
+  the events, and `historyStore`'s cleanup deletes the organization's buckets.
 - **A test that forks must not let the child close the parent's connection.** A
   `pcntl_fork` child inherits the parent's open database sockets; its exit runs PDO's
   destructor, which ends the parent's session mid-test. `SmsAllowanceTest` gives each
