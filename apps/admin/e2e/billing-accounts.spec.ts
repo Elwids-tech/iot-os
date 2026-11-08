@@ -117,10 +117,22 @@ async function mockApi(page: Page) {
   const members = (uuid: string) => organizations.filter((organization) => organization.billing_account?.uuid === uuid)
   const summary = (account: Account) => ({
     ...account,
+    plan: null,
     organizations_count: members(account.uuid).length,
   })
   const detail = (account: Account) => ({
     ...summary(account),
+    plan_assignment: null,
+    allowances: [
+      { kind: "alerts", value: null, source: "default", note: null },
+      { kind: "sms", value: 0, source: "default", note: null },
+      { kind: "devices", value: null, source: "default", note: null },
+      { kind: "data_points", value: null, source: "default", note: null },
+      { kind: "retention_days", value: null, source: "default", note: null },
+      account.organization_limit === 1
+        ? { kind: "organizations", value: 1, source: "default", note: null }
+        : { kind: "organizations", value: account.organization_limit, source: "override", note: "Agreed" },
+    ],
     organizations: members(account.uuid).map(({ billing_account: _, ...organization }) => ({
       ...organization,
       assigned_at: "2026-10-30T08:00:00Z",
@@ -199,14 +211,15 @@ async function mockApi(page: Page) {
       )
       return json(route, paginated(matches.map(summary), url))
     }
+    if (path === "/api/v1/admin/billing-plans" && method === "GET") return json(route, paginated([], url))
     if (path === "/api/v1/admin/billing-accounts" && method === "POST") {
-      const values = body as { name: string; organization_limit: number }
+      const values = body as { name: string }
       const account: Account = {
         uuid: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
         name: values.name,
         contact_email: null,
         notes: null,
-        organization_limit: values.organization_limit,
+        organization_limit: 1,
         owners: [],
         created_at: "2026-10-30T11:00:00Z",
       }
@@ -324,7 +337,9 @@ test("lists billing accounts and creates one", async ({ page }) => {
   await page.getByRole("link", { name: "Billing accounts" }).click()
 
   await expect(page.getByRole("heading", { name: "Billing accounts" })).toBeVisible()
-  await expect(page.getByRole("row", { name: /Example Integrations 1 of 10 organizations Pat Example billing@example.com/ })).toBeVisible()
+  await expect(
+    page.getByRole("row", { name: /Example Integrations 1 of 10 organizations No plan Pat Example billing@example.com/ }),
+  ).toBeVisible()
   await page.getByRole("searchbox", { name: "Search" }).fill("harbour")
   await expect(page.getByRole("row", { name: /Example Integrations/ })).toHaveCount(0)
   await expect(page.getByRole("row", { name: /Harbour Depot/ })).toBeVisible()
@@ -332,12 +347,13 @@ test("lists billing accounts and creates one", async ({ page }) => {
   await page.getByRole("button", { name: "New billing account" }).click()
   const dialog = page.getByRole("dialog", { name: "New billing account" })
   await dialog.getByRole("textbox", { name: "Name" }).fill("Lakeside Group")
-  await dialog.getByRole("spinbutton", { name: "Organization limit" }).fill("5")
+  // The organization limit is an allowance now, set on the account's page.
+  await expect(dialog.getByRole("spinbutton")).toHaveCount(0)
   await dialog.getByRole("button", { name: "Create billing account" }).click()
 
   await expect(page.getByText("Lakeside Group created")).toBeVisible()
   await expect(page.getByRole("heading", { name: "Lakeside Group" })).toBeVisible()
-  await expect(page.getByText("0 of 5 organizations")).toBeVisible()
+  await expect(page.getByText("0 of 1 organization")).toBeVisible()
 })
 
 test("deletes only an empty billing account", async ({ page }) => {
@@ -366,10 +382,11 @@ test("edits an account, manages its owners and shows its history", async ({ page
   await expect(page.getByRole("row", { name: /Acme Manufacturing acme-manufacturing 3 6/ })).toBeVisible()
 
   await page.getByRole("button", { name: "Edit", exact: true }).click()
-  await page.getByRole("spinbutton", { name: "Organization limit" }).fill("12")
+  await page.getByRole("textbox", { name: "Billing contact email" }).fill("accounts@example.com")
   await page.getByRole("button", { name: "Save billing account" }).click()
   await expect(page.getByText("Example Integrations saved")).toBeVisible()
-  await expect(page.getByText("1 of 12 organizations")).toBeVisible()
+  await expect(page.getByText("accounts@example.com")).toBeVisible()
+  expect(sent.at(-1)?.body).toEqual({ name: "Example Integrations", contact_email: "accounts@example.com", notes: null })
 
   await choose(page, "Add an owner", /Sam Example · sam@example.com/)
   await expect(page.getByText("Sam Example can now see Example Integrations")).toBeVisible()

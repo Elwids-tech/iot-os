@@ -118,8 +118,8 @@ pull requests.
 The Go runtime serves its own internal HTTP API on `IOT_RUNTIME_HTTP_ADDRESS`
 (default `:8081`) ([`internal/app/http.go`](../../services/runtime/internal/app/http.go)).
 `/health/live` and `/health/ready` are open; everything under `/internal/` needs
-the `DEVICE_RUNTIME_TOKEN` bearer: measurements (latest, history, records, state
-history, increase), telemetry captures, configuration validation and command checks,
+the `DEVICE_RUNTIME_TOKEN` bearer: measurements (latest, latest batch, history,
+records, state history, increase), telemetry captures, configuration validation and command checks,
 location resolve/read/map, rule and workflow compile, simulate and execution, DAG
 registry, compile, simulate, execution, timeline and health, committed-telemetry
 status, `/internal/status` and checkpoint rebaseline. Only Laravel

@@ -22,7 +22,6 @@ final class StoreBillingAccountRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'contact_email' => ['nullable', 'email', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
-            'organization_limit' => ['sometimes', 'integer', 'min:0', 'max:1000'],
         ];
     }
 }

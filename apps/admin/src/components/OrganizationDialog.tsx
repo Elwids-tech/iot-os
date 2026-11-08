@@ -47,7 +47,12 @@ export function OrganizationDialog({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const baseline = organization && organization !== "new" ? organization : { name: "", slug: "" }
   const billingTouched =
-    isNew && (billing.mode !== "new" || billing.nameTouched || billing.contactEmail !== "" || billing.account !== null)
+    isNew &&
+    (billing.mode !== "new" ||
+      billing.nameTouched ||
+      billing.contactEmail !== "" ||
+      billing.plan !== null ||
+      billing.account !== null)
   const dirty = organization !== null && (name !== baseline.name || slug !== baseline.slug || billingTouched)
   const { guard, dialog: discardDialog } = useDiscardGuard(dirty, {
     title: "Discard organization changes?",

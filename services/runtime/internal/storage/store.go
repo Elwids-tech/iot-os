@@ -355,6 +355,40 @@ func (s *Store) LatestAcross(ctx context.Context, org, device, configuration str
 	return result, rows.Err()
 }
 
+// LatestBatch returns each parameter's newest latest value for up to 100 devices of
+// one organization in one query, keyed by device. A device's applied configuration
+// (the definition the runtime holds for it) wins over an earlier one as LatestAcross
+// prefers it; a device without one, deactivated or never activated, keeps its newest
+// retained value. Devices with nothing retained are absent (spec 030, research R8).
+func (s *Store) LatestBatch(ctx context.Context, org string, deviceUUIDs []string) (map[string][]CarriedReading, error) {
+	if len(deviceUUIDs) == 0 || len(deviceUUIDs) > 100 {
+		return nil, errors.New("a latest batch names 1 to 100 devices")
+	}
+	rows, e := s.Pool.Query(ctx, `SELECT DISTINCT ON (l.device_uuid, l.parameter_uuid) l.device_uuid::text, l.configuration_uuid::text, l.reading
+      FROM device_runtime.latest l
+      LEFT JOIN device_runtime.devices d ON d.device_uuid=l.device_uuid
+      WHERE l.organization_uuid=$1 AND l.device_uuid=ANY($2::uuid[])
+      ORDER BY l.device_uuid, l.parameter_uuid, (l.configuration_uuid::text=d.definition->>'configuration_uuid') DESC NULLS LAST, l.received_at DESC`, org, deviceUUIDs)
+	if e != nil {
+		return nil, e
+	}
+	defer rows.Close()
+	result := map[string][]CarriedReading{}
+	for rows.Next() {
+		var device string
+		var raw []byte
+		var carried CarriedReading
+		if e = rows.Scan(&device, &carried.ConfigurationUUID, &raw); e != nil {
+			return nil, e
+		}
+		if e = Decode(raw, &carried.Reading); e != nil {
+			return nil, e
+		}
+		result[device] = append(result[device], carried)
+	}
+	return result, rows.Err()
+}
+
 type HistoryPoint struct {
 	At      time.Time `json:"at"`
 	Value   any       `json:"value"`

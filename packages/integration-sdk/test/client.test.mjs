@@ -84,6 +84,40 @@ test('telemetry preserves no data and validates history bounds and response iden
   await assert.rejects(make(async () => Response.json({ ...history, data: [{ configuration_uuid: id, unit: null, data_type: 'number', points: [{ at: options.from, value: null, count: -1 }] }] })).telemetryHistory(id, options), IotContractError)
 })
 
+test('batch latest posts distinct devices, keeps request order and validates each entry like the single read', async () => {
+  const other = '00000000-0000-4000-8000-000000000002'
+  const reading = { parameter_uuid: id, key: 'vibration', label: 'Vibration', data_type: 'number', unit: 'mm/s', value: 1.8, quality: 'good', observed_at: '2026-11-07T09:41:57Z', received_at: '2026-11-07T09:41:58Z', historical: false }
+  const batch = { schema_version: 'telemetry-latest-batch.v1', data: [
+    { device_uuid: id, configuration_uuid: id, presence: 'online', last_seen_at: '2026-11-07T09:41:58Z', readings: [reading] },
+    { device_uuid: other, configuration_uuid: null, presence: 'unseen', last_seen_at: null, readings: [] },
+  ] }
+  let request
+  const client = make(async (url, options) => { request = { url, options }; return Response.json(batch) })
+  const result = await client.latestQuery([id, other])
+  assert.match(request.url, /\/telemetry\/latest\/query$/)
+  assert.equal(request.options.method, 'POST')
+  assert.deepEqual(JSON.parse(request.options.body), { device_uuids: [id, other] })
+  assert.equal(result.data[1].last_seen_at, null)
+  assert.equal(result.data[1].configuration_uuid, null)
+  assert.deepEqual(result.data[1].readings, [])
+  assert.equal(result.data[0].readings[0].value, 1.8)
+  for (const invalid of [[], Array.from({ length: 101 }, () => id), [id, id], ['not-a-uuid']]) await assert.rejects(client.latestQuery(invalid), TypeError)
+  await assert.rejects(make(async () => Response.json({ ...batch, data: [batch.data[1], batch.data[0]] })).latestQuery([id, other]), IotContractError)
+  await assert.rejects(make(async () => Response.json({ ...batch, data: [batch.data[0]] })).latestQuery([id, other]), IotContractError)
+  await assert.rejects(make(async () => Response.json({ ...batch, data: [{ ...batch.data[0], readings: [{ ...reading, historical: 'no' }] }, batch.data[1]] })).latestQuery([id, other]), IotContractError)
+  await assert.rejects(make(async () => Response.json({ ...batch, data: [{ ...batch.data[0], last_seen_at: 0 }, batch.data[1]] })).latestQuery([id, other]), IotContractError)
+  await assert.rejects(make(async () => Response.json({ message: 'not found' }, { status: 404 })).latestQuery([id, other]), e => e instanceof IotApiError && e.status === 404)
+  await assert.rejects(make(async () => Response.json({ message: 'too many' }, { status: 422 })).latestQuery([id, other]), e => e instanceof IotApiError && e.status === 422)
+})
+
+test('the batch latest example of the contract is accepted', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const contract = JSON.parse(await readFile(new URL('../../../contracts/openapi/openapi.json', import.meta.url), 'utf8'))
+  const example = contract.paths['/integration/v1/organizations/{organization}/telemetry/latest/query'].post.responses['200'].content['application/json'].example
+  const result = await make(async () => Response.json(example)).latestQuery(example.data.map(entry => entry.device_uuid))
+  assert.deepEqual(result, example)
+})
+
 test('raw records preserve provenance and reject malformed pagination', async () => {
   const options={parameterUuid:id,from:'2026-09-01T00:00:00Z',to:'2026-09-02T00:00:00Z',pageSize:1,limit:2}
   const row={event_uuid:id,configuration_uuid:id,parameter_uuid:id,received_at:options.from,observed_at:options.from,data_type:'number',unit:null,value:0,quality:'good',timestamp_source:'source',historical:true}

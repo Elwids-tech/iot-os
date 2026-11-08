@@ -21,7 +21,7 @@ An **application** belongs to one organization and has:
   | `devices:read` | Device metadata |
   | `alerts:read` | Alert episodes |
   | `events:read` | The event feed; also needs `alerts:read` or `geofences:read` |
-  | `telemetry:read` | Latest values, chart history, raw records, location bindings and fixes |
+  | `telemetry:read` | Latest values (one device, or up to 100 in one request), chart history, raw records, location bindings and fixes |
   | `locations:read` | Location map query (current positions and trails) |
   | `geofences:read` | Geofences and activation status |
   | `geofences:manage`, `geofences:activate` | Create and update geofences; activation needs both |
@@ -115,6 +115,7 @@ in time. Responses to authenticated requests carry `Cache-Control: no-store`.
 | `GET alerts`, `GET alerts/{uuid}` | `alerts:read` | Episode snapshot; `condition=active\|cleared` filter |
 | `GET events/checkpoint`, `GET events?cursor=&limit=` | `events:read` | Ordered event feed (below) |
 | `GET devices/{uuid}/telemetry/latest` | `telemetry:read` | `telemetry-latest.v1` |
+| `POST telemetry/latest/query` | `telemetry:read` | `telemetry-latest-batch.v1`: the latest values of 1–100 granted devices in one request |
 | `GET devices/{uuid}/telemetry/history` | `telemetry:read` | `telemetry-history.v1` |
 | `GET devices/{uuid}/telemetry/records` | `telemetry:read` | `telemetry-records.v1` |
 | `GET devices/{uuid}/location-bindings` | `telemetry:read` | Successfully applied immutable bindings `{version_uuid, binding}` |
@@ -145,6 +146,21 @@ within the application's resolved grant; without `entities:read` it is 403.
 - **Latest** returns retained values with their quality and timestamps; receiving
   the response does not make them fresh. An unconfigured device returns an empty
   array, never zeros. Presence is separate from quality.
+- **Batch latest** (`POST telemetry/latest/query` with `{device_uuids: [1–100]}`)
+  answers one entry per requested device, in request order, so a plant's first frame
+  costs one request ([spec 030](../../specs/030-plant-following-applications/spec.md),
+  [ADR-032](../adr/ADR-032-applications-follow-a-plant.md)). Each entry's `readings`
+  is exactly the single-device read's `data` for that device, with the same stale
+  rules applied by the runtime from one query over its latest table
+  (`GET /internal/measurements/latest-batch`); a device that never reported has
+  `readings: []` and `configuration_uuid: null`. Each entry also carries `presence`
+  and `last_seen_at` as the device read returns them: `online`, `offline`, `unseen`,
+  or `unknown` when the runtime has not been seen for 20 s, computed from the control
+  plane's columns, whereas the single-device latest read's `presence` is the
+  runtime's own word about the source session. Any device outside the grant refuses
+  the whole request with 404 and reveals nothing; more than 100 devices, a repeated
+  device or a malformed UUID is a 422 naming the rule; 503 when the runtime is
+  unavailable, never an empty answer.
 - **History** is selected and bucketed by **receipt time**, inclusive bounds, at
   most 31 days, `max_points` 10–1000 (more than 2000 resulting points is a 422).
   Series stay separated by configuration, type and unit. Bounds are clipped to
@@ -233,9 +249,10 @@ verification flag ([testing](../dev/testing.md#verification-scripts)).
 
 [`@iot-os/integration-sdk`](../../packages/integration-sdk/README.md) (0.5.0, Node
 22.12+, not published to a registry) covers devices, alerts, the event feed,
-webhook verification, telemetry, records, location bindings and fixes, the location
-map and geofences; the 0.6.0 surface adds `sites()` and the device read's `profile`,
-`site` and `parameters` (released with spec 030's last pull request). It validates responses at runtime, rejects redirects, has a
+webhook verification, telemetry (one device with `latestTelemetry()`, up to 100 with
+`latestQuery()`), records, location bindings and fixes, the location map and
+geofences; the 0.6.0 surface adds `sites()` and the device read's `profile`, `site`
+and `parameters` (released with spec 030's last pull request). It validates responses at runtime, rejects redirects, has a
 15-second default timeout and never retries automatically. It accepts every event
 type in the contract, `automation.triggered.v1` included.
 

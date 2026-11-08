@@ -34,6 +34,12 @@ export interface LatestTelemetry {
   schema_version: "telemetry-latest.v1"; device_uuid: string; configuration_uuid: string | null;
   presence: string; data: TelemetryReading[];
 }
+/** One device of a batch latest read: its readings as `latestTelemetry()` returns them, with the device read's presence and last-seen time. */
+export interface LatestBatchEntry {
+  device_uuid: string; configuration_uuid: string | null; presence: string; last_seen_at: string | null;
+  readings: TelemetryReading[];
+}
+export interface LatestBatch { schema_version: "telemetry-latest-batch.v1"; data: LatestBatchEntry[] }
 export interface HistoryPoint { at: string; value: unknown; count: number; min?: number; max?: number }
 export interface TelemetryHistory {
   schema_version: "telemetry-history.v1"; device_uuid: string; parameter_uuid: string;
@@ -155,6 +161,11 @@ function alert(value: unknown): Alert {
   if (!Number.isSafeInteger(result.episode) || Number(result.episode) < 1 || !["active", "cleared"].includes(String(result.condition))) throw new IotContractError();
   return result as unknown as Alert;
 }
+function telemetryReading(item: unknown): TelemetryReading {
+  const reading = fields(item, ["parameter_uuid", "key", "label", "data_type", "quality", "observed_at", "received_at"], ["unit"]);
+  if (!("value" in reading) || typeof reading.historical !== "boolean" || ["timestamp_source", "last_valid_received_at"].some(key => reading[key] !== undefined && typeof reading[key] !== "string")) throw new IotContractError();
+  return reading as unknown as TelemetryReading;
+}
 function page<T>(value: unknown, parse: (item: unknown) => T): Page<T> {
   const result = record(value); const meta = record(result.meta);
   if (!Array.isArray(result.data) || result.data.length > 100 || !["current_page", "last_page", "total"].every(key => Number.isSafeInteger(meta[key])) || Number(meta.current_page) < 1 || Number(meta.last_page) < 1 || Number(meta.total) < 0) throw new IotContractError();
@@ -274,12 +285,20 @@ export class IotClient {
   async latestTelemetry(id: string, signal?: AbortSignal): Promise<LatestTelemetry> {
     const response = fields(await this.#request(`devices/${uuid(id)}/telemetry/latest`, signal), ["device_uuid", "presence"], ["configuration_uuid"]);
     if (response.schema_version !== "telemetry-latest.v1" || response.device_uuid !== id || !Array.isArray(response.data)) throw new IotContractError();
-    const data = response.data.map(item => {
-      const reading = fields(item, ["parameter_uuid", "key", "label", "data_type", "quality", "observed_at", "received_at"], ["unit"]);
-      if (!("value" in reading) || typeof reading.historical !== "boolean" || ["timestamp_source", "last_valid_received_at"].some(key => reading[key] !== undefined && typeof reading[key] !== "string")) throw new IotContractError();
-      return reading as unknown as TelemetryReading;
-    });
+    const data = response.data.map(telemetryReading);
     return { ...response, data } as unknown as LatestTelemetry;
+  }
+  /** The latest values of 1 to 100 granted devices in one request (`telemetry-latest-batch.v1`); entries follow the request order. */
+  async latestQuery(deviceUuids: string[], signal?: AbortSignal): Promise<LatestBatch> {
+    if (!Array.isArray(deviceUuids) || !deviceUuids.length || deviceUuids.length > 100 || new Set(deviceUuids).size !== deviceUuids.length) throw new TypeError("Choose between 1 and 100 distinct devices.");
+    const response = record(await this.#write("telemetry/latest/query", "POST", { device_uuids: deviceUuids.map(uuid) }, signal));
+    if (response.schema_version !== "telemetry-latest-batch.v1" || !Array.isArray(response.data) || response.data.length !== deviceUuids.length) throw new IotContractError();
+    const data = response.data.map((item, index) => {
+      const entry = fields(item, ["device_uuid", "presence"], ["configuration_uuid", "last_seen_at"]);
+      if (entry.device_uuid !== deviceUuids[index] || !Array.isArray(entry.readings)) throw new IotContractError();
+      return { ...entry, readings: entry.readings.map(telemetryReading) } as unknown as LatestBatchEntry;
+    });
+    return { schema_version: "telemetry-latest-batch.v1", data };
   }
   async telemetryHistory(id: string, options: HistoryOptions): Promise<TelemetryHistory> {
     historyWindow(options);

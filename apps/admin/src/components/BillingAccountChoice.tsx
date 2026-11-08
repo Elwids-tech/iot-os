@@ -16,6 +16,8 @@ export type BillingAccountChoiceValue = {
   name: string
   nameTouched: boolean
   contactEmail: string
+  /** New account: the plan it starts on, or none (spec 028). */
+  plan: { uuid: string; name: string } | null
   /** Existing account. */
   account: BillingAccountSummary | null
 }
@@ -25,6 +27,7 @@ export const newBillingAccountChoice = (): BillingAccountChoiceValue => ({
   name: "",
   nameTouched: false,
   contactEmail: "",
+  plan: null,
   account: null,
 })
 
@@ -37,11 +40,16 @@ export function billingAccountValues(choice: BillingAccountChoiceValue, organiza
           name: choice.name.trim() || organizationName.trim(),
           contact_email: choice.contactEmail.trim() || null,
         },
+        ...(choice.plan ? { plan_uuid: choice.plan.uuid } : {}),
       }
 }
 
 function loadAccounts(query: DirectoryQuery) {
   return apiClient.adminBillingAccounts(query)
+}
+
+function loadPlans(query: DirectoryQuery) {
+  return apiClient.adminPlans({ ...query, archived: false })
 }
 
 /** A null limit is unlimited (the account's `organizations` allowance, ADR-035). */
@@ -75,9 +83,11 @@ export function BillingAccountChoice({
   disabled?: boolean
 }) {
   const accounts = useSearchOptions(loadAccounts, value.mode === "existing")
+  const plans = useSearchOptions(loadPlans, value.mode === "new")
   const nameErrors = fieldMessages(errors, "new_billing_account.name")
   const emailErrors = fieldMessages(errors, "new_billing_account.contact_email")
   const accountErrors = fieldMessages(errors, "billing_account_uuid")
+  const planErrors = fieldMessages(errors, "plan_uuid")
 
   return (
     <FieldSet>
@@ -126,6 +136,26 @@ export function BillingAccountChoice({
             />
             <FieldError errors={emailErrors?.map((message) => ({ message }))} />
           </Field>
+          <SearchableSelect
+            label="Plan"
+            optional
+            value={value.plan?.uuid ?? ""}
+            selectedLabel={value.plan?.name ?? "No plan"}
+            placeholder="No plan"
+            help="Without a plan, the account gets the deployment's default allowances."
+            emptyText={plans.failed ? "Plans could not be loaded." : "No plans match."}
+            disabled={disabled}
+            {...plans.select}
+            options={[
+              { value: "", label: "No plan" },
+              ...plans.items.map((plan) => ({ value: plan.uuid, label: plan.name })),
+            ]}
+            onChange={(uuid) => {
+              const plan = plans.items.find((item) => item.uuid === uuid)
+              onChange({ ...value, plan: plan ? { uuid: plan.uuid, name: plan.name } : null })
+            }}
+            error={planErrors?.join(" ")}
+          />
         </FieldGroup>
       ) : (
         <FieldGroup>
