@@ -26,6 +26,13 @@ describe("status vocabulary", () => {
     expect(statusOf("pending", "ingest")).toEqual({ tone: "info", label: "Pending" })
   })
 
+  it("reads billing allowance sources and plan assignments in their domains", () => {
+    expect(statusOf("override", "allowance")).toEqual({ tone: "info", label: "Override" })
+    expect(statusOf("default", "allowance")).toEqual({ tone: "muted", label: "Default" })
+    expect(statusOf("trial", "plan_assignment")).toEqual({ tone: "info", label: "Trial" })
+    expect(statusOf("trial_unpaid", "plan_assignment").tone).toBe("warning")
+  })
+
   it("reads an alert activation as a warning, unlike a runtime's", () => {
     expect(statusOf("activated")).toEqual({ tone: "good", label: "Activated" })
     expect(statusOf("activated", "alert")).toEqual({ tone: "warning", label: "Activated" })

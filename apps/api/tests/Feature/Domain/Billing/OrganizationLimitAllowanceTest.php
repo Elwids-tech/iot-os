@@ -97,20 +97,17 @@ final class OrganizationLimitAllowanceTest extends TestCase
             ->assertCreated();
     }
 
-    public function test_setting_the_limit_on_the_account_writes_or_removes_an_override(): void
+    public function test_the_account_reads_the_limit_but_no_longer_sets_it(): void
     {
         $administrator = User::factory()->create(['is_super_admin' => true]);
         $plan = BillingPlan::factory()->withAllowances(['organizations' => 3])->create();
         $account = BillingAccount::factory()->onPlan($plan)->create();
         $this->actingAs($administrator, 'sanctum');
 
+        // The limit is set as an allowance override; the account's own field only reads it.
         $this->patchJson('/api/v1/admin/billing-accounts/'.$account->uuid, ['organization_limit' => 10])
             ->assertOk()
-            ->assertJsonPath('data.organization_limit', 10)
-            ->assertJsonPath('data.allowances.5.source', 'override');
-        // The plan's own value removes the override, so later plan changes apply again.
-        $this->patchJson('/api/v1/admin/billing-accounts/'.$account->uuid, ['organization_limit' => 3])
-            ->assertOk()
+            ->assertJsonPath('data.organization_limit', 3)
             ->assertJsonPath('data.allowances.5.source', 'plan');
         $this->assertSame(0, $account->allowanceOverrides()->count());
     }

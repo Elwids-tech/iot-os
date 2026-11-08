@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ApiError,
+  type Allowance,
   type BillingAccountDetail,
   type BillingAccountHistoryEntry,
   type BillingAccountOrganization,
@@ -18,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "@iot-os/ui/components/alert-dialog"
 import { Button } from "@iot-os/ui/components/button"
-import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
+import { DataTable, RefLink, type DataColumn } from "@iot-os/ui/components/data-table"
 import { DropdownMenuItem } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
@@ -26,15 +27,20 @@ import { PageHeader } from "@iot-os/ui/components/page-header"
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
+import { Status } from "@iot-os/ui/components/status-mark"
 import { EntityPage } from "@iot-os/ui/templates/entity-page"
 import { AlertCircleIcon, Building2Icon, UserRoundXIcon, WalletIcon } from "lucide-react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
+import { AllowanceOverrideDialog } from "../components/AllowanceOverrideDialog"
 import { atLimit, organizationsOfLimit } from "../components/BillingAccountChoice"
 import { BillingAccountDialog } from "../components/BillingAccountDialog"
 import { ChangeBillingAccountDialog, type MovableOrganization } from "../components/ChangeBillingAccountDialog"
 import { useSearchOptions } from "../hooks/use-search-options"
+import { allowanceText, allowanceValue, changesText } from "../lib/allowances"
 import { apiClient } from "../lib/api-client"
+import { errorMessage } from "../lib/errors"
+import { planPath } from "./PlansPage"
 
 const back = { to: "/billing-accounts", label: "Billing accounts" }
 
@@ -42,11 +48,9 @@ function loadUsers(query: DirectoryQuery) {
   return apiClient.adminUsers(query)
 }
 
-const fieldLabels: Record<string, string> = {
-  name: "name",
-  contact_email: "contact email",
-  notes: "notes",
-  organization_limit: "organization limit",
+/** Plans an account can move to: archived plans stay on their accounts but are not offered. */
+function loadPlans(query: DirectoryQuery) {
+  return apiClient.adminPlans({ ...query, archived: false })
 }
 
 /** One history line in words, without the actor or the time. */
@@ -55,9 +59,7 @@ export function historyText(entry: BillingAccountHistoryEntry): string {
     case "created":
       return "Created the account"
     case "updated":
-      return `Changed ${(entry.changes ?? [])
-        .map((change) => `${fieldLabels[change.field] ?? change.field} from ${change.from ?? "empty"} to ${change.to ?? "empty"}`)
-        .join(", ")}`
+      return `Changed ${changesText(entry.changes)}`
     case "owner_added":
       return `Made ${entry.user?.name ?? "someone"} an owner`
     case "owner_removed":
@@ -69,7 +71,10 @@ export function historyText(entry: BillingAccountHistoryEntry): string {
   }
 }
 
-/** A billing account's page (spec 023 US2): details, organizations, owners and history. */
+/**
+ * A billing account's page (spec 023 US2, spec 028 US2): details, plan, allowances,
+ * owners, organizations and history.
+ */
 export function BillingAccountPage() {
   const { billingAccountUuid = "" } = useParams()
   const navigate = useNavigate()
@@ -79,8 +84,11 @@ export function BillingAccountPage() {
   const [moving, setMoving] = useState<MovableOrganization | null>(null)
   const [removingOwner, setRemovingOwner] = useState<BillingAccountOwner | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [overriding, setOverriding] = useState<Allowance | null>(null)
+  const [removingPlan, setRemovingPlan] = useState(false)
   const [busy, setBusy] = useState(false)
   const users = useSearchOptions(loadUsers)
+  const plans = useSearchOptions(loadPlans)
 
   const load = useCallback(() => {
     setFailure(null)
@@ -137,6 +145,78 @@ export function BillingAccountPage() {
     ],
     [],
   )
+
+  const allowanceColumns = useMemo<DataColumn<Allowance>[]>(
+    () => [
+      {
+        id: "kind",
+        header: "Allowance",
+        mobile: "title",
+        value: (allowance) => allowanceText[allowance.kind].label,
+        cell: (allowance) => <span className="font-medium">{allowanceText[allowance.kind].label}</span>,
+      },
+      {
+        id: "value",
+        header: "Value",
+        hideable: false,
+        value: (allowance) => allowance.value ?? "",
+        cell: (allowance) => <span className="tabular-nums">{allowanceValue(allowance.kind, allowance.value)}</span>,
+      },
+      {
+        id: "source",
+        header: "From",
+        mobile: "badge",
+        hideable: false,
+        value: (allowance) => allowance.source,
+        cell: (allowance) => <Status value={allowance.source} domain="allowance" />,
+      },
+      {
+        id: "note",
+        header: "Note",
+        value: (allowance) => allowance.note ?? "",
+        cell: (allowance) =>
+          allowance.note ? (
+            <span className="min-w-0 break-words">{allowance.note}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+    ],
+    [],
+  )
+
+  async function changePlan(planUuid: string | null) {
+    if (!account) return
+    setBusy(true)
+    try {
+      const saved = await apiClient.setBillingAccountPlan(account.uuid, planUuid)
+      toast.success(
+        saved.plan_assignment
+          ? `${account.name} is now on ${saved.plan_assignment.plan.name}`
+          : `${account.name} is no longer on a plan`,
+      )
+      setAccount(saved)
+      setRemovingPlan(false)
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeOverride(allowance: Allowance) {
+    if (!account) return
+    try {
+      const saved = await apiClient.removeAllowanceOverride(account.uuid, allowance.kind)
+      const now = saved.allowances.find((item) => item.kind === allowance.kind)
+      toast.success(
+        `${allowanceText[allowance.kind].label} for ${account.name} is back to ${allowanceValue(allowance.kind, now?.value ?? null)}`,
+      )
+      setAccount(saved)
+    } catch (error) {
+      toast.error(errorMessage(error))
+    }
+  }
 
   async function addOwner(userId: string) {
     if (!account) return
@@ -219,6 +299,7 @@ export function BillingAccountPage() {
   }
 
   const ownerIds = new Set(account.owners.map((owner) => owner.id))
+  const assignment = account.plan_assignment
 
   return (
     <EntityPage
@@ -251,8 +332,6 @@ export function BillingAccountPage() {
             <dl className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-x-4 gap-y-2">
               <dt className="text-muted-foreground">Contact</dt>
               <dd className="min-w-0 break-words">{account.contact_email ?? "None"}</dd>
-              <dt className="text-muted-foreground">Organization limit</dt>
-              <dd className="tabular-nums">{account.organization_limit?.toLocaleString() ?? "No limit"}</dd>
               <dt className="text-muted-foreground">Created</dt>
               <dd>
                 <RelativeTime at={account.created_at} />
@@ -302,6 +381,76 @@ export function BillingAccountPage() {
                 .filter((user) => !ownerIds.has(user.id))
                 .map((user) => ({ value: String(user.id), label: `${user.name} · ${user.email}` }))}
               onChange={(userId) => void addOwner(userId)}
+            />
+          </PanelContent>
+        </Panel>
+      </div>
+      <div className="grid min-w-0 gap-(--panel-gap) xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <Panel aria-labelledby="billing-plan">
+          <PanelHeader>
+            <PanelTitle id="billing-plan">Plan</PanelTitle>
+            <PanelDescription>The account gets its plan&apos;s allowances, except where it has an override.</PanelDescription>
+          </PanelHeader>
+          <PanelContent className="flex flex-col gap-3">
+            {assignment ? (
+              <div className="flex flex-col gap-1">
+                <p className="flex flex-wrap items-center gap-2">
+                  <RefLink className="font-medium" to={planPath(assignment.plan.uuid)}>
+                    {assignment.plan.name}
+                  </RefLink>
+                  <Status value={assignment.kind} domain="plan_assignment" />
+                  {assignment.plan.archived ? <Status value="archived" /> : null}
+                </p>
+                <p className="text-meta text-muted-foreground">
+                  Since <RelativeTime at={assignment.started_at} />
+                </p>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No plan. The account gets the deployment&apos;s default allowances.</p>
+            )}
+            <SearchableSelect
+              label={assignment ? "Change plan" : "Choose a plan"}
+              value=""
+              placeholder="Choose a plan"
+              emptyText={plans.failed ? "Plans could not be loaded." : "No plans match."}
+              disabled={busy}
+              {...plans.select}
+              options={plans.items
+                .filter((plan) => plan.uuid !== assignment?.plan.uuid)
+                .map((plan) => ({ value: plan.uuid, label: plan.name }))}
+              onChange={(planUuid) => void changePlan(planUuid)}
+            />
+            {assignment ? (
+              <Button size="sm" variant="outline" className="self-start" disabled={busy} onClick={() => setRemovingPlan(true)}>
+                Remove plan
+              </Button>
+            ) : null}
+          </PanelContent>
+        </Panel>
+        <Panel aria-labelledby="billing-allowances">
+          <PanelHeader>
+            <PanelTitle id="billing-allowances">Allowances</PanelTitle>
+            <PanelDescription>Each is an override, else the plan&apos;s, else the deployment&apos;s default.</PanelDescription>
+          </PanelHeader>
+          <PanelContent flush>
+            <DataTable
+              id="admin-billing-account-allowances"
+              label="Allowances"
+              noun={["allowance", "allowances"]}
+              rowKey={(allowance) => allowance.kind}
+              rowLabel={(allowance) => allowanceText[allowance.kind].label}
+              columns={allowanceColumns}
+              rows={account.allowances}
+              rowActions={(allowance) => (
+                <>
+                  <DropdownMenuItem onSelect={() => setOverriding(allowance)}>
+                    {allowance.source === "override" ? "Change override" : "Override"}
+                  </DropdownMenuItem>
+                  {allowance.source === "override" ? (
+                    <DropdownMenuItem onSelect={() => void removeOverride(allowance)}>Remove override</DropdownMenuItem>
+                  ) : null}
+                </>
+              )}
             />
           </PanelContent>
         </Panel>
@@ -363,6 +512,29 @@ export function BillingAccountPage() {
       </Panel>
       <BillingAccountDialog account={editing ? account : null} onClose={() => setEditing(false)} onSaved={setAccount} />
       <ChangeBillingAccountDialog organization={moving} onClose={() => setMoving(null)} onMoved={load} />
+      <AllowanceOverrideDialog
+        account={account}
+        allowance={overriding}
+        onClose={() => setOverriding(null)}
+        onSaved={setAccount}
+      />
+      <AlertDialog open={removingPlan} onOpenChange={(open) => !open && !busy && setRemovingPlan(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Take {account.name} off {assignment?.plan.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              From now on it gets the deployment&apos;s default allowances, except where it has an override. Its
+              plan history is kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <Button variant="destructive" disabled={busy} onClick={() => void changePlan(null)}>
+              {busy ? "Removing…" : "Remove plan"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={removingOwner !== null} onOpenChange={(open) => !open && !busy && setRemovingOwner(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

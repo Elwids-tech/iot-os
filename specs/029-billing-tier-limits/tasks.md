@@ -226,21 +226,39 @@ admin app.
 
 **Independent Test**: [quickstart.md](quickstart.md) section 1 in the admin app.
 
-- [ ] T022 [P] [028-US1] `apps/admin/src/pages/PlansPage.tsx`: `CollectionPage` +
+**As built (PR 3)**:
+
+- The API no longer accepts `organization_limit` on billing account create or update;
+  the field still reads the resolved `organizations` allowance. The limit is set as an
+  override (`PUT allowances/organizations`).
+- Allowance sources and plan assignment kinds are `statusOf` domains (`allowance`,
+  `plan_assignment`) in the kit, so the badges come from `Status`.
+- A plan field left empty uses the deployment default; **Unlimited** sends `null`.
+  Retention has no Unlimited switch, and empty means the platform setting.
+- Deleting a plan that was ever assigned shows as a disabled menu item ("Delete: it was
+  used, archive it instead"), as billing accounts do, rather than a tooltip.
+- The Plans list shows current plans by default; the Status filter offers **Archived**
+  and **All plans**. Archive and restore apply at once, with a toast.
+- The account page applies a plan as soon as it is chosen; **Remove plan** asks first.
+  Removing an override applies at once and the toast names the value it falls back to.
+- `BillingPlanDetail.history` is typed as `PlanHistoryEntry` (actions `created`,
+  `updated`, `archived`, `restored`).
+
+- [x] T022 [P] [028-US1] `apps/admin/src/pages/PlansPage.tsx`: `CollectionPage` +
   `DataTable` via `useDirectoryTable`, with columns Name, Allowances (compact
   "Alerts 3 · SMS 2 · Devices 50…"), Accounts and Archived (`Status`). Search and an
   Archived filter. Row actions Edit, Archive/Restore, and Delete (disabled with a
   tooltip once assigned).
-- [ ] T023 [P] [028-US1] `apps/admin/src/components/PlanDialog.tsx`: name,
+- [x] T023 [P] [028-US1] `apps/admin/src/components/PlanDialog.tsx`: name,
   description, and one `Field` per allowance kind with an **Unlimited** switch.
   Retention takes days or **Platform default**. A 409 `affected_accounts` opens a
   confirmation `AlertDialog` ("This changes N billing accounts") that resends with
   `confirm_affected`.
-- [ ] T024 [028-US1] `apps/admin/src/pages/PlanPage.tsx` (`/plans/:planUuid`):
+- [x] T024 [028-US1] `apps/admin/src/pages/PlanPage.tsx` (`/plans/:planUuid`):
   `EntityPage` with Panels Allowances, Accounts (`DataTable` linking to accounts) and
   History. Routes and nav: **Plans** after Billing accounts in
   `layout/AdminLayout.tsx`, routes in `App.tsx`.
-- [ ] T025 [028-US2] `apps/admin/src/pages/BillingAccountPage.tsx`:
+- [x] T025 [028-US2] `apps/admin/src/pages/BillingAccountPage.tsx`:
   - a **Plan** Panel showing the current plan or **No plan**, since when, and
     **Change plan** (a `SearchableSelect` of unarchived plans, plus **Remove plan**);
   - an **Allowances** Panel listing each kind with its value, a source badge and the
@@ -253,10 +271,10 @@ admin app.
   `organization_limit` from `BillingAccountValues` and from the store and update
   requests. The history already lists plan and allowance changes as `updated`
   entries; give their fields labels (`plan`, each allowance kind).
-- [ ] T026 [028-US2] `components/BillingAccountChoice.tsx`: under **New billing
+- [x] T026 [028-US2] `components/BillingAccountChoice.tsx`: under **New billing
   account**, an optional **Plan** `SearchableSelect` (default **No plan**) sending
   `plan_uuid`. `BillingAccountsPage.tsx` gains a Plan column and a Plan filter.
-- [ ] T027 [P] `apps/admin/e2e/billing-plans.spec.ts` (route mocks):
+- [x] T027 [P] `apps/admin/e2e/billing-plans.spec.ts` (route mocks):
   - create and edit a plan, including the confirmation;
   - archive;
   - assign on an account;
@@ -264,7 +282,7 @@ admin app.
   - the New organization plan choice.
 
   Update `apps/admin/e2e/billing-accounts.spec.ts` for the removed limit field.
-- [ ] T028 Verify: `pnpm --filter @iot-os/admin lint`, `test`, `test:e2e`. Rebuild
+- [x] T028 Verify: `pnpm --filter @iot-os/admin lint`, `test`, `test:e2e`. Rebuild
   `admin` and walk quickstart section 1 in the running app without discarding unsaved
   edits.
 

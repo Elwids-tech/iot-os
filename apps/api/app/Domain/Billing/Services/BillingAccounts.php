@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Domain\Billing\Services;
 
-use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingAccountAssignment;
 use App\Domain\Devices\Services\DeviceAudit;
@@ -18,19 +17,15 @@ use Illuminate\Support\Facades\DB;
  * never block deleting an organization. Moves need no account-side event: the
  * assignments already record who and when.
  *
- * `organization_limit` is still accepted, as the `organizations` allowance (ADR-035):
- * a value other than what the plan or default gives becomes an override, and the
- * same value removes the override. The admin app moves to allowances in spec 029's
- * pull request 3.
+ * The organization limit is the account's `organizations` allowance, changed through
+ * `Allowances` (ADR-035).
  */
 final class BillingAccounts
 {
     private const EDITABLE = ['name', 'contact_email', 'notes'];
 
-    public function __construct(private readonly Allowances $allowances) {}
-
     /**
-     * @param  array{name: string, contact_email?: ?string, notes?: ?string, organization_limit?: int}  $values
+     * @param  array{name: string, contact_email?: ?string, notes?: ?string}  $values
      */
     public function create(array $values, ?User $actor): BillingAccount
     {
@@ -40,10 +35,6 @@ final class BillingAccounts
             'name' => $account->name,
         ]);
 
-        if ($actor !== null && array_key_exists('organization_limit', $values)) {
-            $this->setOrganizationLimit($account, (int) $values['organization_limit'], $actor);
-        }
-
         return $account;
     }
 
@@ -52,10 +43,6 @@ final class BillingAccounts
      */
     public function update(BillingAccount $account, array $values, User $actor): BillingAccount
     {
-        if (array_key_exists('organization_limit', $values)) {
-            $this->setOrganizationLimit($account, (int) $values['organization_limit'], $actor);
-        }
-
         $account->fill(array_intersect_key($values, array_flip(self::EDITABLE)));
         $changes = [];
 
@@ -71,21 +58,6 @@ final class BillingAccounts
         DeviceAudit::record('billing_account.updated', null, $actor->getKey(), $account->uuid, ['changes' => $changes]);
 
         return $account;
-    }
-
-    private function setOrganizationLimit(BillingAccount $account, int $limit, User $actor): void
-    {
-        $kind = AllowanceKind::Organizations;
-
-        if ($this->allowances->inherited($account, $kind)->value === $limit) {
-            $this->allowances->removeOverride($account, $kind, $actor);
-
-            return;
-        }
-
-        if ($this->allowances->resolve($account, $kind)->value !== $limit) {
-            $this->allowances->override($account, $kind, $limit, 'Set on the billing account', $actor);
-        }
     }
 
     /**
