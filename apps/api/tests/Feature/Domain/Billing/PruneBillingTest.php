@@ -25,7 +25,7 @@ final class PruneBillingTest extends TestCase
         }
 
         $this->artisan('billing:prune', ['--now' => '2026-11-07 12:00:00'])
-            ->expectsOutput('Pruned 1 billing notices.')
+            ->expectsOutput('Pruned 1 billing notices and 0 data point buckets.')
             ->assertSuccessful();
 
         $this->assertSame(['alerts:2025-10:80', 'alerts:2026-11:80'], DB::table('billing_notices')->orderBy('key')->pluck('key')->all());

@@ -1,0 +1,23 @@
+{
+  "uuid": "5d0e6a52-6a8b-5f1e-8c3d-2b7a9e4f1c60",
+  "type": "usage.data_points.v1",
+  "payload": {
+    "schema_version": 1,
+    "generated_at": "2026-11-07T20:41:00Z",
+    "final_through": "2026-11-07T20:00:00Z",
+    "buckets": [
+      {
+        "organization_uuid": "29000000-0000-4000-8000-000000000001",
+        "hour": "2026-11-07T19:00:00Z",
+        "count": 118004,
+        "final": true
+      },
+      {
+        "organization_uuid": "29000000-0000-4000-8000-000000000001",
+        "hour": "2026-11-07T20:00:00Z",
+        "count": 41230,
+        "final": false
+      }
+    ]
+  }
+}

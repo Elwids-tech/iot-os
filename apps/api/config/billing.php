@@ -18,4 +18,10 @@ return [
         'retention_days' => null,
         'organizations' => 1,
     ],
+
+    /*
+    | Data point usage comes from the runtime's reports, about once a minute (spec 029
+    | FR-014). An open month not reported for longer than this shows as stale.
+    */
+    'usage_report_stale_seconds' => (int) env('BILLING_USAGE_REPORT_STALE_SECONDS', 300),
 ];

@@ -26,7 +26,7 @@ func historyStore(t *testing.T) (*Store, context.Context, string) {
 	}
 	organization := UUID()
 	t.Cleanup(func() {
-		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices"} {
+		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices", "usage_data_points"} {
 			_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1", organization)
 		}
 		_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime.outbox WHERE event->'payload'->>'organization_uuid'=$1", organization)

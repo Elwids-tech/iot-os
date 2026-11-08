@@ -25,8 +25,8 @@ use stdClass;
  */
 final class Usage implements SmsAllowance
 {
-    /** The monthly kinds counted so far, in display order. Data points join with their reports. */
-    public const COUNTED = [AllowanceKind::Alerts, AllowanceKind::Sms];
+    /** The monthly kinds counted, in display order. Data points come from the runtime's reports. */
+    public const COUNTED = [AllowanceKind::Alerts, AllowanceKind::Sms, AllowanceKind::DataPoints];
 
     public function __construct(
         private readonly Allowances $allowances,
@@ -134,6 +134,7 @@ final class Usage implements SmsAllowance
             ->get()
             ->groupBy('kind');
         $allowances = $this->allowances->all($account);
+        $reports = $this->dataPointReports(CarbonImmutable::parse($start, 'UTC'));
 
         return array_map(fn (AllowanceKind $kind): MonthlyUsage => new MonthlyUsage(
             $kind,
@@ -149,7 +150,25 @@ final class Usage implements SmsAllowance
                 ])
                 ->values()
                 ->all(),
+            ...($kind === AllowanceKind::DataPoints ? $reports : []),
         ), $kinds);
+    }
+
+    /**
+     * How far the runtime's data point reports cover a month (spec 029 FR-014): final once
+     * its watermark passed the month's end, and stale when an open month has not been
+     * reported for longer than `billing.usage_report_stale_seconds`.
+     *
+     * @return array{final: bool, reportedAt: ?CarbonImmutable, stale: bool}
+     */
+    private function dataPointReports(CarbonImmutable $month): array
+    {
+        $watermark = DB::table('billing_usage_watermarks')->where('source', DataPointReports::SOURCE)->first();
+        $reportedAt = $watermark === null ? null : CarbonImmutable::parse((string) $watermark->reported_at)->utc();
+        $final = $watermark !== null && CarbonImmutable::parse((string) $watermark->final_through)->greaterThanOrEqualTo($month->addMonthNoOverflow());
+        $stale = ! $final && ($reportedAt === null || $reportedAt->lessThan(CarbonImmutable::now()->subSeconds((int) config('billing.usage_report_stale_seconds'))));
+
+        return ['final' => $final, 'reportedAt' => $reportedAt, 'stale' => $stale];
     }
 
     /**
@@ -177,7 +196,7 @@ final class Usage implements SmsAllowance
         return array_map(
             fn (MonthlyUsage $usage): OrganizationUsage => new OrganizationUsage(
                 (int) ($counts[$usage->kind->value] ?? 0),
-                new MonthlyUsage($usage->kind, $usage->month, $usage->count, $usage->allowance, $usage->overage),
+                new MonthlyUsage($usage->kind, $usage->month, $usage->count, $usage->allowance, $usage->overage, null, $usage->final, $usage->reportedAt, $usage->stale),
             ),
             $this->forAccount($account, $month, $withSms),
         );
