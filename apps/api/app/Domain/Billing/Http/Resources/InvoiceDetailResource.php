@@ -6,6 +6,7 @@ namespace App\Domain\Billing\Http\Resources;
 
 use App\Domain\Billing\Enums\InvoiceLineKind;
 use App\Domain\Billing\Models\InvoiceLine;
+use App\Domain\Billing\Services\InvoiceHistory;
 use App\Domain\Billing\Services\InvoicePdf;
 use Illuminate\Http\Request;
 
@@ -13,7 +14,7 @@ use Illuminate\Http\Request;
  * An invoice with its lines, each organization's usage and its credit notes (spec 029
  * FR-032). Issued invoices carry the details they were issued with; a draft shows the
  * account's and operator's details as they are now. `owner` leaves out what is for
- * administrators only: the reason for drafting early and adjustment notes.
+ * administrators only: the reason for drafting early, adjustment notes and the history.
  */
 final class InvoiceDetailResource extends InvoiceResource
 {
@@ -73,6 +74,12 @@ final class InvoiceDetailResource extends InvoiceResource
                 'count' => (int) $row->count,
             ], app(InvoicePdf::class)->usage($invoice)),
             'credit_notes' => CreditNoteResource::collection($invoice->creditNotes),
+            /**
+             * Drafting, adjustments, issuing and credit notes, newest first; empty for owners.
+             *
+             * @var list<array{at: string, action: 'drafted'|'recalculated'|'adjustment_added'|'adjustment_removed'|'issued'|'credit_note_issued', actor: array{id: int, name: string}|null, description: string|null, amount: int|null, note: string|null, number: string|null}>
+             */
+            'history' => $this->owner ? [] : app(InvoiceHistory::class)->for($invoice),
         ];
     }
 }

@@ -85,6 +85,7 @@ async function setup(
         },
       })
     if (path === "/api/v1/billing-accounts") return json({ data: state.accounts })
+    if (/^\/api\/v1\/billing-accounts\/[0-9a-f-]{36}\/invoices$/.test(path)) return json({ data: { invoices: [], credit_notes: [] } })
     const create = /^\/api\/v1\/billing-accounts\/([0-9a-f-]{36})\/organizations$/.exec(path)
     if (create && request.method() === "POST") {
       const body = request.postDataJSON() as Record<string, unknown>

@@ -27,6 +27,10 @@ portal or admin images.
   never a local `Age`.
 - **Allowances** use `AllowanceMeter`, and a billing account's usage by month
   `UsagePanel` (`@iot-os/ui/components/usage-overview`).
+- **Money** is integers in minor units: show it with `formatMoney` and read typed
+  amounts with `parseMoney` (`@iot-os/ui/lib/money`), never by dividing by 100. Tax
+  rates use `formatBasisPoints`; invoice months and payment states come from
+  `@iot-os/ui/lib/invoices`.
 - **Type** uses the named scale: `text-display`, `text-title`, `text-heading`,
   `text-body`, `text-meta`, `text-code`, and `text-micro` for initials and count
   badges. No raw sizes.

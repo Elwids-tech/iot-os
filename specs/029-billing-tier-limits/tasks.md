@@ -1145,33 +1145,79 @@ download them.
 
 **Independent Test**: quickstart section 6 in the apps.
 
-- [ ] T092 [P] [US6] `apps/admin/src/pages/BillingSettingsPage.tsx`
+- [X] T092 [P] [US6] `apps/admin/src/pages/BillingSettingsPage.tsx`
   (`/settings/billing`): operator details form with `useDiscardGuard`, prefixes,
   read-only currency and "Payments on/off", and a tax rates `DataTable` with
   `TaxRateDialog.tsx` (name, percentage to two decimals, stored as basis points).
-- [ ] T093 [P] [US6] `apps/admin/src/components/PlanPricesDialog.tsx` (opened from
+
+  As built (PR 10): a stale save shows "Someone else saved these settings" with **Load
+  saved settings**; tax rates are edited and archived from row actions. "Payments
+  on/off" is left to PR 12: the API has no payment setting until PR 11. Money and
+  percentages go through the kit's new `lib/money.ts` (`formatMoney`, `parseMoney`,
+  `formatBasisPoints`, `parseBasisPoints`).
+- [X] T093 [P] [US6] `apps/admin/src/components/PlanPricesDialog.tsx` (opened from
   `PlanPage`; it states "Applies from {next month}") and `PriceOverrideDialog.tsx`
   plus a **Prices** Panel and a **Billing details** Panel (address, tax number, tax
   rate `SearchableSelect`) on `BillingAccountPage.tsx`.
-- [ ] T094 [US6] `apps/admin/src/pages/InvoicesPage.tsx` (`/billing/invoices`): tabs
+
+  As built (PR 10): `PlanPage` gains a **Prices** panel (`PriceList`: this month and the
+  change waiting for next month); its history moved below the accounts. The account's
+  Prices panel is a `DataTable` (this month, from next month, override note) and says
+  there is nothing to charge without a plan. Billing details open
+  `BillingDetailsDialog.tsx` from **Edit billing details**; archived rates are not
+  offered unless the account already has one.
+- [X] T094 [US6] `apps/admin/src/pages/InvoicesPage.tsx` (`/billing/invoices`): tabs
   Drafts, Waiting for usage (with **Draft anyway** and a note dialog), Issued and
   Unpaid, each a `DataTable` (number, account, month, total, `Status` for payment
   status, `RelativeTime`).
-- [ ] T095 [US6] `apps/admin/src/pages/InvoicePage.tsx`: Panels Lines, Usage by
+
+  As built (PR 10): the list API gains `unpaid=1` (issued and pending or failed); a
+  notice counts accounts waiting over three days. `DraftInvoiceDialog.tsx` serves
+  **Draft anyway** (fixed month) and the account page's **Draft invoice** (this month
+  or the twelve before), and opens the draft once its unsaved-changes guard is clear.
+  Kit status domains `invoice` and `payment`; `paymentState()` reads an unpaid invoice
+  past its due date as overdue.
+- [X] T095 [US6] `apps/admin/src/pages/InvoicePage.tsx`: Panels Lines, Usage by
   organization, Credit notes and History. A sticky action bar with `ref={keepToastsAbove}`
   holds Recalculate, Add adjustment (`InvoiceAdjustmentDialog.tsx`), Issue (with a
   confirmation stating it cannot be changed after) and Credit note
   (`CreditNoteDialog.tsx`), plus PDF/CSV links. The account page gains an
   **Invoices** Panel. Nav: **Invoices** and Settings → **Billing**.
-- [ ] T096 [US6] `apps/portal/src/billing/`: an **Invoices** Panel on the account (issued
+
+  As built (PR 10): the admin invoice detail gains `history` (`InvoiceHistory`, from the
+  audit log: drafted, recalculated, adjustments added and removed, issued, credit notes;
+  empty for owners). Totals and "Billed to" sit in the page's rail; a draft drafted
+  early shows its note in a notice. Adjustments are removed from the Lines row actions.
+- [X] T096 [US6] `apps/portal/src/billing/`: an **Invoices** Panel on the account (issued
   invoices and credit notes, `Status`, PDF and CSV), `InvoiceDetail.tsx` opened by
   `?invoice=`, and the plan's prices on the **Plan** Panel ("from {month}" when they
   change next month).
-- [ ] T097 [P] Playwright: `apps/admin/e2e/billing-invoices.spec.ts` (settings, tax
+
+  As built (PR 10): credit notes have their own panel, shown when there are any; the
+  invoice opens in a sheet; switching account closes it.
+- [X] T097 [P] Playwright: `apps/admin/e2e/billing-invoices.spec.ts` (settings, tax
   rate, draft anyway, adjust, issue, credit note) and
   `apps/portal/e2e/billing-invoices.spec.ts` (list, detail, downloads; no drafts).
-- [ ] T098 Verify: both apps' lint and tests. Rebuild `admin` and `portal`, then run
+
+  As built (PR 10): admin four cases (settings with a stale save, tax rate, billing
+  details; plan prices and an override; draft anyway to credit note; phone width);
+  portal two (prices, list, credit notes, downloads, the sheet with axe; a direct
+  `?invoice=` link). The existing billing specs' mocks gained prices, billing details
+  and empty invoice lists.
+- [X] T098 Verify: both apps' lint and tests. Rebuild `admin` and `portal`, then run
   quickstart section 6 in the apps without discarding unsaved edits.
+
+  As built (PR 10): both apps' lint, the kit's unit tests, admin e2e (62) and portal
+  mocked e2e (174, against a build) pass. The API family, admin and portal were rebuilt
+  from this branch and quickstart section 6 was run in the apps, headless, as seeded
+  users, so the browser pane's signed-in tenant session was left alone. The
+  administrator found the saved operator details and tax rate, the plan's and the
+  account's prices, and the billing details; drafted a month from the account page;
+  added a charge (tax at 15%); issued it with the next number; and issued a credit
+  note. The owner saw the prices, the invoice and both credit notes in the portal, and
+  opened the invoice by its link; PDFs and CSVs downloaded for both. A member owns
+  nothing. The credit note larger than what is owed stays covered by
+  `InvoiceIssuingTest` until payments exist (PR 11).
 
 ---
 

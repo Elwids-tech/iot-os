@@ -208,6 +208,23 @@ const domains = {
     trial: { tone: "info", label: "Trial" },
     trial_unpaid: { tone: "warning", label: "Trial ended, no payment method" },
   },
+  /** Invoices (spec 029 US6): a draft can still change; an issued invoice never does. */
+  invoice: {
+    draft: { tone: "muted", label: "Draft" },
+    issued: { tone: "info", label: "Issued" },
+    incomplete: { tone: "warning", label: "Usage may be incomplete" },
+    waiting: { tone: "info", label: "Waiting for usage" },
+    overdue: { tone: "warning", label: "Waiting over 3 days" },
+  },
+  /** What is owed on an issued invoice (spec 029 US6, US7). */
+  payment: {
+    pending: { tone: "info", label: "Awaiting payment" },
+    paid: { tone: "good", label: "Paid" },
+    failed: { tone: "critical", label: "Payment failed" },
+    credited: { tone: "muted", label: "Credited" },
+    paid_outside: { tone: "good", label: "Paid another way" },
+    overdue: { tone: "warning", label: "Overdue" },
+  },
   /** Support ticket priority, set by the team. */
   priority: {
     low: { tone: "muted", label: "Low" },

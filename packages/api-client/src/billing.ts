@@ -403,6 +403,23 @@ export type InvoiceDetail = InvoiceSummary & {
   lines: InvoiceLine[]
   usage: { organization_uuid: string; organization_name: string; kind: "alerts" | "sms" | "data_points"; count: number }[]
   credit_notes: CreditNote[]
+  /** Newest first; administrators only, empty for owners. */
+  history: InvoiceHistoryEntry[]
+}
+
+/**
+ * One step in an invoice's history. An adjustment carries its description, amount and
+ * note; drafting early carries the note; issuing and credit notes carry the number, and a
+ * credit note its amount and reason (`note`). `actor` is null for the monthly run.
+ */
+export type InvoiceHistoryEntry = {
+  at: string
+  action: "drafted" | "recalculated" | "adjustment_added" | "adjustment_removed" | "issued" | "credit_note_issued"
+  actor: { id: number; name: string } | null
+  description: string | null
+  amount: number | null
+  note: string | null
+  number: string | null
 }
 
 /** An account whose invoice for an ended month waits for final usage; `overdue` after three days. */

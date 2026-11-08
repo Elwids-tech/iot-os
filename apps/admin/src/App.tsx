@@ -13,6 +13,9 @@ import { ActivityPage } from "./pages/ActivityPage"
 import { NewRolePage } from "./pages/NewRolePage"
 import { BillingAccountPage } from "./pages/BillingAccountPage"
 import { BillingAccountsPage } from "./pages/BillingAccountsPage"
+import { BillingSettingsPage } from "./pages/BillingSettingsPage"
+import { InvoicePage } from "./pages/InvoicePage"
+import { InvoicesPage } from "./pages/InvoicesPage"
 import { OrganizationPermissionsPage } from "./pages/OrganizationPermissionsPage"
 import { OrganizationsPage } from "./pages/OrganizationsPage"
 import { PlanPage } from "./pages/PlanPage"
@@ -122,6 +125,9 @@ function PlatformAdministrationApp() {
         <Route path="billing-accounts/:billingAccountUuid" element={<BillingAccountPage />} />
         <Route path="plans" element={<PlansPage />} />
         <Route path="plans/:planUuid" element={<PlanPage />} />
+        <Route path="billing/invoices" element={<InvoicesPage />} />
+        <Route path="billing/invoices/:invoiceUuid" element={<InvoicePage />} />
+        <Route path="settings/billing" element={<BillingSettingsPage />} />
         <Route path="users" element={<UsersPage currentUser={screen.user} />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="roles/new" element={<NewRolePage />} />

@@ -610,6 +610,10 @@ Things that have cost time before. Add to this list when something surprises you
   `STUDIO_BASE_URL=http://127.0.0.1:4183`. Use a build, as CI does, not the Vite dev
   server: dev builds print ECharts warnings that the dashboard and adapter specs count
   as page errors. Leave out `studio.spec.ts`, which needs a live API.
+- **`page.request` is not the signed-in browser to Sanctum.** It shares the
+  context's cookies but sends no `Origin` or `Referer`, so the API treats it as a
+  stateless client and answers 401, for an invoice PDF say. Click the link and wait
+  for the `download` event instead, or send `Referer` with the app's origin.
 - **An open dialog hides the page behind it from role queries.** Radix marks the rest
   of the page `aria-hidden`, so `expect(getByRole("row", …)).toHaveCount(0)` passes
   while a confirm dialog is still open, before its request is sent. Wait for something

@@ -97,6 +97,7 @@ async function setup(page: Page, options: { manage?: boolean; reportedAt?: strin
           },
         ],
       })
+    if (path === `/api/v1/billing-accounts/${accountUuid}/invoices`) return json({ data: { invoices: [], credit_notes: [] } })
     if (path === `/api/v1/billing-accounts/${accountUuid}/usage`) {
       months.push(url.searchParams.get("month") ?? "")
       return json({ data: october })

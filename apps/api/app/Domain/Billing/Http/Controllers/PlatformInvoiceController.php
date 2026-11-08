@@ -52,6 +52,8 @@ final class PlatformInvoiceController
             /** A billing account's uuid. */
             'account' => ['nullable', 'uuid'],
             'payment_status' => ['nullable', Rule::enum(PaymentStatus::class)],
+            /** Issued invoices still to be paid: pending or failed. */
+            'unpaid' => ['nullable', 'boolean'],
         ]);
         $perPage = min(max((int) $request->query('per_page', 25), 1), 100);
 
@@ -60,6 +62,7 @@ final class PlatformInvoiceController
             ->when($request->filled('month'), fn ($query) => $query->whereDate('month', $request->query('month').'-01'))
             ->when($request->filled('account'), fn ($query) => $query->whereHas('billingAccount', fn ($query) => $query->where('uuid', $request->query('account'))))
             ->when($request->filled('payment_status'), fn ($query) => $query->where('status', Invoice::ISSUED)->where('payment_status', $request->query('payment_status')))
+            ->when($request->boolean('unpaid'), fn ($query) => $query->where('status', Invoice::ISSUED)->whereIn('payment_status', [PaymentStatus::Pending->value, PaymentStatus::Failed->value]))
             ->with('billingAccount')
             ->orderByDesc('month')
             ->orderBy('number')

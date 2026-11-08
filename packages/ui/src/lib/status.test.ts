@@ -33,6 +33,14 @@ describe("status vocabulary", () => {
     expect(statusOf("trial_unpaid", "plan_assignment").tone).toBe("warning")
   })
 
+  it("reads invoices and what is owed on them in their domains (spec 029)", () => {
+    expect(statusOf("draft", "invoice")).toEqual({ tone: "muted", label: "Draft" })
+    expect(statusOf("incomplete", "invoice").tone).toBe("warning")
+    expect(statusOf("pending", "payment")).toEqual({ tone: "info", label: "Awaiting payment" })
+    expect(statusOf("failed", "payment").tone).toBe("critical")
+    expect(statusOf("paid_outside", "payment")).toEqual({ tone: "good", label: "Paid another way" })
+  })
+
   it("reads an alert activation as a warning, unlike a runtime's", () => {
     expect(statusOf("activated")).toEqual({ tone: "good", label: "Activated" })
     expect(statusOf("activated", "alert")).toEqual({ tone: "warning", label: "Activated" })
