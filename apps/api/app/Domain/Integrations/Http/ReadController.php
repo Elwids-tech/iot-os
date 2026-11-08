@@ -8,6 +8,7 @@ use App\Domain\Automation\Models\Alert;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Integrations\Services\AlertSnapshot;
+use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\Request;
@@ -26,9 +27,12 @@ final class ReadController
         return ['data' => $page->getCollection()->map(fn ($device) => $this->deviceView($device)), 'meta' => $this->meta($page)];
     }
 
+    /** The device with its profile, site and parameters (spec 030, FR-014); the list stays as it is. */
     public function device(Request $request, Organization $organization, string $uuid): array
     {
-        return ['data' => $this->deviceView($this->deviceQuery($request, $organization)->where('uuid', $uuid)->firstOrFail())];
+        $device = $this->deviceQuery($request, $organization)->where('uuid', $uuid)->firstOrFail();
+
+        return ['data' => [...$this->deviceView($device), 'profile' => DeviceView::profile($device), 'site' => DeviceView::site($device), 'parameters' => $this->parameters($device)]];
     }
 
     // Scramble does not read the rules in pagination(); these describe them in the
@@ -56,9 +60,10 @@ final class ReadController
         return ['data' => $this->alertView($this->alertQuery($request, $organization)->where('uuid', $uuid)->firstOrFail())];
     }
 
+    /** The granted devices, judged by the one resolver (spec 030); the middleware proved the organization. */
     private function deviceQuery(Request $request, Organization $organization)
     {
-        return Device::where('organization_id', $organization->id)->whereIn('uuid', $request->attributes->get('integration_application')->device_uuids);
+        return ApplicationGrants::for($request->attributes->get('integration_application'))->deviceQuery(Device::where('organization_id', $organization->id));
     }
 
     private function alertQuery(Request $request, Organization $organization)
@@ -82,6 +87,26 @@ final class ReadController
     private function deviceView(Device $device): array
     {
         return [...$device->only(['uuid', 'code', 'name', 'lifecycle', 'last_seen_at']), 'presence' => DeviceView::presence($device)];
+    }
+
+    /**
+     * The parameters of the configuration's profile, as the latest read names them
+     * (research R9): the name is the profile's label and the decimals its display
+     * precision. Empty when the device has no profile revision, never an error.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function parameters(Device $device): array
+    {
+        $canonical = ($device->appliedConfiguration ?? $device->lastAppliedConfiguration)?->definition['profile_canonical_json'] ?? null;
+        $profile = is_string($canonical) ? json_decode($canonical, true) : $canonical;
+
+        return collect(is_array($profile) ? ($profile['parameters'] ?? []) : [])->map(fn (array $parameter) => [
+            'uuid' => $parameter['uuid'], 'key' => $parameter['key'], 'name' => $parameter['label'] ?? $parameter['key'],
+            'unit' => $parameter['unit'] ?? null, 'data_type' => $parameter['data_type'] ?? null,
+            'decimals' => isset($parameter['display']['precision']) ? (int) $parameter['display']['precision'] : null,
+            'accepts_command' => (bool) ($parameter['accepts_command'] ?? false), 'reports_state' => (bool) ($parameter['reports_state'] ?? false),
+        ])->values()->all();
     }
 
     private function alertView(Alert $alert): array

@@ -7,6 +7,7 @@ use App\Domain\Integrations\Http\EventController;
 use App\Domain\Integrations\Http\GeospatialController;
 use App\Domain\Integrations\Http\LocationController;
 use App\Domain\Integrations\Http\ReadController;
+use App\Domain\Integrations\Http\SiteReadController;
 use App\Domain\Integrations\Http\TelemetryController;
 use App\Domain\Integrations\Http\WebhookController;
 use Illuminate\Support\Facades\Route;
@@ -43,4 +44,5 @@ Route::prefix('integration/v1/organizations/{organization}')->whereUuid(['organi
     Route::get('devices/{uuid}', [ReadController::class, 'device'])->middleware(AuthenticateApplication::class.':devices:read');
     Route::get('alerts', [ReadController::class, 'alerts'])->middleware(AuthenticateApplication::class.':alerts:read');
     Route::get('alerts/{uuid}', [ReadController::class, 'alert'])->middleware(AuthenticateApplication::class.':alerts:read');
+    Route::get('sites', [SiteReadController::class, 'sites'])->middleware(AuthenticateApplication::class.':entities:read');
 });

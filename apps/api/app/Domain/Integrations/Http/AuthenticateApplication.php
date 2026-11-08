@@ -37,6 +37,9 @@ final class AuthenticateApplication
         if ($ability === 'geofences:activate') {
             abort_unless(in_array('geofences:manage', $application->abilities, true) && in_array('geofences:manage', $token->abilities, true), 403, 'Geofence management access is required for activation.');
         }
+        if ($ability === 'telemetry:stream') {
+            abort_unless(in_array('telemetry:read', $application->abilities, true) && in_array('telemetry:read', $token->abilities, true), 403, 'Telemetry read access is required for the stream.');
+        }
         $key = 'integration-application:'.$application->uuid;
         if (! RateLimiter::attempt($key, self::REQUESTS_PER_MINUTE, fn () => true, 60)) {
             return response()->json(['message' => 'Application rate limit exceeded.'], 429)->header('Retry-After', (string) RateLimiter::availableIn($key));
@@ -44,6 +47,10 @@ final class AuthenticateApplication
         $request->attributes->set('integration_application', $application);
         $token->forceFill(['last_used_at' => now()])->save();
 
-        return $next($request)->header('Cache-Control', 'no-store');
+        // Set on the header bag so a streamed response (spec 030) carries it as JSON does.
+        $response = $next($request);
+        $response->headers->set('Cache-Control', 'no-store');
+
+        return $response;
     }
 }

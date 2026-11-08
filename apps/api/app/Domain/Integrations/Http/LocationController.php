@@ -8,6 +8,7 @@ use App\Domain\Automation\Models\Deployment;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Devices\Services\RuntimeClient;
+use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -17,8 +18,8 @@ final class LocationController
 {
     private function query(Request $request, Organization $organization, string $uuid)
     {
-        Device::where('organization_id', $organization->id)
-            ->whereIn('uuid', $request->attributes->get('integration_application')->device_uuids)
+        ApplicationGrants::for($request->attributes->get('integration_application'))
+            ->deviceQuery(Device::where('organization_id', $organization->id))
             ->where('uuid', $uuid)->firstOrFail();
 
         // Every version the runtime applied, superseded and stopped ones included, so events

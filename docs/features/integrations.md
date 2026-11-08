@@ -25,9 +25,15 @@ An **application** belongs to one organization and has:
   | `locations:read` | Location map query (current positions and trails) |
   | `geofences:read` | Geofences and activation status |
   | `geofences:manage`, `geofences:activate` | Create and update geofences; activation needs both |
+  | `entities:read` | Sites (and, once spec 009 lands, the entity hierarchy) |
+  | `telemetry:stream` | The live telemetry stream ([ADR-032](../adr/ADR-032-applications-follow-a-plant.md); served by a later pull request); also needs `telemetry:read` |
 
-- **1–100 granted devices** of that organization. Every read rechecks ownership;
-  alerts are scoped by their deployment's bound device.
+- **a grant**: either 1–100 named devices of that organization, or a scope of 1–50
+  of its sites ([grants by site](#grants-by-site)). Every request resolves the grant
+  afresh through one resolver
+  ([`ApplicationGrant`](../../apps/api/app/Domain/Integrations/Services/ApplicationGrant.php)),
+  the only place a device is judged granted; alerts are scoped by their deployment's
+  bound device.
 
 Machine tokens use Sanctum's hashed token storage but a separate middleware
 ([`AuthenticateApplication`](../../apps/api/app/Domain/Integrations/Http/AuthenticateApplication.php)):
@@ -45,11 +51,29 @@ and the token.
 - Limits: 60 requests per minute per application, 240 per minute per source IP;
   429 includes `Retry-After`. Limits use Laravel's shared cache.
 
+### Grants by site
+
+A grant is a device list or a scope of sites, never both (spec 030, ADR-032). A
+device counts as granted when it is in the list, or when its site is in the scope at
+the time of the request: devices registered at a granted site later are covered
+without touching the application, a device moved to another site stops being
+visible at its next request, and a device with no site is never in a scope. A scope
+has no ceiling; the limit of 100 is for named lists.
+
+Every read, the event feed and webhook deliveries filter by the same resolved set.
+Changing the scope bumps `grant_revision` with the consequences of changing the list
+(token invalidated, event cursors rejected until rebuilt, webhook disabled). Deleting
+a site removes it from every scope naming it with the same consequences, audited as
+`application.grants_updated` with `reason: site_deleted`; a scope left empty stays
+empty and the application reads nothing until a manager grants a site again. A scope
+naming another organization's site is refused with the generic
+"Every site must belong to this organization." message, as a foreign device is.
+
 ### Managing applications
 
 **Connect → Integrations** (needs `Device.view` and `Device.manage`) creates
-applications, picks devices and abilities, issues tokens and configures the
-webhook. Secrets appear once in a masked panel and live only in component state;
+applications, picks abilities and either devices or sites (**Grant access by**),
+issues tokens and configures the webhook. Secrets appear once in a masked panel and live only in component state;
 dismissing it or leaving the page clears them. Saving grants explains that it
 invalidates the token and disables the webhook. Conflicts keep your edits until
 you choose **Reload latest state**.
@@ -59,8 +83,8 @@ Management API under `/api/v1/organizations/{organization}/applications`
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /`, `POST /` | List (never tokens); create `{name, abilities, device_uuids}` |
-| `PUT /{application}` | Replace grants with `{revision, name, abilities, device_uuids}` |
+| `GET /`, `POST /` | List (never tokens); create `{name, abilities, device_uuids}` or `{name, abilities, site_uuids}` |
+| `PUT /{application}` | Replace grants with `{revision, name, abilities, device_uuids \| site_uuids}`; the view carries both lists plus `devices[]` and `sites[]` |
 | `POST /{application}/token` | Issue or rotate `{revision, abilities, expires_in_days}` |
 | `POST /{application}/revoke` | Revoke permanently `{revision}` |
 | `GET/PUT /{application}/webhook`, `POST .../webhook/disable` | Webhook endpoint |
@@ -86,7 +110,8 @@ in time. Responses to authenticated requests carry `Cache-Control: no-store`.
 
 | Method and path | Ability | Contract |
 | --- | --- | --- |
-| `GET devices`, `GET devices/{uuid}` | `devices:read` | `uuid`, `code`, `name`, `lifecycle`, `presence`, `last_seen_at` |
+| `GET devices`, `GET devices/{uuid}` | `devices:read` | `uuid`, `code`, `name`, `lifecycle`, `presence`, `last_seen_at`; the single read adds `profile`, `site` and `parameters` (below) |
+| `GET sites` | `entities:read` | Every site of the organization by name, not paginated, with `granted_devices_count` |
 | `GET alerts`, `GET alerts/{uuid}` | `alerts:read` | Episode snapshot; `condition=active\|cleared` filter |
 | `GET events/checkpoint`, `GET events?cursor=&limit=` | `events:read` | Ordered event feed (below) |
 | `GET devices/{uuid}/telemetry/latest` | `telemetry:read` | `telemetry-latest.v1` |
@@ -103,6 +128,18 @@ Device, alert and location-binding lists return
 `{data, meta: {current_page, last_page, total}}`, ordered by creation, `page` 1–100000
 and `per_page` 1–100. The geofence list is not paginated and is ordered by name. Lists
 are current state, not snapshots.
+
+### Parameters and sites
+
+`GET devices/{uuid}` carries what an application can bind (spec 030): `profile`
+(`uuid`, `name`, `revision`), `site` (`uuid`, `name`, `timezone`) and `parameters`,
+each with `uuid`, `key`, `name` (the profile's label), `unit`, `data_type`, `decimals`
+(the display precision, or null), `accepts_command` and `reports_state`, read from
+the applied, else last-applied, configuration. `profile` and `site` are null when
+absent; `parameters` is empty when the device has no profile revision, never an
+error. The device list is unchanged. `GET sites` returns every site of the
+organization ordered by name with `granted_devices_count`, the devices at the site
+within the application's resolved grant; without `entities:read` it is 403.
 
 ### Telemetry semantics
 
@@ -214,7 +251,8 @@ verification flag ([testing](../dev/testing.md#verification-scripts)).
 22.12+, not published to a registry) covers devices, alerts, the event feed,
 webhook verification, telemetry (one device with `latestTelemetry()`, up to 100 with
 `latestQuery()`), records, location bindings and fixes, the location map and
-geofences. It validates responses at runtime, rejects redirects, has a
+geofences; the 0.6.0 surface adds `sites()` and the device read's `profile`, `site`
+and `parameters` (released with spec 030's last pull request). It validates responses at runtime, rejects redirects, has a
 15-second default timeout and never retries automatically. It accepts every event
 type in the contract, `automation.triggered.v1` included.
 

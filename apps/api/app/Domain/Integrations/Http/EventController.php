@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Integrations\Http;
 
-use App\Domain\Devices\Models\Device;
 use App\Domain\Integrations\Models\IntegrationApplication;
+use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
@@ -30,7 +30,8 @@ final class EventController
         $after = isset($input['cursor']) ? $this->position($app, $input['cursor']) : 0;
         abort_if($after > $head, 409, 'Event history changed. Rebuild the projection from a fresh checkpoint.');
         $limit = (int) ($input['limit'] ?? 100);
-        $devices = Device::where('organization_id', $organization->id)->whereIn('uuid', $app->device_uuids)->pluck('uuid');
+        // The resolved grant, afresh per page (spec 030 FR-019): a site scope follows the devices' current sites.
+        $devices = ApplicationGrants::for($app)->resolveUuids();
         $rows = DB::table('integration_events')->where('organization_id', $organization->id)->whereIn('device_uuid', $devices)->where('sequence', '>', $after)->where('sequence', '<=', $head)->orderBy('sequence')->limit($limit + 1)->get();
         $more = $rows->count() > $limit;
         $rows = $rows->take($limit);

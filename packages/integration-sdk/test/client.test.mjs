@@ -175,3 +175,36 @@ test('automation events from the contract example are accepted by the feed and w
   const {node_id,...missing}=automation.data
   await assert.rejects(make(async()=>Response.json({...example,data:[{...automation,data:missing}]})).events(),IotContractError)
 })
+
+// Parameters and sites (spec 030 PR 030-1, 0.6.0).
+test('a device read carries its profile, site and parameters, validated additively', async () => {
+  const parameters=[{uuid:id,key:'vibration',name:'Vibration',unit:'mm/s',data_type:'number',decimals:1,accepts_command:false,reports_state:true},{uuid:id,key:'setpoint',name:'Speed setpoint',unit:null,data_type:'integer',decimals:null,accepts_command:true,reports_state:true}]
+  const detail={...item,profile:{uuid:id,name:'Pump',revision:3},site:{uuid:id,name:'Packaging hall',timezone:'Asia/Colombo'},parameters}
+  const device=await make(async()=>Response.json({data:detail})).device(id)
+  assert.deepEqual(device.parameters,parameters)
+  assert.equal(device.profile.revision,3)
+  assert.equal(device.site.timezone,'Asia/Colombo')
+  // A 0.5 platform's device, and a device without a profile revision or site, still parse.
+  assert.equal((await make(async()=>Response.json({data:item})).device(id)).parameters,undefined)
+  const bare=await make(async()=>Response.json({data:{...item,profile:null,site:null,parameters:[]}})).device(id)
+  assert.equal(bare.profile,null)
+  assert.deepEqual(bare.parameters,[])
+  for(const invalid of [{...detail,parameters:'none'},{...detail,parameters:[{...parameters[0],decimals:-1}]},{...detail,parameters:[{...parameters[0],accepts_command:'no'}]},{...detail,profile:{uuid:id,name:'Pump',revision:0}},{...detail,site:{uuid:id,name:'Hall'}}]) {
+    await assert.rejects(make(async()=>Response.json({data:invalid})).device(id),IotContractError)
+  }
+  const list=await make(async()=>Response.json({data:[item],meta:{current_page:1,last_page:1,total:1}})).devices()
+  assert.equal(list.data[0].parameters,undefined)
+})
+test('sites are listed with their granted device counts and malformed sites are rejected', async () => {
+  const site={uuid:id,name:'Packaging hall',timezone:'Asia/Colombo',address:'Example Road 1',latitude:6.9,longitude:79.8,granted_devices_count:212}
+  const bare={uuid:id,name:'Yard',timezone:'UTC',address:null,latitude:null,longitude:null,granted_devices_count:0}
+  let request
+  const sites=await make(async(url,options)=>{request={url,options};return Response.json({data:[site,bare]})}).sites()
+  assert.deepEqual(sites,[site,bare])
+  assert.match(request.url,/\/sites$/)
+  assert.equal(request.options.headers.Authorization,'Bearer secret-for-test')
+  for(const invalid of [{data:[{...site,granted_devices_count:-1}]},{data:[{...site,latitude:'6.9'}]},{data:[{...site,timezone:null}]},{data:{}}]) {
+    await assert.rejects(make(async()=>Response.json(invalid)).sites(),IotContractError)
+  }
+  await assert.rejects(make(async()=>Response.json({message:'forbidden'},{status:403})).sites(),e=>e instanceof IotApiError&&e.status===403)
+})

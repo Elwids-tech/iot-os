@@ -103,10 +103,8 @@ final class DeviceView
         $data['operation'] = $device->latestOperation ? self::operation($device->latestOperation) : null;
 
         $data['candidate'] = $device->candidate ? self::candidate($device->candidate) : null;
-        // Same rule as telemetry reads: the applied configuration, else the last one the runtime confirmed.
-        $artifact = ($device->appliedConfiguration ?? $device->lastAppliedConfiguration)?->artifact;
-        $data['profile'] = $artifact?->profile ? ['uuid' => $artifact->profile->uuid, 'name' => $artifact->profile->name, 'revision' => $artifact->revision] : null;
-        $data['site'] = $device->site ? $device->site->only(['uuid', 'name', 'timezone']) : null;
+        $data['profile'] = self::profile($device);
+        $data['site'] = self::site($device);
         $data['tags'] = $device->tags ?? [];
         $data['attributes'] = (object) ($device->custom_attributes ?? []);
         if ($detail) {
@@ -121,6 +119,26 @@ final class DeviceView
         }
 
         return $data;
+    }
+
+    /**
+     * The profile summary of the device's configuration, or null without one. Same rule as
+     * telemetry reads: the applied configuration, else the last one the runtime confirmed.
+     * Shared with the integration device read (spec 030).
+     *
+     * @return ?array{uuid: string, name: string, revision: int}
+     */
+    public static function profile(Device $device): ?array
+    {
+        $artifact = ($device->appliedConfiguration ?? $device->lastAppliedConfiguration)?->artifact;
+
+        return $artifact?->profile ? ['uuid' => $artifact->profile->uuid, 'name' => $artifact->profile->name, 'revision' => $artifact->revision] : null;
+    }
+
+    /** @return ?array{uuid: string, name: string, timezone: string} */
+    public static function site(Device $device): ?array
+    {
+        return $device->site ? $device->site->only(['uuid', 'name', 'timezone']) : null;
     }
 
     public static function configuration(DeviceConfiguration $configuration): array

@@ -5,20 +5,24 @@ declare(strict_types=1);
 namespace App\Domain\Integrations\Http;
 
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Integrations\Models\IntegrationApplication;
+use App\Domain\Integrations\Services\ApplicationGrant;
+use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Integrations\Services\WebhookDispatch;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 final class ApplicationController
 {
-    public const ABILITIES = ['devices:read', 'alerts:read', 'events:read', 'telemetry:read', 'locations:read', 'geofences:read', 'geofences:manage', 'geofences:activate'];
+    public const ABILITIES = ['devices:read', 'alerts:read', 'events:read', 'telemetry:read', 'locations:read', 'geofences:read', 'geofences:manage', 'geofences:activate', 'entities:read', 'telemetry:stream'];
 
     public function __construct(private readonly DeviceAuthorization $authorization) {}
 
@@ -72,7 +76,7 @@ final class ApplicationController
     public function rotate(Request $request, Organization $organization, IntegrationApplication $application)
     {
         $this->authorize($request, $organization, $application);
-        $input = $request->validate(['revision' => 'required|integer|min:1', 'expires_in_days' => 'required|integer|min:1|max:90', 'abilities' => 'required|array|min:1|max:8', 'abilities.*' => ['required', 'string', 'distinct', Rule::in(self::ABILITIES)]]);
+        $input = $request->validate(['revision' => 'required|integer|min:1', 'expires_in_days' => 'required|integer|min:1|max:90', 'abilities' => 'required|array|min:1|max:10', 'abilities.*' => ['required', 'string', 'distinct', Rule::in(self::ABILITIES)]]);
         $result = DB::transaction(function () use ($application, $input, $request) {
             $locked = $this->lock($application, (int) $input['revision']);
             abort_if(array_diff($input['abilities'], $locked->abilities), 422, 'Token abilities exceed application grants.');
@@ -113,19 +117,36 @@ final class ApplicationController
         return $locked;
     }
 
+    /**
+     * A grant is a list of 1 to 100 devices or a scope of 1 to 50 sites of the
+     * organization, never both and never neither (spec 030, FR-017). A foreign device
+     * or site is refused with the same generic message, revealing nothing (FR-022).
+     */
     private function grants(Request $request, Organization $organization): array
     {
-        $input = $request->validate(['name' => 'required|string|max:255', 'abilities' => 'required|array|min:1|max:8', 'abilities.*' => ['required', 'string', 'distinct', Rule::in(self::ABILITIES)], 'device_uuids' => 'required|array|min:1|max:100', 'device_uuids.*' => 'required|uuid|distinct']);
-        $input['device_uuids'] = array_map('strtolower', $input['device_uuids']);
+        $input = $request->validate(['name' => 'required|string|max:255', 'abilities' => 'required|array|min:1|max:10', 'abilities.*' => ['required', 'string', 'distinct', Rule::in(self::ABILITIES)],
+            'device_uuids' => 'sometimes|array|max:100', 'device_uuids.*' => 'required|uuid|distinct',
+            'site_uuids' => 'sometimes|array|max:50', 'site_uuids.*' => 'required|uuid|distinct']);
+        $input['device_uuids'] = array_values(array_map('strtolower', $input['device_uuids'] ?? []));
+        $input['site_uuids'] = array_values(array_map('strtolower', $input['site_uuids'] ?? []));
+        if (($input['device_uuids'] === []) === ($input['site_uuids'] === [])) {
+            throw ValidationException::withMessages(['device_uuids' => 'Grant either a list of devices or a scope of sites: exactly one of device_uuids and site_uuids must be non-empty.']);
+        }
         abort_unless(count(array_unique($input['device_uuids'])) === count($input['device_uuids']) && Device::where('organization_id', $organization->id)->whereIn('uuid', $input['device_uuids'])->count() === count($input['device_uuids']), 422, 'Every device must belong to this organization.');
+        abort_unless(count(array_unique($input['site_uuids'])) === count($input['site_uuids']) && Site::where('organization_id', $organization->id)->whereIn('uuid', $input['site_uuids'])->count() === count($input['site_uuids']), 422, 'Every site must belong to this organization.');
 
         return $input;
     }
 
     private function view(IntegrationApplication $app): array
     {
+        $grant = ApplicationGrants::for($app);
+
         return [...$app->only(['uuid', 'name', 'abilities', 'device_uuids', 'revision', 'grant_revision', 'revoked_at']),
-            'devices' => Device::where('organization_id', $app->organization_id)->whereIn('uuid', $app->device_uuids)->get(['uuid', 'name', 'code']),
+            'site_uuids' => $app->site_uuids ?? [],
+            // The named devices of a list; a scope names sites and its devices are read live.
+            'devices' => $grant->kind() === ApplicationGrant::DEVICES ? $grant->deviceQuery()->get(['uuid', 'name', 'code']) : [],
+            'sites' => Site::where('organization_id', $app->organization_id)->whereIn('uuid', $app->site_uuids ?? [])->orderBy('name')->get(['uuid', 'name']),
             'credential' => $app->tokens()->latest('id')->first()?->only(['abilities', 'expires_at'])];
     }
 }

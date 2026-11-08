@@ -2,7 +2,7 @@
 # pull request that changes an integration operation (research R10). Format:
 # ../meta/supplement.schema.json.
 info:
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     The public HTTP API of IoT OS: the integration API (`/integration/v1`, application
     tokens) and the first-party API (`/v1`, browser sessions). `info.version` follows

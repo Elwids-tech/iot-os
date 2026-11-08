@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "IoT OS API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "The public HTTP API of IoT OS: the integration API (`/integration/v1`, application tokens) and the first-party API (`/v1`, browser sessions). `info.version` follows `1.MINOR.PATCH`, the integration API version. Generated from the Laravel application by `php artisan contract:export`; never edit `openapi.json` by hand."
   },
   "servers": [
@@ -408,6 +408,7 @@
     "/integration/v1/organizations/{organization}/devices/{uuid}": {
       "get": {
         "operationId": "read.device",
+        "summary": "Read a granted device",
         "tags": [
           "Read"
         ],
@@ -435,7 +436,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The device.",
+            "description": "The device with its profile, site and parameters.",
             "headers": {
               "Cache-Control": {
                 "$ref": "#/components/headers/NoStore"
@@ -450,7 +451,14 @@
                   ],
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/IntegrationDevice"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/IntegrationDevice"
+                        },
+                        {
+                          "$ref": "#/components/schemas/DeviceParameters"
+                        }
+                      ]
                     }
                   }
                 },
@@ -461,7 +469,39 @@
                     "name": "Herd tracker 17",
                     "lifecycle": "active",
                     "presence": "unknown",
-                    "last_seen_at": "2026-10-12T08:14:52.000000Z"
+                    "last_seen_at": "2026-10-12T08:14:52.000000Z",
+                    "profile": {
+                      "uuid": "2b1c0d9e-8f7a-4b6c-9d5e-4f3a2b1c0d9e",
+                      "name": "Herd tracker",
+                      "revision": 3
+                    },
+                    "site": {
+                      "uuid": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+                      "name": "North paddock",
+                      "timezone": "America/Edmonton"
+                    },
+                    "parameters": [
+                      {
+                        "uuid": "6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+                        "key": "battery",
+                        "name": "Battery",
+                        "unit": "%",
+                        "data_type": "number",
+                        "decimals": 1,
+                        "accepts_command": false,
+                        "reports_state": true
+                      },
+                      {
+                        "uuid": "7e3f4a5b-6c7d-4e8f-9a0b-1c2d3e4f5a6b",
+                        "key": "report_interval",
+                        "name": "Report interval",
+                        "unit": "s",
+                        "data_type": "integer",
+                        "decimals": 0,
+                        "accepts_command": true,
+                        "reports_state": true
+                      }
+                    ]
                   }
                 }
               }
@@ -504,8 +544,7 @@
             "key": "application"
           }
         ],
-        "summary": "Read a granted device",
-        "description": "404 when the device is not granted to the application."
+        "description": "The device with its profile, site and parameters, so an application can learn what it can bind (spec 030). 404 when the device is not granted to the application."
       }
     },
     "/integration/v1/organizations/{organization}/devices/{uuid}/location-bindings": {
@@ -2634,6 +2673,103 @@
         ],
         "summary": "Query current positions and trails",
         "description": "Positions, geofence condition and optional trails (last 1h, 6h, 24h or 7d) of 1 to 100 granted devices. Device entries are the device runtime's output with four fields added by the control plane. 403 when a requested device is not granted; 422 for invalid input or when the runtime rejects the query (under `errors.runtime`); 503 when the runtime is unavailable."
+      }
+    },
+    "/integration/v1/organizations/{organization}/sites": {
+      "get": {
+        "operationId": "siteRead.sites",
+        "summary": "List the organization's sites",
+        "tags": [
+          "SiteRead"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sites.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteList"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "uuid": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+                      "name": "North paddock",
+                      "timezone": "America/Edmonton",
+                      "address": "Range Road 1, Example County",
+                      "latitude": 51.05,
+                      "longitude": -114.07,
+                      "granted_devices_count": 17
+                    },
+                    {
+                      "uuid": "0b9c8d7e-6f5a-4b4c-9d3e-2f1a0b9c8d7e",
+                      "name": "South yard",
+                      "timezone": "America/Edmonton",
+                      "address": null,
+                      "latitude": null,
+                      "longitude": null,
+                      "granted_devices_count": 0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "applicationToken": []
+          }
+        ],
+        "x-audience": "integration",
+        "x-abilities": {
+          "all": [
+            "entities:read"
+          ]
+        },
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 240,
+            "per": "minute",
+            "key": "ip"
+          },
+          {
+            "limit": 60,
+            "per": "minute",
+            "key": "application"
+          }
+        ],
+        "description": "Every site of the organization, ordered by name and not paginated, each with the number of devices at it that the application's grant covers. Needs `entities:read` (spec 030), which will also serve the entity hierarchy."
       }
     },
     "/integration/v1/organizations/{organization}/telemetry/latest/query": {
@@ -9885,7 +10021,7 @@
                       "type": "string"
                     },
                     "minItems": 1,
-                    "maxItems": 8,
+                    "maxItems": 10,
                     "uniqueItems": true
                   }
                 },
@@ -23507,7 +23643,7 @@
     "/v1/organizations/{organization}/sites/{site}": {
       "delete": {
         "operationId": "site.destroy",
-        "summary": "Devices at the site keep working; they fall back to the organization's time zone",
+        "summary": "Devices at the site keep working; they fall back to the organization's time zone.\nApplication scopes naming the site lose it, with the consequences of a grant change (spec 030)",
         "tags": [
           "Site"
         ],
@@ -30485,6 +30621,123 @@
           }
         }
       },
+      "DeviceParameter": {
+        "type": "object",
+        "description": "One parameter of the device's profile, as the latest read names it: `name` is the profile's label and `decimals` its display precision.",
+        "required": [
+          "uuid",
+          "key",
+          "name",
+          "unit",
+          "data_type",
+          "decimals",
+          "accepts_command",
+          "reports_state"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "data_type": {
+            "type": "string",
+            "description": "`boolean`, `integer`, `number`, `string`, `enum`, `timestamp` or `bytes`."
+          },
+          "decimals": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "The display precision, or null when the profile sets none."
+          },
+          "accepts_command": {
+            "type": "boolean",
+            "description": "Whether the parameter accepts a command (a setting)."
+          },
+          "reports_state": {
+            "type": "boolean",
+            "description": "Whether the device reports the parameter's state."
+          }
+        }
+      },
+      "DeviceParameters": {
+        "type": "object",
+        "description": "The profile, site and parameters of a device, read from its applied, else last-applied, configuration (spec 030). `profile` and `site` are null when absent; `parameters` is empty when the device has no profile revision.",
+        "required": [
+          "profile",
+          "site",
+          "parameters"
+        ],
+        "properties": {
+          "profile": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "required": [
+              "uuid",
+              "name",
+              "revision"
+            ],
+            "properties": {
+              "uuid": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "site": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "required": [
+              "uuid",
+              "name",
+              "timezone"
+            ],
+            "properties": {
+              "uuid": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "timezone": {
+                "type": "string",
+                "description": "An IANA time zone."
+              }
+            }
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceParameter"
+            }
+          }
+        }
+      },
       "DraftConflictError": {
         "type": "object",
         "description": "409 when a device-profile draft changed since the caller read it.",
@@ -31136,7 +31389,7 @@
       },
       "IntegrationAbility": {
         "type": "string",
-        "description": "An ability granted to an application and to its token; an operation needs it on both. `events:read` also needs `alerts:read` or `geofences:read`; `geofences:activate` also needs `geofences:manage`.",
+        "description": "An ability granted to an application and to its token; an operation needs it on both. `events:read` also needs `alerts:read` or `geofences:read`; `geofences:activate` also needs `geofences:manage`; `telemetry:stream` also needs `telemetry:read`.",
         "enum": [
           "devices:read",
           "alerts:read",
@@ -31145,7 +31398,9 @@
           "locations:read",
           "geofences:read",
           "geofences:manage",
-          "geofences:activate"
+          "geofences:activate",
+          "entities:read",
+          "telemetry:stream"
         ]
       },
       "IntegrationAlert": {
@@ -31372,6 +31627,59 @@
             "items": {
               "$ref": "#/components/schemas/GeofenceAssignment"
             }
+          }
+        }
+      },
+      "IntegrationSite": {
+        "type": "object",
+        "description": "A site of the organization, with the number of granted devices at it.",
+        "required": [
+          "uuid",
+          "name",
+          "timezone",
+          "address",
+          "latitude",
+          "longitude",
+          "granted_devices_count"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "An IANA time zone."
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "latitude": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": -180,
+            "maximum": 180
+          },
+          "granted_devices_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Devices at the site within the application's resolved grant."
           }
         }
       },
@@ -32765,6 +33073,21 @@
           "plan_uuid"
         ],
         "title": "SetBillingAccountPlanRequest"
+      },
+      "SiteList": {
+        "type": "object",
+        "description": "Every site of the organization, ordered by name, not paginated.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationSite"
+            }
+          }
+        }
       },
       "StarterManifest": {
         "type": "object",

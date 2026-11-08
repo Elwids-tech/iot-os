@@ -562,14 +562,17 @@ function withParameter(query: string, name: string, value: string | undefined): 
 
 export type * from "./assistant"
 export type * from "./help"
-export type IntegrationAbility = "devices:read" | "alerts:read" | "events:read" | "telemetry:read" | "locations:read" | "geofences:read" | "geofences:manage" | "geofences:activate"
+export type IntegrationAbility = "devices:read" | "alerts:read" | "events:read" | "telemetry:read" | "locations:read" | "geofences:read" | "geofences:manage" | "geofences:activate" | "entities:read" | "telemetry:stream"
 export interface IntegrationApplication {
-  uuid: string; name: string; abilities: IntegrationAbility[]; device_uuids: string[];
+  uuid: string; name: string; abilities: IntegrationAbility[];
+  /** A grant is a device list or a scope of sites, never both (spec 030): exactly one is non-empty. */
+  device_uuids: string[]; site_uuids: string[];
   revision: number; grant_revision: number; revoked_at: string | null;
   devices: {uuid: string; name: string; code: string}[];
+  sites: {uuid: string; name: string}[];
   credential: { abilities: IntegrationAbility[]; expires_at: string } | null;
 }
-export type IntegrationGrants = Pick<IntegrationApplication, "name" | "abilities" | "device_uuids">
+export type IntegrationGrants = Pick<IntegrationApplication, "name" | "abilities" | "device_uuids" | "site_uuids">
 export interface IntegrationWebhook {
   uuid: string; url: string; revision: number; enabled: boolean; diagnostic: string | null; grant_revision: number;
 }

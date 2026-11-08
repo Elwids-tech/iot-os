@@ -151,3 +151,26 @@ or a repeated device is a 422, which the client also rejects before sending.
 need `geofences:read`; `createGeofence`, `updateGeofence` and
 `retryGeofenceActivation` need `geofences:manage` and `geofences:activate` and return
 an activation batch to poll. See [integrations](../../docs/features/integrations.md#integration-api).
+
+## Parameters and sites (0.6.0)
+
+`device(deviceUuid)` now carries what a twin can bind: `profile` (`uuid`, `name`,
+`revision`), `site` (`uuid`, `name`, `timezone`) and `parameters`, each with `uuid`,
+`key`, `name`, `unit`, `data_type`, `decimals`, `accepts_command` and `reports_state`.
+`profile` and `site` are `null` when absent and `parameters` is empty when the device
+has no profile revision; the device list is unchanged. The fields are validated when
+present, so the client still reads a platform that does not send them.
+
+```ts
+const device = await client.device(deviceUuid)
+for (const parameter of device.parameters ?? []) {
+  console.log(parameter.key, parameter.unit, parameter.accepts_command ? 'setting' : 'reading')
+}
+const sites = await client.sites() // needs entities:read
+```
+
+`sites()` returns every site of the organization, ordered by name, with
+`granted_devices_count`: the devices at the site within the application's grant. A
+grant can now be a scope of sites instead of a device list, so an application
+follows a plant as devices are added; see
+[grants by site](../../docs/features/integrations.md#grants-by-site).

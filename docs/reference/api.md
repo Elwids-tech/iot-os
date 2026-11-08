@@ -26,7 +26,7 @@ platform permission and rate limits
 - **Pending bodies.** Operations listed in `contracts/openapi/pending-schemas.json` have
   open success bodies (`x-schema-status: pending`); everything else about them is
   described. The list only shrinks: a new operation needs a described response, either
-  inferred or in a supplement. The 19 integration operations are fully described, each
+  inferred or in a supplement. The integration operations are fully described, each
   success response with an example, and can never be listed.
 - **Checked in CI** (API job): `php artisan contract:export --check` fails when the
   committed file is not a fresh export, `php artisan contract:check --base=origin/main`

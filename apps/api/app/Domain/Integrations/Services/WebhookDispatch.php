@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Domain\Integrations\Services;
 
-use App\Domain\Devices\Models\Device;
 use App\Domain\Integrations\Models\IntegrationApplication;
 use App\Domain\Integrations\Models\Webhook;
 use App\Domain\Integrations\Models\WebhookDelivery;
@@ -36,7 +35,7 @@ final class WebhookDispatch
                 return $pending->uuid;
             }
             $head = (int) DB::table('integration_streams')->where('organization_id', $app->organization_id)->value('sequence');
-            $devices = Device::where('organization_id', $app->organization_id)->whereIn('uuid', $app->device_uuids)->pluck('uuid');
+            $devices = ApplicationGrants::for($app)->resolveUuids();
             $event = DB::table('integration_events')->where('organization_id', $app->organization_id)->whereIn('device_uuid', $devices)->where('sequence', '>', $hook->cursor)->where('sequence', '<=', $head)->orderBy('sequence')->first();
             $hook->update(['cursor' => $event ? $event->sequence : $head]);
             if (! $event) {
@@ -60,7 +59,7 @@ final class WebhookDispatch
                 return;
             }
             $event = DB::table('integration_events')->where('id', $record->integration_event_id)->first();
-            if ($record->webhook_revision !== $hook->revision || ! $event || ! in_array($event->device_uuid, $app->device_uuids, true) || ! Device::where('organization_id', $app->organization_id)->where('uuid', $event->device_uuid)->exists()) {
+            if ($record->webhook_revision !== $hook->revision || ! $event || ! ApplicationGrants::for($app)->deviceQuery()->where('uuid', $event->device_uuid)->exists()) {
                 $record->update(['status' => 'cancelled', 'diagnostic' => 'Endpoint or device grant changed.']);
 
                 return;
