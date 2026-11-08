@@ -39,6 +39,7 @@ Schedule::command('billing:prune')->dailyAt('03:30')->withoutOverlapping();
 Schedule::command('billing:device-peaks')->dailyAt('00:15')->withoutOverlapping();
 Schedule::command('billing:retention-warnings')->dailyAt('08:00')->withoutOverlapping();
 Schedule::command('billing:draft-invoices')->dailyAt('02:10')->withoutOverlapping();
+Schedule::command('billing:payment-reminders')->dailyAt('09:00')->withoutOverlapping();
 Schedule::command('passport:purge')->dailyAt('03:35')->withoutOverlapping();
 
 Schedule::call(function (): void {

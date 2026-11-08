@@ -2,7 +2,7 @@ FROM php:8.4.27-cli-bookworm AS vendor
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git libpq-dev libzip-dev unzip \
-    && docker-php-ext-install pdo_pgsql pcntl opcache \
+    && docker-php-ext-install pdo_pgsql pcntl opcache bcmath \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
@@ -20,7 +20,7 @@ FROM php:8.4.27-cli-bookworm
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl libpq-dev poppler-utils \
-    && docker-php-ext-install pdo_pgsql pcntl opcache \
+    && docker-php-ext-install pdo_pgsql pcntl opcache bcmath \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html

@@ -33,9 +33,11 @@ final class OrganizationLimitAllowanceTest extends TestCase
     public function test_the_migration_keeps_raised_limits_as_overrides(): void
     {
         // Invoices and usage reference plans; PostgreSQL refuses to drop a referenced table.
+        $payments = require database_path('migrations/2026_11_16_000000_add_billing_payments.php');
         $invoices = require database_path('migrations/2026_11_15_000000_create_billing_invoices.php');
         $usage = require database_path('migrations/2026_11_07_200000_create_billing_usage.php');
         $migration = require database_path('migrations/2026_11_07_100000_create_billing_plans.php');
+        $payments->down();
         $invoices->down();
         $usage->down();
         $migration->down();
@@ -46,6 +48,7 @@ final class OrganizationLimitAllowanceTest extends TestCase
         $migration->up();
         $usage->up();
         $invoices->up();
+        $payments->up();
 
         $this->assertFalse(Schema::hasColumn('billing_accounts', 'organization_limit'));
         $this->assertSame(
@@ -125,10 +128,12 @@ final class OrganizationLimitAllowanceTest extends TestCase
     public function test_the_down_migration_restores_limits_from_overrides(): void
     {
         $account = BillingAccount::factory()->limit(7)->create();
+        $payments = require database_path('migrations/2026_11_16_000000_add_billing_payments.php');
         $invoices = require database_path('migrations/2026_11_15_000000_create_billing_invoices.php');
         $usage = require database_path('migrations/2026_11_07_200000_create_billing_usage.php');
         $migration = require database_path('migrations/2026_11_07_100000_create_billing_plans.php');
 
+        $payments->down();
         $invoices->down();
         $usage->down();
         $migration->down();
@@ -137,6 +142,7 @@ final class OrganizationLimitAllowanceTest extends TestCase
         $migration->up();
         $usage->up();
         $invoices->up();
+        $payments->up();
         $this->assertSame(7, (int) DB::table('billing_allowance_overrides')->where('billing_account_id', $account->id)->value('value'));
     }
 }

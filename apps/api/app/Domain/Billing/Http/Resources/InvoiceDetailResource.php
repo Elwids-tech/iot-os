@@ -6,6 +6,7 @@ namespace App\Domain\Billing\Http\Resources;
 
 use App\Domain\Billing\Enums\InvoiceLineKind;
 use App\Domain\Billing\Models\InvoiceLine;
+use App\Domain\Billing\Models\Payment;
 use App\Domain\Billing\Services\InvoiceHistory;
 use App\Domain\Billing\Services\InvoicePdf;
 use Illuminate\Http\Request;
@@ -14,7 +15,8 @@ use Illuminate\Http\Request;
  * An invoice with its lines, each organization's usage and its credit notes (spec 029
  * FR-032). Issued invoices carry the details they were issued with; a draft shows the
  * account's and operator's details as they are now. `owner` leaves out what is for
- * administrators only: the reason for drafting early, adjustment notes and the history.
+ * administrators only: the reason for drafting early, adjustment and payment notes, and
+ * the history.
  */
 final class InvoiceDetailResource extends InvoiceResource
 {
@@ -75,9 +77,24 @@ final class InvoiceDetailResource extends InvoiceResource
             ], app(InvoicePdf::class)->usage($invoice)),
             'credit_notes' => CreditNoteResource::collection($invoice->creditNotes),
             /**
-             * Drafting, adjustments, issuing and credit notes, newest first; empty for owners.
+             * Card charges, Checkout payments and payments recorded by hand, oldest first (spec 029 US7).
              *
-             * @var list<array{at: string, action: 'drafted'|'recalculated'|'adjustment_added'|'adjustment_removed'|'issued'|'credit_note_issued', actor: array{id: int, name: string}|null, description: string|null, amount: int|null, note: string|null, number: string|null}>
+             * @var list<array{uuid: string, method: 'card'|'checkout'|'outside', amount: int, attempt: int, status: 'pending'|'succeeded'|'failed', failure_reason: string|null, note: string|null, at: string}>
+             */
+            'payments' => $invoice->payments->map(fn (Payment $payment): array => [
+                'uuid' => (string) $payment->uuid,
+                'method' => (string) $payment->method,
+                'amount' => (int) $payment->amount,
+                'attempt' => (int) $payment->attempt,
+                'status' => (string) $payment->status,
+                'failure_reason' => $payment->failure_reason === null ? null : (string) $payment->failure_reason,
+                'note' => $this->owner || $payment->note === null ? null : (string) $payment->note,
+                'at' => $payment->status_at->toIso8601String(),
+            ])->values()->all(),
+            /**
+             * Drafting, adjustments, issuing, credit notes and payments, newest first; empty for owners.
+             *
+             * @var list<array{at: string, action: 'drafted'|'recalculated'|'adjustment_added'|'adjustment_removed'|'issued'|'credit_note_issued'|'payment_recorded'|'payment_succeeded'|'payment_failed'|'payment_amount_mismatch', actor: array{id: int, name: string}|null, description: string|null, amount: int|null, note: string|null, number: string|null}>
              */
             'history' => $this->owner ? [] : app(InvoiceHistory::class)->for($invoice),
         ];

@@ -18,7 +18,7 @@ final class BillingSettings
     public const FIELDS = ['legal_name', 'address', 'tax_registration_number', 'invoice_footer', 'invoice_prefix', 'credit_note_prefix'];
 
     /**
-     * @return array{legal_name: ?string, address: ?string, tax_registration_number: ?string, invoice_footer: ?string, invoice_prefix: string, credit_note_prefix: string, revision: int, currency: string, updated_at: ?string}
+     * @return array{legal_name: ?string, address: ?string, tax_registration_number: ?string, invoice_footer: ?string, invoice_prefix: string, credit_note_prefix: string, revision: int, currency: string, payments_enabled: bool, updated_at: ?string}
      */
     public function get(): array
     {
@@ -33,6 +33,8 @@ final class BillingSettings
             'credit_note_prefix' => (string) ($row->credit_note_prefix ?? 'CN-'),
             'revision' => (int) ($row->revision ?? 0),
             'currency' => (string) config('billing.currency'),
+            // Card payments are on when Stripe is configured (spec 029 FR-045); read-only here.
+            'payments_enabled' => Payments::enabled(),
             'updated_at' => $row?->updated_at === null ? null : (string) $row->updated_at,
         ];
     }

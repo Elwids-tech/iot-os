@@ -40,7 +40,7 @@ final class OwnedInvoiceController
     {
         $found = $this->invoice($request, $billingAccount, $invoice);
 
-        return (new InvoiceDetailResource($found->load(['billingAccount', 'lines', 'creditNotes.invoice'])))->forOwner();
+        return (new InvoiceDetailResource($found->load(['billingAccount', 'lines', 'creditNotes.invoice', 'payments'])))->forOwner();
     }
 
     public function pdf(Request $request, string $billingAccount, string $invoice): Response

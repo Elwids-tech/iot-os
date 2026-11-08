@@ -100,6 +100,14 @@ final class BillingAccountDetailResource extends JsonResource
                 'tax_number' => $this->resource->tax_number === null ? null : (string) $this->resource->tax_number,
                 'tax_rate' => $this->resource->taxRate === null ? null : new TaxRateResource($this->resource->taxRate),
             ],
+            /**
+             * The saved card: its brand, last four digits and `YYYY-MM` expiry, never more (spec 029 FR-039).
+             *
+             * @var array{brand: string, last_four: string|null, expires: string|null}|null
+             */
+            'payment_method' => $this->resource->paymentMethodSummary(),
+            /** Since when an invoice has been unpaid past its due date; nothing is restricted (spec 029 FR-043). */
+            'past_due_since' => $this->resource->past_due_since?->toIso8601String(),
             'usage' => UsageResource::collection(array_map(fn (MonthlyUsage $usage): UsageResource => new UsageResource($usage), $this->usage)),
             'owners' => BillingAccountOwnerResource::collection($this->resource->owners),
             'organizations' => BillingAccountOrganizationResource::collection($this->resource->organizations),

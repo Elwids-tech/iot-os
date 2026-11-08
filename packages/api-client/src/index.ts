@@ -1022,12 +1022,12 @@ export class ApiClient {
    * limited allowance this month.
    */
   async adminBillingAccounts(
-    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> & { plan?: string; usageAtLeast?: number } = {},
+    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> & { plan?: string; usageAtLeast?: number; pastDue?: boolean } = {},
   ): Promise<PaginatedResponse<BillingAccountSummary>> {
-    const { plan, usageAtLeast, ...directory } = query
-    return this.request<PaginatedResponse<BillingAccountSummary>>(
-      `/api/v1/admin/billing-accounts${withParameter(withParameter(directoryQuery(directory), "plan", plan), "usage_at_least", usageAtLeast?.toString())}`,
-    )
+    const { plan, usageAtLeast, pastDue, ...directory } = query
+    let path = withParameter(withParameter(directoryQuery(directory), "plan", plan), "usage_at_least", usageAtLeast?.toString())
+    path = withParameter(path, "past_due", pastDue ? "1" : undefined)
+    return this.request<PaginatedResponse<BillingAccountSummary>>(`/api/v1/admin/billing-accounts${path}`)
   }
 
   /** A billing account's usage for a UTC month (`YYYY-MM`, this month by default), with each organization's share. */
@@ -1274,6 +1274,16 @@ export class ApiClient {
     ).then((response) => response.data)
   }
 
+  /** Records a payment made another way, such as a bank transfer, up to what is still owed. */
+  async recordInvoicePayment(invoiceUuid: string, values: { amount: number; note?: string | null }): Promise<InvoiceDetail> {
+    return this.invoiceAction(invoiceUuid, "payments", values)
+  }
+
+  /** Asks Stripe about the invoice's pending payments; 404 while payments are off. */
+  async reconcileInvoice(invoiceUuid: string): Promise<InvoiceDetail> {
+    return this.invoiceAction(invoiceUuid, "reconcile")
+  }
+
   /** Where an administrator downloads an invoice as PDF or CSV (session cookie). */
   adminInvoiceDocumentUrl(invoiceUuid: string, format: "pdf" | "csv"): string {
     return `${this.baseUrl}/api/v1/admin/billing/invoices/${encodeURIComponent(invoiceUuid)}.${format}`
@@ -1394,6 +1404,28 @@ export class ApiClient {
   async ownedInvoice(billingAccountUuid: string, invoiceUuid: string): Promise<InvoiceDetail> {
     return this.request<ApiResponse<InvoiceDetail>>(
       `/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/invoices/${encodeURIComponent(invoiceUuid)}`,
+    ).then((response) => response.data)
+  }
+
+  /** Stripe's page to save a card for this account; open `url` in the browser. 404 while payments are off. */
+  async paymentMethodCheckout(billingAccountUuid: string): Promise<{ url: string }> {
+    return this.request<ApiResponse<{ url: string }>>(
+      `/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/payment-method/checkout`,
+      { method: "POST" },
+    ).then((response) => response.data)
+  }
+
+  async removePaymentMethod(billingAccountUuid: string): Promise<void> {
+    await this.request(`/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/payment-method`, {
+      method: "DELETE",
+    })
+  }
+
+  /** Stripe's page to pay what is still owed on an issued invoice; 409 when nothing is. */
+  async invoiceCheckout(billingAccountUuid: string, invoiceUuid: string): Promise<{ url: string }> {
+    return this.request<ApiResponse<{ url: string }>>(
+      `/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/invoices/${encodeURIComponent(invoiceUuid)}/checkout`,
+      { method: "POST" },
     ).then((response) => response.data)
   }
 

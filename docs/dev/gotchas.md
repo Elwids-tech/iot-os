@@ -219,6 +219,17 @@ Things that have cost time before. Add to this list when something surprises you
   from the first day of a month, so tests set them while time is in the month before.
 - **Draft from the locked account row.** A caller's `BillingAccount` model can hold an
   old tax rate; the drafter re-reads the row under its lock before computing tax.
+- **`BillingAccount` uses Cashier's `Billable`, whose names clash with ours.** Our
+  `invoices()` relation hides Cashier's Stripe invoice list, and `charge()` and
+  `taxRates()` are Cashier's. Use `Payments` for card work, never Cashier's invoice,
+  subscription or charge helpers, which expect tables we do not create.
+- **Cashier needs PHP's `bcmath`.** Its `moneyphp/money` dependency requires the
+  extension, so `composer install` fails in an image or CI job without it. Both API
+  Dockerfiles and every `setup-php` step install it; add it to any new one.
+- **Stripe's fake HTTP client sees encoded parameters.** stripe-php turns booleans
+  into `'true'` and `'false'` before the client gets them, so `FakeStripe` assertions
+  compare strings. `Cashier::stripe()` makes a new client each call; the fake is
+  installed on `Stripe\ApiRequestor` and must be removed in `tearDown`.
 
 ## NATS JetStream
 

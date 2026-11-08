@@ -2,7 +2,7 @@
 # bump all three for each PHP security release.
 FROM php:8.4.27-fpm-bookworm AS api
 RUN apt-get update && apt-get install -y --no-install-recommends libpq-dev libzip-dev unzip curl poppler-utils \
-    && docker-php-ext-install pdo_pgsql pcntl opcache \
+    && docker-php-ext-install pdo_pgsql pcntl opcache bcmath \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html

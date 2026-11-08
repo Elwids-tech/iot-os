@@ -54,6 +54,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 - [Release](ops/release.md): single-node deployment, upgrades, backups and restore
 - [Pilot environment](ops/pilot.md)
 - [Monitoring](ops/monitoring.md)
+- [Card payments](ops/billing-payments.md): Stripe keys, the webhook endpoint, test mode
 - [MQTT broker](ops/broker.md)
 - [Docs site](ops/docs-site.md): publishing to GitHub Pages, DNS, and updating the hosted commit
 - [Incident runbook](ops/incident-runbook.md)

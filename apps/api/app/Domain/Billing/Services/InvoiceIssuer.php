@@ -7,6 +7,7 @@ namespace App\Domain\Billing\Services;
 use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Billing\Enums\PaymentStatus;
 use App\Domain\Billing\Events\InvoiceIssued;
+use App\Domain\Billing\Jobs\ChargeInvoice;
 use App\Domain\Billing\Mail\InvoiceDocumentMail;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\Invoice;
@@ -19,7 +20,8 @@ use Illuminate\Validation\ValidationException;
  * next number from a locked counter row, so numbers have no gaps; snapshots the
  * operator's and the account's details and the tax rate; applies the account's credit
  * after tax; sets the due date; and fixes the invoice for good. After commit the billing
- * contact and each owner get it by email, and card payments (PR 11) may charge it.
+ * contact and each owner get it by email, and an account with a saved card is charged
+ * (spec 029 US7).
  */
 final class InvoiceIssuer
 {
@@ -88,6 +90,9 @@ final class InvoiceIssuer
         $account = $issued->billingAccount;
         $this->notices->sendWithContact($account, 'invoice_issued', 'invoice:'.$issued->uuid, InvoiceDocumentMail::forInvoice($issued, $account));
         InvoiceIssued::dispatch($issued);
+        if (Payments::enabled() && $account->pm_type !== null && $issued->amount_due > 0) {
+            ChargeInvoice::dispatch((int) $issued->getKey(), 1);
+        }
 
         return $issued->refresh();
     }

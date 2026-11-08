@@ -66,6 +66,12 @@ final class ActivityCatalogue
         'billing_invoice.adjusted' => ['adjusted invoice', null],
         'billing_invoice.issued' => ['issued invoice', null],
         'billing_credit_note.issued' => ['issued credit note', null],
+        'billing_account.payment_method_changed' => ['saved a card on billing account', 'billing_account'],
+        'billing_account.payment_method_removed' => ['removed the card from billing account', 'billing_account'],
+        'billing_invoice.payment_recorded' => ['recorded a payment on invoice', null],
+        'billing_invoice.payment_succeeded' => ['received a payment on invoice', null],
+        'billing_invoice.payment_failed' => ['had a payment fail on invoice', null],
+        'billing_invoice.payment_amount_mismatch' => ['received an unexpected amount on invoice', null],
         // Devices and sites
         'device.registered' => ['registered device', 'device'],
         'device.updated' => ['updated device', 'device'],

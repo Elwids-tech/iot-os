@@ -9,6 +9,7 @@ use App\Domain\Billing\Enums\PaymentStatus;
 use App\Domain\Billing\Http\Requests\AddAdjustmentRequest;
 use App\Domain\Billing\Http\Requests\DraftInvoiceRequest;
 use App\Domain\Billing\Http\Requests\IssueCreditNoteRequest;
+use App\Domain\Billing\Http\Requests\RecordPaymentRequest;
 use App\Domain\Billing\Http\Resources\CreditNoteResource;
 use App\Domain\Billing\Http\Resources\InvoiceDetailResource;
 use App\Domain\Billing\Http\Resources\InvoiceResource;
@@ -20,6 +21,7 @@ use App\Domain\Billing\Services\CreditNotes;
 use App\Domain\Billing\Services\InvoiceDrafter;
 use App\Domain\Billing\Services\InvoiceIssuer;
 use App\Domain\Billing\Services\InvoicePdf;
+use App\Domain\Billing\Services\Payments;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +42,7 @@ final class PlatformInvoiceController
         private readonly InvoiceIssuer $issuer,
         private readonly CreditNotes $creditNotes,
         private readonly InvoicePdf $documents,
+        private readonly Payments $payments,
     ) {}
 
     public function index(Request $request): AnonymousResourceCollection
@@ -158,6 +161,27 @@ final class PlatformInvoiceController
         return (new CreditNoteResource($note))->response()->setStatusCode(201);
     }
 
+    /** A payment made another way, such as a bank transfer (FR-044); recorded whether or not cards are on. */
+    public function recordPayment(RecordPaymentRequest $request, Invoice $invoice): JsonResponse
+    {
+        Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
+
+        $this->payments->recordOutside($invoice, (int) $request->validated('amount'), $request->validated('note'), $request->user());
+
+        return $this->detail($invoice->refresh())->response()->setStatusCode(201);
+    }
+
+    /** Asks Stripe about payments still pending and applies what it says; 404 while payments are off. */
+    public function reconcile(Invoice $invoice): InvoiceDetailResource
+    {
+        Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
+        abort_unless(Payments::enabled(), 404);
+
+        $this->payments->reconcile($invoice);
+
+        return $this->detail($invoice->refresh());
+    }
+
     public function pdf(Invoice $invoice): Response
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
@@ -196,6 +220,6 @@ final class PlatformInvoiceController
 
     private function detail(Invoice $invoice): InvoiceDetailResource
     {
-        return new InvoiceDetailResource($invoice->load(['billingAccount', 'lines', 'creditNotes.invoice']));
+        return new InvoiceDetailResource($invoice->load(['billingAccount', 'lines', 'creditNotes.invoice', 'payments']));
     }
 }

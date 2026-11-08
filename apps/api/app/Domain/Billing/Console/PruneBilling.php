@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\DB;
  * kept 13 months: every key carries its month or subject, so a pruned key is never due
  * again. Data point buckets are kept 13 months too; usage keeps its monthly totals and
  * runtime reports that old no longer arrive. Retention floors go once they end (spec
- * 029 US4).
+ * 029 US4). Stripe event ids are kept 30 days, past Stripe's three-day redelivery window
+ * (spec 029 US7).
  */
 final class PruneBilling extends Command
 {
@@ -21,9 +22,11 @@ final class PruneBilling extends Command
 
     public const BUCKET_MONTHS = 13;
 
+    public const PROVIDER_EVENT_DAYS = 30;
+
     protected $signature = 'billing:prune {--now= : Prune as of this time instead of now}';
 
-    protected $description = 'Delete billing email notices and data point buckets older than 13 months, and retention floors that ended';
+    protected $description = 'Delete billing email notices and data point buckets older than 13 months, Stripe event ids older than 30 days, and retention floors that ended';
 
     public function handle(): int
     {
@@ -39,8 +42,9 @@ final class PruneBilling extends Command
         // A daily run finds one day of hours per organization.
         $buckets = DB::table('billing_data_point_buckets')->where('hour', '<', $now->subMonthsNoOverflow(self::BUCKET_MONTHS))->delete();
         $floors = DB::table('telemetry_retention_floors')->where('until', '<=', $now)->delete();
+        $events = DB::table('billing_provider_events')->where('received_at', '<', $now->subDays(self::PROVIDER_EVENT_DAYS))->delete();
 
-        $this->info("Pruned {$deleted} billing notices, {$buckets} data point buckets and {$floors} retention floors.");
+        $this->info("Pruned {$deleted} billing notices, {$buckets} data point buckets, {$events} Stripe event ids and {$floors} retention floors.");
 
         return self::SUCCESS;
     }

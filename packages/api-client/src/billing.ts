@@ -154,6 +154,8 @@ export type BillingAccountSummary = {
   organizations_count: number
   owners: BillingAccountOwner[]
   created_at: string | null
+  /** Since when an invoice has been unpaid past its due date; nothing is restricted. */
+  past_due_since: string | null
 }
 
 export type BillingAccountHistoryAction =
@@ -205,6 +207,9 @@ export type BillingAccountDetail = {
   prices: PriceSummary | null
   price_overrides: PriceOverride[]
   billing_details: BillingDetails
+  payment_method: PaymentMethodSummary | null
+  /** Since when an invoice has been unpaid past its due date; nothing is restricted. */
+  past_due_since: string | null
   owners: BillingAccountOwner[]
   organizations: BillingAccountOrganization[]
   history: BillingAccountHistoryEntry[]
@@ -237,6 +242,18 @@ export type OwnedBillingAccount = {
   prices: PriceSummary | null
   /** The latest issued invoice; owners never see drafts. */
   latest_invoice: InvoiceSummary | null
+  /** Whether a card can be saved and invoices paid online; payment routes answer 404 otherwise. */
+  payments_enabled: boolean
+  payment_method: PaymentMethodSummary | null
+  /** Since when an invoice has been unpaid past its due date. */
+  past_due_since: string | null
+}
+
+/** The saved card: never more than its brand, last four digits and `YYYY-MM` expiry. */
+export type PaymentMethodSummary = {
+  brand: string
+  last_four: string | null
+  expires: string | null
 }
 
 /** The organization an owner just created; reload the session for its capabilities. */
@@ -323,10 +340,12 @@ export type BillingSettings = {
   credit_note_prefix: string
   revision: number
   currency: string
+  /** Card payments are on when the deployment has Stripe keys; read-only. */
+  payments_enabled: boolean
   updated_at: string | null
 }
 
-export type BillingSettingsValues = Omit<BillingSettings, "currency" | "updated_at">
+export type BillingSettingsValues = Omit<BillingSettings, "currency" | "payments_enabled" | "updated_at">
 
 export type InvoiceStatus = "draft" | "issued"
 
@@ -403,18 +422,48 @@ export type InvoiceDetail = InvoiceSummary & {
   lines: InvoiceLine[]
   usage: { organization_uuid: string; organization_name: string; kind: "alerts" | "sms" | "data_points"; count: number }[]
   credit_notes: CreditNote[]
+  /** Oldest first. */
+  payments: InvoicePayment[]
   /** Newest first; administrators only, empty for owners. */
   history: InvoiceHistoryEntry[]
 }
 
 /**
+ * A payment towards an issued invoice: an off-session card charge (`attempt` 1 at issue, 2
+ * on the due date, 3 a week after), a Checkout payment, or one recorded by hand
+ * (`outside`, with its note for administrators). Status only moves forward.
+ */
+export type InvoicePayment = {
+  uuid: string
+  method: "card" | "checkout" | "outside"
+  amount: number
+  attempt: number
+  status: "pending" | "succeeded" | "failed"
+  /** The card issuer's reason, when it failed. */
+  failure_reason: string | null
+  note: string | null
+  at: string
+}
+
+/**
  * One step in an invoice's history. An adjustment carries its description, amount and
  * note; drafting early carries the note; issuing and credit notes carry the number, and a
- * credit note its amount and reason (`note`). `actor` is null for the monthly run.
+ * credit note its amount and reason (`note`). Payments carry their amount, and a failed
+ * one the reason (`note`). `actor` is null for the monthly run and Stripe's events.
  */
 export type InvoiceHistoryEntry = {
   at: string
-  action: "drafted" | "recalculated" | "adjustment_added" | "adjustment_removed" | "issued" | "credit_note_issued"
+  action:
+    | "drafted"
+    | "recalculated"
+    | "adjustment_added"
+    | "adjustment_removed"
+    | "issued"
+    | "credit_note_issued"
+    | "payment_recorded"
+    | "payment_succeeded"
+    | "payment_failed"
+    | "payment_amount_mismatch"
   actor: { id: number; name: string } | null
   description: string | null
   amount: number | null

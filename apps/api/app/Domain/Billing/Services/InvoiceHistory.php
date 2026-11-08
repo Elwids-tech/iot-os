@@ -11,17 +11,26 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * An invoice's audited history for administrators (spec 029 FR-034), newest first:
- * drafting, recalculating, adjustments, issuing and its credit notes. Credit notes are
- * audited with the note as the subject, so they are found by their own uuids.
+ * drafting, recalculating, adjustments, issuing, its credit notes and payments (US7).
+ * Credit notes are audited with the note as the subject, so they are found by their own
+ * uuids.
  */
 final class InvoiceHistory
 {
     private const LIMIT = 100;
 
-    private const INVOICE_EVENTS = ['billing_invoice.drafted', 'billing_invoice.adjusted', 'billing_invoice.issued'];
+    private const INVOICE_EVENTS = [
+        'billing_invoice.drafted',
+        'billing_invoice.adjusted',
+        'billing_invoice.issued',
+        'billing_invoice.payment_recorded',
+        'billing_invoice.payment_succeeded',
+        'billing_invoice.payment_failed',
+        'billing_invoice.payment_amount_mismatch',
+    ];
 
     /**
-     * @return list<array{at: string, action: 'drafted'|'recalculated'|'adjustment_added'|'adjustment_removed'|'issued'|'credit_note_issued', actor: array{id: int, name: string}|null, description: string|null, amount: int|null, note: string|null, number: string|null}>
+     * @return list<array{at: string, action: 'drafted'|'recalculated'|'adjustment_added'|'adjustment_removed'|'issued'|'credit_note_issued'|'payment_recorded'|'payment_succeeded'|'payment_failed'|'payment_amount_mismatch', actor: array{id: int, name: string}|null, description: string|null, amount: int|null, note: string|null, number: string|null}>
      */
     public function for(Invoice $invoice): array
     {
@@ -49,6 +58,10 @@ final class InvoiceHistory
                     'billing_invoice.drafted' => 'drafted',
                     'billing_invoice.issued' => 'issued',
                     'billing_credit_note.issued' => 'credit_note_issued',
+                    'billing_invoice.payment_recorded' => 'payment_recorded',
+                    'billing_invoice.payment_succeeded' => 'payment_succeeded',
+                    'billing_invoice.payment_failed' => 'payment_failed',
+                    'billing_invoice.payment_amount_mismatch' => 'payment_amount_mismatch',
                     default => match ($details['change'] ?? null) {
                         'adjustment_added' => 'adjustment_added',
                         'adjustment_removed' => 'adjustment_removed',
@@ -61,8 +74,12 @@ final class InvoiceHistory
                     'action' => $action,
                     'actor' => $actor === null ? null : ['id' => (int) $actor->id, 'name' => (string) $actor->name],
                     'description' => isset($details['description']) ? (string) $details['description'] : null,
-                    'amount' => isset($details['amount']) ? (int) $details['amount'] : null,
-                    // The note says why it was drafted early, adjusted or credited.
+                    'amount' => match (true) {
+                        isset($details['amount']) => (int) $details['amount'],
+                        isset($details['received']) => (int) $details['received'],
+                        default => null,
+                    },
+                    // The note says why it was drafted early, adjusted, credited or why a payment failed.
                     'note' => match (true) {
                         isset($details['note']) => (string) $details['note'],
                         isset($details['reason']) => (string) $details['reason'],

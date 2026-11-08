@@ -11,6 +11,7 @@ use App\Domain\Billing\Http\Controllers\OwnedBillingAccountController;
 use App\Domain\Billing\Http\Controllers\OwnedBillingAccountOrganizationController;
 use App\Domain\Billing\Http\Controllers\OwnedBillingAccountUsageController;
 use App\Domain\Billing\Http\Controllers\OwnedInvoiceController;
+use App\Domain\Billing\Http\Controllers\OwnedPaymentController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountAllowanceController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountOwnerController;
@@ -22,6 +23,7 @@ use App\Domain\Billing\Http\Controllers\PlatformInvoiceController;
 use App\Domain\Billing\Http\Controllers\PlatformOrganizationBillingAccountController;
 use App\Domain\Billing\Http\Controllers\PlatformPlanController;
 use App\Domain\Billing\Http\Controllers\PlatformTaxRateController;
+use App\Domain\Billing\Http\Controllers\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 // Billing accounts (spec 023, ADR-026), plans, allowances and usage (specs 028 and 029, ADR-035),
@@ -117,6 +119,12 @@ Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function
             Route::post('billing/invoices/{invoice}/credit-notes', [PlatformInvoiceController::class, 'creditNote'])
                 ->whereUuid('invoice')
                 ->name('billing.invoices.credit-notes.store');
+            Route::post('billing/invoices/{invoice}/payments', [PlatformInvoiceController::class, 'recordPayment'])
+                ->whereUuid('invoice')
+                ->name('billing.invoices.payments.store');
+            Route::post('billing/invoices/{invoice}/reconcile', [PlatformInvoiceController::class, 'reconcile'])
+                ->whereUuid('invoice')
+                ->name('billing.invoices.reconcile');
             Route::get('billing/credit-notes/{creditNote}.pdf', [PlatformInvoiceController::class, 'creditNotePdf'])
                 ->whereUuid('creditNote')
                 ->name('billing.credit-notes.pdf');
@@ -168,7 +176,20 @@ Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function
     Route::get('billing-accounts/{billingAccount}/credit-notes/{creditNote}.pdf', [OwnedInvoiceController::class, 'creditNotePdf'])
         ->whereUuid(['billingAccount', 'creditNote'])
         ->name('billing-accounts.credit-notes.pdf');
+    // Cards and online payments on Stripe's pages (spec 029 US7); 404 while payments are off.
+    Route::post('billing-accounts/{billingAccount}/payment-method/checkout', [OwnedPaymentController::class, 'paymentMethodCheckout'])
+        ->whereUuid('billingAccount')
+        ->name('billing-accounts.payment-method.checkout');
+    Route::delete('billing-accounts/{billingAccount}/payment-method', [OwnedPaymentController::class, 'removePaymentMethod'])
+        ->whereUuid('billingAccount')
+        ->name('billing-accounts.payment-method.destroy');
+    Route::post('billing-accounts/{billingAccount}/invoices/{invoice}/checkout', [OwnedPaymentController::class, 'invoiceCheckout'])
+        ->whereUuid(['billingAccount', 'invoice'])
+        ->name('billing-accounts.invoices.checkout');
 });
+
+// Stripe's signed events (spec 029 FR-041, contracts/stripe-webhooks.md); 404 while payments are off.
+Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])->name('stripe.webhook');
 
 // Managers: their organization's usage, needing Device.manage (spec 028 FR-022, spec 029 FR-024).
 Route::prefix('v1/organizations/{organization}')->name('api.v1.organizations.')

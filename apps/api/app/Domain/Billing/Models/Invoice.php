@@ -16,7 +16,8 @@ use LogicException;
  * A billing account's invoice for one UTC month (spec 029 US6, research R13). A draft is
  * recalculated and adjusted until an administrator issues it; then it never changes
  * except `payment_status`, and corrections are credit notes. What is still owed is
- * `amount_due` less the credit notes' applied parts (`outstanding()`).
+ * `amount_due` less the credit notes' applied parts and the payments that succeeded
+ * (`outstanding()`).
  *
  * @property int $id
  * @property string $uuid
@@ -101,14 +102,23 @@ final class Invoice extends Model
         return $this->status === self::ISSUED;
     }
 
-    /** What is still owed: nothing once paid, else the amount due less what credit notes took off it. */
+    /**
+     * What is still owed: nothing once paid, else the amount due less what credit notes
+     * took off it and what was paid towards it.
+     */
     public function outstanding(): int
     {
         if (in_array($this->payment_status, [PaymentStatus::Paid, PaymentStatus::PaidOutside], true)) {
             return 0;
         }
 
-        return max(0, $this->amount_due - (int) $this->creditNotes()->sum('applied'));
+        return max(0, $this->amount_due - (int) $this->creditNotes()->sum('applied') - $this->paid());
+    }
+
+    /** The payments towards it that succeeded (spec 029 US7). */
+    public function paid(): int
+    {
+        return (int) $this->payments()->where('status', Payment::SUCCEEDED)->sum('amount');
     }
 
     /**
@@ -133,5 +143,13 @@ final class Invoice extends Model
     public function creditNotes(): HasMany
     {
         return $this->hasMany(CreditNote::class)->orderBy('issued_at')->orderBy('id');
+    }
+
+    /**
+     * @return HasMany<Payment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class)->orderBy('created_at')->orderBy('id');
     }
 }

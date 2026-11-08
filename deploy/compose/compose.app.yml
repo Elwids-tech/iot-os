@@ -30,6 +30,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_STORE: "false"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Card payments (spec 029 US7): off while STRIPE_SECRET is empty; test keys go in .local/.
+      STRIPE_KEY: ${STRIPE_KEY:-}
+      STRIPE_SECRET: ${STRIPE_SECRET:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       IOT_ASSISTANT_PROVIDER: ${IOT_ASSISTANT_PROVIDER:-openai}
       IOT_ASSISTANT_ENABLED: ${IOT_ASSISTANT_ENABLED:-false}
       IOT_AGENTS_ENABLED: ${IOT_AGENTS_ENABLED:-false}
