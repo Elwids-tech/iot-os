@@ -2636,6 +2636,146 @@
         "description": "Positions, geofence condition and optional trails (last 1h, 6h, 24h or 7d) of 1 to 100 granted devices. Device entries are the device runtime's output with four fields added by the control plane. 403 when a requested device is not granted; 422 for invalid input or when the runtime rejects the query (under `errors.runtime`); 503 when the runtime is unavailable."
       }
     },
+    "/integration/v1/organizations/{organization}/telemetry/latest/query": {
+      "post": {
+        "operationId": "telemetry.latestBatch",
+        "summary": "Read the latest telemetry of up to 100 granted devices",
+        "tags": [
+          "Telemetry"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "device_uuids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "device_uuids"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`telemetry-latest-batch.v1`.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryLatestBatch"
+                },
+                "example": {
+                  "schema_version": "telemetry-latest-batch.v1",
+                  "data": [
+                    {
+                      "device_uuid": "3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+                      "configuration_uuid": "8e7d6c5b-4a39-4281-9f0e-1d2c3b4a5968",
+                      "presence": "online",
+                      "last_seen_at": "2026-11-07T09:41:58.000000Z",
+                      "readings": [
+                        {
+                          "parameter_uuid": "6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+                          "key": "vibration",
+                          "label": "Vibration",
+                          "data_type": "number",
+                          "unit": "mm/s",
+                          "value": 1.8,
+                          "quality": "good",
+                          "observed_at": "2026-11-07T09:41:57Z",
+                          "received_at": "2026-11-07T09:41:58Z",
+                          "last_valid_received_at": "2026-11-07T09:41:58Z",
+                          "timestamp_source": "source",
+                          "historical": false
+                        }
+                      ]
+                    },
+                    {
+                      "device_uuid": "9b8c7d6e-5f4a-4b3c-8d2e-1f0a9b8c7d6e",
+                      "configuration_uuid": null,
+                      "presence": "unseen",
+                      "last_seen_at": null,
+                      "readings": []
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/RuntimeUnavailable"
+          }
+        },
+        "security": [
+          {
+            "applicationToken": []
+          }
+        ],
+        "x-audience": "integration",
+        "x-abilities": {
+          "all": [
+            "telemetry:read"
+          ]
+        },
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 240,
+            "per": "minute",
+            "key": "ip"
+          },
+          {
+            "limit": 60,
+            "per": "minute",
+            "key": "application"
+          }
+        ],
+        "description": "One snapshot of a plant: the retained latest values of 1 to 100 granted devices from one request, each entry carrying the device read's `presence` and `last_seen_at` beside the readings the single-device latest read would return. Entries follow the request order. 404 for the whole request when any device is not granted, revealing nothing about it; 422 for more than 100 devices, a repeated device or a malformed UUID; 503 when the runtime is not configured or unavailable, never an empty result in its place."
+      }
+    },
     "/v1/admin/activity": {
       "get": {
         "operationId": "v1.admin.activity.index",
@@ -33536,6 +33676,70 @@
           "data": {
             "type": "array",
             "description": "Empty for a device without a configuration, never zeros.",
+            "items": {
+              "$ref": "#/components/schemas/TelemetryReading"
+            }
+          }
+        }
+      },
+      "TelemetryLatestBatch": {
+        "type": "object",
+        "description": "`telemetry-latest-batch.v1`: the latest values of up to 100 granted devices, one entry per requested device in request order.",
+        "required": [
+          "schema_version",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "telemetry-latest-batch.v1"
+          },
+          "data": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/TelemetryLatestBatchEntry"
+            }
+          }
+        }
+      },
+      "TelemetryLatestBatchEntry": {
+        "type": "object",
+        "description": "One requested device's retained latest values, with the presence and last-seen time the device read returns.",
+        "required": [
+          "device_uuid",
+          "configuration_uuid",
+          "presence",
+          "last_seen_at",
+          "readings"
+        ],
+        "properties": {
+          "device_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "configuration_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The applied configuration, else the last one the runtime confirmed; `null` for a device that was never activated."
+          },
+          "presence": {
+            "type": "string",
+            "description": "`online`, `offline`, `unseen`, or `unknown` when the runtime's last online report is more than 20 seconds old: the device read's value, from the control plane's columns, while the single-device latest read reports the runtime's own presence."
+          },
+          "last_seen_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "readings": {
+            "type": "array",
+            "description": "The single-device latest read's `data`, unchanged; empty when nothing is retained, never zeros.",
             "items": {
               "$ref": "#/components/schemas/TelemetryReading"
             }

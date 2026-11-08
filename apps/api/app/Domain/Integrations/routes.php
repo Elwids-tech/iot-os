@@ -37,6 +37,7 @@ Route::prefix('integration/v1/organizations/{organization}')->whereUuid(['organi
     Route::get('geofences/{uuid}/activations/{batch}', [GeospatialController::class, 'activation'])->middleware(AuthenticateApplication::class.':geofences:read');
     Route::post('geofences/{uuid}/activations/{batch}/items/{item}/retry', [GeospatialController::class, 'retry'])->whereNumber('item')->middleware(AuthenticateApplication::class.':geofences:activate');
     Route::get('devices/{uuid}/telemetry/latest', [TelemetryController::class, 'latest'])->middleware(AuthenticateApplication::class.':telemetry:read');
+    Route::post('telemetry/latest/query', [TelemetryController::class, 'latestBatch'])->middleware(AuthenticateApplication::class.':telemetry:read');
     Route::get('devices/{uuid}/telemetry/history', [TelemetryController::class, 'history'])->middleware(AuthenticateApplication::class.':telemetry:read');
     Route::get('devices', [ReadController::class, 'devices'])->middleware(AuthenticateApplication::class.':devices:read');
     Route::get('devices/{uuid}', [ReadController::class, 'device'])->middleware(AuthenticateApplication::class.':devices:read');

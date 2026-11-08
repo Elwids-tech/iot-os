@@ -123,6 +123,27 @@ the selected binding. Incomplete or stale fixes remain unknown; historical fixes
 are not live eligible. Both use the existing `telemetry:read` ability. See
 [raw/location semantics](../../docs/features/integrations.md#telemetry-semantics).
 
+## Batch latest (0.6.0)
+
+`latestQuery(deviceUuids)` reads the latest values of 1 to 100 granted devices in one
+request (`telemetry-latest-batch.v1`) under the existing `telemetry:read` ability, so
+a plant's first frame costs one request instead of one per device. Entries follow the
+request order; each carries `readings` exactly as `latestTelemetry()` returns `data`
+for that device, plus the device's `presence` and `last_seen_at` as `device()`
+returns them (the control plane's view, while `latestTelemetry()` reports the
+runtime's own presence). A device that never reported has `readings: []` and
+`configuration_uuid: null`, never zeros.
+
+```js
+const snapshot = await client.latestQuery(deviceUuids)
+for (const entry of snapshot.data) {
+  console.log(entry.device_uuid, entry.presence, entry.readings.length)
+}
+```
+
+A device outside the grant refuses the whole request with 404; more than 100 devices
+or a repeated device is a 422, which the client also rejects before sending.
+
 ## Location map and geofences
 
 `locationMap({deviceUuids, trailWindow, includeTrails, geofenceUuid})` needs

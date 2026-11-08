@@ -161,3 +161,108 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 		t.Fatal("restart allowed a command replay")
 	}
 }
+
+// A plant's snapshot is one query: each device's applied configuration wins over an
+// earlier one even when the earlier value is newer, a deactivated device keeps its
+// newest retained value, a device with nothing retained is absent, and another
+// organization's device never appears, however it is named.
+func TestLatestBatchPrefersAppliedConfigurationsWithinTheOrganization(t *testing.T) {
+	url := os.Getenv("DEVICE_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("Requires the isolated Devices database")
+	}
+	if !strings.Contains(url, "/iot_devices_test?") {
+		t.Fatal("Refusing a non-test database")
+	}
+	ctx := context.Background()
+	s, err := Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Pool.Close)
+	org, other := UUID(), UUID()
+	t.Cleanup(func() {
+		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices"} {
+			if _, e := s.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1 OR organization_uuid=$2", org, other); e != nil {
+				t.Error(e)
+			}
+		}
+		_, _ = s.Pool.Exec(ctx, "DELETE FROM device_runtime.outbox WHERE event->'payload'->>'organization_uuid' IN ($1,$2)", org, other)
+	})
+	must := func(e error) {
+		t.Helper()
+		if e != nil {
+			t.Fatal(e)
+		}
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	reading := func(parameter string, value int, at time.Time) devices.Reading {
+		return devices.Reading{ParameterUUID: parameter, DataType: "number", Value: value, Quality: "good", ObservedAt: at, ReceivedAt: at}
+	}
+	report := func(d devices.Definition, generation int, readings ...devices.Reading) {
+		t.Helper()
+		must(s.Persist(ctx, devices.Telemetry{Generation: generation, UUID: UUID(), Definition: d, SessionID: "s", Readings: readings}))
+	}
+	p1, p2 := UUID(), UUID()
+
+	// Device A: two configurations; the applied one, c2, reported p1 earlier than c1 did.
+	first := devices.Definition{DeviceUUID: UUID(), OrganizationUUID: org, ConfigurationUUID: UUID()}
+	must(s.Apply(ctx, first, 1, "device.applied.v1"))
+	report(first, 1, reading(p1, 1, now.Add(-20*time.Second)), reading(p2, 2, now.Add(-20*time.Second)))
+	applied := first
+	applied.ConfigurationUUID = UUID()
+	must(s.Apply(ctx, applied, 2, "device.applied.v1"))
+	report(applied, 2, reading(p1, 10, now.Add(-30*time.Second)))
+
+	// Device B: reported, then deactivated, so no configuration is preferred.
+	deactivated := devices.Definition{DeviceUUID: UUID(), OrganizationUUID: org, ConfigurationUUID: UUID()}
+	must(s.Apply(ctx, deactivated, 1, "device.applied.v1"))
+	report(deactivated, 1, reading(p1, 5, now.Add(-10*time.Second)))
+	must(s.Apply(ctx, devices.Definition{DeviceUUID: deactivated.DeviceUUID, OrganizationUUID: org}, 2, "device.deactivated.v1"))
+
+	// Device C never reported; device D belongs to another organization.
+	silent := UUID()
+	foreign := devices.Definition{DeviceUUID: UUID(), OrganizationUUID: other, ConfigurationUUID: UUID()}
+	must(s.Apply(ctx, foreign, 1, "device.applied.v1"))
+	report(foreign, 1, reading(p1, 7, now))
+
+	batch, e := s.LatestBatch(ctx, org, []string{applied.DeviceUUID, deactivated.DeviceUUID, silent, foreign.DeviceUUID})
+	must(e)
+	if len(batch) != 2 {
+		t.Fatalf("expected two devices with retained values, got %d: %v", len(batch), batch)
+	}
+	byParameter := func(carried []CarriedReading) map[string]CarriedReading {
+		result := map[string]CarriedReading{}
+		for _, c := range carried {
+			result[c.Reading.ParameterUUID] = c
+		}
+		return result
+	}
+	a := byParameter(batch[applied.DeviceUUID])
+	if len(a) != 2 || a[p1].ConfigurationUUID != applied.ConfigurationUUID || a[p1].Reading.Value != json.Number("10") {
+		t.Fatalf("the applied configuration's value must win: %+v", a)
+	}
+	if a[p2].ConfigurationUUID != first.ConfigurationUUID || a[p2].Reading.Value != json.Number("2") {
+		t.Fatalf("a parameter only the earlier configuration reported is carried: %+v", a)
+	}
+	b := byParameter(batch[deactivated.DeviceUUID])
+	if len(b) != 1 || b[p1].ConfigurationUUID != deactivated.ConfigurationUUID || b[p1].Reading.Value != json.Number("5") {
+		t.Fatalf("a deactivated device keeps its retained value: %+v", b)
+	}
+	if _, found := batch[silent]; found {
+		t.Fatal("a device with nothing retained must be absent")
+	}
+	if _, found := batch[foreign.DeviceUUID]; found {
+		t.Fatal("another organization's device must never appear")
+	}
+	if _, e = s.LatestBatch(ctx, org, nil); e == nil {
+		t.Fatal("an empty batch must be refused")
+	}
+	many := make([]string, 101)
+	for i := range many {
+		many[i] = UUID()
+	}
+	if _, e = s.LatestBatch(ctx, org, many); e == nil {
+		t.Fatal("more than 100 devices must be refused")
+	}
+}

@@ -26,7 +26,7 @@ platform permission and rate limits
 - **Pending bodies.** Operations listed in `contracts/openapi/pending-schemas.json` have
   open success bodies (`x-schema-status: pending`); everything else about them is
   described. The list only shrinks: a new operation needs a described response, either
-  inferred or in a supplement. The 18 integration operations are fully described, each
+  inferred or in a supplement. The 19 integration operations are fully described, each
   success response with an example, and can never be listed.
 - **Checked in CI** (API job): `php artisan contract:export --check` fails when the
   committed file is not a fresh export, `php artisan contract:check --base=origin/main`
@@ -118,8 +118,8 @@ pull requests.
 The Go runtime serves its own internal HTTP API on `IOT_RUNTIME_HTTP_ADDRESS`
 (default `:8081`) ([`internal/app/http.go`](../../services/runtime/internal/app/http.go)).
 `/health/live` and `/health/ready` are open; everything under `/internal/` needs
-the `DEVICE_RUNTIME_TOKEN` bearer: measurements (latest, history, records, state
-history, increase), telemetry captures, configuration validation and command checks,
+the `DEVICE_RUNTIME_TOKEN` bearer: measurements (latest, latest batch, history,
+records, state history, increase), telemetry captures, configuration validation and command checks,
 location resolve/read/map, rule and workflow compile, simulate and execution, DAG
 registry, compile, simulate, execution, timeline and health, committed-telemetry
 status, `/internal/status` and checkpoint rebaseline. Only Laravel
