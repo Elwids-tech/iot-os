@@ -1,5 +1,5 @@
 # Integration API operations (/integration/v1): payload components and the responses
-# of all 18 operations. The event envelope, the event feed's page and the webhook are
+# of every operation. The event envelope, the event feed's page and the webhook are
 # in integration-events.yaml.
 #
 # Bodies are described as the platform returns them today (FR-033); objects allow
@@ -26,7 +26,8 @@ components:
       description: >-
         An ability granted to an application and to its token; an operation needs it on
         both. `events:read` also needs `alerts:read` or `geofences:read`;
-        `geofences:activate` also needs `geofences:manage`.
+        `geofences:activate` also needs `geofences:manage`; `telemetry:stream` also
+        needs `telemetry:read`.
       enum:
         - devices:read
         - alerts:read
@@ -36,6 +37,8 @@ components:
         - geofences:read
         - geofences:manage
         - geofences:activate
+        - entities:read
+        - telemetry:stream
     IntegrationDevice:
       type: object
       description: A device granted to the application.
@@ -59,6 +62,108 @@ components:
         last_seen_at:
           type: [string, 'null']
           format: date-time
+    # Spec 030 PR 030-1: what a device exposes, on the device read only.
+    DeviceParameter:
+      type: object
+      description: >-
+        One parameter of the device's profile, as the latest read names it: `name` is
+        the profile's label and `decimals` its display precision.
+      required: [uuid, key, name, unit, data_type, decimals, accepts_command, reports_state]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        key:
+          type: string
+        name:
+          type: string
+        unit:
+          type: [string, 'null']
+        data_type:
+          type: string
+          description: '`boolean`, `integer`, `number`, `string`, `enum`, `timestamp` or `bytes`.'
+        decimals:
+          type: [integer, 'null']
+          minimum: 0
+          description: The display precision, or null when the profile sets none.
+        accepts_command:
+          type: boolean
+          description: Whether the parameter accepts a command (a setting).
+        reports_state:
+          type: boolean
+          description: Whether the device reports the parameter's state.
+    DeviceParameters:
+      type: object
+      description: >-
+        The profile, site and parameters of a device, read from its applied, else
+        last-applied, configuration (spec 030). `profile` and `site` are null when
+        absent; `parameters` is empty when the device has no profile revision.
+      required: [profile, site, parameters]
+      properties:
+        profile:
+          type: [object, 'null']
+          required: [uuid, name, revision]
+          properties:
+            uuid:
+              type: string
+              format: uuid
+            name:
+              type: string
+            revision:
+              type: integer
+              minimum: 1
+        site:
+          type: [object, 'null']
+          required: [uuid, name, timezone]
+          properties:
+            uuid:
+              type: string
+              format: uuid
+            name:
+              type: string
+            timezone:
+              type: string
+              description: An IANA time zone.
+        parameters:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeviceParameter'
+    IntegrationSite:
+      type: object
+      description: A site of the organization, with the number of granted devices at it.
+      required: [uuid, name, timezone, address, latitude, longitude, granted_devices_count]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+        timezone:
+          type: string
+          description: An IANA time zone.
+        address:
+          type: [string, 'null']
+        latitude:
+          type: [number, 'null']
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: [number, 'null']
+          minimum: -180
+          maximum: 180
+        granted_devices_count:
+          type: integer
+          minimum: 0
+          description: Devices at the site within the application's resolved grant.
+    SiteList:
+      type: object
+      description: Every site of the organization, ordered by name, not paginated.
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntegrationSite'
     IntegrationAlert:
       type: object
       description: >-
@@ -697,10 +802,13 @@ operations:
         $ref: '#/components/responses/ValidationFailed'
   GET /integration/v1/organizations/{organization}/devices/{uuid}:
     summary: Read a granted device
-    description: 404 when the device is not granted to the application.
+    description: >-
+      The device with its profile, site and parameters, so an application can learn
+      what it can bind (spec 030). 404 when the device is not granted to the
+      application.
     responses:
       '200':
-        description: The device.
+        description: The device with its profile, site and parameters.
         headers:
           Cache-Control:
             $ref: '#/components/headers/NoStore'
@@ -711,7 +819,9 @@ operations:
               required: [data]
               properties:
                 data:
-                  $ref: '#/components/schemas/IntegrationDevice'
+                  allOf:
+                    - $ref: '#/components/schemas/IntegrationDevice'
+                    - $ref: '#/components/schemas/DeviceParameters'
             example:
               data:
                 uuid: 3f8a1c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
@@ -720,6 +830,65 @@ operations:
                 lifecycle: active
                 presence: unknown
                 last_seen_at: '2026-10-12T08:14:52.000000Z'
+                profile:
+                  uuid: 2b1c0d9e-8f7a-4b6c-9d5e-4f3a2b1c0d9e
+                  name: Herd tracker
+                  revision: 3
+                site:
+                  uuid: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                  name: North paddock
+                  timezone: America/Edmonton
+                parameters:
+                  - uuid: 6d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a
+                    key: battery
+                    name: Battery
+                    unit: '%'
+                    data_type: number
+                    decimals: 1
+                    accepts_command: false
+                    reports_state: true
+                  - uuid: 7e3f4a5b-6c7d-4e8f-9a0b-1c2d3e4f5a6b
+                    key: report_interval
+                    name: Report interval
+                    unit: s
+                    data_type: integer
+                    decimals: 0
+                    accepts_command: true
+                    reports_state: true
+  GET /integration/v1/organizations/{organization}/sites:
+    summary: List the organization's sites
+    description: >-
+      Every site of the organization, ordered by name and not paginated, each with the
+      number of devices at it that the application's grant covers. Needs
+      `entities:read` (spec 030), which will also serve the entity hierarchy.
+    x-abilities:
+      all: [entities:read]
+    responses:
+      '200':
+        description: The sites.
+        headers:
+          Cache-Control:
+            $ref: '#/components/headers/NoStore'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteList'
+            example:
+              data:
+                - uuid: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                  name: North paddock
+                  timezone: America/Edmonton
+                  address: Range Road 1, Example County
+                  latitude: 51.05
+                  longitude: -114.07
+                  granted_devices_count: 17
+                - uuid: 0b9c8d7e-6f5a-4b4c-9d3e-2f1a0b9c8d7e
+                  name: South yard
+                  timezone: America/Edmonton
+                  address: null
+                  latitude: null
+                  longitude: null
+                  granted_devices_count: 0
   GET /integration/v1/organizations/{organization}/alerts:
     summary: List alerts on granted devices
     description: >-

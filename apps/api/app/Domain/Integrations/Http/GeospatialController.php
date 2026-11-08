@@ -6,7 +6,6 @@ namespace App\Domain\Integrations\Http;
 
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Automation\Models\Workflow;
-use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Geospatial\Http\LocationBindingController;
@@ -15,6 +14,8 @@ use App\Domain\Geospatial\Models\GeofenceActivationBatch;
 use App\Domain\Geospatial\Models\GeofenceAssignment;
 use App\Domain\Geospatial\Models\LocationBinding;
 use App\Domain\Geospatial\Services\GeofenceService;
+use App\Domain\Integrations\Services\ApplicationGrant;
+use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 
@@ -22,27 +23,33 @@ final class GeospatialController
 {
     public function __construct(private readonly GeofenceService $geofences, private readonly RuntimeClient $runtime, private readonly LocationBindingController $bindings) {}
 
+    /** The resolved grant for this request (spec 030): the only judge of which devices an application sees. */
+    private function grant(Request $request): ApplicationGrant
+    {
+        return ApplicationGrants::for($request->attributes->get('integration_application'));
+    }
+
     public function index(Request $request, Organization $organization): array
     {
-        $app = $request->attributes->get('integration_application');
+        $granted = $this->grant($request)->resolveUuids();
 
-        return ['data' => Geofence::whereIn('id', $this->fenceIds($organization, $app->device_uuids))->orderBy('name')->get()
-            ->map(fn ($fence) => $this->filtered($this->geofences->view($fence), $app->device_uuids))->values()];
+        return ['data' => Geofence::whereIn('id', $this->fenceIds($organization, $granted))->orderBy('name')->get()
+            ->map(fn ($fence) => $this->filtered($this->geofences->view($fence), $granted))->values()];
     }
 
     public function show(Request $request, Organization $organization, string $uuid): array
     {
-        $app = $request->attributes->get('integration_application');
-        $fence = Geofence::where('organization_id', $organization->id)->whereIn('id', $this->fenceIds($organization, $app->device_uuids))->where('uuid', $uuid)->firstOrFail();
+        $granted = $this->grant($request)->resolveUuids();
+        $fence = Geofence::where('organization_id', $organization->id)->whereIn('id', $this->fenceIds($organization, $granted))->where('uuid', $uuid)->firstOrFail();
 
-        return ['data' => $this->filtered($this->geofences->view($fence), $app->device_uuids)];
+        return ['data' => $this->filtered($this->geofences->view($fence), $granted)];
     }
 
     public function store(Request $request, Organization $organization)
     {
         $app = $request->attributes->get('integration_application');
         $input = $this->input($request, 0);
-        $this->authorizeDevices($organization, $app->device_uuids, array_column($input['assignments'], 'device_uuid'));
+        $this->authorizeDevices($this->grant($request), array_column($input['assignments'], 'device_uuid'));
 
         return response()->json($this->geofences->saveAndActivate($organization, null, $input, null, $app->uuid), 202);
     }
@@ -50,28 +57,27 @@ final class GeospatialController
     public function update(Request $request, Organization $organization, string $uuid)
     {
         $app = $request->attributes->get('integration_application');
+        $grant = $this->grant($request);
         $fence = Geofence::where('organization_id', $organization->id)->where('uuid', $uuid)->firstOrFail();
-        abort_unless(count(array_diff($this->deviceUuids($fence), $app->device_uuids)) === 0, 403, 'This geofence contains assignments outside the application grant.');
+        abort_unless(count(array_diff($this->deviceUuids($fence), $grant->resolveUuids())) === 0, 403, 'This geofence contains assignments outside the application grant.');
         $input = $this->input($request, $fence->revision);
-        $this->authorizeDevices($organization, $app->device_uuids, array_column($input['assignments'], 'device_uuid'));
+        $this->authorizeDevices($grant, array_column($input['assignments'], 'device_uuid'));
 
         return response()->json($this->geofences->saveAndActivate($organization, $fence, $input, null, $app->uuid), 202);
     }
 
     public function activation(Request $request, Organization $organization, string $uuid, string $batch): array
     {
-        $app = $request->attributes->get('integration_application');
         $fence = Geofence::where('organization_id', $organization->id)->where('uuid', $uuid)->firstOrFail();
-        abort_unless(count(array_diff($this->deviceUuids($fence), $app->device_uuids)) === 0, 403);
+        abort_unless(count(array_diff($this->deviceUuids($fence), $this->grant($request)->resolveUuids())) === 0, 403);
 
         return ['data' => $this->geofences->batch(GeofenceActivationBatch::where('geofence_id', $fence->id)->where('uuid', $batch)->firstOrFail())];
     }
 
     public function retry(Request $request, Organization $organization, string $uuid, string $batch, int $item): array
     {
-        $app = $request->attributes->get('integration_application');
         $fence = Geofence::where('organization_id', $organization->id)->where('uuid', $uuid)->firstOrFail();
-        abort_unless(count(array_diff($this->deviceUuids($fence), $app->device_uuids)) === 0, 403);
+        abort_unless(count(array_diff($this->deviceUuids($fence), $this->grant($request)->resolveUuids())) === 0, 403);
         $record = GeofenceActivationBatch::where('geofence_id', $fence->id)->where('uuid', $batch)->firstOrFail();
 
         return ['data' => $this->geofences->retry($record, $item)];
@@ -79,10 +85,9 @@ final class GeospatialController
 
     public function map(Request $request, Organization $organization): array
     {
-        $app = $request->attributes->get('integration_application');
         $input = $request->validate(['device_uuids' => 'required|array|min:1|max:100', 'device_uuids.*' => 'required|uuid|distinct',
             'trail_window' => 'required|in:1h,6h,24h,7d', 'include_trails' => 'required|boolean', 'geofence_uuid' => 'nullable|uuid']);
-        $this->authorizeDevices($organization, $app->device_uuids, $input['device_uuids']);
+        $this->authorizeDevices($this->grant($request), $input['device_uuids']);
         $seconds = ['1h' => 3600, '6h' => 21600, '24h' => 86400, '7d' => 604800][$input['trail_window']];
         $items = [];
         $contexts = [];
@@ -123,9 +128,11 @@ final class GeospatialController
             'assignments.*.policy.minimum_samples' => 'required|integer|between:1,1000', 'assignments.*.policy.uncertainty_metres' => 'required|numeric|between:0,100000']) + ['expected_revision' => $revision];
     }
 
-    private function authorizeDevices(Organization $organization, array $grant, array $requested): void
+    /** Every requested device must be in the resolved grant, which already proves the organization. */
+    private function authorizeDevices(ApplicationGrant $grant, array $requested): void
     {
-        abort_unless(count(array_diff($requested, $grant)) === 0 && Device::where('organization_id', $organization->id)->whereIn('uuid', $requested)->count() === count($requested), 403, 'A requested device is outside the application grant.');
+        $requested = array_values(array_unique($requested));
+        abort_unless($grant->deviceQuery()->whereIn('uuid', $requested)->count() === count($requested), 403, 'A requested device is outside the application grant.');
     }
 
     private function fenceIds(Organization $organization, array $devices)

@@ -38,6 +38,12 @@ import {
 } from "@iot-os/ui/components/sheet";
 import { Status, StatusMark } from "@iot-os/ui/components/status-mark";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@iot-os/ui/components/tabs";
+import {
   Table,
   TableHeader,
   TableBody,
@@ -65,25 +71,41 @@ const permissions: { value: IntegrationAbility; label: string }[] = [
   { value: "geofences:read", label: "Geofences" },
   { value: "geofences:manage", label: "Manage geofences" },
   { value: "geofences:activate", label: "Activate geofence assignments" },
+  { value: "entities:read", label: "Sites" },
+  { value: "telemetry:stream", label: "Live telemetry stream" },
 ];
 const blank = (): IntegrationGrants => ({
   name: "",
   abilities: [],
   device_uuids: [],
+  site_uuids: [],
 });
 const grants = (app: IntegrationApplication): IntegrationGrants => ({
   name: app.name,
   abilities: app.abilities,
   device_uuids: app.device_uuids,
+  site_uuids: app.site_uuids,
 });
+/** A grant is a device list or a scope of sites, never both (spec 030). */
+const scoped = (grant: Pick<IntegrationGrants, "site_uuids">) =>
+  grant.site_uuids.length > 0;
+const abilitiesValid = (abilities: IntegrationAbility[]) =>
+  (!abilities.includes("events:read") || abilities.includes("alerts:read")) &&
+  (!abilities.includes("telemetry:stream") ||
+    abilities.includes("telemetry:read"));
 const valid = (draft: IntegrationGrants) =>
   draft.name.trim() &&
-  draft.device_uuids.length > 0 &&
+  draft.device_uuids.length > 0 !== draft.site_uuids.length > 0 &&
   draft.abilities.length > 0 &&
-  (!draft.abilities.includes("events:read") ||
-    draft.abilities.includes("alerts:read"));
+  abilitiesValid(draft.abilities);
 const plural = (count: number, word: string) =>
   `${count} ${word}${count === 1 ? "" : "s"}`;
+/** "3 sites" for a scope, "12 of 100 devices" for a list. */
+const grantSummary = (grant: Pick<IntegrationGrants, "device_uuids" | "site_uuids">) =>
+  scoped(grant)
+    ? plural(grant.site_uuids.length, "site")
+    : `${grant.device_uuids.length} of 100 devices`;
+const grantHint = "Add a name, a permission and a device or site";
 
 export default function IntegrationRoutes() {
   const { org, capabilities, query } = useDeviceOrganization();
@@ -161,19 +183,35 @@ function GrantFields({
   change,
   disabled,
   devices = [],
+  sites = [],
+  emptiedScope = false,
 }: {
   org: string;
   draft: IntegrationGrants;
   change: (next: IntegrationGrants) => void;
   disabled: boolean;
   devices?: IntegrationApplication["devices"];
+  sites?: IntegrationApplication["sites"];
+  /** A saved scope whose sites were all deleted: open in Sites mode and say why nothing is read. */
+  emptiedScope?: boolean;
 }) {
+  // Devices and sites are two modes of one grant: switching clears the other list.
+  const [mode, setMode] = useState<"devices" | "sites">(
+    scoped(draft) || emptiedScope ? "sites" : "devices",
+  );
   const [search, setSearch] = useState("");
+  const [siteSearch, setSiteSearch] = useState("");
   const [page, setPage] = useState(1);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const query = useQuery({
     queryKey: ["integration-device-options", org, search, page],
     queryFn: () => api.devices(org, { search, page }),
+    enabled: mode === "devices",
+  });
+  const siteQuery = useQuery({
+    queryKey: ["sites", org],
+    queryFn: () => api.sites(org),
+    enabled: mode === "sites",
   });
   const label = (id: string) =>
     labels[id] ??
@@ -181,6 +219,24 @@ function GrantFields({
       const device = devices.find((d) => d.uuid === id);
       return device ? `${device.name} · ${device.code}` : id;
     })();
+  const siteName = (id: string) =>
+    siteQuery.data?.data.find((s) => s.uuid === id)?.name ??
+    sites.find((s) => s.uuid === id)?.name ??
+    id;
+  const siteDevices = (id: string) =>
+    siteQuery.data?.data.find((s) => s.uuid === id)?.devices_count ?? null;
+  const siteOptions = (siteQuery.data?.data ?? [])
+    .filter((s) => !draft.site_uuids.includes(s.uuid))
+    .filter((s) =>
+      s.name.toLowerCase().includes(siteSearch.trim().toLowerCase()),
+    )
+    .map((s) => ({
+      value: s.uuid,
+      label:
+        s.devices_count == null
+          ? s.name
+          : `${s.name} · ${plural(s.devices_count, "device")}`,
+    }));
   return (
     <FieldGroup>
       <TextField
@@ -205,64 +261,165 @@ function GrantFields({
             </AlertDescription>
           </Alert>
         )}
-      <SearchableSelect
-        label="Add a device"
-        value=""
-        options={(query.data?.data ?? [])
-          .filter((d) => !draft.device_uuids.includes(d.uuid))
-          .map((d) => ({ value: d.uuid, label: `${d.name} · ${d.code}` }))}
-        onChange={(id) => {
-          const device = query.data?.data.find((d) => d.uuid === id);
-          if (device)
-            setLabels((current) => ({
-              ...current,
-              [id]: `${device.name} · ${device.code}`,
-            }));
-          change({ ...draft, device_uuids: [...draft.device_uuids, id] });
+      {draft.abilities.includes("telemetry:stream") &&
+        !draft.abilities.includes("telemetry:read") && (
+          <Alert>
+            <AlertTitle>Telemetry permission required</AlertTitle>
+            <AlertDescription>
+              Select Telemetry and location to use the live telemetry stream.
+            </AlertDescription>
+          </Alert>
+        )}
+      <Tabs
+        value={mode}
+        onValueChange={(value) => {
+          const next = value as "devices" | "sites";
+          setMode(next);
+          change(
+            next === "sites"
+              ? { ...draft, device_uuids: [] }
+              : { ...draft, site_uuids: [] },
+          );
         }}
-        search={search}
-        onSearchChange={(value) => {
-          setSearch(value);
-          setPage(1);
-        }}
-        page={page}
-        onPageChange={setPage}
-        hasNextPage={Boolean(query.data && page < query.data.meta.last_page)}
-        loading={query.isFetching}
-        disabled={disabled || draft.device_uuids.length >= 100}
-        help={
-          draft.device_uuids.length >= 100
-            ? "The limit of 100 devices is reached."
-            : `${draft.device_uuids.length} of 100 devices. Access applies only to this selection.`
-        }
-      />
-      <RequestError error={query.error} />
-      {draft.device_uuids.length > 0 && (
-        <ul className="flex flex-col divide-y border-y" aria-label="Granted devices">
-          {draft.device_uuids.map((id) => (
-            <li key={id} className="flex items-center justify-between gap-3 py-1.5">
-              <span className="min-w-0 text-sm break-words">{label(id)}</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                aria-label={`Remove ${label(id)}`}
-                onClick={() =>
-                  change({
-                    ...draft,
-                    device_uuids: draft.device_uuids.filter(
-                      (value) => value !== id,
-                    ),
-                  })
-                }
-              >
-                Remove
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+      >
+        <FieldLegend variant="label">Grant access by</FieldLegend>
+        <TabsList aria-label="Grant access by">
+          <TabsTrigger value="devices" disabled={disabled}>
+            Devices
+          </TabsTrigger>
+          <TabsTrigger value="sites" disabled={disabled}>
+            Sites
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="devices" className="flex flex-col gap-4">
+          <SearchableSelect
+            label="Add a device"
+            value=""
+            options={(query.data?.data ?? [])
+              .filter((d) => !draft.device_uuids.includes(d.uuid))
+              .map((d) => ({ value: d.uuid, label: `${d.name} · ${d.code}` }))}
+            onChange={(id) => {
+              const device = query.data?.data.find((d) => d.uuid === id);
+              if (device)
+                setLabels((current) => ({
+                  ...current,
+                  [id]: `${device.name} · ${device.code}`,
+                }));
+              change({ ...draft, device_uuids: [...draft.device_uuids, id] });
+            }}
+            search={search}
+            onSearchChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+            page={page}
+            onPageChange={setPage}
+            hasNextPage={Boolean(query.data && page < query.data.meta.last_page)}
+            loading={query.isFetching}
+            disabled={disabled || draft.device_uuids.length >= 100}
+            help={
+              draft.device_uuids.length >= 100
+                ? "The limit of 100 devices is reached."
+                : `${draft.device_uuids.length} of 100 devices. Access applies only to this selection.`
+            }
+          />
+          <RequestError error={query.error} />
+          {draft.device_uuids.length > 0 && (
+            <ul className="flex flex-col divide-y border-y" aria-label="Granted devices">
+              {draft.device_uuids.map((id) => (
+                <li key={id} className="flex items-center justify-between gap-3 py-1.5">
+                  <span className="min-w-0 text-sm break-words">{label(id)}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled}
+                    aria-label={`Remove ${label(id)}`}
+                    onClick={() =>
+                      change({
+                        ...draft,
+                        device_uuids: draft.device_uuids.filter(
+                          (value) => value !== id,
+                        ),
+                      })
+                    }
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </TabsContent>
+        <TabsContent value="sites" className="flex flex-col gap-4">
+          {emptiedScope && draft.site_uuids.length === 0 && (
+            <Alert>
+              <AlertTitle>No sites</AlertTitle>
+              <AlertDescription>
+                This application reads nothing until a site is granted. Its
+                sites were deleted.
+              </AlertDescription>
+            </Alert>
+          )}
+          <SearchableSelect
+            label="Add a site"
+            value=""
+            options={siteOptions}
+            onChange={(id) =>
+              change({ ...draft, site_uuids: [...draft.site_uuids, id] })
+            }
+            search={siteSearch}
+            onSearchChange={setSiteSearch}
+            loading={siteQuery.isFetching}
+            disabled={disabled || draft.site_uuids.length >= 50}
+            emptyText={
+              siteQuery.data && siteQuery.data.data.length === 0
+                ? "No sites yet. Create sites under Devices → Sites."
+                : "No matches found."
+            }
+            help={
+              draft.site_uuids.length >= 50
+                ? "The limit of 50 sites is reached."
+                : `${draft.site_uuids.length} of 50 sites. Every device at these sites is covered, including devices added later; a device with no site is never covered.`
+            }
+          />
+          <RequestError error={siteQuery.error} />
+          {draft.site_uuids.length > 0 && (
+            <ul className="flex flex-col divide-y border-y" aria-label="Granted sites">
+              {draft.site_uuids.map((id) => (
+                <li key={id} className="flex items-center justify-between gap-3 py-1.5">
+                  <span className="min-w-0 text-sm break-words">
+                    {siteName(id)}
+                    {siteDevices(id) != null && (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {plural(siteDevices(id) ?? 0, "device")}
+                      </span>
+                    )}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled}
+                    aria-label={`Remove ${siteName(id)}`}
+                    onClick={() =>
+                      change({
+                        ...draft,
+                        site_uuids: draft.site_uuids.filter(
+                          (value) => value !== id,
+                        ),
+                      })
+                    }
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </TabsContent>
+      </Tabs>
     </FieldGroup>
   );
 }
@@ -316,7 +473,7 @@ function Directory({ org }: { org: string }) {
       cell: (app) =>
         app.revoked_at ? <StatusMark tone="muted">Revoked</StatusMark> : <StatusMark tone="good">Active</StatusMark>,
     },
-    { id: "devices", header: "Devices", align: "end", value: (app) => app.device_uuids.length, cell: (app) => <span className="tabular-nums">{app.device_uuids.length}</span> },
+    { id: "grant", header: "Grant", value: (app) => grantSummary(app), cell: (app) => <span className="tabular-nums">{scoped(app) ? plural(app.site_uuids.length, "site") : plural(app.device_uuids.length, "device")}</span> },
     { id: "permissions", header: "Permissions", align: "end", value: (app) => app.abilities.length, cell: (app) => <span className="tabular-nums">{app.abilities.length}</span> },
     {
       id: "token",
@@ -384,7 +541,7 @@ function Directory({ org }: { org: string }) {
               inset
               icon={<PlugZapIcon />}
               title="No applications yet"
-              description="Create an application, choose its devices, then issue a token for its backend."
+              description="Create an application, choose its devices or sites, then issue a token for its backend."
             />
           }
         />
@@ -399,7 +556,7 @@ function Directory({ org }: { org: string }) {
           <SheetHeader className="border-b px-6 py-4">
             <SheetTitle>New application</SheetTitle>
             <SheetDescription>
-              Choose the read permissions and devices it needs.
+              Choose the read permissions and the devices or sites it needs.
             </SheetDescription>
           </SheetHeader>
           <form
@@ -437,7 +594,7 @@ function Directory({ org }: { org: string }) {
             <div className="flex flex-wrap items-center justify-end gap-2 border-t px-6 py-4">
               {!valid(draft) && (
                 <span className="mr-auto text-xs text-muted-foreground">
-                  Add a name, a permission and a device
+                  {grantHint}
                 </span>
               )}
               <Button
@@ -711,7 +868,7 @@ function Workspace({
       : null;
   const grantsWhy =
     lockReason ??
-    (!dirty ? "No changes" : !valid(draft) ? "Add a name, a permission and a device" : null);
+    (!dirty ? "No changes" : !valid(draft) ? grantHint : null);
   const daysValid =
     Number.isInteger(Number(days)) && Number(days) >= 1 && Number(days) <= 90;
   const tokenWhy =
@@ -723,7 +880,10 @@ function Workspace({
         : tokenAbilities.includes("events:read") &&
             !tokenAbilities.includes("alerts:read")
           ? "Alert event feed needs Alerts"
-          : !daysValid
+          : tokenAbilities.includes("telemetry:stream") &&
+              !tokenAbilities.includes("telemetry:read")
+            ? "Live telemetry stream needs Telemetry and location"
+            : !daysValid
             ? "Choose 1 to 90 days"
             : null);
   const hookAllowed =
@@ -818,12 +978,18 @@ function Workspace({
       )}
       <dl className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-x-6 gap-y-3 border-y py-4 text-sm">
         <div>
-          <dt className="text-xs text-muted-foreground">Devices</dt>
-          <dd className="tabular-nums">{app.device_uuids.length} of 100</dd>
+          <dt className="text-xs text-muted-foreground">Grant</dt>
+          <dd className="tabular-nums">
+            {scoped(app)
+              ? `${plural(app.site_uuids.length, "site")}: ${app.sites.map((site) => site.name).join(", ")}`
+              : app.device_uuids.length === 0
+                ? "No sites"
+                : `${app.device_uuids.length} of 100 devices`}
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">Permissions</dt>
-          <dd className="tabular-nums">{app.abilities.length} of 4</dd>
+          <dd className="tabular-nums">{app.abilities.length} of {permissions.length}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">Token</dt>
@@ -889,7 +1055,9 @@ function Workspace({
             e.preventDefault();
             ask(
               "Replace access grants?",
-              "The current token will stop working and pending webhook deliveries will be cancelled.",
+              scoped(draft)
+                ? "Every device at the chosen sites will be covered, including devices added later. The current token will stop working, event cursors will need a fresh checkpoint and pending webhook deliveries will be cancelled."
+                : "The current token will stop working and pending webhook deliveries will be cancelled.",
               "Save grants",
               async () => {
                 const updated = await api.updateIntegrationApplication(
@@ -913,6 +1081,8 @@ function Workspace({
             draft={draft}
             change={setDraft}
             devices={app.devices}
+            sites={app.sites}
+            emptiedScope={!scoped(app) && app.device_uuids.length === 0}
             disabled={locked}
           />
           <div className="flex flex-wrap items-center gap-3">
@@ -1256,7 +1426,10 @@ function Workspace({
         <>
           {app.revoked_at ? <StatusMark tone="muted">Revoked</StatusMark> : <StatusMark tone="good">Active</StatusMark>}
           <span className="text-muted-foreground">
-            {plural(app.device_uuids.length, "device")} · {plural(app.abilities.length, "permission")}
+            {scoped(app)
+              ? plural(app.site_uuids.length, "site")
+              : plural(app.device_uuids.length, "device")}{" "}
+            · {plural(app.abilities.length, "permission")}
           </span>
         </>
       }

@@ -19,7 +19,7 @@ use Tests\Support\Contract\ContractDocument;
 use Tests\TestCase;
 
 /**
- * The error responses of the 18 integration operations, checked against the contract
+ * The error responses of every integration operation, checked against the contract
  * like every other response (gate G4), so `contract:coverage` sees a 401, 403 and 404
  * for each and a 422 for each that takes input (specs/001-openapi-contract research R8).
  * Success responses are exercised in tests/Feature/Domain/Integrations and Geospatial.
@@ -30,7 +30,7 @@ final class IntegrationContractTest extends TestCase
 
     private const BASE = '/api/integration/v1/organizations/';
 
-    private const ABILITIES = ['devices:read', 'alerts:read', 'events:read', 'telemetry:read', 'locations:read', 'geofences:read', 'geofences:manage', 'geofences:activate'];
+    private const ABILITIES = ['devices:read', 'alerts:read', 'events:read', 'telemetry:read', 'locations:read', 'geofences:read', 'geofences:manage', 'geofences:activate', 'entities:read', 'telemetry:stream'];
 
     /**
      * Every integration operation and the ability its middleware requires.
@@ -40,6 +40,7 @@ final class IntegrationContractTest extends TestCase
         'GET devices/{uuid}' => ['GET', 'devices/{device}', 'devices:read'],
         'GET alerts' => ['GET', 'alerts', 'alerts:read'],
         'GET alerts/{uuid}' => ['GET', 'alerts/{random}', 'alerts:read'],
+        'GET sites' => ['GET', 'sites', 'entities:read'],
         'GET events/checkpoint' => ['GET', 'events/checkpoint', 'events:read'],
         'GET events' => ['GET', 'events', 'events:read'],
         'GET devices/{uuid}/telemetry/latest' => ['GET', 'devices/{device}/telemetry/latest', 'telemetry:read'],
@@ -107,8 +108,8 @@ final class IntegrationContractTest extends TestCase
     }
 
     /**
-     * A token without the operation's ability, and for the two compound rules a token
-     * with the ability but without its companion.
+     * A token without the operation's ability, and for the compound rules a token with
+     * the ability but without its companion.
      *
      * @return iterable<string, array{0: string, 1: list<string>}>
      */
@@ -121,6 +122,9 @@ final class IntegrationContractTest extends TestCase
             }
             if ($ability === 'geofences:activate') {
                 yield "{$operation} without geofences:manage" => [$operation, array_values(array_diff(self::ABILITIES, ['geofences:manage']))];
+            }
+            if ($ability === 'telemetry:stream') {
+                yield "{$operation} without telemetry:read" => [$operation, array_values(array_diff(self::ABILITIES, ['telemetry:read']))];
             }
         }
     }
@@ -188,6 +192,7 @@ final class IntegrationContractTest extends TestCase
             $expected = match ($ability) {
                 'events:read' => ['all' => ['events:read'], 'any_of' => [['alerts:read', 'geofences:read']]],
                 'geofences:activate' => ['all' => ['geofences:activate', 'geofences:manage']],
+                'telemetry:stream' => ['all' => ['telemetry:stream', 'telemetry:read']],
                 default => ['all' => [$ability]],
             };
 

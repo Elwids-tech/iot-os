@@ -7,6 +7,7 @@ namespace App\Domain\Integrations\Http;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Devices\Services\RuntimeClient;
+use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
 use Dedoc\Scramble\Attributes\QueryParameter;
@@ -18,8 +19,8 @@ final class TelemetryController
 {
     private function device(Request $request, Organization $organization, string $uuid): Device
     {
-        return Device::where('organization_id', $organization->id)
-            ->whereIn('uuid', $request->attributes->get('integration_application')->device_uuids)
+        return ApplicationGrants::for($request->attributes->get('integration_application'))
+            ->deviceQuery(Device::where('organization_id', $organization->id))
             ->where('uuid', $uuid)->firstOrFail();
     }
 

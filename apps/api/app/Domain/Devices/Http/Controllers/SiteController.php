@@ -9,9 +9,11 @@ use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAuthorization;
+use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 final class SiteController
@@ -48,12 +50,18 @@ final class SiteController
         return ['data' => $site->loadCount('devices')->toView()];
     }
 
-    /** Devices at the site keep working; they fall back to the organization's time zone. */
+    /**
+     * Devices at the site keep working; they fall back to the organization's time zone.
+     * Application scopes naming the site lose it, with the consequences of a grant change (spec 030).
+     */
     public function destroy(Request $request, Organization $organization, Site $site): Response
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $site);
-        $site->delete();
-        ActivityLog::record('site.deleted', $organization, $request->user(), $site);
+        DB::transaction(function () use ($request, $organization, $site): void {
+            ApplicationGrants::siteDeleted($site, $request->user()->id);
+            $site->delete();
+            ActivityLog::record('site.deleted', $organization, $request->user(), $site);
+        });
 
         return response()->noContent();
     }

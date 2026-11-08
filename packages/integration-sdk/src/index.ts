@@ -43,9 +43,23 @@ export interface TelemetryHistory {
 export interface HistoryOptions {
   parameterUuid: string; from: string; to: string; maxPoints?: number; signal?: AbortSignal;
 }
+/** One parameter of a device's profile (0.6.0): `name` is the profile's label, `decimals` its display precision. */
+export interface DeviceParameter {
+  uuid: string; key: string; name: string; unit: string | null; data_type: string; decimals: number | null;
+  accepts_command: boolean; reports_state: boolean;
+}
+export interface DeviceProfileSummary { uuid: string; name: string; revision: number }
+export interface DeviceSite { uuid: string; name: string; timezone: string }
 export interface Device {
   uuid: string; code: string; name: string; lifecycle: string; presence: string;
   last_seen_at: string | null;
+  /** The device read carries these (0.6.0); the list does not. `parameters` is empty without a profile revision. */
+  profile?: DeviceProfileSummary | null; site?: DeviceSite | null; parameters?: DeviceParameter[];
+}
+/** A site of the organization with the number of granted devices at it (0.6.0, `entities:read`). */
+export interface Site {
+  uuid: string; name: string; timezone: string; address: string | null;
+  latitude: number | null; longitude: number | null; granted_devices_count: number;
 }
 export interface Alert {
   uuid: string; episode: number; condition: "active" | "cleared";
@@ -112,8 +126,29 @@ function fields(value: unknown, strings: string[], nullable: string[]): Record<s
   if (strings.some(key => typeof result[key] !== "string") || nullable.some(key => result[key] !== null && typeof result[key] !== "string")) throw new IotContractError();
   return result;
 }
+function parameter(item: unknown): DeviceParameter {
+  const result = fields(item, ["uuid", "key", "name", "data_type"], ["unit"]);
+  if ((result.decimals !== null && (!Number.isSafeInteger(result.decimals) || Number(result.decimals) < 0)) || typeof result.accepts_command !== "boolean" || typeof result.reports_state !== "boolean") throw new IotContractError();
+  return result as unknown as DeviceParameter;
+}
+// The 0.6.0 fields are validated when present, so a 0.5 platform's device still parses.
 function device(value: unknown): Device {
-  return fields(value, ["uuid", "code", "name", "lifecycle", "presence"], ["last_seen_at"]) as unknown as Device;
+  const result = fields(value, ["uuid", "code", "name", "lifecycle", "presence"], ["last_seen_at"]);
+  if (result.profile !== undefined && result.profile !== null) {
+    const profile = fields(result.profile, ["uuid", "name"], []);
+    if (!Number.isSafeInteger(profile.revision) || Number(profile.revision) < 1) throw new IotContractError();
+  }
+  if (result.site !== undefined && result.site !== null) fields(result.site, ["uuid", "name", "timezone"], []);
+  if (result.parameters !== undefined) {
+    if (!Array.isArray(result.parameters)) throw new IotContractError();
+    result.parameters.forEach(parameter);
+  }
+  return result as unknown as Device;
+}
+function site(item: unknown): Site {
+  const result = fields(item, ["uuid", "name", "timezone"], ["address"]);
+  if (["latitude", "longitude"].some(key => result[key] !== null && (typeof result[key] !== "number" || !Number.isFinite(result[key]))) || !Number.isSafeInteger(result.granted_devices_count) || Number(result.granted_devices_count) < 0) throw new IotContractError();
+  return result as unknown as Site;
 }
 function alert(value: unknown): Alert {
   const result = fields(value, ["uuid", "workflow_uuid", "workflow_name", "device_uuid"], ["activated_at", "cleared_at", "acknowledged_at", "execution_stopped_reason"]);
@@ -299,6 +334,12 @@ export class IotClient {
   }
   async device(id: string, signal?: AbortSignal): Promise<Device> {
     return device(record(await this.#request(`devices/${uuid(id)}`, signal)).data);
+  }
+  /** Every site of the organization, ordered by name, with the granted devices at each; needs `entities:read`. */
+  async sites(signal?: AbortSignal): Promise<Site[]> {
+    const response = record(await this.#request("sites", signal));
+    if (!Array.isArray(response.data)) throw new IotContractError();
+    return response.data.map(site);
   }
   async alerts(options: AlertOptions = {}): Promise<Page<Alert>> {
     return page(await this.#request("alerts" + this.#query(options), options.signal), alert);

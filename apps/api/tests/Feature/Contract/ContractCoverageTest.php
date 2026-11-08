@@ -38,7 +38,7 @@ final class ContractCoverageTest extends TestCase
         // query parameter also need a 422.
         $this->artisan('contract:coverage', ['--file' => $this->record([])])
             ->expectsOutputToContain('contract G4: '.self::LOCATION_MAP.' 422: never checked by the suite')
-            ->expectsOutputToContain('78 required pairs, 78 never checked.')
+            ->expectsOutputToContain('82 required pairs, 82 never checked.')
             ->assertExitCode(1);
     }
 
