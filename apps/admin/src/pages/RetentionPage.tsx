@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react"
 import {
   ApiError,
-  type Organization,
+  type RetentionOrganization,
   type RetentionSetting,
 } from "@iot-os/api-client"
 import {
@@ -45,7 +45,7 @@ function message(error: unknown) {
     : "The service could not be reached."
 }
 export function RetentionPage() {
-  const [organizations, setOrganizations] = useState<Organization[]>([]),
+  const [organizations, setOrganizations] = useState<RetentionOrganization[]>([]),
     [search, setSearch] = useState(""),
     [page, setPage] = useState(1),
     [more, setMore] = useState(false),
@@ -81,7 +81,7 @@ export function RetentionPage() {
     setOrganizationsLoading(true)
     const timer = window.setTimeout(() => {
       apiClient
-        .adminOrganizations({ search, page, perPage: 25 })
+        .retentionOrganizations({ search, page, perPage: 25 })
         .then((result) => {
           if (current) {
             setOrganizations(result.data)

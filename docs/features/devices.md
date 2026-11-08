@@ -432,7 +432,9 @@ Retention resolves the organization override, else its billing account's retenti
 `platform` or `default`). Platform administrators with
 `PlatformAdministration.manage-retention` change the override and the platform default
 in admin (**Settings → Retention**); reductions there require confirmation of the
-deletion cutoff and apply at the next cleanup. A billing change that shortens
+deletion cutoff and apply at the next cleanup. The page's organization picker lists
+only each organization's name, through a route of its own, so `manage-retention`
+needs no `manage-organizations` to choose one. A billing change that shortens
 retention instead waits 30 days: until then cleanup keeps the previous period, and
 **Settings → Retention** shows the pending reduction ("7 days from 8 Dec 2026"). A
 confirmed shorter override set there during that wait ends it, and applies at the next
@@ -462,8 +464,11 @@ Organization routes are under `/api/v1/organizations/{organization}`
 | `telemetry-captures` | Telemetry viewer |
 | `runtime-status` | Runtime and automation readiness for the portal |
 
-Admin: `GET/PUT /api/v1/admin/settings/telemetry-retention` and
-`/api/v1/admin/organizations/{organization}/settings/telemetry-retention`.
+Admin, all with `PlatformAdministration.manage-retention`:
+`GET/PUT /api/v1/admin/settings/telemetry-retention`,
+`/api/v1/admin/organizations/{organization}/settings/telemetry-retention`, and
+`GET /api/v1/admin/settings/telemetry-retention/organizations` (the picker: uuid and
+name, `search` by name or slug, `page`, `per_page`).
 
 ## Permissions
 

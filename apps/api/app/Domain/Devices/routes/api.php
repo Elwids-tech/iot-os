@@ -75,6 +75,8 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'can:'.PlatformAdministra
     Route::put('settings/telemetry-retention', [RetentionController::class, 'update']);
     Route::get('organizations/{organization}/settings/telemetry-retention', [RetentionController::class, 'show']);
     Route::put('organizations/{organization}/settings/telemetry-retention', [RetentionController::class, 'update']);
+    // The settings page's organization picker; `organizations.index` needs manage-organizations.
+    Route::get('settings/telemetry-retention/organizations', [RetentionController::class, 'organizations']);
 });
 
 Route::prefix('internal/devices')->middleware(AuthenticateDeviceRuntime::class)->group(function (): void {

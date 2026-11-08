@@ -290,7 +290,10 @@ async function mockApi(
       return
     }
 
-    if (request.method() === "GET" && url.pathname === "/api/v1/admin/organizations") {
+    if (
+      request.method() === "GET" &&
+      ["/api/v1/admin/organizations", "/api/v1/admin/settings/telemetry-retention/organizations"].includes(url.pathname)
+    ) {
       const search = url.searchParams.get("search")?.toLocaleLowerCase() ?? ""
       const results = orgs.filter(
         (organization) =>
@@ -298,7 +301,13 @@ async function mockApi(
           organization.slug.toLocaleLowerCase().includes(search),
       )
 
-      await fulfillJson(route, paginated(results, url))
+      // The retention picker's list carries names only.
+      await fulfillJson(
+        route,
+        url.pathname === "/api/v1/admin/organizations"
+          ? paginated(results, url)
+          : paginated(results.map(({ uuid, name }) => ({ uuid, name })), url),
+      )
       return
     }
 
@@ -965,6 +974,61 @@ test("hides organizations, users, activity and billing from an administrator who
   }
   await page.goto("/billing/invoices")
   await expect(page).toHaveURL(/\/settings\/retention$/)
+})
+
+test("an administrator who may not manage organizations chooses one on Settings → Retention and overrides it", async ({ page }) => {
+  await mockApi(page, { user: retentionKeeper })
+  const northstar = organizations[1]
+  const directory: string[] = []
+  const saved: unknown[] = []
+  let override: number | null = null
+  const setting = () => ({
+    days: override ?? 400,
+    source: override === null ? "default" : "organization",
+    override_days: override,
+    revision: saved.length,
+    platform_days: 400,
+    billing_days: null,
+    cleanup: null,
+    cleanup_failures: 0,
+  })
+  // The organization directory refuses this role, as the API does.
+  await page.route(
+    (url) => url.pathname === "/api/v1/admin/organizations",
+    (route) => {
+      directory.push(route.request().url())
+      return route.fulfill({ status: 403, json: { message: "This action is unauthorized." } })
+    },
+  )
+  await page.route("**/api/v1/admin/settings/telemetry-retention", (route) => route.fulfill({ json: { data: setting() } }))
+  await page.route(`**/api/v1/admin/organizations/${northstar.uuid}/settings/telemetry-retention`, (route) => {
+    if (route.request().method() === "PUT") {
+      const body = route.request().postDataJSON() as { days: number | null }
+      saved.push(body)
+      override = body.days
+    }
+    return route.fulfill({ json: { data: setting() } })
+  })
+  await page.goto("/")
+  await expect(page.getByRole("heading", { name: "Platform default" })).toBeVisible()
+
+  await page.getByRole("combobox", { name: "Settings for" }).click()
+  await expect(page.getByRole("option", { name: "Acme Manufacturing" })).toBeVisible()
+  await page.getByRole("combobox", { name: "Search settings for" }).fill("north")
+  await expect(page.getByRole("option", { name: "Acme Manufacturing" })).toHaveCount(0)
+  await page.getByRole("option", { name: "Northstar Utilities" }).click()
+  await expect(page.getByRole("listbox")).toHaveCount(0)
+
+  await expect(page.getByRole("heading", { name: "Organization override" })).toBeVisible()
+  await page.getByRole("switch", { name: "Inherit the platform default" }).click()
+  await page.getByRole("spinbutton", { name: "Retention in days" }).fill("30")
+  await page.getByRole("button", { name: "Save retention" }).click()
+  await page.getByRole("alertdialog", { name: "Reduce measurement retention?" }).getByRole("button", { name: "Confirm reduction" }).click()
+
+  await expect(page.getByText("Retention settings saved")).toBeVisible()
+  await expect(page.getByText("Source: organization override")).toBeVisible()
+  expect(saved).toEqual([{ days: 30, revision: 0, confirmed_reduction: true }])
+  expect(directory).toEqual([])
 })
 
 test("a platform role that opens no admin page says so", async ({ page }) => {
