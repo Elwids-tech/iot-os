@@ -75,7 +75,8 @@ US3). The allowance **never stops an alert**.
   late report after an outage never changes a past month.
 - Past the allowance, an alert is recorded, shown in the inbox and the event log, and
   emailed exactly as before. It counts as one alert of overage for the month,
-  recorded against the plan the account was on, for invoicing later.
+  recorded against the plan the account was on and priced on that month's invoice (at
+  0 during a trial, [billing](billing.md#prices-and-invoices)).
 - Without a plan or an override the allowance is unlimited, so alerts are counted but
   never overage.
 
