@@ -151,6 +151,9 @@ async function mockApi(page: Page) {
   const detail = (account: Account) => ({
     ...summary(account),
     plan_assignment: null,
+    prices: null,
+    price_overrides: [],
+    billing_details: { billing_address: null, tax_number: null, tax_rate: null },
     allowances: [
       { kind: "alerts", value: null, source: "default", note: null },
       { kind: "sms", value: 0, source: "default", note: null },
@@ -292,6 +295,7 @@ async function mockApi(page: Page) {
       account.owners = account.owners.filter((owner) => owner.id !== user.id)
       return route.fulfill({ status: 204 })
     }
+    if (path === "/api/v1/admin/billing/invoices") return json(route, paginated([], url))
     if (path === "/api/v1/admin/users") {
       const users = [pat, sam].map((user) => ({ ...user, is_super_admin: false, platform_roles: [], organizations: [] }))
       return json(route, paginated(users.filter((user) => user.name.toLowerCase().includes(search)), url))

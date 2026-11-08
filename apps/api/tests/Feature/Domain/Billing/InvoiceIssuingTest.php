@@ -207,10 +207,21 @@ final class InvoiceIssuingTest extends TestCase
             ->assertHeader('Content-Type', 'application/pdf');
         $this->actingAs($this->admin, 'sanctum');
         $this->getJson("/api/v1/admin/billing/invoices/{$invoice->uuid}")->assertJsonPath('data.outstanding', 233)->assertJsonPath('data.payment_status', 'pending');
+        $this->getJson('/api/v1/admin/billing/invoices?unpaid=1')->assertOk()->assertJsonPath('meta.total', 1);
 
         // The rest settles it, and nothing more can be credited.
         $this->postJson("/api/v1/admin/billing/invoices/{$invoice->uuid}/credit-notes", ['amount' => 233, 'reason' => 'Rest'])->assertCreated()->assertJsonPath('data.applied', 233);
-        $this->getJson("/api/v1/admin/billing/invoices/{$invoice->uuid}")->assertJsonPath('data.outstanding', 0)->assertJsonPath('data.payment_status', 'credited');
+        $this->getJson("/api/v1/admin/billing/invoices/{$invoice->uuid}")
+            ->assertJsonPath('data.outstanding', 0)
+            ->assertJsonPath('data.payment_status', 'credited')
+            ->assertJsonPath('data.history.0.action', 'credit_note_issued')
+            ->assertJsonPath('data.history.0.number', 'CN-0002')
+            ->assertJsonPath('data.history.0.amount', 233)
+            ->assertJsonPath('data.history.0.note', 'Rest')
+            ->assertJsonPath('data.history.1.number', 'CN-0001')
+            ->assertJsonPath('data.history.2.action', 'issued')
+            ->assertJsonPath('data.history.2.number', 'INV-0001');
+        $this->getJson('/api/v1/admin/billing/invoices?unpaid=1')->assertOk()->assertJsonPath('meta.total', 0);
         $this->postJson("/api/v1/admin/billing/invoices/{$invoice->uuid}/credit-notes", ['amount' => 1, 'reason' => 'More'])->assertUnprocessable();
 
         // On a paid invoice the whole credit is carried to the next one, after tax.
@@ -276,7 +287,16 @@ final class InvoiceIssuingTest extends TestCase
 
         $this->actingAs($this->admin, 'sanctum');
         $this->postJson("/api/v1/admin/billing/invoices/{$draft->uuid}/adjustments", ['description' => 'Goodwill', 'amount' => -33, 'note' => 'Internal reason'])->assertOk();
-        $this->postJson("/api/v1/admin/billing/invoices/{$draft->uuid}/issue")->assertOk();
+        $this->postJson("/api/v1/admin/billing/invoices/{$draft->uuid}/issue")
+            ->assertOk()
+            ->assertJsonPath('data.history.0.action', 'issued')
+            ->assertJsonPath('data.history.0.actor.name', $this->admin->name)
+            ->assertJsonPath('data.history.1.action', 'adjustment_added')
+            ->assertJsonPath('data.history.1.description', 'Goodwill')
+            ->assertJsonPath('data.history.1.amount', -33)
+            ->assertJsonPath('data.history.1.note', 'Internal reason')
+            ->assertJsonPath('data.history.2.action', 'drafted')
+            ->assertJsonPath('data.history.2.actor', null);
 
         $this->actingAs($this->owner, 'sanctum');
         $this->getJson('/api/v1/billing-accounts/'.$this->account->uuid.'/invoices')
@@ -286,7 +306,8 @@ final class InvoiceIssuingTest extends TestCase
         $detail = $this->getJson('/api/v1/billing-accounts/'.$this->account->uuid.'/invoices/'.$draft->uuid)
             ->assertOk()
             ->assertJsonPath('data.lines.1.description', 'Goodwill')
-            ->assertJsonPath('data.lines.1.note', null);
+            ->assertJsonPath('data.lines.1.note', null)
+            ->assertJsonPath('data.history', []);
         $this->assertStringNotContainsString('Internal reason', (string) $detail->getContent());
         $this->get('/api/v1/billing-accounts/'.$this->account->uuid.'/invoices/'.$draft->uuid.'.csv')->assertOk();
         $this->get('/api/v1/billing-accounts/'.$this->account->uuid.'/invoices/'.$draft->uuid.'.pdf')->assertOk()->assertHeader('Content-Type', 'application/pdf');

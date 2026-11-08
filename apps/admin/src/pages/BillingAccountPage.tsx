@@ -7,6 +7,9 @@ import {
   type BillingAccountOrganization,
   type BillingAccountOwner,
   type DirectoryQuery,
+  type InvoiceSummary,
+  type PriceKind,
+  type PriceOverride,
   type RetentionNeedsConfirmation,
 } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
@@ -25,23 +28,30 @@ import { DropdownMenuItem } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { PageHeader } from "@iot-os/ui/components/page-header"
-import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
+import { Panel, PanelActions, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { UsagePanel } from "@iot-os/ui/components/usage-overview"
+import { formatDay } from "@iot-os/ui/lib/invoices"
+import { formatBasisPoints, formatMoney } from "@iot-os/ui/lib/money"
 import { EntityPage } from "@iot-os/ui/templates/entity-page"
-import { AlertCircleIcon, Building2Icon, UserRoundXIcon, WalletIcon } from "lucide-react"
+import { AlertCircleIcon, Building2Icon, ReceiptTextIcon, UserRoundXIcon, WalletIcon } from "lucide-react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import { AllowanceOverrideDialog } from "../components/AllowanceOverrideDialog"
 import { atLimit, organizationsOfLimit } from "../components/BillingAccountChoice"
 import { BillingAccountDialog } from "../components/BillingAccountDialog"
+import { BillingDetailsDialog } from "../components/BillingDetailsDialog"
+import { DraftInvoiceDialog, type DraftTarget } from "../components/DraftInvoiceDialog"
+import { useInvoiceColumns } from "../components/InvoiceColumns"
+import { PriceOverrideDialog } from "../components/PriceOverrideDialog"
 import { ChangeBillingAccountDialog, type MovableOrganization } from "../components/ChangeBillingAccountDialog"
 import { useSearchOptions } from "../hooks/use-search-options"
 import { allowanceText, allowanceValue, changesText } from "../lib/allowances"
 import { apiClient } from "../lib/api-client"
 import { errorMessage } from "../lib/errors"
+import { invoicePath, priceKinds, priceText } from "../lib/invoices"
 import { planPath } from "./PlansPage"
 import { RetentionConfirmDialog, retentionConfirmation } from "../components/RetentionConfirmDialog"
 
@@ -75,9 +85,9 @@ export function historyText(entry: BillingAccountHistoryEntry): string {
 }
 
 /**
- * A billing account's page (spec 023 US2, spec 028 US2 and US4, spec 029 US5): details,
- * plan, allowances, usage by month with each organization's share, owners,
- * organizations and history.
+ * A billing account's page (spec 023 US2, spec 028 US2 and US4, spec 029 US5 and US6):
+ * details, plan, allowances, prices, billing details, usage by month with each
+ * organization's share, invoices, owners, organizations and history.
  */
 export function BillingAccountPage() {
   const { billingAccountUuid = "" } = useParams()
@@ -89,6 +99,11 @@ export function BillingAccountPage() {
   const [removingOwner, setRemovingOwner] = useState<BillingAccountOwner | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [overriding, setOverriding] = useState<Allowance | null>(null)
+  const [overridingPrice, setOverridingPrice] = useState<PriceOverride | null>(null)
+  const [editingDetails, setEditingDetails] = useState(false)
+  const [drafting, setDrafting] = useState<DraftTarget | null>(null)
+  const [invoices, setInvoices] = useState<InvoiceSummary[] | null>(null)
+  const [invoicesFailed, setInvoicesFailed] = useState(false)
   const [removingPlan, setRemovingPlan] = useState(false)
   const [busy, setBusy] = useState(false)
   // A plan change or override removal that shortens retention, waiting for confirmation (spec 029 US4).
@@ -108,6 +123,21 @@ export function BillingAccountPage() {
     setAccount(null)
     load()
   }, [load])
+
+  // The latest twelve invoices; the Invoices page lists every one.
+  useEffect(() => {
+    let active = true
+    setInvoices(null)
+    setInvoicesFailed(false)
+    apiClient
+      .adminInvoices({ account: billingAccountUuid, perPage: 12 })
+      .then((page) => active && setInvoices(page.data))
+      .catch(() => active && setInvoicesFailed(true))
+    return () => {
+      active = false
+    }
+  }, [billingAccountUuid])
+  const invoiceColumns = useInvoiceColumns({ account: false })
 
   const organizationColumns = useMemo<DataColumn<BillingAccountOrganization>[]>(
     () => [
@@ -191,6 +221,63 @@ export function BillingAccountPage() {
     [],
   )
 
+  const prices = account?.prices
+  const priceColumns = useMemo<DataColumn<PriceOverride>[]>(() => {
+    if (!prices) return []
+    const money = (amount: number) => formatMoney(amount, prices.currency)
+    const block = (kind: PriceKind, size: number) => (kind === "data_point_overage_price" ? ` per ${size.toLocaleString()}` : "")
+    return [
+      {
+        id: "price",
+        header: "Price",
+        mobile: "title",
+        value: (row) => priceText[row.price].label,
+        cell: (row) => <span className="font-medium">{priceText[row.price].label}</span>,
+      },
+      {
+        id: "current",
+        header: "This month",
+        hideable: false,
+        value: (row) => prices.current[row.price],
+        cell: (row) => (
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="tabular-nums">
+              {money(prices.current[row.price])}
+              {block(row.price, prices.current.data_point_block_size)}
+            </span>
+            {row.value !== null ? <Status value="override" domain="allowance" /> : null}
+          </span>
+        ),
+      },
+      {
+        id: "next",
+        header: prices.next ? `From ${formatDay(prices.next.effective_from)}` : "Next month",
+        hideable: false,
+        value: (row) => prices.next?.[row.price] ?? "",
+        cell: (row) =>
+          prices.next && prices.next[row.price] !== prices.current[row.price] ? (
+            <span className="tabular-nums">
+              {money(prices.next[row.price])}
+              {block(row.price, prices.next.data_point_block_size)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">No change</span>
+          ),
+      },
+      {
+        id: "note",
+        header: "Override note",
+        value: (row) => row.next_note ?? row.note ?? "",
+        cell: (row) =>
+          (row.next_note ?? row.note) ? (
+            <span className="min-w-0 break-words">{row.next_note ?? row.note}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+    ]
+  }, [prices])
+
   async function changePlan(planUuid: string | null, confirmRetention = false) {
     if (!account) return
     setBusy(true)
@@ -214,6 +301,17 @@ export function BillingAccountPage() {
       toast.error(errorMessage(error))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function removePriceOverride(price: PriceKind) {
+    if (!account) return
+    try {
+      const saved = await apiClient.overridePrice(account.uuid, price, { value: null, note: null })
+      toast.success(`${priceText[price].label} for ${account.name} goes back to the plan's from ${formatDay(saved.effective_from)}`)
+      setAccount(saved.account)
+    } catch (error) {
+      toast.error(errorMessage(error))
     }
   }
 
@@ -318,6 +416,11 @@ export function BillingAccountPage() {
   }
 
   const ownerIds = new Set(account.owners.map((owner) => owner.id))
+  const priceRows = priceKinds.map(
+    (price) =>
+      account.price_overrides.find((row) => row.price === price) ?? { price, value: null, note: null, next_value: null, next_note: null },
+  )
+  const details = account.billing_details
   const assignment = account.plan_assignment
 
   return (
@@ -474,12 +577,118 @@ export function BillingAccountPage() {
           </PanelContent>
         </Panel>
       </div>
+      <div className="grid min-w-0 gap-(--panel-gap) xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <Panel aria-labelledby="billing-prices">
+          <PanelHeader>
+            <PanelTitle id="billing-prices">Prices</PanelTitle>
+            <PanelDescription>The plan&apos;s prices, except where this account has an override. Changes apply from next month.</PanelDescription>
+          </PanelHeader>
+          {account.prices ? (
+            <PanelContent flush>
+              <DataTable
+                id="admin-billing-account-prices"
+                label="Prices"
+                noun={["price", "prices"]}
+                rowKey={(row) => row.price}
+                rowLabel={(row) => priceText[row.price].label}
+                columns={priceColumns}
+                rows={priceRows}
+                rowActions={(row) => (
+                  <>
+                    <DropdownMenuItem onSelect={() => setOverridingPrice(row)}>
+                      {row.value !== null || row.next_value !== null ? "Change override" : "Override"}
+                    </DropdownMenuItem>
+                    {row.next_value !== null ? (
+                      <DropdownMenuItem onSelect={() => void removePriceOverride(row.price)}>Remove override</DropdownMenuItem>
+                    ) : null}
+                  </>
+                )}
+              />
+            </PanelContent>
+          ) : (
+            <PanelContent>
+              <p className="text-muted-foreground">No plan, so nothing is charged. Choose a plan to see its prices here.</p>
+            </PanelContent>
+          )}
+        </Panel>
+        <Panel aria-labelledby="billing-invoice-details">
+          <PanelHeader>
+            <PanelTitle id="billing-invoice-details">Billing details</PanelTitle>
+            <PanelDescription>What its invoices say about it.</PanelDescription>
+            <PanelActions>
+              <Button size="sm" variant="outline" onClick={() => setEditingDetails(true)}>
+                Edit billing details
+              </Button>
+            </PanelActions>
+          </PanelHeader>
+          <PanelContent>
+            <dl className="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] gap-x-4 gap-y-2">
+              <dt className="text-muted-foreground">Address</dt>
+              <dd className="min-w-0 whitespace-pre-wrap break-words">{details.billing_address ?? "None"}</dd>
+              <dt className="text-muted-foreground">Tax number</dt>
+              <dd className="min-w-0 break-words">{details.tax_number ?? "None"}</dd>
+              <dt className="text-muted-foreground">Tax rate</dt>
+              <dd className="flex min-w-0 flex-wrap items-center gap-x-2">
+                {details.tax_rate ? (
+                  <>
+                    {details.tax_rate.name} · {formatBasisPoints(details.tax_rate.basis_points)}
+                    {details.tax_rate.archived ? <Status value="archived" /> : null}
+                  </>
+                ) : (
+                  "No tax"
+                )}
+              </dd>
+            </dl>
+          </PanelContent>
+        </Panel>
+      </div>
       <UsagePanel
         id="billing-usage"
         description="Months are UTC. Alerts, SMS and data points over an allowance are overage; devices are a level."
         figures={account.usage}
         load={(month) => apiClient.adminBillingAccountUsage(account.uuid, month)}
       />
+      <Panel aria-labelledby="billing-invoices">
+        <PanelHeader>
+          <PanelTitle id="billing-invoices">Invoices</PanelTitle>
+          <PanelDescription>The latest twelve. Drafts are made after each month once its usage is final.</PanelDescription>
+          <PanelActions>
+            <Button size="sm" variant="outline" onClick={() => setDrafting({ account: { uuid: account.uuid, name: account.name } })}>
+              Draft invoice
+            </Button>
+          </PanelActions>
+        </PanelHeader>
+        <PanelContent flush>
+          <DataTable
+            id="admin-billing-account-invoices"
+            label="Invoices"
+            noun={["invoice", "invoices"]}
+            rowKey={(invoice) => invoice.uuid}
+            rowLabel={(invoice) => invoice.number ?? invoice.month}
+            columns={invoiceColumns}
+            rows={invoices ?? undefined}
+            error={
+              invoicesFailed ? (
+                <Alert variant="destructive">
+                  <AlertCircleIcon />
+                  <AlertDescription>Could not load the invoices. Reload the page.</AlertDescription>
+                </Alert>
+              ) : undefined
+            }
+            rowActions={(invoice) => (
+              <DropdownMenuItem onSelect={() => navigate(invoicePath(invoice.uuid))}>Open</DropdownMenuItem>
+            )}
+            empty={
+              <EmptyState
+                inset
+                icon={<ReceiptTextIcon />}
+                title="No invoices yet"
+                description="An invoice is drafted after each month the account is on a plan."
+              />
+            }
+          />
+        </PanelContent>
+      </Panel>
       <Panel aria-labelledby="billing-organizations">
         <PanelHeader>
           <PanelTitle id="billing-organizations">Organizations</PanelTitle>
@@ -543,6 +752,17 @@ export function BillingAccountPage() {
         onClose={() => setOverriding(null)}
         onSaved={setAccount}
       />
+      {account.prices ? (
+        <PriceOverrideDialog
+          account={account}
+          currency={account.prices.currency}
+          price={overridingPrice}
+          onClose={() => setOverridingPrice(null)}
+          onSaved={setAccount}
+        />
+      ) : null}
+      <BillingDetailsDialog account={editingDetails ? account : null} onClose={() => setEditingDetails(false)} onSaved={setAccount} />
+      <DraftInvoiceDialog target={drafting} onClose={() => setDrafting(null)} onDrafted={(invoice) => navigate(invoicePath(invoice.uuid))} />
       <AlertDialog open={removingPlan} onOpenChange={(open) => !open && !busy && setRemovingPlan(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>

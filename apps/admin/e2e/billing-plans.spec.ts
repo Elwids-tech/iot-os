@@ -94,6 +94,13 @@ async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, json: body })
 }
 
+/** Plans in these tests have no prices: everything is 0 (spec 029 FR-027). */
+const freePrices = {
+  currency: "USD",
+  current: { effective_from: "2026-11-01", base_price: 0, alert_overage_price: 0, data_point_overage_price: 0, data_point_block_size: 1000000 },
+  next: null,
+}
+
 /** The mocked API, plus the request bodies the tests assert on. */
 async function mockApi(page: Page) {
   const { plans, accounts } = fixtures()
@@ -109,6 +116,7 @@ async function mockApi(page: Page) {
     accounts_count: on(plan).length,
     ever_assigned: plan.ever_assigned,
     created_at: "2026-11-01T08:00:00Z",
+    prices: freePrices,
   })
   const planDetail = (plan: Plan) => ({
     ...planSummary(plan),
@@ -141,6 +149,9 @@ async function mockApi(page: Page) {
           }
         : null,
       allowances,
+      prices: plan ? freePrices : null,
+      price_overrides: [],
+      billing_details: { billing_address: null, tax_number: null, tax_rate: null },
       owners: [],
       organizations: [],
       history: [],
@@ -217,6 +228,7 @@ async function mockApi(page: Page) {
       return json(route, { data: accountDetail(account) })
     }
     if (path === "/api/v1/admin/users") return json(route, paginated([], url))
+    if (path === "/api/v1/admin/billing/invoices") return json(route, paginated([], url))
 
     return json(route, { message: `Unmocked ${method} ${path}` }, 404)
   })

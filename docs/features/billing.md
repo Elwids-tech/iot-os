@@ -78,8 +78,9 @@ allowance changes as updates; the plan's page shows its own history.
   for the deployment default, with an **Unlimited** switch (retention has none; empty
   means the platform setting). Editing a plan that accounts are on asks to confirm
   how many it changes. A plan that was ever assigned can only be archived.
-- **A plan's page** shows its allowances, the accounts on it (with paid or trial) and
-  its history.
+- **A plan's page** shows its allowances, its **Prices** (this month's, and next
+  month's when a change waits), the accounts on it (with paid or trial) and its
+  history. **Set prices** opens a dialog that says which day the prices apply from.
 - **A billing account's page** has a **Plan** panel (change or remove the plan) and an
   **Allowances** panel listing each kind with its value, where it comes from
   (override, plan or default) and the override's note, with **Override** and
@@ -87,7 +88,31 @@ allowance changes as updates; the plan's page shows its own history.
   eleven before it), a meter per allowance and each organization's share. The account
   list has a Plan column and filter, and a Usage filter: **80% or more used** or
   **Used up**, the device limit included.
+- The account's **Prices** panel lists each price this month and from next month, with
+  **Override** (a value and a note, from next month) and **Remove override**; an account
+  without a plan has none. **Billing details** holds its address, tax number and tax
+  rate (a searchable picker; archived rates are not offered). **Invoices** lists its
+  latest twelve, and **Draft invoice** drafts a month now, with a note.
+- **Invoices** (after Plans) has four tabs: **Drafts**, **Waiting for usage** (each
+  account's wait, overdue after three days, with **Draft anyway**), **Issued** and
+  **Unpaid** (pending or failed). A notice counts accounts waiting too long.
+- **An invoice's page** shows its lines, each organization's usage, its credit notes
+  (with their PDFs), its history and, on the right, the totals and who it is billed
+  to. A sticky bar holds the PDF and CSV and, on a draft, **Recalculate**, **Add
+  adjustment** (a credit or a charge, a printed description and a private note) and
+  **Issue**, which asks first because an issued invoice never changes. An issued
+  invoice has **Credit note** instead, up to what is not yet credited.
+- **Settings → Billing** holds the operator's details and number prefixes (a stale save
+  says someone else saved and offers to load their version), the deployment's currency
+  read-only, and the tax rates with **Add tax rate**, **Edit** and **Archive**.
+  Percentages take up to two decimals and are stored as basis points.
 - **New organization** with a new billing account can start it on a plan.
+
+Money is formatted with `formatMoney` from `@iot-os/ui/lib/money` in the reader's
+locale and typed in major units (`parseMoney`); invoice months, due days and the
+`payment` and `invoice` status domains come from `@iot-os/ui/lib/invoices` and the
+kit's status vocabulary. Card payments, and the "Payments on/off" line in Settings →
+Billing, arrive with PRs 11 and 12.
 
 ## Usage
 
@@ -329,6 +354,13 @@ every division rounds half up.
 
 Issuing dispatches `InvoiceIssued`, which card payments (PR 11) will listen to.
 
+In the portal, an owner's **Billing accounts** page shows the plan's prices on the
+**Plan** panel ("from {month}" when they change next month), an **Invoices** panel of
+issued invoices with their payment status and due date, and a **Credit notes** panel
+when there are any. Opening an invoice (`?invoice={uuid}`, so a link can open it)
+shows its lines, totals, credit notes and usage in a sheet, with the PDF to print or
+keep and the CSV.
+
 ## API
 
 Admin routes need `PlatformAdministration.manage-organizations`:
@@ -346,10 +378,10 @@ Admin routes need `PlatformAdministration.manage-organizations`:
 | `PATCH admin/billing-accounts/{uuid}/billing-details` | `{billing_address, tax_number, tax_rate_uuid}` |
 | `GET/PUT admin/billing/settings` | Operator details and prefixes, with `revision` (409 when stale); `currency` is read-only |
 | `GET/POST admin/billing/tax-rates`, `PATCH …/{uuid}`, `POST …/{uuid}/archive` | Tax rates |
-| `GET admin/billing/invoices?status=&month=&account=&payment_status=` | Invoices, newest month first |
+| `GET admin/billing/invoices?status=&month=&account=&payment_status=&unpaid=1` | Invoices, newest month first; `unpaid` is issued and pending or failed |
 | `GET admin/billing/invoices/waiting?month=YYYY-MM` | Accounts waiting for final usage, with `waiting_since` and `overdue` |
 | `POST admin/billing-accounts/{uuid}/invoices` | `{month, note}`: draft anyway (409 when one exists) |
-| `GET admin/billing/invoices/{uuid}`, `.pdf`, `.csv` | Lines, usage and credit notes; documents |
+| `GET admin/billing/invoices/{uuid}`, `.pdf`, `.csv` | Lines, usage, credit notes and `history` (drafting, adjustments, issuing, credit notes, newest first); documents |
 | `POST admin/billing/invoices/{uuid}/recalculate`, `/adjustments`, `DELETE …/adjustments/{line}` | Drafts only (409 once issued) |
 | `POST admin/billing/invoices/{uuid}/issue` | Number, fix and email it |
 | `POST admin/billing/invoices/{uuid}/credit-notes`, `GET admin/billing/credit-notes/{uuid}.pdf` | `{amount, reason}` on an issued invoice |

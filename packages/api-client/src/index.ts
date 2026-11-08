@@ -1192,14 +1192,22 @@ export class ApiClient {
 
   /** Invoices, newest month first. `month` is `YYYY-MM`, `account` a billing account's uuid. */
   async adminInvoices(
-    query: Pick<DirectoryQuery, "page" | "perPage"> & { status?: InvoiceStatus; month?: string; account?: string; paymentStatus?: PaymentStatus } = {},
+    query: Pick<DirectoryQuery, "page" | "perPage"> & {
+      status?: InvoiceStatus
+      month?: string
+      account?: string
+      paymentStatus?: PaymentStatus
+      /** Issued and still to be paid: pending or failed. */
+      unpaid?: boolean
+    } = {},
   ): Promise<PaginatedResponse<InvoiceSummary>> {
-    const { status, month, account, paymentStatus, ...directory } = query
+    const { status, month, account, paymentStatus, unpaid, ...directory } = query
     let path = directoryQuery(directory)
     path = withParameter(path, "status", status)
     path = withParameter(path, "month", month)
     path = withParameter(path, "account", account)
     path = withParameter(path, "payment_status", paymentStatus)
+    path = withParameter(path, "unpaid", unpaid ? "1" : undefined)
     return this.request<PaginatedResponse<InvoiceSummary>>(`/api/v1/admin/billing/invoices${path}`)
   }
 

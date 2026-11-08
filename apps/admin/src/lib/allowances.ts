@@ -79,6 +79,14 @@ export const historyFieldLabels: Record<string, string> = {
   plan: "plan",
   organization_limit: "organization limit",
   ...Object.fromEntries(allowanceKinds.map((kind) => [kind, allowanceText[kind].noun])),
+  // Prices and billing details (spec 029 US6).
+  base_price: "base price",
+  alert_overage_price: "price per alert over the allowance",
+  data_point_overage_price: "price per block of data points",
+  data_point_block_size: "data point block size",
+  billing_address: "billing address",
+  tax_number: "tax number",
+  tax_rate: "tax rate",
 }
 
 /** "name from A to B, alert allowance from 3 to 5"; an empty plan reads "no plan". */

@@ -5145,6 +5145,17 @@
                 }
               ]
             }
+          },
+          {
+            "name": "unpaid",
+            "in": "query",
+            "description": "Issued invoices still to be paid: pending or failed.",
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -34535,6 +34546,80 @@
             "items": {
               "$ref": "#/components/schemas/CreditNoteResource"
             }
+          },
+          "history": {
+            "type": "array",
+            "description": "Drafting, adjustments, issuing and credit notes, newest first; empty for owners.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "drafted",
+                    "recalculated",
+                    "adjustment_added",
+                    "adjustment_removed",
+                    "issued",
+                    "credit_note_issued"
+                  ]
+                },
+                "actor": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "amount": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "at",
+                "action",
+                "actor",
+                "description",
+                "amount",
+                "note",
+                "number"
+              ]
+            }
           }
         },
         "required": [
@@ -34562,7 +34647,8 @@
           "account_details",
           "lines",
           "usage",
-          "credit_notes"
+          "credit_notes",
+          "history"
         ],
         "title": "InvoiceDetailResource"
       },

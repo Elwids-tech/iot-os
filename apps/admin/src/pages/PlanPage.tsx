@@ -6,13 +6,15 @@ import { DataTable, RefLink, type DataColumn } from "@iot-os/ui/components/data-
 import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { PageHeader } from "@iot-os/ui/components/page-header"
-import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
+import { Panel, PanelActions, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { EntityPage } from "@iot-os/ui/templates/entity-page"
 import { AlertCircleIcon, LayersIcon, WalletIcon } from "lucide-react"
 import { useNavigate, useParams } from "react-router-dom"
 import { PlanDialog } from "../components/PlanDialog"
+import { PlanPricesDialog } from "../components/PlanPricesDialog"
+import { PriceList } from "../components/PriceList"
 import { allowanceKinds, allowanceText, allowanceValue, changesText, historyFieldLabels } from "../lib/allowances"
 import { apiClient } from "../lib/api-client"
 import { billingAccountPath } from "./BillingAccountsPage"
@@ -38,13 +40,14 @@ export function planHistoryText(entry: PlanHistoryEntry): string {
   }
 }
 
-/** A plan's page (spec 028 US1): its allowances, the accounts on it and its history. */
+/** A plan's page (spec 028 US1, spec 029 US6): its allowances, prices, the accounts on it and its history. */
 export function PlanPage() {
   const { planUuid = "" } = useParams()
   const navigate = useNavigate()
   const [plan, setPlan] = useState<BillingPlanDetail | null>(null)
   const [failure, setFailure] = useState<"not_found" | "failed" | null>(null)
   const [editing, setEditing] = useState(false)
+  const [pricing, setPricing] = useState(false)
 
   const load = useCallback(() => {
     setFailure(null)
@@ -184,26 +187,21 @@ export function PlanPage() {
             </dl>
           </PanelContent>
         </Panel>
-        <Panel aria-labelledby="plan-history">
+        <Panel aria-labelledby="plan-prices">
           <PanelHeader>
-            <PanelTitle id="plan-history">History</PanelTitle>
-            <PanelDescription>The latest 100 changes, newest first.</PanelDescription>
+            <PanelTitle id="plan-prices">Prices</PanelTitle>
+            <PanelDescription>
+              Charged on each account&apos;s monthly invoice, unless the account has an override. Changes apply from next
+              month.
+            </PanelDescription>
+            <PanelActions>
+              <Button size="sm" variant="outline" onClick={() => setPricing(true)}>
+                Set prices
+              </Button>
+            </PanelActions>
           </PanelHeader>
           <PanelContent>
-            {plan.history.length ? (
-              <ol className="divide-y">
-                {plan.history.map((entry, index) => (
-                  <li key={`${entry.at}-${entry.action}-${index}`} className="flex flex-wrap items-baseline gap-x-2 py-2 first:pt-0">
-                    <span className="min-w-0 flex-1">
-                      <span className="font-medium">{entry.actor?.name ?? "System"}</span> · {planHistoryText(entry)}
-                    </span>
-                    <RelativeTime at={entry.at} className="text-meta text-muted-foreground" />
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="text-muted-foreground">No history yet.</p>
-            )}
+            <PriceList prices={plan.prices} />
           </PanelContent>
         </Panel>
       </div>
@@ -232,7 +230,30 @@ export function PlanPage() {
           />
         </PanelContent>
       </Panel>
+      <Panel aria-labelledby="plan-history">
+        <PanelHeader>
+          <PanelTitle id="plan-history">History</PanelTitle>
+          <PanelDescription>The latest 100 changes, newest first.</PanelDescription>
+        </PanelHeader>
+        <PanelContent>
+          {plan.history.length ? (
+            <ol className="divide-y">
+              {plan.history.map((entry, index) => (
+                <li key={`${entry.at}-${entry.action}-${index}`} className="flex flex-wrap items-baseline gap-x-2 py-2 first:pt-0">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium">{entry.actor?.name ?? "System"}</span> · {planHistoryText(entry)}
+                  </span>
+                  <RelativeTime at={entry.at} className="text-meta text-muted-foreground" />
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-muted-foreground">No history yet.</p>
+          )}
+        </PanelContent>
+      </Panel>
       <PlanDialog plan={editing ? plan : null} onClose={() => setEditing(false)} onSaved={setPlan} />
+      <PlanPricesDialog plan={pricing ? plan : null} onClose={() => setPricing(false)} onSaved={setPlan} />
       {actions.dialog}
     </EntityPage>
   )
