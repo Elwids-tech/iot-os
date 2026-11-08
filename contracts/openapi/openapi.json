@@ -3033,6 +3033,21 @@
         "tags": [
           "PlatformBillingAccount"
         ],
+        "parameters": [
+          {
+            "name": "usage_at_least",
+            "in": "query",
+            "description": "Accounts that have used at least this percentage of a limited allowance this month.",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Paginated set of `BillingAccountResource`",
@@ -3178,6 +3193,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
           }
         },
         "security": [
@@ -3752,6 +3770,79 @@
           },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/usage": {
+      "get": {
+        "operationId": "v1.admin.billing-accounts.usage.show",
+        "tags": [
+          "PlatformBillingAccountUsage"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "description": "A UTC month as `YYYY-MM`; this month when left out.",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of `UsageResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/UsageResource"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
@@ -7220,6 +7311,75 @@
           },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/usage": {
+      "get": {
+        "operationId": "v1.billing-accounts.usage.show",
+        "tags": [
+          "OwnedBillingAccountUsage"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "description": "A UTC month as `YYYY-MM`; this month when left out.",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of `UsageResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/UsageResource"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
@@ -25161,6 +25321,65 @@
         "x-organization-scoped": true
       }
     },
+    "/v1/organizations/{organization}/usage": {
+      "get": {
+        "operationId": "v1.organizations.usage.show",
+        "tags": [
+          "OrganizationUsage"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of `OrganizationUsageResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OrganizationUsageResource"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
     "/v1/organizations/{organization}/workflows": {
       "get": {
         "operationId": "workflow.index",
@@ -29589,6 +29808,12 @@
               "$ref": "#/components/schemas/AllowanceResource"
             }
           },
+          "usage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageResource"
+            }
+          },
           "owners": {
             "type": "array",
             "items": {
@@ -29618,6 +29843,7 @@
           "created_at",
           "plan_assignment",
           "allowances",
+          "usage",
           "owners",
           "organizations",
           "history"
@@ -31831,6 +32057,53 @@
           }
         }
       },
+      "OrganizationUsageResource": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "alerts",
+              "sms"
+            ]
+          },
+          "month": {
+            "type": "string",
+            "description": "The first day of the UTC month."
+          },
+          "count": {
+            "type": "integer",
+            "description": "This organization's count this month."
+          },
+          "allowance": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The billing account's allowance; null when unlimited."
+          },
+          "left": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "What is left on the billing account this month: null when unlimited, 0 once used up."
+          },
+          "overage": {
+            "type": "integer",
+            "description": "The billing account's overage this month."
+          }
+        },
+        "required": [
+          "kind",
+          "month",
+          "count",
+          "allowance",
+          "left",
+          "overage"
+        ],
+        "title": "OrganizationUsageResource"
+      },
       "OverrideAllowanceRequest": {
         "type": "object",
         "description": "An allowance for one billing account, replacing its plan's (spec 028 FR-008): a whole\nnumber, or null for unlimited where the kind allows it, and why.",
@@ -31897,6 +32170,36 @@
                 "member"
               ]
             }
+          },
+          "plan": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "name"
+            ]
+          },
+          "allowances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AllowanceResource"
+            }
+          },
+          "usage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageResource"
+            }
           }
         },
         "required": [
@@ -31904,7 +32207,10 @@
           "name",
           "organization_limit",
           "organizations_count",
-          "organizations"
+          "organizations",
+          "plan",
+          "allowances",
+          "usage"
         ],
         "title": "OwnedBillingAccountResource"
       },
@@ -34837,6 +35143,72 @@
           "draft_revision"
         ],
         "title": "UpsertProfileParameterRequest"
+      },
+      "UsageResource": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "alerts",
+              "sms"
+            ]
+          },
+          "month": {
+            "type": "string",
+            "description": "The first day of the UTC month."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "allowance": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "left": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overage": {
+            "type": "integer"
+          },
+          "organizations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "organization_uuid": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "organization_uuid",
+                "name",
+                "count"
+              ]
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "month",
+          "count",
+          "allowance",
+          "left",
+          "overage",
+          "organizations"
+        ],
+        "title": "UsageResource"
       },
       "ValidationError": {
         "type": "object",

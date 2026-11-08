@@ -52,9 +52,10 @@ final class OrganizationDeletion
     /**
      * Records the platform team keeps after the organization is gone: their key sets
      * null. Support tickets (spec 015) lose their tagged participants here. Billing
-     * assignments (spec 023) keep which account paid for the organization, and when.
+     * assignments (spec 023) keep which account paid for the organization, and when, and
+     * usage shares (spec 028) keep its usage in the account's months, under its name.
      */
-    public const KEPT = ['billing_account_assignments', 'support_tickets'];
+    public const KEPT = ['billing_account_assignments', 'billing_usage_shares', 'support_tickets'];
 
     public function __construct(private readonly AssistantRecovery $assistantRecovery) {}
 

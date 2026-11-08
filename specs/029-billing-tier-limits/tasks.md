@@ -280,7 +280,18 @@ give a count of 4 with 1 overage, and every alert is still sent. Replaying a run
 transition adds nothing. 100 concurrent `reserve` calls never exceed the SMS
 allowance.
 
-- [ ] T029 Migration `2026_11_11_000000_create_billing_usage.php`:
+**As built (PR 4)**:
+
+- `Usage::COUNTED` lists the kinds counted so far, alerts and SMS. Usage responses,
+  the warnings and the `usage_at_least` filter follow it, so data points (PR 6) join by
+  adding the kind; PR 5 adds the device count to the filter and the endpoints.
+- Every usage response is `{data: Usage[]}`. `allowance` and `left` use the allowance
+  now, for earlier months too; `overage` is what was fixed when counted.
+- "The deployment has an SMS provider" is `services.twilio.account_sid` and
+  `services.twilio.from` (`TWILIO_ACCOUNT_SID`, `TWILIO_FROM`), the settings spec 011's
+  sender will use (`Usage::smsAvailable()`).
+
+- [X] T029 Migration `2026_11_11_000000_create_billing_usage.php`:
   - `billing_usage` (pk `(billing_account_id, kind, month)`, `count` and `overage`
     bigint default 0, `updated_at`);
   - `billing_usage_shares` (pk `(billing_account_id, organization_uuid, kind,
@@ -293,7 +304,12 @@ allowance.
 
   Add `billing_usage_shares` to `OrganizationDeletion::KEPT` with
   `organization_id` set null.
-- [ ] T030 [028-US3] `apps/api/app/Domain/Billing/Services/Usage.php`:
+
+  As built (PR 4): the migration is `2026_11_07_200000_create_billing_usage.php`,
+  dated after PR 2's like it. SQLite, used by the local suite and `contract:export`,
+  keys `billing_overage` with a unique index on `coalesce(plan_assignment_id, 0)`.
+  Every table cascades with its account; `plan_assignment_id` restricts.
+- [X] T030 [028-US3] `apps/api/app/Domain/Billing/Services/Usage.php`:
   - `add(BillingAccount, ?Organization, AllowanceKind, CarbonImmutable $at, int
     $quantity): array{count, overage}`:
     1. `insertOrIgnore` the totals row, then `lockForUpdate` it;
@@ -307,13 +323,23 @@ allowance.
     allowance`, with no overage. `release(...)` subtracts and never goes below 0.
   - `forAccount(account, month)` and `forOrganization(organization, month)` return
     the shapes in [the contract](contracts/billing-api.md#shared-shapes).
-- [ ] T031 [028-US3] `apps/api/app/Domain/Automation/Services/AlertProjector.php::project`:
+
+  As built (PR 4): the allowance is resolved on the account without its loaded
+  relations, so a stale plan never counts. Shares and overage are read and written
+  under the totals lock instead of upserted. `reserve` and `release` take an instant,
+  and `release` gives parts back to the month they were reserved in. `forAccount`
+  returns `MonthlyUsage` and `forOrganization` returns `OrganizationUsage` (the
+  organization's own count, with the account's allowance, left and overage).
+- [X] T031 [028-US3] `apps/api/app/Domain/Automation/Services/AlertProjector.php::project`:
   after the update that sets `activation_transition_id` (only for `activated`, in the
   same transaction), call `Usage::add($organization->billingAccount, $organization,
   Alerts, now(), 1)`. Use `now()`, not the transition's `occurred_at`: spec 028
   counts a late alert in the month the platform records it, so a past month never
   changes. Nothing else in the projector changes.
-- [ ] T032 [028-US4] `apps/api/app/Domain/Billing/Services/Notices.php` and
+
+  As built (PR 4): in `AlertProjector::countAlert()`, skipped for an organization
+  without a billing account.
+- [X] T032 [028-US4] `apps/api/app/Domain/Billing/Services/Notices.php` and
   `UsageThresholds.php`. After a change, for each limited allowance passing 80% or
   100% (`count >= ceil(allowance*0.8)`, `count >= allowance`), `Notices::send(account,
   'usage_threshold', "{kind}:{month}:{80|100}", UsageThresholdMail)`. The ledger
@@ -324,12 +350,21 @@ allowance.
   `routes/console.php`). It deletes `billing_notices` older than 13 months; every
   notice key carries its month, so a pruned key can never be sent again
   (constitution VII). Later pull requests add their ledgers to it.
-- [ ] T033 [P] [028-US4] `apps/api/app/Domain/Billing/Jobs/DeliverBillingEmail.php`
+
+  As built (PR 4): thresholds are checked with `DB::afterCommit`. A count that passes
+  80% and 100% at once sends both notices, as the rule reads. `billing:prune` accepts
+  `--now=`.
+- [X] T033 [P] [028-US4] `apps/api/app/Domain/Billing/Jobs/DeliverBillingEmail.php`
   (`ShouldQueue`, `$tries = 5`, backoff `[60, 300, 900]`, one `Mail::to()->send()`
   per owner) and `Mail/UsageThresholdMail.php` with text view
   `resources/views/billing/usage-threshold.blade.php`. It names the account, the
   allowance, used and left, and links to `/billing?account={uuid}`.
-- [ ] T034 [028-US4] Endpoints:
+
+  As built (PR 4): one job per owner, so a retry never repeats another owner's email.
+  It runs on the `alerts` database queue, queued in the notice's transaction like
+  ticket emails, and skips someone no longer an owner or without a verified address.
+  The mailable carries plain values, not models.
+- [X] T034 [028-US4] Endpoints:
   - admin `GET billing-accounts/{account}/usage?month=` and `usage[]` in
     `BillingAccountDetailResource`;
   - the owner `GET v1/billing-accounts` gains `plan`, `allowances[]`, `usage[]`;
@@ -344,12 +379,22 @@ allowance.
   FR-026). When the deployment has no SMS provider (spec 011's configuration), owner
   and manager responses omit the `sms` kind (spec 028 edge case "SMS not
   configured"); administrators still see it.
-- [ ] T035 [028-US3] The SMS integration point:
+
+  As built (PR 4): the owner list's `plan` is `{uuid, name}` as in the admin list; the
+  trial `assignment` comes with trials. The account shape always carries
+  `organizations`; the manager's leaves it out, and its `count` is the organization's
+  own. The manager route reads this month only. `usage_at_least` takes 1 to 100 and
+  resolves allowances in SQL as `Allowances` does.
+- [X] T035 [028-US3] The SMS integration point:
   `apps/api/app/Domain/Billing/Contracts/SmsAllowance.php`, an interface with
   `reserve` and `release` bound to `Usage`. Spec 011's sender calls it before handing
   a message to Twilio. Document it in `docs/features/billing.md` and leave a note in
   `specs/011-notification-channels/` only if that folder is not frozen.
-- [ ] T036 [P] [028-US3] `apps/api/tests/Feature/Domain/Billing/AlertUsageTest.php`:
+
+  As built (PR 4): bound in `AppServiceProvider`. The note is a new file,
+  `specs/011-notification-channels/sms-allowance.md`, so spec 011's open pull request
+  does not conflict.
+- [X] T036 [P] [028-US3] `apps/api/tests/Feature/Domain/Billing/AlertUsageTest.php`:
   - four activations under an allowance of 3 give a count of 4 and overage 1, and
     every alert is recorded and has its email delivery;
   - replaying the same transition through `WorkflowDeploymentService` and `DagActions`
@@ -358,11 +403,19 @@ allowance.
   - a new UTC month starts at 0;
   - a plan change mid-month applies to what is left;
   - overage rows name the open assignment.
-- [ ] T037 [P] [028-US3] `apps/api/tests/Feature/Domain/Billing/SmsAllowanceTest.php`:
+
+  As built (PR 4): DAG replays call `AlertProjector::project` as `DagActions` does.
+  Also: no plan with an override of 0 records overage against no assignment, and
+  unlimited counts without overage or warnings.
+- [X] T037 [P] [028-US3] `apps/api/tests/Feature/Domain/Billing/SmsAllowanceTest.php`:
   `reserve` within, at and over the allowance; `release`; 100 concurrent reservations
   through separate connections (`pcntl_fork` or parallel processes as in existing
   lock tests) never exceed the allowance (028 SC-002).
-- [ ] T038 [P] [028-US4] `apps/api/tests/Feature/Domain/Billing/UsageVisibilityTest.php`
+
+  As built (PR 4): 50 forked processes reserve twice each against 37 parts on
+  PostgreSQL (skipped on SQLite); without the row lock all 100 went through. Also an
+  allowance of 0, unlimited, and a release after the month turned.
+- [X] T038 [P] [028-US4] `apps/api/tests/Feature/Domain/Billing/UsageVisibilityTest.php`
   (constitution III):
   - an owner sees organizations and usage, a non-owner gets 404;
   - a manager sees their organization only, with no account name, no other
@@ -372,13 +425,32 @@ allowance.
   - a manager of organization A cannot read organization B's usage;
   - threshold emails: one per threshold, allowance and month, none for unlimited and
     none without owners (028 SC-005).
-- [ ] T039 Contract export, supplements and api-client (`Usage`, `UsageKind`,
+
+  As built (PR 4): also the email's content and recipients, the admin
+  `usage_at_least=80` filter across plan, override and default allowances, and
+  `PruneBillingTest`.
+- [X] T039 Contract export, supplements and api-client (`Usage`, `UsageKind`,
   `adminBillingAccountUsage`, `ownedBillingAccountUsage`, `organizationUsage`);
   `docs/features/alerts.md` (alert allowance and overage, 028 FR-026);
   `docs/features/billing.md` (usage, warnings, SMS interface).
-- [ ] T040 Verify: tests, `contract:check`, `./taskw lint`. Rebuild `api` and the
+
+  As built (PR 4): no supplement was needed, since nothing new answers 409. The client
+  also has `OrganizationUsage`, `usageAtLeast` on `adminBillingAccounts`,
+  `BillingAccountDetail.usage` and `OwnedBillingAccount.plan`, `allowances` and
+  `usage`. `docs/dev/gotchas.md` has the forked-test trap.
+- [X] T040 Verify: tests, `contract:check`, `./taskw lint`. Rebuild `api` and the
   API-image services (queue workers), then run quickstart section 3 step 1 and step 4
   with workflow alerts in the running stack.
+
+  As built (PR 4): the SQLite and PostgreSQL suites, `contract:export --check`,
+  `contract:check` and `pnpm lint` pass. The API family was rebuilt from this branch;
+  portal and admin were not, since the client change is types and unused methods.
+  Another session recreated `api` from its own worktree a minute later, so section 3
+  steps 1 and 4 ran against a container of this branch's image with the stack's
+  environment and database, through the runtime's event intake: four activations
+  against a plan of 3 counted 4 with 1 overage on the paid assignment, all four alert
+  emails went out, replays and an offline alert added nothing, and the owner got one
+  80% and one 100% email.
 
 ---
 

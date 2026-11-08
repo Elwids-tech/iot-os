@@ -61,6 +61,24 @@ filter matches a workflow alert's bound device or any device an alert lists, so 
 also finds a gateway alert that lists the device. Integration reads, the `alert.*.v1`
 events and the per-workflow emails cover workflow alerts only.
 
+### Alert allowance
+
+Automation alerts count against the alert allowance of the organization's billing
+account ([billing](billing.md#usage), [spec 028](../../specs/028-pricing-plans/spec.md)
+US3). The allowance **never stops an alert**.
+
+- An alert counts once, when `AlertProjector` first records its activation, in the
+  same transaction. Replayed runtime transitions and DAG alert actions stop at the
+  projector's guard, so they never count again.
+- Clears, acknowledgements, assignments, comments and offline alerts count nothing.
+- It counts in the UTC month the platform records it, not when it occurred, so a
+  late report after an outage never changes a past month.
+- Past the allowance, an alert is recorded, shown in the inbox and the event log, and
+  emailed exactly as before. It counts as one alert of overage for the month,
+  recorded against the plan the account was on, for invoicing later.
+- Without a plan or an override the allowance is unlimited, so alerts are counted but
+  never overage.
+
 ## Offline alerts
 
 Every active device is watched for going offline without anyone building an
@@ -202,7 +220,8 @@ state and links to the automation editor, where it is activated with its command
 grants.
 
 - One activation email per episode and recipient; recovery is optional. No
-  reminders, escalation, cooldowns, SMS or push.
+  reminders, escalation, cooldowns, SMS or push. Alerts past the
+  [alert allowance](#alert-allowance) are emailed too.
 - The plain-text email ([`AlertEmail`](../../apps/api/app/Domain/Automation/Mail/AlertEmail.php))
   names the organization and the bound device and links to the alert, the automation
   and **Settings → Notifications** under `FRONTEND_URL`, so the recipient can

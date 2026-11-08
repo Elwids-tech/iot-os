@@ -32,8 +32,10 @@ import type {
   BillingPlan,
   BillingPlanDetail,
   BillingPlanValues,
+  OrganizationUsage,
   OwnedBillingAccount,
   OwnerOrganization,
+  Usage,
 } from "./billing"
 export * from "./dashboards"
 export * from "./devices"
@@ -985,14 +987,25 @@ export class ApiClient {
     ).then((response) => response.data)
   }
 
-  /** `plan` is a plan's uuid, or `none` for accounts on no plan. */
+  /**
+   * `plan` is a plan's uuid, or `none` for accounts on no plan. `usageAtLeast` (1 to 100,
+   * the list's filter is 80) keeps accounts that have used at least that percentage of a
+   * limited allowance this month.
+   */
   async adminBillingAccounts(
-    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> & { plan?: string } = {},
+    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> & { plan?: string; usageAtLeast?: number } = {},
   ): Promise<PaginatedResponse<BillingAccountSummary>> {
-    const { plan, ...directory } = query
+    const { plan, usageAtLeast, ...directory } = query
     return this.request<PaginatedResponse<BillingAccountSummary>>(
-      `/api/v1/admin/billing-accounts${withParameter(directoryQuery(directory), "plan", plan)}`,
+      `/api/v1/admin/billing-accounts${withParameter(withParameter(directoryQuery(directory), "plan", plan), "usage_at_least", usageAtLeast?.toString())}`,
     )
+  }
+
+  /** A billing account's usage for a UTC month (`YYYY-MM`, this month by default), with each organization's share. */
+  async adminBillingAccountUsage(billingAccountUuid: string, month?: string): Promise<Usage[]> {
+    return this.request<ApiResponse<Usage[]>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/usage${withParameter("", "month", month)}`,
+    ).then((response) => response.data)
   }
 
   /** `archived: false` leaves archived plans out, `true` lists only them. */
@@ -1131,6 +1144,23 @@ export class ApiClient {
     return this.request<ApiResponse<OwnedBillingAccount[]>>("/api/v1/billing-accounts").then(
       (response) => response.data,
     )
+  }
+
+  /** An owned account's usage for a UTC month (`YYYY-MM`, this month by default); 404 for anyone else's. */
+  async ownedBillingAccountUsage(billingAccountUuid: string, month?: string): Promise<Usage[]> {
+    return this.request<ApiResponse<Usage[]>>(
+      `/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/usage${withParameter("", "month", month)}`,
+    ).then((response) => response.data)
+  }
+
+  /**
+   * This month's usage as a manager of the organization sees it; needs `Device.manage`
+   * (403 otherwise).
+   */
+  async organizationUsage(organizationUuid: string): Promise<OrganizationUsage[]> {
+    return this.request<ApiResponse<OrganizationUsage[]>>(
+      `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/usage`,
+    ).then((response) => response.data)
   }
 
   /**

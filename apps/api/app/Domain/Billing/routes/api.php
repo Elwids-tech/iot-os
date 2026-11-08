@@ -2,19 +2,23 @@
 
 declare(strict_types=1);
 
+use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Billing\Enums\AllowanceKind;
+use App\Domain\Billing\Http\Controllers\OrganizationUsageController;
 use App\Domain\Billing\Http\Controllers\OwnedBillingAccountController;
 use App\Domain\Billing\Http\Controllers\OwnedBillingAccountOrganizationController;
+use App\Domain\Billing\Http\Controllers\OwnedBillingAccountUsageController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountAllowanceController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountOwnerController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountPlanController;
+use App\Domain\Billing\Http\Controllers\PlatformBillingAccountUsageController;
 use App\Domain\Billing\Http\Controllers\PlatformOrganizationBillingAccountController;
 use App\Domain\Billing\Http\Controllers\PlatformPlanController;
 use Illuminate\Support\Facades\Route;
 
-// Billing accounts (spec 023, ADR-026), plans and allowances (specs 028 and 029, ADR-035).
+// Billing accounts (spec 023, ADR-026), plans, allowances and usage (specs 028 and 029, ADR-035).
 Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function (): void {
     Route::prefix('admin')->name('admin.')
         ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
@@ -54,6 +58,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function
                 ->whereUuid('billingAccount')
                 ->whereIn('kind', AllowanceKind::values())
                 ->name('billing-accounts.allowances.destroy');
+            Route::get('billing-accounts/{billingAccount}/usage', [PlatformBillingAccountUsageController::class, 'show'])
+                ->whereUuid('billingAccount')
+                ->name('billing-accounts.usage.show');
 
             Route::get('billing-plans', [PlatformPlanController::class, 'index'])->name('billing-plans.index');
             Route::post('billing-plans', [PlatformPlanController::class, 'store'])->name('billing-plans.store');
@@ -80,4 +87,15 @@ Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function
     Route::post('billing-accounts/{billingAccount}/organizations', [OwnedBillingAccountOrganizationController::class, 'store'])
         ->whereUuid('billingAccount')
         ->name('billing-accounts.organizations.store');
+    Route::get('billing-accounts/{billingAccount}/usage', [OwnedBillingAccountUsageController::class, 'show'])
+        ->whereUuid('billingAccount')
+        ->name('billing-accounts.usage.show');
 });
+
+// Managers: their organization's usage, needing Device.manage (spec 028 FR-022, spec 029 FR-024).
+Route::prefix('v1/organizations/{organization}')->name('api.v1.organizations.')
+    ->whereUuid('organization')
+    ->middleware(['auth:sanctum', ResolveOrganizationContext::class])
+    ->group(function (): void {
+        Route::get('usage', [OrganizationUsageController::class, 'show'])->name('usage.show');
+    });

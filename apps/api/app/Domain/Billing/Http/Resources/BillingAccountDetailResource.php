@@ -9,15 +9,19 @@ use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Services\Allowances;
 use App\Domain\Billing\Services\BillingAccountHistory;
 use App\Domain\Billing\Services\BillingAccountHistoryEntry;
+use App\Domain\Billing\Services\MonthlyUsage;
 use App\Domain\Billing\Services\ResolvedAllowance;
+use App\Domain\Billing\Services\Usage;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
 
 /**
  * A billing account's page: details, organizations, owners and the latest 100 history
- * entries, newest first (spec 023 US2), with its plan and allowances (spec 028 US2).
- * `organization_limit` is the `organizations` allowance, null when unlimited.
+ * entries, newest first (spec 023 US2), with its plan, allowances and this month's usage
+ * (spec 028 US2). `organization_limit` is the `organizations` allowance, null when
+ * unlimited.
  *
  * @extends JsonResource<BillingAccount>
  */
@@ -26,8 +30,9 @@ final class BillingAccountDetailResource extends JsonResource
     /**
      * @param  list<BillingAccountHistoryEntry>  $history
      * @param  array<string, ResolvedAllowance>  $allowances
+     * @param  list<MonthlyUsage>  $usage
      */
-    public function __construct(BillingAccount $resource, private readonly array $history, private readonly array $allowances)
+    public function __construct(BillingAccount $resource, private readonly array $history, private readonly array $allowances, private readonly array $usage)
     {
         parent::__construct($resource);
     }
@@ -51,7 +56,12 @@ final class BillingAccountDetailResource extends JsonResource
             'allowanceOverrides',
         ]);
 
-        return new self($account, app(BillingAccountHistory::class)->for($account), app(Allowances::class)->all($account));
+        return new self(
+            $account,
+            app(BillingAccountHistory::class)->for($account),
+            app(Allowances::class)->all($account),
+            app(Usage::class)->forAccount($account, CarbonImmutable::now()),
+        );
     }
 
     /**
@@ -71,6 +81,7 @@ final class BillingAccountDetailResource extends JsonResource
                 ? null
                 : new PlanAssignmentResource($this->resource->openPlanAssignment),
             'allowances' => AllowanceResource::collection(array_values($this->allowances)),
+            'usage' => UsageResource::collection(array_map(fn (MonthlyUsage $usage): UsageResource => new UsageResource($usage), $this->usage)),
             'owners' => BillingAccountOwnerResource::collection($this->resource->owners),
             'organizations' => BillingAccountOrganizationResource::collection($this->resource->organizations),
             'history' => BillingAccountHistoryResource::collection($this->history),

@@ -10,6 +10,8 @@ use App\Domain\Automation\Models\AlertDelivery;
 use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Notifications\AlertTransitionNotification;
+use App\Domain\Billing\Enums\AllowanceKind;
+use App\Domain\Billing\Services\Usage;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Integrations\Services\EventJournal;
@@ -35,6 +37,9 @@ final class AlertProjector
             return;
         }
         $alert->update([$column => $transition['id'], $active ? 'activated_at' : 'cleared_at' => $transition['occurred_at']]);
+        if ($active) {
+            $this->countAlert($workflow);
+        }
         app(EventRecorder::class)->workflow($alert, $transition['type'], $transition['occurred_at']);
         EventJournal::alert($alert, $transition['type']);
         DeviceAudit::record('alert.'.$transition['type'], $workflow->organization_id, null, $alert->uuid, ['transition_id' => $transition['id'], 'episode' => $alert->episode]);
@@ -59,6 +64,21 @@ final class AlertProjector
                 // one instance per person, as each carries its own id.
                 $recipients->get($recipient)?->notify(new AlertTransitionNotification($bell));
             }
+        }
+    }
+
+    /**
+     * One alert against the billing account's allowance, once per activation: `project`
+     * returns early once `activation_transition_id` is set, so replays never get here
+     * (spec 028 FR-012). It counts in the month the platform
+     * records it, not when it occurred, so a past month never changes, and past the
+     * allowance it is overage: nothing here stops the alert (FR-017).
+     */
+    private function countAlert(Workflow $workflow): void
+    {
+        $organization = Organization::with('billingAccount')->find($workflow->organization_id);
+        if ($organization?->billingAccount) {
+            app(Usage::class)->add($organization->billingAccount, $organization, AllowanceKind::Alerts, CarbonImmutable::now(), 1);
         }
     }
 

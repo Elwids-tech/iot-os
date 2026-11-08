@@ -7,14 +7,20 @@ namespace App\Domain\Billing\Http\Resources;
 use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Services\Allowances;
+use App\Domain\Billing\Services\MonthlyUsage;
+use App\Domain\Billing\Services\ResolvedAllowance;
+use App\Domain\Billing\Services\Usage;
 use App\Domain\Shared\Models\Organization;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * A billing account as its owner sees it in the portal: its organizations, whether the
  * owner is a member of each, and the limit (spec 023 US3): the `organizations`
- * allowance, null when unlimited (ADR-035).
+ * allowance, null when unlimited (ADR-035). Its plan, allowances and this month's usage
+ * with each organization's share (spec 028 FR-021) leave SMS out when the deployment
+ * cannot send it.
  *
  * @extends JsonResource<BillingAccount>
  */
@@ -33,12 +39,25 @@ final class OwnedBillingAccountResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $sms = Usage::smsAvailable();
+        $allowances = array_values(array_filter(
+            app(Allowances::class)->all($this->resource),
+            fn (ResolvedAllowance $allowance): bool => $sms || $allowance->kind !== AllowanceKind::Sms,
+        ));
+        $usage = app(Usage::class)->forAccount($this->resource, CarbonImmutable::now(), withSms: $sms);
+
         return [
             'uuid' => (string) $this->resource->uuid,
             'name' => (string) $this->resource->name,
             'organization_limit' => self::limit(app(Allowances::class)->value($this->resource, AllowanceKind::Organizations)),
             'organizations_count' => (int) $this->resource->organizations->count(),
             'organizations' => $this->organizationSummaries(),
+            'plan' => $this->resource->openPlanAssignment === null ? null : [
+                'uuid' => (string) $this->resource->openPlanAssignment->plan->uuid,
+                'name' => (string) $this->resource->openPlanAssignment->plan->name,
+            ],
+            'allowances' => AllowanceResource::collection(array_map(fn (ResolvedAllowance $allowance): AllowanceResource => new AllowanceResource($allowance), $allowances)),
+            'usage' => UsageResource::collection(array_map(fn (MonthlyUsage $usage): UsageResource => new UsageResource($usage), $usage)),
         ];
     }
 
