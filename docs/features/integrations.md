@@ -249,7 +249,11 @@ and the SDK's `telemetryStream()` ([README](../../packages/integration-sdk/READM
   `IOT_STREAMS_MAX_OPEN` (default 10) per deployment; the 429 carries
   `Retry-After: 30` and names the limit. A stream is open while its session row is
   not closed and was touched within 90 s, so a worker that died frees its slot
-  without a reaper. Operators see open streams on the admin app's organization menu
+  without a reaper. A stream whose client simply dropped the connection still counts
+  until the relay's next write notices (the next reading, or the keepalive after
+  60 s of silence), so a client that reconnects the instant it disconnected can be
+  refused once while it holds another stream: keep the position and retry after
+  `Retry-After`. Operators see open streams on the admin app's organization menu
   (**Telemetry streams**) and in `iot_integration_streams_open{organization}`
   ([release](../ops/release.md#telemetry-streams-and-the-api-pool)); the runtime's
   `GET /internal/status` reports `streams.open` and `streams.dropped`.
