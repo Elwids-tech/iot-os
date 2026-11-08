@@ -56,8 +56,8 @@ removed to fall back to the plan.
   `organizations` allowance. The rollout kept every raised limit as an override noted
   "Organization limit before plans". Owners are still refused at the limit, under the
   account's row lock, and platform administrators are not bound by it. The account's
-  `organization_limit` field still reads and writes it: a value equal to what the plan
-  or default gives removes the override, any other value sets one.
+  `organization_limit` field reads it; create and update no longer accept it, so it
+  changes only as an override.
 - **Rollout** assigns no plan, so every account keeps today's behaviour until an
   administrator assigns one.
 
@@ -66,6 +66,22 @@ allowance), `archived`, `restored` and `deleted` on the plan, and
 `billing_account.plan_assigned`, `plan_removed`, `allowance_overridden` and
 `allowance_override_removed` on the account. The account's history shows plan and
 allowance changes as updates; the plan's page shows its own history.
+
+## Admin app
+
+- **Plans** (after Billing accounts in the sidebar) lists current plans with their
+  allowances and how many accounts are on each; the Status filter shows archived or
+  all plans. **New plan** and **Edit** open one dialog: a field per allowance, empty
+  for the deployment default, with an **Unlimited** switch (retention has none; empty
+  means the platform setting). Editing a plan that accounts are on asks to confirm
+  how many it changes. A plan that was ever assigned can only be archived.
+- **A plan's page** shows its allowances, the accounts on it (with paid or trial) and
+  its history.
+- **A billing account's page** has a **Plan** panel (change or remove the plan) and an
+  **Allowances** panel listing each kind with its value, where it comes from
+  (override, plan or default) and the override's note, with **Override** and
+  **Remove override**. The account list has a Plan column and filter.
+- **New organization** with a new billing account can start it on a plan.
 
 ## Usage
 

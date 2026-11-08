@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import { ApiError, type BillingAccountSummary, type DirectoryQuery, type PaginatedResponse } from "@iot-os/api-client"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { ApiError, type BillingAccountSummary, type BillingPlan, type DirectoryQuery } from "@iot-os/api-client"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -10,9 +10,10 @@ import {
   AlertDialogTitle,
 } from "@iot-os/ui/components/alert-dialog"
 import { Button } from "@iot-os/ui/components/button"
-import { DataTable, RefLink, type DataColumn } from "@iot-os/ui/components/data-table"
+import { DataTable, RefLink, type DataColumn, type DataFilter } from "@iot-os/ui/components/data-table"
 import { DropdownMenuItem, DropdownMenuSeparator } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { PlusIcon, WalletIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
@@ -21,17 +22,39 @@ import { organizationsOfLimit } from "../components/BillingAccountChoice"
 import { BillingAccountDialog } from "../components/BillingAccountDialog"
 import { useDirectoryTable } from "../components/ResourceDirectory"
 import { apiClient } from "../lib/api-client"
-
-function loadBillingAccounts(query: DirectoryQuery): Promise<PaginatedResponse<BillingAccountSummary>> {
-  return apiClient.adminBillingAccounts(query)
-}
+import { planPath } from "./PlansPage"
 
 export const billingAccountPath = (uuid: string) => `/billing-accounts/${encodeURIComponent(uuid)}`
 
-/** Billing accounts (spec 023): who pays for which organizations. */
+/** Every plan for the Plan filter, archived ones included: accounts can still be on them. */
+function usePlanFilterOptions(): BillingPlan[] {
+  const [plans, setPlans] = useState<BillingPlan[]>([])
+
+  useEffect(() => {
+    let active = true
+    apiClient
+      .adminPlans({ perPage: 100 })
+      .then((response) => active && setPlans(response.data))
+      .catch(() => active && setPlans([]))
+    return () => {
+      active = false
+    }
+  }, [])
+
+  return plans
+}
+
+/** Billing accounts (spec 023): who pays for which organizations, and on which plan. */
 export function BillingAccountsPage() {
   const navigate = useNavigate()
-  const { reload, table } = useDirectoryTable(loadBillingAccounts, { searchPlaceholder: "Name or contact email" })
+  const url = useUrlState()
+  const plan = url.get("plan") || null
+  const load = useCallback(
+    (query: DirectoryQuery) => apiClient.adminBillingAccounts({ ...query, plan: plan ?? undefined }),
+    [plan],
+  )
+  const { reload, table } = useDirectoryTable(load, { searchPlaceholder: "Name or contact email" })
+  const plans = usePlanFilterOptions()
   const [editing, setEditing] = useState<BillingAccountSummary | "new" | null>(null)
   const [deleting, setDeleting] = useState<BillingAccountSummary | null>(null)
   const [busy, setBusy] = useState(false)
@@ -63,6 +86,17 @@ export function BillingAccountsPage() {
         cell: (account) => <span className="tabular-nums">{organizationsOfLimit(account)}</span>,
       },
       {
+        id: "plan",
+        header: "Plan",
+        value: (account) => account.plan?.name ?? "",
+        cell: (account) =>
+          account.plan ? (
+            <RefLink to={planPath(account.plan.uuid)}>{account.plan.name}</RefLink>
+          ) : (
+            <span className="text-muted-foreground">No plan</span>
+          ),
+      },
+      {
         id: "owners",
         header: "Owners",
         value: (account) => account.owners.map((owner) => owner.name).join(", "),
@@ -81,6 +115,21 @@ export function BillingAccountsPage() {
       },
     ],
     [],
+  )
+  const filters = useMemo<DataFilter<BillingAccountSummary>[]>(
+    () => [
+      {
+        id: "plan",
+        label: "Plan",
+        options: [
+          { value: "none", label: "No plan" },
+          ...plans.map((item) => ({ value: item.uuid, label: item.archived ? `${item.name} (archived)` : item.name })),
+        ],
+        value: plan ? [plan] : [],
+        onChange: (value) => url.set({ plan: value[0] ?? null, page: null }),
+      },
+    ],
+    [plan, plans, url],
   )
 
   async function remove() {
@@ -121,7 +170,9 @@ export function BillingAccountsPage() {
         rowLabel={(account) => account.name}
         columns={columns}
         {...table}
-        filters={[]}
+        filters={filters}
+        filtered={table.filtered || plan !== null}
+        onReset={() => url.clear(["search", "plan", "page"])}
         rowActions={(account) => (
           <>
             <DropdownMenuItem onSelect={() => navigate(billingAccountPath(account.uuid))}>Open</DropdownMenuItem>

@@ -188,6 +188,18 @@ const domains = {
     unknown: { tone: "muted", label: "Unknown" },
     before_monitoring: { tone: "muted", label: "Offline since before monitoring started" },
   },
+  /** Where a billing account's allowance comes from (ADR-035). */
+  allowance: {
+    override: { tone: "info", label: "Override" },
+    plan: { tone: "muted", label: "Plan" },
+    default: { tone: "muted", label: "Default" },
+  },
+  /** How a billing account is on its plan (spec 029). */
+  plan_assignment: {
+    paid: { tone: "good", label: "Paid" },
+    trial: { tone: "info", label: "Trial" },
+    trial_unpaid: { tone: "warning", label: "Trial ended, no payment method" },
+  },
   /** Support ticket priority, set by the team. */
   priority: {
     low: { tone: "muted", label: "Low" },

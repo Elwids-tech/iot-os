@@ -78,7 +78,18 @@ export type BillingPlan = {
 /** A plan's page: the accounts on it now (up to 100) and its latest history. */
 export type BillingPlanDetail = BillingPlan & {
   accounts: { uuid: string; name: string; kind: PlanAssignmentKind; since: string }[]
-  history: BillingAccountHistoryEntry[]
+  history: PlanHistoryEntry[]
+}
+
+/**
+ * One entry of a plan's history. `changes` lists name and description changes and
+ * each allowance as text: a number, "Unlimited" or "Default".
+ */
+export type PlanHistoryEntry = {
+  at: string
+  action: "created" | "updated" | "archived" | "restored"
+  actor: { id: number; name: string } | null
+  changes?: { field: string; from: string | null; to: string | null }[]
 }
 
 /**
@@ -173,15 +184,11 @@ export type BillingAccountDetail = {
   history: BillingAccountHistoryEntry[]
 }
 
+/** The organization limit is the `organizations` allowance: see `overrideAllowance`. */
 export type BillingAccountValues = {
   name: string
   contact_email?: string | null
   notes?: string | null
-  /**
-   * From 0 to 1000; owners cannot create organizations at or above it. Saved as the
-   * `organizations` allowance: an override, or none when it equals the plan's value.
-   */
-  organization_limit?: number
 }
 
 /**

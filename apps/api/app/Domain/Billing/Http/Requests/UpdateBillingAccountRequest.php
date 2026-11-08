@@ -14,8 +14,8 @@ final class UpdateBillingAccountRequest extends FormRequest
     }
 
     /**
-     * A limit below the account's current number of organizations is allowed: nothing
-     * is removed, and owners can create no more until it is below the limit.
+     * The organization limit is the `organizations` allowance, set through
+     * `allowances/organizations` (ADR-035).
      *
      * @return array<string, list<string>>
      */
@@ -25,7 +25,6 @@ final class UpdateBillingAccountRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'contact_email' => ['sometimes', 'nullable', 'email', 'max:255'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:2000'],
-            'organization_limit' => ['sometimes', 'integer', 'min:0', 'max:1000'],
         ];
     }
 }

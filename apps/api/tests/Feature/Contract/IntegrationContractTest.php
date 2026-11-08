@@ -19,7 +19,7 @@ use Tests\Support\Contract\ContractDocument;
 use Tests\TestCase;
 
 /**
- * The error responses of the 18 integration operations, checked against the contract
+ * The error responses of the 19 integration operations, checked against the contract
  * like every other response (gate G4), so `contract:coverage` sees a 401, 403 and 404
  * for each and a 422 for each that takes input (specs/001-openapi-contract research R8).
  * Success responses are exercised in tests/Feature/Domain/Integrations and Geospatial.
@@ -43,6 +43,7 @@ final class IntegrationContractTest extends TestCase
         'GET events/checkpoint' => ['GET', 'events/checkpoint', 'events:read'],
         'GET events' => ['GET', 'events', 'events:read'],
         'GET devices/{uuid}/telemetry/latest' => ['GET', 'devices/{device}/telemetry/latest', 'telemetry:read'],
+        'POST telemetry/latest/query' => ['POST', 'telemetry/latest/query', 'telemetry:read'],
         'GET devices/{uuid}/telemetry/history' => ['GET', 'devices/{device}/telemetry/history', 'telemetry:read'],
         'GET devices/{uuid}/telemetry/records' => ['GET', 'devices/{device}/telemetry/records', 'telemetry:read'],
         'GET devices/{uuid}/location-bindings' => ['GET', 'devices/{device}/location-bindings', 'telemetry:read'],
@@ -63,6 +64,7 @@ final class IntegrationContractTest extends TestCase
         'GET devices' => ['query' => ['per_page' => 101]],
         'GET alerts' => ['query' => ['condition' => 'open']],
         'GET events' => ['query' => ['limit' => 0]],
+        'POST telemetry/latest/query' => ['body' => ['device_uuids' => []]],
         'GET devices/{uuid}/telemetry/history' => ['query' => ['parameter_uuid' => 'not-a-uuid']],
         'GET devices/{uuid}/telemetry/records' => ['query' => []],
         'GET devices/{uuid}/location-bindings' => ['query' => ['per_page' => 0]],
