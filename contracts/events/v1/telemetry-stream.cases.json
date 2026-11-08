@@ -67,6 +67,7 @@
   {
     "description": "the committed event's internal fields are dropped, never relayed",
     "valid": false,
+    "tolerant_valid": true,
     "error": {
       "keyword": "additionalProperties",
       "instance_location": ""
@@ -98,6 +99,7 @@
   {
     "description": "a reading keeps no provenance, diagnostic or timestamp source",
     "valid": false,
+    "tolerant_valid": true,
     "error": {
       "keyword": "additionalProperties",
       "instance_location": "/readings/0"

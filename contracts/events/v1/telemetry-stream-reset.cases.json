@@ -21,6 +21,7 @@
   {
     "description": "a reset carrying a reason belongs to the closed event",
     "valid": false,
+    "tolerant_valid": true,
     "error": {
       "keyword": "additionalProperties",
       "instance_location": ""
