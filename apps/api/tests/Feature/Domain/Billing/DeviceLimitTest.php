@@ -216,7 +216,7 @@ final class DeviceLimitTest extends TestCase
 
         $this->assertSame(1, app(DeviceLimit::class)->peak($this->account, CarbonImmutable::parse('2026-11-01', 'UTC')));
         $october = collect($this->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/usage?month=2026-10')->assertOk()->json('data'))->firstWhere('kind', 'devices');
-        $this->assertSame([2, 2, []], [$october['count'], $october['peak_this_month'], $october['organizations']]);
+        $this->assertSame([2, 2, [], null, false], [$october['count'], $october['peak_this_month'], $october['organizations'], $october['left'], $october['over_limit']]);
     }
 
     public function test_owners_are_warned_at_80_and_100_percent_once_a_month_and_the_list_finds_the_account(): void

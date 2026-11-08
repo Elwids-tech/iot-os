@@ -19,8 +19,22 @@ export const States: StoryObj = {
       <AllowanceMeter label="Alerts this month" count={500} allowance={1000} noun={["alert", "alerts"]} />
       <AllowanceMeter label="SMS this month" count={170} allowance={200} noun={["SMS", "SMS"]} />
       <AllowanceMeter label="Alerts this month" count={1240} allowance={1000} overage={240} noun={["alert", "alerts"]} />
+      <AllowanceMeter label="Alerts this month, allowance raised" count={1240} allowance={2000} overage={240} noun={["alert", "alerts"]} />
       <AllowanceMeter label="Active devices" kind="level" count={52} allowance={50} noun={["device", "devices"]} />
       <AllowanceMeter label="Active devices" kind="level" count={50} allowance={50} noun={["device", "devices"]} />
+    </div>
+  ),
+}
+
+/**
+ * An earlier month shows its count and overage only: its allowance may have changed
+ * since, and the API keeps no history of it.
+ */
+export const EarlierMonth: StoryObj = {
+  render: () => (
+    <div className="grid max-w-3xl gap-6 sm:grid-cols-2">
+      <AllowanceMeter label="Alerts" count={1240} allowance={2000} overage={240} noun={["alert", "alerts"]} earlier />
+      <AllowanceMeter label="Peak devices" kind="level" count={48} allowance={50} noun={["device", "devices"]} earlier />
     </div>
   ),
 }

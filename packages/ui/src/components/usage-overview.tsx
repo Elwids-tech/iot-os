@@ -83,14 +83,17 @@ export function UsageMonthSelect({
   )
 }
 
+/** A figure for a month before this one. */
+const earlierMonth = (figure: UsageFigure, now?: number) => figure.month.slice(0, 7) !== monthKey(new Date(now ?? Date.now()))
+
 /** Devices in an earlier month are its peak and have no shares: the API keeps no history per organization. */
-const earlierDevices = (figure: UsageFigure, now?: number) =>
-  figure.kind === "devices" && figure.month.slice(0, 7) !== monthKey(new Date(now ?? Date.now()))
+const earlierDevices = (figure: UsageFigure, now?: number) => figure.kind === "devices" && earlierMonth(figure, now)
 
 /**
  * A meter per allowance, in the order alerts, SMS, devices, data points. Data points
  * read "Provisional" until their month is final; this month's devices note a peak above
- * the count, and an earlier month's devices are its peak.
+ * the count, and an earlier month's devices are its peak. An earlier month shows counts
+ * and overage without today's allowance (spec 029 FR-023).
  */
 export function UsageMeters({ figures, now, className }: { figures: UsageFigure[]; now?: number; className?: string }) {
   const sorted = order.flatMap((kind) => figures.filter((figure) => figure.kind === kind))
@@ -114,6 +117,7 @@ export function UsageMeters({ figures, now, className }: { figures: UsageFigure[
                 : undefined
             }
             detail={peak !== undefined && peak > figure.count ? `Peak ${formatNumber(peak)}` : undefined}
+            earlier={earlierMonth(figure, now)}
             now={now}
           />
         )

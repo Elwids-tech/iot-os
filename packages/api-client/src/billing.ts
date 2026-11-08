@@ -32,7 +32,8 @@ export type UsageKind = "alerts" | "sms" | "data_points" | "devices"
 /**
  * A billing account's usage of one allowance in one UTC month. `allowance` is the
  * account's allowance now (null when unlimited) and `left` follows from it, 0 once used
- * up. `overage` was fixed as each unit was counted. `organizations` is each
+ * up; an earlier month's `left` is null, as its allowance may have changed since. `overage`
+ * was fixed as each unit was counted. `organizations` is each
  * organization's share, deleted and moved-away ones included under the name they had.
  *
  * `data_points` come from the runtime's reports and alone carry `final` (the whole month

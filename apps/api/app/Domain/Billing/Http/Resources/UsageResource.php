@@ -12,7 +12,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * A billing account's usage of one allowance in one UTC month (spec 028 US4). `allowance`
  * is the account's allowance now, null when unlimited, and `left` follows from it (0 once
- * used up). `overage` was fixed as each unit was counted, so changing the allowance never
+ * used up). An earlier month's `left` is null and its devices are never `over_limit`:
+ * the allowance may have changed since, and pages show its count and overage only.
+ * `overage` was fixed as each unit was counted, so changing the allowance never
  * changes it. `organizations` is each organization's share, deleted and moved-away
  * organizations included under the name they had.
  *
@@ -49,6 +51,7 @@ final class UsageResource extends JsonResource
             'month' => $usage->month->toDateString(),
             'count' => (int) $usage->count,
             'allowance' => $usage->allowance === null ? null : (int) $usage->allowance,
+            /** Null when unlimited, and for an earlier month, whose allowance may have changed since. */
             'left' => $left === null ? null : (int) $left,
             'overage' => (int) $usage->overage,
             /** @var list<array{organization_uuid: string, name: string, count: int}> */

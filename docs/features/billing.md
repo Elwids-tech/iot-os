@@ -71,6 +71,11 @@ allowance changes as updates; the plan's page shows its own history.
 
 ## Admin app
 
+Every page below needs `PlatformAdministration.manage-organizations`. `GET me` sends it
+as `capabilities.manage_organizations`, and without it the admin app shows neither the
+entries nor the routes: a platform administrator who may only manage retention opens on
+**Settings → Retention** (spec 028 US1/AC6, [access](access.md)).
+
 - **Plans** (after Billing accounts in the sidebar) lists current plans with their
   allowances and how many accounts are on each; the Status filter shows archived or
   all plans. **New plan** and **Edit** open one dialog: a field per allowance, empty
@@ -279,7 +284,11 @@ In the apps (spec 029 US5):
 - **Meters.** `AllowanceMeter` in `@iot-os/ui` shows a count, of how much or
   **Unlimited**, what is left or the overage, a bar and a `usage` status: within the
   allowance under 80%, **80% or more used**, **Used up**, and for devices **Over the
-  limit**. Data points read **Provisional** with when the runtime last reported (late
+  limit**. An allowance raised past the count shows what is left beside the month's
+  overage ("760 alerts left · 240 alerts of overage", `allowanceLine`), and so does
+  Settings → Usage. An earlier month shows its count and overage only, without today's
+  allowance, bar or status: the allowance may have changed since, and no history of it
+  is kept. Data points read **Provisional** with when the runtime last reported (late
   after five minutes, the API's `stale`) until their month is **Final**. `UsagePanel`
   combines the meters, a month picker and each organization's share; the admin
   account page and the portal's Billing accounts page both use it.
@@ -554,7 +563,8 @@ Owner and manager routes:
 | `GET organizations/{uuid}/usage` | This month's usage as a manager sees it, and the organization's `retention`; needs `Device.manage` |
 
 A usage entry is `{kind, month, count, allowance, left, overage, organizations}`,
-plus `peak_this_month` and `over_limit` for `devices` and `final`, `reported_at` and
+where `allowance` is the allowance now and an earlier month's `left` is null, plus
+`peak_this_month` and `over_limit` (never true for an earlier month) for `devices` and `final`, `reported_at` and
 `stale` for `data_points`. The manager's leaves out `organizations` and
 `peak_this_month`, and its `count` is the organization's own. It also carries
 `retention`: `{days, source, pending_reduction}`, where `source` is `organization`,

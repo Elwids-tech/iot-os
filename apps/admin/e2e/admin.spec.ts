@@ -107,7 +107,7 @@ const superAdmin = {
   email: "super-admin@example.test",
   email_verified_at: "2026-08-24T00:00:00.000000Z",
   is_super_admin: true,
-  capabilities: { platform_administration: true, manage_assistant: true },
+  capabilities: { platform_administration: true, manage_organizations: true, manage_assistant: true },
   organizations,
 }
 
@@ -117,8 +117,17 @@ const platformAdmin = {
   email: "platform-admin@example.test",
   email_verified_at: "2026-08-24T00:00:00.000000Z",
   is_super_admin: false,
-  capabilities: { platform_administration: true, manage_assistant: false },
+  capabilities: { platform_administration: true, manage_organizations: true, manage_assistant: false },
   organizations: [],
+}
+
+/** A platform role that may manage retention but not organizations (spec 028 US1/AC6). */
+const retentionKeeper = {
+  ...platformAdmin,
+  id: 4,
+  name: "Retention Keeper",
+  email: "retention.keeper@example.test",
+  capabilities: { platform_administration: true, manage_organizations: false, manage_retention: true, manage_assistant: false },
 }
 
 const tenantUser = {
@@ -940,6 +949,29 @@ test("blocks tenant-only accounts from the platform administration shell", async
   ).toBeVisible()
   await expect(page.getByRole("alert")).toContainText("shared.operator@example.test")
   await expect(page.getByRole("link", { name: "Organizations" })).toHaveCount(0)
+})
+
+test("hides organizations, users, activity and billing from an administrator who may not manage organizations", async ({ page }) => {
+  await mockApi(page, { user: retentionKeeper })
+  await page.route("**/api/v1/admin/settings/telemetry-retention", (route) =>
+    route.fulfill({ json: { data: { days: 400, source: "default", override_days: null, revision: 0, platform_days: 400, cleanup: null, cleanup_failures: 0 } } }),
+  )
+  await page.goto("/plans")
+
+  await expect(page).toHaveURL(/\/settings\/retention$/)
+  await expect(page.getByRole("link", { name: "Retention", exact: true })).toBeVisible()
+  for (const name of ["Organizations", "Billing accounts", "Plans", "Invoices", "Users", "Roles", "Activity", "Billing"]) {
+    await expect(page.getByRole("link", { name, exact: true })).toHaveCount(0)
+  }
+  await page.goto("/billing/invoices")
+  await expect(page).toHaveURL(/\/settings\/retention$/)
+})
+
+test("a platform role that opens no admin page says so", async ({ page }) => {
+  await mockApi(page, { user: { ...retentionKeeper, capabilities: { ...retentionKeeper.capabilities, manage_retention: false } } })
+  await page.goto("/")
+
+  await expect(page.getByRole("alert")).toContainText("has a platform role that opens no admin page yet")
 })
 
 test("opens the mobile Sidebar and closes it after navigation", async ({ page }) => {

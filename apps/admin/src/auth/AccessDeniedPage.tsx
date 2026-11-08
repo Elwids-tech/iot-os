@@ -33,8 +33,9 @@ export function AccessDeniedPage({
             <ShieldAlertIcon />
             <AlertTitle>This account cannot access the admin panel</AlertTitle>
             <AlertDescription>
-              {user.email} is an organization account. Use the tenant application or sign in with
-              a platform administration account.
+              {user.capabilities.platform_administration
+                ? `${user.email} has a platform role that opens no admin page yet. Ask a super administrator for a permission, or sign in with another account.`
+                : `${user.email} is an organization account. Use the tenant application or sign in with a platform administration account.`}
             </AlertDescription>
           </Alert>
         </CardContent>
