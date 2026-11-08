@@ -227,6 +227,7 @@
           "source": {
             "enum": [
               "organization",
+              "billing_account",
               "platform",
               "default"
             ]

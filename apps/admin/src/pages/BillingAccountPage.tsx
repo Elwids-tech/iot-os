@@ -7,6 +7,7 @@ import {
   type BillingAccountOrganization,
   type BillingAccountOwner,
   type DirectoryQuery,
+  type RetentionNeedsConfirmation,
 } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import {
@@ -41,6 +42,7 @@ import { allowanceText, allowanceValue, changesText } from "../lib/allowances"
 import { apiClient } from "../lib/api-client"
 import { errorMessage } from "../lib/errors"
 import { planPath } from "./PlansPage"
+import { RetentionConfirmDialog, retentionConfirmation } from "../components/RetentionConfirmDialog"
 
 const back = { to: "/billing-accounts", label: "Billing accounts" }
 
@@ -87,6 +89,8 @@ export function BillingAccountPage() {
   const [overriding, setOverriding] = useState<Allowance | null>(null)
   const [removingPlan, setRemovingPlan] = useState(false)
   const [busy, setBusy] = useState(false)
+  // A plan change or override removal that shortens retention, waiting for confirmation (spec 029 US4).
+  const [retention, setRetention] = useState<{ confirmation: RetentionNeedsConfirmation; retry: () => Promise<void> } | null>(null)
   const users = useSearchOptions(loadUsers)
   const plans = useSearchOptions(loadPlans)
 
@@ -185,11 +189,12 @@ export function BillingAccountPage() {
     [],
   )
 
-  async function changePlan(planUuid: string | null) {
+  async function changePlan(planUuid: string | null, confirmRetention = false) {
     if (!account) return
     setBusy(true)
     try {
-      const saved = await apiClient.setBillingAccountPlan(account.uuid, planUuid)
+      const saved = await apiClient.setBillingAccountPlan(account.uuid, planUuid, confirmRetention)
+      setRetention(null)
       toast.success(
         saved.plan_assignment
           ? `${account.name} is now on ${saved.plan_assignment.plan.name}`
@@ -198,22 +203,34 @@ export function BillingAccountPage() {
       setAccount(saved)
       setRemovingPlan(false)
     } catch (error) {
+      const shortens = retentionConfirmation(error)
+      if (shortens) {
+        setRemovingPlan(false)
+        setRetention({ confirmation: shortens, retry: () => changePlan(planUuid, true) })
+        return
+      }
       toast.error(errorMessage(error))
     } finally {
       setBusy(false)
     }
   }
 
-  async function removeOverride(allowance: Allowance) {
+  async function removeOverride(allowance: Allowance, confirmRetention = false) {
     if (!account) return
     try {
-      const saved = await apiClient.removeAllowanceOverride(account.uuid, allowance.kind)
+      const saved = await apiClient.removeAllowanceOverride(account.uuid, allowance.kind, confirmRetention)
+      setRetention(null)
       const now = saved.allowances.find((item) => item.kind === allowance.kind)
       toast.success(
         `${allowanceText[allowance.kind].label} for ${account.name} is back to ${allowanceValue(allowance.kind, now?.value ?? null)}`,
       )
       setAccount(saved)
     } catch (error) {
+      const shortens = retentionConfirmation(error)
+      if (shortens) {
+        setRetention({ confirmation: shortens, retry: () => removeOverride(allowance, true) })
+        return
+      }
       toast.error(errorMessage(error))
     }
   }
@@ -572,6 +589,12 @@ export function BillingAccountPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <RetentionConfirmDialog
+        confirmation={retention?.confirmation ?? null}
+        busy={busy}
+        onCancel={() => setRetention(null)}
+        onConfirm={() => retention && void retention.retry()}
+      />
     </EntityPage>
   )
 }

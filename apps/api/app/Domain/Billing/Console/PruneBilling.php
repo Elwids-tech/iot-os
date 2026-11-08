@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Removes billing ledgers past their use (constitution VII). Billing email notices are
  * kept 13 months: every key carries its month or subject, so a pruned key is never due
- * again. Later billing ledgers join here.
+ * again. Retention floors go once they end (spec 029 US4). Later billing ledgers join
+ * here.
  */
 final class PruneBilling extends Command
 {
@@ -19,7 +20,7 @@ final class PruneBilling extends Command
 
     protected $signature = 'billing:prune {--now= : Prune as of this time instead of now}';
 
-    protected $description = 'Delete billing email notices older than 13 months';
+    protected $description = 'Delete billing email notices older than 13 months and retention floors that ended';
 
     public function handle(): int
     {
@@ -32,7 +33,9 @@ final class PruneBilling extends Command
             $deleted += $ids->isEmpty() ? 0 : DB::table('billing_notices')->whereIn('id', $ids)->delete();
         } while ($ids->count() === 1000);
 
-        $this->info("Pruned {$deleted} billing notices.");
+        $floors = DB::table('telemetry_retention_floors')->where('until', '<=', $now)->delete();
+
+        $this->info("Pruned {$deleted} billing notices and {$floors} retention floors.");
 
         return self::SUCCESS;
     }

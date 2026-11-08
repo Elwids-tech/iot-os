@@ -60,7 +60,8 @@ export function RetentionPage() {
   const id = useId()
   const proposed = inherited ? null : Number(days),
     effective =
-      proposed ?? (org === "platform" ? 90 : (setting?.platform_days ?? 90))
+      // Without its own override an organization gets its billing account's retention, else the platform default.
+      proposed ?? (org === "platform" ? 90 : (setting?.billing_days ?? setting?.platform_days ?? 90))
   const dirty = Boolean(
     setting &&
     (inherited !== (setting.override_days === null) ||
@@ -202,13 +203,22 @@ export function RetentionPage() {
                 {org === "platform" ? "Platform default" : "Organization override"}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Effective retention: {setting.days} days · Source:{" "}
+                Effective retention: {setting.days} {setting.days === 1 ? "day" : "days"} · Source:{" "}
                 {setting.source === "default"
                   ? "400-day fallback"
                   : setting.source === "platform"
                     ? "saved platform default"
-                    : "organization override"}
+                    : setting.source === "billing_account"
+                      ? "billing account (its plan or an account override)"
+                      : "organization override"}
               </p>
+              {setting.pending_reduction && (
+                <p className="text-meta text-warning">
+                  {setting.pending_reduction.days} {setting.pending_reduction.days === 1 ? "day" : "days"} from{" "}
+                  {formatDateTime(setting.pending_reduction.from)}. A billing
+                  change shortened retention; until then cleanup keeps the longer period.
+                </p>
+              )}
             </div>
             <form
               className="flex flex-col gap-5"
@@ -229,7 +239,9 @@ export function RetentionPage() {
                   <FieldLabel htmlFor={id + "-inherit"}>
                     {org === "platform"
                       ? "Use the 400-day fallback"
-                      : "Inherit the platform default"}
+                      : setting.billing_days != null
+                        ? "Inherit the billing account's retention"
+                        : "Inherit the platform default"}
                   </FieldLabel>
                 </Field>
                 <Field>

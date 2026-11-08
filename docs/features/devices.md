@@ -394,10 +394,16 @@ snapshot. A clustered runtime would need capture routing.
 
 ## Retention
 
-Retention resolves organization override, else the saved platform default, else
-**400 days**. Platform administrators with `PlatformAdministration.manage-retention`
-change it in admin (**Settings → Retention**); reductions require confirmation of
-the deletion cutoff. Cleanup runs at startup and every 24 hours per organization
+Retention resolves the organization override, else its billing account's retention
+(the plan's `retention_days` or an account override,
+[billing](billing.md#retention)), else the saved platform default, else **400 days**
+(`RetentionService::effective`, `source` `organization`, `billing_account`,
+`platform` or `default`). Platform administrators with
+`PlatformAdministration.manage-retention` change the override and the platform default
+in admin (**Settings → Retention**); reductions there require confirmation of the
+deletion cutoff and apply at the next cleanup. A billing change that shortens
+retention instead waits 30 days: until then cleanup keeps the previous period, and
+**Settings → Retention** shows the pending reduction ("7 days from 8 Dec 2026"). Cleanup runs at startup and every 24 hours per organization
 by receipt time, in bounded batches that work on compressed chunks, and reports
 pending or failed passes in admin. Configuration, command audit and latest state
 are not part of history cleanup. Increasing retention cannot restore deleted data.

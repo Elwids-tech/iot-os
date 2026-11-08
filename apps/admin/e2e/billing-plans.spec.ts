@@ -346,6 +346,34 @@ test("puts a billing account on a plan, overrides an allowance and removes both"
   expect(sent.at(-1)?.body).toEqual({ plan_uuid: null })
 })
 
+test("asks before a plan change shortens telemetry retention, then confirms it", async ({ page }) => {
+  const { sent } = await mockApi(page)
+  // Spec 029 US4: the API answers 409 with the organizations and the deletion date until confirmed.
+  await page.route("**/api/v1/admin/billing-accounts/*/plan", async (route) => {
+    if ((route.request().postDataJSON() as { confirm_retention?: boolean }).confirm_retention) return route.fallback()
+    await route.fulfill({
+      status: 409,
+      json: {
+        message: "This shortens telemetry retention for 1 organization.",
+        retention: {
+          deletion_from: "2026-12-08T10:00:00Z",
+          organizations: [{ uuid: "55555555-5555-4555-8555-555555555555", name: "Corner Shop HQ", from_days: 400, to_days: 7 }],
+        },
+      },
+    })
+  })
+  await page.goto("/billing-accounts/33333333-3333-4333-8333-333333333333")
+
+  await choose(page, "Choose a plan", /Growth/)
+  const dialog = page.getByRole("alertdialog", { name: "Shorten telemetry retention for 1 organization?" })
+  await expect(dialog.getByText("Corner Shop HQ")).toBeVisible()
+  await expect(dialog.getByText("400 → 7 days")).toBeVisible()
+  await dialog.getByRole("button", { name: "Shorten retention" }).click()
+
+  await expect(page.getByText("Corner Shop is now on Growth")).toBeVisible()
+  expect(sent.at(-1)?.body).toEqual({ plan_uuid: growth, confirm_retention: true })
+})
+
 test("creates an organization with a new billing account on a plan", async ({ page }) => {
   const { sent } = await mockApi(page)
   await page.goto("/organizations")

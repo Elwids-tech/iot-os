@@ -10,6 +10,7 @@ use App\Domain\Billing\Models\AllowanceOverride;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\PlanAllowance;
 use App\Domain\Billing\Models\PlanAssignment;
+use App\Domain\Devices\Services\RetentionGuard;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -66,11 +67,11 @@ final class Allowances
         return $this->inheritedAll($account)[$kind->value];
     }
 
-    public function override(BillingAccount $account, AllowanceKind $kind, ?int $value, string $note, User $actor): void
+    public function override(BillingAccount $account, AllowanceKind $kind, ?int $value, string $note, User $actor, bool $confirmRetention = false): void
     {
         $this->validate($kind, $value);
 
-        DB::transaction(function () use ($account, $kind, $value, $note, $actor): void {
+        $this->guardRetention($account, $kind, $confirmRetention, fn () => DB::transaction(function () use ($account, $kind, $value, $note, $actor): void {
             $before = $this->resolve($account, $kind);
             $now = now();
             AllowanceOverride::query()->upsert(
@@ -94,12 +95,12 @@ final class Allowances
                 'to' => $value,
                 'note' => $note,
             ]);
-        });
+        }));
     }
 
-    public function removeOverride(BillingAccount $account, AllowanceKind $kind, User $actor): void
+    public function removeOverride(BillingAccount $account, AllowanceKind $kind, User $actor, bool $confirmRetention = false): void
     {
-        DB::transaction(function () use ($account, $kind, $actor): void {
+        $this->guardRetention($account, $kind, $confirmRetention, fn () => DB::transaction(function () use ($account, $kind, $actor): void {
             $override = AllowanceOverride::query()
                 ->where('billing_account_id', $account->getKey())
                 ->where('kind', $kind->value)
@@ -122,7 +123,22 @@ final class Allowances
                 'to' => $after->value,
                 'to_source' => $after->source,
             ]);
-        });
+        }));
+    }
+
+    /**
+     * A retention override that shortens organizations' retention needs confirmation and
+     * waits out its grace (spec 029 US4); other kinds run as they are.
+     */
+    private function guardRetention(BillingAccount $account, AllowanceKind $kind, bool $confirmed, callable $change): void
+    {
+        if ($kind !== AllowanceKind::RetentionDays) {
+            $change();
+
+            return;
+        }
+
+        app(RetentionGuard::class)->around(RetentionGuard::organizationsOf([$account]), $change, 'override', $confirmed);
     }
 
     /**

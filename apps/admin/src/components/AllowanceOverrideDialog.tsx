@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react"
-import type { Allowance, BillingAccountDetail } from "@iot-os/api-client"
+import type { Allowance, BillingAccountDetail, RetentionNeedsConfirmation } from "@iot-os/api-client"
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import {
@@ -21,6 +21,7 @@ import { useDiscardGuard } from "../hooks/use-discard-guard"
 import { allowanceMaximum, allowanceText, allowanceValue, allowsUnlimited } from "../lib/allowances"
 import { apiClient } from "../lib/api-client"
 import { fieldMessages, validationErrors } from "../lib/errors"
+import { RetentionConfirmDialog, retentionConfirmation } from "./RetentionConfirmDialog"
 
 const sourceText = { override: "an override", plan: "its plan", default: "the deployment default" }
 
@@ -49,6 +50,7 @@ export function AllowanceOverrideDialog({
   const [errors, setErrors] = useState<Record<string, string[]> | null>(null)
   const [formError, setFormError] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [retention, setRetention] = useState<RetentionNeedsConfirmation | null>(null)
   const dirty =
     allowance !== null &&
     (values.value !== baseline.value || values.unlimited !== baseline.unlimited || values.note !== baseline.note)
@@ -69,6 +71,10 @@ export function AllowanceOverrideDialog({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    await save(false)
+  }
+
+  async function save(confirmRetention: boolean) {
     if (!allowance) return
     setErrors(null)
     setFormError(false)
@@ -80,11 +86,21 @@ export function AllowanceOverrideDialog({
         setErrors({ value: ["Enter a whole number, or choose unlimited."] })
         return
       }
-      const saved = await apiClient.overrideAllowance(account.uuid, kind, { value, note: values.note.trim() })
+      const saved = await apiClient.overrideAllowance(account.uuid, kind, {
+        value,
+        note: values.note.trim(),
+        ...(confirmRetention ? { confirm_retention: true } : {}),
+      })
+      setRetention(null)
       toast.success(`${allowanceText[kind].label} for ${account.name} is now ${allowanceValue(kind, value)}`)
       onSaved(saved)
       onClose()
     } catch (error) {
+      const shortens = retentionConfirmation(error)
+      if (shortens) {
+        setRetention(shortens)
+        return
+      }
       const fields = validationErrors(error)
       setErrors(fields)
       setFormError(!fields)
@@ -177,6 +193,12 @@ export function AllowanceOverrideDialog({
           </form>
         </DialogContent>
       </Dialog>
+      <RetentionConfirmDialog
+        confirmation={retention}
+        busy={isSubmitting}
+        onCancel={() => setRetention(null)}
+        onConfirm={() => void save(true)}
+      />
       {discardDialog}
     </>
   )
