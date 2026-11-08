@@ -40482,7 +40482,8 @@
             "type": [
               "integer",
               "null"
-            ]
+            ],
+            "description": "Null when unlimited, and for an earlier month, whose allowance may have changed since."
           },
           "overage": {
             "type": "integer"

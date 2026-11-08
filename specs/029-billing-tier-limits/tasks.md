@@ -1680,7 +1680,15 @@ account is charged when a card is saved, or flagged otherwise.
   marks the item failed with the device and reason. `retry` already re-queues failed
   items, and a held item activates its registered device.
 
-- [ ] T129 Send a `manage_organizations` capability and hide **Plans**, **Billing accounts**, **Invoices** and **Settings → Billing** (navigation and routes) from platform administrators without it, per 028 US1/AC6 (partial)
+- [x] T129 Send a `manage_organizations` capability and hide **Plans**, **Billing accounts**, **Invoices** and **Settings → Billing** (navigation and routes) from platform administrators without it, per 028 US1/AC6 (partial)
+
+  As built (PR 16): `GET me` sends `capabilities.manage_organizations`. Admin's `lib/access.ts`
+  lists the pages whose API needs it: Organizations, Billing accounts, Plans, Invoices,
+  Users, Roles, Activity and Settings → Billing. Their sidebar entries and routes are
+  left out without it, and the app opens on the first page the person may use
+  (Settings → Retention for a retention-only role). A role that opens no page gets the
+  access page, which says so.
+
 - [x] T130 Keep the "usage possibly incomplete" mark on invoices issued from an incomplete draft, in the PDF, the admin invoice page and the portal, per FR-033 (partial)
 
   As built (PR 15): The PDF says "Usage possibly incomplete" beside the issue and due dates; admin
@@ -1711,8 +1719,20 @@ account is charged when a card is saved, or flagged otherwise.
   override shortens its effective retention, so cleanup uses it at its next run and
   **Settings → Retention** shows no pending reduction.
 
-- [ ] T135 Show an earlier month's usage against the allowance in force that month, or leave out what was left, instead of today's allowance, per FR-023 (partial)
-- [ ] T136 Show what is left on an allowance meter whenever it is above 0, with the month's overage beside it, after an allowance is raised past the count, per 028 FR-018 (partial)
+- [x] T135 Show an earlier month's usage against the allowance in force that month, or leave out what was left, instead of today's allowance, per FR-023 (partial)
+
+  As built (PR 16): We keep no history of an account's allowance, so an earlier month leaves out
+  what was left: `MonthlyUsage::left()` is null and `overLimit()` false before this UTC
+  month, and `allowance` stays documented as the allowance now. `AllowanceMeter` takes
+  `earlier`: count and overage, no "of X", bar or status. `UsageMeters` passes it for an
+  earlier month.
+
+- [x] T136 Show what is left on an allowance meter whenever it is above 0, with the month's overage beside it, after an allowance is raised past the count, per 028 FR-018 (partial)
+
+  As built (PR 16): `allowanceLine` in the kit (with tests) says "760 alerts left · 240 alerts of
+  overage" when both are above 0. Settings → Usage does the same and no longer reads
+  **Used up** while something is left.
+
 - [x] T137 Close a billing account's open plan assignment when the account is deleted, so plan counts and lists leave it out, per 028 FR-002 and edge case "Billing account deleted" (partial)
 
   As built (PR 15): `BillingAccounts::delete` ends the open assignment (`account_deleted`); migration

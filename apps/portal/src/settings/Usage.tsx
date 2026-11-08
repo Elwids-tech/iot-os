@@ -42,20 +42,23 @@ const counted = (value: number, noun: [string, string]) => `${formatNumber(value
 
 /**
  * What the billing account has left, never its own count: "120 alerts left on the
- * account", the overage, or no limit. A level over its limit says so.
+ * account", with the month's overage beside it after the allowance was raised past it,
+ * the overage once used up, or no limit. A level over its limit says so.
  */
 function accountLine(usage: OrganizationUsage, noun: [string, string]): string {
   if (usage.allowance === null) return "No limit on the account"
   if (usage.over_limit) return "The account is over its device limit"
+  const left = usage.left ?? 0
+  if (usage.overage > 0 && left > 0) return `${counted(left, noun)} left on the account · ${counted(usage.overage, noun)} of overage`
   if (usage.overage > 0) return `${counted(usage.overage, noun)} of overage on the account`
-  return `${counted(usage.left ?? 0, noun)} left on the account`
+  return `${counted(left, noun)} left on the account`
 }
 
 /** Where the billing account stands, from what it has left: the account's own count stays hidden. */
 function accountUse(usage: OrganizationUsage): AllowanceUse {
   if (usage.allowance === null) return "unlimited"
   if (usage.over_limit) return "over_limit"
-  if (usage.overage > 0 || usage.left === 0) return "used_up"
+  if (usage.left === 0) return "used_up"
   return allowanceUse(usage.allowance - (usage.left ?? 0), usage.allowance)
 }
 

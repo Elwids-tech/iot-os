@@ -152,7 +152,10 @@ final class AlertUsageTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.kind', 'alerts')
             ->assertJsonPath('data.0.month', '2026-11-01')
-            ->assertJsonPath('data.0.count', 1);
+            ->assertJsonPath('data.0.count', 1)
+            // The allowance may have changed since: an earlier month leaves out what was left (FR-023).
+            ->assertJsonPath('data.0.left', null);
+        $this->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/usage')->assertOk()->assertJsonPath('data.0.left', 0);
     }
 
     public function test_a_plan_change_mid_month_applies_to_what_is_left(): void

@@ -7,6 +7,7 @@ import { AcceptInvitationPage } from "./auth/AcceptInvitationPage"
 import { AccessDeniedPage } from "./auth/AccessDeniedPage"
 import { LoginPage } from "./auth/LoginPage"
 import { AdminLayout } from "./layout/AdminLayout"
+import { homePath } from "./lib/access"
 import { apiClient } from "./lib/api-client"
 import { portalUrl } from "./lib/portal"
 import { ActivityPage } from "./pages/ActivityPage"
@@ -112,29 +113,36 @@ function PlatformAdministrationApp() {
     return <LoginPage onAuthenticated={showAuthenticatedUser} />
   }
 
-  if (!screen.user.capabilities.platform_administration) {
+  const home = homePath(screen.user)
+  if (!screen.user.capabilities.platform_administration || home === null) {
     return <AccessDeniedPage user={screen.user} onSignOut={signOut} />
   }
+  const organizations = Boolean(screen.user.capabilities.manage_organizations)
 
   return (
     <Routes>
       <Route element={<AdminLayout user={screen.user} onSignOut={signOut} />}>
-        <Route index element={<Navigate to="/organizations" replace />} />
-        <Route path="organizations" element={<OrganizationsPage />} />
-        <Route path="organizations/:organizationUuid/permissions" element={<OrganizationPermissionsPage />} />
-        <Route path="organizations/:organizationUuid/streams" element={<OrganizationStreamsPage />} />
-        <Route path="billing-accounts" element={<BillingAccountsPage />} />
-        <Route path="billing-accounts/:billingAccountUuid" element={<BillingAccountPage />} />
-        <Route path="plans" element={<PlansPage />} />
-        <Route path="plans/:planUuid" element={<PlanPage />} />
-        <Route path="billing/invoices" element={<InvoicesPage />} />
-        <Route path="billing/invoices/:invoiceUuid" element={<InvoicePage />} />
-        <Route path="settings/billing" element={<BillingSettingsPage />} />
-        <Route path="users" element={<UsersPage currentUser={screen.user} />} />
-        <Route path="roles" element={<RolesPage />} />
-        <Route path="roles/new" element={<NewRolePage />} />
-        <Route path="roles/:roleId" element={<RolePermissionsPage />} />
-        <Route path="activity" element={<ActivityPage />} />
+        <Route index element={<Navigate to={home} replace />} />
+        {/* Their API needs manage-organizations (lib/access.ts). */}
+        {organizations ? (
+          <>
+            <Route path="organizations" element={<OrganizationsPage />} />
+            <Route path="organizations/:organizationUuid/permissions" element={<OrganizationPermissionsPage />} />
+            <Route path="organizations/:organizationUuid/streams" element={<OrganizationStreamsPage />} />
+            <Route path="billing-accounts" element={<BillingAccountsPage />} />
+            <Route path="billing-accounts/:billingAccountUuid" element={<BillingAccountPage />} />
+            <Route path="plans" element={<PlansPage />} />
+            <Route path="plans/:planUuid" element={<PlanPage />} />
+            <Route path="billing/invoices" element={<InvoicesPage />} />
+            <Route path="billing/invoices/:invoiceUuid" element={<InvoicePage />} />
+            <Route path="settings/billing" element={<BillingSettingsPage />} />
+            <Route path="users" element={<UsersPage currentUser={screen.user} />} />
+            <Route path="roles" element={<RolesPage />} />
+            <Route path="roles/new" element={<NewRolePage />} />
+            <Route path="roles/:roleId" element={<RolePermissionsPage />} />
+            <Route path="activity" element={<ActivityPage />} />
+          </>
+        ) : null}
         <Route path="device-profiles" element={<TenantPortalRedirect />} />
         {screen.user.capabilities.manage_retention ? (
           <Route path="settings/retention" element={<RetentionPage />} />
@@ -148,7 +156,7 @@ function PlatformAdministrationApp() {
             <Route path="tickets/:ticketUuid" element={ticketsPage} />
           </>
         ) : null}
-        <Route path="*" element={<Navigate to="/organizations" replace />} />
+        <Route path="*" element={<Navigate to={home} replace />} />
       </Route>
     </Routes>
   )

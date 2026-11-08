@@ -33,14 +33,14 @@ function accountUsage(month: string, reportedAt: string) {
 }
 
 const october = [
-  { kind: "alerts", month: `${lastMonth}-01`, count: 1240, allowance: 1000, left: 0, overage: 240, organizations: [share(org, "Corner Shop", 1240)] },
-  { kind: "data_points", month: `${lastMonth}-01`, count: 980_000, allowance: 1_000_000, left: 20_000, overage: 0, final: true, reported_at: ago(3600), stale: false, organizations: [share(org, "Corner Shop", 980_000)] },
-  { kind: "devices", month: `${lastMonth}-01`, count: 9, allowance: 10, left: 1, overage: 0, organizations: [share(org, "Corner Shop", 9)] },
+  { kind: "alerts", month: `${lastMonth}-01`, count: 1240, allowance: 1000, left: null, overage: 240, organizations: [share(org, "Corner Shop", 1240)] },
+  { kind: "data_points", month: `${lastMonth}-01`, count: 980_000, allowance: 1_000_000, left: null, overage: 0, final: true, reported_at: ago(3600), stale: false, organizations: [share(org, "Corner Shop", 980_000)] },
+  { kind: "devices", month: `${lastMonth}-01`, count: 9, allowance: 10, left: null, overage: 0, over_limit: false, organizations: [share(org, "Corner Shop", 9)] },
 ]
 
 type Trial = { kind: "trial" | "trial_unpaid"; trial_ends_at: string | null; card?: boolean }
 
-async function setup(page: Page, options: { manage?: boolean; reportedAt?: string; sms?: boolean; trial?: Trial } = {}) {
+async function setup(page: Page, options: { manage?: boolean; reportedAt?: string; sms?: boolean; trial?: Trial; raised?: boolean } = {}) {
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
   const manage = options.manage ?? true
@@ -57,6 +57,8 @@ async function setup(page: Page, options: { manage?: boolean; reportedAt?: strin
     .map(({ organizations, peak_this_month: _peak, ...item }) => ({
       ...item,
       count: organizations.find((entry) => entry.organization_uuid === org)?.count ?? 0,
+      // An alert allowance raised past the account's count after 240 alerts of overage.
+      ...(options.raised && item.kind === "alerts" ? { allowance: 2000, left: 760, overage: 240 } : {}),
     }))
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url())
@@ -154,6 +156,10 @@ test("an owner sees the plan, usage with each organization's share, and an earli
   await usage.getByRole("combobox", { name: "Month" }).click()
   await page.getByRole("option").nth(1).click()
   await expect(alerts).toContainText("240 alerts of overage")
+  // An earlier month leaves out today's allowance, its bar and what was left (FR-023).
+  await expect(alerts).not.toContainText("of 1,000")
+  await expect(usage.getByRole("meter")).toHaveCount(0)
+  await expect(usage.locator('[data-slot="allowance-meter"]').filter({ hasText: "Data points" })).not.toContainText("left")
   await expect(usage.locator('[data-slot="allowance-meter"]').filter({ hasText: "Data points" })).toContainText("Final")
   await expect(usage.getByRole("row").filter({ hasText: "Depot" })).toHaveCount(0)
   await expect(usage.locator('[data-slot="allowance-meter"]').filter({ hasText: "Peak devices" })).toContainText("9")
@@ -209,6 +215,16 @@ test("a stale report reads late on the data point meter", async ({ page }) => {
   const meter = page.locator('[data-slot="allowance-meter"]').filter({ hasText: "Data points" })
   await expect(meter.locator('[data-slot="freshness"]')).toHaveAttribute("data-state", "late")
   await expect(meter).toContainText("12 min ago")
+  expect(errors).toEqual([])
+})
+
+test("after an allowance is raised past the count, Settings → Usage shows what is left beside the overage", async ({ page }) => {
+  const { errors } = await setup(page, { raised: true })
+  await page.goto(`/organizations/${org}/settings/usage`)
+
+  const alerts = page.getByRole("region", { name: "Allowances" }).locator('[data-kind="alerts"]')
+  await expect(alerts).toContainText("760 alerts left on the account · 240 alerts of overage")
+  await expect(alerts).not.toContainText("Used up")
   expect(errors).toEqual([])
 })
 

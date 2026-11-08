@@ -8,7 +8,7 @@ const superAdmin = {
   email: "super-admin@example.test",
   email_verified_at: "2026-08-24T00:00:00.000000Z",
   is_super_admin: true,
-  capabilities: { platform_administration: true, manage_assistant: true, manage_tickets: false },
+  capabilities: { platform_administration: true, manage_organizations: true, manage_assistant: true, manage_tickets: false },
   organizations: [],
 }
 

@@ -10,7 +10,9 @@ use Carbon\CarbonImmutable;
 /**
  * One allowance's usage in one UTC month (spec 028 US4). `allowance` is the account's
  * allowance now, null when unlimited; `overage` was fixed when each unit was counted, so
- * a later allowance change only moves what is left. `organizations` is each
+ * a later allowance change only moves what is left. An earlier month leaves out what was
+ * left and whether devices were over the limit: its allowance may have changed since, and
+ * no history of it is kept (spec 029 FR-023). `organizations` is each
  * organization's share by name, or null where it must not be shown.
  *
  * Devices are a level (spec 029 US2): `count` is the devices holding a place now, or the
@@ -40,15 +42,21 @@ final readonly class MonthlyUsage
         public ?bool $stale = null,
     ) {}
 
-    /** What is left of the allowance this month: null when unlimited, 0 once used up. */
+    /** What is left of the allowance this month: null when unlimited or for an earlier month, 0 once used up. */
     public function left(): ?int
     {
-        return $this->allowance === null ? null : max(0, $this->allowance - $this->count);
+        return $this->allowance === null || $this->earlier() ? null : max(0, $this->allowance - $this->count);
     }
 
-    /** More devices hold a place than the limit allows. */
+    /** More devices hold a place than the limit allows; never said of an earlier month. */
     public function overLimit(): bool
     {
-        return $this->allowance !== null && $this->count > $this->allowance;
+        return $this->allowance !== null && ! $this->earlier() && $this->count > $this->allowance;
+    }
+
+    /** A month before this UTC month. */
+    public function earlier(): bool
+    {
+        return $this->month->lessThan(CarbonImmutable::now()->utc()->startOfMonth());
     }
 }

@@ -47,6 +47,7 @@ import {
   WalletIcon,
 } from "lucide-react"
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom"
+import { homePath, organizationPaths } from "../lib/access"
 
 const navigationGroups = [
   [
@@ -106,6 +107,7 @@ function AdminSidebar({
     .map((group) =>
       group.filter(
         (item) =>
+          (!organizationPaths.includes(item.to) || user.capabilities.manage_organizations) &&
           (item.to !== "/settings/retention" || user.capabilities.manage_retention) &&
           (item.to !== "/settings/assistant" || user.capabilities.manage_assistant) &&
           (item.to !== "/tickets" || user.capabilities.manage_tickets),
@@ -119,7 +121,7 @@ function AdminSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="IoT OS Admin" className="font-medium">
-              <Link to="/organizations" onClick={closeMobile}>
+              <Link to={homePath(user) ?? "/"} onClick={closeMobile}>
                 <BoxesIcon />
                 <span className="truncate group-data-[collapsible=icon]:sr-only">
                   IoT OS Admin

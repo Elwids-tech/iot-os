@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace Tests\Feature\Domain\Billing;
 
 use App\Domain\Audit\Services\ActivityLog;
+use App\Domain\Authorization\Models\PlatformRole;
+use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Shared\Models\User;
+use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 /**
@@ -224,7 +228,20 @@ final class PlanAdministrationTest extends TestCase
     {
         $plan = BillingPlan::factory()->create();
         $account = BillingAccount::factory()->create();
-        $this->actingAs(User::factory()->create(), 'sanctum');
+        // A platform administrator who may open the admin app and manage retention, but not organizations.
+        $this->seed(PermissionSeeder::class);
+        $role = PlatformRole::query()->create(['key' => 'retention-keeper', 'display_name' => 'Retention keeper', 'is_system' => false]);
+        $role->permissions()->sync(Permission::query()->whereIn('name', [PlatformAdministrationPermission::ACCESS->value, PlatformAdministrationPermission::MANAGE_RETENTION->value])->pluck('id'));
+        $keeper = User::factory()->create();
+        $keeper->platformRoles()->attach($role->id);
+
+        // The session tells the admin app to hide Plans and the other billing pages (spec 028 US1/AC6).
+        $this->actingAs($this->administrator, 'sanctum')->getJson('/api/v1/me')->assertJsonPath('data.capabilities.manage_organizations', true);
+        $this->actingAs($keeper, 'sanctum')
+            ->getJson('/api/v1/me')
+            ->assertJsonPath('data.capabilities.platform_administration', true)
+            ->assertJsonPath('data.capabilities.manage_retention', true)
+            ->assertJsonPath('data.capabilities.manage_organizations', false);
 
         $this->getJson('/api/v1/admin/billing-plans')->assertForbidden();
         $this->postJson('/api/v1/admin/billing-plans', ['name' => 'Growth'])->assertForbidden();

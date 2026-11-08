@@ -270,6 +270,8 @@ export type AuthenticatedUser = {
   is_super_admin: boolean
   capabilities: {
     platform_administration: boolean
+    /** Organizations, users, roles, activity and the billing pages (`PlatformAdministration.manage-organizations`). */
+    manage_organizations?: boolean
     manage_retention?: boolean
     manage_assistant?: boolean
     /** Super administrators work the support ticket queue (spec 015). */

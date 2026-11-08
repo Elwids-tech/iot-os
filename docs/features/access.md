@@ -59,7 +59,7 @@ Permissions are enums under each domain's `Permissions/` directory:
 | `DeviceProfile.*`, `TransportBinding.manage` | Profile authoring and publication ([profiles](device-profiles.md#permissions)) |
 | `Workflow.*` | `view`, `manage`, `activate` for DAG automations ([automation](automation.md#api)) |
 | `Dashboard.*` | `view`, `create`, `manage` ([dashboards](dashboards.md#access-and-sharing)) |
-| `PlatformAdministration.*` | `access`, `manage-organizations`, `manage-retention` (admin app only) |
+| `PlatformAdministration.*` | `access`, `manage-organizations`, `manage-retention` (admin app only; `GET me` sends `capabilities.manage_organizations` and `manage_retention`, and admin shows only the pages they allow) |
 
 Built-in roles: **Organization Admin** (always holds exactly the organization's
 ceiling), **Moderator** and **Member**, defined in
@@ -293,4 +293,7 @@ account also takes `plan_uuid` or `trial`), and the admin organization list carr
 `billing_account`. Owners use
 `GET billing-accounts` and `POST billing-accounts/{uuid}/organizations` (`name`, and
 an optional `slug`; 422 on `billing_account` at the limit). Any account the person
-does not own answers 404. `GET me` reports `capabilities.billing_accounts`.
+does not own answers 404. `GET me` reports `capabilities.billing_accounts`, and
+`capabilities.manage_organizations` for the admin app, which hides Organizations,
+Billing accounts, Plans, Invoices, Users, Roles, Activity and Settings → Billing (entries
+and routes) from a platform administrator without that permission (spec 028 US1/AC6).
