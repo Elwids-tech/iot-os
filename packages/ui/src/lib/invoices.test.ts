@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatDay, formatMonth, paymentState } from "./invoices"
+import { formatDay, formatMonth, invoiceLines, monthEnd, paymentState } from "./invoices"
 
 describe("invoices", () => {
   it("names UTC months and days", () => {
@@ -10,6 +10,18 @@ describe("invoices", () => {
     expect(formatDay("2026-11-16T23:30:00+00:00")).toBe(
       new Date(Date.UTC(2026, 10, 16)).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }),
     )
+  })
+
+  it("ends a month at the next month's first instant, in UTC", () => {
+    expect(monthEnd("2026-11-01")).toBe("2026-12-01T00:00:00.000Z")
+    expect(monthEnd("2026-12")).toBe("2027-01-01T00:00:00.000Z")
+  })
+
+  it("shows the account credit once, apart from the lines", () => {
+    const base = { kind: "base_price", description: "Plan A · 1–30 Nov 2026" }
+    const credit = { kind: "credit", description: "Credit from CN-0002" }
+    expect(invoiceLines([base, credit])).toEqual({ charges: [base], credit: "Credit from CN-0002" })
+    expect(invoiceLines([base])).toEqual({ charges: [base], credit: null })
   })
 
   it("shows an unpaid invoice past its due date as overdue", () => {

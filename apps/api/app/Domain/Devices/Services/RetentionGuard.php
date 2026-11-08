@@ -69,8 +69,9 @@ final class RetentionGuard
                 ], 409));
             }
 
+            $floors = [];
             foreach (array_keys($shortened) as $id) {
-                DB::table('telemetry_retention_floors')->insert([
+                $floors[$id] = (int) DB::table('telemetry_retention_floors')->insertGetId([
                     'organization_id' => $id,
                     'days' => $before[$id]['days'],
                     'until' => $until,
@@ -79,9 +80,9 @@ final class RetentionGuard
                 ]);
             }
 
-            DB::afterCommit(function () use ($shortened, $before, $after, $until): void {
-                foreach (array_keys($shortened) as $id) {
-                    $this->warn($after[$id]['organization'], $before[$id]['days'], $after[$id]['days'], $until);
+            DB::afterCommit(function () use ($floors, $before, $after, $until): void {
+                foreach ($floors as $id => $floor) {
+                    $this->warn($after[$id]['organization'], $floor, $before[$id]['days'], $after[$id]['days'], $until);
                 }
             });
 
@@ -119,7 +120,8 @@ final class RetentionGuard
         return $days;
     }
 
-    private function warn(Organization $organization, int $fromDays, int $toDays, CarbonImmutable $until): void
+    /** One email per reduction: its floor's id is the key, so a second change the same day is emailed too. */
+    private function warn(Organization $organization, int $floor, int $fromDays, int $toDays, CarbonImmutable $until): void
     {
         $account = $organization->billingAccount;
 
@@ -127,7 +129,7 @@ final class RetentionGuard
             return;
         }
 
-        $this->notices->send($account, 'retention_reduction', $organization->uuid.':'.$until->toDateString(), new RetentionReducedMail(
+        $this->notices->send($account, 'retention_reduction', $organization->uuid.':floor:'.$floor, new RetentionReducedMail(
             (string) $account->uuid,
             (string) $account->name,
             (string) $organization->name,

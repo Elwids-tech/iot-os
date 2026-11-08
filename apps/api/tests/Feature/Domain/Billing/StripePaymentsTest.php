@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
+use Stripe\Exception\ApiErrorException;
 use Tests\TestCase;
 
 /**
@@ -221,6 +222,72 @@ final class StripePaymentsTest extends TestCase
         $this->assertSame(['evt_late', 'evt_ok', 'evt_ok_again', 'evt_other'], DB::table('billing_provider_events')->orderBy('provider_event_id')->pluck('provider_event_id')->all());
     }
 
+    public function test_a_charge_whose_answer_is_lost_is_never_charged_again_and_check_with_stripe_finds_it(): void
+    {
+        $this->withCard();
+        $this->stripe->on('POST', '/v1/payment_intents', ['error' => ['type' => 'api_error', 'message' => 'The answer was lost.']], 500);
+        $invoice = $this->issued();
+
+        // The payment is recorded before Stripe is asked; a retried job sends the same request.
+        $this->charge($invoice, 1);
+        $this->charge($invoice, 1);
+        $payment = $invoice->payments()->sole();
+        $this->assertSame([Payment::PENDING, null, 1, 333], [$payment->status, $payment->provider_reference, $payment->attempt, $payment->amount]);
+        $sent = $this->stripe->sent('POST', '/v1/payment_intents');
+        $this->assertSame(array_fill(0, 2, 'invoice:'.$invoice->uuid.':1'), array_map(fn (array $request): ?string => FakeStripe::header($request, 'Idempotency-Key'), $sent));
+        $this->assertSame($payment->uuid, $sent[0]['params']['metadata']['payment_uuid']);
+
+        // Neither the due date's attempt nor the owner's payment page can charge it again.
+        (new ChargeInvoice($invoice->id, 2))->handle(app(Payments::class));
+        $this->assertCount(2, $this->stripe->sent('POST', '/v1/payment_intents'));
+        $this->actingAs($this->owner, 'sanctum')->postJson($this->owned('/invoices/'.$invoice->uuid.'/checkout'))->assertConflict();
+
+        // Check with Stripe finds the charge by the payment's uuid.
+        $found = array_replace_recursive($this->intent('pi_lost', 'succeeded', $invoice->uuid, 333), ['metadata' => ['payment_uuid' => $payment->uuid]]);
+        $this->stripe->on('GET', '/v1/payment_intents/search', ['object' => 'search_result', 'url' => '/v1/payment_intents/search', 'has_more' => false, 'data' => [$found]]);
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/reconcile')
+            ->assertOk()
+            ->assertJsonPath('data.payment_status', 'paid')
+            ->assertJsonCount(1, 'data.payments')
+            ->assertJsonPath('data.payments.0.status', 'succeeded');
+        $this->assertSame("metadata['payment_uuid']:'{$payment->uuid}'", $this->stripe->sent('GET', '/v1/payment_intents/search')[0]['params']['query']);
+        $this->assertSame('pi_lost', $payment->fresh()->provider_reference);
+
+        // Stripe's own event for it, arriving late, changes nothing more.
+        $this->webhook($this->event('evt_lost', 'payment_intent.succeeded', $found))->assertOk();
+        $this->assertSame(1, $invoice->payments()->count());
+        $this->assertSame(1, DB::table('billing_notices')->where('kind', 'receipt')->count());
+    }
+
+    public function test_a_lost_charge_stripe_has_no_record_of_fails_once_search_has_caught_up(): void
+    {
+        $this->withCard();
+        $this->stripe
+            ->on('POST', '/v1/payment_intents', ['error' => ['type' => 'api_error', 'message' => 'The request never arrived.']], 500)
+            ->on('GET', '/v1/payment_intents/search', ['object' => 'search_result', 'url' => '/v1/payment_intents/search', 'has_more' => false, 'data' => []]);
+        $invoice = $this->issued();
+        $this->charge($invoice, 1);
+        $this->actingAs($this->admin, 'sanctum');
+
+        // Stripe's search can lag: a charge just sent stays pending.
+        $this->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/reconcile')->assertOk()->assertJsonPath('data.payments.0.status', 'pending');
+
+        $this->travel(11)->minutes();
+        $this->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/reconcile')
+            ->assertOk()
+            ->assertJsonPath('data.payment_status', 'failed')
+            ->assertJsonPath('data.payments.0.status', 'failed')
+            ->assertJsonPath('data.payments.0.failure_reason', 'The charge never reached Stripe; the card was not charged.');
+        $this->assertSame(1, DB::table('billing_notices')->where('kind', 'payment_failed')->count());
+
+        // The next attempt charges it.
+        $this->stripe->on('POST', '/v1/payment_intents', fn (array $params): array => $this->intent('pi_2', 'succeeded', (string) $params['metadata']['invoice_uuid'], (int) $params['amount'], 2));
+        (new ChargeInvoice($invoice->id, 2))->handle(app(Payments::class));
+        $this->assertSame(PaymentStatus::Paid, $invoice->fresh()->payment_status);
+        $this->assertSame([Payment::FAILED, Payment::SUCCEEDED], $invoice->payments()->orderBy('id')->pluck('status')->all());
+    }
+
     public function test_an_unsigned_or_wrongly_signed_webhook_is_refused(): void
     {
         $payload = (string) json_encode($this->event('evt_forged', 'payment_intent.succeeded', ['id' => 'pi_1']));
@@ -286,6 +353,20 @@ final class StripePaymentsTest extends TestCase
         $this->assertNull($this->account->fresh()->past_due_since);
     }
 
+    public function test_reminders_stop_30_days_after_the_due_date_so_a_pruned_notice_is_never_sent_again(): void
+    {
+        $this->issued();
+        $this->artisan('billing:payment-reminders', ['--now' => '2026-12-16 09:00:00'])
+            ->expectsOutput('Sent 1 payment reminders, queued 0 card charges; 1 billing accounts are past due.')
+            ->assertSuccessful();
+
+        $this->artisan('billing:prune', ['--now' => '2028-01-17 00:00:00'])->assertSuccessful();
+        $this->assertSame(0, DB::table('billing_notices')->where('kind', 'payment_reminder')->count());
+        $this->artisan('billing:payment-reminders', ['--now' => '2028-01-17 09:00:00'])
+            ->expectsOutput('Sent 0 payment reminders, queued 0 card charges; 1 billing accounts are past due.')
+            ->assertSuccessful();
+    }
+
     public function test_payments_recorded_by_hand_and_reconciled_with_stripe(): void
     {
         $invoice = $this->issued();
@@ -349,6 +430,17 @@ final class StripePaymentsTest extends TestCase
         $this->assertNull($this->account->fresh()->pm_type);
         $this->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid)->assertForbidden();
         $this->actingAs($this->admin, 'sanctum')->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid)->assertOk()->assertJsonPath('data.payment_method', null);
+    }
+
+    /** Runs a charge job whose answer from Stripe is lost, as the queue would before retrying it. */
+    private function charge(Invoice $invoice, int $attempt): void
+    {
+        try {
+            (new ChargeInvoice($invoice->id, $attempt))->handle(app(Payments::class));
+            $this->fail('Stripe\'s answer was expected to be lost.');
+        } catch (ApiErrorException) {
+            // The job fails and the queue retries it.
+        }
     }
 
     private function owned(string $path): string

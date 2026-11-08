@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * Invoice and credit note documents (spec 029 FR-032, FR-036, research R13): a PDF
  * rendered on request with dompdf from one Blade view, which has no browser to need, and
- * a CSV of the lines, totals and each organization's usage. A draft renders as a draft;
- * issued documents use only the details they were issued with.
+ * a CSV: an invoice's lines, totals and each organization's usage, or a credit note's
+ * amounts. A draft renders as a draft; issued documents use only the details they were
+ * issued with.
  */
 final class InvoicePdf
 {
@@ -32,17 +33,21 @@ final class InvoicePdf
         return $this->render(['invoice' => $note->invoice, 'creditNote' => $note]);
     }
 
-    /** One CSV: a header, the lines, the totals, then each organization's usage. */
+    /**
+     * One CSV: a header, the lines, the totals, then each organization's usage. The
+     * account's credit is a totals row, not a line, so the lines add up to the subtotal.
+     */
     public function csv(Invoice $invoice): string
     {
         $out = fopen('php://temp', 'r+');
         $row = static fn (array $values) => fputcsv($out, $values, ',', '"', '');
-        $decimal = static fn (?int $amount): string => $amount === null ? '' : number_format($amount / 100, 2, '.', '');
+        $decimal = self::decimal(...);
 
         $row(['invoice', $invoice->number ?? 'draft', 'month', $invoice->month->format('Y-m'), 'currency', $invoice->currency]);
         $row([]);
         $row(['position', 'kind', 'description', 'quantity', 'unit_price', 'amount', 'note']);
-        foreach ($invoice->lines as $line) {
+        $credit = $invoice->lines->firstWhere('kind', InvoiceLineKind::Credit);
+        foreach ($invoice->lines->reject(fn ($line) => $line->kind === InvoiceLineKind::Credit) as $line) {
             // An adjustment's note is for administrators; the description is what the customer reads.
             $note = $line->kind === InvoiceLineKind::Adjustment ? null : $line->note;
             $row([$line->position, $line->kind->value, $line->description, rtrim(rtrim((string) $line->quantity, '0'), '.'), $decimal($line->unit_price), $decimal($line->amount), $note]);
@@ -51,13 +56,32 @@ final class InvoicePdf
         $row(['subtotal', $decimal($invoice->subtotal)]);
         $row(['tax', $decimal($invoice->tax), $invoice->tax_rate_name, $invoice->tax_basis_points]);
         $row(['total', $decimal($invoice->total)]);
-        $row(['credit_applied', $decimal($invoice->credit_applied)]);
+        $row(['credit_applied', $decimal($invoice->credit_applied), $credit?->description]);
         $row(['amount_due', $decimal($invoice->amount_due)]);
         $row([]);
         $row(['organization_uuid', 'organization', 'kind', 'count']);
         foreach ($this->usage($invoice) as $usage) {
             $row([$usage->organization_uuid, $usage->organization_name, $usage->kind, $usage->count]);
         }
+        rewind($out);
+
+        return (string) stream_get_contents($out);
+    }
+
+    /** A credit note as CSV: a header, then its reason and amounts. */
+    public function creditNoteCsv(CreditNote $note): string
+    {
+        $out = fopen('php://temp', 'r+');
+        $row = static fn (array $values) => fputcsv($out, $values, ',', '"', '');
+        $invoice = $note->invoice;
+
+        $row(['credit_note', $note->number, 'invoice', $invoice->number, 'month', $invoice->month->format('Y-m'), 'currency', $invoice->currency]);
+        $row(['issued_at', $note->issued_at->toIso8601String()]);
+        $row([]);
+        $row(['reason', $note->reason]);
+        $row(['amount', self::decimal($note->amount)]);
+        $row(['taken_off_invoice', self::decimal($note->applied)]);
+        $row(['credit_for_next_invoice', self::decimal($note->amount - $note->applied)]);
         rewind($out);
 
         return (string) stream_get_contents($out);
@@ -74,6 +98,11 @@ final class InvoicePdf
             ->orderBy('kind')
             ->get()
             ->all();
+    }
+
+    private static function decimal(?int $amount): string
+    {
+        return $amount === null ? '' : number_format($amount / 100, 2, '.', '');
     }
 
     /**

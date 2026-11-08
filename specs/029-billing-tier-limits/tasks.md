@@ -1657,21 +1657,85 @@ account is charged when a card is saved, or flagged otherwise.
 
 ## Phase 15: Convergence
 
-- [ ] T126 Refuse issuing an invoice for a UTC month that has not ended (a draft of the running month stays a preview), so the base price is not charged for days to come and later overage is not left uninvoiced, per FR-031 (contradicts)
-- [ ] T127 Record a pending payment that holds the attempt's idempotency key before calling Stripe, so an unknown outcome blocks the next attempt and **Check with Stripe** can find it, per edge case "A charge succeeds at the provider but its report is lost" and SC-010 (partial)
-- [ ] T128 Keep a bulk-onboarded device registered when its device-limit claim is refused, and let a retry re-queue the items skipped at the limit once it is raised, per 029 US2/AC5 and edge case "Bulk onboarding at the device limit" (partial)
+- [x] T126 Refuse issuing an invoice for a UTC month that has not ended (a draft of the running month stays a preview), so the base price is not charged for days to come and later overage is not left uninvoiced, per FR-031 (contradicts)
+
+  As built (PR 15): `InvoiceIssuer` answers 409 until the invoice's month has ended ("November
+  2026 has not ended. Its draft is a preview; issue it from 1 December 2026."). Admin
+  disables **Issue** on such a draft and says from when it can be issued.
+
+- [x] T127 Record a pending payment that holds the attempt's idempotency key before calling Stripe, so an unknown outcome blocks the next attempt and **Check with Stripe** can find it, per edge case "A charge succeeds at the provider but its report is lost" and SC-010 (partial)
+
+  As built (PR 15): `Payments::charge` creates the pending card payment under the invoice lock
+  before calling Stripe, with `payment_uuid` in the PaymentIntent's metadata and the key
+  `invoice:{uuid}:{attempt}`. A retried job resends that attempt's request; any other
+  pending payment blocks the charge and Checkout. `reconcile` searches Stripe for a
+  payment without a reference by its uuid, and fails it ("The charge never reached
+  Stripe") when none is found ten minutes on. Events match it by `payment_uuid`.
+
+- [x] T128 Keep a bulk-onboarded device registered when its device-limit claim is refused, and let a retry re-queue the items skipped at the limit once it is raised, per 029 US2/AC5 and edge case "Bulk onboarding at the device limit" (partial)
+
+  As built (PR 15): `DeviceLimit::claim` throws `DeviceLimitReached` (a `ValidationException`, so
+  still a 422 on `device`). `BulkOnboarding::onboard` registers the device in one
+  savepoint and activates in a nested one; at the limit it keeps the registration and
+  marks the item failed with the device and reason. `retry` already re-queues failed
+  items, and a held item activates its registered device.
+
 - [ ] T129 Send a `manage_organizations` capability and hide **Plans**, **Billing accounts**, **Invoices** and **Settings → Billing** (navigation and routes) from platform administrators without it, per 028 US1/AC6 (partial)
-- [ ] T130 Keep the "usage possibly incomplete" mark on invoices issued from an incomplete draft, in the PDF, the admin invoice page and the portal, per FR-033 (partial)
-- [ ] T131 Show an applied credit once (as a line or as a totals row, not both), so the visible subtotal equals the sum of the visible lines, in the PDF, admin and portal, per FR-038 (partial)
-- [ ] T132 Add a credit note CSV for owners and administrators, beside its PDF, per FR-036 (partial)
-- [ ] T133 Give each retention reduction its own notice key, so a second confirmed change on the same day also emails the owners, per FR-020 (partial)
-- [ ] T134 Apply a confirmed direct organization override at the next cleanup even while a billing floor runs (or say on **Settings → Retention** when it applies), per FR-021 (partial)
+- [x] T130 Keep the "usage possibly incomplete" mark on invoices issued from an incomplete draft, in the PDF, the admin invoice page and the portal, per FR-033 (partial)
+
+  As built (PR 15): The PDF says "Usage possibly incomplete" beside the issue and due dates; admin
+  keeps the status mark and a notice ("Issued before the month's usage was final") and
+  marks the list row; the portal's invoice sheet shows the mark.
+
+- [x] T131 Show an applied credit once (as a line or as a totals row, not both), so the visible subtotal equals the sum of the visible lines, in the PDF, admin and portal, per FR-038 (partial)
+
+  As built (PR 15): The stored `credit` line stays (it names the credit notes). The PDF, the CSV,
+  admin and portal leave it out of the lines and show it once as the credit totals row,
+  labelled with its description; `@iot-os/ui/lib/invoices` `invoiceLines` splits them.
+
+- [x] T132 Add a credit note CSV for owners and administrators, beside its PDF, per FR-036 (partial)
+
+  As built (PR 15): `InvoicePdf::creditNoteCsv` (header, issue time, reason, amount, taken off the
+  invoice, credit for the next invoice) behind `GET admin/billing/credit-notes/{uuid}.csv`
+  and `GET billing-accounts/{uuid}/credit-notes/{uuid}.csv`; row actions in admin and
+  portal, and a CSV link in the portal's invoice sheet.
+
+- [x] T133 Give each retention reduction its own notice key, so a second confirmed change on the same day also emails the owners, per FR-020 (partial)
+
+  As built (PR 15): `RetentionGuard` keys `retention_reduction` by the floor it inserts
+  (`{organization}:floor:{id}`); the 7-day warning stays once per organization and date.
+
+- [x] T134 Apply a confirmed direct organization override at the next cleanup even while a billing floor runs (or say on **Settings → Retention** when it applies), per FR-021 (partial)
+
+  As built (PR 15): `RetentionService::update` deletes the organization's floors when a confirmed
+  override shortens its effective retention, so cleanup uses it at its next run and
+  **Settings → Retention** shows no pending reduction.
+
 - [ ] T135 Show an earlier month's usage against the allowance in force that month, or leave out what was left, instead of today's allowance, per FR-023 (partial)
 - [ ] T136 Show what is left on an allowance meter whenever it is above 0, with the month's overage beside it, after an allowance is raised past the count, per 028 FR-018 (partial)
-- [ ] T137 Close a billing account's open plan assignment when the account is deleted, so plan counts and lists leave it out, per 028 FR-002 and edge case "Billing account deleted" (partial)
-- [ ] T138 Draft, and list as waiting, every past month whose usage became final without an invoice, not only last month, per FR-031 and SC-009 (partial)
-- [ ] T139 Run `billing:end-trials` hourly (or at startup), so a trial that ended while the control plane was down ends and emails as soon as it is back, per edge case "Trial ends while the control plane is down" (partial)
-- [ ] T140 Stop payment reminders repeating once `billing:prune` removes their notices, for invoices unpaid over 13 months, per FR-042 (contradicts)
+- [x] T137 Close a billing account's open plan assignment when the account is deleted, so plan counts and lists leave it out, per 028 FR-002 and edge case "Billing account deleted" (partial)
+
+  As built (PR 15): `BillingAccounts::delete` ends the open assignment (`account_deleted`); migration
+  `2026_11_17_000000_close_plans_of_deleted_billing_accounts` ends those of accounts
+  deleted before, at their deletion.
+
+- [x] T138 Draft, and list as waiting, every past month whose usage became final without an invoice, not only last month, per FR-031 and SC-009 (partial)
+
+  As built (PR 15): `InvoiceDrafter::draftDue` and `waiting` walk every ended month since the first
+  plan assignment (`endedMonths`); drafting stops at the first month whose usage is not
+  final. `GET admin/billing/invoices/waiting` lists every waiting month unless `month`
+  is given, and the command prints a line per month.
+
+- [x] T139 Run `billing:end-trials` hourly (or at startup), so a trial that ended while the control plane was down ends and emails as soon as it is back, per edge case "Trial ends while the control plane is down" (partial)
+
+  As built (PR 15): Scheduled `hourlyAt(5)`; reminders were already once per step.
+
+- [x] T140 Stop payment reminders repeating once `billing:prune` removes their notices, for invoices unpaid over 13 months, per FR-042 (contradicts)
+
+  As built (PR 15): `billing:payment-reminders` follows an invoice up for 30 days after its due
+  date (`FOLLOW_UP_DAYS`); past that it is left to administrators, so a pruned reminder
+  is never sent again.
+
 - [ ] T141 Run the simulator at the tested rate with and without data point counting and record the ingestion-to-history latency, per 029 SC-004 and the plan's constitution IX row (partial)
 - [x] T142 Make the card payments ops doc and the gotchas agree on where Stripe test keys live, and add the planned gotcha, per plan: documentation (contradicts)
 

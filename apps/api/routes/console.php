@@ -36,7 +36,8 @@ Schedule::command('adapters:prune')->dailyAt('03:40')->withoutOverlapping();
 Schedule::command('alerts:prune-notifications')->dailyAt('03:45')->withoutOverlapping();
 Schedule::command('integrations:prune-stream-sessions')->dailyAt('03:50')->withoutOverlapping();
 Schedule::command('billing:prune')->dailyAt('03:30')->withoutOverlapping();
-Schedule::command('billing:end-trials')->dailyAt('00:05')->withoutOverlapping();
+// Hourly, so a trial that ended while the control plane was down ends soon after it is back.
+Schedule::command('billing:end-trials')->hourlyAt(5)->withoutOverlapping();
 Schedule::command('billing:device-peaks')->dailyAt('00:15')->withoutOverlapping();
 Schedule::command('billing:retention-warnings')->dailyAt('08:00')->withoutOverlapping();
 Schedule::command('billing:draft-invoices')->dailyAt('02:10')->withoutOverlapping();

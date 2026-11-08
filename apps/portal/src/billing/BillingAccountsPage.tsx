@@ -499,11 +499,18 @@ export default function BillingAccountsPage() {
               rowLabel={(note) => note.number}
               columns={creditColumns}
               rowActions={(note) => (
-                <DropdownMenuItem asChild>
-                  <a href={api.ownedCreditNotePdfUrl(account.uuid, note.uuid)} download>
-                    Download PDF
-                  </a>
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem asChild>
+                    <a href={api.ownedCreditNoteDocumentUrl(account.uuid, note.uuid, "pdf")} download>
+                      Download PDF
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a href={api.ownedCreditNoteDocumentUrl(account.uuid, note.uuid, "csv")} download>
+                      Download CSV
+                    </a>
+                  </DropdownMenuItem>
+                </>
               )}
             />
           </PanelContent>

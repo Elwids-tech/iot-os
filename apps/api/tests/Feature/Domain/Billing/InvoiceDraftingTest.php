@@ -124,9 +124,9 @@ final class InvoiceDraftingTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-11-02 02:10', 'UTC'));
         $this->artisan('billing:draft-invoices')->assertSuccessful();
 
-        $unpriced = Invoice::query()->where('billing_account_id', $this->account->id)->sole();
+        $unpriced = Invoice::query()->where('billing_account_id', $this->account->id)->whereDate('month', '2026-10-01')->sole();
         $this->assertSame([0, 0], [$unpriced->lines()->sole()->amount, $unpriced->total]);
-        $line = Invoice::query()->where('billing_account_id', $quiet->id)->sole()->lines()->sole();
+        $line = Invoice::query()->where('billing_account_id', $quiet->id)->whereDate('month', '2026-10-01')->sole()->lines()->sole();
         $this->assertSame([InvoiceLineKind::BasePrice, 3100], [$line->kind, $line->amount]);
     }
 
@@ -149,15 +149,22 @@ final class InvoiceDraftingTest extends TestCase
         $this->assign('2026-09-20 08:00', $this->starter);
         $this->finalThrough('2026-10-31 23:00');
         $this->travelTo(CarbonImmutable::parse('2026-11-04 02:10', 'UTC'));
-        $this->artisan('billing:draft-invoices')->assertSuccessful();
-        $this->assertSame(0, Invoice::query()->count());
+        // September, never drafted, is final and drafted now (T138); October waits.
+        $this->artisan('billing:draft-invoices')
+            ->expectsOutput('Drafted 1 invoices for September 2026.')
+            ->expectsOutput('Usage for October 2026 is not final yet: 1 accounts wait.')
+            ->assertSuccessful();
+        $this->assertSame(['2026-09-01'], Invoice::query()->get()->map(fn (Invoice $invoice): string => $invoice->month->toDateString())->all());
 
         $this->actingAs($this->admin, 'sanctum');
-        $this->getJson('/api/v1/admin/billing/invoices/waiting?month=2026-10')
+        $this->getJson('/api/v1/admin/billing/invoices/waiting')
             ->assertOk()
+            ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.billing_account.uuid', $this->account->uuid)
+            ->assertJsonPath('data.0.month', '2026-10-01')
             ->assertJsonPath('data.0.waiting_since', '2026-11-01T00:00:00+00:00')
             ->assertJsonPath('data.0.overdue', true);
+        $this->getJson('/api/v1/admin/billing/invoices/waiting?month=2026-09')->assertOk()->assertJsonCount(0, 'data');
 
         $this->postJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/invoices', ['month' => '2026-10'])->assertUnprocessable();
         $this->postJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/invoices', ['month' => '2026-12', 'note' => 'Too early'])->assertUnprocessable();
@@ -228,6 +235,6 @@ final class InvoiceDraftingTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-11-02 02:10', 'UTC'));
         $this->artisan('billing:draft-invoices')->assertSuccessful();
 
-        return Invoice::query()->where('billing_account_id', $this->account->id)->with('lines')->sole();
+        return Invoice::query()->where('billing_account_id', $this->account->id)->whereDate('month', '2026-10-01')->with('lines')->sole();
     }
 }

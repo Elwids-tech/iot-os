@@ -72,7 +72,7 @@ operations:
   GET /v1/admin/billing/invoices/waiting:
     responses:
       '200':
-        description: Accounts whose invoice for the month waits for final usage; empty once usage is final.
+        description: Accounts whose invoice for an ended month waits for final usage, for every such month or the one asked for; empty once usage is final.
         content:
           application/json:
             schema:
@@ -236,7 +236,7 @@ operations:
   POST /v1/admin/billing/invoices/{invoice}/issue:
     responses:
       '409':
-        description: The invoice is already issued.
+        description: The invoice is already issued, or its month has not ended, so its draft is still a preview (spec 029 FR-031).
         content:
           application/json:
             schema:

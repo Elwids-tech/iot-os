@@ -20,7 +20,7 @@ import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import { Status } from "@iot-os/ui/components/status-mark"
-import { formatDay, formatMonth, paymentState } from "@iot-os/ui/lib/invoices"
+import { formatDay, formatMonth, invoiceLines, monthEnd, paymentState } from "@iot-os/ui/lib/invoices"
 import { statusOf } from "@iot-os/ui/lib/status"
 import { formatBasisPoints, formatMoney } from "@iot-os/ui/lib/money"
 import { EntityPage, PropertyList } from "@iot-os/ui/templates/entity-page"
@@ -182,7 +182,7 @@ export function InvoicePage() {
         mobile: "title",
         value: (note) => note.number,
         cell: (note) => (
-          <a className="font-medium underline-offset-4 hover:underline" href={apiClient.adminCreditNotePdfUrl(note.uuid)} download>
+          <a className="font-medium underline-offset-4 hover:underline" href={apiClient.adminCreditNoteDocumentUrl(note.uuid, "pdf")} download>
             {note.number}
           </a>
         ),
@@ -301,6 +301,10 @@ export function InvoicePage() {
 
   const money = (amount: number) => formatMoney(amount, currency)
   const left = creditable(invoice)
+  const { charges, credit } = invoiceLines(invoice.lines)
+  // A draft of the running month is a preview; it is issued once the month ends.
+  const ends = monthEnd(invoice.month)
+  const issuable = Date.parse(ends) <= Date.now()
   // Stripe can settle a charge or Checkout payment still processing.
   const checkable = invoice.payments.some((payment) => payment.status === "pending" && payment.method !== "outside")
   const details = invoice.account_details
@@ -315,7 +319,7 @@ export function InvoicePage() {
         status={
           <>
             {draft ? <Status value="draft" domain="invoice" /> : <Status value={paymentState(invoice)} domain="payment" />}
-            {draft && invoice.usage_incomplete ? <Status value="incomplete" domain="invoice" /> : null}
+            {invoice.usage_incomplete ? <Status value="incomplete" domain="invoice" /> : null}
             <span className="text-muted-foreground">
               <RefLink to={billingAccountPath(invoice.billing_account.uuid)}>{invoice.billing_account.name}</RefLink> ·{" "}
               {formatMonth(invoice.month)}
@@ -323,13 +327,15 @@ export function InvoicePage() {
           </>
         }
         notices={
-          draft && invoice.usage_incomplete ? (
+          invoice.usage_incomplete ? (
             <Alert>
               <AlertCircleIcon />
-              <AlertTitle>Drafted before the month&apos;s usage was final</AlertTitle>
+              <AlertTitle>{draft ? "Drafted" : "Issued"} before the month&apos;s usage was final</AlertTitle>
               <AlertDescription>
-                {invoice.draft_note ? `${invoice.draft_note}. ` : ""}Recalculate once the runtime has reported the whole month;
-                until then the invoice says its usage may be incomplete.
+                {invoice.draft_note ? `${invoice.draft_note}. ` : ""}
+                {draft
+                  ? "Recalculate once the runtime has reported the whole month; until then the invoice says its usage may be incomplete."
+                  : "The invoice says its usage may be incomplete."}
               </AlertDescription>
             </Alert>
           ) : null
@@ -361,7 +367,17 @@ export function InvoicePage() {
                     },
                     { label: "Total", value: <span className="font-medium tabular-nums">{money(invoice.total)}</span> },
                     ...(invoice.credit_applied
-                      ? [{ label: "Account credit", value: <span className="tabular-nums">{money(-invoice.credit_applied)}</span> }]
+                      ? [
+                          {
+                            label: "Account credit",
+                            value: (
+                              <span className="tabular-nums">
+                                {money(-invoice.credit_applied)}
+                                {credit ? <span className="text-muted-foreground"> · {credit}</span> : null}
+                              </span>
+                            ),
+                          },
+                        ]
                       : []),
                     { label: "Amount due", value: <span className="tabular-nums">{money(invoice.amount_due)}</span> },
                     ...(draft
@@ -420,7 +436,7 @@ export function InvoicePage() {
               rowKey={(line) => String(line.id)}
               rowLabel={(line) => line.description}
               columns={lineColumns}
-              rows={invoice.lines}
+              rows={charges}
               rowActions={
                 draft
                   ? (line) =>
@@ -479,6 +495,20 @@ export function InvoicePage() {
                 rowLabel={(note) => note.number}
                 columns={creditColumns}
                 rows={invoice.credit_notes}
+                rowActions={(note) => (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <a href={apiClient.adminCreditNoteDocumentUrl(note.uuid, "pdf")} download>
+                        Download PDF
+                      </a>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <a href={apiClient.adminCreditNoteDocumentUrl(note.uuid, "csv")} download>
+                        Download CSV
+                      </a>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 empty={<EmptyState inset icon={<ReceiptTextIcon />} title="No credit notes" description="Issue one if this invoice was wrong." />}
               />
             </PanelContent>
@@ -541,7 +571,9 @@ export function InvoicePage() {
           {draft ? (
             <>
               Draft · <span className="tabular-nums">{money(invoice.amount_due)}</span> due{" "}
-              <span className="text-muted-foreground">· not sent until issued</span>
+              <span className="text-muted-foreground">
+                {issuable ? "· not sent until issued" : `· a preview until the month ends; issue from ${formatDay(ends)}`}
+              </span>
             </>
           ) : (
             <>
@@ -574,7 +606,7 @@ export function InvoicePage() {
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setAdjusting(true)}>
               Add adjustment
             </Button>
-            <Button size="sm" disabled={busy} onClick={() => setIssuing(true)}>
+            <Button size="sm" disabled={busy || !issuable} onClick={() => setIssuing(true)}>
               Issue
             </Button>
           </>

@@ -90,7 +90,8 @@ final class RetentionFollowsPlanTest extends TestCase
         $this->assertSame(['days' => 90, 'reason' => 'plan_changed'], (array) DB::table('telemetry_retention_floors')->where('organization_id', $this->lakeside->id)->first(['days', 'reason']));
         // The organization with its own override is untouched.
         $this->assertSame(0, DB::table('telemetry_retention_floors')->where('organization_id', $this->harbour->id)->count());
-        $this->assertSame([$this->lakeside->uuid.':2026-12-08'], DB::table('billing_notices')->where('kind', 'retention_reduction')->pluck('key')->all());
+        $floor = DB::table('telemetry_retention_floors')->where('organization_id', $this->lakeside->id)->value('id');
+        $this->assertSame([$this->lakeside->uuid.':floor:'.$floor], DB::table('billing_notices')->where('kind', 'retention_reduction')->pluck('key')->all());
 
         $state = collect($this->withToken(str_repeat('t', 40))->getJson('/api/internal/devices/state')->assertOk()->json('retention'))->keyBy('organization_uuid');
         $this->assertSame([90, 'billing_account'], [$state[$this->lakeside->uuid]['days'], $state[$this->lakeside->uuid]['source']]);
@@ -160,6 +161,20 @@ final class RetentionFollowsPlanTest extends TestCase
         $this->assertSame(0, DB::table('telemetry_retention_floors')->count());
     }
 
+    public function test_a_confirmed_shorter_override_applies_at_the_next_cleanup_during_a_billing_grace(): void
+    {
+        $this->putJson($this->planUrl(), ['plan_uuid' => $this->short->uuid, 'confirm_retention' => true])->assertOk();
+        $this->assertSame(90, app(RetentionService::class)->cleanupDays($this->lakeside));
+
+        $this->putJson($this->retentionUrl($this->lakeside), ['days' => 3, 'revision' => 0, 'confirmed_reduction' => true])->assertOk()
+            ->assertJsonPath('data.days', 3)
+            ->assertJsonPath('data.pending_reduction', null);
+
+        $this->assertSame(3, app(RetentionService::class)->cleanupDays($this->lakeside));
+        // The other organization keeps its grace.
+        $this->assertSame(90, app(RetentionService::class)->cleanupDays($this->harbour));
+    }
+
     public function test_owners_are_emailed_at_the_change_and_once_7_days_before(): void
     {
         $this->putJson($this->planUrl(), ['plan_uuid' => $this->short->uuid, 'confirm_retention' => true])->assertOk();
@@ -169,11 +184,21 @@ final class RetentionFollowsPlanTest extends TestCase
         $this->artisan('billing:retention-warnings', ['--now' => '2026-12-03 08:00:00'])->expectsOutput('Warned owners about 0 retention reductions.');
 
         $keys = fn (string $kind): array => DB::table('billing_notices')->where('billing_account_id', $this->account->id)->where('kind', $kind)->orderBy('key')->pluck('key')->all();
-        $expected = collect([$this->lakeside, $this->harbour])->map(fn (Organization $organization): string => $organization->uuid.':2026-12-08')->sort()->values()->all();
-        $this->assertSame($expected, $keys('retention_reduction'));
-        $this->assertSame($expected, $keys('retention_warning'));
+        $floors = DB::table('telemetry_retention_floors')->pluck('id', 'organization_id');
+        $organizations = collect([$this->lakeside, $this->harbour]);
+        $this->assertSame($organizations->map(fn (Organization $organization): string => $organization->uuid.':floor:'.$floors[$organization->id])->sort()->values()->all(), $keys('retention_reduction'));
+        $this->assertSame($organizations->map(fn (Organization $organization): string => $organization->uuid.':2026-12-08')->sort()->values()->all(), $keys('retention_warning'));
 
         $this->artisan('billing:prune', ['--now' => '2026-12-09 00:00:00'])->expectsOutput('Pruned 0 billing notices, 0 data point buckets, 0 Stripe event ids and 2 retention floors.');
+    }
+
+    public function test_a_second_reduction_on_the_same_day_is_emailed_too(): void
+    {
+        $this->putJson($this->planUrl(), ['plan_uuid' => $this->short->uuid, 'confirm_retention' => true])->assertOk();
+        $this->putJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/allowances/retention_days', ['value' => 3, 'note' => 'Shorter still', 'confirm_retention' => true])->assertOk();
+
+        $this->assertSame(4, DB::table('telemetry_retention_floors')->count());
+        $this->assertSame(4, DB::table('billing_notices')->where('kind', 'retention_reduction')->count());
     }
 
     public function test_a_floor_that_was_undone_sends_no_warning(): void

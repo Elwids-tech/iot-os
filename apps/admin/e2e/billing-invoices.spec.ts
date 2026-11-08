@@ -44,7 +44,7 @@ async function json(route: Route, body: unknown, status = 200) {
 }
 
 /** The mocked API, plus the request bodies the tests assert on. `issued` starts with INV-0001 issued, its card charge still processing. */
-async function mockApi(page: Page, { issued = false, pastDue = false }: { issued?: boolean; pastDue?: boolean } = {}) {
+async function mockApi(page: Page, { issued = false, pastDue = false, month = "2026-10-01" }: { issued?: boolean; pastDue?: boolean; month?: string } = {}) {
   const sent: { method: string; path: string; body: unknown }[] = []
   let settings = {
     legal_name: null as string | null,
@@ -63,7 +63,7 @@ async function mockApi(page: Page, { issued = false, pastDue = false }: { issued
   const current = { effective_from: "2026-11-01", base_price: 2000, alert_overage_price: 50, data_point_overage_price: 200, data_point_block_size: 1000000 }
   let next: typeof current | null = null
   const overrides: { price: string; value: number | null; note: string | null; next_value: number | null; next_note: string | null }[] = []
-  let waiting = [{ billing_account: { uuid: harbour, name: "Harbour Depot" }, month: "2026-10-01", waiting_since: "2026-11-01T00:00:00Z", overdue: true }]
+  let waiting = [{ billing_account: { uuid: harbour, name: "Harbour Depot" }, month, waiting_since: "2026-11-01T00:00:00Z", overdue: true }]
   let invoice: null | {
     status: "draft" | "issued"
     number: string | null
@@ -139,9 +139,10 @@ async function mockApi(page: Page, { issued = false, pastDue = false }: { issued
       uuid: draftUuid,
       number: invoice!.number,
       status: invoice!.status,
-      month: "2026-10-01",
+      month,
       billing_account: { uuid: harbour, name: "Harbour Depot" },
-      usage_incomplete: invoice!.status === "draft",
+      // Drafted anyway: an invoice issued from it keeps the mark.
+      usage_incomplete: !issued,
       currency: "USD",
       subtotal,
       tax,
@@ -406,6 +407,7 @@ test("drafts a waiting account's invoice anyway, adjusts it, issues it and credi
   await confirm.getByRole("button", { name: "Issue invoice" }).click()
   await expect(page.getByText("Issued as INV-0001 and emailed")).toBeVisible()
   await expect(page.getByRole("heading", { name: "INV-0001" })).toBeVisible()
+  await expect(page.getByText("Issued before the month's usage was final")).toBeVisible()
   await expect(page.getByText("Awaiting payment").first()).toBeVisible()
   await expect(page.getByRole("button", { name: "Add adjustment" })).toHaveCount(0)
 
@@ -417,6 +419,23 @@ test("drafts a waiting account's invoice anyway, adjusts it, issues it and credi
   await expect(page.getByText("Credit note CN-0001 issued for $5.00")).toBeVisible()
   expect(sent.at(-1)?.body).toEqual({ amount: 500, reason: "Partial outage" })
   await expect(page.getByRole("row", { name: /CN-0001 \$5\.00 \$5\.00 Partial outage/ })).toBeVisible()
+  await page.getByRole("button", { name: "Actions for CN-0001" }).click()
+  await expect(page.getByRole("menuitem", { name: "Download CSV" })).toHaveAttribute("href", /\/api\/v1\/admin\/billing\/credit-notes\/[0-9a-f-]+\.csv$/)
+})
+
+test("a draft of the running month is a preview that cannot be issued yet", async ({ page }) => {
+  const today = new Date()
+  const running = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`
+  await mockApi(page, { month: `${running}-01` })
+  await page.goto("/billing/invoices?tab=waiting")
+  await page.getByRole("button", { name: "Actions for Harbour Depot" }).click()
+  await page.getByRole("menuitem", { name: "Draft anyway" }).click()
+  await page.getByRole("dialog").getByRole("textbox", { name: "Note" }).fill("A look at the month so far")
+  await page.getByRole("dialog").getByRole("button", { name: "Draft invoice" }).click()
+
+  await expect(page).toHaveURL(new RegExp(`/billing/invoices/${draftUuid}$`))
+  await expect(page.getByText(/a preview until the month ends; issue from/)).toBeVisible()
+  await expect(page.getByRole("button", { name: "Issue", exact: true })).toBeDisabled()
 })
 
 test("checks a processing charge with Stripe, records a bank transfer and clears past due", async ({ page }) => {

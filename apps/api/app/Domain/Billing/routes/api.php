@@ -141,6 +141,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function
             Route::get('billing/credit-notes/{creditNote}.pdf', [PlatformInvoiceController::class, 'creditNotePdf'])
                 ->whereUuid('creditNote')
                 ->name('billing.credit-notes.pdf');
+            Route::get('billing/credit-notes/{creditNote}.csv', [PlatformInvoiceController::class, 'creditNoteCsv'])
+                ->whereUuid('creditNote')
+                ->name('billing.credit-notes.csv');
 
             Route::get('billing-plans', [PlatformPlanController::class, 'index'])->name('billing-plans.index');
             Route::post('billing-plans', [PlatformPlanController::class, 'store'])->name('billing-plans.store');
@@ -189,6 +192,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function
     Route::get('billing-accounts/{billingAccount}/credit-notes/{creditNote}.pdf', [OwnedInvoiceController::class, 'creditNotePdf'])
         ->whereUuid(['billingAccount', 'creditNote'])
         ->name('billing-accounts.credit-notes.pdf');
+    Route::get('billing-accounts/{billingAccount}/credit-notes/{creditNote}.csv', [OwnedInvoiceController::class, 'creditNoteCsv'])
+        ->whereUuid(['billingAccount', 'creditNote'])
+        ->name('billing-accounts.credit-notes.csv');
     // Cards and online payments on Stripe's pages (spec 029 US7); 404 while payments are off.
     Route::post('billing-accounts/{billingAccount}/payment-method/checkout', [OwnedPaymentController::class, 'paymentMethodCheckout'])
         ->whereUuid('billingAccount')

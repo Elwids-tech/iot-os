@@ -96,11 +96,13 @@ allowance changes as updates; the plan's page shows its own history.
   account's wait, overdue after three days, with **Draft anyway**), **Issued** and
   **Unpaid** (pending or failed). A notice counts accounts waiting too long.
 - **An invoice's page** shows its lines, each organization's usage, its credit notes
-  (with their PDFs), its history and, on the right, the totals and who it is billed
-  to. A sticky bar holds the PDF and CSV and, on a draft, **Recalculate**, **Add
+  (with their PDF and CSV), its history and, on the right, the totals and who it is
+  billed to. A sticky bar holds the PDF and CSV and, on a draft, **Recalculate**, **Add
   adjustment** (a credit or a charge, a printed description and a private note) and
-  **Issue**, which asks first because an issued invoice never changes. An issued
-  invoice has **Credit note** instead, up to what is not yet credited.
+  **Issue**, which asks first because an issued invoice never changes. A draft of the
+  running month is a preview: **Issue** waits until the month ends, and the bar says
+  from when. An issued invoice has **Credit note** instead, up to what is not yet
+  credited. An invoice drafted before its usage was final keeps that mark once issued.
 - **Settings → Billing** holds the operator's details and number prefixes (a stale save
   says someone else saved and offers to load their version), the deployment's currency
   and whether card payments are on, both read-only, and the tax rates with **Add tax
@@ -176,6 +178,10 @@ accepted until its deactivation is accepted or it is archived
   a check.
 - **Over the limit.** Lowering the limit or moving an organization in deactivates
   nothing; usage shows `over_limit` and activations are refused until it is back below.
+- **Bulk onboarding.** The refusal is a `DeviceLimitReached`, a 422 like any other, which
+  bulk onboarding tells apart: each source beyond the limit stays registered with its
+  device and the reason, and its item fails, so **Retry failed** activates the same
+  devices once the limit is raised ([devices](devices.md#bulk-onboarding)).
 - **Peak.** `billing_device_peaks` keeps each month's highest count. Claims raise it
   with the count after, releases with the count before, and `billing:device-peaks`
   (daily at 00:15 UTC) records each account's current count, for a month in which
@@ -310,11 +316,14 @@ retention.
   keep the longest period of the last 30 days, and undoing a change in time deletes
   nothing. Organizations with their own override are untouched.
 - **Emails.** Owners get [`RetentionReducedMail`](../../apps/api/app/Domain/Billing/Mail/RetentionReducedMail.php)
-  at the change (`retention_reduction`), and `billing:retention-warnings` (daily at
-  08:00) sends it again 7 days before the floor ends (`retention_warning`), unless the
-  change was undone. `billing:prune` removes floors that ended.
+  at each change (`retention_reduction`, keyed by its floor, so a second change the same
+  day is emailed too), and `billing:retention-warnings` (daily at 08:00) sends it again
+  7 days before the floor ends (`retention_warning`, once per organization and date),
+  unless the change was undone. `billing:prune` removes floors that ended.
 - **Direct changes** on Settings → Retention (an organization override or the platform
-  default) keep their immediate behaviour and make no floor.
+  default) keep their immediate behaviour and make no floor. A confirmed shorter
+  organization override also ends that organization's running floors, so it applies at
+  the next cleanup (FR-021).
 
 ## Prices and invoices
 
@@ -333,21 +342,28 @@ every division rounds half up.
   address, tax number, invoice footer and number prefixes (`INV-`, `CN-`), saved with a
   revision (409 when stale). Tax rates are named, in basis points, archived rather than
   deleted. Each account has a billing address, an optional tax number and a rate or none.
-- **Drafting.** `billing:draft-invoices` (daily at 02:10) drafts last month's invoice for
-  each account that had a plan during it, once the runtime has reported data points to
-  the month's end. Each UTC day is charged to the assignment in force at 00:00, so a plan
+- **Drafting.** `billing:draft-invoices` (daily at 02:10) drafts each ended month's
+  invoice for each account that had a plan during it and has none for it, once the
+  runtime has reported data points to the month's end. Every month since the first plan
+  assignment is checked, so a month the job missed, or whose usage became final late, is
+  drafted on the next run. Each UTC day is charged to the assignment in force at 00:00, so a plan
   assigned mid-day starts charging the next day; consecutive days of one assignment make
   one line with the base price prorated by day, and trial days are shown at 0. Overage
   from `billing_overage` is priced per assignment at that plan's prices for the month,
   overrides applied: alerts one by one, data points by whole blocks rounded up, nothing
   during a trial. Each organization's usage is snapshotted with the draft.
-- **Waiting.** Until usage is final, accounts wait; after `BILLING_INVOICE_WAIT_DAYS` (3)
-  the waiting list marks them overdue, and an administrator can draft anyway with a note,
-  which marks the draft possibly incomplete.
+- **Waiting.** Until usage is final, accounts wait, for every month that waits; after
+  `BILLING_INVOICE_WAIT_DAYS` (3) the waiting list marks them overdue, and an
+  administrator can draft anyway with a note, which marks the draft possibly incomplete.
+  Issued without recalculating, the invoice keeps the mark in the PDF, admin and portal.
 - **Review.** Drafts are recalculated from the records at any time, keeping
   administrators' adjustments (a charge, or a credit with a negative amount, with a note
-  only administrators see). The account's credit shows as a last line after tax.
-- **Issuing.** In one transaction: the next number from a locked counter row
+  only administrators see). The account's credit is stored as a last `credit` line after
+  tax, but documents, admin and portal show it once, as a totals row ("Credit from
+  CN-…"), so the lines shown add up to the subtotal (`@iot-os/ui/lib/invoices`
+  `invoiceLines`).
+- **Issuing.** Only once the invoice's month has ended (409 before: a draft of the
+  running month is a preview). In one transaction: the next number from a locked counter row
   (`billing_number_sequences`, so no gaps); snapshots of the operator's and the account's
   details and the tax rate; tax on the subtotal; the account's credit applied; due in
   `BILLING_INVOICE_DUE_DAYS` (14). An invoice with nothing to pay is paid. From then on
@@ -358,12 +374,14 @@ every division rounds half up.
   as "Credit from CN-…". An invoice whose credit notes leave nothing owed reads
   `credited`. The invoice's own figures never change: `outstanding` is derived.
 - **Documents and email.** PDFs are rendered on request with dompdf from
-  `resources/views/billing/invoice.blade.php`; the CSV holds the lines, totals and usage.
+  `resources/views/billing/invoice.blade.php`; an invoice's CSV holds the lines, totals
+  and usage, a credit note's its reason and amounts.
   An issued invoice or credit note is emailed once each to the billing contact and every
   owner (`invoice_issued`, `credit_note_issued` notices), with the PDF attached. Owners
   see issued invoices only; a draft answers 404.
-- **Deleting** an account with issued invoices answers 409; its drafts go with it
-  otherwise.
+- **Deleting** an account with issued invoices answers 409; otherwise its drafts go with
+  it and its plan assignment ends (`account_deleted`), so plan counts and lists leave it
+  out.
 
 Issuing dispatches `InvoiceIssued`. With a saved card, it also queues the first charge
 ([card payments](#card-payments)).
@@ -401,9 +419,13 @@ Setting up Stripe is in [card payments](../ops/billing-payments.md).
   (`payment_method`). A card removed on Stripe's side is forgotten once the customer
   has no default.
 - **Charges.** Issuing queues `ChargeInvoice` (the `database` queue) when payments are
-  on, the account has a card and something is due. It charges what is still owed
-  off-session, with the idempotency key `invoice:{uuid}:{attempt}`, so a retried job
-  never charges twice: attempt 1 at issue, 2 on the due date, 3 seven days after.
+  on, the account has a card and something is due. It records a pending payment first,
+  then charges what is still owed off-session, with the idempotency key
+  `invoice:{uuid}:{attempt}` and the payment's uuid in the PaymentIntent's metadata:
+  attempt 1 at issue, 2 on the due date, 3 seven days after. A retried job sends the same
+  request, so Stripe charges once. When every try loses Stripe's answer, the pending
+  payment blocks the next attempt and the Checkout page until Stripe's event arrives or
+  an administrator checks with Stripe.
 - **Paying online.** An owner can pay what is still owed on a Checkout page in payment
   mode, which answers 409 when nothing is owed or a payment is still processing.
 - **Stripe's events.** `POST /api/stripe/webhook` is verified against the signing
@@ -421,13 +443,19 @@ Setting up Stripe is in [card payments](../ops/billing-payments.md).
   seven days after. Each links to `/billing?account=…&invoice=…`. The invoice email now
   links to the invoice too.
 - **Reminders and past due.** `billing:payment-reminders` (daily at 09:00 UTC,
-  `--now=`) sends each reminder once and charges a saved card again. Accounts with an
+  `--now=`) sends each reminder once and charges a saved card again, within 30 days of
+  the due date; past that the invoice is left to administrators, so a reminder whose
+  notice `billing:prune` removed after 13 months is never sent again. Accounts with an
   invoice unpaid after its due date get `past_due_since`, kept from the first day; the
   flag clears once none is. Nothing else changes for the account's organizations
   (FR-043).
 - **By hand.** An administrator records a payment made another way, up to what is still
-  owed, with a note, whether or not cards are on. **Reconcile** asks Stripe about
-  pending payments.
+  owed, with a note, whether or not cards are on. **Check with Stripe** (`reconcile`)
+  asks Stripe about pending payments: by the PaymentIntent, or, for a charge whose
+  answer was lost, by searching its metadata for the payment's uuid. Finding none ten
+  minutes on, longer than Stripe's search takes to catch up, means the card was never
+  charged: the payment fails, the owners are emailed, and the next attempt or **Pay**
+  can settle it.
 
 Invoice history adds `payment_recorded`, `payment_succeeded`, `payment_failed` and
 `payment_amount_mismatch`; the audit catalogue adds the card's saving and removal.
@@ -453,8 +481,9 @@ overage at 0.
   administrator can convert it. Invoices charge each day by the assignment in force at
   00:00 UTC, so a trial that ends during a day is charged from the next; overage counted
   after the switch is charged.
-- **`billing:end-trials`** (daily at 00:05 UTC, `--now=`) ends trials whose end has
-  passed, at their end even when the job runs late, then sends `trial_reminder` emails
+- **`billing:end-trials`** (hourly at :05, `--now=`) ends trials whose end has
+  passed, at their end even when the job runs late (so a trial that ended while the
+  control plane was down ends within the hour after it is back), then sends `trial_reminder` emails
   for limited trials ending within 7 days and within 1 day, once each per trial and end
   date (so an extended trial is reminded again). Each asks for a card when none is
   saved. Ending a trial sends `trial_ended` once, saying whether the plan is now charged.
@@ -484,12 +513,12 @@ Admin routes need `PlatformAdministration.manage-organizations`:
 | `GET/PUT admin/billing/settings` | Operator details and prefixes, with `revision` (409 when stale); `currency` is read-only |
 | `GET/POST admin/billing/tax-rates`, `PATCH …/{uuid}`, `POST …/{uuid}/archive` | Tax rates |
 | `GET admin/billing/invoices?status=&month=&account=&payment_status=&unpaid=1` | Invoices, newest month first; `unpaid` is issued and pending or failed |
-| `GET admin/billing/invoices/waiting?month=YYYY-MM` | Accounts waiting for final usage, with `waiting_since` and `overdue` |
+| `GET admin/billing/invoices/waiting?month=YYYY-MM` | Accounts waiting for final usage, for every ended month or the one given, each with `month`, `waiting_since` and `overdue` |
 | `POST admin/billing-accounts/{uuid}/invoices` | `{month, note}`: draft anyway (409 when one exists) |
 | `GET admin/billing/invoices/{uuid}`, `.pdf`, `.csv` | Lines, usage, credit notes and `history` (drafting, adjustments, issuing, credit notes, newest first); documents |
 | `POST admin/billing/invoices/{uuid}/recalculate`, `/adjustments`, `DELETE …/adjustments/{line}` | Drafts only (409 once issued) |
-| `POST admin/billing/invoices/{uuid}/issue` | Number, fix and email it |
-| `POST admin/billing/invoices/{uuid}/credit-notes`, `GET admin/billing/credit-notes/{uuid}.pdf` | `{amount, reason}` on an issued invoice |
+| `POST admin/billing/invoices/{uuid}/issue` | Number, fix and email it; 409 until its month has ended |
+| `POST admin/billing/invoices/{uuid}/credit-notes`, `GET admin/billing/credit-notes/{uuid}.pdf`, `.csv` | `{amount, reason}` on an issued invoice; documents |
 | `POST admin/billing/invoices/{uuid}/payments` | `{amount, note}`: a payment made another way, up to what is still owed (201) |
 | `POST admin/billing/invoices/{uuid}/reconcile` | Applies Stripe's state to pending payments; 404 while payments are off |
 | `POST admin/billing-accounts/{uuid}/trial` | `{plan_uuid?, ends_at\|null}`: start a trial now (409 when one is open) |
@@ -519,7 +548,7 @@ Owner and manager routes:
 | `GET billing-accounts` | The accounts the signed-in person owns, each with `plan`, `allowances`, this month's `usage`, `prices`, `latest_invoice`, `payments_enabled`, `payment_method` and `past_due_since` |
 | `GET billing-accounts/{uuid}/usage?month=YYYY-MM` | An owned account's usage for a month; 404 otherwise |
 | `GET billing-accounts/{uuid}/invoices` | Issued invoices and credit notes |
-| `GET billing-accounts/{uuid}/invoices/{uuid}`, `.pdf`, `.csv`; `GET billing-accounts/{uuid}/credit-notes/{uuid}.pdf` | Issued only; a draft or another account's answers 404 |
+| `GET billing-accounts/{uuid}/invoices/{uuid}`, `.pdf`, `.csv`; `GET billing-accounts/{uuid}/credit-notes/{uuid}.pdf`, `.csv` | Issued only; a draft or another account's answers 404 |
 | `POST billing-accounts/{uuid}/payment-method/checkout`, `DELETE billing-accounts/{uuid}/payment-method` | `{url}` of Stripe's page to save a card; remove it. 404 while payments are off |
 | `POST billing-accounts/{uuid}/invoices/{uuid}/checkout` | `{url}` of Stripe's page to pay what is owed; 409 when nothing is |
 | `GET organizations/{uuid}/usage` | This month's usage as a manager sees it, and the organization's `retention`; needs `Device.manage` |

@@ -76,19 +76,22 @@ final class PlatformInvoiceController
         return InvoiceResource::collection($invoices);
     }
 
-    /** Accounts whose invoice for an ended month waits for final usage (FR-033). */
+    /** Accounts whose invoice for an ended month waits for final usage (FR-033), for every month or one. */
     public function waiting(Request $request): JsonResponse
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
-        $request->validate(['month' => ['nullable', 'date_format:Y-m']]);
+        $request->validate([
+            /** A UTC month as `YYYY-MM`; every ended month when left out. */
+            'month' => ['nullable', 'date_format:Y-m'],
+        ]);
         $month = $request->filled('month')
             ? CarbonImmutable::createFromFormat('!Y-m', (string) $request->query('month'), 'UTC')
-            : CarbonImmutable::now()->utc()->startOfMonth()->subMonthNoOverflow();
+            : null;
 
         /** @var list<array{billing_account: array{uuid: string, name: string}, month: string, waiting_since: string, overdue: bool}> $waiting */
         $waiting = array_map(fn (array $row): array => [
             'billing_account' => ['uuid' => (string) $row['account']->uuid, 'name' => (string) $row['account']->name],
-            'month' => $month->toDateString(),
+            'month' => $row['month']->toDateString(),
             'waiting_since' => $row['waiting_since']->toIso8601String(),
             // Overdue once the wait passes BILLING_INVOICE_WAIT_DAYS (FR-033).
             'overdue' => $row['waiting_since']->addDays((int) config('billing.invoice_wait_days'))->lessThanOrEqualTo(CarbonImmutable::now()),
@@ -201,6 +204,13 @@ final class PlatformInvoiceController
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
         return self::download($this->documents->creditNote($creditNote), $creditNote->number.'.pdf', 'application/pdf');
+    }
+
+    public function creditNoteCsv(CreditNote $creditNote): Response
+    {
+        Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
+
+        return self::download($this->documents->creditNoteCsv($creditNote), $creditNote->number.'.csv', 'text/csv; charset=utf-8');
     }
 
     public static function download(string $body, string $filename, string $type): Response

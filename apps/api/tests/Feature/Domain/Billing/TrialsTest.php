@@ -22,6 +22,8 @@ use App\Domain\Billing\Services\Usage;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Console\Scheduling\Event;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -187,6 +189,13 @@ final class TrialsTest extends TestCase
         );
     }
 
+    public function test_trials_are_checked_hourly_so_one_that_ended_during_an_outage_ends_soon_after(): void
+    {
+        $event = collect(app(Schedule::class)->events())->first(fn (Event $event): bool => str_contains((string) $event->command, 'billing:end-trials'));
+
+        $this->assertSame('5 * * * *', $event?->expression);
+    }
+
     public function test_owners_are_reminded_7_days_and_1_day_before_a_limited_trial_ends_once_each(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-01 09:00', 'UTC'));
@@ -314,6 +323,6 @@ final class TrialsTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-11-02 02:10', 'UTC'));
         $this->artisan('billing:draft-invoices')->assertSuccessful();
 
-        return Invoice::query()->where('billing_account_id', $this->account->id)->with('lines')->sole();
+        return Invoice::query()->where('billing_account_id', $this->account->id)->whereDate('month', '2026-10-01')->with('lines')->sole();
     }
 }

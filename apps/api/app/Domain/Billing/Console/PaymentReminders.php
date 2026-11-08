@@ -18,12 +18,16 @@ use Illuminate\Database\Eloquent\Collection;
 /**
  * Follows up unpaid invoices (spec 029 US7, FR-042, FR-043). On an invoice's due date and
  * seven days after, its owners get a reminder and a saved card is charged again
- * (attempts 2 and 3); each step happens once, even when a day is missed. Accounts with an
+ * (attempts 2 and 3); each step happens once, even when a day is missed, within the
+ * 30 days after the due date: past that, an unpaid invoice is left to administrators, so
+ * a reminder whose notice `billing:prune` removed is never sent again. Accounts with an
  * invoice unpaid past its due date are flagged past due, and the flag clears once none
  * is. Nothing else changes for the account's organizations.
  */
 final class PaymentReminders extends Command
 {
+    public const FOLLOW_UP_DAYS = 30;
+
     protected $signature = 'billing:payment-reminders {--now= : Run as of this time instead of now}';
 
     protected $description = 'Remind owners of unpaid invoices on their due date and 7 days after, charge saved cards again, and flag accounts past due';
@@ -40,6 +44,7 @@ final class PaymentReminders extends Command
             ->whereIn('payment_status', [PaymentStatus::Pending->value, PaymentStatus::Failed->value])
             ->whereNotNull('due_at')
             ->whereDate('due_at', '<=', $today)
+            ->whereDate('due_at', '>=', $now->utc()->subDays(self::FOLLOW_UP_DAYS)->toDateString())
             ->with('billingAccount')
             ->chunkById(200, function (Collection $invoices) use ($notices, $today, &$reminded, &$charged): void {
                 foreach ($invoices as $invoice) {
