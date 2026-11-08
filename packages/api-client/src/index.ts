@@ -1036,12 +1036,22 @@ export class ApiClient {
 
   /**
    * Changing the allowances of a plan billing accounts are on answers 409 with
-   * `affected_accounts` until `confirmAffected` matches it.
+   * `affected_accounts` until `confirmAffected` matches it, then 409 with `retention`
+   * (`RetentionNeedsConfirmation`) when it shortens retention, until `confirmRetention`.
    */
-  async updatePlan(planUuid: string, values: Partial<BillingPlanValues>, confirmAffected?: number): Promise<BillingPlanDetail> {
+  async updatePlan(
+    planUuid: string,
+    values: Partial<BillingPlanValues>,
+    confirmAffected?: number,
+    confirmRetention?: boolean,
+  ): Promise<BillingPlanDetail> {
     return this.request<ApiResponse<BillingPlanDetail>>(`/api/v1/admin/billing-plans/${encodeURIComponent(planUuid)}`, {
       method: "PATCH",
-      body: JSON.stringify(confirmAffected === undefined ? values : { ...values, confirm_affected: confirmAffected }),
+      body: JSON.stringify({
+        ...values,
+        ...(confirmAffected === undefined ? {} : { confirm_affected: confirmAffected }),
+        ...(confirmRetention ? { confirm_retention: true } : {}),
+      }),
     }).then((response) => response.data)
   }
 
@@ -1064,19 +1074,26 @@ export class ApiClient {
     await this.request(`/api/v1/admin/billing-plans/${encodeURIComponent(planUuid)}`, { method: "DELETE" })
   }
 
-  /** Puts the account on a plan from now on; `null` takes it off its plan. */
-  async setBillingAccountPlan(billingAccountUuid: string, planUuid: string | null): Promise<BillingAccountDetail> {
+  /**
+   * Puts the account on a plan from now on; `null` takes it off its plan. A change that
+   * shortens retention answers 409 (`RetentionNeedsConfirmation`) until `confirmRetention`.
+   */
+  async setBillingAccountPlan(billingAccountUuid: string, planUuid: string | null, confirmRetention?: boolean): Promise<BillingAccountDetail> {
     return this.request<ApiResponse<BillingAccountDetail>>(
       `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/plan`,
-      { method: "PUT", body: JSON.stringify({ plan_uuid: planUuid }) },
+      { method: "PUT", body: JSON.stringify({ plan_uuid: planUuid, ...(confirmRetention ? { confirm_retention: true } : {}) }) },
     ).then((response) => response.data)
   }
 
-  /** Replaces the plan's allowance for this account only; `value: null` is unlimited. */
+  /**
+   * Replaces the plan's allowance for this account only; `value: null` is unlimited. A
+   * shorter `retention_days` answers 409 (`RetentionNeedsConfirmation`) until
+   * `confirm_retention`.
+   */
   async overrideAllowance(
     billingAccountUuid: string,
     kind: AllowanceKind,
-    values: { value: number | null; note: string },
+    values: { value: number | null; note: string; confirm_retention?: boolean },
   ): Promise<BillingAccountDetail> {
     return this.request<ApiResponse<BillingAccountDetail>>(
       `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/allowances/${kind}`,
@@ -1084,9 +1101,9 @@ export class ApiClient {
     ).then((response) => response.data)
   }
 
-  async removeAllowanceOverride(billingAccountUuid: string, kind: AllowanceKind): Promise<BillingAccountDetail> {
+  async removeAllowanceOverride(billingAccountUuid: string, kind: AllowanceKind, confirmRetention?: boolean): Promise<BillingAccountDetail> {
     return this.request<ApiResponse<BillingAccountDetail>>(
-      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/allowances/${kind}`,
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/allowances/${kind}${confirmRetention ? "?confirm_retention=1" : ""}`,
       { method: "DELETE" },
     ).then((response) => response.data)
   }
@@ -1134,11 +1151,15 @@ export class ApiClient {
     })
   }
 
-  /** Moves the organization from now on; nothing inside it changes, and the limit does not apply. */
-  async moveOrganizationBillingAccount(organizationUuid: string, billingAccountUuid: string): Promise<void> {
+  /**
+   * Moves the organization from now on; nothing inside it changes, and the limit does not
+   * apply. A shorter retention on the new account answers 409
+   * (`RetentionNeedsConfirmation`) until `confirmRetention`.
+   */
+  async moveOrganizationBillingAccount(organizationUuid: string, billingAccountUuid: string, confirmRetention?: boolean): Promise<void> {
     await this.request(`/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}/billing-account`, {
       method: "PUT",
-      body: JSON.stringify({ billing_account_uuid: billingAccountUuid }),
+      body: JSON.stringify({ billing_account_uuid: billingAccountUuid, ...(confirmRetention ? { confirm_retention: true } : {}) }),
     })
   }
 

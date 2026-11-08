@@ -224,6 +224,36 @@ naming the account, the allowance, what is used and left, and linking to
 | Members with `Device.manage` | `organizations/{uuid}/usage` | This month: their organization's own counts, and the account's allowance, what is left and the overage; never the account's name, its other organizations or prices |
 | Other members | | Nothing (403) |
 
+## Retention
+
+An organization's telemetry retention follows its billing account when it has no
+override of its own ([spec 029](../../specs/029-billing-tier-limits/spec.md) US4,
+research R10, [devices](devices.md#retention)): the account's `retention_days`
+allowance from its plan or an account override, else the platform default. The
+deployment default for `retention_days` is none, so rollout changed no organization's
+retention.
+
+- **Confirmation.** A plan change or removal, a plan edit, a retention override or its
+  removal, and moving an organization to another account run inside
+  [`RetentionGuard`](../../apps/api/app/Domain/Devices/Services/RetentionGuard.php).
+  It compares each organization's effective retention before and after, in one
+  transaction. If any falls, the API answers 409 with `retention.organizations` (each
+  `from_days` and `to_days`) and `retention.deletion_from`, and changes nothing until
+  the request is repeated with `confirm_retention: true`. The admin app shows that
+  confirmation. Lengthening applies at once.
+- **Grace.** Once confirmed, each shortened organization gets a
+  `telemetry_retention_floors` row holding the previous period for
+  `BILLING_RETENTION_GRACE_DAYS` (30). The cleanup days sent to the runtime in `/state`
+  are the effective period raised to any running floor, so two reductions in a row
+  keep the longest period of the last 30 days, and undoing a change in time deletes
+  nothing. Organizations with their own override are untouched.
+- **Emails.** Owners get [`RetentionReducedMail`](../../apps/api/app/Domain/Billing/Mail/RetentionReducedMail.php)
+  at the change (`retention_reduction`), and `billing:retention-warnings` (daily at
+  08:00) sends it again 7 days before the floor ends (`retention_warning`), unless the
+  change was undone. `billing:prune` removes floors that ended.
+- **Direct changes** on Settings → Retention (an organization override or the platform
+  default) keep their immediate behaviour and make no floor.
+
 ## API
 
 Admin routes need `PlatformAdministration.manage-organizations`:
@@ -236,6 +266,10 @@ Admin routes need `PlatformAdministration.manage-organizations`:
 | `PUT admin/billing-accounts/{uuid}/plan` | `{plan_uuid}`, or `null` to remove the plan |
 | `PUT/DELETE admin/billing-accounts/{uuid}/allowances/{kind}` | Override (`{value, note}`) or remove the override |
 | `GET admin/billing-accounts/{uuid}/usage?month=YYYY-MM` | Usage for a month (this month by default), with each organization's share |
+
+The plan, allowance and organization-move routes answer 409 `retention` when the change
+shortens an organization's telemetry retention, until `confirm_retention: true` is
+sent ([retention](#retention)).
 
 `GET admin/billing-accounts/{uuid}` carries `plan_assignment`, `allowances` (each
 with `value`, `source` and `note`) and this month's `usage`. The admin account list

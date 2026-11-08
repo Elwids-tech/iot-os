@@ -73,7 +73,8 @@ final class PlatformOrganizationController
                 ], $request->user());
 
             if (isset($values['plan_uuid'])) {
-                $this->planAssignments->assign($account, BillingPlan::query()->where('uuid', $values['plan_uuid'])->firstOrFail(), $request->user());
+                // A new account has no history, so a shorter retention needs no confirmation.
+                $this->planAssignments->assign($account, BillingPlan::query()->where('uuid', $values['plan_uuid'])->firstOrFail(), $request->user(), confirmRetention: true);
             }
 
             $organization = new Organization($request->safe()->only(['name', 'slug']));

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react"
-import { ApiError, type AllowanceKind, type BillingPlan, type BillingPlanDetail } from "@iot-os/api-client"
+import { ApiError, type AllowanceKind, type BillingPlan, type BillingPlanDetail, type RetentionNeedsConfirmation } from "@iot-os/api-client"
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import {
   AlertDialog,
@@ -31,6 +31,7 @@ import { useDiscardGuard } from "../hooks/use-discard-guard"
 import { allowanceKinds, allowanceMaximum, allowanceText, allowsUnlimited } from "../lib/allowances"
 import { apiClient } from "../lib/api-client"
 import { fieldMessages, validationErrors } from "../lib/errors"
+import { RetentionConfirmDialog, retentionConfirmation } from "./RetentionConfirmDialog"
 
 /** One allowance in the form: empty and limited means the deployment default. */
 type AllowanceInput = { value: string; unlimited: boolean }
@@ -84,6 +85,7 @@ export function PlanDialog({
   const [formError, setFormError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [affected, setAffected] = useState<number | null>(null)
+  const [retention, setRetention] = useState<{ confirmation: RetentionNeedsConfirmation; affected?: number } | null>(null)
   const dirty = plan !== null && !same(values, baseline)
   const { guard, dialog: discardDialog } = useDiscardGuard(dirty, {
     title: "Discard plan changes?",
@@ -95,6 +97,7 @@ export function PlanDialog({
     setErrors(null)
     setFormError(null)
     setAffected(null)
+    setRetention(null)
   }, [plan])
 
   function cancel() {
@@ -108,7 +111,7 @@ export function PlanDialog({
     }))
   }
 
-  async function save(confirmAffected?: number) {
+  async function save(confirmAffected?: number, confirmRetention = false) {
     if (!plan) return
     setErrors(null)
     setFormError(null)
@@ -121,12 +124,22 @@ export function PlanDialog({
         allowances: allowancesOf(values),
       }
       const saved =
-        plan === "new" ? await apiClient.createPlan(payload) : await apiClient.updatePlan(plan.uuid, payload, confirmAffected)
+        plan === "new"
+          ? await apiClient.createPlan(payload)
+          : await apiClient.updatePlan(plan.uuid, payload, confirmAffected, confirmRetention)
       toast.success(isNew ? `${saved.name} created` : `${saved.name} saved`)
       setAffected(null)
+      setRetention(null)
       onSaved(saved)
       onClose()
     } catch (error) {
+      const shortens = retentionConfirmation(error)
+      if (shortens) {
+        // The accounts were already confirmed; this asks about the shorter retention too.
+        setAffected(null)
+        setRetention({ confirmation: shortens, affected: confirmAffected })
+        return
+      }
       if (error instanceof ApiError && error.status === 409) {
         const count = (error.payload as { affected_accounts?: number } | null)?.affected_accounts
         if (typeof count === "number") {
@@ -277,6 +290,12 @@ export function PlanDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <RetentionConfirmDialog
+        confirmation={retention?.confirmation ?? null}
+        busy={isSubmitting}
+        onCancel={() => setRetention(null)}
+        onConfirm={() => retention && void save(retention.affected, true)}
+      />
       {discardDialog}
     </>
   )

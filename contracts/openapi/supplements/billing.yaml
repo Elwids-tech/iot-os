@@ -14,6 +14,36 @@ components:
         affected_accounts:
           type: integer
           description: The billing accounts on the plan now. Send it back as `confirm_affected` to apply the change to all of them.
+    RetentionNeedsConfirmation:
+      type: object
+      required: [message, retention]
+      properties:
+        message:
+          type: string
+        retention:
+          type: object
+          required: [deletion_from, organizations]
+          properties:
+            deletion_from:
+              type: string
+              format: date-time
+              description: When history older than the new period starts to be deleted, after the grace period.
+            organizations:
+              type: array
+              description: Each organization whose effective retention the change shortens.
+              items:
+                type: object
+                required: [uuid, name, from_days, to_days]
+                properties:
+                  uuid:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  from_days:
+                    type: integer
+                  to_days:
+                    type: integer
 operations:
   DELETE /v1/admin/billing-accounts/{billingAccount}:
     responses:
@@ -26,11 +56,13 @@ operations:
   PATCH /v1/admin/billing-plans/{billingPlan}:
     responses:
       '409':
-        description: The change alters the allowances of a plan billing accounts are on, and `confirm_affected` does not match their number. Nothing was changed.
+        description: The change alters the allowances of a plan billing accounts are on, and `confirm_affected` does not match their number; or, once that matches, it shortens organizations' telemetry retention and needs `confirm_retention` (spec 029 US4). Nothing was changed.
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PlanChangeNeedsConfirmation'
+              oneOf:
+                - $ref: '#/components/schemas/PlanChangeNeedsConfirmation'
+                - $ref: '#/components/schemas/RetentionNeedsConfirmation'
   DELETE /v1/admin/billing-plans/{billingPlan}:
     responses:
       '409':
@@ -39,3 +71,35 @@ operations:
           application/json:
             schema:
               $ref: '#/components/schemas/ErrorMessage'
+  PUT /v1/admin/billing-accounts/{billingAccount}/plan:
+    responses:
+      '409':
+        description: The change shortens organizations' telemetry retention (spec 029 US4). Send `confirm_retention` true to apply it; history older than the new period is deleted only after the grace period. Nothing was changed.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionNeedsConfirmation'
+  PUT /v1/admin/billing-accounts/{billingAccount}/allowances/{kind}:
+    responses:
+      '409':
+        description: The change shortens organizations' telemetry retention (spec 029 US4). Send `confirm_retention` true to apply it; history older than the new period is deleted only after the grace period. Nothing was changed.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionNeedsConfirmation'
+  DELETE /v1/admin/billing-accounts/{billingAccount}/allowances/{kind}:
+    responses:
+      '409':
+        description: The change shortens organizations' telemetry retention (spec 029 US4). Send `confirm_retention` true to apply it; history older than the new period is deleted only after the grace period. Nothing was changed.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionNeedsConfirmation'
+  PUT /v1/admin/organizations/{organization}/billing-account:
+    responses:
+      '409':
+        description: The change shortens organizations' telemetry retention (spec 029 US4). Send `confirm_retention` true to apply it; history older than the new period is deleted only after the grace period. Nothing was changed.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionNeedsConfirmation'

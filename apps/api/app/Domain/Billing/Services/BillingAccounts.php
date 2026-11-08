@@ -7,6 +7,7 @@ namespace App\Domain\Billing\Services;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingAccountAssignment;
 use App\Domain\Devices\Services\DeviceAudit;
+use App\Domain\Devices\Services\RetentionGuard;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -109,9 +110,10 @@ final class BillingAccounts
      * Moves the organization from this moment. Nothing inside it changes (FR-012), and
      * the organization limit does not apply.
      */
-    public function move(Organization $organization, BillingAccount $target, User $actor): Organization
+    public function move(Organization $organization, BillingAccount $target, User $actor, bool $confirmRetention = false): Organization
     {
-        return DB::transaction(function () use ($organization, $target, $actor): Organization {
+        // The new account's retention can be shorter (spec 029 US4).
+        return app(RetentionGuard::class)->around([(int) $organization->getKey()], fn (): Organization => DB::transaction(function () use ($organization, $target, $actor): Organization {
             $locked = Organization::query()->whereKey($organization->getKey())->lockForUpdate()->firstOrFail();
 
             if ($locked->billing_account_id === $target->getKey()) {
@@ -146,6 +148,6 @@ final class BillingAccounts
             ]);
 
             return $locked;
-        });
+        }), 'organization_moved', $confirmRetention);
     }
 }
