@@ -1229,13 +1229,26 @@ failures are retried and reminded, and nothing is ever restricted.
 **Independent Test**: spec 029 US7's test in Stripe test mode, and quickstart
 section 7.
 
-- [ ] T099 `composer require laravel/cashier:^16.9` in `apps/api`. In
+- [X] T099 `composer require laravel/cashier:^16.9` in `apps/api`. In
   `BillingServiceProvider`, call `Cashier::useCustomerModel(BillingAccount::class)`
   and `Cashier::ignoreMigrations()`. Set `config/cashier.php` currency from
   `billing.currency` and the webhook path `stripe/webhook` under `/api`. Add
   `STRIPE_KEY`, `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET` to the env examples with
   empty values; real keys live only in `.local/`.
-- [ ] T100 Migration `2026_11_16_000000_add_billing_payments.php`:
+
+  As built (PR 11): Cashier 16.9.0 with stripe-php 21. Cashier 16 does not load its
+  migrations (it only publishes them), so `ignoreMigrations()` does not exist and is not
+  needed. `BillingServiceProvider` (registered in `bootstrap/providers.php`) calls
+  `Cashier::ignoreRoutes()` and the webhook is our own `StripeWebhookController` at
+  `POST /api/stripe/webhook` (billing routes), extending Cashier's and switching its
+  subscription and customer handlers off. `config/cashier.php` takes the currency from
+  `BILLING_CURRENCY` and lists the four events for `cashier:webhook`. The Stripe values
+  are in `apps/api/.env.example`, the dev `compose.app.yml` and the release compose and
+  `environment.example` (with `BILLING_CURRENCY`), all empty. Cashier needs
+  `moneyphp/money`, which needs PHP's `bcmath`: both API Dockerfiles and every CI PHP
+  setup install it.
+
+- [X] T100 Migration `2026_11_16_000000_add_billing_payments.php`:
   - `billing_accounts` gains `stripe_id` string nullable indexed, `pm_type`
     nullable, `pm_last_four` string(4) nullable, `pm_expires` string(7) nullable and
     `past_due_since` nullable;
@@ -1244,7 +1257,13 @@ section 7.
 
   `BillingAccount` uses `Laravel\Cashier\Billable`, with `stripeName()` = name and
   `stripeEmail()` = contact email.
-- [ ] T101 [US7] `apps/api/app/Domain/Billing/Services/Payments.php`:
+
+  As built (PR 11): `billing_payments` also has `uuid`, `note`, `recorded_by` and an
+  (invoice, status) index; `billing_provider_events` has `type` and an indexed
+  `received_at`. `BillingAccount::paymentMethodSummary()` gives `{brand, last_four,
+  expires}`. The migration-rollback tests roll this migration back first.
+
+- [X] T101 [US7] `apps/api/app/Domain/Billing/Services/Payments.php`:
   - `enabled()` (`cashier.secret` set);
   - `checkoutForPaymentMethod(account)`: a Checkout session `mode=setup`, customer
     created if needed, `metadata.billing_account_uuid`, success and cancel URLs
@@ -1257,10 +1276,23 @@ section 7.
     `pending` payment; a synchronous card error marks it `failed`;
   - `recordOutside(invoice, amount, note, actor)`;
   - `reconcile(invoice)`: retrieves pending PaymentIntents and applies their status.
-- [ ] T102 [US7] `apps/api/app/Domain/Billing/Jobs/ChargeInvoice.php` (`ShouldQueue`,
+
+  As built (PR 11): `enabled()` needs both `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET`,
+  so payments never switch on half-configured. Calls go to `Cashier::stripe()` directly
+  rather than Cashier's payment method helpers. `applyIntent()` is shared by charges,
+  events and reconcile: it creates the payment from the intent's metadata when Stripe's
+  event comes first and moves it only forward. `outstanding()` now also subtracts
+  succeeded payments; `settle()` marks `paid`, or `paid_outside` when a payment recorded
+  by hand settled it. Checkout sessions refuse with 409 while a payment is processing.
+
+- [X] T102 [US7] `apps/api/app/Domain/Billing/Jobs/ChargeInvoice.php` (`ShouldQueue`,
   unique per invoice and attempt), dispatched by `InvoiceIssuer` when payments are on,
   the account has a payment method and the amount due is above 0.
-- [ ] T103 [US7] `apps/api/app/Domain/Billing/Listeners/StripeEvents.php` on Cashier's
+
+  As built (PR 11): on the `database` queue (the default worker), three tries; a decline is
+  a `CardException` whose PaymentIntent is applied as failed.
+
+- [X] T103 [US7] `apps/api/app/Domain/Billing/Listeners/StripeEvents.php` on Cashier's
   `WebhookReceived`, per [contracts/stripe-webhooks.md](contracts/stripe-webhooks.md):
   - the ledger insert first;
   - `checkout.session.completed` (setup and payment), `payment_intent.succeeded`,
@@ -1271,7 +1303,14 @@ section 7.
 
   When a card is saved on a `trial_unpaid` account, call a `Trials` hook (a no-op
   until PR 13).
-- [ ] T104 [US7] `apps/api/app/Domain/Billing/Console/PaymentReminders.php`
+
+  As built (PR 11): the trial hook is `Trials::paymentMethodSaved()`, a no-op until PR 13.
+  A succeeded amount that differs from the charge is kept as received and audited
+  (`billing_invoice.payment_amount_mismatch`) instead of a review status. A detached
+  card is forgotten only once Stripe's customer has no default left. Invoice history and
+  the audit catalogue gain the payment events; the invoice email links to the invoice.
+
+- [X] T104 [US7] `apps/api/app/Domain/Billing/Console/PaymentReminders.php`
   (`billing:payment-reminders`, daily 09:00, `--now=`):
   - unpaid issued invoices on their due date and 7 days after get a reminder
     (`payment_reminder` notices keyed `invoice:{uuid}:due|due+7`) and, with a card, a
@@ -1282,12 +1321,25 @@ section 7.
   `billing:prune` also deletes `billing_provider_events` older than 30 days.
 
   Nothing else changes for the account's organizations (029 FR-043).
-- [ ] T105 [US7] HTTP: owner `POST invoices/{invoice}/checkout`, `POST
+
+  As built (PR 11): each step is sent once even when a day is missed (`whereDate <=` and
+  the notice key), and a retry is queued only when no payment of that attempt exists.
+  Past due is refreshed for any account flagged or with an overdue invoice, and also
+  whenever a payment settles an invoice.
+
+- [X] T105 [US7] HTTP: owner `POST invoices/{invoice}/checkout`, `POST
   payment-method/checkout`, `DELETE payment-method`; admin `POST invoices/{invoice}/payments`
   and `/reconcile`; the `past_due=1` list filter; `payment_method` and
   `past_due_since` in account resources. Every payment route answers 404 when
   payments are off.
-- [ ] T106 [P] [US7] `apps/api/tests/Feature/Domain/Billing/StripePaymentsTest.php`
+
+  As built (PR 11): the owner routes are under `billing-accounts/{uuid}/`
+  (`payment-method/checkout`, `payment-method`, `invoices/{uuid}/checkout`) and answer
+  `{url}`; admin `payments` answers 201 with the invoice and works with payments off.
+  Accounts carry `payment_method` and `past_due_since`, owners also `payments_enabled`,
+  billing settings `payments_enabled`, invoice details `payments`.
+
+- [X] T106 [P] [US7] `apps/api/tests/Feature/Domain/Billing/StripePaymentsTest.php`
   with Stripe's HTTP client faked (`Stripe\ApiRequestor::setHttpClient` with a stub
   client):
   - setup checkout stores the brand, last four and expiry, and never a card number
@@ -1303,14 +1355,37 @@ section 7.
   - outside payments; reconcile;
   - payments off: every route 404 and no card in responses;
   - owners only; members and non-owners refused.
-- [ ] T107 Docs: `docs/ops/billing-payments.md` (Stripe account, keys in `.local/`,
+
+  As built (PR 11): nine tests with `FakeStripe` (a recording stub on
+  `Stripe\ApiRequestor`). The Stripe webhook route is outside the `v1` contract, which
+  documents the new 409s in `supplements/billing.yaml`.
+
+- [X] T107 Docs: `docs/ops/billing-payments.md` (Stripe account, keys in `.local/`,
   the webhook endpoint and secret, test mode, `stripe listen`), and
   `docs/features/billing.md` (payments, reminders, past due). Contract export and
   api-client.
+
+  As built (PR 11): `docs/ops/billing-payments.md` (indexed in `docs/README.md`), a "Card
+  payments" section and API rows in `docs/features/billing.md`, two Billing gotchas,
+  contract export and the api-client types and methods (`paymentMethodCheckout`,
+  `removePaymentMethod`, `invoiceCheckout`, `recordInvoicePayment`, `reconcileInvoice`,
+  the `pastDue` filter). The admin's invoice history wording covers the new actions.
+
 - [ ] T108 Verify: tests, `contract:check`. Rebuild `api` and the API-image services
   with Stripe test keys from `.local/`, then run quickstart section 7 with `stripe
   listen` and the test cards, including keys removed.
 
+
+  As built (PR 11): the API suite on SQLite (1253 tests) and the billing, contract and
+  audit tests on PostgreSQL pass; `contract:check` and the coverage gate pass. The API
+  family was rebuilt from the branch (the image needed `bcmath`). Without Stripe keys:
+  every payment route and the webhook answered 404, reminders went out on the due date
+  with the invoice's link, the account was flagged past due the day after and cleared
+  by a payment recorded by hand. A side container from the same image, with a fake
+  secret and a generated signing secret, refused a forged event (403), paid an invoice
+  from a signed `checkout.session.completed` with one receipt, and ignored the replay.
+  Still to do: quickstart section 7 against Stripe's test mode with `stripe listen` and
+  the test cards, which needs test keys in `.local/`.
 ---
 
 ## Phase 12: Payments in admin and portal (PR 12) — US7

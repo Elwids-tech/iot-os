@@ -43,5 +43,13 @@ export function invoiceHistoryText(entry: InvoiceHistoryEntry, currency: string)
       return `Issued it as ${entry.number ?? "an invoice"}`
     case "credit_note_issued":
       return `Issued credit note ${entry.number ?? ""} for ${amount}${why}`
+    case "payment_recorded":
+      return `Recorded a payment of ${amount}${why}`
+    case "payment_succeeded":
+      return `Received a payment of ${amount}`
+    case "payment_failed":
+      return `A payment of ${amount} failed${why}`
+    case "payment_amount_mismatch":
+      return `Received ${amount}, not the amount charged; check the payments`
   }
 }

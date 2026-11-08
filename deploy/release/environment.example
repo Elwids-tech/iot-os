@@ -48,6 +48,13 @@ IOT_ASSISTANT_DAILY_BUDGET_USD=2.00
 IOT_ASSISTANT_RUN_BUDGET_USD=0.04
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
+# Card payments through Stripe (spec 029 US7, docs/ops/billing-payments.md). Leave
+# STRIPE_SECRET empty to keep payments off; invoices are then paid by hand. The
+# currency must not change once invoices exist.
+STRIPE_KEY=
+STRIPE_SECRET=
+STRIPE_WEBHOOK_SECRET=
+BILLING_CURRENCY=USD
 PUBLIC_MAP_STYLE_URL=
 # Images are provided by the digest-pinned release manifest, never mutable tags.
 # Brevo SMTP credentials, AI provider keys and backup credentials are private inputs.

@@ -10,6 +10,7 @@
         "althinect/enum-permission": "^1.1",
         "dompdf/dompdf": "^3.1",
         "laravel/ai": "^1.2",
+        "laravel/cashier": "^16.9",
         "laravel/framework": "^13.17",
         "laravel/mcp": "^1.0.2",
         "laravel/passport": "^13.9",

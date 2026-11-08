@@ -3322,6 +3322,17 @@
               "minimum": 1,
               "maximum": 100
             }
+          },
+          {
+            "name": "past_due",
+            "in": "query",
+            "description": "Accounts with an invoice unpaid past its due date (spec 029 FR-043).",
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -5868,6 +5879,89 @@
         "x-platform-permission": "PlatformAdministration.manage-organizations"
       }
     },
+    "/v1/admin/billing/invoices/{invoice}/payments": {
+      "post": {
+        "operationId": "v1.admin.billing.invoices.payments.store",
+        "summary": "A payment made another way, such as a bank transfer (FR-044); recorded whether or not cards are on",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "The invoice UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordPaymentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "`InvoiceDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The invoice is a draft; only an issued invoice takes payments.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
     "/v1/admin/billing/invoices/{invoice}/recalculate": {
       "post": {
         "operationId": "v1.admin.billing.invoices.recalculate",
@@ -5937,6 +6031,66 @@
         "x-platform-permission": "PlatformAdministration.manage-organizations"
       }
     },
+    "/v1/admin/billing/invoices/{invoice}/reconcile": {
+      "post": {
+        "operationId": "v1.admin.billing.invoices.reconcile",
+        "summary": "Asks Stripe about payments still pending and applies what it says; 404 while payments are off",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "The invoice UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`InvoiceDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
     "/v1/admin/billing/settings": {
       "get": {
         "operationId": "v1.admin.billing.settings.show",
@@ -5990,6 +6144,10 @@
                         "currency": {
                           "type": "string"
                         },
+                        "payments_enabled": {
+                          "type": "boolean",
+                          "description": "Card payments are on when Stripe is configured (spec 029 FR-045); read-only here."
+                        },
                         "updated_at": {
                           "type": [
                             "string",
@@ -6006,6 +6164,7 @@
                         "credit_note_prefix",
                         "revision",
                         "currency",
+                        "payments_enabled",
                         "updated_at"
                       ]
                     }
@@ -6094,6 +6253,10 @@
                         "currency": {
                           "type": "string"
                         },
+                        "payments_enabled": {
+                          "type": "boolean",
+                          "description": "Card payments are on when Stripe is configured (spec 029 FR-045); read-only here."
+                        },
                         "updated_at": {
                           "type": [
                             "string",
@@ -6110,6 +6273,7 @@
                         "credit_note_prefix",
                         "revision",
                         "currency",
+                        "payments_enabled",
                         "updated_at"
                       ]
                     }
@@ -9593,6 +9757,90 @@
         "x-audience": "account"
       }
     },
+    "/v1/billing-accounts/{billingAccount}/invoices/{invoice}/checkout": {
+      "post": {
+        "operationId": "v1.billing-accounts.invoices.checkout",
+        "summary": "A Stripe page to pay what is still owed on an issued invoice; 409 when nothing is",
+        "tags": [
+          "OwnedPayment"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "url"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Nothing is owed on the invoice, or a payment for it is still being processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
     "/v1/billing-accounts/{billingAccount}/organizations": {
       "post": {
         "operationId": "v1.billing-accounts.organizations.store",
@@ -9651,6 +9899,110 @@
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/payment-method": {
+      "delete": {
+        "operationId": "v1.billing-accounts.payment-method.destroy",
+        "tags": [
+          "OwnedPayment"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/payment-method/checkout": {
+      "post": {
+        "operationId": "v1.billing-accounts.payment-method.checkout",
+        "summary": "A Stripe page to save a card, which then becomes the account's card for its invoices",
+        "tags": [
+          "OwnedPayment"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "url"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
           }
         },
         "security": [
@@ -32365,6 +32717,42 @@
               "tax_rate"
             ]
           },
+          "payment_method": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The saved card: its brand, last four digits and `YYYY-MM` expiry, never more (spec 029 FR-039).",
+            "properties": {
+              "brand": {
+                "type": "string"
+              },
+              "last_four": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "expires": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "brand",
+              "last_four",
+              "expires"
+            ]
+          },
+          "past_due_since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Since when an invoice has been unpaid past its due date; nothing is restricted (spec 029 FR-043)."
+          },
           "usage": {
             "type": "array",
             "items": {
@@ -32403,6 +32791,8 @@
           "prices",
           "price_overrides",
           "billing_details",
+          "payment_method",
+          "past_due_since",
           "usage",
           "owners",
           "organizations",
@@ -32596,6 +32986,13 @@
               "string",
               "null"
             ]
+          },
+          "past_due_since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Since when an invoice has been unpaid past its due date; nothing is restricted (spec 029 FR-043)."
           }
         },
         "required": [
@@ -32606,7 +33003,8 @@
           "plan",
           "organizations_count",
           "owners",
-          "created_at"
+          "created_at",
+          "past_due_since"
         ],
         "title": "BillingAccountResource"
       },
@@ -34547,9 +34945,68 @@
               "$ref": "#/components/schemas/CreditNoteResource"
             }
           },
+          "payments": {
+            "type": "array",
+            "description": "Card charges, Checkout payments and payments recorded by hand, oldest first (spec 029 US7).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uuid": {
+                  "type": "string"
+                },
+                "method": {
+                  "type": "string",
+                  "enum": [
+                    "card",
+                    "checkout",
+                    "outside"
+                  ]
+                },
+                "amount": {
+                  "type": "integer"
+                },
+                "attempt": {
+                  "type": "integer"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "succeeded",
+                    "failed"
+                  ]
+                },
+                "failure_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "uuid",
+                "method",
+                "amount",
+                "attempt",
+                "status",
+                "failure_reason",
+                "note",
+                "at"
+              ]
+            }
+          },
           "history": {
             "type": "array",
-            "description": "Drafting, adjustments, issuing and credit notes, newest first; empty for owners.",
+            "description": "Drafting, adjustments, issuing, credit notes and payments, newest first; empty for owners.",
             "items": {
               "type": "object",
               "properties": {
@@ -34564,7 +35021,11 @@
                     "adjustment_added",
                     "adjustment_removed",
                     "issued",
-                    "credit_note_issued"
+                    "credit_note_issued",
+                    "payment_recorded",
+                    "payment_succeeded",
+                    "payment_failed",
+                    "payment_amount_mismatch"
                   ]
                 },
                 "actor": {
@@ -34648,6 +35109,7 @@
           "lines",
           "usage",
           "credit_notes",
+          "payments",
           "history"
         ],
         "title": "InvoiceDetailResource"
@@ -35662,6 +36124,46 @@
                 "type": "null"
               }
             ]
+          },
+          "payments_enabled": {
+            "type": "boolean",
+            "description": "Whether cards can be saved and invoices paid online (spec 029 FR-045)."
+          },
+          "payment_method": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The saved card: its brand, last four digits and `YYYY-MM` expiry, never more (spec 029 FR-039).",
+            "properties": {
+              "brand": {
+                "type": "string"
+              },
+              "last_four": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "expires": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "brand",
+              "last_four",
+              "expires"
+            ]
+          },
+          "past_due_since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Since when an invoice has been unpaid past its due date (spec 029 FR-043)."
           }
         },
         "required": [
@@ -35674,7 +36176,10 @@
           "allowances",
           "usage",
           "prices",
-          "latest_invoice"
+          "latest_invoice",
+          "payments_enabled",
+          "payment_method",
+          "past_due_since"
         ],
         "title": "OwnedBillingAccountResource"
       },
@@ -36362,6 +36867,27 @@
             }
           }
         }
+      },
+      "RecordPaymentRequest": {
+        "type": "object",
+        "description": "A payment made another way, recorded by an administrator (spec 029 FR-044): an amount\nin minor units, above 0 and up to what is still owed, and an optional note such as the\nbank transfer's reference.",
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "amount"
+        ],
+        "title": "RecordPaymentRequest"
       },
       "ReorderProfileParametersRequest": {
         "type": "object",

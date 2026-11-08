@@ -9,6 +9,7 @@ use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\Invoice;
 use App\Domain\Billing\Services\Allowances;
 use App\Domain\Billing\Services\MonthlyUsage;
+use App\Domain\Billing\Services\Payments;
 use App\Domain\Billing\Services\ResolvedAllowance;
 use App\Domain\Billing\Services\Usage;
 use App\Domain\Shared\Models\Organization;
@@ -70,6 +71,16 @@ final class OwnedBillingAccountResource extends JsonResource
             'prices' => PriceSummary::forAccount($this->resource),
             /** The latest issued invoice; drafts are never shown to owners. */
             'latest_invoice' => $latest === null ? null : new InvoiceResource($latest),
+            /** Whether cards can be saved and invoices paid online (spec 029 FR-045). */
+            'payments_enabled' => Payments::enabled(),
+            /**
+             * The saved card: its brand, last four digits and `YYYY-MM` expiry, never more (spec 029 FR-039).
+             *
+             * @var array{brand: string, last_four: string|null, expires: string|null}|null
+             */
+            'payment_method' => $this->resource->paymentMethodSummary(),
+            /** Since when an invoice has been unpaid past its due date (spec 029 FR-043). */
+            'past_due_since' => $this->resource->past_due_since?->toIso8601String(),
         ];
     }
 

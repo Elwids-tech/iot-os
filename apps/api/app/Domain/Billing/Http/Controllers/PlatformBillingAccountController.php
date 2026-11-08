@@ -32,6 +32,8 @@ final class PlatformBillingAccountController
         $request->validate([
             // Accounts that have used at least this percentage of a limited allowance this month.
             'usage_at_least' => ['nullable', 'integer', 'between:1,100'],
+            /** Accounts with an invoice unpaid past its due date (spec 029 FR-043). */
+            'past_due' => ['nullable', 'boolean'],
         ]);
 
         $search = trim((string) $request->query('search', ''));
@@ -54,6 +56,7 @@ final class PlatformBillingAccountController
             ))
             // Spec 028 FR-020, spec 029 FR-026; `usage_at_least=80` is the list's filter.
             ->when($usageAtLeast !== null, fn ($query) => $this->usage->whereUsageAtLeast($query, (int) $usageAtLeast, CarbonImmutable::now()))
+            ->when($request->boolean('past_due'), fn ($query) => $query->whereNotNull('past_due_since'))
             ->withCount('organizations')
             ->with(['owners' => fn ($query) => $query->orderBy('name'), 'openPlanAssignment.plan.allowances', 'allowanceOverrides'])
             ->orderBy('name')

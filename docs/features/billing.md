@@ -352,7 +352,8 @@ every division rounds half up.
 - **Deleting** an account with issued invoices answers 409; its drafts go with it
   otherwise.
 
-Issuing dispatches `InvoiceIssued`, which card payments (PR 11) will listen to.
+Issuing dispatches `InvoiceIssued`. With a saved card, it also queues the first charge
+([card payments](#card-payments)).
 
 In the portal, an owner's **Billing accounts** page shows the plan's prices on the
 **Plan** panel ("from {month}" when they change next month), an **Invoices** panel of
@@ -360,6 +361,53 @@ issued invoices with their payment status and due date, and a **Credit notes** p
 when there are any. Opening an invoice (`?invoice={uuid}`, so a link can open it)
 shows its lines, totals, credit notes and usage in a sheet, with the PDF to print or
 keep and the CSV.
+
+## Card payments
+
+Spec 029 US7, ADR-037, [contracts/stripe-webhooks.md](../../specs/029-billing-tier-limits/contracts/stripe-webhooks.md).
+Setting up Stripe is in [card payments](../ops/billing-payments.md).
+
+- **On or off.** Payments are on when both `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET`
+  are set (`Payments::enabled()`). While they are off, every payment route and the
+  webhook answer 404, accounts and settings say `payments_enabled: false`, and
+  administrators record payments by hand.
+- **Cards.** A billing account is a Stripe customer through Laravel Cashier (its
+  `Billable` trait; Cashier's subscription tables and routes are not used). An owner
+  saves a card on a Stripe Checkout page in setup mode. When Stripe reports the session
+  complete, the card becomes the customer's default, the old one is detached, and the
+  account keeps only its brand, last four digits and `YYYY-MM` expiry
+  (`payment_method`). A card removed on Stripe's side is forgotten once the customer
+  has no default.
+- **Charges.** Issuing queues `ChargeInvoice` (the `database` queue) when payments are
+  on, the account has a card and something is due. It charges what is still owed
+  off-session, with the idempotency key `invoice:{uuid}:{attempt}`, so a retried job
+  never charges twice: attempt 1 at issue, 2 on the due date, 3 seven days after.
+- **Paying online.** An owner can pay what is still owed on a Checkout page in payment
+  mode, which answers 409 when nothing is owed or a payment is still processing.
+- **Stripe's events.** `POST /api/stripe/webhook` is verified against the signing
+  secret (403 otherwise). Each event id goes into `billing_provider_events` first and is
+  acted on only once. A payment moves only forward: `pending` to `failed` or
+  `succeeded`, `failed` to `succeeded`. A succeeded amount that differs from the charge
+  is kept as received and audited for review.
+- **Settling.** `outstanding` is the amount due less credit notes' applied parts and the
+  payments that succeeded. An invoice becomes `paid` once nothing is owed, or
+  `paid_outside` when a payment recorded by hand settled it. A failed charge marks it
+  `failed` unless it is already settled.
+- **Emails** go to the owners once each: a `receipt` per payment, a `payment_failed`
+  email with the card issuer's reason, and a `payment_reminder` on the due date and
+  seven days after. Each links to `/billing?account=…&invoice=…`. The invoice email now
+  links to the invoice too.
+- **Reminders and past due.** `billing:payment-reminders` (daily at 09:00 UTC,
+  `--now=`) sends each reminder once and charges a saved card again. Accounts with an
+  invoice unpaid after its due date get `past_due_since`, kept from the first day; the
+  flag clears once none is. Nothing else changes for the account's organizations
+  (FR-043).
+- **By hand.** An administrator records a payment made another way, up to what is still
+  owed, with a note, whether or not cards are on. **Reconcile** asks Stripe about
+  pending payments.
+
+Invoice history adds `payment_recorded`, `payment_succeeded`, `payment_failed` and
+`payment_amount_mismatch`; the audit catalogue adds the card's saving and removal.
 
 ## API
 
@@ -385,6 +433,8 @@ Admin routes need `PlatformAdministration.manage-organizations`:
 | `POST admin/billing/invoices/{uuid}/recalculate`, `/adjustments`, `DELETE …/adjustments/{line}` | Drafts only (409 once issued) |
 | `POST admin/billing/invoices/{uuid}/issue` | Number, fix and email it |
 | `POST admin/billing/invoices/{uuid}/credit-notes`, `GET admin/billing/credit-notes/{uuid}.pdf` | `{amount, reason}` on an issued invoice |
+| `POST admin/billing/invoices/{uuid}/payments` | `{amount, note}`: a payment made another way, up to what is still owed (201) |
+| `POST admin/billing/invoices/{uuid}/reconcile` | Applies Stripe's state to pending payments; 404 while payments are off |
 
 The plan, allowance and organization-move routes answer 409 `retention` when the change
 shortens an organization's telemetry retention, until `confirm_retention: true` is
@@ -392,9 +442,10 @@ sent ([retention](#retention)).
 
 `GET admin/billing-accounts/{uuid}` carries `plan_assignment`, `allowances` (each
 with `value`, `source` and `note`), this month's `usage`, `prices` (this month's and,
-when a change waits, next month's), `price_overrides` and `billing_details`. Plans
-carry `prices` too. The admin account list
-carries `plan` and filters by `plan` (a plan's uuid, or `none`) and by
+when a change waits, next month's), `price_overrides`, `billing_details`,
+`payment_method` and `past_due_since`. Plans carry `prices` too. Invoice details carry
+`payments`. Billing settings carry `payments_enabled`. The admin account list
+carries `plan` and `past_due_since`, and filters by `past_due=1`, by `plan` (a plan's uuid, or `none`) and by
 `usage_at_least` (1 to 100; the list's filter is 80): accounts that have used at
 least that share of a limited allowance this month, resolved in SQL as
 `Allowances` does. `POST admin/organizations` takes `plan_uuid` with a new billing
@@ -404,10 +455,12 @@ Owner and manager routes:
 
 | Route | Purpose |
 | --- | --- |
-| `GET billing-accounts` | The accounts the signed-in person owns, each with `plan`, `allowances`, this month's `usage`, `prices` and `latest_invoice` |
+| `GET billing-accounts` | The accounts the signed-in person owns, each with `plan`, `allowances`, this month's `usage`, `prices`, `latest_invoice`, `payments_enabled`, `payment_method` and `past_due_since` |
 | `GET billing-accounts/{uuid}/usage?month=YYYY-MM` | An owned account's usage for a month; 404 otherwise |
 | `GET billing-accounts/{uuid}/invoices` | Issued invoices and credit notes |
 | `GET billing-accounts/{uuid}/invoices/{uuid}`, `.pdf`, `.csv`; `GET billing-accounts/{uuid}/credit-notes/{uuid}.pdf` | Issued only; a draft or another account's answers 404 |
+| `POST billing-accounts/{uuid}/payment-method/checkout`, `DELETE billing-accounts/{uuid}/payment-method` | `{url}` of Stripe's page to save a card; remove it. 404 while payments are off |
+| `POST billing-accounts/{uuid}/invoices/{uuid}/checkout` | `{url}` of Stripe's page to pay what is owed; 409 when nothing is |
 | `GET organizations/{uuid}/usage` | This month's usage as a manager sees it, and the organization's `retention`; needs `Device.manage` |
 
 A usage entry is `{kind, month, count, allowance, left, overage, organizations}`,

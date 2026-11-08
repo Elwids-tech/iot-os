@@ -181,6 +181,22 @@ operations:
           application/json:
             schema:
               $ref: '#/components/schemas/ErrorMessage'
+  POST /v1/billing-accounts/{billingAccount}/invoices/{invoice}/checkout:
+    responses:
+      '409':
+        description: Nothing is owed on the invoice, or a payment for it is still being processed.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  POST /v1/admin/billing/invoices/{invoice}/payments:
+    responses:
+      '409':
+        description: The invoice is a draft; only an issued invoice takes payments.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
   POST /v1/admin/billing/invoices/{invoice}/issue:
     responses:
       '409':
