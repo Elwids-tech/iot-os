@@ -140,3 +140,32 @@ func TestLatestBatchMarksInactiveDevicesAndDowngradesActiveOnes(t *testing.T) {
 		t.Fatalf("single read %+v differs from the batch entry %+v", one, body.Data[active.DeviceUUID])
 	}
 }
+
+// The status report carries the telemetry stream counters (spec 030, T056) and
+// degrades each subsystem separately when nothing is connected.
+func TestStatusReportsStreamCounters(t *testing.T) {
+	a := &Application{Control: &ControlClient{Token: "status-test-token"}}
+	a.streamsOpen.Store(3)
+	a.broadcaster.dropped.Store(2)
+	req := httptest.NewRequest(http.MethodGet, "/internal/status", nil)
+	req.Header.Set("Authorization", "Bearer status-test-token")
+	response := httptest.NewRecorder()
+	a.Handler().ServeHTTP(response, req)
+	if response.Code != 200 {
+		t.Fatalf("expected 200, got %d %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Storage   string `json:"storage"`
+		Messaging string `json:"messaging"`
+		Streams   struct {
+			Open    int64  `json:"open"`
+			Dropped uint64 `json:"dropped"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Storage != "unavailable" || body.Messaging != "disconnected" || body.Streams.Open != 3 || body.Streams.Dropped != 2 {
+		t.Fatalf("status: %s", response.Body.String())
+	}
+}

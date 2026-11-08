@@ -164,6 +164,18 @@ export type TenantPermission = {
   grantable?: boolean
 }
 
+/** One open application telemetry stream, as platform administrators see it (spec 030). */
+export interface IntegrationStreamSession {
+  id: number
+  application: { uuid: string; name: string }
+  opened_at: string
+  /** Refreshed every 30 s by the relay; a stream unseen for 90 s is no longer open. */
+  last_seen_at: string
+  device_count: number
+  /** The last reading's position relayed, or null before the first one. */
+  last_position: string | null
+}
+
 /** An organization role as the organization's own administrators see it. */
 export type TenantRole = {
   id: number
@@ -1551,6 +1563,13 @@ export class ApiClient {
     return this.request<PaginatedResponse<OrganizationRole>>(
       `/api/v1/admin/roles${directoryQuery(query)}`,
     )
+  }
+
+  /** The organization's open application telemetry streams (spec 030), oldest first. */
+  async adminOrganizationIntegrationStreams(organizationUuid: string): Promise<IntegrationStreamSession[]> {
+    return this.request<ApiResponse<IntegrationStreamSession[]>>(
+      `/api/v1/admin/organizations/${encodeURIComponent(organizationUuid)}/integration-streams`,
+    ).then((response) => response.data)
   }
 
   async adminOrganizationRoles(

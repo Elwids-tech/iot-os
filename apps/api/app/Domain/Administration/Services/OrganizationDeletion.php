@@ -42,7 +42,7 @@ final class OrganizationDeletion
         // An alert's comments, deliveries and listed devices (automation_alert_devices,
         // spec 018) have no organization of their own: they go only with their alert.
         'automations' => ['label' => 'Automations', 'tables' => ['automation_workflows', 'automation_alerts', 'automation_actions']],
-        'integrations' => ['label' => 'Integration applications', 'tables' => ['integration_applications', 'integration_streams', 'integration_events']],
+        'integrations' => ['label' => 'Integration applications', 'tables' => ['integration_stream_sessions', 'integration_applications', 'integration_streams', 'integration_events']],
         'geofences' => ['label' => 'Geofences', 'tables' => ['geofences', 'geofence_assignments', 'geofence_activation_batches', 'geofence_events']],
     ];
 

@@ -212,6 +212,100 @@ export async function verifyWebhook(options: {
 }
 
 /** Server-only. Store the application token in your backend secret store. */
+/** One reading of a stream event (`telemetry-stream.v1`): the committed reading without the platform's internal fields. */
+export interface StreamReadingItem {
+  parameter_uuid: string; key: string; data_type: string; unit: string | null; value: unknown;
+  quality: string; observed_at: string; received_at: string; historical: boolean;
+}
+/** The first event of a stream: where it starts and how many devices it carries. */
+export interface StreamOpenEvent { type: "open"; position: string; devices: number; openedAt: string }
+/** One committed telemetry event of one granted device; `position` is the SSE id to resume from. */
+export interface StreamReadingEvent {
+  type: "reading"; position: string; eventId: string; deviceUuid: string; configurationUuid: string;
+  generation: number; readings: StreamReadingItem[];
+}
+/** The position the iterator resumed from is no longer retained: take a new snapshot; the iterator continues from `position`. */
+export interface StreamResetEvent { type: "reset"; position: string }
+export type StreamEvent = StreamOpenEvent | StreamReadingEvent | StreamResetEvent;
+export interface StreamOptions {
+  /** Granted devices to narrow the stream to (1 to 1000); absent means the whole grant. */
+  devices?: string[];
+  /** The position of the last reading already processed; the stream resumes after it. */
+  after?: string;
+  /** Ends the iteration quietly when aborted. */
+  signal?: AbortSignal;
+  /** Milliseconds of consecutive failed reconnects before the iterator throws; 0 retries for ever. Default 300000. */
+  maxRetryMs?: number;
+}
+const POSITION = /^(0|[1-9][0-9]{0,19})$/;
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CLOSE_NOW = ["lifetime", "grant_changed", "credentials_changed"];
+interface SseFrame { event: string; id: string | null; data: string }
+/** Parses server-sent event frames; a frame cut off by the end of the body is never yielded. */
+async function* sseFrames(body: ReadableStream<Uint8Array>): AsyncGenerator<SseFrame> {
+  const reader = body.getReader(); const decoder = new TextDecoder();
+  let buffer = ""; let event = ""; let id: string | null = null; let data: string[] = [];
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+      let index: number;
+      while ((index = buffer.indexOf("\n")) !== -1) {
+        let line = buffer.slice(0, index); buffer = buffer.slice(index + 1);
+        if (line.endsWith("\r")) line = line.slice(0, -1);
+        if (line === "") {
+          if (event || data.length) yield { event, id, data: data.join("\n") };
+          event = ""; id = null; data = [];
+          continue;
+        }
+        if (line.startsWith(":")) continue;
+        const colon = line.indexOf(":");
+        const field = colon === -1 ? line : line.slice(0, colon);
+        let content = colon === -1 ? "" : line.slice(colon + 1);
+        if (content.startsWith(" ")) content = content.slice(1);
+        if (field === "event") event = content; else if (field === "id") id = content; else if (field === "data") data.push(content);
+      }
+      if (done) return;
+    }
+  } finally { await reader.cancel().catch(() => undefined); }
+}
+function streamData(frame: SseFrame, version: string): Record<string, unknown> {
+  let parsed: unknown;
+  try { parsed = JSON.parse(frame.data); } catch { throw new IotContractError(); }
+  const result = record(parsed);
+  if (result.schema_version !== version || typeof result.position !== "string" || !POSITION.test(result.position)) throw new IotContractError();
+  return result;
+}
+function streamOpen(frame: SseFrame): StreamOpenEvent {
+  const data = streamData(frame, "telemetry-stream-open.v1");
+  if (!Number.isSafeInteger(data.devices) || Number(data.devices) < 0 || typeof data.opened_at !== "string") throw new IotContractError();
+  return { type: "open", position: data.position as string, devices: data.devices as number, openedAt: data.opened_at };
+}
+function streamReading(frame: SseFrame): StreamReadingEvent {
+  const data = streamData(frame, "telemetry-stream.v1");
+  if (frame.id !== data.position || !["event_id", "device_uuid", "configuration_uuid"].every(key => typeof data[key] === "string" && UUID_SHAPE.test(String(data[key]))) || !Number.isSafeInteger(data.generation) || Number(data.generation) < 1 || !Array.isArray(data.readings) || !data.readings.length || data.readings.length > 2000) throw new IotContractError();
+  const readings = data.readings.map(item => {
+    const reading = fields(item, ["parameter_uuid", "key", "data_type", "quality", "observed_at", "received_at"], ["unit"]);
+    if (!("value" in reading) || typeof reading.historical !== "boolean") throw new IotContractError();
+    return reading as unknown as StreamReadingItem;
+  });
+  return { type: "reading", position: data.position as string, eventId: data.event_id as string, deviceUuid: data.device_uuid as string, configurationUuid: data.configuration_uuid as string, generation: data.generation as number, readings };
+}
+function streamReset(frame: SseFrame): StreamResetEvent {
+  return { type: "reset", position: streamData(frame, "telemetry-stream-reset.v1").position as string };
+}
+function streamClosed(frame: SseFrame): { reason: string; position: string } {
+  const data = streamData(frame, "telemetry-stream-closed.v1");
+  if (typeof data.reason !== "string") throw new IotContractError();
+  return { reason: data.reason, position: data.position as string };
+}
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise(resolve => {
+    const done = () => { clearTimeout(timer); signal?.removeEventListener("abort", done); resolve(); };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
 export class IotClient {
   #base: string; #token: string; #fetch: typeof fetch; #timeout: number;
   constructor(options: { baseUrl: string; organization: string; token: string; timeoutMs?: number; fetch?: typeof fetch; allowInsecureLocalhost?: boolean }) {
@@ -397,6 +491,84 @@ export class IotClient {
       result.set("condition", options.condition);
     }
     return result.size ? "?" + result.toString() : "";
+  }
+  /**
+   * Follows the granted devices' readings as they are committed (spec 030; needs
+   * `telemetry:stream` with `telemetry:read`): an async iterator over the server-sent
+   * event stream that yields `open`, `reading` and `reset`. It remembers the last
+   * position and reconnects with it after a `closed` event (at once for `lifetime`,
+   * `grant_changed` and `credentials_changed`, with backoff otherwise), a dropped
+   * connection or a 503, backing off from 1 s to 30 s, for up to `maxRetryMs` of
+   * consecutive failed reconnects. 401, 403, 404, 422 and 429 are thrown as
+   * `IotApiError`; aborting `signal` ends the iteration. Take a snapshot after each
+   * `open` or `reset` position, then apply the readings.
+   */
+  async *telemetryStream(options: StreamOptions = {}): AsyncGenerator<StreamEvent, void, undefined> {
+    const devices = options.devices;
+    if (devices !== undefined && (!Array.isArray(devices) || !devices.length || devices.length > 1000 || new Set(devices).size !== devices.length)) throw new TypeError("Choose between 1 and 1000 distinct devices.");
+    if (options.after !== undefined && (typeof options.after !== "string" || !POSITION.test(options.after))) throw new TypeError("Invalid stream position.");
+    const maxRetry = options.maxRetryMs ?? 300000;
+    if (!Number.isSafeInteger(maxRetry) || maxRetry < 0) throw new TypeError("maxRetryMs must be a non-negative integer.");
+    const query = new URLSearchParams();
+    for (const device of devices ?? []) query.append("devices[]", uuid(device));
+    const path = "telemetry/stream" + (query.size ? "?" + query : "");
+    const signal = options.signal;
+    let position = options.after; let backoff = 1000; let waited = 0;
+    const wait = async (ms: number) => {
+      if (maxRetry && waited >= maxRetry) throw new IotTransportError();
+      await sleep(ms, signal); waited += ms; backoff = Math.min(backoff * 2, 30000);
+    };
+    while (!signal?.aborted) {
+      let connection: { body: ReadableStream<Uint8Array>; release: () => void };
+      try {
+        connection = await this.#openStream(path, position, signal);
+      } catch (error) {
+        if (signal?.aborted) return;
+        const retryable = error instanceof IotTransportError || (error instanceof IotApiError && [502, 503, 504].includes(error.status));
+        if (!retryable || (maxRetry && waited >= maxRetry)) throw error;
+        await wait(error instanceof IotApiError && error.retryAfterSeconds ? Math.min(error.retryAfterSeconds * 1000, 30000) : backoff);
+        continue;
+      }
+      let delay = backoff;
+      try {
+        for await (const frame of sseFrames(connection.body)) {
+          if (signal?.aborted) return;
+          if (frame.event === "open") { const open = streamOpen(frame); position = open.position; backoff = 1000; waited = 0; yield open; }
+          else if (frame.event === "reading") { const reading = streamReading(frame); position = reading.position; yield reading; }
+          else if (frame.event === "reset") { const reset = streamReset(frame); position = reset.position; yield reset; }
+          else if (frame.event === "closed") { const closed = streamClosed(frame); position = closed.position; delay = CLOSE_NOW.includes(closed.reason) ? 0 : backoff; break; }
+        }
+      } catch (error) {
+        if (signal?.aborted) return;
+        if (error instanceof IotContractError) throw error;
+        // The connection dropped: reconnect from the last position, with backoff.
+      } finally { connection.release(); }
+      if (signal?.aborted) return;
+      if (delay) await wait(delay);
+    }
+  }
+  async #openStream(path: string, position: string | undefined, signal?: AbortSignal): Promise<{ body: ReadableStream<Uint8Array>; release: () => void }> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.#timeout); // the handshake only; the body follows the caller's signal
+    const abort = () => controller.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) controller.abort();
+    const release = () => { signal?.removeEventListener("abort", abort); controller.abort(); };
+    const headers: Record<string, string> = { Accept: "text/event-stream", Authorization: `Bearer ${this.#token}` };
+    if (position !== undefined) headers["Last-Event-ID"] = position;
+    try {
+      const response = await this.#fetch(`${this.#base}/${path}`, { method: "GET", headers, credentials: "omit", redirect: "error", signal: controller.signal });
+      if (!response.ok) {
+        const raw = response.headers.get("Retry-After");
+        throw new IotApiError(response.status, raw !== null && /^\d+$/.test(raw) ? Number(raw) : null);
+      }
+      if (!response.body || !(response.headers.get("Content-Type") ?? "").toLowerCase().startsWith("text/event-stream")) throw new IotContractError();
+      return { body: response.body, release };
+    } catch (error) {
+      release();
+      if (error instanceof IotApiError || error instanceof IotContractError) throw error;
+      throw new IotTransportError();
+    } finally { clearTimeout(timer); }
   }
   async #request(path: string, signal?: AbortSignal): Promise<unknown> {
     const controller = new AbortController();

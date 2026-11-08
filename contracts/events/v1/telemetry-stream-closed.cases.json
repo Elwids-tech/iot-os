@@ -1,0 +1,45 @@
+[
+  {
+    "description": "the relay to the runtime failed before any reading was sent, so the open position is carried",
+    "valid": true,
+    "data": {
+      "schema_version": "telemetry-stream-closed.v1",
+      "reason": "runtime_unavailable",
+      "position": "0"
+    }
+  },
+  {
+    "description": "every close reason the platform issues",
+    "valid": true,
+    "data": {
+      "schema_version": "telemetry-stream-closed.v1",
+      "reason": "credentials_changed",
+      "position": "9031"
+    }
+  },
+  {
+    "description": "the client closing its own connection is a session reason, never an event on the wire",
+    "valid": false,
+    "error": {
+      "keyword": "enum",
+      "instance_location": "/reason"
+    },
+    "data": {
+      "schema_version": "telemetry-stream-closed.v1",
+      "reason": "client",
+      "position": "9031"
+    }
+  },
+  {
+    "description": "missing reason",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": ""
+    },
+    "data": {
+      "schema_version": "telemetry-stream-closed.v1",
+      "position": "9031"
+    }
+  }
+]

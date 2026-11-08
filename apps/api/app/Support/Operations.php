@@ -6,6 +6,7 @@ namespace App\Support;
 
 use App\Domain\Assistant\Services\AssistantProvider;
 use App\Domain\Devices\Services\RetentionService;
+use App\Domain\Integrations\Models\IntegrationStreamSession;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
@@ -57,6 +58,15 @@ final class Operations
             $gauge('worker_heartbeat_timestamp_seconds', (int) DB::table('operation_heartbeats')->where('name', $worker)->value('seen_at'), '{worker="'.$worker.'"}');
         }
         $gauge('device_outbox_pending', DB::table('device_outbox')->whereNull('published_at')->count());
+        // Open application telemetry streams per organization (spec 030): each holds one
+        // PHP worker, so the sum against IOT_STREAMS_MAX_OPEN says how close the pool is.
+        $openStreams = IntegrationStreamSession::query()->open()->join('organizations', 'organizations.id', '=', 'integration_stream_sessions.organization_id')
+            ->selectRaw('organizations.slug AS slug, COUNT(*) AS streams')->groupBy('organizations.slug')->orderBy('organizations.slug')->get();
+        foreach ($openStreams as $row) {
+            $gauge('integration_streams_open', (int) $row->streams, '{organization="'.addcslashes((string) $row->slug, '"\\').'"}');
+        }
+        $gauge('integration_streams_open_total', (int) $openStreams->sum('streams'));
+        $gauge('integration_streams_limit', (int) config('integrations.streams_max_open'));
         $gauge('commands_uncertain', DB::table('device_commands')->where('status', 'uncertain')->count());
         $gauge('retention_cleanup_failures', app(RetentionService::class)->inspection()['cleanup_failures']);
         $gauge('commands_pending', DB::table('device_commands')->whereNotNull('outstanding_key')->count());

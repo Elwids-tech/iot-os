@@ -1,0 +1,35 @@
+[
+  {
+    "description": "a reset carrying a 64-bit head",
+    "valid": true,
+    "data": {
+      "schema_version": "telemetry-stream-reset.v1",
+      "position": "9223372036854775807"
+    }
+  },
+  {
+    "description": "a reset with no position",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": ""
+    },
+    "data": {
+      "schema_version": "telemetry-stream-reset.v1"
+    }
+  },
+  {
+    "description": "a reset carrying a reason belongs to the closed event",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {
+      "keyword": "additionalProperties",
+      "instance_location": ""
+    },
+    "data": {
+      "schema_version": "telemetry-stream-reset.v1",
+      "position": "9031",
+      "reason": "lifetime"
+    }
+  }
+]

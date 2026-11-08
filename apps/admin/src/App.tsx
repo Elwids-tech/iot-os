@@ -18,6 +18,7 @@ import { InvoicePage } from "./pages/InvoicePage"
 import { InvoicesPage } from "./pages/InvoicesPage"
 import { OrganizationPermissionsPage } from "./pages/OrganizationPermissionsPage"
 import { OrganizationsPage } from "./pages/OrganizationsPage"
+import { OrganizationStreamsPage } from "./pages/OrganizationStreamsPage"
 import { PlanPage } from "./pages/PlanPage"
 import { PlansPage } from "./pages/PlansPage"
 import { RolePermissionsPage } from "./pages/RolePermissionsPage"
@@ -121,6 +122,7 @@ function PlatformAdministrationApp() {
         <Route index element={<Navigate to="/organizations" replace />} />
         <Route path="organizations" element={<OrganizationsPage />} />
         <Route path="organizations/:organizationUuid/permissions" element={<OrganizationPermissionsPage />} />
+        <Route path="organizations/:organizationUuid/streams" element={<OrganizationStreamsPage />} />
         <Route path="billing-accounts" element={<BillingAccountsPage />} />
         <Route path="billing-accounts/:billingAccountUuid" element={<BillingAccountPage />} />
         <Route path="plans" element={<PlansPage />} />

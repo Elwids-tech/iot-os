@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/events/v1/telemetry-stream-reset.schema.json",
+  "description": "telemetry-stream-reset.v1: the position an application resumed from is no longer retained (spec 030). `position` is the organization's current head; the client takes a new snapshot and reconnects from it. The stream closes after this event. Producer: the runtime, relayed by Laravel. Consumer: applications and the integration SDK.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "telemetry-stream-reset.v1"
+    },
+    "position": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "position"
+  ],
+  "additionalProperties": false
+}

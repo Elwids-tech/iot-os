@@ -87,3 +87,55 @@ func (s *Store) CommittedBacklog(ctx context.Context) (CommittedBacklog, error) 
 	 FROM device_runtime.telemetry_outbox WHERE published_at IS NULL`).Scan(&result.Pending, &result.OldestAgeSeconds)
 	return result, err
 }
+
+// CommittedRow is one retained outbox row, read for a telemetry stream's catch-up.
+type CommittedRow struct {
+	Sequence int64
+	Event    devices.CommittedTelemetry
+}
+
+// CommittedAfter reads the retained events of the named devices with a sequence
+// greater than after, oldest first, at most limit rows (spec 030, research R3). The
+// stream handler pages through it with the last sequence it wrote.
+func (s *Store) CommittedAfter(ctx context.Context, org string, deviceIDs []string, after int64, limit int) ([]CommittedRow, error) {
+	rows, err := s.Pool.Query(ctx, `SELECT sequence,event FROM device_runtime.telemetry_outbox
+	 WHERE organization_uuid=$1 AND event->>'device_uuid' = ANY($2) AND sequence > $3
+	 ORDER BY sequence LIMIT $4`, org, deviceIDs, after, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []CommittedRow{}
+	for rows.Next() {
+		var row CommittedRow
+		var raw []byte
+		if err = rows.Scan(&row.Sequence, &raw); err != nil {
+			return nil, err
+		}
+		if err = Decode(raw, &row.Event); err != nil {
+			return nil, err
+		}
+		row.Event.Sequence = strconv.FormatInt(row.Sequence, 10)
+		result = append(result, row)
+	}
+	return result, rows.Err()
+}
+
+// CommittedFloor is the organization's oldest retained sequence. ok is false when the
+// organization has no retained event: then there is no floor and a stream opens at 0.
+func (s *Store) CommittedFloor(ctx context.Context, org string) (floor int64, ok bool, err error) {
+	var value *int64
+	err = s.Pool.QueryRow(ctx, "SELECT min(sequence) FROM device_runtime.telemetry_outbox WHERE organization_uuid=$1", org).Scan(&value)
+	if err != nil || value == nil {
+		return 0, false, err
+	}
+	return *value, true, nil
+}
+
+// CommittedHead is the organization's greatest retained sequence, 0 when it has none:
+// where a fresh stream starts.
+func (s *Store) CommittedHead(ctx context.Context, org string) (int64, error) {
+	var head int64
+	err := s.Pool.QueryRow(ctx, "SELECT COALESCE(max(sequence),0) FROM device_runtime.telemetry_outbox WHERE organization_uuid=$1", org).Scan(&head)
+	return head, err
+}
