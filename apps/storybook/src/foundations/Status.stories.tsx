@@ -86,7 +86,8 @@ export const OfflineAlerts: StoryObj = {
 }
 
 const invoiceStates = ["draft", "issued", "incomplete", "waiting", "overdue"]
-const paymentStates = ["pending", "paid", "failed", "credited", "paid_outside", "overdue"]
+const paymentStates = ["pending", "paid", "failed", "credited", "paid_outside", "overdue", "past_due"]
+const invoicePaymentStates = ["pending", "succeeded", "failed"]
 
 /** Invoices (spec 029): where an invoice stands, and what is owed on an issued one. */
 export const Invoices: StoryObj = {
@@ -97,6 +98,9 @@ export const Invoices: StoryObj = {
       </div>
       <div className="flex flex-wrap gap-4">
         {paymentStates.map((value) => <Status key={value} value={value} domain="payment" />)}
+      </div>
+      <div className="flex flex-wrap gap-4">
+        {invoicePaymentStates.map((value) => <Status key={value} value={value} domain="invoice_payment" />)}
       </div>
     </div>
   ),

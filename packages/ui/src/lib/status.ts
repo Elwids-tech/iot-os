@@ -224,6 +224,14 @@ const domains = {
     credited: { tone: "muted", label: "Credited" },
     paid_outside: { tone: "good", label: "Paid another way" },
     overdue: { tone: "warning", label: "Overdue" },
+    /** A billing account with an invoice unpaid past its due date; nothing is restricted. */
+    past_due: { tone: "warning", label: "Past due" },
+  },
+  /** Payments towards an invoice (spec 029 US7): a charge, a Checkout payment or one recorded by hand. */
+  invoice_payment: {
+    pending: { tone: "info", label: "Processing" },
+    succeeded: { tone: "good", label: "Succeeded" },
+    failed: { tone: "critical", label: "Failed" },
   },
   /** Support ticket priority, set by the team. */
   priority: {

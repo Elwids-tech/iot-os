@@ -33,7 +33,7 @@ import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { UsagePanel } from "@iot-os/ui/components/usage-overview"
-import { formatDay } from "@iot-os/ui/lib/invoices"
+import { formatDay, formatMonth } from "@iot-os/ui/lib/invoices"
 import { formatBasisPoints, formatMoney } from "@iot-os/ui/lib/money"
 import { EntityPage } from "@iot-os/ui/templates/entity-page"
 import { AlertCircleIcon, Building2Icon, ReceiptTextIcon, UserRoundXIcon, WalletIcon } from "lucide-react"
@@ -429,10 +429,20 @@ export function BillingAccountPage() {
       icon={<WalletIcon />}
       back={back}
       status={
-        <span className="text-muted-foreground">
-          {organizationsOfLimit(account)}
-          {atLimit(account) ? " · owners cannot add more" : ""}
-        </span>
+        <>
+          {account.past_due_since ? (
+            <span className="flex items-center gap-2">
+              <Status value="past_due" domain="payment" />
+              <span className="text-muted-foreground">
+                since <RelativeTime at={account.past_due_since} />
+              </span>
+            </span>
+          ) : null}
+          <span className="text-muted-foreground">
+            {organizationsOfLimit(account)}
+            {atLimit(account) ? " · owners cannot add more" : ""}
+          </span>
+        </>
       }
       actions={
         <>
@@ -611,36 +621,59 @@ export function BillingAccountPage() {
             </PanelContent>
           )}
         </Panel>
-        <Panel aria-labelledby="billing-invoice-details">
-          <PanelHeader>
-            <PanelTitle id="billing-invoice-details">Billing details</PanelTitle>
-            <PanelDescription>What its invoices say about it.</PanelDescription>
-            <PanelActions>
-              <Button size="sm" variant="outline" onClick={() => setEditingDetails(true)}>
-                Edit billing details
-              </Button>
-            </PanelActions>
-          </PanelHeader>
-          <PanelContent>
-            <dl className="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] gap-x-4 gap-y-2">
-              <dt className="text-muted-foreground">Address</dt>
-              <dd className="min-w-0 whitespace-pre-wrap break-words">{details.billing_address ?? "None"}</dd>
-              <dt className="text-muted-foreground">Tax number</dt>
-              <dd className="min-w-0 break-words">{details.tax_number ?? "None"}</dd>
-              <dt className="text-muted-foreground">Tax rate</dt>
-              <dd className="flex min-w-0 flex-wrap items-center gap-x-2">
-                {details.tax_rate ? (
-                  <>
-                    {details.tax_rate.name} · {formatBasisPoints(details.tax_rate.basis_points)}
-                    {details.tax_rate.archived ? <Status value="archived" /> : null}
-                  </>
-                ) : (
-                  "No tax"
-                )}
-              </dd>
-            </dl>
-          </PanelContent>
-        </Panel>
+        <div className="flex min-w-0 flex-col gap-(--panel-gap)">
+          <Panel aria-labelledby="billing-invoice-details">
+            <PanelHeader>
+              <PanelTitle id="billing-invoice-details">Billing details</PanelTitle>
+              <PanelDescription>What its invoices say about it.</PanelDescription>
+              <PanelActions>
+                <Button size="sm" variant="outline" onClick={() => setEditingDetails(true)}>
+                  Edit billing details
+                </Button>
+              </PanelActions>
+            </PanelHeader>
+            <PanelContent>
+              <dl className="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] gap-x-4 gap-y-2">
+                <dt className="text-muted-foreground">Address</dt>
+                <dd className="min-w-0 whitespace-pre-wrap break-words">{details.billing_address ?? "None"}</dd>
+                <dt className="text-muted-foreground">Tax number</dt>
+                <dd className="min-w-0 break-words">{details.tax_number ?? "None"}</dd>
+                <dt className="text-muted-foreground">Tax rate</dt>
+                <dd className="flex min-w-0 flex-wrap items-center gap-x-2">
+                  {details.tax_rate ? (
+                    <>
+                      {details.tax_rate.name} · {formatBasisPoints(details.tax_rate.basis_points)}
+                      {details.tax_rate.archived ? <Status value="archived" /> : null}
+                    </>
+                  ) : (
+                    "No tax"
+                  )}
+                </dd>
+              </dl>
+            </PanelContent>
+          </Panel>
+          <Panel aria-labelledby="billing-payment-method">
+            <PanelHeader>
+              <PanelTitle id="billing-payment-method">Payment method</PanelTitle>
+              <PanelDescription>Owners save and change it on Stripe&apos;s page in the portal.</PanelDescription>
+            </PanelHeader>
+            <PanelContent>
+              {account.payment_method ? (
+                <p className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-medium">
+                    {account.payment_method.brand.charAt(0).toUpperCase() + account.payment_method.brand.slice(1)}
+                  </span>
+                  {account.payment_method.last_four ? <span className="tabular-nums">•••• {account.payment_method.last_four}</span> : null}
+                  {account.payment_method.expires ? (
+                    <span className="text-meta text-muted-foreground">expires {formatMonth(account.payment_method.expires)}</span>
+                  ) : null}
+                </p>
+              ) : (
+                <p className="text-muted-foreground">No card. Invoices are paid online or recorded by hand.</p>
+              )}
+            </PanelContent>
+          </Panel>
+        </div>
       </div>
       <UsagePanel
         id="billing-usage"

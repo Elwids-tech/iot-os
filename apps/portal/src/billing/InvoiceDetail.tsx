@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@iot-os/ui/components/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@iot-os/ui/components/sheet"
@@ -8,23 +9,32 @@ import { formatBasisPoints, formatMoney } from "@iot-os/ui/lib/money"
 import { DownloadIcon } from "lucide-react"
 import { LoadError } from "../components/forms"
 import { api } from "../lib/api"
+import { payable, payOnline } from "./payments"
 
 const usageKinds = { alerts: "Alerts", sms: "SMS", data_points: "Data points" } as const
 
+const paymentLabels = { card: "Card", checkout: "Paid online", outside: "Paid another way" } as const
+
 /**
- * One issued invoice for an owner (spec 029 FR-036), opened by `?invoice=`: its lines,
- * totals, each organization's usage and credit notes, with the PDF to print or keep and
- * the CSV. Drafts and other accounts' invoices are never shown.
+ * One issued invoice for an owner (spec 029 FR-036, US7), opened by `?invoice=`, as the
+ * emails link it: its lines, totals, credit notes, payments and each organization's
+ * usage, with the PDF to print or keep and the CSV. An unpaid one offers **Pay**, on
+ * Stripe's page, focused so the email's reader can pay at once. Drafts and other
+ * accounts' invoices are never shown.
  */
 export function InvoiceDetail({
   accountUuid,
   invoiceUuid,
+  paymentsEnabled,
   onClose,
 }: {
   accountUuid: string
   invoiceUuid: string | null
+  paymentsEnabled: boolean
   onClose: () => void
 }) {
+  const payButton = useRef<HTMLButtonElement>(null)
+  const [opening, setOpening] = useState(false)
   const invoice = useQuery({
     queryKey: ["billing-accounts", accountUuid, "invoices", invoiceUuid],
     queryFn: () => api.ownedInvoice(accountUuid, invoiceUuid ?? ""),
@@ -32,6 +42,18 @@ export function InvoiceDetail({
   })
   const data = invoice.data
   const money = (amount: number) => formatMoney(amount, data?.currency ?? "USD")
+  const canPay = paymentsEnabled && data !== undefined && payable(data)
+
+  useEffect(() => {
+    if (canPay) payButton.current?.focus()
+  }, [canPay])
+
+  async function pay() {
+    if (!data) return
+    setOpening(true)
+    await payOnline(accountUuid, data)
+    setOpening(false)
+  }
 
   return (
     <Sheet open={invoiceUuid !== null} onOpenChange={(open) => !open && onClose()}>
@@ -55,6 +77,11 @@ export function InvoiceDetail({
                 <Status value={paymentState(data)} domain="payment" />
                 {data.due_at ? <span className="text-muted-foreground">Due {formatDay(data.due_at)}</span> : null}
                 <span className="ml-auto flex gap-2">
+                  {canPay ? (
+                    <Button ref={payButton} size="sm" disabled={opening} onClick={() => void pay()}>
+                      Pay {money(data.outstanding)}
+                    </Button>
+                  ) : null}
                   <Button asChild size="sm" variant="outline">
                     <a href={api.ownedInvoiceDocumentUrl(accountUuid, data.uuid, "pdf")} download>
                       <DownloadIcon data-icon="inline-start" />
@@ -125,6 +152,27 @@ export function InvoiceDetail({
                         </a>
                         <span className="min-w-0 flex-1 break-words text-muted-foreground">{note.reason}</span>
                         <span className="tabular-nums">{money(-note.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              {data.payments.length ? (
+                <section aria-labelledby="invoice-payments-heading" className="flex flex-col gap-2">
+                  <h3 id="invoice-payments-heading" className="text-heading">
+                    Payments
+                  </h3>
+                  <ul className="divide-y">
+                    {data.payments.map((payment) => (
+                      <li key={payment.uuid} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-2">
+                        <span className="min-w-0 flex-1 break-words">
+                          {paymentLabels[payment.method]}
+                          {payment.failure_reason ? (
+                            <span className="block text-meta text-muted-foreground">{payment.failure_reason}</span>
+                          ) : null}
+                        </span>
+                        <Status value={payment.status} domain="invoice_payment" />
+                        <span className="tabular-nums">{money(payment.amount)}</span>
                       </li>
                     ))}
                   </ul>

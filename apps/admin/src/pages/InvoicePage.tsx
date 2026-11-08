@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ApiError, type CreditNote, type InvoiceDetail, type InvoiceLine } from "@iot-os/api-client"
+import { ApiError, type CreditNote, type InvoiceDetail, type InvoiceLine, type InvoicePayment } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import {
   AlertDialog,
@@ -21,6 +21,7 @@ import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { keepToastsAbove } from "@iot-os/ui/components/sonner"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { formatDay, formatMonth, paymentState } from "@iot-os/ui/lib/invoices"
+import { statusOf } from "@iot-os/ui/lib/status"
 import { formatBasisPoints, formatMoney } from "@iot-os/ui/lib/money"
 import { EntityPage, PropertyList } from "@iot-os/ui/templates/entity-page"
 import { AlertCircleIcon, DownloadIcon, ReceiptTextIcon } from "lucide-react"
@@ -28,6 +29,7 @@ import { useParams } from "react-router-dom"
 import { toast } from "sonner"
 import { CreditNoteDialog, creditable } from "../components/CreditNoteDialog"
 import { InvoiceAdjustmentDialog } from "../components/InvoiceAdjustmentDialog"
+import { RecordPaymentDialog } from "../components/RecordPaymentDialog"
 import { invoiceName } from "../components/InvoiceColumns"
 import { apiClient } from "../lib/api-client"
 import { errorMessage } from "../lib/errors"
@@ -38,12 +40,19 @@ const back = { to: "/billing/invoices", label: "Invoices" }
 
 const usageKinds = { alerts: "Alerts", sms: "SMS", data_points: "Data points" } as const
 
+/** How a payment was made, in words. */
+export function paymentMethodText(payment: Pick<InvoicePayment, "method" | "attempt">): string {
+  if (payment.method === "outside") return "Recorded by hand"
+  if (payment.method === "checkout") return "Paid on Stripe's page"
+  return payment.attempt > 1 ? `Card, attempt ${payment.attempt}` : "Card, charged at issue"
+}
+
 type UsageRow = InvoiceDetail["usage"][number]
 
 /**
- * One invoice (spec 029 US6): its lines, each organization's usage, its credit notes and
- * history. A draft can be recalculated, adjusted and issued; an issued invoice never
- * changes and takes credit notes instead.
+ * One invoice (spec 029 US6, US7): its lines, each organization's usage, its credit
+ * notes, payments and history. A draft can be recalculated, adjusted and issued; an
+ * issued invoice never changes and takes credit notes and payments instead.
  */
 export function InvoicePage() {
   const { invoiceUuid = "" } = useParams()
@@ -53,6 +62,7 @@ export function InvoicePage() {
   const [adjusting, setAdjusting] = useState(false)
   const [issuing, setIssuing] = useState(false)
   const [crediting, setCrediting] = useState(false)
+  const [recording, setRecording] = useState(false)
 
   const load = useCallback(() => {
     setFailure(null)
@@ -210,6 +220,53 @@ export function InvoicePage() {
     [currency],
   )
 
+  const paymentColumns = useMemo<DataColumn<InvoicePayment>[]>(
+    () => [
+      {
+        id: "method",
+        header: "Payment",
+        mobile: "title",
+        value: (payment) => paymentMethodText(payment),
+        cell: (payment) => <span className="font-medium">{paymentMethodText(payment)}</span>,
+      },
+      {
+        id: "amount",
+        header: "Amount",
+        hideable: false,
+        align: "end",
+        value: (payment) => payment.amount,
+        cell: (payment) => <span className="tabular-nums">{formatMoney(payment.amount, currency)}</span>,
+      },
+      {
+        id: "status",
+        header: "Status",
+        mobile: "badge",
+        hideable: false,
+        value: (payment) => payment.status,
+        cell: (payment) => <Status value={payment.status} domain="invoice_payment" />,
+      },
+      {
+        id: "detail",
+        header: "Reason or note",
+        value: (payment) => payment.failure_reason ?? payment.note ?? "",
+        cell: (payment) =>
+          (payment.failure_reason ?? payment.note) ? (
+            <span className="min-w-0 break-words">{payment.failure_reason ?? payment.note}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: "at",
+        header: "When",
+        hideable: false,
+        value: (payment) => payment.at,
+        cell: (payment) => <RelativeTime at={payment.at} />,
+      },
+    ],
+    [currency],
+  )
+
   if (failure) {
     return (
       <>
@@ -244,6 +301,8 @@ export function InvoicePage() {
 
   const money = (amount: number) => formatMoney(amount, currency)
   const left = creditable(invoice)
+  // Stripe can settle a charge or Checkout payment still processing.
+  const checkable = invoice.payments.some((payment) => payment.status === "pending" && payment.method !== "outside")
   const details = invoice.account_details
   const operator = invoice.operator_details
 
@@ -425,6 +484,35 @@ export function InvoicePage() {
             </PanelContent>
           </Panel>
         )}
+        {draft ? null : (
+          <Panel aria-labelledby="invoice-payments">
+            <PanelHeader>
+              <PanelTitle id="invoice-payments">Payments</PanelTitle>
+              <PanelDescription>
+                Card charges are tried at issue, on the due date and a week after. Payments made another way are recorded here.
+              </PanelDescription>
+            </PanelHeader>
+            <PanelContent flush>
+              <DataTable
+                id="admin-invoice-payments"
+                label="Payments"
+                noun={["payment", "payments"]}
+                rowKey={(payment) => payment.uuid}
+                rowLabel={(payment) => paymentMethodText(payment)}
+                columns={paymentColumns}
+                rows={invoice.payments}
+                empty={
+                  <EmptyState
+                    inset
+                    icon={<ReceiptTextIcon />}
+                    title="No payments yet"
+                    description="Record one made another way, such as a bank transfer."
+                  />
+                }
+              />
+            </PanelContent>
+          </Panel>
+        )}
         <Panel aria-labelledby="invoice-history">
           <PanelHeader>
             <PanelTitle id="invoice-history">History</PanelTitle>
@@ -491,13 +579,29 @@ export function InvoicePage() {
             </Button>
           </>
         ) : (
-          <Button size="sm" variant="outline" disabled={busy || left <= 0} onClick={() => setCrediting(true)}>
-            {left <= 0 ? "Fully credited" : "Credit note"}
-          </Button>
+          <>
+            {checkable ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => void act(() => apiClient.reconcileInvoice(invoice.uuid), (saved) => `Checked with Stripe: ${statusOf(paymentState(saved), "payment").label.toLowerCase()}`)}
+              >
+                Check with Stripe
+              </Button>
+            ) : null}
+            <Button size="sm" variant="outline" disabled={busy || invoice.outstanding <= 0} onClick={() => setRecording(true)}>
+              Record payment
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy || left <= 0} onClick={() => setCrediting(true)}>
+              {left <= 0 ? "Fully credited" : "Credit note"}
+            </Button>
+          </>
         )}
       </div>
       <InvoiceAdjustmentDialog invoice={invoice} open={adjusting} onClose={() => setAdjusting(false)} onSaved={setInvoice} />
       <CreditNoteDialog invoice={invoice} open={crediting} onClose={() => setCrediting(false)} onIssued={load} />
+      <RecordPaymentDialog invoice={invoice} open={recording} onClose={() => setRecording(false)} onSaved={setInvoice} />
       <AlertDialog open={issuing} onOpenChange={(open) => !open && !busy && setIssuing(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>

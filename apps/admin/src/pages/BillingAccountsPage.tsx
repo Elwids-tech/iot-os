@@ -13,6 +13,7 @@ import { Button } from "@iot-os/ui/components/button"
 import { DataTable, RefLink, type DataColumn, type DataFilter } from "@iot-os/ui/components/data-table"
 import { DropdownMenuItem, DropdownMenuSeparator } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { Status } from "@iot-os/ui/components/status-mark"
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { PlusIcon, WalletIcon } from "lucide-react"
@@ -56,10 +57,16 @@ export function BillingAccountsPage() {
   const url = useUrlState()
   const plan = url.get("plan") || null
   const usage = usageOptions.some((option) => option.value === url.get("usage")) ? url.get("usage") : null
+  const pastDue = url.get("payment") === "past_due"
   const load = useCallback(
     (query: DirectoryQuery) =>
-      apiClient.adminBillingAccounts({ ...query, plan: plan ?? undefined, usageAtLeast: usage ? Number(usage) : undefined }),
-    [plan, usage],
+      apiClient.adminBillingAccounts({
+        ...query,
+        plan: plan ?? undefined,
+        usageAtLeast: usage ? Number(usage) : undefined,
+        pastDue: pastDue || undefined,
+      }),
+    [plan, usage, pastDue],
   )
   const { reload, table } = useDirectoryTable(load, { searchPlaceholder: "Name or contact email" })
   const plans = usePlanFilterOptions()
@@ -81,9 +88,12 @@ export function BillingAccountsPage() {
         mobile: "title",
         value: (account) => account.name,
         cell: (account) => (
-          <RefLink className="font-medium" to={billingAccountPath(account.uuid)}>
-            {account.name}
-          </RefLink>
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <RefLink className="font-medium" to={billingAccountPath(account.uuid)}>
+              {account.name}
+            </RefLink>
+            {account.past_due_since ? <Status value="past_due" domain="payment" /> : null}
+          </span>
         ),
       },
       {
@@ -143,8 +153,15 @@ export function BillingAccountsPage() {
         value: usage ? [usage] : [],
         onChange: (value) => url.set({ usage: value[0] ?? null, page: null }),
       },
+      {
+        id: "payment",
+        label: "Payment",
+        options: [{ value: "past_due", label: "Past due" }],
+        value: pastDue ? ["past_due"] : [],
+        onChange: (value) => url.set({ payment: value[0] ?? null, page: null }),
+      },
     ],
-    [plan, plans, usage, url],
+    [plan, plans, usage, pastDue, url],
   )
 
   async function remove() {
@@ -186,8 +203,8 @@ export function BillingAccountsPage() {
         columns={columns}
         {...table}
         filters={filters}
-        filtered={table.filtered || plan !== null || usage !== null}
-        onReset={() => url.clear(["search", "plan", "usage", "page"])}
+        filtered={table.filtered || plan !== null || usage !== null || pastDue}
+        onReset={() => url.clear(["search", "plan", "usage", "payment", "page"])}
         rowActions={(account) => (
           <>
             <DropdownMenuItem onSelect={() => navigate(billingAccountPath(account.uuid))}>Open</DropdownMenuItem>

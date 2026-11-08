@@ -1395,23 +1395,63 @@ due and act.
 
 **Independent Test**: quickstart section 7 in the apps.
 
-- [ ] T109 [US7] `apps/portal/src/billing/PaymentMethodPanel.tsx`: brand, last four and
+- [X] T109 [US7] `apps/portal/src/billing/PaymentMethodPanel.tsx`: brand, last four and
   expiry; **Add card**, **Replace** and **Remove** (confirmation). Add and Replace call
   the checkout endpoint and `window.location.assign(url)`. It is hidden when payments
   are off. On return to `/billing`, the account query refetches.
-- [ ] T110 [US7] Portal invoices: a **Pay** button on unpaid invoices (checkout and
+
+  As built (PR 12): the portal panel is **Card** (`PaymentMethodPanel.tsx`), after the Plan
+  panel. Back from Stripe with `card=saved`, the accounts query asks again every two
+  seconds, up to 20 times, until the card is there, then toasts "Visa •••• 4242 saved"
+  and drops the marker.
+
+- [X] T110 [US7] Portal invoices: a **Pay** button on unpaid invoices (checkout and
   redirect); payment status via `Status` (pending, paid, failed, credited, paid
   outside); `?invoice=` from emails opens the invoice with **Pay** focused.
-- [ ] T111 [US7] Admin: a **Payment method** Panel (display only) and a past due badge
+
+  As built (PR 12): **Pay** is a column and a row action on invoices still owed (awaiting
+  payment or failed) and a button in the sheet, focused once the invoice loads.
+  `payable()` and `payOnline()` live in `billing/payments.ts`. Back with `paid=1`, the
+  invoices query asks again until the invoice is settled, then toasts and refreshes the
+  open sheet. Payments show in the sheet with the `invoice_payment` status domain. A past
+  due account shows a notice that nothing is restricted.
+
+- [X] T111 [US7] Admin: a **Payment method** Panel (display only) and a past due badge
   on `BillingAccountPage.tsx`; a Past due filter on `BillingAccountsPage.tsx`; on
   `InvoicePage.tsx`, a Payments Panel and **Record payment** (`RecordPaymentDialog.tsx`)
   and **Check with Stripe** in the action bar.
-- [ ] T112 [P] Playwright: `apps/portal/e2e/billing-payments.spec.ts` (add card
+
+  As built (PR 12): the account page's **Payment method** panel sits under Billing details; the
+  list marks past due accounts and filters them under Payment. The invoice page's
+  **Payments** panel lists each payment with its status and reason or note; **Check with
+  Stripe** shows only while a card or Checkout payment is processing. Settings → Billing
+  shows whether card payments are on (left over from PR 10). Kit status values
+  `payment.past_due` and the `invoice_payment` domain, with the story.
+
+- [X] T112 [P] Playwright: `apps/portal/e2e/billing-payments.spec.ts` (add card
   redirect, pay redirect, statuses, hidden when off) and admin payment cases in
   `apps/admin/e2e/billing-invoices.spec.ts`.
+
+  As built (PR 12): portal `billing-payments.spec.ts` (four cases: add a card and see it
+  once Stripe's event lands, pay and see it received, replace and remove the card, an
+  email link with Pay focused on a declined invoice and the past due notice, payments
+  off) against a stand-in for Stripe's pages; one admin case (past due mark and filter,
+  the card, Check with Stripe, Record payment with a too-large amount first, Settings).
+  The existing billing specs' mocks gained `payments`.
+
 - [ ] T113 Verify: both apps' lint and tests. Rebuild `admin` and `portal`, then run
   quickstart section 7 through Stripe's test pages.
 
+
+  As built (PR 12): both apps' lint, the kit's unit tests, admin e2e (63) and portal
+  mocked e2e (178, against a build) pass. Admin and portal were rebuilt from this branch
+  and checked headless as seeded users, with payments off locally: an invoice made past
+  due by `billing:payment-reminders` showed the owner's notice, no Card panel or Pay;
+  the administrator saw the Past due mark, filter and since when, "No card", Card
+  payments: Off, the Checkout payment on an earlier invoice, and recorded a bank
+  transfer that settled the invoice and cleared past due in both apps. Still to do: the
+  same through Stripe's test pages, which needs Stripe test keys in the stack's
+  environment.
 ---
 
 ## Phase 13: Trials (PR 13, after PRs 8 and 11) — US8
