@@ -90,6 +90,7 @@ final class UsageVisibilityTest extends TestCase
         $this->getJson('/api/v1/billing-accounts')
             ->assertOk()
             ->assertJsonPath('data.0.plan.name', 'Integrator plan')
+            ->assertJsonPath('data.0.plan.since', $this->account->fresh()->openPlanAssignment->started_at->toIso8601String())
             ->assertJsonPath('data.0.usage.0.count', 5)
             ->assertJsonPath('data.0.usage.1.kind', 'sms')
             ->assertJsonCount(count(AllowanceKind::cases()), 'data.0.allowances');
@@ -134,7 +135,7 @@ final class UsageVisibilityTest extends TestCase
                 ['kind' => 'sms', 'month' => $month, 'count' => 2, 'allowance' => 5, 'left' => 3, 'overage' => 0],
                 ['kind' => 'data_points', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'final' => false, 'reported_at' => null, 'stale' => true],
                 ['kind' => 'devices', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'over_limit' => false],
-            ]]);
+            ], 'retention' => ['days' => (int) config('devices.default_retention_days'), 'source' => 'default', 'pending_reduction' => null]]);
 
         foreach (['Integrator Billing', 'Lakeside Home', $this->lakeside->uuid, $this->account->uuid, 'Integrator plan'] as $hidden) {
             $this->assertStringNotContainsString($hidden, (string) $response->getContent());

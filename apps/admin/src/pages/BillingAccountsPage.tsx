@@ -44,14 +44,22 @@ function usePlanFilterOptions(): BillingPlan[] {
   return plans
 }
 
+/** The Usage filter: accounts at or past a share of any limited allowance, the device limit included. */
+const usageOptions = [
+  { value: "80", label: "80% or more used" },
+  { value: "100", label: "Used up" },
+]
+
 /** Billing accounts (spec 023): who pays for which organizations, and on which plan. */
 export function BillingAccountsPage() {
   const navigate = useNavigate()
   const url = useUrlState()
   const plan = url.get("plan") || null
+  const usage = usageOptions.some((option) => option.value === url.get("usage")) ? url.get("usage") : null
   const load = useCallback(
-    (query: DirectoryQuery) => apiClient.adminBillingAccounts({ ...query, plan: plan ?? undefined }),
-    [plan],
+    (query: DirectoryQuery) =>
+      apiClient.adminBillingAccounts({ ...query, plan: plan ?? undefined, usageAtLeast: usage ? Number(usage) : undefined }),
+    [plan, usage],
   )
   const { reload, table } = useDirectoryTable(load, { searchPlaceholder: "Name or contact email" })
   const plans = usePlanFilterOptions()
@@ -128,8 +136,15 @@ export function BillingAccountsPage() {
         value: plan ? [plan] : [],
         onChange: (value) => url.set({ plan: value[0] ?? null, page: null }),
       },
+      {
+        id: "usage",
+        label: "Usage",
+        options: usageOptions,
+        value: usage ? [usage] : [],
+        onChange: (value) => url.set({ usage: value[0] ?? null, page: null }),
+      },
     ],
-    [plan, plans, url],
+    [plan, plans, usage, url],
   )
 
   async function remove() {
@@ -171,8 +186,8 @@ export function BillingAccountsPage() {
         columns={columns}
         {...table}
         filters={filters}
-        filtered={table.filtered || plan !== null}
-        onReset={() => url.clear(["search", "plan", "page"])}
+        filtered={table.filtered || plan !== null || usage !== null}
+        onReset={() => url.clear(["search", "plan", "usage", "page"])}
         rowActions={(account) => (
           <>
             <DropdownMenuItem onSelect={() => navigate(billingAccountPath(account.uuid))}>Open</DropdownMenuItem>

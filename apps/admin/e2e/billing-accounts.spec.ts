@@ -110,10 +110,38 @@ async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, json: body })
 }
 
+const thisMonth = new Date().toISOString().slice(0, 7)
+
+/** An account's usage in a month: alerts near the allowance, devices over a lowered limit, data points provisional. */
+function usageOf(month: string, organizations: { uuid: string; name: string }[]) {
+  const shares = (counts: number[]) =>
+    organizations.map((organization, index) => ({ organization_uuid: organization.uuid, name: organization.name, count: counts[index] ?? 0 }))
+  const earlier = month !== thisMonth
+  return [
+    { kind: "alerts", month: `${month}-01`, count: earlier ? 1200 : 820, allowance: 1000, left: earlier ? 0 : 180, overage: earlier ? 200 : 0, organizations: shares([earlier ? 1200 : 820]) },
+    { kind: "sms", month: `${month}-01`, count: 0, allowance: 0, left: 0, overage: 0, organizations: [] },
+    {
+      kind: "data_points",
+      month: `${month}-01`,
+      count: 5000,
+      allowance: null,
+      left: null,
+      overage: 0,
+      final: earlier,
+      reported_at: new Date().toISOString(),
+      stale: false,
+      organizations: shares([5000]),
+    },
+    { kind: "devices", month: `${month}-01`, count: 6, allowance: 5, left: 0, overage: 0, peak_this_month: earlier ? 6 : 7, over_limit: true, organizations: shares([6]) },
+  ]
+}
+
 /** The mocked API, plus the request bodies the tests assert on. */
 async function mockApi(page: Page) {
   const { accounts, organizations } = fixtures()
   const sent: { method: string; path: string; body: unknown }[] = []
+  const usageMonths: string[] = []
+  const listQueries: URLSearchParams[] = []
   const members = (uuid: string) => organizations.filter((organization) => organization.billing_account?.uuid === uuid)
   const summary = (account: Account) => ({
     ...account,
@@ -137,6 +165,7 @@ async function mockApi(page: Page) {
       ...organization,
       assigned_at: "2026-10-30T08:00:00Z",
     })),
+    usage: usageOf(thisMonth, members(account.uuid)),
     history: [
       {
         at: "2026-10-30T10:00:00Z",
@@ -165,6 +194,7 @@ async function mockApi(page: Page) {
     const accountMatch = path.match(/^\/api\/v1\/admin\/billing-accounts\/([^/]+)$/)
     const ownerMatch = path.match(/^\/api\/v1\/admin\/billing-accounts\/([^/]+)\/owners\/(\d+)$/)
     const moveMatch = path.match(/^\/api\/v1\/admin\/organizations\/([^/]+)\/billing-account$/)
+    const usageMatch = path.match(/^\/api\/v1\/admin\/billing-accounts\/([^/]+)\/usage$/)
 
     if (path === "/api/v1/me") return json(route, { data: superAdmin })
     if (path === "/api/v1/admin/tickets/summary") return json(route, { data: { awaiting_team: 0 } })
@@ -205,7 +235,14 @@ async function mockApi(page: Page) {
       return route.fulfill({ status: 204 })
     }
 
+    if (usageMatch) {
+      const month = url.searchParams.get("month") ?? thisMonth
+      usageMonths.push(month)
+      return json(route, { data: usageOf(month, members(usageMatch[1])) })
+    }
     if (path === "/api/v1/admin/billing-accounts" && method === "GET") {
+      listQueries.push(url.searchParams)
+      if (url.searchParams.get("usage_at_least")) return json(route, paginated(accounts.slice(0, 1).map(summary), url))
       const matches = accounts.filter(
         (item) => item.name.toLowerCase().includes(search) || (item.contact_email ?? "").includes(search),
       )
@@ -263,7 +300,7 @@ async function mockApi(page: Page) {
     return json(route, { message: `Unmocked ${method} ${path}` }, 404)
   })
 
-  return { sent }
+  return { sent, usageMonths, listQueries }
 }
 
 const test = base.extend<{ consoleMessages: string[] }>({
@@ -426,6 +463,47 @@ test("moves an organization to another billing account from either page", async 
   await page.getByRole("button", { name: "Move organization" }).click()
   await expect(page.getByText("Acme Manufacturing moved to Spare Account")).toBeVisible()
   await expect(page.getByRole("row", { name: /Acme Manufacturing/ })).toHaveCount(0)
+})
+
+test("shows usage by month with each organization's share", async ({ page }) => {
+  const { usageMonths } = await mockApi(page)
+  await page.goto(`/billing-accounts/${integrations}`)
+
+  const usage = page.getByRole("region", { name: "Usage" })
+  const meter = (label: string) => usage.locator('[data-slot="allowance-meter"]').filter({ hasText: label })
+  await expect(meter("Alerts")).toContainText("820")
+  await expect(meter("Alerts")).toContainText("80% or more used")
+  await expect(meter("Alerts")).toContainText("180 alerts left")
+  await expect(meter("SMS")).toContainText("Used up")
+  await expect(meter("Active devices")).toContainText("1 device over the limit")
+  await expect(meter("Active devices")).toContainText("Peak 7")
+  await expect(meter("Data points")).toContainText("Unlimited")
+  await expect(meter("Data points")).toContainText("Provisional · last reported")
+  await expect(usage.getByRole("row").filter({ hasText: "Acme Manufacturing" })).toContainText("5,000")
+
+  await usage.getByRole("combobox", { name: "Month" }).click()
+  await page.getByRole("option").nth(1).click()
+  await expect(meter("Alerts")).toContainText("200 alerts of overage")
+  await expect(meter("Data points")).toContainText("Final")
+  // An earlier month's devices are its peak, with no shares by organization.
+  await expect(meter("Peak devices")).toContainText("6")
+  await expect(meter("Peak devices")).not.toContainText("Peak 6")
+  await expect(usage.getByRole("columnheader", { name: "Active devices" })).toHaveCount(0)
+  expect(usageMonths).toHaveLength(1)
+  expect(usageMonths[0]).not.toBe(thisMonth)
+})
+
+test("filters billing accounts that have used 80% or more of an allowance", async ({ page }) => {
+  const { listQueries } = await mockApi(page)
+  await page.goto("/billing-accounts")
+  await expect(page.getByRole("row").filter({ hasText: "Harbour Depot" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Filters" }).click()
+  await choose(page, "Usage", /^80% or more used$/)
+  await expect(page).toHaveURL(/usage=80/)
+  await expect(page.getByRole("row").filter({ hasText: "Harbour Depot" })).toHaveCount(0)
+  await expect(page.getByRole("row").filter({ hasText: "Example Integrations" })).toBeVisible()
+  expect(listQueries.at(-1)?.get("usage_at_least")).toBe("80")
 })
 
 test("an unknown billing account shows that it was not found", async ({ page, consoleMessages }) => {

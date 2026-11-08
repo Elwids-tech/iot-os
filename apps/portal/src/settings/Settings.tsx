@@ -15,6 +15,7 @@ import { useDeviceOrganization } from "../devices/shared"
 import { TimezoneField } from "../devices/TimezoneField"
 import { EmailPreferences } from "../alerts/EmailPreferences"
 import { NotificationsList, WorkflowNotificationsPage } from "../alerts/NotificationSettings"
+import { UsageSettings } from "./Usage"
 import { MembersPage } from "../members/Members"
 import RoleRoutes, { RolesList } from "../members/Roles"
 import { useAdministration } from "../members/shared"
@@ -32,6 +33,7 @@ export default function SettingsRoutes() {
     ...(can.members_view ? [{ key: "members", label: "Members", to: `${base}/members` }] : []),
     ...(can.roles_view ? [{ key: "roles", label: "Roles", to: `${base}/roles` }] : []),
     ...(capabilities.manage ? [{ key: "notifications", label: "Notifications", to: `${base}/notifications` }] : []),
+    ...(capabilities.manage ? [{ key: "usage", label: "Usage", to: `${base}/usage` }] : []),
     ...(agentAccessOffered(organization) ? [{ key: "ai-apps", label: "AI apps", to: `${base}/ai-apps` }] : []),
     { key: "email", label: "Email preferences", to: `${base}/email` },
   ].map((section) => ({ ...section, current: pathname.startsWith(section.to) }))
@@ -48,6 +50,7 @@ export default function SettingsRoutes() {
         <Route path="members" element={<MembersPage />} />
         <Route path="roles" element={<RolesList />} />
         <Route path="notifications" element={<NotificationsList />} />
+        <Route path="usage" element={<UsageSettings />} />
         <Route path="email" element={<EmailSettings />} />
         <Route path="ai-apps" element={<AiAppsSettings />} />
       </Route>

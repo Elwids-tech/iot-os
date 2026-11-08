@@ -1,4 +1,4 @@
-import type { OwnedBillingAccount } from "@iot-os/api-client"
+import type { AllowanceKind, OwnedBillingAccount } from "@iot-os/api-client"
 
 /** The billing accounts the signed-in person owns (spec 023). */
 export const billingAccountsKey = ["billing-accounts"] as const
@@ -23,4 +23,20 @@ export function organizationsOfLimit({ organizations_count: count, organization_
   return count > limit
     ? `${count} ${count === 1 ? "organization" : "organizations"}, limit ${limit}`
     : `${count} of ${limit} ${limit === 1 ? "organization" : "organizations"}`
+}
+
+/** Allowance labels on the Plan panel, in the API's order (ADR-035). */
+export const allowanceLabels: Record<AllowanceKind, string> = {
+  alerts: "Alerts per month",
+  sms: "SMS per month",
+  devices: "Active devices",
+  data_points: "Data points per month",
+  retention_days: "Telemetry retention",
+  organizations: "Organizations",
+}
+
+/** An allowance as text: a number, "Unlimited", or for retention days or the platform setting. */
+export function allowanceValue(kind: AllowanceKind, value: number | null): string {
+  if (value === null) return kind === "retention_days" ? "Platform setting" : "Unlimited"
+  return kind === "retention_days" ? `${value.toLocaleString()} ${value === 1 ? "day" : "days"}` : value.toLocaleString()
 }

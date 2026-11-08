@@ -40,7 +40,9 @@ export function helpContextForPath(pathname: string): string {
               : "alerts.notifications"
             : resource === "email"
               ? "alerts.preferences"
-              : "getting-started";
+              : resource === "usage"
+                ? "billing.usage"
+                : "getting-started";
     case "connections":
       return "gateways";
     case "dashboards":

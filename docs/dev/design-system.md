@@ -25,6 +25,8 @@ portal or admin images.
   local map. "pending" is always info.
 - **Times** use `RelativeTime` or `Freshness` (`@iot-os/ui/components/freshness`);
   never a local `Age`.
+- **Allowances** use `AllowanceMeter`, and a billing account's usage by month
+  `UsagePanel` (`@iot-os/ui/components/usage-overview`).
 - **Type** uses the named scale: `text-display`, `text-title`, `text-heading`,
   `text-body`, `text-meta`, `text-code`, and `text-micro` for initials and count
   badges. No raw sizes.
