@@ -244,21 +244,24 @@ organization's account.
 
 - **Creating an organization** picks a new billing account (named after the
   organization, with an optional contact email) or an existing one. A request that
-  names neither gets a new account, so older API clients keep working. Platform
-  administrators are not bound by an account's limit.
+  names neither gets a new account, so older API clients keep working. A new account
+  can start on a plan or a trial ([Billing](billing.md)). Platform administrators are
+  not bound by an account's limit.
 - **Billing accounts** in the admin app lists accounts with their organizations,
-  owners, plan and limit, filtered by plan. An account's page edits its name, contact
-  email and notes, sets its **plan** and **allowances** ([Billing](billing.md)),
-  adds and removes **owners**, moves
-  organizations to another account (nothing inside the organization changes) and
-  shows its history: changes, owner changes, and organizations joining and leaving,
-  with who and when. Only an account with no organizations can be deleted.
+  owners, plan and limit, filtered by plan, usage, payment and trial. An account's page
+  edits its name, contact email and notes, sets its **plan**, **trial**,
+  **allowances**, **prices** and **billing details**, lists its **invoices** and card
+  ([Billing](billing.md)), adds and removes **owners**, moves organizations to another
+  account (nothing inside the organization changes) and shows its history: changes,
+  owner changes, and organizations joining and leaving, with who and when. Only an
+  account with no organizations and no issued invoices can be deleted.
 - **Owners** create organizations under their account themselves, while it is below
   its limit, and become each new organization's Organization Admin as an ordinary
   member. In the portal, the user menu shows **Billing accounts** to anyone who owns
   one; an owner who belongs to no organization yet is pointed there from the
   landing page. The page lists the account's organizations with "N of M
-  organizations", and a selector picks the account when the person owns several.
+  organizations", and a selector picks the account when the person owns several. It
+  also shows the plan, usage, prices, invoices and card ([Billing](billing.md)).
   - **New organization** asks for a name and an address. The address follows the
     name until edited; left alone, the server picks a free one, adding a number when
     it is taken. The owner then lands in the new organization.
@@ -283,10 +286,11 @@ organization's account.
 
 Admin routes need `PlatformAdministration.manage-organizations`:
 `GET/POST admin/billing-accounts`, `GET/PATCH/DELETE admin/billing-accounts/{uuid}`
-(409 while it has organizations), `PUT/DELETE admin/billing-accounts/{uuid}/owners/{user_id}`,
+(409 while it has organizations or issued invoices), `PUT/DELETE admin/billing-accounts/{uuid}/owners/{user_id}`,
 and `PUT admin/organizations/{uuid}/billing-account` (204). `POST admin/organizations`
-takes `billing_account_uuid` or `new_billing_account: {name, contact_email}`, and the
-admin organization list carries `billing_account`. Owners use
+takes `billing_account_uuid` or `new_billing_account: {name, contact_email}` (a new
+account also takes `plan_uuid` or `trial`), and the admin organization list carries
+`billing_account`. Owners use
 `GET billing-accounts` and `POST billing-accounts/{uuid}/organizations` (`name`, and
 an optional `slug`; 422 on `billing_account` at the limit). Any account the person
 does not own answers 404. `GET me` reports `capabilities.billing_accounts`.

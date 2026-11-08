@@ -408,7 +408,8 @@ Setting up Stripe is in [card payments](../ops/billing-payments.md).
   mode, which answers 409 when nothing is owed or a payment is still processing.
 - **Stripe's events.** `POST /api/stripe/webhook` is verified against the signing
   secret (403 otherwise). Each event id goes into `billing_provider_events` first and is
-  acted on only once. A payment moves only forward: `pending` to `failed` or
+  acted on only once; `billing:prune` forgets ids after 30 days, longer than Stripe
+  retries an event. A payment moves only forward: `pending` to `failed` or
   `succeeded`, `failed` to `succeeded`. A succeeded amount that differs from the charge
   is kept as received and audited for review.
 - **Settling.** `outstanding` is the amount due less credit notes' applied parts and the

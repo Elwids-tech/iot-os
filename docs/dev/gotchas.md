@@ -230,6 +230,11 @@ Things that have cost time before. Add to this list when something surprises you
   into `'true'` and `'false'` before the client gets them, so `FakeStripe` assertions
   compare strings. `Cashier::stripe()` makes a new client each call; the fake is
   installed on `Stripe\ApiRequestor` and must be removed in `tearDown`.
+- **Stripe test keys live only in ignored files.** Put them in the main checkout's
+  `.env` or a `.local/` env file the stack loads, never in the repository. Do not use
+  the key the Stripe CLI keeps in its own config: it belongs to whatever account the
+  CLI signed in to. `stripe listen` prints a fresh `whsec_…` each session, so update
+  `STRIPE_WEBHOOK_SECRET` and rebuild when it changes ([card payments](../ops/billing-payments.md)).
 
 ## NATS JetStream
 

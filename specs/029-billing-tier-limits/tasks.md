@@ -1133,8 +1133,17 @@ platform drafts, issues and corrects monthly invoices.
   As built (PR 9): the api-client gains the price, tax, settings, invoice and credit note
   types and methods, with document URLs for downloads. The 409s are in
   `supplements/billing.yaml`; Scramble infers the PDF and CSV responses.
-- [ ] T091 Verify: tests, `contract:check`. Rebuild `api` and the API-image services
+- [x] T091 Verify: tests, `contract:check`. Rebuild `api` and the API-image services
   (scheduler), then run quickstart section 6 through the API.
+
+  As built (PR 9, recorded in PR 14): the API suite passed on SQLite and PostgreSQL with
+  `contract:check`. The API family, admin and portal were rebuilt from a local merge of
+  PRs 7 and 9, and quickstart section 6 ran through the API: operator details (a stale
+  revision got 409), a tax rate and plan prices set; November drafted anyway and marked
+  incomplete; an adjustment, then issued as INV-0001 (a later edit got 409), emailed to
+  the owner with the PDF and, for a zero invoice issued as paid, to the billing contact
+  too; the owner downloaded the PDF and CSV without the adjustment's note, a member got
+  404; CN-0001 credited it in full.
 
 ---
 
@@ -1576,13 +1585,28 @@ account is charged when a card is saved, or flagged otherwise.
 
 - [ ] T122 Run `/speckit-converge` and add any unbuilt work as tasks; repeat until it
   reports none
-- [ ] T123 [P] Cross-check docs: `docs/features/billing.md`, `access.md`, `devices.md`,
+
+  As built (PR 14): the first run checked both specs' 80 FRs, 73 acceptance scenarios,
+  the related edge cases and success criteria, about 80 plan decisions and touch-points
+  and 8 constitution principles. Nothing was critical or high; it added T126–T143
+  (Phase 15), four medium. T142 and T143 are done here; run it again once the rest land.
+- [x] T123 [P] Cross-check docs: `docs/features/billing.md`, `access.md`, `devices.md`,
   `alerts.md`, `docs/reference/events.md` and `docs/ops/billing-payments.md` describe
   what was built; fix any drift from code
-- [ ] T124 [P] Set ADR-035, ADR-036 and ADR-037 to Accepted (built in specs 028 and
+
+  As built (PR 14): `access.md` now says an account with issued invoices cannot be
+  deleted (409), lists the list's usage, payment and trial filters and the account
+  page's billing panels, and that a new account can start on a plan or a trial;
+  `alerts.md` says alert overage is invoiced (at 0 during a trial); the ops doc's test
+  mode covers quickstart section 8 too; `billing.md` adds the 30-day pruning of Stripe
+  event ids; the docs index describes the whole module. `devices.md` and `events.md`
+  matched the code.
+- [x] T124 [P] Set ADR-035, ADR-036 and ADR-037 to Accepted (built in specs 028 and
   029) in their headers and `docs/adr/README.md`
 - [ ] T125 Mark `specs/028-pricing-plans/` and `specs/029-billing-tier-limits/` frozen
   (constitution: specs are history) and tick the remaining tasks
+
+  Waits for Phase 15 and for the Stripe test-mode run (T108, T113, T121).
 
 ---
 
@@ -1628,3 +1652,39 @@ account is charged when a card is saved, or flagged otherwise.
   follow.
 - **If a pull request grows too large**, split it along its API and UI tasks, each
   based on `main`. Never stack.
+
+---
+
+## Phase 15: Convergence
+
+- [ ] T126 Refuse issuing an invoice for a UTC month that has not ended (a draft of the running month stays a preview), so the base price is not charged for days to come and later overage is not left uninvoiced, per FR-031 (contradicts)
+- [ ] T127 Record a pending payment that holds the attempt's idempotency key before calling Stripe, so an unknown outcome blocks the next attempt and **Check with Stripe** can find it, per edge case "A charge succeeds at the provider but its report is lost" and SC-010 (partial)
+- [ ] T128 Keep a bulk-onboarded device registered when its device-limit claim is refused, and let a retry re-queue the items skipped at the limit once it is raised, per 029 US2/AC5 and edge case "Bulk onboarding at the device limit" (partial)
+- [ ] T129 Send a `manage_organizations` capability and hide **Plans**, **Billing accounts**, **Invoices** and **Settings → Billing** (navigation and routes) from platform administrators without it, per 028 US1/AC6 (partial)
+- [ ] T130 Keep the "usage possibly incomplete" mark on invoices issued from an incomplete draft, in the PDF, the admin invoice page and the portal, per FR-033 (partial)
+- [ ] T131 Show an applied credit once (as a line or as a totals row, not both), so the visible subtotal equals the sum of the visible lines, in the PDF, admin and portal, per FR-038 (partial)
+- [ ] T132 Add a credit note CSV for owners and administrators, beside its PDF, per FR-036 (partial)
+- [ ] T133 Give each retention reduction its own notice key, so a second confirmed change on the same day also emails the owners, per FR-020 (partial)
+- [ ] T134 Apply a confirmed direct organization override at the next cleanup even while a billing floor runs (or say on **Settings → Retention** when it applies), per FR-021 (partial)
+- [ ] T135 Show an earlier month's usage against the allowance in force that month, or leave out what was left, instead of today's allowance, per FR-023 (partial)
+- [ ] T136 Show what is left on an allowance meter whenever it is above 0, with the month's overage beside it, after an allowance is raised past the count, per 028 FR-018 (partial)
+- [ ] T137 Close a billing account's open plan assignment when the account is deleted, so plan counts and lists leave it out, per 028 FR-002 and edge case "Billing account deleted" (partial)
+- [ ] T138 Draft, and list as waiting, every past month whose usage became final without an invoice, not only last month, per FR-031 and SC-009 (partial)
+- [ ] T139 Run `billing:end-trials` hourly (or at startup), so a trial that ended while the control plane was down ends and emails as soon as it is back, per edge case "Trial ends while the control plane is down" (partial)
+- [ ] T140 Stop payment reminders repeating once `billing:prune` removes their notices, for invoices unpaid over 13 months, per FR-042 (contradicts)
+- [ ] T141 Run the simulator at the tested rate with and without data point counting and record the ingestion-to-history latency, per 029 SC-004 and the plan's constitution IX row (partial)
+- [x] T142 Make the card payments ops doc and the gotchas agree on where Stripe test keys live, and add the planned gotcha, per plan: documentation (contradicts)
+
+  As built (PR 14): both say ignored files only, the main checkout's `.env` or a `.local/`
+  env file the stack loads; the gotcha also rules out the Stripe CLI's own key.
+
+- [x] T143 Record that the plan's `PlanPrice`, `PriceOverride`, `Usage*`, `BillingSettings` and `Notice` models became tables used through the query builder, and that the provider is `Domain/Billing/BillingServiceProvider.php`, per plan: source tree (partial)
+
+  As built (PR 14): prices and overrides (`billing_plan_prices`,
+  `billing_price_overrides`, read by `Prices`), usage (`billing_usage`,
+  `billing_usage_shares`, `billing_overage`, `billing_device_peaks`,
+  `billing_data_point_buckets`, `billing_usage_watermarks`, read by `Usage` and
+  `DataPointReports`), settings (`billing_settings`, `BillingSettings` service) and
+  notices (`billing_notices`, `Notices`) have no Eloquent models: each has one writer
+  service that uses the query builder under its own locks. The service provider sits at
+  the domain root like the other domains' providers.

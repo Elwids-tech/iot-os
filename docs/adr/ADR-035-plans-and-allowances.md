@@ -1,6 +1,6 @@
 # ADR-035: Plans Carry Allowances for Billing Accounts
 
-**Status:** Proposed
+**Status:** Accepted (built in specs 028 and 029, 2026-11-08)
 **Date:** 2026-11-07
 **Amends:** [ADR-026](ADR-026-billing-accounts.md)
 **Relates to:** [spec 028](../../specs/028-pricing-plans/spec.md),
