@@ -70,8 +70,8 @@ final class InvoiceDraftingTest extends TestCase
 
         $base = $invoice->lines->where('kind', InvoiceLineKind::BasePrice)->values();
         $this->assertCount(2, $base);
-        $this->assertSame(['Plan A · 1–10 Oct 2026 (10 of 31 days)', 10.0, 3100, 1000], [$base[0]->description, (float) $base[0]->quantity, $base[0]->unit_price, $base[0]->amount]);
-        $this->assertSame(['Plan B · 11–31 Oct 2026 (21 of 31 days)', 21.0, 6200, 4200], [$base[1]->description, (float) $base[1]->quantity, $base[1]->unit_price, $base[1]->amount]);
+        $this->assertSame(['Plan A · 1–10 Oct 2026 · 10 of 31 days at 31.00 a month', 10.0, null, 1000], [$base[0]->description, (float) $base[0]->quantity, $base[0]->unit_price, $base[0]->amount]);
+        $this->assertSame(['Plan B · 11–31 Oct 2026 · 21 of 31 days at 62.00 a month', 21.0, null, 4200], [$base[1]->description, (float) $base[1]->quantity, $base[1]->unit_price, $base[1]->amount]);
         $this->assertSame(5200, $invoice->subtotal);
         $this->assertTrue($invoice->usage_incomplete === false && $invoice->drafted_by === null);
     }
@@ -108,7 +108,7 @@ final class InvoiceDraftingTest extends TestCase
         $invoice = $this->draftOctober();
 
         $trial = $invoice->lines->firstWhere('kind', InvoiceLineKind::Trial);
-        $this->assertSame(['Plan A trial · 1–31 Oct 2026 (31 of 31 days)', 0], [$trial->description, $trial->amount]);
+        $this->assertSame(['Plan A trial · 1–31 Oct 2026 · 31 of 31 days, not charged', 0], [$trial->description, $trial->amount]);
         $alerts = $invoice->lines->firstWhere('kind', InvoiceLineKind::AlertOverage);
         $this->assertSame([2.0, 0, 'Not charged during trial'], [(float) $alerts->quantity, $alerts->amount, $alerts->note]);
         $this->assertSame(0, $invoice->total);

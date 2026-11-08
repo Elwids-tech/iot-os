@@ -249,18 +249,14 @@ final class InvoiceDrafter
             $stop = $month->addDays($run['to']);
             $trial = $assignment->kind !== PlanAssignmentKind::Paid;
             $base = $this->prices->for($account, $assignment->billing_plan_id, $month)['base_price'];
+            // Quantity is days; the monthly price is in the description, as days × it is not the amount.
             $lines[] = [
                 'kind' => $trial ? InvoiceLineKind::Trial : InvoiceLineKind::BasePrice,
-                'description' => sprintf(
-                    '%s%s · %s (%d of %d days)',
-                    $assignment->plan->name,
-                    $trial ? ' trial' : '',
-                    self::period($start, $stop),
-                    $count,
-                    $days,
-                ),
+                'description' => $trial
+                    ? sprintf('%s trial · %s · %d of %d days, not charged', $assignment->plan->name, self::period($start, $stop), $count, $days)
+                    : sprintf('%s · %s · %d of %d days at %s a month', $assignment->plan->name, self::period($start, $stop), $count, $days, Money::format($base)),
                 'quantity' => $count,
-                'unit_price' => $trial ? 0 : $base,
+                'unit_price' => null,
                 'amount' => $trial ? 0 : Money::share($base, $count, $days),
                 'period_start' => $start->toDateString(),
                 'period_end' => $stop->toDateString(),
