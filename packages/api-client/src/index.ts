@@ -19,6 +19,7 @@ import type {
   Site,
   SiteInput,
   RetentionSetting,
+  RetentionOrganization,
 } from "./devices"
 
 import type { Dashboard, DashboardInput, DashboardRevision, DashboardRevisionSummary } from "./dashboards"
@@ -2375,6 +2376,12 @@ export class ApiClient {
   }
   retention(org?: string) {
     return this.data<RetentionSetting>(this.retentionPath(org))
+  }
+  /** Organizations for Settings → Retention, by name or slug (needs only `manage-retention`). */
+  retentionOrganizations(query: DirectoryQuery = {}): Promise<PaginatedResponse<RetentionOrganization>> {
+    return this.request<PaginatedResponse<RetentionOrganization>>(
+      `/api/v1/admin/settings/telemetry-retention/organizations${directoryQuery(query)}`,
+    )
   }
   updateRetention(
     values: {

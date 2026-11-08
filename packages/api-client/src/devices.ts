@@ -349,6 +349,8 @@ export type RetentionSetting = {
   pending_reduction?: { days: number; from: string } | null
   cutoff: string
 }
+/** An organization in admin Settings → Retention's picker; `manage-retention` sees no more. */
+export type RetentionOrganization = { uuid: string; name: string }
 export type DeviceValidation = {
   draft_revision: number
   definition: DeviceDefinition
