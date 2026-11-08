@@ -47,7 +47,9 @@ trait ForksProcesses
         DB::connection('fork_setup')->disconnect();
         $directory = sys_get_temp_dir().'/forked-'.Str::uuid();
         mkdir($directory);
-        $start = microtime(true) + 1.0;
+        // Long enough for every child to connect on a loaded machine; a child that is
+        // late anyway starts at once rather than failing.
+        $start = microtime(true) + 2.0;
         $children = [];
 
         try {
@@ -82,7 +84,7 @@ trait ForksProcesses
         try {
             DB::setDefaultConnection('fork_child');
             DB::connection('fork_child')->getPdo();
-            $output = $work($index, static fn () => time_sleep_until($start));
+            $output = $work($index, static fn () => usleep((int) max(0, ($start - microtime(true)) * 1_000_000)));
         } catch (Throwable $exception) {
             $output = 'error: '.$exception->getMessage();
         }

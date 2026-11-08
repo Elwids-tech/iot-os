@@ -202,5 +202,9 @@
   "roles.editor": {
     "title": "Roles · Editor",
     "overview": "members"
+  },
+  "billing.usage": {
+    "title": "Settings · Usage",
+    "overview": "billing-usage"
   }
 }

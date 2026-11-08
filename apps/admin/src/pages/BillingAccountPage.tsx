@@ -29,6 +29,7 @@ import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
+import { UsagePanel } from "@iot-os/ui/components/usage-overview"
 import { EntityPage } from "@iot-os/ui/templates/entity-page"
 import { AlertCircleIcon, Building2Icon, UserRoundXIcon, WalletIcon } from "lucide-react"
 import { useNavigate, useParams } from "react-router-dom"
@@ -74,8 +75,9 @@ export function historyText(entry: BillingAccountHistoryEntry): string {
 }
 
 /**
- * A billing account's page (spec 023 US2, spec 028 US2): details, plan, allowances,
- * owners, organizations and history.
+ * A billing account's page (spec 023 US2, spec 028 US2 and US4, spec 029 US5): details,
+ * plan, allowances, usage by month with each organization's share, owners,
+ * organizations and history.
  */
 export function BillingAccountPage() {
   const { billingAccountUuid = "" } = useParams()
@@ -472,6 +474,12 @@ export function BillingAccountPage() {
           </PanelContent>
         </Panel>
       </div>
+      <UsagePanel
+        id="billing-usage"
+        description="Months are UTC. Alerts, SMS and data points over an allowance are overage; devices are a level."
+        figures={account.usage}
+        load={(month) => apiClient.adminBillingAccountUsage(account.uuid, month)}
+      />
       <Panel aria-labelledby="billing-organizations">
         <PanelHeader>
           <PanelTitle id="billing-organizations">Organizations</PanelTitle>

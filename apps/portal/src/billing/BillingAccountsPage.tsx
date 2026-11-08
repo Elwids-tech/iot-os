@@ -6,14 +6,17 @@ import { Button } from "@iot-os/ui/components/button"
 import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
+import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
+import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@iot-os/ui/components/tooltip"
+import { UsagePanel } from "@iot-os/ui/components/usage-overview"
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
-import { CollectionPage } from "@iot-os/ui/templates/collection-page"
+import { EntityPage } from "@iot-os/ui/templates/entity-page"
 import { Building2Icon, PlusIcon, WalletIcon } from "lucide-react"
 import { LoadError } from "../components/forms"
 import { api } from "../lib/api"
-import { atLimit, billingAccountsKey, organizationsOfLimit } from "./model"
+import { allowanceLabels, allowanceValue, atLimit, billingAccountsKey, organizationsOfLimit } from "./model"
 import { NewOrganizationDialog } from "./NewOrganizationDialog"
 
 type AccountOrganization = OwnedBillingAccount["organizations"][number]
@@ -21,7 +24,11 @@ type AccountOrganization = OwnedBillingAccount["organizations"][number]
 const EXPLANATION =
   "A billing account groups organizations for billing. Owning it gives you no access to them: you open the ones you are a member of."
 
-/** The billing accounts the signed-in person owns, and the organizations each pays for (spec 023). */
+/**
+ * The billing accounts the signed-in person owns (spec 023): the chosen one's plan and
+ * allowances, its usage by month with each organization's share (spec 028 US4, spec 029
+ * US5), and the organizations it pays for.
+ */
 export default function BillingAccountsPage() {
   const state = useUrlState()
   const accounts = useQuery({ queryKey: billingAccountsKey, queryFn: () => api.ownedBillingAccounts() })
@@ -66,28 +73,37 @@ export default function BillingAccountsPage() {
 
   if (accounts.error)
     return (
-      <CollectionPage title="Billing accounts">
+      <EntityPage title="Billing accounts" icon={<WalletIcon />}>
         <LoadError error={accounts.error} what="your billing accounts" onRetry={() => accounts.refetch()} busy={accounts.isFetching} />
-      </CollectionPage>
+      </EntityPage>
     )
 
   if (accounts.data && !account)
     return (
-      <CollectionPage title="Billing accounts">
+      <EntityPage title="Billing accounts" icon={<WalletIcon />}>
         <EmptyState
           icon={<WalletIcon />}
           title="You don't own a billing account"
           description="The platform operator makes people owners of billing accounts."
         />
-      </CollectionPage>
+      </EntityPage>
     )
 
-  const full = account ? atLimit(account) : false
-  const limitReason = account
-    ? `${account.name} allows ${account.organization_limit} ${account.organization_limit === 1 ? "organization" : "organizations"}. Contact the platform operator to raise the limit.`
-    : ""
+  if (!account)
+    return (
+      <EntityPage title="Billing accounts" icon={<WalletIcon />}>
+        <div className="flex flex-col gap-3" aria-busy="true">
+          {Array.from({ length: 3 }, (_, index) => (
+            <Skeleton key={index} className="h-24 w-full" />
+          ))}
+        </div>
+      </EntityPage>
+    )
+
+  const full = atLimit(account)
+  const limitReason = `${account.name} allows ${account.organization_limit} ${account.organization_limit === 1 ? "organization" : "organizations"}. Contact the platform operator to raise the limit.`
   const newOrganization = (
-    <Button size="sm" disabled={!account || full} onClick={() => setCreating(true)}>
+    <Button size="sm" disabled={full} onClick={() => setCreating(true)}>
       <PlusIcon data-icon="inline-start" />
       New organization
     </Button>
@@ -97,9 +113,10 @@ export default function BillingAccountsPage() {
     .map((item) => ({ value: item.uuid, label: item.name }))
 
   return (
-    <CollectionPage
-      title="Billing accounts"
-      description={account ? organizationsOfLimit(account) : undefined}
+    <EntityPage
+      title={account.name}
+      icon={<WalletIcon />}
+      status={<span className="text-muted-foreground">Billing account · {organizationsOfLimit(account)}</span>}
       actions={
         <>
           {full ? (
@@ -119,7 +136,7 @@ export default function BillingAccountsPage() {
       }
     >
       <p className="text-body text-muted-foreground">{EXPLANATION}</p>
-      {accounts.data && accounts.data.length > 1 && account ? (
+      {accounts.data && accounts.data.length > 1 ? (
         <SearchableSelect
           label="Billing account"
           className="max-w-sm"
@@ -135,26 +152,64 @@ export default function BillingAccountsPage() {
           }}
         />
       ) : null}
-      <DataTable
-        id="billing-account-organizations"
-        label={account ? `Organizations of ${account.name}` : "Organizations"}
-        noun={["organization", "organizations"]}
-        rows={account?.organizations}
-        rowKey={(organization) => organization.uuid}
-        rowLabel={(organization) => organization.name}
-        columns={columns}
-        defaultSort={[{ id: "name", desc: false }]}
-        empty={
-          <EmptyState
-            inset
-            icon={<Building2Icon />}
-            title="No organizations yet"
-            description="Organizations you create here belong to this billing account."
-            action={full ? undefined : newOrganization}
-          />
-        }
+      <Panel aria-labelledby="billing-plan">
+        <PanelHeader>
+          <PanelTitle id="billing-plan">Plan</PanelTitle>
+          <PanelDescription>
+            {account.plan ? (
+              <>
+                {account.plan.name} since <RelativeTime at={account.plan.since} />
+              </>
+            ) : (
+              "No plan: the deployment's default allowances apply."
+            )}
+          </PanelDescription>
+        </PanelHeader>
+        <PanelContent>
+          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
+            {account.allowances.map((allowance) => (
+              <div key={allowance.kind} className="flex min-w-0 flex-col">
+                <dt className="text-meta text-muted-foreground">{allowanceLabels[allowance.kind]}</dt>
+                <dd className="tabular-nums">{allowanceValue(allowance.kind, allowance.value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </PanelContent>
+      </Panel>
+      <UsagePanel
+        key={account.uuid}
+        id="billing-usage"
+        description="Months are UTC. Alerts and data points over an allowance are overage and never stop."
+        figures={account.usage}
+        load={(month) => api.ownedBillingAccountUsage(account.uuid, month)}
       />
-      {creating && account ? <NewOrganizationDialog account={account} onClose={() => setCreating(false)} /> : null}
-    </CollectionPage>
+      <Panel aria-labelledby="billing-organizations">
+        <PanelHeader>
+          <PanelTitle id="billing-organizations">Organizations</PanelTitle>
+        </PanelHeader>
+        <PanelContent flush>
+          <DataTable
+            id="billing-account-organizations"
+            label={`Organizations of ${account.name}`}
+            noun={["organization", "organizations"]}
+            rows={account.organizations}
+            rowKey={(organization) => organization.uuid}
+            rowLabel={(organization) => organization.name}
+            columns={columns}
+            defaultSort={[{ id: "name", desc: false }]}
+            empty={
+              <EmptyState
+                inset
+                icon={<Building2Icon />}
+                title="No organizations yet"
+                description="Organizations you create here belong to this billing account."
+                action={full ? undefined : newOrganization}
+              />
+            }
+          />
+        </PanelContent>
+      </Panel>
+      {creating ? <NewOrganizationDialog account={account} onClose={() => setCreating(false)} /> : null}
+    </EntityPage>
   )
 }

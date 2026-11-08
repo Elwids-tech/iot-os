@@ -21,9 +21,15 @@ type Account = {
   organization_limit: number
   organizations_count: number
   organizations: { uuid: string; name: string; created_at: string | null; member: boolean }[]
+  plan: null
+  allowances: never[]
+  usage: never[]
 }
 
 const integrations = (): Account => ({
+  plan: null,
+  allowances: [],
+  usage: [],
   uuid: "d0000000-0000-4000-8000-000000000001",
   name: "Example Integrations",
   organization_limit: 10,
@@ -35,6 +41,9 @@ const integrations = (): Account => ({
 })
 
 const second = (): Account => ({
+  plan: null,
+  allowances: [],
+  usage: [],
   uuid: "d0000000-0000-4000-8000-000000000002",
   name: "Second Account",
   organization_limit: 3,
@@ -113,7 +122,7 @@ test("the user menu offers Billing accounts only to owners", async ({ page }) =>
   await userMenu(page).click()
   await page.getByRole("menuitem", { name: "Billing accounts" }).click()
   await expect(page).toHaveURL("/billing")
-  await expect(page.getByRole("heading", { name: "Billing accounts" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Example Integrations" })).toBeVisible()
   expect(errors).toEqual([])
 })
 
@@ -232,7 +241,7 @@ test("the page passes axe and fits a phone", async ({ page }) => {
   await page.goto("/billing")
   await expect(page.getByText("2 of 10 organizations")).toBeVisible()
   await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"))
-  expect((await new AxeBuilder({ page }).include('[data-slot="collection-page"]').analyze()).violations).toEqual([])
+  expect((await new AxeBuilder({ page }).include('[data-slot="entity-page"]').analyze()).violations).toEqual([])
 
   await page.setViewportSize({ width: 375, height: 812 })
   await page.reload()

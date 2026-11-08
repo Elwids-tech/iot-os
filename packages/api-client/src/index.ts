@@ -32,6 +32,7 @@ import type {
   BillingPlan,
   BillingPlanDetail,
   BillingPlanValues,
+  OrganizationRetention,
   OrganizationUsage,
   OwnedBillingAccount,
   OwnerOrganization,
@@ -1178,13 +1179,13 @@ export class ApiClient {
   }
 
   /**
-   * This month's usage as a manager of the organization sees it; needs `Device.manage`
-   * (403 otherwise).
+   * This month's usage as a manager of the organization sees it, and its telemetry
+   * retention; needs `Device.manage` (403 otherwise).
    */
-  async organizationUsage(organizationUuid: string): Promise<OrganizationUsage[]> {
-    return this.request<ApiResponse<OrganizationUsage[]>>(
+  async organizationUsage(organizationUuid: string): Promise<{ usage: OrganizationUsage[]; retention: OrganizationRetention }> {
+    return this.request<ApiResponse<OrganizationUsage[]> & { retention: OrganizationRetention }>(
       `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/usage`,
-    ).then((response) => response.data)
+    ).then((response) => ({ usage: response.data, retention: response.retention }))
   }
 
   /**

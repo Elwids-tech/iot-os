@@ -25685,10 +25685,51 @@
                       "items": {
                         "$ref": "#/components/schemas/OrganizationUsageResource"
                       }
+                    },
+                    "retention": {
+                      "type": "object",
+                      "properties": {
+                        "days": {
+                          "type": "integer"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "organization",
+                            "billing_account",
+                            "platform",
+                            "default"
+                          ]
+                        },
+                        "pending_reduction": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "days": {
+                              "type": "integer"
+                            },
+                            "from": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "days",
+                            "from"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "days",
+                        "source",
+                        "pending_reduction"
+                      ]
                     }
                   },
                   "required": [
-                    "data"
+                    "data",
+                    "retention"
                   ]
                 }
               }
@@ -32716,11 +32757,15 @@
               },
               "name": {
                 "type": "string"
+              },
+              "since": {
+                "type": "string"
               }
             },
             "required": [
               "uuid",
-              "name"
+              "name",
+              "since"
             ]
           },
           "allowances": {

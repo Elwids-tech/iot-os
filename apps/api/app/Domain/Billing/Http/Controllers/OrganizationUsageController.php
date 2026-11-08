@@ -9,6 +9,7 @@ use App\Domain\Billing\Services\OrganizationUsage;
 use App\Domain\Billing\Services\Usage;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAuthorization;
+use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -19,18 +20,31 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  * FR-024): members who may manage devices see the organization's own counts and what is
  * left on its billing account, never the account's name, its other organizations or
  * prices. Others get 403. Without an SMS provider on the deployment, SMS is left out.
+ * `retention` is the organization's telemetry retention and where it comes from (spec
+ * 029 FR-024), with any reduction a billing change has pending.
  */
 final class OrganizationUsageController
 {
-    public function __construct(private readonly Usage $usage, private readonly DeviceAuthorization $authorization) {}
+    public function __construct(
+        private readonly Usage $usage,
+        private readonly DeviceAuthorization $authorization,
+        private readonly RetentionService $retention,
+    ) {}
 
     public function show(Request $request, Organization $organization): AnonymousResourceCollection
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization);
 
+        $retention = $this->retention->effective($organization);
+
         return OrganizationUsageResource::collection(array_map(
             fn (OrganizationUsage $usage): OrganizationUsageResource => new OrganizationUsageResource($usage),
             $this->usage->forOrganization($organization, CarbonImmutable::now(), withSms: Usage::smsAvailable()),
-        ));
+        ))->additional(['retention' => [
+            'days' => (int) $retention['days'],
+            /** @var 'organization'|'billing_account'|'platform'|'default' */
+            'source' => (string) $retention['source'],
+            'pending_reduction' => $retention['pending_reduction'],
+        ]]);
     }
 }
